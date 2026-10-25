@@ -116,6 +116,7 @@ export default class Board {
             shoupai: [],
             he:      [],
             say:     [],
+            chat:    [],
             dialog:  null,
             summary: hide($('> .summary', root)),
             kaiju:   hide($('> .kaiju', root)),
@@ -190,6 +191,7 @@ export default class Board {
 
             this._view.say[l] = hide($(`.say.${c}`, this._root).text(''));
             this._say[l] = null;
+            this._view.chat[l] = $(`> .chat.${c}`, this._root);
         }
 
         this._lunban = this._model.lunban;
@@ -272,12 +274,17 @@ export default class Board {
         return this;
     }
 
-    hule(hule) {
-
+    clear_bubbles() {
         for (let l = 0; l < 4; l++) {
             fadeOut(this._view.say[l]);
+            fadeOut(this._view.chat[l]);
             this._say[l] = null;
         }
+    }
+
+    hule(hule) {
+
+        this.clear_bubbles();
 
         this._timeout_id = setTimeout(()=>{
             this._view.shoupai[hule.l].redraw(true);
@@ -288,10 +295,7 @@ export default class Board {
 
     pingju(pingju) {
 
-        for (let l = 0; l < 4; l++) {
-            fadeOut(this._view.say[l]);
-            this._say[l] = null;
-        }
+        this.clear_bubbles();
         let duration = 0;
         if (pingju.name.match(/^三家和/)) {
             duration = 400;
