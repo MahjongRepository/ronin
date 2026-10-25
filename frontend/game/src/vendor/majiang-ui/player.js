@@ -36,9 +36,17 @@ export default class Player extends Majiang.Player {
         this.clear_button();
         this.clear_mianzi();
         this.clear_dapai();
+        clearTimeout(this._dialog_timeout);
         clearSelector('kaiju');
         clearSelector('dialog');
+        $('.kaiju', this._node.root).off('.kaiju');
+        $('.hule-dialog', this._node.root).off('.dialog');
         $('.summary .exit', this._node.root).off('.summary');
+    }
+
+    set_dialog_timeout(setup) {
+        clearTimeout(this._dialog_timeout);
+        this._dialog_timeout = setTimeout(setup, 800);
     }
 
     callback(reply) {
@@ -198,10 +206,10 @@ export default class Player extends Majiang.Player {
         if (! this._view) this.callback();
         $('.kaiju', this._node.root).off('click')
                                     .on('click.kaiju', ()=>this.callback());
-        setTimeout(()=>{
+        this.set_dialog_timeout(()=>{
             setSelector($('.kaiju', this._node.root), 'kaiju',
                         { touch: false });
-        }, 800);
+        });
     }
 
     action_qipai(qipai) { this.callback() }
@@ -317,11 +325,11 @@ export default class Player extends Majiang.Player {
     action_hule() {
         $('.hule-dialog', this._node.root).off('click')
                                     .on('click.dialog', ()=>this.callback());
-        setTimeout(()=>{
+        this.set_dialog_timeout(()=>{
             setSelector($('.hule-dialog', this._node.root), 'dialog',
                         { touch: false, focus: null });
             $('.hule-dialog .next', this._node.root).trigger('focus');
-        }, 800);
+        });
     }
 
     action_pingju() {
@@ -331,6 +339,6 @@ export default class Player extends Majiang.Player {
     action_jieju(jieju) {
         const exit = $('.summary .exit', this._node.root);
         exit.off('.summary').on('click.summary', ()=>this.callback());
-        setTimeout(()=>exit.trigger('focus'), 800);
+        this.set_dialog_timeout(()=>exit.trigger('focus'));
     }
 }

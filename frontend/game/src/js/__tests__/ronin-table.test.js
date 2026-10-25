@@ -1,8 +1,11 @@
+import $ from "jquery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import "../majiang.js";
 import Majiang from "../../vendor/majiang-core/index.js";
 import summary from "../../vendor/majiang-ui/summary.js";
 
+import RoninPlayer from "../ronin/player.js";
 import Reply from "../ronin/reply.js";
 import Shadow from "../ronin/shadow.js";
 import Translate from "../ronin/translate.js";
@@ -45,9 +48,8 @@ class TablePlayer extends Majiang.Player {
 
 const BASE_HAND = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112];
 
-function startTable(myTiles = BASE_HAND, round = {}, game = {}) {
+function startTable(myTiles = BASE_HAND, round = {}, game = {}, player = new TablePlayer()) {
     const shadow = new Shadow();
-    const player = new TablePlayer();
     const translate = new Translate(player, shadow);
     const sent = [];
     const reply = new Reply(
@@ -99,6 +101,57 @@ const draw = (seat, tile, extra = {}) => ({ t: 1, d: seat * 136 + tile, ...extra
 const discard = (seat, tile) => ({ t: 2, d: seat * 136 + tile });
 const riichiDiscard = (seat, tile) => ({ t: 2, d: 2 * 544 + seat * 136 + tile });
 const WIN_CALL_MS = 500;
+const DOUBLE_RON = {
+    t: 4,
+    rt: 2,
+    ls: 0,
+    wt: 2,
+    wn: [
+        {
+            ws: 1,
+            hr: {
+                han: 5,
+                fu: 30,
+                yk: [
+                    { yi: 1, han: 1 },
+                    { yi: 13, han: 1 },
+                    { yi: 120, han: 3 },
+                ],
+                pt: 80,
+            },
+            sch: { 0: -86, 1: 96, 2: 0, 3: 0 },
+            rc: 1,
+            ct: [5, 10, 14, 37, 41, 45, 73, 77, 81, 113, 114, 118, 119],
+            ml: [],
+            ud: [8],
+        },
+        {
+            ws: 2,
+            hr: { han: 13, fu: 30, yk: [{ yi: 102, han: 13 }], pt: 320 },
+            sch: { 0: -163, 1: -163, 2: 326, 3: 0 },
+            rc: 0,
+            ct: [3, 20, 24, 28, 124, 125, 126, 128, 129, 130, 132, 133, 134],
+            ml: [],
+            ps: 1,
+        },
+    ],
+    sch: { 0: -249, 1: -67, 2: 326, 3: 0 },
+};
+const DIALOG_READY_MS = 800;
+const RESULT_SHOWN_MS = 500;
+
+function createUIPlayer() {
+    const root = $("<div>").append(
+        '<div class="hule-dialog"><button class="next" type="button">次へ</button></div>',
+        '<div class="summary"><button class="exit" type="button">ロビーへ戻る</button></div>',
+    );
+    return new RoninPlayer(
+        root,
+        () => $("<span>"),
+        () => ({ play() {} }),
+    );
+}
+
 const shownOf = (table, name) => table.player.shown.filter((shown) => shown.name === name);
 
 describe("the ronin table (Translate and Reply)", () => {
@@ -349,43 +402,7 @@ describe("the ronin table (Translate and Reply)", () => {
         vi.useFakeTimers();
         const table = startTable(BASE_HAND, { h: 2, r: 1 });
 
-        table.receive({
-            t: 4,
-            rt: 2,
-            ls: 0,
-            wt: 2,
-            wn: [
-                {
-                    ws: 1,
-                    hr: {
-                        han: 5,
-                        fu: 30,
-                        yk: [
-                            { yi: 1, han: 1 },
-                            { yi: 13, han: 1 },
-                            { yi: 120, han: 3 },
-                        ],
-                        pt: 80,
-                    },
-                    sch: { 0: -86, 1: 96, 2: 0, 3: 0 },
-                    rc: 1,
-                    ct: [5, 10, 14, 37, 41, 45, 73, 77, 81, 113, 114, 118, 119],
-                    ml: [],
-                    ud: [8],
-                },
-                {
-                    ws: 2,
-                    hr: { han: 13, fu: 30, yk: [{ yi: 102, han: 13 }], pt: 320 },
-                    sch: { 0: -163, 1: -163, 2: 326, 3: 0 },
-                    rc: 0,
-                    ct: [3, 20, 24, 28, 124, 125, 126, 128, 129, 130, 132, 133, 134],
-                    ml: [],
-                    ps: 1,
-                },
-            ],
-            sch: { 0: -249, 1: -67, 2: 326, 3: 0 },
-            wi: 9,
-        });
+        table.receive({ ...DOUBLE_RON, wi: 9 });
         vi.advanceTimersByTime(WIN_CALL_MS);
 
         expect(shownOf(table, "hule")).toHaveLength(1);
@@ -411,6 +428,33 @@ describe("the ronin table (Translate and Reply)", () => {
         });
         table.decide({});
         expect(table.sent).toEqual([{ t: 3, a: 9, wi: 9 }]);
+    });
+
+    it("keeps a final double ron's second result dismissable when the first is dismissed before its keyboard setup, then leads to the standings", () => {
+        vi.useFakeTimers();
+        const player = createUIPlayer();
+        const table = startTable(BASE_HAND, { h: 2, r: 1 }, {}, player);
+        const next = $(".hule-dialog .next", player._node.root);
+
+        table.receive(DOUBLE_RON);
+        table.receive({
+            t: 10,
+            ws: 2,
+            st: [
+                { s: 2, sc: 576, fs: 88 },
+                { s: 3, sc: 250, fs: 0 },
+                { s: 1, sc: 183, fs: -12 },
+                { s: 0, sc: 1, fs: -76 },
+            ],
+            lb: 0,
+        });
+        vi.advanceTimersByTime(WIN_CALL_MS + RESULT_SHOWN_MS);
+        next.trigger("click");
+        vi.advanceTimersByTime(DIALOG_READY_MS);
+        next.trigger("click");
+        $(".summary .exit", player._node.root).trigger("click");
+
+        expect(table.sent).toEqual(["lobby"]);
     });
 
     it("gives a nagashi mangan's result each seat's tenpai and its achievers, in dealer-relative order", () => {
