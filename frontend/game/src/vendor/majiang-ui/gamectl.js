@@ -22,6 +22,7 @@ export default class GameCtl {
         this._pref = localStorage.getItem(storage)
                         ? JSON.parse(localStorage.getItem(storage))
                         : { sound_on: true };
+        delete this._pref.speed;
 
         if (game) game._view.no_player_name = true;
         this.redraw();
