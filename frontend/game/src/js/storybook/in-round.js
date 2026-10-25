@@ -11,6 +11,7 @@ import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from 
 
 const VIEWPOINT = 0;
 const GAME_TITLE = "半荘戦";
+const DECISION_DORA = "s3";
 
 const EAST_ONE = Object.freeze({
     zhuangfeng: 0,
@@ -34,7 +35,7 @@ function goAround(own, ...others) {
 
 const OPENING = Object.freeze(goAround("z7", "z4", "s9", "m9"));
 
-const DECISION_VARIANTS = Object.freeze([
+export const DECISION_VARIANTS = Object.freeze([
     {
         key: "turn",
         title: "Tsumo, riichi or kan",
@@ -102,31 +103,48 @@ const DECISION_VARIANTS = Object.freeze([
     },
 ]);
 
+const DRAWN_HIDDEN_HAND = "_".repeat(14);
+const FIRST_RIVERS = Object.freeze(["z1 m9 p1 z4 s9 z7", "z2 s1 m1 p9 z3 m8", "z3 p9 z6 m9 s8 p1"]);
+const RON_WAIT_HAND = "m22456p345s34567";
+
 const MID_ROUND = Object.freeze({
     round: EAST_ONE,
-    shoupai: ["m22456p3478s3567", "", "", ""],
-    rivers: ["z1 m9 p1 z4 s9 z7", "z2 s1 m1 p9 z3 m8", "z3 p9 z6 m9 s8 p1", "z4 z1 s9 m1 p8"],
+    shoupai: ["m22456p3478s3567", "", "", DRAWN_HIDDEN_HAND],
+    rivers: [...FIRST_RIVERS, "z4 z1 s9 m1 p8"],
     dora: ["p6"],
     paishu: 46,
     lunban: 3,
 });
 
-const TABLE_VARIANTS = Object.freeze([
+const RON_ON_NORTH = Object.freeze({
+    ...MID_ROUND,
+    shoupai: [RON_WAIT_HAND, "", "", ""],
+    rivers: [...FIRST_RIVERS, "z4 z1 s9 m1 p8 s2"],
+});
+
+const RONIN_TSUMO = Object.freeze({
+    ...RON_ON_NORTH,
+    shoupai: [`${RON_WAIT_HAND}s8`, "", "", ""],
+    paishu: 45,
+    lunban: VIEWPOINT,
+});
+
+export const TABLE_VARIANTS = Object.freeze([
     {
         key: "rivers",
         title: "Long rivers",
         table: {
-            round: { ...EAST_ONE, lizhibang: 3, defen: [24000, 24000, 24000, 25000] },
-            shoupai: ["m123456789p11z77*", "", "", ""],
+            round: { ...EAST_ONE, lizhibang: 3, defen: [25000, 24000, 24000, 24000] },
+            shoupai: ["m456p11z77,z666+,p888+", "", "", ""],
             rivers: [
-                "z1 z3 p9 s1 z4 m1 s9 p8 z6 s2 p7 m9 s8 z5 p6* s7_ p2_ z2_ s6_ p3_",
-                "z2 z4 m1 s9 p1 z6 m8 s1 p9 z3 m2 s8 p7 m7 s2 m3* s3_ p4_ m4_",
-                "z3 z1 s9 m9 p1 z4 p8 s1 m2 z6 s7 m8 p2 z5 s6* p0_ m6_ s4_",
-                "z4 z2 m1 p9 s9 z3 s1 m8 p8 z6 m7 p7 s8 p3 m6 z1 s5*",
+                "z1 z3 p9 s1 z4 m1 s9 p7 z2 s2 m9 s8 p6 s7 m2 m8 p3 s6 p2",
+                "z2 z4 m1 s9 p1 m8 s1 p9 z3 m2 s8 p7 m3* s3_ p4_ m7_ s2_",
+                "z3 z1 s9 m9 p1 z4 s1 m2 p8 s7 m8 p2 s6* p0_ m6_ s4_ z5_",
+                "z4 z2 m1 p9 s9 z3 s1 m8 p7 m7 p3 s8* m3_ p4_ s5_ m6_ z1_",
             ],
             dora: ["s3"],
             paishu: 0,
-            lunban: 3,
+            lunban: 1,
         },
     },
     {
@@ -142,12 +160,12 @@ const TABLE_VARIANTS = Object.freeze([
             ],
             rivers: [
                 "z1 m9 p1 s9 z7 m8 p6 s6 z3 m5 s4",
-                "z1 s9 p8 m1 s8 s7 m6 p6 z7 s6 p5",
-                "p1 s9 m1 z1 m4 m6 z7 s4 m8 p5",
+                "z1 z5 p8 m1 s8 s7 m6 p6 z7 s6 p5",
+                "p1 p4 m1 z1 m4 m6 z7 s4 m8 p5",
                 "p3 s5 m3 s8 m8 z4 p6 m5 s4 z1 z5",
             ],
             dora: ["s6", "m4", "p1"],
-            paishu: 24,
+            paishu: 25,
             lunban: 0,
         },
     },
@@ -182,13 +200,13 @@ const TABLE_VARIANTS = Object.freeze([
             shoupai: ["", "", "m345p34567s345z66*", ""],
             rivers: [
                 "z1 m9 p1 s9 z4 m1 p8 s1",
-                "z2 s9 m1 z1 p9 s1 m8 p2 z4",
+                "z2 s9 m1 z1 p9 s1 m8 p2",
                 "z3 p9 m9 z4 s1 s8* p1_ m2_",
                 "z4 z1 m1 p9 s9 m8 z3 p2",
             ],
             dora: ["z7"],
-            paishu: 37,
-            lunban: 1,
+            paishu: 38,
+            lunban: 3,
         },
     },
     {
@@ -205,13 +223,13 @@ const TABLE_VARIANTS = Object.freeze([
     {
         key: "ron",
         title: "Double ron bubbles",
-        table: MID_ROUND,
+        table: RON_ON_NORTH,
         say: [
             ["rong", 0],
             ["rong", 2],
         ],
     },
-    { key: "tsumo", title: "Tsumo bubble", table: MID_ROUND, say: [["zimo", 0]] },
+    { key: "tsumo", title: "Tsumo bubble", table: RONIN_TSUMO, say: [["zimo", VIEWPOINT]] },
     {
         key: "chat",
         title: "Chat and a dropped player",
@@ -261,6 +279,10 @@ const TABLE_VARIANTS = Object.freeze([
     },
 ]);
 
+export function dealDecision(hand) {
+    return { ...EAST_ONE, baopai: DECISION_DORA, shoupai: [hand, "", "", ""] };
+}
+
 function playDecision(header, pai, { hand, events, offer, press }) {
     const player = new RoninPlayer($("#board"), pai, Majiang.UI.audio($("#loaddata")));
     const kaiju = {
@@ -271,7 +293,7 @@ function playDecision(header, pai, { hand, events, offer, press }) {
         qijia: 0,
     };
     player.action({ kaiju });
-    player.action({ qipai: { ...EAST_ONE, baopai: "s3", shoupai: [hand, "", "", ""] } });
+    player.action({ qipai: dealDecision(hand) });
     for (const event of events.slice(0, -1)) {
         player.action(event);
     }
@@ -285,7 +307,7 @@ function playDecision(header, pai, { hand, events, offer, press }) {
     }
 }
 
-function createTableModel({ round, shoupai, rivers, dora, paishu, lunban }) {
+export function createTableModel({ round, shoupai, rivers, dora, paishu, lunban }) {
     const model = new Majiang.Board({ title: GAME_TITLE, player: [...SAMPLE_PLAYERS], qijia: 0 });
     model.qipai({ ...round, shoupai, baopai: dora[0] });
     rivers.forEach((river, l) => {
