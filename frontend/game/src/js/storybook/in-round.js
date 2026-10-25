@@ -47,6 +47,17 @@ export const DECISION_VARIANTS = Object.freeze([
         offer: { tsumo: true, riichi: true, gang: ["m1111"] },
     },
     {
+        key: "open-hand",
+        title: "Tsumo or kan on an open hand",
+        hand: "p57s55,m2-34,p777=,z666-",
+        events: [
+            ...OPENING,
+            ...goAround("s9", "z1", "m1", "p1"),
+            { zimo: { l: VIEWPOINT, p: "p6" } },
+        ],
+        offer: { tsumo: true, gang: ["p777=7"] },
+    },
+    {
         key: "call",
         title: "Chi, pon or kan on a discard",
         hand: "m234p23334s678z11",
@@ -67,6 +78,26 @@ export const DECISION_VARIANTS = Object.freeze([
         events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "m5")],
         offer: { chi: ["m345-", "m45-6", "m5-67"] },
         press: "chi",
+    },
+    {
+        key: "open-chi",
+        title: "Choosing a chi on an open hand",
+        hand: "m3467s55z2,p2-34,s777=",
+        events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "m5")],
+        offer: { chi: ["m345-", "m45-6", "m5-67"] },
+        press: "chi",
+    },
+    {
+        key: "kans",
+        title: "Choosing a kan",
+        hand: "m1111p2222z13333",
+        events: [
+            ...OPENING,
+            ...goAround("p9", "z6", "s1", "p1"),
+            { zimo: { l: VIEWPOINT, p: "z1" } },
+        ],
+        offer: { gang: ["m1111", "p2222", "z3333"] },
+        press: "gang",
     },
     {
         key: "riichi",
