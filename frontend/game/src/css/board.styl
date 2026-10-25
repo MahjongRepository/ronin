@@ -185,12 +185,15 @@ body.board
             margin: auto 0
             > div
                 box-sizing: border-box
+                width: fit-content
+                max-width: 100%
                 background: rgb(3,17,14)
                 border: solid 1px #375
                 border-radius: 6px
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6)
                 margin: auto
                 > .title
+                    contain: inline-size
                     font-family: text-font
                     text-align: center
                     line-height: 1.2
@@ -224,6 +227,7 @@ body.board
                         font-family: title-font
                         line-height: 1.2
                     .players
+                        contain: inline-size
                         font-family: text-font
                         &:empty
                             display: none
