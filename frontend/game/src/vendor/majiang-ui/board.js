@@ -217,7 +217,7 @@ export default class Board {
                 this._lizhi = false;
             }
             this._view.he[this._lunban].redraw();
-            this._view.shoupai[this._lunban].redraw();
+            this._view.shoupai[this._lunban].redraw().adjust();
         }
 
         if (   (this._say[this._lunban] == 'lizhi')
@@ -299,7 +299,7 @@ export default class Board {
         }
         else {
             this._view.he[this._lunban].redraw();
-            this._view.shoupai[this._lunban].redraw();
+            this._view.shoupai[this._lunban].redraw().adjust();
         }
 
         this._timeout_id = setTimeout(()=>{

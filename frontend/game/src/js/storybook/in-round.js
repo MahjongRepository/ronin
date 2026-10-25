@@ -186,6 +186,40 @@ export const TABLE_VARIANTS = Object.freeze([
         },
     },
     {
+        key: "side-kans",
+        title: "Four kans on the right",
+        table: {
+            round: EAST_ONE,
+            shoupai: ["m234p456s567z1122", "__,m7777-,p3333=,s8888+,z5555-", "", ""],
+            rivers: [
+                "z7 m9 p1 s9 z4 m1 s1 p9 z6 m8",
+                "z2 p9 m1 s9 z4 s1 m9 p2 s2",
+                "z3 s1 p1 m1 z6 s9 p9 m8 z7",
+                "z4 m9 s9 p1 z2 s2 p8 m2 z1",
+            ],
+            dora: ["p1", "m9", "s2", "z3", "p8"],
+            paishu: 28,
+            lunban: 1,
+        },
+    },
+    {
+        key: "own-kans",
+        title: "Four kans in hand",
+        table: {
+            round: EAST_ONE,
+            shoupai: ["z12,m1111-,p2222+,s3333=,m9999-", "", "", ""],
+            rivers: [
+                "z7 p9 s1 z6 m8 p1 s9 z5 p7",
+                "z3 s1 p9 m2 z7 p1 s8 m8 z5 p4",
+                "z6 p1 s9 m2 z3 s1 p9 m8 z4",
+                "z5 s9 p1 s1 z6 m2 p9 s8 z3",
+            ],
+            dora: ["s6", "p8", "z4", "m4", "s9"],
+            paishu: 28,
+            lunban: VIEWPOINT,
+        },
+    },
+    {
         key: "south",
         title: "South 3, sitting West",
         table: {
