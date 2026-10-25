@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe("Majiang.UI.GameCtl", () => {
-    it("restores the stored sound setting and toggles it from the menu's switch", () => {
+    it("restores the stored sound setting, drops the removed speed setting, and toggles sound from the menu's switch", () => {
         localStorage.setItem(PREF_KEY, JSON.stringify({ sound_on: false, speed: 3 }));
         const root = renderController();
         const view = { sound_on: true };
@@ -44,7 +44,7 @@ describe("Majiang.UI.GameCtl", () => {
         expect(sound.attr("aria-checked")).toBe("true");
         expect(sound.find(".state").text()).toBe("ON");
         expect(view.sound_on).toBe(true);
-        expect(JSON.parse(localStorage.getItem(PREF_KEY))).toEqual({ sound_on: true, speed: 3 });
+        expect(JSON.parse(localStorage.getItem(PREF_KEY))).toEqual({ sound_on: true });
     });
 
     it("opens the menu from the gear and closes it on Escape, returning focus to the gear", () => {

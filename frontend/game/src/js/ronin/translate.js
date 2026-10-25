@@ -55,7 +55,7 @@ const SAY_OF_MELD = {
     [wire.MELD.PON]: 'peng',
 };
 
-/** How long a win's ロン or ツモ shows before its result, which fades every call out: upstream Game.delay's minimum. */
+/** How long a win's ロン or ツモ shows before its result, which fades every call out: the minimum upstream's Game paced it with. */
 const WIN_CALL_MS = 500;
 
 /**

@@ -49,40 +49,25 @@ export default class Game {
 
         this._sync  = false;
         this._stop  = null;
-        this._dwell = 0;
-        this._wait  = 0;
         this._timeout_id;
 
         this._handler;
-        this._speed = 3;
     }
 
     get model()      { return this._model  }
     set view(view)   { this._view = view   }
     get view()       { return this._view   }
-    set dwell(ms)    { this._dwell = ms    }
-    set wait(wait)   { this._wait = wait   }
 
     set handler(callback) { this._handler = callback }
-
-    get speed()      { return this._speed  }
-    set speed(speed) {
-        this._speed = speed;
-        this.dwell = speed * 200;
-    }
 
     add_paipu(paipu) {
         this._paipu.log[this._paipu.log.length - 1].push(paipu);
     }
 
-    delay(callback, timeout) {
+    delay(callback) {
 
         if (this._sync) return callback();
-
-        timeout = this._dwell == 0 ? 0
-                : timeout == null  ? Math.max(500, this._dwell)
-                :                    timeout;
-        setTimeout(callback, timeout);
+        setTimeout(callback, 0);
     }
 
     say(name, l) {
@@ -111,11 +96,8 @@ export default class Game {
         }
     }
 
-    call_players(type, msg, timeout) {
+    call_players(type, msg) {
 
-        timeout = this._dwell == 0 ? 0
-                : timeout == null  ? this._dwell
-                :                    timeout;
         this._status = type;
         this._reply  = [];
         for (let l = 0; l < 4; l++) {
@@ -129,7 +111,7 @@ export default class Game {
                     }, 0);
         }
         if (! this._sync)
-                this._timeout_id = setTimeout(()=>this.next(), timeout);
+                this._timeout_id = setTimeout(()=>this.next(), 0);
     }
 
     reply(id, reply) {
@@ -210,7 +192,7 @@ export default class Game {
                 }
             }));
         }
-        this.call_players('kaiju', msg, 0);
+        this.call_players('kaiju', msg);
 
         if (this._view) this._view.kaiju();
     }
@@ -520,7 +502,7 @@ export default class Game {
         for (let l = 0; l < 4; l++) {
             msg[l] = JSON.parse(JSON.stringify(paipu));
         }
-        this.call_players('hule', msg, this._wait);
+        this.call_players('hule', msg);
 
         if (this._view) this._view.update(paipu);
     }
@@ -607,7 +589,7 @@ export default class Game {
         for (let l = 0; l < 4; l++) {
             msg[l] = JSON.parse(JSON.stringify(paipu));
         }
-        this.call_players('pingju', msg, this._wait);
+        this.call_players('pingju', msg);
 
         if (this._view) this._view.update(paipu);
     }
@@ -654,8 +636,8 @@ export default class Game {
                 && this._lianzhuang && ! this._no_game)         jieju = true;
         }
 
-        if (jieju)  this.delay(()=>this.jieju(), 0);
-        else        this.delay(()=>this.qipai(), 0);
+        if (jieju)  this.delay(()=>this.jieju());
+        else        this.delay(()=>this.qipai());
     }
 
     jieju() {
@@ -699,7 +681,7 @@ export default class Game {
         for (let l = 0; l < 4; l++) {
             msg[l] = JSON.parse(JSON.stringify(paipu));
         }
-        this.call_players('jieju', msg, this._wait);
+        this.call_players('jieju', msg);
 
         if (this._view) this._view.summary(this._paipu);
 
@@ -711,9 +693,9 @@ export default class Game {
         return this._reply[model.player_id[l]];
     }
 
-    reply_kaiju() { this.delay(()=>this.qipai(), 0) }
+    reply_kaiju() { this.delay(()=>this.qipai()) }
 
-    reply_qipai() { this.delay(()=>this.zimo(), 0) }
+    reply_qipai() { this.delay(()=>this.zimo()) }
 
     reply_zimo() {
 
@@ -724,7 +706,7 @@ export default class Game {
             if (this.allow_pingju()) {
                 let shoupai = ['','','',''];
                 shoupai[model.lunban] = model.shoupai[model.lunban].toString();
-                return this.delay(()=>this.pingju('九種九牌', shoupai), 0);
+                return this.delay(()=>this.pingju('九種九牌', shoupai));
             }
         }
         else if (reply.hule) {
@@ -746,12 +728,12 @@ export default class Game {
                     this.say('lizhi', model.lunban);
                     return this.delay(()=>this.dapai(reply.dapai));
                 }
-                return this.delay(()=>this.dapai(dapai), 0);
+                return this.delay(()=>this.dapai(dapai));
             }
         }
 
         let p = this.get_dapai().pop();
-        this.delay(()=>this.dapai(p), 0);
+        this.delay(()=>this.dapai(p));
     }
 
     reply_dapai() {
@@ -799,13 +781,13 @@ export default class Game {
         if (this._diyizimo && model.lunban == 3) {
             this._diyizimo = false;
             if (this._fengpai) {
-                return this.delay(()=>this.pingju('四風連打'), 0);
+                return this.delay(()=>this.pingju('四風連打'));
             }
         }
 
         if (this._n_gang.reduce((x, y)=> x + y) == 4) {
             if (Math.max(...this._n_gang) < 4 && this._rule['途中流局あり']) {
-                return this.delay(()=>this.pingju('四開槓'), 0);
+                return this.delay(()=>this.pingju('四開槓'));
             }
         }
 
@@ -815,7 +797,7 @@ export default class Game {
                 let reply = this.get_reply(l);
                 if (reply.daopai) shoupai[l] = reply.daopai;
             }
-            return this.delay(()=>this.pingju('', shoupai), 0);
+            return this.delay(()=>this.pingju('', shoupai));
         }
 
         for (let i = 1; i < 4; i++) {
@@ -846,7 +828,7 @@ export default class Game {
             }
         }
 
-        this.delay(()=>this.zimo(), 0);
+        this.delay(()=>this.zimo());
     }
 
     reply_fulou() {
@@ -854,18 +836,18 @@ export default class Game {
         let model = this._model;
 
         if (this._gang) {
-            return this.delay(()=>this.gangzimo(), 0);
+            return this.delay(()=>this.gangzimo());
         }
 
         let reply = this.get_reply(model.lunban);
         if (reply.dapai) {
             if (this.get_dapai().find(p => p == reply.dapai)) {
-                return this.delay(()=>this.dapai(reply.dapai), 0);
+                return this.delay(()=>this.dapai(reply.dapai));
             }
         }
 
         let p = this.get_dapai().pop();
-        this.delay(()=>this.dapai(p), 0);
+        this.delay(()=>this.dapai(p));
     }
 
     reply_gang() {
@@ -873,7 +855,7 @@ export default class Game {
         let model = this._model;
 
         if (this._gang.match(/^[mpsz]\d{4}$/)) {
-            return this.delay(()=>this.gangzimo(), 0);
+            return this.delay(()=>this.gangzimo());
         }
 
         for (let i = 1; i < 4; i++) {
@@ -896,7 +878,7 @@ export default class Game {
             return this.delay(()=>this.hule());
         }
 
-        this.delay(()=>this.gangzimo(), 0);
+        this.delay(()=>this.gangzimo());
     }
 
     reply_hule() {
@@ -914,7 +896,7 @@ export default class Game {
         }
         else {
             if (this._lianzhuang) model.changbang = this._changbang + 1;
-            return this.delay(()=>this.last(), 0);
+            return this.delay(()=>this.last());
         }
     }
 
@@ -927,7 +909,7 @@ export default class Game {
         }
         model.changbang++;
 
-        this.delay(()=>this.last(), 0);
+        this.delay(()=>this.last());
     }
 
     get_dapai() {
