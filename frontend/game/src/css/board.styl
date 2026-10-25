@@ -98,18 +98,59 @@ body.board
             color: white
             text-align: center
     > .player
-        background: black
+        box-sizing: border-box
+        display: grid
+        grid-template-columns: auto minmax(0, 1fr)
+        align-items: center
+        column-gap: 0.4em
+        background: rgba(0, 0, 0, 0.55)
+        border: solid 1px rgba(255, 255, 255, 0.15)
+        color: #eee
         font-family: text-font
-        opacity: 0.5
         white-space: nowrap
         overflow: hidden
-        text-overflow: ellipsis
+        .feng
+            grid-row: 1 / 3
+            display: flex
+            align-items: center
+            justify-content: center
+            border-radius: 4px
+            background: rgba(255, 255, 255, 0.15)
+            font-family: title-font
+            line-height: 1
+        .name
+            overflow: hidden
+            text-overflow: ellipsis
+            line-height: 1.15
+        .info
+            display: flex
+            align-items: center
+            gap: 0.4em
+            line-height: 1.2
+        .defen
+            font-family: defen-font
+            color: #ccc
+        .badge
+            padding: 0 0.3em
+            border-radius: 3px
+            font-family: menu-font
+            line-height: 1.35
+            &.dealer
+                background: #fc6
+                color: black
+            &.offline
+                background: #b71c1c
+                color: white
         &.disconnect
-            opacity: 0.1
-        &.selectable
-            cursor: pointer
-            &:hover
-                opacity: 1
+            .name
+            .defen
+                color: #999
+        &.lunban
+            border-color: #0ff
+            background: rgba(0, 48, 48, 0.8)
+            .feng
+                background: #0ff
+                color: black
     .say
         font-family: text-font
         color: white
