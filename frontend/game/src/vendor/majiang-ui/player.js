@@ -53,18 +53,22 @@ export default class Player extends Majiang.Player {
                 .attr('tabindex', 0)
                 .on('click.button', callback));
         this._show_button = true;
+        this._buttons.push([type, callback]);
     }
 
     show_button(callback = ()=>{}) {
         this.show_timer();
         if (! this._show_button) return callback();
+        this._button_callback = callback;
         const handler = ()=>{ this.clear_button(); callback() };
-        this.set_button('cansel', handler);
+        show($('.cansel', this._node.button)
+                .attr('tabindex', 0)
+                .on('click.button', handler));
         this._node.root.on('click.button', handler);
 
         show(this._node.button.width($(this._node.dapai).width()));
         setSelector($('.button[tabindex]', this._node.button),
-                    'button', {focus: -1, touch: false});
+                    'button', {focus: 0, touch: false});
     }
 
     clear_button() {
@@ -73,11 +77,23 @@ export default class Player extends Majiang.Player {
         hide(this._node.button);
         this._node.root.off('.button');
         this._show_button = false;
+        this._buttons = [];
     }
 
     select_mianzi(mianzi) {
+        const buttons = this._buttons;
+        const callback = this._button_callback;
+        const default_reply = this._default_reply;
         this.clear_button();
         this._node.mianzi.empty();
+        const back = $('<span class="back" title="戻る [Esc]" aria-label="戻る">戻る</span>')
+                .on('click.mianzi', ()=>{
+                    this.clear_mianzi();
+                    this._default_reply = default_reply;
+                    for (const [type, cb] of buttons) this.set_button(type, cb);
+                    this.show_button(callback);
+                    return false;
+                });
         for (let m of mianzi) {
             let msg = m.match(/\d/g).length == 4 ? {gang: m} : {fulou: m}
             if (! this._default_reply) this._default_reply = msg;
@@ -85,10 +101,16 @@ export default class Player extends Majiang.Player {
                     this._mianzi(m, true)
                         .on('click.mianzi',()=>this.callback(msg)));
         }
+        this._node.mianzi.append(back);
         clearTimeout(this._mianzi_timeout);
         show(this._node.mianzi.width($(this._node.dapai).width()));
-        setSelector($('.mianzi', this._node.mianzi), 'mianzi',
-                    {touch: false, focus: null});
+        setSelector($('.mianzi, .back', this._node.mianzi), 'mianzi',
+                    {touch: false});
+        $(window).on('keyup.mianzi', (ev)=>{
+            if (ev.key != 'Escape') return;
+            back.trigger('click');
+            return false;
+        });
         return false;
     }
 
