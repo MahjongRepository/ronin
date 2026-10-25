@@ -26,16 +26,43 @@ const say_text   = { chi:   'チー',
                      rong:  'ロン',
                      zimo:  'ツモ'    };
 
+function format_defen(defen) {
+    return ('' + defen).replace(/(\d)(\d{3})$/,'$1,$2');
+}
+
+/* A seat's nameplate: its wind, name and score, the dealer's 親, and 切断中
+ * while a disconnected player's seat is played for them. */
+function nameplate(plate, l, name, defen, connected) {
+    plate.toggleClass('zhuangjia', l == 0)
+         .empty()
+         .append($('<span class="feng">').text(feng_hanzi[l]),
+                 $('<span class="name">').text(name),
+                 $('<span class="info">').append(
+                    $('<span class="defen">').text(format_defen(defen)),
+                    l == 0 ? $('<span class="badge dealer">').text('親')
+                           : null));
+    return mark_offline(plate, ! connected);
+}
+
+function mark_offline(plate, offline) {
+    $('.badge.offline', plate).remove();
+    if (offline) $('.info', plate).append(
+                        $('<span class="badge offline">').text('切断中'));
+    return plate.toggleClass('disconnect', offline);
+}
+
 class Score {
 
-    constructor(root, model) {
+    constructor(root, model, board) {
         this._model = model;
+        this._board = board;
         this._view = {
             root:      root,
             jushu:     $('.jushu', root),
             changbang: $('.changbang', root),
             lizhibang: $('.lizhibang', root),
             defen:     [],
+            player:    [],
         };
         this._viewpoint = 0;
         hide(this._view.root);
@@ -55,13 +82,14 @@ class Score {
 
         for (let l = 0; l < 4; l++) {
             let id = this._model.player_id[l];
-            let defen = '' + this._model.defen[id];
-            defen = defen.replace(/(\d)(\d{3})$/,'$1,$2');
-            defen = `${feng_hanzi[l]}: ${defen}`;
+            let defen = format_defen(this._model.defen[id]);
             let c = class_name[(id + 4 - this._viewpoint) % 4];
-            this._view.defen[l] = $(`.defen .${c}`, this._root);
-            this._view.defen[l].removeClass('lunban').text(defen);
+            this._view.defen[l] = $(`.defen .${c}`, this._view.root);
+            this._view.defen[l].removeClass('lunban')
+                               .text(`${feng_hanzi[l]}: ${defen}`);
             if (l == this._model.lunban) this._view.defen[l].addClass('lunban');
+            this._view.player[l] = $(`> .player.${c}`, this._board);
+            $('.defen', this._view.player[l]).text(defen);
         }
         return this;
     }
@@ -69,8 +97,8 @@ class Score {
     update() {
         let lunban = this._model.lunban < 0 ? 0 : this._model.lunban;
         for (let l = 0; l < 4; l++) {
-            if (l == lunban) this._view.defen[l].addClass('lunban');
-            else             this._view.defen[l].removeClass('lunban');
+            this._view.defen[l].toggleClass('lunban', l == lunban);
+            this._view.player[l].toggleClass('lunban', l == lunban);
         }
         return this;
     }
@@ -83,7 +111,7 @@ export default class Board {
         this._model = model;
         this._pai   = pai;
         this._view  = {
-            score:   new Score($('.score', root), model),
+            score:   new Score($('.score', root), model, root),
             shan:    null,
             shoupai: [],
             he:      [],
@@ -94,6 +122,7 @@ export default class Board {
         };
         this._say = [];
         this._lizhi = false;
+        this._connected = [true, true, true, true];
 
         this.viewpoint = 0;
         this.sound_on  = true
@@ -105,7 +134,7 @@ export default class Board {
 
         this.set_audio(audio);
 
-        $('> .player', this._root).removeClass('disconnect');
+        $('> .player', this._root).each((i, plate)=>mark_offline($(plate), false));
 
         $(window).on('resize', ()=>this._view.shoupai.forEach(s=>s.adjust()));
     }
@@ -144,7 +173,8 @@ export default class Board {
                 let name = (this.dummy_name == null)
                                 ? this._model.player[id].replace(/\n.*$/,'')
                                 : dummy_name[(4 + id - this.dummy_name) % 4];
-                show($(`> .player.${c}`, this._root).text(name));
+                show(nameplate($(`> .player.${c}`, this._root), l, name,
+                               this._model.defen[id], this._connected[id]));
             }
 
             let open = this._model.player_id[l] == this.viewpoint;
@@ -325,10 +355,9 @@ export default class Board {
 
     players(players) {
         for (let id = 0; id < 4; id++) {
+            this._connected[id] = !! players[id];
             let c = class_name[(id + 4 - this.viewpoint) % 4];
-            if (players[id])
-                    $(`> .player.${c}`, this._root).removeClass('disconnect');
-            else    $(`> .player.${c}`, this._root).addClass('disconnect');
+            mark_offline($(`> .player.${c}`, this._root), ! players[id]);
         }
     }
 }
