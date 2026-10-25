@@ -129,14 +129,14 @@ def roll_dice(words: WordSource) -> tuple[int, int]:
     return bounded_uint(words, 6) + 1, bounded_uint(words, 6) + 1
 
 
-def generate_shuffled_wall_and_dice(seed_hex: str, round_number: int) -> tuple[list[int], tuple[int, int]]:
+def generate_shuffled_wall_and_dice(seed_hex: str, round_number: int, tiles=None) -> tuple[list[int], tuple[int, int]]:
     """
     Shuffle the 136 tiles and roll the wall-break dice for one round.
 
     Order matches physical Mahjong: the wall is built first, then the dice are rolled, both from the round's stream.
     """
     words = _round_stream(seed_hex, round_number)
-    shuffled = fisher_yates_shuffle(list(range(NUM_TILES)), words)
+    shuffled = fisher_yates_shuffle(tiles, words) if tiles else fisher_yates_shuffle(list(range(NUM_TILES)), words)
     return shuffled, roll_dice(words)
 
 

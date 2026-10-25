@@ -1,7 +1,9 @@
+from backend.game.logic.rng import roll_dice
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from game.logic.rng import generate_shuffled_wall_and_dice
+from game.logic.rng import _round_stream
 from game.logic.settings import MAX_KANS, NUM_PLAYERS
+from game.logic.stable_rng import generate_stable_seed, randomize_wall
 from game.logic.tiles import NUM_TILES, sort_tiles
 
 TILES_PER_STACK = 2
@@ -206,7 +208,14 @@ def create_wall(*, seed: str, round_number: int, dealer_seat: int) -> Wall:
     """
     Generate a shuffled wall with dice-determined break position.
     """
-    shuffled, dice = generate_shuffled_wall_and_dice(seed, round_number)
+    origin_seed = seed
+    dice = roll_dice(words = _round_stream(seed, round_number))
+    seed = generate_stable_seed()
+    shuffled = randomize_wall(seed)
+    for _i in range(12):
+        dice = roll_dice(words = _round_stream(origin_seed, round_number))
+        seed = generate_stable_seed()
+        shuffled = randomize_wall(seed, tiles=shuffled)
     live_tiles, dead_stacks = _split_wall_by_dice(shuffled, dice, dealer_seat)
     return Wall(live_tiles=tuple(live_tiles), dead_wall=build_dead_wall(dead_stacks), dice=dice)
 
