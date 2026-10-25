@@ -6,6 +6,7 @@ from typing import Any
 import structlog
 from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID
 
+from game.logic.enums import WireGameType
 from game.logic.types import WIRE_SCORE_DIVISOR
 from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
@@ -33,6 +34,14 @@ _HAN_HANEMAN = 6
 _HAN_BAIMAN = 8
 _HAN_SANBAIMAN = 11
 _HAN_YAKUMAN = 13
+
+TENHOU_GO_VS_HUMAN = 0x01
+TENHOU_GO_HANCHAN = 0x08
+TENHOU_GO_LENGTH_BITS = {
+    WireGameType.HANCHAN: TENHOU_GO_HANCHAN,
+    WireGameType.TONPUSEN: 0,
+}
+GAME_TYPE_OF_REPLAYS_WITHOUT_GT = WireGameType.HANCHAN
 
 
 def _to_binary_string(number: int, size: int | None = None) -> str:
@@ -238,6 +247,16 @@ def _compute_limit(han: int) -> int:
     return 0
 
 
+def _tenhou_go_type(wire_game_type: int) -> int:
+    """
+    Compute the tenhou GO type bitfield for a wire game type.
+
+    Four players against humans with red fives and open tanyao (their tenhou bits clear), plus the hanchan bit for an
+    East-South game.
+    """
+    return TENHOU_GO_VS_HUMAN | TENHOU_GO_LENGTH_BITS[WireGameType(wire_game_type)]
+
+
 def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
     """
     Format the doraHaiUra attribute, or empty string when absent.
@@ -320,7 +339,8 @@ class TenhouConverter:
         self.tags.append('<mjloggm ver="2.3">')
         rng_version = event.get("rv", "")
         self.tags.append(f'<SHUFFLE seed="{seed}" ref="{rng_version}"/>')
-        self.tags.append('<GO type="9" lobby="0"/>')
+        go_type = _tenhou_go_type(event.get("gt", GAME_TYPE_OF_REPLAYS_WITHOUT_GT))
+        self.tags.append(f'<GO type="{go_type}" lobby="0"/>')
 
         names = [p["nm"] for p in players]
         self.tags.append(
