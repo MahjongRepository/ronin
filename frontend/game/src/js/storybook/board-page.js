@@ -20,18 +20,6 @@ export function renderVariantNav(variants, current) {
     return $('<nav class="storybook-nav storybook-variants">').append(links);
 }
 
-function fitBoardBelowHeader() {
-    const board = $("#board");
-    const height = board.outerHeight();
-    const available = window.innerHeight - board.offset().top;
-    const scale = Math.min(1, available / height);
-    board.css({
-        transform: `scale(${scale})`,
-        transformOrigin: "top center",
-        marginBottom: height * (scale - 1),
-    });
-}
-
 /** On a short screen the header is one scrolling row; scroll it so the shown variant is in view. */
 function revealActiveVariant(header) {
     header
@@ -51,10 +39,10 @@ export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true 
     }
     new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY, null);
     const layOutPage = () => {
-        fitBoardBelowHeader();
+        Majiang.UI.Util.scale($("#board"));
         revealActiveVariant(header);
     };
-    fitBoardBelowHeader();
+    Majiang.UI.Util.scale($("#board"));
     document.fonts.ready.then(layOutPage);
     $(window).on("resize", layOutPage);
     return board;

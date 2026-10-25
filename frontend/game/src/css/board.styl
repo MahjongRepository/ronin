@@ -8,6 +8,10 @@ body.board
         margin: 0 auto
     #board
         display: block
+        position: relative
+        width: auto
+        overflow: hidden
+        background: #154
 #space
     display: none
 
@@ -15,12 +19,24 @@ body.board
     display: none
 #board > .board
     position: absolute
+    top: 0
+    left: 0
     width: 800px
-    overflow: hidden
     user-select: none
     touch-action: manipulation
-    margin: 0 auto
+    transform-origin: 0 0
     background: #154
+    &::after
+        content: ""
+        position: absolute
+        inset: -200vmax
+        z-index: 2
+        background: rgba(0, 0, 0, 0.5)
+        opacity: 0
+        pointer-events: none
+        transition: opacity 0.2s ease-out
+    &:has(> :is(.hule-dialog, .summary):not(.hide, .fadeout))::after
+        opacity: 1
     > *
         position: absolute
         transform-origin: 0% 0%
@@ -185,7 +201,6 @@ body.board
         display: flex
         overflow: auto
         align-items: center
-        background: rgba(0, 0, 0, 0.5)
         transition: opacity 0.2s ease-in
         &:focus
             outline: none
@@ -289,7 +304,6 @@ body.board
         display: flex
         overflow: auto
         align-items: center
-        background: rgba(0, 0, 0, 0.5)
         transition: opacity 0.2s ease-out
         &:focus
             outline: none
