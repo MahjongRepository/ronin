@@ -15,11 +15,8 @@
                 font-size: 30px
             .jicun
                 float: left
-                padding-left: 12px
-                padding-right: 0
-                img.chouma
-                    width: 30px
-                    height: 6px
+                padding: 2px 0 0 10px
+                font-size: 14px
         .shan
             padding: 4px
             pai-size: 28px
@@ -89,21 +86,23 @@
             transform: translate(455px, 165px) rotate(180deg)
         &.shangjia
             transform: translate(240px, 140px) rotate(90deg)
+    // The bottom and top hands sit 4px in from the table edge, and the side
+    // melds end 8px short of it, so no tile runs into the board's border.
     .shoupai
         &.main
             shoupai-size: 604px 60px 56px 42px
-            transform: translate(78px, 388px)
+            transform: translate(78px, 386px)
             z-index: 1
         &.xiajia
-            shoupai-size: 448px 87px 35px 34px
+            shoupai-size: 442px 87px 35px 34px
             transform: translate(652px, 450px) rotate(270deg)
             .bingpai
                 margin-left: 72px
         &.duimian
             shoupai-size: 490px 50px 35px 35px
-            transform: translate(625px, 52px) rotate(180deg)
+            transform: translate(625px, 54px) rotate(180deg)
         &.shangjia
-            shoupai-size: 448px 87px 35px 34px
+            shoupai-size: 442px 87px 35px 34px
             transform: translate(108px, 0px) rotate(90deg)
             .bingpai
                 margin-left: 20px
@@ -169,10 +168,6 @@
                         font-size: 17px
                     .jicun
                         font-size: 13px
-                        .chouma
-                            padding-left: 8px
-                            width: 60px
-                            height: 8px
                 .pingju
                     margin: 12px 0
                     .name

@@ -33,6 +33,11 @@ body.board
                 font-family: title-font
                 font-size: 32px
                 line-height: 1.2
+            .jicun
+                line-height: 1.25
+                white-space: nowrap
+                > span
+                    display: block
         .shan
             float: right
             text-align: right
@@ -251,6 +256,8 @@ body.board
                     .jicun
                         text-align: center
                         font-family: defen-font
+                        > span + span
+                            margin-left: 1.5em
                 .pingju
                     text-align: center
                     .name
