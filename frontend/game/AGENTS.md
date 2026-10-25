@@ -28,8 +28,15 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * Static assets live in `public/` and are referenced by absolute path (`/img/…`, `/audio/…`), which
   Vite prefixes with the base in dev and build alike. A relative path skips the base and breaks.
 * Styles are upstream's Stylus sheets: `index.styl` for the board, `pages.styl` for the replay,
-  storybook and missing-session pages, both imported by the entry. The board is a fixed 800px
-  layout that `Majiang.UI.Util.scale` fits to the window.
+  storybook and missing-session pages, both imported by the entry. `#board` is a full-bleed felt
+  stage filling the window below whatever sits above it; inside it, the table (`#board > .board`,
+  a fixed 800px layout) is scaled up or down by `Majiang.UI.Util.scale` to fit, centred, except
+  on an upright touch screen, where it rests on the stage's bottom edge for hand reach. The
+  settings gear is a HUD pinned to the stage's top-right corner, outside the table: the right
+  player's melds reach that corner of the table, so when the side felt is too narrow for the gear
+  the fitter either narrows the table or leaves a strip above it, whichever keeps it larger. The
+  result and standings dialogs dim the whole stage through one layer on the table that reaches
+  past its edges, so the table does not clip its overflow.
 
 ## App
 
@@ -76,9 +83,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Replay:** the page fetches `/api/replays/{game_id}` and shows its raw text; there is no viewer.
 * **Storybook:** renders majiang-ui's own components (tiles, hands, melds, rivers and the board)
   from fixed sample states in `storybook.js` and `storybook/`; the board pages reuse the page's
-  `#board` markup and fit the board to the window below their header themselves, not through
-  `Majiang.UI.Util.scale`. The in-round and round-end pages feed their states the way the ronin
-  layer does (`RoninPlayer` with server-style offers, `translate.js`'s round-end shapes), so they
+  `#board` markup and fit it below their header with the same `Majiang.UI.Util.scale`. The
+  in-round and round-end pages feed their states the way the ronin layer does (`RoninPlayer` with server-style offers, `translate.js`'s round-end shapes), so they
   show what a player sees; keep them in step when that layer changes.
 * The game UI's text is upstream's Japanese; the pages written for ronin (replay, storybook) are
   English.
