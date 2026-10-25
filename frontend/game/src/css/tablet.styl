@@ -120,8 +120,29 @@
             transform: translate(280px, 35px)
         &.shangjia
             transform: translate(40px, 165px)
+    .chat
+        max-width: 160px
+        padding: 3px 8px
+        border-radius: 6px
+        font-size: 13px
+        > span
+            -webkit-line-clamp: 2
+        &::after
+            border-width: 6px 5px
+        &.main
+            left: 112px
+            bottom: 112px
+        &.xiajia
+            right: 151px
+            top: 341px
+        &.duimian
+            max-width: 140px
+            left: 460px
+            top: 96px
+        &.shangjia
+            left: 125px
+            bottom: 364px
     .hule-dialog
-        z-index: 1
         width: 800px
         height: 450px
         > div
@@ -169,7 +190,6 @@
                     padding: 4px 16px
                     font-size: 15px
     > .summary
-        z-index: 1
         width: 800px
         height: 450px
         > div

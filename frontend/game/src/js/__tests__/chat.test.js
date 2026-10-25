@@ -15,8 +15,11 @@ function silentAudio() {
 }
 
 function drawBoard() {
+    const seats = ["main", "xiajia", "duimian", "shangjia"];
     const root = $('<div class="board">').append(
-        ["main", "xiajia", "duimian", "shangjia"].map((c) => $(`<div class="say ${c}">`)),
+        seats.map((c) => $(`<div class="say ${c}">`)),
+        seats.map((c) => $(`<div class="chat ${c} hide">`)),
+        $('<div class="hule-dialog hide">'),
     );
     const model = new Majiang.Board({ title: "", player: ["a", "b", "c", "d"], qijia: 0 });
     model.qipai({
@@ -30,7 +33,13 @@ function drawBoard() {
     });
     const board = new Majiang.UI.Board(root, renderTile, silentAudio, model).redraw();
     board.sound_on = false;
-    return { board, model, bubble: $(".say.duimian", root) };
+    return {
+        board,
+        model,
+        root,
+        call: $(".say.duimian", root),
+        bubble: $(".chat.duimian", root),
+    };
 }
 
 function isShown(node) {
@@ -46,34 +55,44 @@ describe("showChat", () => {
         vi.useRealTimers();
     });
 
-    it("shows the line in the seat's bubble, which the board hides, and fades it out later", () => {
+    it("shows the line as text in the seat's chat bubble and fades it out later", () => {
         const { board, bubble } = drawBoard();
 
-        expect(showChat(board, SEAT, "gl hf")).toBe(true);
+        expect(showChat(board, SEAT, "<b>gl</b> hf")).toBe(true);
         expect(isShown(bubble)).toBe(true);
-        expect(bubble.text()).toBe("gl hf");
+        expect(bubble.text()).toBe("<b>gl</b> hf");
+        expect(bubble.find("b")).toHaveLength(0);
 
         vi.advanceTimersByTime(CHAT_SHOWN_MS);
         expect(bubble.hasClass("fadeout")).toBe(true);
     });
 
-    it("leaves the seat's call bubbles to the board", () => {
-        const { board, model, bubble } = drawBoard();
+    it("shows beside the seat's call bubble without touching it", () => {
+        const { board, model, call, bubble } = drawBoard();
         model.lunban = SEAT;
         board.update();
         board.say("lizhi", SEAT);
 
-        expect(showChat(board, SEAT, "nice")).toBe(false);
-        expect(bubble.text()).toBe("リーチ");
+        expect(showChat(board, SEAT, "ron")).toBe(true);
+        expect(call.text()).toBe("リーチ");
+        expect(bubble.text()).toBe("ron");
+        expect(isShown(bubble)).toBe(true);
+    });
 
-        model.lunban = SEAT + 1;
-        board.update();
-        expect(showChat(board, SEAT, "gl hf")).toBe(true);
-        bubble.trigger("transitionend");
-        expect(isShown(bubble)).toBe(true);
-        board.say("chi", SEAT);
-        vi.advanceTimersByTime(CHAT_SHOWN_MS);
-        expect(isShown(bubble)).toBe(true);
-        expect(bubble.text()).toBe("チー");
+    it("is cleared when a result opens while it shows", () => {
+        const { board, bubble } = drawBoard();
+        showChat(board, SEAT, "gg");
+
+        board.hule({ l: SEAT });
+
+        expect(bubble.hasClass("fadeout")).toBe(true);
+    });
+
+    it("is not shown while a result dialog covers the table", () => {
+        const { board, root, bubble } = drawBoard();
+        $(".hule-dialog", root).removeClass("hide");
+
+        expect(showChat(board, SEAT, "gg")).toBe(false);
+        expect(isShown(bubble)).toBe(false);
     });
 });

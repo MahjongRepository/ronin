@@ -213,8 +213,33 @@ const TABLE_VARIANTS = Object.freeze([
         key: "chat",
         title: "Chat and a dropped player",
         table: MID_ROUND,
-        chat: { l: 2, text: "gl hf" },
+        chat: [
+            [0, "gl hf"],
+            [1, "ron"],
+            [
+                2,
+                "that was a really long wait for the last tile, I almost fell asleep at the table, wake me up when it is my turn",
+            ],
+            [3, "よろしくお願いします"],
+        ],
         connected: [true, true, true, false],
+    },
+    {
+        key: "chat-calls",
+        title: "Chat over call bubbles",
+        table: MID_ROUND,
+        say: [
+            ["lizhi", 0],
+            ["gang", 1],
+            ["peng", 2],
+            ["chi", 3],
+        ],
+        chat: [
+            [0, "ロン"],
+            [1, "sorry"],
+            [2, "nice"],
+            [3, "ツモ!"],
+        ],
     },
 ]);
 
@@ -258,14 +283,14 @@ function createTableModel({ round, shoupai, rivers, dora, paishu, lunban }) {
     return model;
 }
 
-function drawTable(header, pai, { table, say = [], chat, connected }) {
+function drawTable(header, pai, { table, say = [], chat = [], connected }) {
     const board = showBoardPage(header, pai, createTableModel(table), { viewpoint: VIEWPOINT });
     board.sound_on = false;
     for (const [name, l] of say) {
         board.say(name, l);
     }
-    if (chat) {
-        showChat(board, chat.l, chat.text);
+    for (const [l, text] of chat) {
+        showChat(board, l, text);
     }
     if (connected) {
         board.players(connected);
