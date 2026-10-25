@@ -287,31 +287,63 @@ body.board
 #board
     .controller
         position: absolute
-        img
-            display: none
-            opacity: 0.2
+        z-index: 2
+        button
+            display: block
+            margin: 0
+            border: none
+            background: transparent
+            color: white
             cursor: pointer
-            &.sound
-                display: inline
-        &.paipu
-            img
-                display: inline
-        .speed
-            img
-                display: inline
-            span
-                display: inline-block
-                background: white
-                opacity: 0.1
-        &:hover
-            border-color: #333
+            &:focus-visible
+                outline: solid 2px #fc6
+                outline-offset: 2px
+        .settings-toggle
+            width: 40px
+            height: 40px
+            padding: 8px
+            border-radius: 6px
+            opacity: 0.6
+            &:hover
+            &:focus-visible
+            &[aria-expanded="true"]
+                opacity: 1
+                background: rgba(255, 255, 255, 0.15)
+            svg
+                display: block
+                pointer-events: none
+                width: 100%
+                height: 100%
+        .settings-menu
+            position: absolute
+            top: 44px
+            right: 0
+            padding: 6px
             background: black
+            border: solid 1px #666
+            border-radius: 6px
+            font-family: menu-font
+            font-size: 16px
+        .sound
+            display: flex
+            align-items: center
+            gap: 8px
+            min-width: 140px
+            padding: 6px 8px
+            border-radius: 4px
+            font: inherit
+            white-space: nowrap
+            &:hover
+                background: rgba(255, 255, 255, 0.15)
             img
-                opacity: 0.5
-                &:hover
-                    opacity: 1
-            span
-                opacity: 0.2
+                width: 20px
+                height: 20px
+            &[aria-checked="true"] img.off
+            &[aria-checked="false"] img.on
+                display: none
+            .state
+                margin-left: auto
+                font-weight: bold
     .download
         position: absolute
         z-index: 1
