@@ -328,9 +328,10 @@ export default class Board {
         if (viewpoint != null) this.viewpoint = viewpoint;
         if (this.no_player_name) return;
         hide($('> *', this._root));
-        let title = $('<span>').text(this._model.title).html()
-                                            .replace(/\n/g,'<br>');
-        $('.title', this._view.kaiju).html(title);
+        let [title, ...sub] = this._model.title.split('\n');
+        $('.title', this._view.kaiju).empty().append(
+                $('<div>').text(title),
+                sub.map(line => $('<div class="sub">').text(line)));
         for (let id = 0; id < 4; id++) {
             let c = class_name[(4 - this.viewpoint + id) % 4];
             let name = (this.dummy_name == null)

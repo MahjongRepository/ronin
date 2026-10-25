@@ -12,10 +12,12 @@ from game.logic.enums import (
     RoundResultType,
     WindName,
     WireCallType,
+    WireGameType,
     WireMeldCallType,
     WirePlayerAction,
     WireWind,
 )
+from game.logic.settings import GameType
 
 WIRE_SCORE_DIVISOR = 100  # Wire protocol divides scores by 100 (25000 → 250)
 
@@ -44,12 +46,17 @@ def _player_action_to_wire(v: PlayerAction) -> int:
     return WirePlayerAction[v.name]
 
 
+def _game_type_to_wire(v: GameType) -> int:
+    return WireGameType[v.name]
+
+
 WireScore = Annotated[int, PlainSerializer(_score_to_wire)]
 WireScoreMap = Annotated[dict[int, int], PlainSerializer(_score_map_to_wire)]
 WireWindField = Annotated[WindName, PlainSerializer(_wind_to_wire)]
 WireCallTypeField = Annotated[CallType, PlainSerializer(_call_type_to_wire)]
 WireMeldCallTypeField = Annotated[MeldCallType, PlainSerializer(_meld_call_type_to_wire)]
 WirePlayerActionField = Annotated[PlayerAction, PlainSerializer(_player_action_to_wire)]
+WireGameTypeField = Annotated[GameType, PlainSerializer(_game_type_to_wire)]
 
 
 class SeatConfig(BaseModel):

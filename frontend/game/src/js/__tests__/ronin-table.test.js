@@ -43,7 +43,7 @@ class TablePlayer extends Majiang.Player {
 
 const BASE_HAND = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112];
 
-function startTable(myTiles = BASE_HAND, round = {}) {
+function startTable(myTiles = BASE_HAND, round = {}, game = {}) {
     const shadow = new Shadow();
     const player = new TablePlayer();
     const translate = new Translate(player, shadow);
@@ -65,6 +65,8 @@ function startTable(myTiles = BASE_HAND, round = {}) {
             [1, 1],
         ],
         p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 0 })),
+        gt: 0,
+        ...game,
     });
     receive({
         t: 9,
@@ -516,6 +518,14 @@ describe("the ronin table (Translate and Reply)", () => {
 
         expect(shownOf(table, "kaiju")).toHaveLength(1);
         expect(shownOf(table, "qipai")).toHaveLength(2);
+    });
+
+    it("titles the game start with the game's length and local start time, not the game id", () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 9, 25, 14, 30));
+        const table = startTable(BASE_HAND, {}, { gid: "3f2b6c1e", gt: 1 });
+
+        expect(shownOf(table, "kaiju")[0].data.title).toBe("東風戦\n2026/10/25 14:30");
     });
 
     it("calls out a riichi as it is discarded and a win before its result", () => {

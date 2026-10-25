@@ -19,6 +19,7 @@ from game.logic.events import (
     ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
+from game.logic.settings import GameType
 from game.logic.types import (
     AvailableActionItem,
     ExhaustiveDrawResult,
@@ -97,6 +98,7 @@ def _make_game_started_event(game_id: str = "game1") -> ServiceEvent:
     return ServiceEvent(
         data=GameStartedEvent(
             game_id=game_id,
+            game_type=GameType.HANCHAN,
             players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
             dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),

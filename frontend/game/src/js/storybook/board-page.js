@@ -32,13 +32,15 @@ function fitBoardBelowHeader() {
     });
 }
 
-export function showBoardPage(header, pai, model, { viewpoint = 0 } = {}) {
+export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true } = {}) {
     $("#space").remove();
     $("body").prepend(header);
     const audio = Majiang.UI.audio($("#loaddata"));
     const board = new Majiang.UI.Board($("#board .board"), pai, audio, model);
     board.viewpoint = viewpoint;
-    board.redraw();
+    if (dealt) {
+        board.redraw();
+    }
     new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY, null);
     fitBoardBelowHeader();
     document.fonts.ready.then(fitBoardBelowHeader);

@@ -4,10 +4,13 @@ import { showChat } from "../ronin/chat.js";
 import { NO_OFFER } from "../ronin/offer.js";
 import RoninPlayer from "../ronin/player.js";
 import RONIN_RULE from "../ronin/rules.js";
+import Shadow from "../ronin/shadow.js";
+import Translate from "../ronin/translate.js";
+import wire from "../ronin/wire.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
-const GAME_TITLE = "Ronin: 3f2b6c1e-8a4d-4f0b-9c7e-5d1a2b3c4d5e";
+const GAME_TITLE = "半荘戦";
 
 const EAST_ONE = Object.freeze({
     zhuangfeng: 0,
@@ -241,6 +244,21 @@ const TABLE_VARIANTS = Object.freeze([
             [3, "ツモ!"],
         ],
     },
+    {
+        key: "kaiju",
+        title: "Game start",
+        gameStarted: {
+            t: wire.E.GAME_STARTED,
+            gid: "3f2b6c1e-8a4d-4f0b-9c7e-5d1a2b3c4d5e",
+            gt: wire.GAME_TYPE.HANCHAN,
+            dl: 0,
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            p: SAMPLE_PLAYERS.map((nm, s) => ({ s, nm, ai: s !== VIEWPOINT })),
+        },
+    },
 ]);
 
 function playDecision(header, pai, { hand, events, offer, press }) {
@@ -297,6 +315,24 @@ function drawTable(header, pai, { table, say = [], chat = [], connected }) {
     }
 }
 
+function showGameStart(header, pai, { gameStarted }) {
+    const player = new RoninPlayer($("#board"), pai, Majiang.UI.audio($("#loaddata")));
+    const translate = new Translate(player, new Shadow());
+    translate.handle(gameStarted);
+
+    player.view = showBoardPage(header, pai, player.model, { viewpoint: VIEWPOINT, dealt: false });
+    player.view.sound_on = false;
+    player.action({ kaiju: { ...translate.kaiju(), id: VIEWPOINT } });
+}
+
+function showTableVariant(header, pai, variant) {
+    if (variant.gameStarted) {
+        showGameStart(header, pai, variant);
+    } else {
+        drawTable(header, pai, variant);
+    }
+}
+
 function showVariantPage(header, pai, variants, show) {
     const variant = currentVariant(variants);
     header.append(renderVariantNav(variants, variant));
@@ -308,5 +344,5 @@ export function showDecisionsPage(header, pai) {
 }
 
 export function showTablePage(header, pai) {
-    showVariantPage(header, pai, TABLE_VARIANTS, drawTable);
+    showVariantPage(header, pai, TABLE_VARIANTS, showTableVariant);
 }

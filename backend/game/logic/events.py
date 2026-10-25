@@ -15,6 +15,7 @@ from game.logic.types import (
     PlayerView,
     RoundResult,
     WireCallTypeField,
+    WireGameTypeField,
     WireWindField,
 )
 
@@ -186,6 +187,7 @@ class GameStartedEvent(GameEvent):
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
     target: EventTarget = _BROADCAST
     game_id: str = Field(serialization_alias="gid")
+    game_type: WireGameTypeField = Field(serialization_alias="gt")
     players: list[GamePlayerInfo] = Field(serialization_alias="p")
     dealer_seat: int = Field(serialization_alias="dl")
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
