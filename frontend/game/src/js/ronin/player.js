@@ -1,7 +1,10 @@
 "use strict";
 
+import $ from 'jquery';
+
 import UI from '../../vendor/majiang-ui/index.js';
 
+import { BEEP_SECONDS } from '../../vendor/majiang-ui/player.js';
 import { NO_OFFER } from './offer.js';
 
 /**
@@ -28,6 +31,29 @@ class RoninPlayer extends UI.Player {
     get_peng_mianzi() { return this.offer.peng; }
 
     get_chi_mianzi() { return this.offer.chi; }
+
+    /** Count a decision down; it beeps through its last five seconds only when it ran longer, so a call prompt stays quiet. */
+    countdown([limit, allowed]) {
+        this.set_timer(limit, allowed, limit + allowed > BEEP_SECONDS && this._audio.beep);
+    }
+
+    /** A countdown that runs out stops at 0 and leaves the decision open: the server plays its default. */
+    timeout() {
+        this._timer_id = clearInterval(this._timer_id);
+        this._node.timer.text('0');
+    }
+
+    /**
+     * The seat's own discard is the server's, which may not be the tile clicked: a click that reached the server after
+     * its timeout is refused while it discards for the seat, and a refused click leaves its mark beside the next one.
+     * Unless one click matches the server's tile, the hand drops the tile the server names.
+     */
+    dapai(dapai) {
+        const clicked = $('.pai.dapai', this._node.dapai);
+        const matches = clicked.length == 1 && clicked.attr('data-pai') == dapai.p.slice(0, 2);
+        if (dapai.l == this._menfeng && ! matches) clicked.removeClass('dapai');
+        super.dapai(dapai);
+    }
 
     action_chankan() {
         this.set_button('rong', () => this.callback({ hule: '-' }));

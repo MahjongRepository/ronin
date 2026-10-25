@@ -9,8 +9,10 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
 * `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
-  seat (`s`), and the first deal follows it only after the session's game start pause; a draw goes
-  only to the drawing seat, with its available actions when it has any; no draw follows the seat's
+  seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
+  current bank; the client counts its own turns down from them and is never re-synced), and the
+  first deal follows it only after the session's game start pause; a draw goes only to the drawing
+  seat, with its available actions when it has any; no draw follows the seat's
   own pon or chi, nor is one re-sent on a reconnect before that seat's discard; a discard's call
   prompt is split per seat; `furiten` goes only to its seat, and only on a change, so the
   `game_reconnected` snapshot carries the seat's current furiten. Past rounds are never re-sent

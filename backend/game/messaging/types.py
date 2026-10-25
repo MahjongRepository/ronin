@@ -128,6 +128,19 @@ class ErrorMessage(BaseModel):
     message: str
 
 
+class TimerSettings(BaseModel):
+    """
+    A seat's pacing for its own countdown (seconds): the turn base time, the seat's bank, the round bonus and the bank
+    cap it adds up to, and the fixed call decision time.
+    """
+
+    base_turn_seconds: float = Field(serialization_alias="tb")
+    bank_seconds: float = Field(serialization_alias="bk")
+    round_bonus_seconds: float = Field(serialization_alias="rb")
+    max_bank_seconds: float = Field(serialization_alias="mb")
+    meld_decision_seconds: float = Field(serialization_alias="md")
+
+
 class PlayerReconnectedMessage(BaseModel):
     """
     Broadcast to other players when a player reconnects.

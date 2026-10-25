@@ -314,6 +314,7 @@ export const TABLE_VARIANTS = Object.freeze([
                 [1, 1],
             ],
             p: SAMPLE_PLAYERS.map((nm, s) => ({ s, nm, ai: s !== VIEWPOINT })),
+            tm: { tb: 5, bk: 20, rb: 10, mb: 60, md: 5 },
         },
     },
 ]);

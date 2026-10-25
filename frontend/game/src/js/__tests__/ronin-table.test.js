@@ -10,6 +10,8 @@ import Reply from "../ronin/reply.js";
 import Shadow from "../ronin/shadow.js";
 import Translate from "../ronin/translate.js";
 import { NO_OFFER } from "../ronin/offer.js";
+import Board from "../../vendor/majiang-ui/board.js";
+import PAGE from "../../../index.html?raw";
 import { renderSummary, rowTexts } from "./summary-table.js";
 
 const DECISIONS = [
@@ -30,12 +32,19 @@ class TablePlayer extends Majiang.Player {
         super();
         this.offer = NO_OFFER;
         this.shown = [];
+        this.countdowns = [];
         for (const name of DECISIONS) {
             this[`action_${name}`] = (data) => this.shown.push({ name, data });
         }
     }
 
     clear_handler() {}
+
+    countdown(timer) {
+        this.countdowns.push(timer);
+    }
+
+    clear_timer() {}
 
     select_dapai() {
         this.shown.push({ name: "select_dapai" });
@@ -47,6 +56,7 @@ class TablePlayer extends Majiang.Player {
 }
 
 const BASE_HAND = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112];
+const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5 };
 
 function startTable(myTiles = BASE_HAND, round = {}, game = {}, player = new TablePlayer()) {
     const shadow = new Shadow();
@@ -71,6 +81,7 @@ function startTable(myTiles = BASE_HAND, round = {}, game = {}, player = new Tab
         ],
         p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 0 })),
         gt: 0,
+        tm: TIMER_SETTINGS,
         ...game,
     });
     receive({
@@ -152,6 +163,19 @@ function createUIPlayer() {
     );
 }
 
+function startTableOnPage() {
+    vi.useFakeTimers();
+    document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
+    const renderTile = (p) => $('<span class="pai">').attr("data-pai", p.slice(0, 2));
+    const silent = () => ({ play() {}, currentTime: 0 });
+    const player = new RoninPlayer($("#board"), renderTile, silent);
+    player.view = new Board($("#board .board"), renderTile, silent, player.model);
+    return {
+        table: startTable(BASE_HAND, {}, {}, player),
+        hand: $("#board .shoupai.main .bingpai"),
+    };
+}
+
 const shownOf = (table, name) => table.player.shown.filter((shown) => shown.name === name);
 
 describe("the ronin table (Translate and Reply)", () => {
@@ -165,6 +189,7 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(consoleError).not.toHaveBeenCalled();
         vi.restoreAllMocks();
         vi.useRealTimers();
+        document.body.innerHTML = "";
     });
 
     it("echoes the wait id of the server message that opened each decision", () => {
@@ -205,6 +230,22 @@ describe("the ronin table (Translate and Reply)", () => {
         ]);
     });
 
+    it("drops a call prompt left unanswered when the seat's own draw follows it, so it sends no pass under the draw's wait id", () => {
+        const table = startTable();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+
+        table.receive(draw(0, 121, { wi: 3 }));
+        table.decide({});
+
+        expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
+    });
+
     it("sends the hand tiles of the chosen chi option", () => {
         const table = startTable();
         table.receive(draw(0, 120, { wi: 1 }));
@@ -226,6 +267,47 @@ describe("the ronin table (Translate and Reply)", () => {
         table.decide({ fulou: table.player.offer.chi[0] });
 
         expect(table.sent.at(-1)).toEqual({ t: 3, a: 5, ti: 8, sequence_tiles: [0, 4], wi: 2 });
+    });
+
+    it("counts the seat's turns down from the game's timer settings, with the bank they drain topped up each round", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+
+        table.receive(draw(0, 120, { wi: 1 }));
+        vi.advanceTimersByTime(8000);
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+        vi.advanceTimersByTime(2000);
+        table.decide({ fulou: "m505-" });
+        table.receive({ t: 0, m: 16844, wi: 3 });
+        vi.advanceTimersByTime(10000);
+        table.receive(discard(0, 0));
+        table.receive({
+            t: 9,
+            s: 0,
+            w: 0,
+            n: 1,
+            dl: 1,
+            cp: 1,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            p: [],
+            dc: [1, 1],
+        });
+        table.receive(draw(0, 120, { wi: 4 }));
+
+        expect(table.player.countdowns).toEqual([
+            [5, 30],
+            [5, 0],
+            [5, 27],
+            [5, 32],
+        ]);
     });
 
     it("plays other seats' kans with their hidden draws and keeps the live wall count", () => {
@@ -267,7 +349,8 @@ describe("the ronin table (Translate and Reply)", () => {
         ]);
     });
 
-    it("extends its pon into an added kan and takes the replacement draw", () => {
+    it("extends its pon into an added kan and takes the replacement draw, its turn's clock held through the chankan window", () => {
+        vi.useFakeTimers();
         const table = startTable([108, 109, 0, 4, 8, 36, 40, 44, 72, 76, 80, 112, 116]);
         table.receive(draw(0, 120, { wi: 1 }));
         table.decide({ dapai: "z4_" });
@@ -282,10 +365,13 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(discard(3, 127));
 
         table.receive(draw(0, 111, { wi: 3, aa: [{ a: 4, tl: [27] }] }));
+        vi.advanceTimersByTime(7000);
         table.decide({ gang: table.player.offer.gang[0] });
+        vi.advanceTimersByTime(5000);
         table.receive({ t: 0, m: 22348 });
         table.receive(draw(0, 128, { wi: 4 }));
 
+        expect(table.player.countdowns.at(-1)).toEqual([5, 28]);
         expect(table.sent.at(-1)).toEqual({ t: 3, a: 6, ti: 111, kan_type: "added", wi: 3 });
         expect(table.player.shoupai._fulou).toEqual(["z111=1"]);
         expect(table.player.shoupai._zimo).toBe("z6");
@@ -304,19 +390,56 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.sent.at(-1)).toEqual({ t: 3, a: 3, wi: 2 });
     });
 
-    it("reopens a refused decision, but not after a stale action", () => {
-        const table = startTable();
+    it("drops the tile the server discards for the seat, not a tile clicked after the server's timeout", () => {
+        const { table, hand } = startTableOnPage();
+
         table.receive(draw(0, 120, { wi: 1 }));
-        table.decide({ dapai: "m1" });
+        hand.find('> .pai[data-pai="m1"]').trigger("click");
+        table.receive({ t: 7, cd: "stale_action", msg: "late" });
+        table.receive(discard(0, 120));
+
+        expect(hand.find('.pai[data-pai="m1"]').hasClass("deleted")).toBe(false);
+        expect(hand.find('.pai[data-pai="z4"]').hasClass("deleted")).toBe(true);
+    });
+
+    it("drops only the discarded tile after a refused click, whose mark is still on the hand", () => {
+        const { table, hand } = startTableOnPage();
+
+        table.receive(draw(0, 120, { wi: 1 }));
+        hand.find('.zimo .pai[data-pai="z4"]').trigger("click");
+        table.receive({ t: 7, cd: "invalid_discard", msg: "no" });
+        hand.find('> .pai[data-pai="m1"]').trigger("click");
+        table.receive(discard(0, 0));
+
+        expect(hand.find('.pai[data-pai="m1"]').hasClass("deleted")).toBe(true);
+        expect(hand.find('.pai[data-pai="z4"]').hasClass("deleted")).toBe(false);
+    });
+
+    it("reopens a refused kan with what is left of its turn, charging the time it was held, but not after a stale action", () => {
+        vi.useFakeTimers();
+        const table = startTable([108, 109, 110, 0, 4, 9, 36, 40, 44, 72, 76, 80, 112]);
+        table.receive(draw(0, 111, { wi: 1, aa: [{ a: 3, tl: [27] }] }));
+        vi.advanceTimersByTime(7000);
+        table.decide({ gang: table.player.offer.gang[0] });
+        vi.advanceTimersByTime(3000);
         const shownBeforeErrors = table.player.shown.length;
 
-        table.receive({ t: 7, cd: "invalid_discard", msg: "no" });
+        table.receive({ t: 7, cd: "invalid_kan", msg: "no" });
         expect(table.player.shown.length).toBe(shownBeforeErrors + 1);
+        expect(table.player.countdowns.at(-1)).toEqual([0, 25]);
         table.receive({ t: 7, cd: "stale_action", msg: "late" });
 
         expect(table.player.shown.length).toBe(shownBeforeErrors + 1);
         expect(table.player.lastShown).toBe("zimo");
         expect(table.translate.onGameError).toHaveBeenCalledTimes(2);
+
+        vi.advanceTimersByTime(10000);
+        table.receive(discard(0, 111));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 132));
+        table.receive(draw(0, 121, { wi: 2 }));
+        expect(table.player.countdowns.at(-1)).toEqual([5, 15]);
     });
 
     it("confirms a round end that opens a wait and holds the final standings until the last result is dismissed", () => {
@@ -573,6 +696,7 @@ describe("the ronin table (Translate and Reply)", () => {
             ],
             p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 2 })),
             gt: 0,
+            tm: TIMER_SETTINGS,
         });
         expect(player.shown.map((shown) => shown.name)).toEqual(["kaiju"]);
         expect(player.shown[0].data.id).toBe(2);
@@ -654,6 +778,7 @@ describe("the ronin table (Translate and Reply)", () => {
             mt: BASE_HAND,
             dc: [1, 1],
             tr: 70,
+            tm: TIMER_SETTINGS,
             pst: [308, 234, 114, 344].map((sc, s) => ({ s, sc, dsc: [], ml: [], ri: false })),
             f: false,
             rh: [
@@ -744,10 +869,15 @@ describe("the ronin table (Translate and Reply)", () => {
             f: false,
             rh: [],
             wi: 7,
+            tm: { ...TIMER_SETTINGS, bk: 12 },
         });
         table.receive(draw(0, 120, { wi: 7 }));
         table.decide({ dapai: "z4_" });
 
+        expect(table.player.countdowns).toEqual([
+            [5, 12],
+            [5, 12],
+        ]);
         expect(table.player.model.jushu).toBe(1);
         expect(table.player.shoupai.toString()).toBe("m12305p123s123z12z4");
         expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 7 }]);
