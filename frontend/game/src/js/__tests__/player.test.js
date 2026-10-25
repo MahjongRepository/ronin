@@ -2,7 +2,10 @@ import $ from "jquery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
+import { NO_OFFER } from "../ronin/offer.js";
 import RoninPlayer from "../ronin/player.js";
+import RONIN_RULE from "../ronin/rules.js";
+import { dealDecision } from "../storybook/in-round.js";
 
 const SELECTOR_HIDE_MS = 400;
 const DIALOG_READY_MS = 800;
@@ -69,7 +72,7 @@ describe("Majiang.UI.Player", () => {
         expect(selector.hasClass("hide")).toBe(true);
     });
 
-    it("starts a prompt's keyboard focus on its ツモ or ロン, else on ×, so Enter wins when it can and never calls", () => {
+    it("starts a prompt's keyboard focus on its ツモ or ロン, else on × or the turn's hand, so Enter wins when it can and never calls", () => {
         const { player } = createPlayer();
         offerCallPrompt(player);
         pressKey("Enter");
@@ -78,7 +81,7 @@ describe("Majiang.UI.Player", () => {
         player.set_button("gang", () => player.callback({ gang: "m1111" }));
         player.set_button("zimo", () => player.callback({ hule: "-" }));
         player.set_button("pingju", () => player.callback({ daopai: "-" }));
-        player.show_button(() => player.select_dapai());
+        player.show_button(() => {}, false);
         pressKey("Enter");
         expect(player._callback).toHaveBeenLastCalledWith({ hule: "-" });
 
@@ -175,5 +178,28 @@ describe("RoninPlayer", () => {
         expect($(".timer", root).text()).toBe("0");
         $(".shoupai.main .pai", root).trigger("click");
         expect(player._callback).toHaveBeenCalledExactlyOnceWith({ dapai: "m1*" });
+    });
+
+    it("offers a turn's kans without ×, keeps that through backing out of the kan choice, and takes a discard as declining them", () => {
+        const { player, root, selector } = createPlayer(RoninPlayer);
+        player.action({
+            kaiju: { id: 0, rule: RONIN_RULE, title: "", player: ["", "", "", ""], qijia: 0 },
+        });
+        player.action({ qipai: dealDecision("m111p2222s78z1122") });
+        $(".shoupai.main .bingpai", root).append(renderTile("s7"));
+        player.offer = { ...NO_OFFER, gang: ["m1111", "p2222"] };
+        const reply = vi.fn();
+        player.action({ zimo: { l: 0, p: "m1" } }, reply);
+        expect(visibleButtons(root)).toEqual(["カン"]);
+
+        root.trigger("click");
+        $(".player-button .gang", root).trigger("click");
+        $(".shoupai.main .pai", root).trigger("click");
+        expect(reply).not.toHaveBeenCalled();
+        $(".back", selector).trigger("click");
+        expect(visibleButtons(root)).toEqual(["カン"]);
+
+        $(".shoupai.main .pai", root).trigger("click");
+        expect(reply).toHaveBeenCalledExactlyOnceWith({ dapai: "s7" });
     });
 });
