@@ -661,7 +661,7 @@ class SessionManager:
 
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
             for participant in connected:
-                self._start_round_advance_timer(participant)
+                self._start_round_advance_timer(participant, results_shown=awaiting.results_shown)
 
             return
 
@@ -680,9 +680,12 @@ class SessionManager:
     def _start_meld_timer(self, participant: Participant) -> None:
         participant.timer.start_meld_timer(lambda: self._handle_timeout(participant, TimeoutType.MELD))
 
-    def _start_round_advance_timer(self, participant: Participant) -> None:
+    def _start_round_advance_timer(self, participant: Participant, *, results_shown: int) -> None:
+        """
+        Start the round advance timer: the round advance timeout once for each result the round end shows in turn.
+        """
         participant.timer.start_fixed_timer(
-            participant.game.timer_config.round_advance_timeout_seconds,
+            participant.game.timer_config.round_advance_timeout_seconds * results_shown,
             lambda: self._handle_timeout(participant, TimeoutType.ROUND_ADVANCE),
         )
 

@@ -41,7 +41,6 @@ TENHOU_GO_LENGTH_BITS = {
     WireGameType.HANCHAN: TENHOU_GO_HANCHAN,
     WireGameType.TONPUSEN: 0,
 }
-GAME_TYPE_OF_REPLAYS_WITHOUT_GT = WireGameType.HANCHAN
 
 
 def _to_binary_string(number: int, size: int | None = None) -> str:
@@ -203,24 +202,32 @@ def _format_sc(scores: dict[str, int], score_changes: dict[str, int]) -> str:
     """
     parts = []
     for i in range(4):
-        score = scores.get(str(i), 0)
-        change = score_changes.get(str(i), 0)
+        score = scores[str(i)]
+        change = score_changes[str(i)]
         parts.append(f"{score},{change}")
 
     return ",".join(parts)
 
 
-def _hand_payment(hand: dict[str, Any], winner_change_wire: int, riichi_sticks_collected: int, honba: int) -> int:
+def _double_ron_score_steps(result: dict[str, Any]) -> list[tuple[dict[str, int], dict[str, int]]]:
+    """
+    Each double ron winner's sc pair: the scores before that win and the changes it alone made, so each AGARI starts
+    from the scores the one before it left.
+    """
+    steps = []
+    scores = result["scs"]
+    for w in result["wn"]:
+        steps.append((scores, w["sch"]))
+        scores = {seat: scores[seat] + w["sch"][seat] for seat in map(str, range(4))}
+
+    return steps
+
+
+def _hand_payment(hand: dict[str, Any], honba: int) -> int:
     """
     Compute the hand payment for the tenhou ten attribute: full points (not hundreds), honba included, riichi excluded.
-
-    Wire values are divided by WIRE_SCORE_DIVISOR. A replay recorded before the hand result carried its points has only
-    the winner's net score change, which misstates a double ron winner who owes pao to the other winner.
     """
-    if "pt" in hand:
-        return hand["pt"] * WIRE_SCORE_DIVISOR + honba * 300
-
-    return winner_change_wire * WIRE_SCORE_DIVISOR - riichi_sticks_collected * 1000
+    return hand["pt"] * WIRE_SCORE_DIVISOR + honba * 300
 
 
 def _compute_limit(han: int) -> int:
@@ -290,7 +297,6 @@ class TenhouConverter:
         self.hands: dict[int, list[int]] = {}
 
         # Per-round state
-        self.last_discard_tile: int | None = None
         self._round_riichi_count: int = 0
         self._seat_melds: dict[int, list[str]] = {}
         # Track pon tile lists per seat so added-kan can identify the added tile.
@@ -334,12 +340,12 @@ class TenhouConverter:
     def _handle_game_started(self, event: dict[str, Any]) -> None:
         seed = event["sd"]
         players = sorted(event["p"], key=lambda p: p["s"])
-        first_dealer = event.get("dl", 0)
+        first_dealer = event["dl"]
 
         self.tags.append('<mjloggm ver="2.3">')
-        rng_version = event.get("rv", "")
+        rng_version = event["rv"]
         self.tags.append(f'<SHUFFLE seed="{seed}" ref="{rng_version}"/>')
-        go_type = _tenhou_go_type(event.get("gt", GAME_TYPE_OF_REPLAYS_WITHOUT_GT))
+        go_type = _tenhou_go_type(event["gt"])
         self.tags.append(f'<GO type="{go_type}" lobby="0"/>')
 
         names = [p["nm"] for p in players]
@@ -359,7 +365,7 @@ class TenhouConverter:
         self.table_riichi_sticks = event["r"]
         self.dealer = event["dl"]
         self.dora_indicators = event["di"]
-        self.dice = event.get("dc", [0, 0])
+        self.dice = event["dc"]
 
         self.hands = {}
         for player in event["p"]:
@@ -371,7 +377,6 @@ class TenhouConverter:
     # -- Round init -----------------------------------------------------------
 
     def _emit_init(self) -> None:
-        self.last_discard_tile = None
         self._round_riichi_count = 0
         self._seat_melds = {}
 
@@ -381,7 +386,7 @@ class TenhouConverter:
 
         hai_strs = []
         for seat in range(4):
-            tiles = self.hands.get(seat, [])
+            tiles = self.hands[seat]
             hai_strs.append(",".join(str(t) for t in tiles))
 
         seed_attr = f"{self.round_wind_number},{self.honba},{self.table_riichi_sticks},{dice0},{dice1},{first_dora}"
@@ -419,7 +424,6 @@ class TenhouConverter:
         # D handler detects tsumogiri via tile ID comparison (l === h[0]), so
         # uppercase tags produce identical visual results.
         self.tags.append(f"<{DISCARD_LETTERS[seat]}{tile}/>")
-        self.last_discard_tile = tile
 
     # -- Riichi ---------------------------------------------------------------
 
@@ -475,14 +479,14 @@ class TenhouConverter:
         """
         Update tracked scores from round_end scores and score_changes.
         """
-        scores = event.get("scs", {})
-        changes = event.get("sch", {})
+        scores = event["scs"]
+        changes = event["sch"]
         for i in range(4):
-            self.scores[i] = scores.get(str(i), 0) + changes.get(str(i), 0)
+            self.scores[i] = scores[str(i)] + changes[str(i)]
 
     def _emit_agari(self, result: dict[str, Any]) -> None:
         winner = result["ws"]
-        from_who = result.get("ls", winner)
+        from_who = result["ls"] if result["rt"] == WireRoundResultType.RON else winner
         hand = result["hr"]
         fu = hand["fu"]
         limit = _compute_limit(hand["han"])
@@ -490,14 +494,10 @@ class TenhouConverter:
         yaku_string = build_yaku_string(hand["yk"])
         sc_string = _format_sc(result["scs"], result["sch"])
 
-        payment = _hand_payment(hand, result["sch"].get(str(winner), 0), result.get("rc", 0), self.honba)
+        payment = _hand_payment(hand, self.honba)
 
-        # Winner's hand and winning tile from result
-        hai_string = ",".join(str(t) for t in result.get("ct", []))
-        if result["rt"] == WireRoundResultType.TSUMO:
-            win_tile = result.get("wt", 0)
-        else:
-            win_tile = result.get("wt", self.last_discard_tile or 0)
+        hai_string = ",".join(str(t) for t in result["ct"])
+        win_tile = result["wt"]
 
         dora_string = ",".join(str(d) for d in self.dora_indicators)
         ura_dora_attr = _format_ura_dora_attr(result.get("ud"))
@@ -517,22 +517,27 @@ class TenhouConverter:
     def _emit_double_ron(self, result: dict[str, Any]) -> None:
         """
         Emit one AGARI tag per winner in a double-ron.
+
+        The first winner, the closest counter-clockwise to the loser, takes the riichi sticks, so the later AGARIs find
+        none on the table.
         """
         loser = result["ls"]
         winning_tile = result["wt"]
-        sc_string = _format_sc(result["scs"], result["sch"])
         dora_string = ",".join(str(d) for d in self.dora_indicators)
 
-        for w in result["wn"]:
+        steps = _double_ron_score_steps(result)
+        for i, (w, (scores, changes)) in enumerate(zip(result["wn"], steps, strict=True)):
             winner = w["ws"]
+            riichi_sticks = self._total_riichi_sticks if i == 0 else 0
+            sc_string = _format_sc(scores, changes)
             hand = w["hr"]
             fu = hand["fu"]
             limit = _compute_limit(hand["han"])
             yaku_string = build_yaku_string(hand["yk"])
 
-            payment = _hand_payment(hand, result["sch"].get(str(winner), 0), w.get("rc", 0), self.honba)
+            payment = _hand_payment(hand, self.honba)
 
-            hai_string = ",".join(str(t) for t in w.get("ct", []))
+            hai_string = ",".join(str(t) for t in w["ct"])
             ura_dora_attr = _format_ura_dora_attr(w.get("ud"))
 
             meld_attr = ""
@@ -541,7 +546,7 @@ class TenhouConverter:
                 meld_attr = f' m="{meld_string}"'
 
             self.tags.append(
-                f'<AGARI ba="{self.honba},{self._total_riichi_sticks}" '
+                f'<AGARI ba="{self.honba},{riichi_sticks}" '
                 f'hai="{hai_string}"{meld_attr} machi="{winning_tile}" '
                 f'ten="{fu},{payment},{limit}" '
                 f'yaku="{yaku_string}" doraHai="{dora_string}"{ura_dora_attr} '
@@ -551,7 +556,7 @@ class TenhouConverter:
     def _emit_exhaustive_draw(self, result: dict[str, Any]) -> None:
         sc_string = _format_sc(result["scs"], result["sch"])
         hai_attrs = ""
-        for hand in result.get("th", []):
+        for hand in result["th"]:
             seat = hand["s"]
             tiles_str = ",".join(str(t) for t in hand["ct"])
             hai_attrs += f' hai{seat}="{tiles_str}"'
@@ -561,10 +566,10 @@ class TenhouConverter:
         )
 
     def _emit_abortive_draw(self, result: dict[str, Any]) -> None:
-        reason = result.get("rn", "")
+        reason = result["rn"]
         tenhou_reason = ABORTIVE_REASON_TO_TENHOU.get(reason, reason)
 
-        sc_string = _format_sc(result["scs"], result.get("sch", {}))
+        sc_string = _format_sc(result["scs"], result["sch"])
 
         self.tags.append(
             f'<RYUUKYOKU type="{tenhou_reason}" ba="{self.honba},{self._total_riichi_sticks}" sc="{sc_string}"/>',

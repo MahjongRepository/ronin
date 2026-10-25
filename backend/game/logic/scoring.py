@@ -472,28 +472,32 @@ def apply_double_ron_score(
     for winner_seat, hand_result in winners:
         winner = round_state.players[winner_seat]
         payment = hand_result.cost_main + honba_bonus
+        winner_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
 
         if winner.pao_seat is not None and winner.pao_seat != loser_seat:
             # pao ron with different pao player: split 50/50
             # assign rounding remainder to the pao (liable) player
             half = payment // 2
             pao_half = payment - half
-            score_changes[loser_seat] -= half
-            score_changes[winner.pao_seat] -= pao_half
+            winner_changes[loser_seat] -= half
+            winner_changes[winner.pao_seat] -= pao_half
         else:
             # normal ron (including pao_seat == loser_seat case)
-            score_changes[loser_seat] -= payment
+            winner_changes[loser_seat] -= payment
 
         winner_total = payment
         if winner_seat == riichi_receiver:
             winner_total += riichi_bonus
 
-        score_changes[winner_seat] += winner_total
+        winner_changes[winner_seat] += winner_total
+        for seat, change in winner_changes.items():
+            score_changes[seat] += change
 
         winner_results.append(
             DoubleRonWinner(
                 winner_seat=winner_seat,
                 hand_result=hand_result.to_info(points=hand_result.cost_main),
+                score_changes=winner_changes,
                 riichi_sticks_collected=(
                     riichi_bonus // settings.riichi_stick_value if winner_seat == riichi_receiver else 0
                 ),

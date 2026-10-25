@@ -135,7 +135,7 @@ class TestApplyDoubleRonWithPao:
         assert result.winners[0].pao_seat == 3
         assert result.winners[1].pao_seat is None
 
-    def test_apply_double_ron_score__when_one_winner_owes_pao_to_the_other__should_report_each_hand_value(self):
+    def test_apply_double_ron_score__when_one_winner_owes_pao_to_the_other__should_report_each_value_and_payment(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         players_list = list(players)
         players_list[2] = players_list[2].model_copy(update={"pao_seat": 1})
@@ -152,6 +152,10 @@ class TestApplyDoubleRonWithPao:
         )
         assert result.score_changes == {0: -24000, 1: -8000, 2: 32000, 3: 0}
         assert [w.hand_result.points for w in result.winners] == [8000, 32000]
+        assert [w.score_changes for w in result.winners] == [
+            {0: -8000, 1: 8000, 2: 0, 3: 0},
+            {0: -16000, 1: -16000, 2: 32000, 3: 0},
+        ]
 
 
 class TestProcessExhaustiveDrawNagashiTriggered:

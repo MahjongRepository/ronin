@@ -23,6 +23,7 @@ class TestGetWinnerSeatsDoubleRon:
                 DoubleRonWinner(
                     winner_seat=0,
                     hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0), points=1000),
+                    score_changes={0: 0, 1: 0, 2: 0, 3: 0},
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],
@@ -30,6 +31,7 @@ class TestGetWinnerSeatsDoubleRon:
                 DoubleRonWinner(
                     winner_seat=3,
                     hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0), points=2000),
+                    score_changes={0: 0, 1: 0, 2: 0, 3: 0},
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],

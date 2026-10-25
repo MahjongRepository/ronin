@@ -188,10 +188,14 @@ class RonResult(BaseModel):
 class DoubleRonWinner(BaseModel):
     """
     Per-winner data in a double ron result.
+
+    score_changes is this winner's own payments alone (the loser's, a pao seat's, the winner's honba and any riichi
+    sticks), so the winners' maps sum to the result's score_changes.
     """
 
     winner_seat: int = Field(serialization_alias="ws")
     hand_result: HandResultInfo = Field(serialization_alias="hr")
+    score_changes: WireScoreMap = Field(serialization_alias="sch")
     riichi_sticks_collected: int = Field(serialization_alias="rc")
     closed_tiles: list[int] = Field(serialization_alias="ct")
     melds: list[int] = Field(serialization_alias="ml")
@@ -243,7 +247,7 @@ class AbortiveDrawResult(BaseModel):
     type: RoundResultType = RoundResultType.ABORTIVE_DRAW
     reason: AbortiveDrawType = Field(serialization_alias="rn")
     scores: WireScoreMap = Field(serialization_alias="scs")
-    score_changes: WireScoreMap = Field(default_factory=dict, serialization_alias="sch")
+    score_changes: WireScoreMap = Field(serialization_alias="sch")
     seat: int | None = Field(default=None, serialization_alias="s")
 
 

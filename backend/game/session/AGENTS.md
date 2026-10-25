@@ -47,8 +47,10 @@ interleave.
 * **Pacing.** The engine's `Awaiting` drives the timers, never the events: a new wait id re-arms
   them for the new wait's connected seats, an unchanged one touches only an actor that left it.
   Every pacing duration comes from `TimerConfig`, the one pacing model (the engine has none; the
-  auth timeout and transport ping are not pacing). The game client's silence watchdog limit is
-  derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait needs a longer limit.
+  auth timeout and transport ping are not pacing). A round advance waits its timeout once per result
+  the client shows in turn, so a double ron's waits it once per winner. The game client's silence
+  watchdog limit is derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait needs a
+  longer limit.
 * **Finish records come from the start record.** The start record is captured right after the
   engine starts the game, every seat in seat order with each participant's `user_id` by seat; every
   finish record (completed, abandoned or failed) is built whole from it, never from engine or

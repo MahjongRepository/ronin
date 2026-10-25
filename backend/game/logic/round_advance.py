@@ -11,10 +11,12 @@ class PendingRoundAdvance:
     A round end waiting for its human seats to confirm the next round.
 
     required_seats are the seats no AI player held when the round ended: AI seats never confirm. A confirmation from any
-    other seat is ignored, and a seat counts once however often it confirms.
+    other seat is ignored, and a seat counts once however often it confirms. results_shown is how many results the round
+    end shows its players one after another: one per winner of a double ron, else one.
     """
 
     required_seats: frozenset[int]
+    results_shown: int
     confirmed_seats: set[int] = field(default_factory=set)
 
     @property

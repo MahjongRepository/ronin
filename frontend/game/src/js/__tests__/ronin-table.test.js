@@ -344,9 +344,9 @@ describe("the ronin table (Translate and Reply)", () => {
         });
     });
 
-    it("gives the result dialog a double ron winner's hand value, not its score change net of pao it owes", () => {
+    it("shows each double ron win in turn with its own hand value and payments, honba to both and the sticks to the first, and confirms after the last", () => {
         vi.useFakeTimers();
-        const table = startTable();
+        const table = startTable(BASE_HAND, { h: 2, r: 1 });
 
         table.receive({
             t: 4,
@@ -366,7 +366,8 @@ describe("the ronin table (Translate and Reply)", () => {
                         ],
                         pt: 80,
                     },
-                    rc: 0,
+                    sch: { 0: -86, 1: 96, 2: 0, 3: 0 },
+                    rc: 1,
                     ct: [5, 10, 14, 37, 41, 45, 73, 77, 81, 113, 114, 118, 119],
                     ml: [],
                     ud: [8],
@@ -374,23 +375,41 @@ describe("the ronin table (Translate and Reply)", () => {
                 {
                     ws: 2,
                     hr: { han: 13, fu: 30, yk: [{ yi: 102, han: 13 }], pt: 320 },
+                    sch: { 0: -163, 1: -163, 2: 326, 3: 0 },
                     rc: 0,
-                    ct: [6, 11, 15],
+                    ct: [3, 20, 24, 28, 124, 125, 126, 128, 129, 130, 132, 133, 134],
                     ml: [],
                     ps: 1,
                 },
             ],
-            sch: { 0: -240, 1: -80, 2: 320, 3: 0 },
+            sch: { 0: -249, 1: -67, 2: 326, 3: 0 },
             wi: 9,
         });
         vi.advanceTimersByTime(WIN_CALL_MS);
 
+        expect(shownOf(table, "hule")).toHaveLength(1);
         expect(shownOf(table, "hule")[0].data).toMatchObject({
             l: 1,
             defen: 8000,
-            fenpei: [-24000, -8000, 32000, 0],
+            fenpei: [-8600, 9600, 0, 0],
             fubaopai: ["m3"],
         });
+        expect(table.player.model).toMatchObject({ changbang: 2, lizhibang: 1 });
+        table.decide({});
+        expect(table.sent).toEqual([]);
+
+        expect(shownOf(table, "hule")[1].data).toMatchObject({
+            l: 2,
+            defen: 32000,
+            fenpei: [-16300, -16300, 32600, 0],
+        });
+        expect(table.player.model).toMatchObject({
+            changbang: 2,
+            lizhibang: 0,
+            defen: [16400, 34600, 25000, 25000],
+        });
+        table.decide({});
+        expect(table.sent).toEqual([{ t: 3, a: 9, wi: 9 }]);
     });
 
     it("gives a nagashi mangan's result each seat's tenpai and its achievers, in dealer-relative order", () => {
@@ -555,7 +574,7 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.player.lastShown).toBe("hule");
     });
 
-    it("seeds the final standings with the rounds before a reconnect, so each column adds up to its final score", () => {
+    it("seeds the final standings with the rounds before a reconnect, every double ron winner marked, so each column adds up to its final score", () => {
         const table = startTable(BASE_HAND, {}, { gt: 1 });
         table.translate.reconnect({
             gid: "g",
@@ -575,10 +594,18 @@ describe("the ronin table (Translate and Reply)", () => {
             mt: BASE_HAND,
             dc: [1, 1],
             tr: 70,
-            pst: [308, 214, 134, 344].map((sc, s) => ({ s, sc, dsc: [], ml: [], ri: false })),
+            pst: [308, 234, 114, 344].map((sc, s) => ({ s, sc, dsc: [], ml: [], ri: false })),
             f: false,
             rh: [
-                { w: 0, dl: 0, h: 0, rs: [1], ws: [3], ls: 2, sch: { 0: 0, 1: 0, 2: -80, 3: 90 } },
+                {
+                    w: 0,
+                    dl: 0,
+                    h: 0,
+                    rs: [1],
+                    ws: [3, 1],
+                    ls: 2,
+                    sch: { 0: 0, 1: 20, 2: -100, 3: 90 },
+                },
                 {
                     w: 0,
                     dl: 1,
@@ -599,8 +626,8 @@ describe("the ronin table (Translate and Reply)", () => {
             st: [
                 { s: 3, sc: 344, fs: 54 },
                 { s: 0, sc: 308, fs: 11 },
-                { s: 1, sc: 214, fs: -16 },
-                { s: 2, sc: 134, fs: -49 },
+                { s: 1, sc: 234, fs: -16 },
+                { s: 2, sc: 114, fs: -49 },
             ],
             lb: 0,
         });
@@ -610,12 +637,20 @@ describe("the ronin table (Translate and Reply)", () => {
         const root = renderSummary();
         summary(root, table.player.shown.at(-1).data, 0);
         expect(rowTexts(root, ".r_diff")).toEqual([
-            "東一局|0本場|ロン||-1,000リ|-8,000|+9,000",
+            "東一局|0本場|ロン||+1,000リ|-10,000|+9,000",
             "東二局|0本場|流局|+1,500|-1,500|-1,500|+1,500",
             "東三局|1本場|ツモ|+4,300|-1,100|-2,100|-1,100",
             "東四局|0本場|流局|ノーテン|ノーテン|ノーテン|ノーテン",
         ]);
-        expect(rowTexts(root, ".r_defen")).toEqual(["|30,800|21,400|13,400|34,400"]);
+        expect(rowTexts(root, ".r_defen")).toEqual(["|30,800|23,400|11,400|34,400"]);
+        expect(
+            root
+                .find(".r_diff")
+                .first()
+                .find(".diff")
+                .map((i, cell) => cell.classList.contains("hule"))
+                .get(),
+        ).toEqual([false, true, false, true]);
     });
 
     it("resumes its turn after a reconnect without taking the re-sent draw twice", () => {

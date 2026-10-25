@@ -2,14 +2,21 @@ from dataclasses import replace
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, RoundPhase, TimeoutType
+from game.logic.enums import GameAction, GameErrorCode, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
     ErrorEvent,
     EventType,
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.round_advance import PendingRoundAdvance
-from game.logic.types import ExhaustiveDrawResult, TenpaiHand
+from game.logic.types import (
+    DoubleRonResult,
+    DoubleRonWinner,
+    ExhaustiveDrawResult,
+    HandResultInfo,
+    TenpaiHand,
+    YakuInfo,
+)
 from game.tests.unit.helpers import _find_player, _update_player, _update_round_state
 
 
@@ -23,16 +30,37 @@ def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
     )
 
 
+def _make_double_ron_result() -> DoubleRonResult:
+    winners = [
+        DoubleRonWinner(
+            winner_seat=seat,
+            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+            score_changes={1: -1000, seat: 1000},
+            riichi_sticks_collected=0,
+            closed_tiles=[],
+            melds=[],
+        )
+        for seat in (2, 0)
+    ]
+    return DoubleRonResult(
+        loser_seat=1,
+        winning_tile=0,
+        winners=winners,
+        scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+        score_changes={0: 1000, 1: -2000, 2: 1000, 3: 0},
+    )
+
+
 class TestPendingRoundAdvance:
     def test_pending_round_advance__when_seat_confirmed_twice__should_count_once(self):
-        pending = PendingRoundAdvance(required_seats=frozenset({0, 1}))
+        pending = PendingRoundAdvance(required_seats=frozenset({0, 1}), results_shown=1)
 
         pending.confirm(0)
         assert pending.confirm(0) is False
         assert pending.unconfirmed_seats == {1}
 
     def test_pending_round_advance__when_seat_not_required__should_ignore_it(self):
-        pending = PendingRoundAdvance(required_seats=frozenset({0, 1}))
+        pending = PendingRoundAdvance(required_seats=frozenset({0, 1}), results_shown=1)
 
         assert pending.confirm(2) is False
         assert pending.unconfirmed_seats == {0, 1}
@@ -58,6 +86,15 @@ class TestRoundAdvanceWaiting:
         ai_player_controller = runtime.ai
         for seat in ai_player_controller.ai_player_seats:
             assert seat not in unconfirmed
+
+    def test_round_advance__when_double_ron__should_wait_for_both_results_to_be_shown(self, service):
+        runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
+
+        service._handle_round_end(runtime, _make_double_ron_result())
+
+        awaiting = service.get_awaiting(runtime)
+        assert awaiting.kind == WaitKind.ROUND_ADVANCE
+        assert awaiting.results_shown == 2
 
     def test_round_advance__when_all_players_ai__should_start_next_round_immediately(self, service):
         start = service.start_game("game1", ["Player"], seed="a" * 192)
