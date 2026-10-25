@@ -20,6 +20,7 @@ class Shadow {
         this.hand     = [];
         this.drawnTileId = null;
         this.scores   = [0, 0, 0, 0];
+        this.settledScores = null;              /* by seat, after the last round end */
         this.riichi   = [false, false, false, false];
         this.afterKan = [false, false, false, false];
         this.melds    = [[], [], [], []];

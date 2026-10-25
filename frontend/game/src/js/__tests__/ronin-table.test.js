@@ -317,6 +317,60 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.sent).toEqual([{ t: 3, a: 9, wi: 9 }, "lobby"]);
     });
 
+    it("credits the riichi sticks left on the table after the last round to the standings' gongtuo row", () => {
+        const table = startTable();
+        table.receive({
+            t: 4,
+            rt: 3,
+            ts: [],
+            ns: [0, 1, 2, 3],
+            th: [],
+            scs: { 0: 290, 1: 240, 2: 230, 3: 220 },
+            sch: { 0: 15, 1: 15, 2: -15, 3: -15 },
+        });
+        table.decide({});
+        table.receive({
+            t: 10,
+            ws: 0,
+            st: [
+                { s: 0, sc: 325, fs: 51 },
+                { s: 1, sc: 255, fs: 4 },
+                { s: 2, sc: 215, fs: -17 },
+                { s: 3, sc: 205, fs: -38 },
+            ],
+        });
+
+        expect(table.player.lastShown).toBe("jieju");
+        expect(table.player.shown.at(-1).data.gongtuo).toEqual([2000, 0, 0, 0]);
+    });
+
+    it("leaves the standings' gongtuo row empty when the last round's payments leave no sticks on the table", () => {
+        const table = startTable();
+        table.receive({
+            t: 4,
+            rt: 3,
+            ts: [0, 1],
+            ns: [2, 3],
+            th: [],
+            scs: { 0: 250, 1: 250, 2: 250, 3: 250 },
+            sch: { 0: 15, 1: 15, 2: -15, 3: -15 },
+        });
+        table.decide({});
+        table.receive({
+            t: 10,
+            ws: 0,
+            st: [
+                { s: 0, sc: 265, fs: 46 },
+                { s: 1, sc: 265, fs: 6 },
+                { s: 2, sc: 235, fs: -18 },
+                { s: 3, sc: 235, fs: -34 },
+            ],
+        });
+
+        expect(table.player.lastShown).toBe("jieju");
+        expect(table.player.shown.at(-1).data.gongtuo).toEqual([0, 0, 0, 0]);
+    });
+
     it("gives the result dialog a double ron winner's hand value, not its score change net of pao it owes", () => {
         vi.useFakeTimers();
         const table = startTable();

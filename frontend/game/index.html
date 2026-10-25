@@ -160,12 +160,18 @@
             <div>
               <table>
                 <thead>
+                  <tr class="r_rank">
+                    <th class="title" colspan="3" rowspan="2">終局</th>
+                    <td class="rank"></td>
+                    <td class="rank"></td>
+                    <td class="rank"></td>
+                    <td class="rank"></td>
+                  </tr>
                   <tr class="r_player">
-                    <td colspan="3"></td>
                     <th class="player"></th>
                     <th class="player"></th>
                     <th class="player"></th>
-                    <th class="player">           </th>
+                    <th class="player"></th>
                   </tr>
                 </thead>
                 <tbody class="body">
@@ -181,14 +187,14 @@
                 </tbody>
                 <tfoot>
                   <tr class="r_defen">
-                    <td colspan="3"></td>
+                    <th class="label" colspan="3">持ち点</th>
                     <td class="defen"></td>
                     <td class="defen"></td>
                     <td class="defen"></td>
                     <td class="defen"></td>
                   </tr>
                   <tr class="r_point">
-                    <td colspan="3"></td>
+                    <th class="label" colspan="3">ポイント<small>ウマ・オカ込</small></th>
                     <td class="point"></td>
                     <td class="point"></td>
                     <td class="point"></td>
@@ -196,6 +202,10 @@
                   </tr>
                 </tfoot>
               </table>
+              <div class="footer">
+                <div class="legend"><span class="zhuangjia"></span>親<span class="lizhi">リ</span>リーチ（供託 -1,000 込み）</div>
+                <button class="exit" type="button">ロビーへ戻る</button>
+              </div>
             </div>
           </div>
         </div>

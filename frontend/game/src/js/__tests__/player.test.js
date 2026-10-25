@@ -20,6 +20,7 @@ function createPlayer() {
         '<div class="select-mianzi">',
         '<div class="shoupai main"><div class="bingpai"></div></div>',
         '<div class="hule-dialog"><button class="next" type="button">次へ</button></div>',
+        '<div class="summary"><table></table><button class="exit" type="button">ロビーへ戻る</button></div>',
     );
     const player = new Majiang.UI.Player(root, renderTile, () => ({ play() {} }));
     player._callback = vi.fn();
@@ -103,6 +104,23 @@ describe("Majiang.UI.Player", () => {
         expect(document.activeElement).toBe(next[0]);
 
         next.trigger("click");
+        expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+        root.remove();
+    });
+
+    it("leaves the final standings only through its ロビーへ戻る button, which takes the focus and leaves once", () => {
+        const { player, root } = createPlayer();
+        $(document.body).append(root);
+        const exit = $(".summary .exit", root);
+
+        player.action_jieju();
+        vi.advanceTimersByTime(DIALOG_READY_MS);
+        expect(document.activeElement).toBe(exit[0]);
+
+        $(".summary table", root).trigger("click");
+        expect(player._callback).not.toHaveBeenCalled();
+        exit.trigger("click");
+        exit.trigger("click");
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
         root.remove();
     });

@@ -228,19 +228,49 @@ body.board
         display: flex
         overflow: auto
         align-items: center
+        background: rgba(0, 0, 0, 0.5)
         transition: opacity 0.2s ease-out
         &:focus
             outline: none
         > div
             margin: auto 0
             > div
+                box-sizing: border-box
                 background: rgb(3,17,14)
+                border: solid 1px #375
+                border-radius: 6px
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6)
                 margin: auto
+                .lizhi
+                    font-family: menu-font
+                    display: inline-block
+                    width: 1.2em
+                    margin-left: 0.2em
+                    font-size: 0.7em
+                    line-height: 1.4
+                    vertical-align: middle
+                    text-align: center
+                    color: #fc6
+                    &:not(:empty)
+                        border: solid 1px #fc6
+                        border-radius: 3px
                 table
                     margin: auto
                     font-family: text-font
                     border-collapse: collapse
                     line-height: 1.5
+                    .r_rank
+                        .title
+                            font-family: title-font
+                            text-align: left
+                            vertical-align: middle
+                        .rank
+                            font-family: menu-font
+                            text-align: center
+                            color: #999
+                            &.top
+                                color: #fc6
+                                font-weight: bold
                     .r_player
                         border-bottom: solid 2px
                     .r_diff
@@ -250,17 +280,34 @@ body.board
                             background: rgba(128,128,128,0.4)
                         .diff
                             font-family: defen-font
-                        .lizhi
+                            &.even
+                                font-family: text-font
+                                font-size: 0.8em
+                                color: #999
+                    .r_gongtuo
+                        border-top: solid 1px #555
+                        th
+                            text-align: left
+                        td
+                            text-align: right
+                            padding-right: 1.6em
+                        .diff
                             font-family: defen-font
-                            display: inline-block
-                            width: 1.2em
-                            text-align: center
+                    .label
+                        font-family: text-font
+                        text-align: left
+                        white-space: nowrap
+                        small
+                            margin-left: 0.4em
+                            font-size: 0.65em
+                            font-weight: normal
+                            color: #999
                     .r_defen
                         border-top: solid 2px
                         .defen
                             font-family: defen-font
                             text-align: right
-                            padding-right: 1.2em
+                            padding-right: 1.6em
                     .r_point
                         border-top: solid 1px
                         .point
@@ -283,6 +330,35 @@ body.board
                         img
                             height: 1em
                             vertical-align: text-bottom
+                .footer
+                    display: flex
+                    align-items: center
+                    justify-content: space-between
+                    margin: auto
+                    font-family: text-font
+                    .legend
+                        color: #999
+                        .zhuangjia
+                            display: inline-block
+                            width: 1em
+                            height: 1em
+                            margin-right: 0.3em
+                            vertical-align: -0.15em
+                            background: rgba(128,128,128,0.4)
+                        .lizhi
+                            margin: 0 0.3em 0 1.2em
+                    .exit
+                        border: solid 1px #fc6
+                        border-radius: 4px
+                        background: transparent
+                        color: #fc6
+                        font-family: menu-font
+                        cursor: pointer
+                        &:hover
+                        &:focus-visible
+                            background: #fc6
+                            color: black
+                            outline: none
     > .summary.paipu tbody tr:hover
         background: rgba(256,256,256,0.4)
         cursor: pointer

@@ -349,6 +349,13 @@ class Translate {
         this.syncWall();
     }
 
+    /** Each seat's score once the round's payments are made: the round end's scores are taken before them. */
+    settledScoresBySeat(scs, sch) {
+        const before = Translate.scoreMap(scs);
+        const change = Translate.scoreMap(sch);
+        return [0, 1, 2, 3].map(seat => ((before[seat] || 0) + (change[seat] || 0)) * wire.SCORE_DIV);
+    }
+
     fenpei(sch) {
         const s = this.shadow;
         const map = Translate.scoreMap(sch);
@@ -395,6 +402,8 @@ class Translate {
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
+
+        s.settledScores = msg.scs ? this.settledScoresBySeat(msg.scs, msg.sch) : null;
 
         let m;
         let winners = [];
@@ -459,10 +468,12 @@ class Translate {
         const defen = [0, 0, 0, 0];
         const point = [0, 0, 0, 0];
         const rank  = [0, 0, 0, 0];
+        const gongtuo = [0, 0, 0, 0];
         (msg.st || []).forEach((p, i) => {
             defen[p.s] = p.sc * wire.SCORE_DIV;
             point[p.s] = p.fs;
             rank[p.s]  = i + 1;
+            if (s.settledScores) gongtuo[p.s] = defen[p.s] - s.settledScores[p.s];
         });
 
         this.pendingJieju = {
@@ -473,6 +484,7 @@ class Translate {
             defen,
             point,
             rank,
+            gongtuo,
             log:    s.rounds.slice(),
         };
         if (! this.roundDialogOpen) this.showPendingJieju();
