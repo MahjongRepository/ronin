@@ -66,21 +66,30 @@ export default class Player extends Majiang.Player {
         this._buttons.push([type, callback]);
     }
 
-    show_button(callback = ()=>{}) {
+    /**
+     * A prompt's buttons beside ×, which skips them and runs callback. On the seat's own turn (skip false) there is
+     * no ×: callback opens the discard at once, a discard declines the buttons, and the arrow keys stay on the hand.
+     */
+    show_button(callback = ()=>{}, skip = true) {
         this.show_timer();
         if (! this._show_button) return callback();
         this._button_callback = callback;
-        const handler = ()=>{ this.clear_button(); callback() };
-        show($('.cansel', this._node.button)
-                .attr('tabindex', 0)
-                .on('click.button', handler));
-        this._node.root.on('click.button', handler);
+        this._button_skip = skip;
+        if (skip) {
+            const handler = ()=>{ this.clear_button(); callback() };
+            show($('.cansel', this._node.button)
+                    .attr('tabindex', 0)
+                    .on('click.button', handler));
+            this._node.root.on('click.button', handler);
+        }
+        else callback();
 
         show(this._node.button.width($(this._node.dapai).width()));
         const buttons = $('.button[tabindex]', this._node.button);
         const win = buttons.filter('.zimo, .rong');
-        setSelector(buttons, 'button',
-                    {focus: win.length ? buttons.index(win) : 0, touch: false});
+        const focus = win.length ? buttons.index(win) : skip ? 0 : null;
+        setSelector(buttons, 'button', skip ? {focus: focus, touch: false}
+                    : {focus: focus, prev: null, next: null, touch: false});
     }
 
     clear_button() {
@@ -95,15 +104,17 @@ export default class Player extends Majiang.Player {
     select_mianzi(mianzi) {
         const buttons = this._buttons;
         const callback = this._button_callback;
+        const skip = this._button_skip;
         const default_reply = this._default_reply;
         this.clear_button();
+        this.clear_dapai();
         this._node.mianzi.empty();
         const back = $('<span class="back" title="戻る [Esc]" aria-label="戻る">戻る</span>')
                 .on('click.mianzi', ()=>{
                     this.clear_mianzi();
                     this._default_reply = default_reply;
                     for (const [type, cb] of buttons) this.set_button(type, cb);
-                    this.show_button(callback);
+                    this.show_button(callback, skip);
                     return false;
                 });
         for (let m of mianzi) {
@@ -250,9 +261,8 @@ export default class Player extends Majiang.Player {
             this.set_button('gang', ()=>this.select_mianzi(gang_mianzi));
         }
 
-        if (this.shoupai.lizhi) {
-            this.show_button(()=>this.callback({dapai: zimo.p + '_'}));
-            return;
+        if (this.shoupai.lizhi && ! this._show_button) {
+            return this.callback({dapai: zimo.p + '_'});
         }
 
         let lizhi_dapai = this.allow_lizhi(this.shoupai);
@@ -263,7 +273,7 @@ export default class Player extends Majiang.Player {
             });
         }
 
-        this.show_button(()=>this.select_dapai());
+        this.show_button(()=>this.select_dapai(), false);
     }
 
     action_dapai(dapai) {

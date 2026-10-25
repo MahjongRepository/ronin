@@ -51,8 +51,7 @@ function setSelector(list, namespace, param = {}) {
             }
         });
     }
-    // eslint-disable-next-line no-undef -- upstream bug: means opt.next; unreachable while every caller keeps the default opt.prev
-    if (opt.prev || prev.next) {
+    if (opt.prev || opt.next) {
         $(window).on('keydown' + namespace, (ev)=>{
             if (debug) console.log(c, ev.type+namespace, ev.key, i);// for DEBUG
             if (ev.key == opt.prev) {
