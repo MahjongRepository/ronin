@@ -14,17 +14,14 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.state_utils import update_player
+from game.logic.state_utils import get_winner_seats, update_player
 from game.logic.types import (
-    DoubleRonResult,
     ExhaustiveDrawResult,
     GameEndResult,
     NagashiManganResult,
     PlayerStanding,
-    RonResult,
     RoundResult,
     SeatConfig,
-    TsumoResult,
 )
 from game.logic.wall import create_wall, create_wall_from_tiles, deal_initial_hands
 
@@ -242,7 +239,7 @@ def _get_honba_and_rotation(  # noqa: PLR0911
         return honba + 1, True
 
     if result_type in (RoundResultType.TSUMO, RoundResultType.RON, RoundResultType.DOUBLE_RON):
-        winner_seats = _get_winner_seats(result)
+        winner_seats = get_winner_seats(result)
         if dealer_seat in winner_seats:
             if settings.renchan_on_dealer_win:
                 return honba + 1, False
@@ -252,21 +249,6 @@ def _get_honba_and_rotation(  # noqa: PLR0911
         return 0, True
 
     raise AssertionError(f"unexpected round result type: {result_type}")  # pragma: no cover (exhaustive)
-
-
-def _get_winner_seats(result: RoundResult) -> list[int]:
-    """
-    Extract winner seats from a result.
-    """
-    if isinstance(result, (TsumoResult, RonResult)):
-        return [result.winner_seat]
-
-    if isinstance(result, DoubleRonResult):
-        return [w.winner_seat for w in result.winners]
-
-    raise AssertionError(  # pragma: no cover (exhaustive)
-        f"unexpected result type in _get_winner_seats: {type(result)}",
-    )
 
 
 def _get_wind_for_unique_dealers(unique_dealers: int) -> int:

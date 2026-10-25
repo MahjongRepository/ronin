@@ -8,7 +8,7 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import WINDS_34
-from game.logic.types import PlayerView, RoundResult
+from game.logic.types import PlayerView, RoundHistoryEntry, RoundResult
 from game.logic.wall import Wall
 
 _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
@@ -156,11 +156,13 @@ class MahjongGameState(BaseModel):
     Immutable game state.
 
     wait_id identifies the current wait (see `Awaiting`): the service bumps it once per call that ends the wait.
+    round_history holds one entry per finished round, in play order, appended by `finish_round()`.
     """
 
     model_config = ConfigDict(frozen=True)
 
     round_state: MahjongRoundState
+    round_history: tuple[RoundHistoryEntry, ...] = ()
     round_number: int = 0
     unique_dealers: int = 1
     honba_sticks: int = 0

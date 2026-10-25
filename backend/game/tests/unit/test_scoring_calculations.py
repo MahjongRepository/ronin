@@ -1,5 +1,6 @@
-from game.logic.game import _get_winner_seats, _goshashonyu_round, calculate_final_scores, finalize_game
+from game.logic.game import _goshashonyu_round, calculate_final_scores, finalize_game
 from game.logic.settings import GameSettings, LeftoverRiichiBets
+from game.logic.state_utils import get_winner_seats
 from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
@@ -37,7 +38,7 @@ class TestGetWinnerSeatsDoubleRon:
             scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
-        assert _get_winner_seats(result) == [0, 3]
+        assert get_winner_seats(result) == (0, 3)
 
 
 class TestGoshashonyuRound:

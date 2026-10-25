@@ -62,7 +62,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Reconnect:** the `game_reconnected` snapshot rebuilds the table; on the seat's turn the server
   re-sends the draw already in the snapshot's hand, so a draw of a tile the hand holds only reopens
   the turn. The round's number within its wind comes from the first dealer, which the snapshot
-  gives only as the dealer dice.
+  gives only as the dealer dice. The final standings' ledger (the shadow's round logs) is seeded
+  from the snapshot's round history, as reduced round logs holding only what the standings read.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
   `backend/game/wire/`; change both in the same change. The client sends no heartbeat: liveness is
   the WebSocket protocol ping (`docs/architecture.md`), and the server refuses unknown message types.

@@ -86,6 +86,43 @@ function pingjuMessage({ name, shoupai = [null, null, null, null], fenpei, tenpa
     return { pingju: { name, shoupai, fenpei, tenpai, players } };
 }
 
+/** A wire map of score changes by seat as majiang's fenpei: points in seat order from the round's dealer. */
+function fenpeiByL(sch, dealer) {
+    const out = [];
+    for (let l = 0; l < 4; l++) {
+        out[l] = (sch[(dealer + l) % 4] || 0) * wire.SCORE_DIV;
+    }
+    return out;
+}
+
+/** The tenpai seats of a draw as majiang's per-seat tenpai flags, in seat order from the round's dealer. */
+function tenpaiByL(tenpaiSeats, dealer) {
+    return [0, 1, 2, 3].map(l => tenpaiSeats.includes((dealer + l) % 4));
+}
+
+/**
+ * A finished round of the reconnect snapshot's round history (rh) as the round log the final standings read: the deal
+ * (wind, round, honba), each riichi that stood as its riichi discard followed by the next draw (the paipu shape the
+ * standings take a riichi deposit from), then the result with its score changes. The standings read nothing else of
+ * a round, so the rest is left out. A double ron shows the viewer's win, else the first, as a live round end does.
+ */
+function ledgerRound(entry, qijia, mySeat) {
+    const l = seat => (seat - entry.dl + 4) % 4;
+    const log = [{ qipai: { zhuangfeng: entry.w, jushu: (entry.dl - qijia + 4) % 4, changbang: entry.h } }];
+    for (const seat of entry.rs) {
+        log.push({ dapai: { l: l(seat), p: '_*' } }, { zimo: { l: (l(seat) + 1) % 4, p: '_' } });
+    }
+    const fenpei = fenpeiByL(entry.sch, entry.dl);
+    if (! entry.ws.length) {
+        const tenpai = entry.ts ? tenpaiByL(entry.ts, entry.dl) : null;
+        log.push(pingjuMessage({ name: '流局', fenpei, tenpai }));
+        return log;
+    }
+    const winner = entry.ws.includes(mySeat) ? mySeat : entry.ws[0];
+    log.push({ hule: { l: l(winner), baojia: entry.ls == null ? null : l(entry.ls), fenpei } });
+    return log;
+}
+
 /**
  * The final standings of a game_end message as majiang-ui's jieju fields, by seat: each seat's score, uma-adjusted
  * points and place, and gongtuo, the points the riichi sticks left on the table at the end gave the winner (lb).
@@ -379,13 +416,7 @@ class Translate {
     }
 
     fenpei(sch) {
-        const s = this.shadow;
-        const map = Translate.scoreMap(sch);
-        const out = [];
-        for (let l = 0; l < 4; l++) {
-            out[l] = (map[(s.dealer + l) % 4] || 0) * wire.SCORE_DIV;
-        }
-        return out;
+        return fenpeiByL(Translate.scoreMap(sch), this.shadow.dealer);
     }
 
     /** The hule message of one winner: a tsumo or ron round end itself, or one entry of a double ron's winners. */
@@ -410,11 +441,6 @@ class Translate {
             shoupai[s.l(h.s)] = fullHandStr(h.ct, mianzi.meldStrsFrom(h.ml), null);
         }
         return shoupai;
-    }
-
-    tenpaiByL(tenpaiSeats) {
-        const seats = tenpaiSeats || [];
-        return [0, 1, 2, 3].map(l => seats.includes((this.shadow.dealer + l) % 4));
     }
 
     roundEnd(msg) {
@@ -445,7 +471,7 @@ class Translate {
         }
         case wire.RT.EXHAUSTIVE:
             m = pingjuMessage({ name: '荒牌平局', shoupai: this.revealedHands(msg.th),
-                                fenpei: this.fenpei(msg.sch), tenpai: this.tenpaiByL(msg.ts) });
+                                fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer) });
             break;
         case wire.RT.ABORTIVE:
             m = pingjuMessage({ name: ABORTIVE_NAMES[msg.rn] || '途中流局', fenpei: this.fenpei(msg.sch),
@@ -453,7 +479,7 @@ class Translate {
             break;
         case wire.RT.NAGASHI:
             m = pingjuMessage({ name: '流し満貫', shoupai: this.revealedHands(msg.th),
-                                fenpei: this.fenpei(msg.sch), tenpai: this.tenpaiByL(msg.ts),
+                                fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer),
                                 players: (msg.qs || []).map(seat => s.l(seat)) });
             break;
         default:
@@ -533,7 +559,7 @@ class Translate {
         s.dora = (msg.di || []).map(tiles.tileToStr);
         s.wallOffset = (msg.tr || 0) - 70;
         s.log = null;
-        s.rounds = [];
+        s.rounds = msg.rh.map(entry => ledgerRound(entry, s.qijia, s.mySeat));
 
         const pst = {};
         const discards = {};

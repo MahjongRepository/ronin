@@ -8,6 +8,15 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
     PendingCallPrompt,
+    wind_name,
+)
+from game.logic.types import (
+    DoubleRonResult,
+    ExhaustiveDrawResult,
+    NagashiManganResult,
+    RonResult,
+    RoundHistoryEntry,
+    TsumoResult,
 )
 
 if TYPE_CHECKING:
@@ -170,10 +179,50 @@ def finish_round(
     result: RoundResult,
 ) -> tuple[MahjongGameState, RoundEndEvent]:
     """
-    End the round with its result: mark it finished, store the result, and return the round end event.
+    End the round with its result: mark it finished, store the result, record it in the round history, and return the
+    round end event.
 
-    The only way a round finishes, so a finished round always carries its result. The caller appends the event where the
-    round ended, keeping the event order.
+    The only way a round finishes, so a finished round always carries its result and appears in the history exactly
+    once. The caller appends the event where the round ended, keeping the event order.
     """
     new_round_state = game_state.round_state.model_copy(update={"phase": RoundPhase.FINISHED, "result": result})
-    return update_game_with_round(game_state, new_round_state), RoundEndEvent(result=result)
+    round_history = (*game_state.round_history, _round_history_entry(game_state, result))
+    new_game_state = game_state.model_copy(update={"round_state": new_round_state, "round_history": round_history})
+    return new_game_state, RoundEndEvent(result=result)
+
+
+def _round_history_entry(game_state: MahjongGameState, result: RoundResult) -> RoundHistoryEntry:
+    """
+    Summarize a round that ends with result for the round history, before the round advance moves its dealer and honba.
+    """
+    round_state = game_state.round_state
+    return RoundHistoryEntry(
+        round_wind=wind_name(round_state.round_wind),
+        dealer_seat=round_state.dealer_seat,
+        honba_sticks=game_state.honba_sticks,
+        riichi_seats=tuple(p.seat for p in round_state.players if p.is_riichi),
+        winner_seats=get_winner_seats(result),
+        loser_seat=result.loser_seat if isinstance(result, RonResult | DoubleRonResult) else None,
+        tenpai_seats=_tenpai_seats(result),
+        score_changes=result.score_changes,
+    )
+
+
+def get_winner_seats(result: RoundResult) -> tuple[int, ...]:
+    """
+    Return the winner seats of a round result: one for a tsumo or ron, every winner of a double ron, none for a draw.
+    """
+    if isinstance(result, TsumoResult | RonResult):
+        return (result.winner_seat,)
+
+    if isinstance(result, DoubleRonResult):
+        return tuple(w.winner_seat for w in result.winners)
+
+    return ()
+
+
+def _tenpai_seats(result: RoundResult) -> tuple[int, ...] | None:
+    if isinstance(result, ExhaustiveDrawResult | NagashiManganResult):
+        return tuple(result.tempai_seats)
+
+    return None

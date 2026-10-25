@@ -1,12 +1,15 @@
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import WindName
+from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import (
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
     get_player_view,
 )
+from game.logic.state_utils import finish_round
+from game.logic.types import DoubleRonResult, DoubleRonWinner, HandResultInfo, YakuInfo
 from game.tests.helpers.wall import make_wall
 
 
@@ -98,3 +101,30 @@ class TestGetPlayerView:
         assert view0.my_tiles != view1.my_tiles
         assert len(view0.my_tiles) == 13
         assert len(view1.my_tiles) == 13
+
+
+class TestFinishRound:
+    def test_finish_round__when_double_ron__should_record_both_winners_and_the_loser_in_round_history(self):
+        game_state = MahjongGameService().start_game("game1", ["Alice"], seed="a" * 192).runtime.state
+        winners = [
+            DoubleRonWinner(
+                winner_seat=seat,
+                hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+                riichi_sticks_collected=0,
+                closed_tiles=[],
+                melds=[],
+            )
+            for seat in (3, 0)
+        ]
+        result = DoubleRonResult(
+            loser_seat=2,
+            winning_tile=42,
+            winners=winners,
+            scores={0: 26000, 1: 25000, 2: 23000, 3: 26000},
+            score_changes={0: 1000, 1: 0, 2: -2000, 3: 1000},
+        )
+
+        new_game_state, _ = finish_round(game_state, result)
+        entry = new_game_state.round_history[-1]
+        assert len(new_game_state.round_history) == 1
+        assert (entry.winner_seats, entry.loser_seat, entry.tenpai_seats) == ((3, 0), 2, None)

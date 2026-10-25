@@ -173,6 +173,7 @@ class MockGameService(GameService):
             tiles_remaining=70,
             player_states=[],
             is_furiten=False,
+            round_history=[],
         )
 
     def build_draw_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:

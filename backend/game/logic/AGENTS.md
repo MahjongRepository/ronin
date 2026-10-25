@@ -9,7 +9,8 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
   the game state. One game state flows through the round-flow functions; only a helper scoped to a round or a player
   takes the round.
 * A round ends only through `finish_round()` (`state_utils.py`), so a finished round always carries its result, and
-  the result stays on the round through the round-advance wait.
+  the result stays on the round through the round-advance wait. It also appends the round's compact ledger entry to the
+  game state's `round_history`, the one record of past rounds (the reconnect snapshot sends it).
 * Domain events (`events.py`) carry integer tile ids only (136-format) and their own routing target, a broadcast or
   one seat.
 * The game state's `wait_id` identifies the current wait and changes exactly when a call ends it
