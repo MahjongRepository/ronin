@@ -7,7 +7,6 @@ class WireClientMessageType(IntEnum):
     """
 
     GAME_ACTION = 3
-    CHAT = 4
     RECONNECT = 6
     JOIN_GAME = 7
 

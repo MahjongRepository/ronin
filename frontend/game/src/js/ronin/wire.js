@@ -5,7 +5,6 @@ const wire = {
     /* client → server: t */
     T: {
         GAME_ACTION: 3,
-        CHAT:        4,
         RECONNECT:   6,
         JOIN_GAME:   7,
     },
@@ -64,7 +63,6 @@ const wire = {
     /* session messages: type */
     SESSION: {
         ERROR:              'session_error',
-        CHAT:               'chat',
         GAME_LEFT:          'game_left',
         PLAYER_LEFT:        'player_left',
         PLAYER_RECONNECTED: 'player_reconnected',

@@ -50,6 +50,22 @@ class TestQueuedWebSocket:
         await socket.stop_writer()
         assert client.written == []
 
+    async def test_queued_websocket__when_its_queue_overflows_with_input_buffered__should_end_receive(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(shared_websocket, "_SEND_QUEUE_LIMIT", 1)
+        client = FakeAsgiClient()
+        socket = await _open_queued_websocket(client)
+        socket.start_writer()
+        client.send_frame({"type": "websocket.receive", "bytes": b"buffered"})
+
+        socket.send_bytes(b"1")
+        socket.send_bytes(b"2")
+        with pytest.raises(ConnectionError, match="WebSocket terminated"):
+            await socket.receive()
+        await socket.stop_writer()
+        assert client.written == []
+
     async def test_queued_websocket__when_a_send_outlasts_its_deadline__should_terminate_without_a_close_frame(
         self, monkeypatch
     ):

@@ -116,7 +116,6 @@ export default class Board {
             shoupai: [],
             he:      [],
             say:     [],
-            chat:    [],
             dialog:  null,
             summary: hide($('> .summary', root)),
             kaiju:   hide($('> .kaiju', root)),
@@ -191,7 +190,6 @@ export default class Board {
 
             this._view.say[l] = hide($(`.say.${c}`, this._root).text(''));
             this._say[l] = null;
-            this._view.chat[l] = $(`> .chat.${c}`, this._root);
         }
 
         this._lunban = this._model.lunban;
@@ -277,7 +275,6 @@ export default class Board {
     clear_bubbles() {
         for (let l = 0; l < 4; l++) {
             fadeOut(this._view.say[l]);
-            fadeOut(this._view.chat[l]);
             this._say[l] = null;
         }
     }

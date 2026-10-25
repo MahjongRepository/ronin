@@ -113,21 +113,6 @@ class TestMessageRouterBranches:
         ]
         session_manager.handle_game_action.assert_not_called()
 
-    async def test_message_router__when_chat_without_game__should_return_not_in_game_error(self, setup):
-        router, connection, _ = setup
-
-        router.handle_message(
-            connection,
-            {
-                "t": WireClientMessageType.CHAT,
-                "text": "Hello!",
-            },
-        )
-        assert len(connection.sent_messages) == 1
-        response = connection.sent_messages[0]
-        assert response["type"] == SessionMessageType.ERROR
-        assert response["code"] == SessionErrorCode.NOT_IN_GAME
-
     async def test_message_router__when_game_action_raises__should_fail_the_players_game(self, setup):
         router, connection, session_manager = setup
         _setup_player_in_game(session_manager, connection)

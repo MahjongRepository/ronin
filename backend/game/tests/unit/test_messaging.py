@@ -102,19 +102,3 @@ class TestInputValidation:
         }
         with pytest.raises(ValidationError):
             parse_client_message(data)
-
-    def test_parse_client_message__when_chat_text_has_null_byte__should_raise(self):
-        data = {
-            "t": WireClientMessageType.CHAT,
-            "text": "hello\x00world",
-        }
-        with pytest.raises(ValidationError, match="control characters"):
-            parse_client_message(data)
-
-    def test_parse_client_message__when_chat_text_has_tab_and_newline__should_accept_it(self):
-        data = {
-            "t": WireClientMessageType.CHAT,
-            "text": "hello\tworld\nfoo",
-        }
-        msg = parse_client_message(data)
-        assert msg.text == "hello\tworld\nfoo"

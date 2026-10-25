@@ -23,7 +23,7 @@ from game.tests.helpers.websocket import (
 from game.tests.mocks import MOCK_AWAITING, MockGameService
 from game.wire.events import EVENT_TYPE_INT
 
-CHAT_OUTSIDE_A_GAME = {"t": WireClientMessageType.CHAT, "text": "hi"}
+ACTION_OUTSIDE_A_GAME = {"t": WireClientMessageType.GAME_ACTION, "wi": 0, "a": WireGameAction.PASS}
 
 
 class TestWebSocketIntegration:
@@ -45,18 +45,6 @@ class TestWebSocketIntegration:
                 EVENT_TYPE_INT[EventType.GAME_STARTED],
                 EVENT_TYPE_INT[EventType.ROUND_STARTED],
             ]
-
-    def test_websocket__when_chat_sent__should_echo_chat_with_player_name(self, client):
-        tickets = create_pending_game(client, game_id="test_game")
-
-        with client.websocket_connect("/ws/test_game") as ws:
-            join_game_and_start(ws, tickets[0])
-
-            send_ws(ws, {"t": WireClientMessageType.CHAT, "text": "Hello from game!"})
-            response = recv_ws(ws)
-            assert response["type"] == SessionMessageType.CHAT
-            assert response["player_name"] == "Player1"
-            assert response["text"] == "Hello from game!"
 
     def test_websocket__when_discard_sent__should_return_successful_draw_event(self, client):
         tickets = create_pending_game(client, game_id="test_game")
@@ -116,7 +104,7 @@ class TestWebSocketIntegration:
             assert response["type"] == SessionMessageType.ERROR
             assert response["code"] == SessionErrorCode.INVALID_MESSAGE
 
-            send_ws(ws, CHAT_OUTSIDE_A_GAME)
+            send_ws(ws, ACTION_OUTSIDE_A_GAME)
             assert recv_ws(ws)["code"] == SessionErrorCode.NOT_IN_GAME
 
     def test_websocket__when_game_id_invalid__should_reject_before_accept(self, client):
@@ -142,7 +130,7 @@ class TestWebSocketIntegration:
                 resp = recv_ws(ws)
                 assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
 
-            send_ws(ws, CHAT_OUTSIDE_A_GAME)
+            send_ws(ws, ACTION_OUTSIDE_A_GAME)
             resp = recv_ws(ws)
             assert resp["code"] == SessionErrorCode.NOT_IN_GAME
 
@@ -160,11 +148,11 @@ class TestWebSocketIntegration:
         ):
             # First 2 valid messages consume burst
             for _ in range(2):
-                send_ws(ws, CHAT_OUTSIDE_A_GAME)
+                send_ws(ws, ACTION_OUTSIDE_A_GAME)
                 recv_ws(ws)
 
             # Next valid message should be rate-limited
-            send_ws(ws, CHAT_OUTSIDE_A_GAME)
+            send_ws(ws, ACTION_OUTSIDE_A_GAME)
             resp = recv_ws(ws)
             assert resp["code"] == SessionErrorCode.RATE_LIMITED
 
@@ -177,7 +165,7 @@ class TestWebSocketIntegration:
         ):
             # Drain the bucket with valid messages
             for _ in range(2):
-                send_ws(ws, CHAT_OUTSIDE_A_GAME)
+                send_ws(ws, ACTION_OUTSIDE_A_GAME)
                 recv_ws(ws)
 
             # Send malformed messages - they hit decode (not rate-limit) and
