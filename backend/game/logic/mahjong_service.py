@@ -143,6 +143,7 @@ class MahjongGameService(GameService):
         return ServiceEvent(
             data=GameStartedEvent(
                 game_id=runtime.game_id,
+                game_type=game_state.settings.game_type,
                 players=players,
                 dealer_seat=game_state.round_state.dealer_seat,
                 dealer_dice=game_state.dealer_dice,

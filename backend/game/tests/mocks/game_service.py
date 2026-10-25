@@ -120,6 +120,7 @@ class MockGameService(GameService):
             ServiceEvent(
                 data=GameStartedEvent(
                     game_id=game_id,
+                    game_type=settings.game_type if settings is not None else GameType.HANCHAN,
                     players=players,
                     dealer_seat=0,
                     dealer_dice=((1, 1), (1, 1)),

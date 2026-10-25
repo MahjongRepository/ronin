@@ -53,6 +53,9 @@ const wire = {
 
     WIND: { EAST: 0, SOUTH: 1, WEST: 2, NORTH: 3 },
 
+    /* game_started: gt */
+    GAME_TYPE: { HANCHAN: 0, TONPUSEN: 1 },
+
     KAN: { OPEN: 'open', CLOSED: 'closed', ADDED: 'added' },
 
     MELD: { CHI: 'chi', PON: 'pon', OPEN_KAN: 'open_kan',

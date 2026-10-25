@@ -31,6 +31,17 @@ const ABORTIVE_NAMES = {
     four_winds:     '四風連打',
 };
 
+const GAME_TYPE_NAMES = {
+    [wire.GAME_TYPE.HANCHAN]:  '半荘戦',
+    [wire.GAME_TYPE.TONPUSEN]: '東風戦',
+};
+
+/** The game start screen's title: the game's length, then on a second line the local time it started. */
+function gameTitle(gameType, startedAt) {
+    const time = startedAt.toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' });
+    return GAME_TYPE_NAMES[gameType] + '\n' + time;
+}
+
 const KIND_OF_MELD = {
     [wire.MELD.CHI]:        'fulou',
     [wire.MELD.PON]:        'fulou',
@@ -133,7 +144,7 @@ class Translate {
         const s = this.shadow;
         s.gameId = msg.gid;
         s.qijia = msg.dl;
-        s.title = 'Ronin: ' + msg.gid;
+        s.title = gameTitle(msg.gt, new Date());
         this.readPlayers(msg.p);
         s.playersConnected = [true, true, true, true];
     }
@@ -516,7 +527,6 @@ class Translate {
         s.roundInWind = (msg.dl - s.qijia + 4) % 4;
         s.honba = msg.h;
         s.riichiSticks = msg.r;
-        s.title = 'Ronin: ' + msg.gid;
         s.waitId = msg[wire.WAIT_ID];
         this.readPlayers(msg.p);
         this.retry = null;

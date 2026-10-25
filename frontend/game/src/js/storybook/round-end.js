@@ -5,7 +5,7 @@ import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from 
 
 const VIEWPOINT = 0;
 const QIJIA = 0;
-const GAME_TITLE = "Ronin: storybook";
+const GAME_TITLE = "半荘戦";
 const EXHAUSTIVE_DRAW = "荒牌平局";
 const NAGASHI_MANGAN = "流し満貫";
 const NO_PAYMENTS = Object.freeze([0, 0, 0, 0]);

@@ -183,6 +183,15 @@ class WireWind(IntEnum):
     NORTH = 3
 
 
+class WireGameType(IntEnum):
+    """
+    Integer wire encoding for GameType.
+    """
+
+    HANCHAN = 0
+    TONPUSEN = 1
+
+
 class WindName(StrEnum):
     """
     Wind direction names.

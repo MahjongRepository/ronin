@@ -3,6 +3,8 @@ import pytest
 from game.logic.enums import CallType, GameAction, RoundPhase
 from game.logic.events import BroadcastTarget, CallPromptEvent, EventType, GameStartedEvent, SeatTarget
 from game.logic.mahjong_service import MahjongGameService
+from game.logic.settings import GameSettings, GameType
+from game.messaging.event_payload import service_event_payload
 
 
 class TestGameCreationAndJoin:
@@ -23,6 +25,12 @@ class TestGameCreationAndJoin:
         for player in event.data.players:
             assert player.seat is not None
             assert player.name is not None
+
+    def test_start_game__when_tonpusen__should_send_game_type_in_game_started(self, service):
+        settings = GameSettings(game_type=GameType.TONPUSEN)
+        events = service.start_game("game1", ["Player"], seed="a" * 192, settings=settings).events
+        game_started = next(e for e in events if e.event == EventType.GAME_STARTED)
+        assert service_event_payload(game_started)["gt"] == 1
 
 
 class TestGameServiceIntegration:
