@@ -63,17 +63,18 @@ export default class Shoupai {
     }
 
     adjust() {
-        let shoupai = this._node.root.width();
-        let bingpai = this._node.bingpai.width();
-        let fulou   = this._node.fulou.width();
-        if (fulou < shoupai) {
-            let overflow = bingpai + fulou - shoupai;
-            if (overflow > 0)
-                    this._node.bingpai.css('margin-left', `${- overflow}px`);
-            else    this._node.bingpai.css('margin-left', '');
+        let shoupai  = this._node.root.width();
+        let bingpai  = this._node.bingpai.width();
+        let fulou    = this._node.fulou.width();
+        let overflow = bingpai + fulou - shoupai;
+        if (fulou < shoupai && overflow > 0) {
+            this._node.fulou.css({
+                'margin-left': `${- overflow}px`,
+                'transform':   `scale(${(shoupai - bingpai) / fulou})`
+            });
         }
         else {
-            this._node.bingpai.css('margin-left', '');
+            this._node.fulou.css({ 'margin-left': '', 'transform': '' });
         }
         return this;
     }
