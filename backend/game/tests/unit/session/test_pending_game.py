@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import MagicMock
 
 import pytest
 from starlette.testclient import TestClient
@@ -15,12 +16,16 @@ from game.session.models import GameLifecycle
 from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.session import make_session_manager
-from game.tests.mocks import MockConnection
+from game.tests.mocks import MockConnection, MockGameService
 from game.wire.events import EVENT_TYPE_INT
+from shared.dal.models import GameEndReason
 
-from .helpers import game_of, runtime_of
+from .helpers import game_of, runtime_of, wait_for_background_tasks
 
-SHORT_PENDING_TIMEOUT = TimerConfig(pending_game_timeout_seconds=0.01)
+SHORT_PENDING_TIMEOUT = TimerConfig(pending_game_timeout_seconds=0.01, game_start_pause_seconds=0)
+SHORT_START_PAUSE = TimerConfig(game_start_pause_seconds=0.01)
+GAME_STARTED_T = EVENT_TYPE_INT[EventType.GAME_STARTED]
+ROUND_STARTED_T = EVENT_TYPE_INT[EventType.ROUND_STARTED]
 
 
 def _make_specs(count: int = 1) -> list[PlayerSpec]:
@@ -190,6 +195,99 @@ class TestPendingGameTimeout:
         assert game.lifecycle in (GameLifecycle.ENDING, GameLifecycle.CLOSED)
         assert "ticket-0" not in manager._participants_by_ticket
         assert manager._game_repository.finishes == []
+
+
+class TestGameStartPause:
+    async def test_game_start_pause__when_every_player_joined__should_show_each_seat_the_start_then_deal_after_it(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine, timer_config=SHORT_START_PAUSE)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        conns = [_join(manager, "ticket-0"), _join(manager, "ticket-1")]
+        game = game_of(manager)
+        seats = [participant.seat for participant in game.participants]
+        assert [[m["t"] for m in conn.sent_messages] for conn in conns] == [[GAME_STARTED_T], [GAME_STARTED_T]]
+        assert [conn.sent_messages[0]["s"] for conn in conns] == seats
+        assert game.awaiting is None
+        assert [participant.timer.task for participant in game.participants] == [None, None]
+        assert game.start_pause is not None
+
+        await game.start_pause
+        assert [[m["t"] for m in conn.sent_messages][:2] for conn in conns] == [[GAME_STARTED_T, ROUND_STARTED_T]] * 2
+        assert game.awaiting is not None
+        awaited = [participant for participant in game.participants if participant.seat in game.awaiting.seats]
+        assert awaited
+        assert all(participant.timer.task is not None for participant in awaited)
+
+        await manager.shutdown()
+
+    async def test_game_start_pause__when_a_player_leaves_during_it__should_seat_an_ai_player_only_with_the_deal(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine, timer_config=SHORT_START_PAUSE)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
+        game = game_of(manager)
+        bob_seat = game.participants[1].seat
+        assert game.start_pause is not None
+
+        manager.leave_game(bob, notify_player=False)
+        early_reconnect = MockConnection()
+        manager.register_connection(early_reconnect)
+        manager.reconnect(early_reconnect, game_id="game1", session_token="ticket-1")
+        assert _error_codes(early_reconnect) == [SessionErrorCode.RECONNECT_RETRY_LATER]
+        assert runtime_of(manager).ai.is_ai_player(bob_seat) is False
+        assert [m.get("t", m.get("type")) for m in alice.sent_messages] == [
+            GAME_STARTED_T,
+            SessionMessageType.PLAYER_LEFT,
+        ]
+
+        await game.start_pause
+        assert alice.sent_messages[2]["t"] == ROUND_STARTED_T
+        assert runtime_of(manager).ai.is_ai_player(bob_seat) is True
+
+        manager.reconnect(early_reconnect, game_id="game1", session_token="ticket-1")
+        reconnected = [m for m in early_reconnect.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
+        assert [m["s"] for m in reconnected] == [bob_seat]
+
+        await manager.shutdown()
+
+    async def test_game_start_pause__when_every_player_leaves_during_it__should_abandon_the_game_without_a_deal(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine, timer_config=SHORT_START_PAUSE)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
+        game = game_of(manager)
+        start_pause = game.start_pause
+        assert start_pause is not None
+
+        manager.leave_game(bob, notify_player=False)
+        manager.leave_game(alice, notify_player=False)
+        assert manager.get_game("game1") is None
+        assert game.start_pause is None
+        with pytest.raises(asyncio.CancelledError):
+            await start_pause
+
+        await wait_for_background_tasks(manager)
+        assert [finish.end_reason for finish in manager._game_repository.finishes] == [GameEndReason.ABANDONED]
+        assert [m.get("t") for m in alice.sent_messages if "t" in m] == [GAME_STARTED_T]
+
+    async def test_game_start_pause__when_the_deal_raises__should_fail_the_game(self):
+        game_service = MockGameService()
+        game_service.replace_with_ai_player = MagicMock(side_effect=RuntimeError("replace failed"))
+        manager = make_session_manager(game_service, timer_config=SHORT_START_PAUSE)
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        alice, bob = _join(manager, "ticket-0"), _join(manager, "ticket-1")
+        start_pause = game_of(manager).start_pause
+        assert start_pause is not None
+
+        manager.leave_game(bob, notify_player=False)
+        await start_pause
+        await wait_for_background_tasks(manager)
+        assert manager.get_game("game1") is None
+        assert _error_codes(alice) == [SessionErrorCode.INTERNAL_ERROR]
+        assert alice._close_code == 1011
 
 
 class TestPendingGameDisconnect:

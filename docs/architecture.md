@@ -267,7 +267,7 @@ sequenceDiagram
     P->>R: JOIN_GAME {game_ticket}  or  RECONNECT {game_ticket}
     R->>R: verify ticket, ticket.room_id == path game_id
     R->>SM: join_game / reconnect (participant looked up by ticket)
-    SM-->>P: game_started events / game_reconnected snapshot (with wait_id)
+    SM-->>P: game_started (with the seat), the first deal after the start pause / game_reconnected snapshot (with wait_id)
     loop each wait
         SM-->>P: wait-opening event (draw, call prompt, meld, round end) stamped with the wait id
         P->>R: action echoing that wait id

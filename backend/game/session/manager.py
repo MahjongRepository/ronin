@@ -11,6 +11,7 @@ from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
     GameEndedEvent,
+    GameStartedEvent,
     SeatTarget,
     ServiceEvent,
 )
@@ -19,6 +20,7 @@ from game.messaging.event_payload import (
     WAIT_ID_KEY,
     service_event_payload,
     shape_call_prompt_payload,
+    stamp_viewer_seat,
     stamp_wait_id,
 )
 from game.messaging.types import (
@@ -315,10 +317,11 @@ class SessionManager:
 
     def _start_game(self, game: GameSession) -> None:
         """
-        Start the engine game for every participant, connected or not.
+        Start the engine game for every participant, connected or not, and show its start before the first deal.
 
-        Each participant is bound to the seat the engine assigned to its spec (by input order, never by name). An absent
-        one gets an AI player in its seat right after the start's events go out, and can RECONNECT later.
+        Each participant is bound to the seat the engine assigned to its spec (by input order, never by name). The game
+        start goes out at once; the rest of the start's events, the first deal, follow after the game start pause, and
+        the first wait's timers only with them, so showing the start eats no turn time. A zero pause deals at once.
         """
         game.lifecycle = GameLifecycle.PLAYING
         start = self._game_service.start_game(game.game_id, [participant.name for participant in game.participants])
@@ -328,13 +331,45 @@ class SessionManager:
 
         game.replay = ReplayRecord(seed=start.runtime.state.seed, rng_version=start.runtime.state.rng_version)
         self._record_game_start(game, start.runtime)
+        logger.info("pending game completed", game_id=game.game_id)
+
+        opening = [event for event in start.events if isinstance(event.data, GameStartedEvent)]
+        deal = [event for event in start.events if not isinstance(event.data, GameStartedEvent)]
+        self._send_events(game, opening, start.awaiting)
+        if game.timer_config.game_start_pause_seconds > 0:
+            game.start_pause = self._spawn(self._deal_after_start_pause(game, events=deal, awaiting=start.awaiting))
+        else:
+            self._deal_first_round(game, events=deal, awaiting=start.awaiting)
+
+    async def _deal_after_start_pause(
+        self, game: GameSession, *, events: list[ServiceEvent], awaiting: Awaiting
+    ) -> None:
+        """
+        Deal the first round once the game start pause has passed.
+
+        After its sleep the task detaches itself from the game (`start_pause`), so the deal and everything after it
+        treat the game as dealt. Every end claim cancels the task, even once its sleep ended, so it only ever deals in a
+        playing game. Any unexpected error ends the game through fail_game.
+        """
+        await asyncio.sleep(game.timer_config.game_start_pause_seconds)
+
+        game.start_pause = None
+        try:
+            self._deal_first_round(game, events=events, awaiting=awaiting)
+        except Exception as exc:  # noqa: BLE001
+            self.fail_game(game, reason="first deal failed", exc=exc)
+
+    def _deal_first_round(self, game: GameSession, *, events: list[ServiceEvent], awaiting: Awaiting) -> None:
+        """
+        Send the first deal and open the first wait; then seat an AI player for every participant without a connection.
+
+        An absent participant (never joined, or left during the game start pause) can RECONNECT later.
+        """
         absent = [participant for participant in game.participants if not participant.is_connected]
-        self._follow_engine(game, events=start.events, awaiting=start.awaiting, actor=None)
+        self._follow_engine(game, events=events, awaiting=awaiting, actor=None)
         for participant in absent:
             if game.lifecycle is GameLifecycle.PLAYING:
                 self._release_seat(participant)
-
-        logger.info("pending game completed", game_id=game.game_id)
 
     def _record_game_start(self, game: GameSession, runtime: GameRuntime) -> None:
         """
@@ -380,12 +415,16 @@ class SessionManager:
         Hand a participant's seat to an AI player, which plays any turn or call it owed.
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
-        abandoned instead: there are never all-AI games.
+        abandoned instead: there are never all-AI games. During the game start pause the seat stays empty: the first
+        deal hands it over, so no AI player's move goes out ahead of the deal.
         """
         game = participant.game
         participant.timer.stop()
         if not game.connected():
             self._end_game(game, GameEndReason.ABANDONED)
+            return
+
+        if game.start_pause is not None:
             return
 
         seat = self._seat_of(participant)
@@ -534,8 +573,8 @@ class SessionManager:
         """
         Return the participant a RECONNECT names, or None after answering why it cannot reconnect (yet).
 
-        A game that has not started, or a participant whose old connection the server has not seen drop yet, answers
-        retry later: the client retries.
+        A game that has not dealt its first round (pending, or in its game start pause), or a participant whose old
+        connection the server has not seen drop yet, answers retry later: the client retries.
         """
         participant = self._participants_by_ticket.get(session_token)
         if participant is None:
@@ -554,7 +593,7 @@ class SessionManager:
             )
             return None
 
-        if participant.game.lifecycle is GameLifecycle.PENDING:
+        if participant.game.lifecycle is GameLifecycle.PENDING or participant.game.start_pause is not None:
             self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_RETRY_LATER,
@@ -705,6 +744,8 @@ class SessionManager:
     def _send_events(self, game: GameSession, events: list[ServiceEvent], awaiting: Awaiting) -> None:
         """
         Record the events for the replay, then send each to its target, the wait's opening messages stamped with `wi`.
+
+        `game_started` is broadcast as one copy per seat, each stamped with its recipient's own seat (`s`).
         """
         if game.replay is not None:
             self._replay_collector.collect_events(game.replay, events)
@@ -715,12 +756,22 @@ class SessionManager:
                 message = shape_call_prompt_payload(message)
 
             message = stamp_wait_id(message, event, awaiting)
-            if isinstance(event.target, BroadcastTarget):
+            if isinstance(event.data, GameStartedEvent):
+                self._send_to_each_seat(game, message)
+            elif isinstance(event.target, BroadcastTarget):
                 self._broadcast_to_game(game, message)
             elif isinstance(event.target, SeatTarget):
                 participant = game.at_seat(event.target.seat)
                 if participant is not None and participant.connection is not None:
                     participant.connection.send_message(message)
+
+    def _send_to_each_seat(self, game: GameSession, message: dict[str, Any]) -> None:
+        """
+        Send a broadcast message to every connected participant, each copy stamped with its recipient's seat.
+        """
+        for participant in game.participants:
+            if participant.connection is not None:
+                participant.connection.send_message(stamp_viewer_seat(message, self._seat_of(participant)))
 
     @staticmethod
     def _broadcast_to_game(
@@ -784,9 +835,10 @@ class SessionManager:
         Only a pending or playing game can be claimed: the claimer gets True, every later caller False. The claim first
         detaches the connected participants' connections and the replay lines (an abandoned game's replay is discarded)
         and spawns the finalizer on them, so a release step that raised would still leave the game finished. It then
-        drops the game and its tickets from the registry, cancels the pending timeout and every sleeping timer, evicts
-        the detached connections and drops the engine runtime. The finalizer saves the replay, posts the finish record
-        and closes the detached connections (1000 for a completion, `internal_error` and 1011 for a failure).
+        drops the game and its tickets from the registry, cancels the pending timeout, the game start pause and every
+        sleeping timer, evicts the detached connections and drops the engine runtime. The finalizer saves the replay,
+        posts the finish record and closes the detached connections (1000 for a completion, `internal_error` and 1011
+        for a failure).
         """
         if not game.is_active:
             return False
@@ -815,10 +867,12 @@ class SessionManager:
 
             participant.timer.cancel()
 
-        if game.pending_timeout is not None:
-            game.pending_timeout.cancel()
-            game.pending_timeout = None
+        for task in (game.pending_timeout, game.start_pause):
+            if task is not None:
+                task.cancel()
 
+        game.pending_timeout = None
+        game.start_pause = None
         for connection in connections:
             self._evict_connection(connection)
 
@@ -944,11 +998,16 @@ class SessionManager:
         """
         Stop every background task before the server's resources close.
 
-        Sleeping pending, auth and turn timers are cancelled, all in one step, so none of them can fire and end a game
-        meanwhile; the games' finalizers are awaited, so their replay saves, finish record posts and socket closes
-        happen first. Games still running are not recorded as ended.
+        Sleeping pending, game start pause, auth and turn timers are cancelled, all in one step, so none of them can
+        fire and end a game meanwhile; the games' finalizers are awaited, so their replay saves, finish record posts and
+        socket closes happen first. Games still running are not recorded as ended.
         """
-        sleeping = [game.pending_timeout for game in self._games.values() if game.pending_timeout is not None]
+        sleeping = [
+            task
+            for game in self._games.values()
+            for task in (game.pending_timeout, game.start_pause)
+            if task is not None
+        ]
         sleeping.extend(
             participant.timer.task
             for game in self._games.values()

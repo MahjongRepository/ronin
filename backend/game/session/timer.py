@@ -12,7 +12,8 @@ if TYPE_CHECKING:
 
 class TimerConfig(BaseModel):
     """
-    Pacing of a game: turn base and bank time, fixed meld, round-advance and pending-game timeouts (seconds).
+    Pacing of a game: turn base and bank time, fixed meld, round-advance and pending-game timeouts, and the game start
+    pause before the first deal (seconds).
     """
 
     base_turn_seconds: float = Field(default=5, ge=0)
@@ -22,6 +23,7 @@ class TimerConfig(BaseModel):
     meld_decision_seconds: float = Field(default=5, gt=0)
     round_advance_timeout_seconds: float = Field(default=15, gt=0)
     pending_game_timeout_seconds: float = Field(default=10, gt=0)
+    game_start_pause_seconds: float = Field(default=3, ge=0)
 
     @model_validator(mode="after")
     def _validate_bank_cap(self) -> TimerConfig:
