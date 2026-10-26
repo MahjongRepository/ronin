@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from game.logic.enums import GameAction, TimeoutType
-from game.logic.events import EventType, GameEndedEvent, ServiceEvent
+from game.logic.events import EventType, GameEndedEvent, GameEvent
 from game.logic.types import PlayerStanding
 from game.session.models import GameLifecycle, PlayerSpec
 from game.session.timer import TimerConfig
@@ -34,18 +34,16 @@ def manager_with_repo(game_repo):
     return make_session_manager(repository=game_repo)
 
 
-def _make_game_end_events(*, num_rounds: int = 1) -> list[ServiceEvent]:
+def _make_game_end_events(*, num_rounds: int = 1) -> list[GameEvent]:
     return [
-        ServiceEvent(
-            data=GameEndedEvent(
-                type=EventType.GAME_END,
-                winner_seat=0,
-                standings=[
-                    PlayerStanding(seat=0, score=25000, final_score=0),
-                ],
-                leftover_riichi_bonus=0,
-                num_rounds=num_rounds,
-            ),
+        GameEndedEvent(
+            type=EventType.GAME_END,
+            winner_seat=0,
+            standings=[
+                PlayerStanding(seat=0, score=25000, final_score=0),
+            ],
+            leftover_riichi_bonus=0,
+            num_rounds=num_rounds,
         ),
     ]
 
@@ -99,19 +97,17 @@ class TestGameCompletionRecording:
     ):
         conns = create_started_game(manager_with_repo, player_names=["Alice", "Bob"])
         events = [
-            ServiceEvent(
-                data=GameEndedEvent(
-                    type=EventType.GAME_END,
-                    winner_seat=1,
-                    standings=[
-                        PlayerStanding(seat=1, score=40000, final_score=50),
-                        PlayerStanding(seat=0, score=25000, final_score=0),
-                        PlayerStanding(seat=2, score=20000, final_score=-15),
-                        PlayerStanding(seat=3, score=15000, final_score=-35),
-                    ],
-                    leftover_riichi_bonus=0,
-                    num_rounds=8,
-                ),
+            GameEndedEvent(
+                type=EventType.GAME_END,
+                winner_seat=1,
+                standings=[
+                    PlayerStanding(seat=1, score=40000, final_score=50),
+                    PlayerStanding(seat=0, score=25000, final_score=0),
+                    PlayerStanding(seat=2, score=20000, final_score=-15),
+                    PlayerStanding(seat=3, score=15000, final_score=-35),
+                ],
+                leftover_riichi_bonus=0,
+                num_rounds=8,
             ),
         ]
         manager_with_repo._game_service.handle_action = MagicMock(return_value=mock_update(events, MOCK_GAME_OVER))

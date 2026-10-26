@@ -406,9 +406,7 @@ class TestPendingCallPromptStateGate:
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
         update = MahjongGameService().handle_action(runtime, seat=0, action=action, data=action_data)
-        assert [(e.data.code, e.data.target) for e in update.events] == [
-            (GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))
-        ]
+        assert [(e.code, e.target) for e in update.events] == [(GameErrorCode.NOT_YOUR_TURN, SeatTarget(seat=0))]
         assert runtime.state is game_state
         assert update.awaiting.wait_id == game_state.wait_id
 

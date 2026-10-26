@@ -9,7 +9,6 @@ from game.logic.events import (
     GameStartedEvent,
     RoundStartedEvent,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
 from game.logic.runtime import GameRuntime
@@ -65,7 +64,7 @@ MOCK_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), wait_id=1, round
 MOCK_GAME_OVER = Awaiting(kind=WaitKind.NONE, seats=frozenset(), wait_id=2, round_number=0)
 
 
-def mock_update(events: list[ServiceEvent], awaiting: Awaiting = MOCK_AWAITING) -> GameUpdate:
+def mock_update(events: list[GameEvent], awaiting: Awaiting = MOCK_AWAITING) -> GameUpdate:
     return GameUpdate(events=events, awaiting=awaiting)
 
 
@@ -86,7 +85,7 @@ class MockGameService(GameService):
             input=data,
             success=True,
         )
-        return GameUpdate(events=[ServiceEvent(data=event)], awaiting=MOCK_AWAITING)
+        return GameUpdate(events=[event], awaiting=MOCK_AWAITING)
 
     def start_game(
         self,
@@ -110,29 +109,25 @@ class MockGameService(GameService):
             GamePlayerInfo(seat=i, name=name, is_ai_player=i >= player_count) for i, name in enumerate(all_names)
         ]
         events = [
-            ServiceEvent(
-                data=GameStartedEvent(
-                    game_id=game_id,
-                    game_type=state.settings.game_type,
-                    players=players,
-                    dealer_seat=0,
-                    dealer_dice=((1, 1), (1, 1)),
-                ),
+            GameStartedEvent(
+                game_id=game_id,
+                game_type=state.settings.game_type,
+                players=players,
+                dealer_seat=0,
+                dealer_dice=((1, 1), (1, 1)),
             ),
-            ServiceEvent(
-                data=RoundStartedEvent(
-                    seat=0,
-                    round_wind=WindName.EAST,
-                    round_number=0,
-                    dealer_seat=0,
-                    current_player_seat=0,
-                    dora_indicators=[],
-                    honba_sticks=0,
-                    riichi_sticks=0,
-                    my_tiles=[],
-                    players=[PlayerView(seat=i, score=25000) for i in range(4)],
-                    target=SeatTarget(seat=0),
-                ),
+            RoundStartedEvent(
+                seat=0,
+                round_wind=WindName.EAST,
+                round_number=0,
+                dealer_seat=0,
+                current_player_seat=0,
+                dora_indicators=[],
+                honba_sticks=0,
+                riichi_sticks=0,
+                my_tiles=[],
+                players=[PlayerView(seat=i, score=25000) for i in range(4)],
+                target=SeatTarget(seat=0),
             ),
         ]
         return GameStart(runtime=runtime, events=events, awaiting=MOCK_AWAITING, seats=tuple(range(player_count)))
@@ -169,7 +164,7 @@ class MockGameService(GameService):
             round_history=[],
         )
 
-    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         return []
 
     def process_ai_player_actions_after_replacement(
@@ -194,4 +189,4 @@ class MockGameService(GameService):
             input={},
             success=True,
         )
-        return GameUpdate(events=[ServiceEvent(data=event)], awaiting=MOCK_AWAITING)
+        return GameUpdate(events=[event], awaiting=MOCK_AWAITING)

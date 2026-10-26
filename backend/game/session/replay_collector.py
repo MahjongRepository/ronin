@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from game.logic.events import (
     CallPromptEvent,
@@ -14,11 +14,11 @@ from game.logic.events import (
     RoundStartedEvent,
     SeatTarget,
 )
-from game.messaging.event_payload import service_event_payload
+from game.messaging.event_payload import game_event_payload
 from game.wire.replay_format import REPLAY_VERSION, encode_replay_settings
 
 if TYPE_CHECKING:
-    from game.logic.events import ServiceEvent
+    from game.logic.events import GameEvent
     from game.logic.settings import GameSettings
     from shared.storage import ReplayStorage
 
@@ -63,7 +63,7 @@ class ReplayCollector:
     def __init__(self, storage: ReplayStorage) -> None:
         self._storage = storage
 
-    def collect_events(self, record: ReplayRecord, events: list[ServiceEvent]) -> None:
+    def collect_events(self, record: ReplayRecord, events: list[GameEvent]) -> None:
         """
         Append the qualifying events to the record's lines.
 
@@ -72,9 +72,9 @@ class ReplayCollector:
         skipped.
         """
         buffer = record.lines
-        pending_round_started: list[ServiceEvent] = []
+        pending_round_started: list[RoundStartedEvent] = []
         for event in events:
-            if isinstance(event.data, RoundStartedEvent) and isinstance(event.target, SeatTarget):
+            if isinstance(event, RoundStartedEvent) and isinstance(event.target, SeatTarget):
                 pending_round_started.append(event)
                 continue
 
@@ -86,11 +86,11 @@ class ReplayCollector:
             if not self._should_include(event):
                 continue
 
-            payload = service_event_payload(event)
-            if isinstance(event.data, DrawEvent):
+            payload = game_event_payload(event)
+            if isinstance(event, DrawEvent):
                 payload.pop("aa", None)
 
-            if isinstance(event.data, GameStartedEvent):
+            if isinstance(event, GameStartedEvent):
                 payload["sd"] = record.seed
                 payload["rv"] = record.rng_version
                 payload["gs"] = encode_replay_settings(record.settings)
@@ -102,17 +102,17 @@ class ReplayCollector:
             buffer.append(self._merge_round_started_payloads(pending_round_started))
 
     @staticmethod
-    def _should_include(event: ServiceEvent) -> bool:
+    def _should_include(event: GameEvent) -> bool:
         """
         Check whether a non-round-started event qualifies for replay persistence.
         """
         if isinstance(event.target, SeatTarget):
-            return isinstance(event.data, _SEAT_TARGET_INCLUDED)
+            return isinstance(event, _SEAT_TARGET_INCLUDED)
 
-        return not isinstance(event.data, _EXCLUDED_EVENT_TYPES)
+        return not isinstance(event, _EXCLUDED_EVENT_TYPES)
 
     @staticmethod
-    def _merge_round_started_payloads(events: list[ServiceEvent]) -> str:
+    def _merge_round_started_payloads(events: list[RoundStartedEvent]) -> str:
         """
         Merge per-seat RoundStartedEvent payloads into a single JSON record.
 
@@ -129,10 +129,9 @@ class ReplayCollector:
 
         tiles_by_seat: dict[int, list[int]] = {}
         for event in events:
-            data = cast("RoundStartedEvent", event.data)
-            tiles_by_seat[data.seat] = data.my_tiles
+            tiles_by_seat[event.seat] = event.my_tiles
 
-        base_payload = service_event_payload(events[0])
+        base_payload = game_event_payload(events[0])
         for player_dict in base_payload["p"]:
             seat = player_dict["s"]
             if seat in tiles_by_seat:

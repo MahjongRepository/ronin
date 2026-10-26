@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from game.logic.enums import GameAction
-from game.logic.events import ErrorEvent, ServiceEvent
+from game.logic.events import ErrorEvent, GameEvent
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.state import MahjongGameState
@@ -74,7 +74,7 @@ class ReplayStep(BaseModel):
 
     input_event: ReplayInputEvent
     synthetic: bool = False
-    emitted_events: tuple[ServiceEvent, ...]
+    emitted_events: tuple[GameEvent, ...]
     state_before: MahjongGameState
     state_after: MahjongGameState
 
@@ -89,7 +89,7 @@ class ReplayTrace(BaseModel):
     seed: str
     rng_version: str = RNG_VERSION
     seat_by_player: dict[str, int]
-    startup_events: tuple[ServiceEvent, ...]
+    startup_events: tuple[GameEvent, ...]
     initial_state: MahjongGameState
     steps: tuple[ReplayStep, ...]
     final_state: MahjongGameState
@@ -100,12 +100,12 @@ class ReplayError(Exception):
     Raised when a replay step produces an error event in strict mode.
     """
 
-    def __init__(self, step_index: int, event: ReplayInputEvent, errors: list[ServiceEvent]) -> None:
+    def __init__(self, step_index: int, event: ReplayInputEvent, errors: list[GameEvent]) -> None:
         self.step_index = step_index
         self.event = event
         self.errors = errors
 
-        messages = [e.data.message for e in errors if isinstance(e.data, ErrorEvent)]
+        messages = [e.message for e in errors if isinstance(e, ErrorEvent)]
         super().__init__(
             f"Replay error at step {step_index} ({event.action} by {event.player_name}): "
             f"{len(errors)} error(s): {messages}",

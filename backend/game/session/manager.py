@@ -11,17 +11,17 @@ from game.logic.events import (
     CallPromptEvent,
     ErrorEvent,
     GameEndedEvent,
+    GameEvent,
     GameStartedEvent,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
     CONFIRMATION_OWED_KEY,
     WAIT_ELAPSED_KEY,
     WAIT_ID_KEY,
+    game_event_payload,
     reconnection_payload,
-    service_event_payload,
     shape_call_prompt_payload,
     stamp_timer_settings,
     stamp_viewer_seat,
@@ -353,17 +353,15 @@ class SessionManager:
         self._record_game_start(game, start.runtime)
         logger.info("pending game completed", game_id=game.game_id)
 
-        opening = [event for event in start.events if isinstance(event.data, GameStartedEvent)]
-        deal = [event for event in start.events if not isinstance(event.data, GameStartedEvent)]
+        opening: list[GameEvent] = [event for event in start.events if isinstance(event, GameStartedEvent)]
+        deal = [event for event in start.events if not isinstance(event, GameStartedEvent)]
         self._send_events(game, opening, start.awaiting)
         if game.timer_config.game_start_pause_seconds > 0:
             game.start_pause = self._spawn(self._deal_after_start_pause(game, events=deal, awaiting=start.awaiting))
         else:
             self._deal_first_round(game, events=deal, awaiting=start.awaiting)
 
-    async def _deal_after_start_pause(
-        self, game: GameSession, *, events: list[ServiceEvent], awaiting: Awaiting
-    ) -> None:
+    async def _deal_after_start_pause(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
         Deal the first round once the game start pause has passed.
 
@@ -380,7 +378,7 @@ class SessionManager:
         except Exception as exc:  # noqa: BLE001
             self.fail_game(game, reason="first deal failed", exc=exc)
 
-    def _deal_first_round(self, game: GameSession, *, events: list[ServiceEvent], awaiting: Awaiting) -> None:
+    def _deal_first_round(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
         Send the first deal and open the first wait; then seat an AI player for every participant without a connection.
 
@@ -538,7 +536,7 @@ class SessionManager:
             message="the wait this action answers has already ended",
             target=SeatTarget(seat=seat),
         )
-        connection.send_message(service_event_payload(ServiceEvent(data=error)))
+        connection.send_message(game_event_payload(error))
 
     def reconnect(self, connection: ConnectionProtocol, *, session_token: str) -> None:
         """
@@ -655,8 +653,8 @@ class SessionManager:
         seat = self._seat_of(participant)
         elapsed = participant.timer.elapsed_seconds
         for event in self._game_service.build_wait_events_for_seat(self._runtime_of(participant.game), seat):
-            message = service_event_payload(event)
-            if isinstance(event.data, CallPromptEvent):
+            message = game_event_payload(event)
+            if isinstance(event, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 
             if elapsed is not None:
@@ -668,7 +666,7 @@ class SessionManager:
         self,
         game: GameSession,
         *,
-        events: list[ServiceEvent],
+        events: list[GameEvent],
         awaiting: Awaiting,
         actor: int | None,
     ) -> None:
@@ -751,7 +749,7 @@ class SessionManager:
             lambda: self._handle_timeout(participant, TimeoutType.ROUND_ADVANCE),
         )
 
-    def _broadcast_events(self, game: GameSession, events: list[ServiceEvent], awaiting: Awaiting) -> None:
+    def _broadcast_events(self, game: GameSession, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
         Send an engine call's events; after a batch with which the game waits for nothing, claim its completion.
 
@@ -761,10 +759,10 @@ class SessionManager:
         """
         self._send_events(game, events, awaiting)
         if awaiting.kind == WaitKind.NONE:
-            game_ended_event = next((e.data for e in events if isinstance(e.data, GameEndedEvent)), None)
+            game_ended_event = next((e for e in events if isinstance(e, GameEndedEvent)), None)
             self._end_game(game, GameEndReason.COMPLETED, game_ended_event=game_ended_event)
 
-    def _send_events(self, game: GameSession, events: list[ServiceEvent], awaiting: Awaiting) -> None:
+    def _send_events(self, game: GameSession, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
         Record the events for the replay, then send each to its target, the wait's opening messages stamped with `wi`.
 
@@ -774,12 +772,12 @@ class SessionManager:
             self._replay_collector.collect_events(game.replay, events)
 
         for event in events:
-            message = service_event_payload(event)
-            if isinstance(event.data, CallPromptEvent):
+            message = game_event_payload(event)
+            if isinstance(event, CallPromptEvent):
                 message = shape_call_prompt_payload(message)
 
             message = stamp_wait_id(message, event, awaiting)
-            if isinstance(event.data, GameStartedEvent):
+            if isinstance(event, GameStartedEvent):
                 self._send_to_each_seat(game, message)
             elif isinstance(event.target, BroadcastTarget):
                 self._broadcast_to_game(game, message)

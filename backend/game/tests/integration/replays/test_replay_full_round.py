@@ -25,7 +25,7 @@ def test_replay_runner__when_full_game_replayed__should_end_with_conserved_order
     assert trace.rng_version == RNG_VERSION
     assert len(trace.seat_by_player) == 4
     # --- Startup events ---
-    startup_types = {e.event for e in trace.startup_events}
+    startup_types = {e.type for e in trace.startup_events}
     assert EventType.GAME_STARTED in startup_types
     assert EventType.ROUND_STARTED in startup_types
     assert EventType.DRAW in startup_types
@@ -40,20 +40,15 @@ def test_replay_runner__when_full_game_replayed__should_end_with_conserved_order
         assert len(player.discards) == 0
 
     # --- Multiple rounds played ---
-    round_end_steps = [s for s in trace.steps if any(e.event == EventType.ROUND_END for e in s.emitted_events)]
+    round_end_steps = [s for s in trace.steps if any(e.type == EventType.ROUND_END for e in s.emitted_events)]
     assert len(round_end_steps) == 12
     # --- Game ended ---
     final = trace.final_state
     assert final.game_phase == GamePhase.FINISHED
     # Game end event was emitted
-    game_end_events = [
-        e
-        for step in trace.steps
-        for e in step.emitted_events
-        if e.event == EventType.GAME_END and isinstance(e.data, GameEndedEvent)
-    ]
+    game_end_events = [e for step in trace.steps for e in step.emitted_events if isinstance(e, GameEndedEvent)]
     assert len(game_end_events) == 1
-    game_end_data = game_end_events[0].data
+    game_end_data = game_end_events[0]
     # --- Final standings ---
     assert len(game_end_data.standings) == 4
     raw_scores = [s.score for s in game_end_data.standings]
@@ -71,7 +66,7 @@ def test_replay_runner__when_full_game_replayed__should_end_with_conserved_order
         assert trace.steps[i].state_after == trace.steps[i + 1].state_before
 
     # --- Event stream completeness ---
-    all_event_types = {e.event for step in trace.steps for e in step.emitted_events}
+    all_event_types = {e.type for step in trace.steps for e in step.emitted_events}
     assert EventType.DISCARD in all_event_types
     assert EventType.DRAW in all_event_types
     assert EventType.ROUND_END in all_event_types

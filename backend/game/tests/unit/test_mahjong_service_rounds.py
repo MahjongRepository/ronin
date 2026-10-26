@@ -15,7 +15,6 @@ from game.logic.events import (
     EventType,
     RoundEndEvent,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.exceptions import GeneratedActionError
 from game.logic.mahjong_service import MahjongGameService
@@ -89,8 +88,8 @@ class TestMahjongGameServiceHandleTimeout:
         assert prompt.pending_seats == {3}
 
         events = service.handle_timeout(runtime, seat=3, timeout_type=TimeoutType.MELD).events
-        assert (events[0].event, events[0].target) == (EventType.DRAW, SeatTarget(seat=1))
-        assert not any(isinstance(e.data, ErrorEvent) for e in events)
+        assert (events[0].type, events[0].target) == (EventType.DRAW, SeatTarget(seat=1))
+        assert not any(isinstance(e, ErrorEvent) for e in events)
 
     def test_handle_timeout__when_turn_timeout_and_prompt_pending_for_others__should_return_no_events(self, service):
         runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
@@ -128,14 +127,12 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         )
         _update_round_state(runtime, phase=RoundPhase.FINISHED, result=round_result)
         events = [
-            ServiceEvent(
-                data=RoundEndEvent(result=round_result),
-            ),
+            RoundEndEvent(result=round_result),
         ]
 
         result = service._check_and_handle_round_end(runtime, events)
         assert result is True
-        assert [e.event for e in events] == [EventType.ROUND_END]
+        assert [e.type for e in events] == [EventType.ROUND_END]
         assert runtime.pending_confirm is not None
 
         with pytest.raises(AssertionError, match="round end already handled"):
@@ -170,7 +167,7 @@ class TestMahjongGameServiceAfterDiscard:
         )
 
         result = service._process_action_result_internal(runtime, ActionResult([prompt_event], state=runtime.state))
-        assert [(e.event, e.target) for e in result] == [(EventType.CALL_PROMPT, SeatTarget(seat=player.seat))]
+        assert [(e.type, e.target) for e in result] == [(EventType.CALL_PROMPT, SeatTarget(seat=player.seat))]
 
     def test_process_action_result__when_discard_prompt_waits_only_for_ai_player__should_answer_it_and_draw(
         self, service
@@ -178,7 +175,7 @@ class TestMahjongGameServiceAfterDiscard:
         runtime = _dealer_before_ronnable_discard()
 
         result = service._process_action_result_internal(runtime, _dealer_discard(runtime))
-        assert [(e.event, e.target) for e in result] == [
+        assert [(e.type, e.target) for e in result] == [
             (EventType.DISCARD, BroadcastTarget()),
             (EventType.CALL_PROMPT, SeatTarget(seat=1)),
             (EventType.CALL_PROMPT, SeatTarget(seat=3)),
@@ -207,7 +204,7 @@ class TestMahjongGameServiceTimeoutIntegration:
         _update_round_state(runtime, current_player_seat=player.seat, wall=new_wall)
 
         events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.TURN).events
-        assert events[0].data == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
+        assert events[0] == DiscardEvent(seat=player.seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     def test_handle_timeout__when_turn_timeout_off_players_turn__should_return_no_events(self, service):
         runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
@@ -232,11 +229,11 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
         update = service.handle_action(
             runtime, seat=0, action=GameAction.DISCARD, data={"tile_id": _DEALER_LAST_DISCARD}
         )
-        assert [e.event for e in update.events if e.event in (EventType.CALL_PROMPT, EventType.ROUND_END)] == [
+        assert [e.type for e in update.events if e.type in (EventType.CALL_PROMPT, EventType.ROUND_END)] == [
             EventType.CALL_PROMPT,
             EventType.ROUND_END,
         ]
-        round_end = next(e.data for e in update.events if e.event == EventType.ROUND_END)
+        round_end = next(e for e in update.events if e.type == EventType.ROUND_END)
         assert isinstance(round_end.result, ExhaustiveDrawResult)
         assert round_end.result.tempai_seats == [1]
         assert runtime.pending_confirm is not None
@@ -292,7 +289,7 @@ class TestGameEndAwaiting:
 
         waiting = service.get_awaiting(runtime)
         update = service.handle_action(runtime, seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id})
-        game_end_events = [e for e in update.events if e.event == EventType.GAME_END]
+        game_end_events = [e for e in update.events if e.type == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert update.awaiting == Awaiting(
             kind=WaitKind.NONE, seats=frozenset(), wait_id=waiting.wait_id + 1, round_number=waiting.round_number
@@ -322,7 +319,7 @@ class TestTurnTimeoutKuikaeIntegration:
         _update_round_state(runtime, current_player_seat=player.seat)
 
         events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.TURN).events
-        player_discard = events[0].data
+        player_discard = events[0]
         assert isinstance(player_discard, DiscardEvent)
         assert player_discard.seat == player.seat
         assert tile_to_34(player_discard.tile_id) != kuikae_34

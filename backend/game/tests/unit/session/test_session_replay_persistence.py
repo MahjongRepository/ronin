@@ -4,7 +4,6 @@ from game.logic.enums import GameAction
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
-    ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
 from game.logic.types import PlayerStanding
@@ -32,19 +31,17 @@ from .helpers import (
 )
 
 
-def _make_game_end_event() -> ServiceEvent:
-    return ServiceEvent(
-        data=GameEndedEvent(
-            winner_seat=0,
-            standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
-            leftover_riichi_bonus=0,
-            num_rounds=1,
-        ),
+def _make_game_end_event() -> GameEndedEvent:
+    return GameEndedEvent(
+        winner_seat=0,
+        standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
+        leftover_riichi_bonus=0,
+        num_rounds=1,
     )
 
 
-def _make_discard_event() -> ServiceEvent:
-    return ServiceEvent(data=DiscardEvent(seat=0, tile_id=10))
+def _make_discard_event() -> DiscardEvent:
+    return DiscardEvent(seat=0, tile_id=10)
 
 
 class TestReplayCollectorMerge:

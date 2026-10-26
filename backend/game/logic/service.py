@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from game.logic.enums import GameAction, TimeoutType, WaitKind
-    from game.logic.events import ServiceEvent
+    from game.logic.events import GameEvent
     from game.logic.runtime import GameRuntime
     from game.logic.settings import GameSettings
     from game.logic.types import ReconnectionSnapshot
@@ -37,7 +37,7 @@ class GameUpdate:
     The outcome of an engine call: the events to deliver and what the game waits for next.
     """
 
-    events: list[ServiceEvent]
+    events: list[GameEvent]
     awaiting: Awaiting
 
 
@@ -51,7 +51,7 @@ class GameStart:
     """
 
     runtime: GameRuntime
-    events: list[ServiceEvent]
+    events: list[GameEvent]
     awaiting: Awaiting
     seats: tuple[int, ...]
 
@@ -156,7 +156,7 @@ class GameService(Protocol):
         """
         ...
 
-    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw with its
         available actions (the turn event right after its own pon or chi); none for a round advance or a wait that does

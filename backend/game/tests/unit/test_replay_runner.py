@@ -7,8 +7,8 @@ from game.logic.events import (
     BroadcastTarget,
     ErrorEvent,
     EventType,
+    GameEvent,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
@@ -45,7 +45,7 @@ SEED = "a" * 192
 STUB_AWAITING = Awaiting(kind=WaitKind.TURN, seats=frozenset(), wait_id=0, round_number=0)
 
 
-def _stub_update(events: list[ServiceEvent]) -> GameUpdate:
+def _stub_update(events: list[GameEvent]) -> GameUpdate:
     return GameUpdate(events=events, awaiting=STUB_AWAITING)
 
 
@@ -120,7 +120,7 @@ def test_run_replay__when_discard_input__should_trace_discard_step():
     assert trace.steps[0].state_before is not None
     assert trace.steps[0].state_after is not None
     assert trace.steps[0].input_event.action == GameAction.DISCARD
-    assert any(e.event == EventType.DISCARD for e in trace.steps[0].emitted_events)
+    assert any(e.type == EventType.DISCARD for e in trace.steps[0].emitted_events)
     assert trace.steps[0].state_after != trace.steps[0].state_before
 
 
@@ -139,7 +139,7 @@ def test_run_replay__when_non_strict_and_action_invalid__should_record_error_ste
 
     trace = run_replay(replay, ReplayOptions(strict=False))
     assert len(trace.steps) == 1
-    error_events = [e for e in trace.steps[0].emitted_events if e.event == EventType.ERROR]
+    error_events = [e for e in trace.steps[0].emitted_events if e.type == EventType.ERROR]
     assert len(error_events) == 1
 
 
@@ -320,12 +320,10 @@ def test_round_confirmation__when_strict_and_confirm_returns_error__should_raise
             if action == GameAction.CONFIRM_ROUND:
                 return _stub_update(
                     [
-                        ServiceEvent(
-                            data=ErrorEvent(
-                                code=GameErrorCode.INVALID_ACTION,
-                                message="confirm_round error",
-                                target=SeatTarget(seat=seat),
-                            ),
+                        ErrorEvent(
+                            code=GameErrorCode.INVALID_ACTION,
+                            message="confirm_round error",
+                            target=SeatTarget(seat=seat),
                         ),
                     ]
                 )
@@ -746,12 +744,10 @@ def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_re
             if action == GameAction.PASS:
                 return _stub_update(
                     [
-                        ServiceEvent(
-                            data=ErrorEvent(
-                                code=GameErrorCode.INVALID_PASS,
-                                message="synthetic pass error",
-                                target=BroadcastTarget(),
-                            ),
+                        ErrorEvent(
+                            code=GameErrorCode.INVALID_PASS,
+                            message="synthetic pass error",
+                            target=BroadcastTarget(),
                         ),
                     ]
                 )

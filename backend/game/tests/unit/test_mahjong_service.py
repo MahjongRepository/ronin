@@ -52,7 +52,7 @@ class TestMahjongGameServiceAllPlayers:
     def test_start_game__when_four_players__should_emit_single_draw_event_for_dealer(self, service):
         events = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"]).events
         # with 4 players, exactly 1 draw event for dealer (no AI player followup chain)
-        draw_events = [e for e in events if e.event == EventType.DRAW]
+        draw_events = [e for e in events if e.type == EventType.DRAW]
         assert len(draw_events) == 1
 
 
@@ -151,7 +151,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         service.replace_with_ai_player(runtime, player_seat)
         events = service.process_ai_player_actions_after_replacement(runtime, player_seat).events
-        assert events[0].data == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
+        assert events[0] == DiscardEvent(seat=player_seat, tile_id=player_tiles[-1], is_tsumogiri=True)
 
     def test_ai_actions_after_replacement__when_replaced_right_after_own_chi__should_discard_legally(
         self, service, caplog
@@ -190,7 +190,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         service.replace_with_ai_player(runtime, alice.seat)
         events = service.process_ai_player_actions_after_replacement(runtime, alice.seat).events
-        discard = events[0].data
+        discard = events[0]
         assert isinstance(discard, DiscardEvent)
         assert discard.seat == alice.seat
         assert tile_to_34(discard.tile_id) not in chi_kuikae
@@ -218,7 +218,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         service.replace_with_ai_player(runtime, 1)
         events = service.process_ai_player_actions_after_replacement(runtime, 1).events
         assert runtime.state.round_state.pending_call_prompt is None
-        assert [e.data.seat for e in events if isinstance(e.data, DiscardEvent)] == [1]
+        assert [e.seat for e in events if isinstance(e, DiscardEvent)] == [1]
         assert runtime.state.round_state.current_player_seat == 2
 
     def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(self, service):
@@ -232,7 +232,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         prompt = runtime.state.round_state.pending_call_prompt
         assert prompt is not None
         assert prompt.pending_seats == frozenset({2})
-        assert [(e.target, e.data.is_furiten) for e in update.events if e.event == EventType.FURITEN] == [
+        assert [(e.target, e.is_furiten) for e in update.events if e.type == EventType.FURITEN] == [
             (SeatTarget(seat=1), True),
         ]
 
@@ -243,7 +243,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
         service.replace_with_ai_player(runtime, 1)
         update = service.process_ai_player_actions_after_replacement(runtime, 1)
-        round_ends = [e.data.result for e in update.events if e.event == EventType.ROUND_END]
+        round_ends = [e.result for e in update.events if e.type == EventType.ROUND_END]
         assert [(r.winner_seat, r.loser_seat, r.winning_tile) for r in round_ends] == [(2, 0, chun_discard)]
         assert (update.awaiting.kind, update.awaiting.seats) == (WaitKind.ROUND_ADVANCE, frozenset({0, 2, 3}))
         assert (runtime.state.round_number, runtime.state.round_state.dealer_seat) == (1, 1)
@@ -271,7 +271,7 @@ class TestAwaiting:
             action=GameAction.CALL_KAN,
             data={"tile_id": hand[0], "kan_type": KanType.CLOSED},
         )
-        assert [e.event for e in update.events if e.event == EventType.DRAW] == [EventType.DRAW]
+        assert [e.type for e in update.events if e.type == EventType.DRAW] == [EventType.DRAW]
         assert update.awaiting == replace(waiting, wait_id=waiting.wait_id + 1)
 
 
@@ -476,7 +476,7 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
 
         events = service.build_wait_events_for_seat(runtime, current_seat)
         assert len(events) == 1
-        assert events[0].event == EventType.DRAW
+        assert events[0].type == EventType.DRAW
         assert isinstance(events[0].target, SeatTarget)
         assert events[0].target.seat == current_seat
 
@@ -492,7 +492,7 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
         _update_player(runtime, seat=dealer_seat, tiles=nine_terminal_types_hand)
 
         events = service.build_wait_events_for_seat(runtime, dealer_seat)
-        assert [a.action for a in events[0].data.available_actions] == [PlayerAction.KYUUSHU]
+        assert [a.action for a in events[0].available_actions] == [PlayerAction.KYUUSHU]
 
     def test_build_wait_events_for_seat__when_right_after_own_call__should_return_turn_event_with_kuikae(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
@@ -502,9 +502,9 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
         _update_round_state(runtime, is_after_meld_call=True)
 
         events = service.build_wait_events_for_seat(runtime, current_seat)
-        assert [e.event for e in events] == [EventType.TURN]
+        assert [e.type for e in events] == [EventType.TURN]
         assert events[0].target == SeatTarget(seat=current_seat)
-        assert events[0].data.kuikae_tiles == [kuikae_type]
+        assert events[0].kuikae_tiles == [kuikae_type]
 
     def test_build_wait_events_for_seat__when_seat_is_not_current_player__should_return_empty(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
@@ -533,7 +533,7 @@ class TestMahjongGameServiceBuildWaitEventsForSeat:
         _update_round_state(runtime, pending_call_prompt=prompt)
 
         events = service.build_wait_events_for_seat(runtime, pon_seat)
-        assert [(e.event, e.target) for e in events] == [(EventType.CALL_PROMPT, SeatTarget(seat=pon_seat))]
+        assert [(e.type, e.target) for e in events] == [(EventType.CALL_PROMPT, SeatTarget(seat=pon_seat))]
         assert service.build_wait_events_for_seat(runtime, ron_seat) == []
         assert service.build_wait_events_for_seat(runtime, discarder) == []
 

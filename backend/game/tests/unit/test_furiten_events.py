@@ -2,7 +2,7 @@ import pytest
 
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import GameAction, RoundPhase
-from game.logic.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
+from game.logic.events import EventType, FuritenEvent, GameEvent, SeatTarget
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.runtime import GameRuntime
 from game.logic.state import Discard
@@ -75,14 +75,14 @@ def _discard_furiten_runtime(*, waiting_seat_draw: int) -> GameRuntime:
     runtime = _waiting_seat_runtime(
         waiting_seat_draw=waiting_seat_draw, waiting_seat_discard=Discard(tile_id=THREE_MAN_WAIT)
     )
-    assert [e.data for e in runtime.furiten.check_changes(runtime.state.round_state)] == [
+    assert runtime.furiten.check_changes(runtime.state.round_state) == [
         FuritenEvent(is_furiten=True, target=SeatTarget(seat=WAITING_SEAT)),
     ]
     return runtime
 
 
-def _furiten_events(events: list[ServiceEvent]) -> list[FuritenEvent]:
-    return [e.data for e in events if isinstance(e.data, FuritenEvent)]
+def _furiten_events(events: list[GameEvent]) -> list[FuritenEvent]:
+    return [e for e in events if isinstance(e, FuritenEvent)]
 
 
 class TestCheckFuritenChanges:
@@ -105,9 +105,9 @@ class TestCheckFuritenChanges:
         game_state = runtime.state
         events = runtime.furiten.check_changes(game_state.round_state)
         assert len(events) == 1
-        assert events[0].event == EventType.FURITEN
-        assert isinstance(events[0].data, FuritenEvent)
-        assert events[0].data.is_furiten is True
+        assert events[0].type == EventType.FURITEN
+        assert isinstance(events[0], FuritenEvent)
+        assert events[0].is_furiten is True
         assert events[0].target == SeatTarget(seat=waiting_seat)
 
     def test_check_furiten_changes__when_furiten_clears__should_emit_event_with_false(self, service):
@@ -120,7 +120,7 @@ class TestCheckFuritenChanges:
         game_state = runtime.state
         events = runtime.furiten.check_changes(game_state.round_state)
         assert len(events) == 1
-        assert events[0].data.is_furiten is False
+        assert events[0].is_furiten is False
 
     def test_check_furiten_changes__when_called_twice__should_emit_once(self, service):
         runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
@@ -159,7 +159,7 @@ class TestCheckFuritenChanges:
         game_state = runtime.state
         events = runtime.furiten.check_changes(game_state.round_state)
         assert len(events) == 1
-        assert events[0].data.is_furiten is True
+        assert events[0].is_furiten is True
         assert events[0].target == SeatTarget(seat=2)
 
 
@@ -182,14 +182,14 @@ class TestFuritenEventsInGameFlow:
         events = service.handle_action(
             runtime, seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
         ).events
-        furiten_events = [e for e in events if e.event == EventType.FURITEN and isinstance(e.data, FuritenEvent)]
+        furiten_events = [e for e in events if isinstance(e, FuritenEvent)]
         assert len(furiten_events) == 1
-        assert furiten_events[0].data.is_furiten is False
+        assert furiten_events[0].is_furiten is False
         assert furiten_events[0].target == SeatTarget(seat=player.seat)
 
     def test_furiten_events__when_game_starts__should_emit_none(self, service):
         events = service.start_game("game1", ["Player"], seed="a" * 192).events
-        furiten_events = [e for e in events if e.event == EventType.FURITEN]
+        furiten_events = [e for e in events if e.type == EventType.FURITEN]
         assert len(furiten_events) == 0
 
     def test_furiten_events__when_discard_waiting_seat_draws__should_keep_furiten_through_its_turn(self, service):

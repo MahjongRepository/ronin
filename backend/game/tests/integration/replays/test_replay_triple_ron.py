@@ -72,7 +72,7 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
             runtime, seat=seat_by_player[player], action=GameAction.CALL_RON, data={}
         ).events
 
-    assert len([e for e in recorded_events if isinstance(e.data, RoundEndEvent)]) == 1
+    assert len([e for e in recorded_events if isinstance(e, RoundEndEvent)]) == 1
 
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
@@ -98,5 +98,5 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_liv
     )
     input_steps = [step for step in trace.steps if not step.synthetic]
     assert len(input_steps) == len(loaded.events)
-    assert [e.event for e in input_steps[-1].emitted_events].count(EventType.ROUND_END) == 1
+    assert [e.type for e in input_steps[-1].emitted_events].count(EventType.ROUND_END) == 1
     assert trace.final_state == runtime.state

@@ -4,7 +4,6 @@ from game.logic.events import (
     DrawEvent,
     EventType,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.types import MeldCaller
 from game.messaging.types import SessionMessageType
@@ -40,13 +39,11 @@ class TestSessionManager:
 
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
-        seat_event = ServiceEvent(
-            data=DrawEvent(
-                seat=0,
-                tile_id=42,
-                available_actions=[],
-                target=SeatTarget(seat=0),
-            ),
+        seat_event = DrawEvent(
+            seat=0,
+            tile_id=42,
+            available_actions=[],
+            target=SeatTarget(seat=0),
         )
         manager._broadcast_events(game, [seat_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the event
@@ -58,14 +55,12 @@ class TestSessionManager:
 
         # per-seat call_prompt targeting only seat 0 (Alice)
         game = manager.get_game("game1")
-        call_event = ServiceEvent(
-            data=CallPromptEvent(
-                call_type=CallType.RON,
-                tile_id=42,
-                from_seat=2,
-                callers=[0],
-                target=SeatTarget(seat=0),
-            ),
+        call_event = CallPromptEvent(
+            call_type=CallType.RON,
+            tile_id=42,
+            from_seat=2,
+            callers=[0],
+            target=SeatTarget(seat=0),
         )
         manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the call_prompt
@@ -82,14 +77,12 @@ class TestSessionManager:
             MeldCaller(seat=0, call_type=MeldCallType.PON),
             MeldCaller(seat=0, call_type=MeldCallType.CHI, options=((57, 63),)),
         ]
-        call_event = ServiceEvent(
-            data=CallPromptEvent(
-                call_type=CallType.MELD,
-                tile_id=55,
-                from_seat=3,
-                callers=callers,
-                target=SeatTarget(seat=0),
-            ),
+        call_event = CallPromptEvent(
+            call_type=CallType.MELD,
+            tile_id=55,
+            from_seat=3,
+            callers=callers,
+            target=SeatTarget(seat=0),
         )
         manager._broadcast_events(game, [call_event], MOCK_AWAITING)
         # seat 0 should receive the call_prompt exactly once

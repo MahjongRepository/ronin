@@ -263,38 +263,6 @@ Event = (
 )
 
 
-# ---------------------------------------------------------------------------
-# Service event transport container
-# ---------------------------------------------------------------------------
-
-
-class ServiceEvent(BaseModel):
-    """
-    Event transport container for game service layer: the domain event, with its type and routing target read from it.
-    """
-
-    data: GameEvent
-
-    @property
-    def event(self) -> EventType:
-        """
-        The type of the wrapped event.
-        """
-        return self.data.type
-
-    @property
-    def target(self) -> EventTarget:
-        """
-        Where the wrapped event goes: every player or one seat.
-        """
-        return self.data.target
-
-
-# ---------------------------------------------------------------------------
-# Event conversion helpers
-# ---------------------------------------------------------------------------
-
-
 def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]:
     """
     Build the prompt's per-seat call prompt events: one per caller, in prompt order, each addressed to its seat.
@@ -328,14 +296,3 @@ def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]
         )
 
     return events
-
-
-def convert_events(raw_events: list[GameEvent]) -> list[ServiceEvent]:
-    """
-    Wrap domain events in service events.
-
-    Builds each ServiceEvent with model_construct, skipping validation of an event that is already a validated model, as
-    this runs for every event.
-    """
-    _construct = ServiceEvent.model_construct
-    return [_construct(data=event) for event in raw_events]

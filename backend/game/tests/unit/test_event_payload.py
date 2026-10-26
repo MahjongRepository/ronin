@@ -9,7 +9,6 @@ from game.logic.events import (
     MeldEvent,
     RoundEndEvent,
     SeatTarget,
-    ServiceEvent,
     TurnEvent,
 )
 from game.logic.service import Awaiting
@@ -22,7 +21,7 @@ from game.logic.types import (
 )
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
-    service_event_payload,
+    game_event_payload,
     shape_call_prompt_payload,
     stamp_wait_id,
 )
@@ -41,12 +40,10 @@ class TestEventTypeIntExhaustiveness:
         assert len(values) == len(set(values)), "EVENT_TYPE_INT has duplicate integer values"
 
 
-class TestServiceEventPayload:
-    def test_service_event_payload__when_discard__should_pack_into_integer(self):
-        event = ServiceEvent(
-            data=DiscardEvent(seat=0, tile_id=10, is_riichi=True),
-        )
-        payload = service_event_payload(event)
+class TestGameEventPayload:
+    def test_game_event_payload__when_discard__should_pack_into_integer(self):
+        event = DiscardEvent(seat=0, tile_id=10, is_riichi=True)
+        payload = game_event_payload(event)
         assert payload["t"] == EVENT_TYPE_INT[EventType.DISCARD]
         assert set(payload.keys()) == {"t", "d"}
 
@@ -56,11 +53,9 @@ class TestServiceEventPayload:
         assert is_tsumogiri is False
         assert is_riichi is True
 
-    def test_service_event_payload__when_draw__should_pack_into_integer(self):
-        event = ServiceEvent(
-            data=DrawEvent(seat=1, tile_id=42, target=SeatTarget(seat=1)),
-        )
-        payload = service_event_payload(event)
+    def test_game_event_payload__when_draw__should_pack_into_integer(self):
+        event = DrawEvent(seat=1, tile_id=42, target=SeatTarget(seat=1))
+        payload = game_event_payload(event)
         assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
         assert set(payload.keys()) == {"t", "d"}
 
@@ -68,37 +63,33 @@ class TestServiceEventPayload:
         assert seat == 1
         assert tile_id == 42
 
-    def test_service_event_payload__when_draw_has_available_actions__should_include_them(self):
-        event = ServiceEvent(
-            data=DrawEvent(
-                seat=0,
-                tile_id=10,
-                target=SeatTarget(seat=0),
-                available_actions=[AvailableActionItem(action="discard", tiles=[10])],
-            ),
+    def test_game_event_payload__when_draw_has_available_actions__should_include_them(self):
+        event = DrawEvent(
+            seat=0,
+            tile_id=10,
+            target=SeatTarget(seat=0),
+            available_actions=[AvailableActionItem(action="discard", tiles=[10])],
         )
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert "aa" in payload
         assert len(payload["aa"]) == 1
         assert payload["aa"][0] == {"a": WirePlayerAction.DISCARD, "tl": [10]}
 
-    def test_service_event_payload__when_available_action_has_no_tiles__should_omit_tile_list(self):
-        event = ServiceEvent(
-            data=DrawEvent(
-                seat=0,
-                tile_id=10,
-                target=SeatTarget(seat=0),
-                available_actions=[AvailableActionItem(action="tsumo")],
-            ),
+    def test_game_event_payload__when_available_action_has_no_tiles__should_omit_tile_list(self):
+        event = DrawEvent(
+            seat=0,
+            tile_id=10,
+            target=SeatTarget(seat=0),
+            available_actions=[AvailableActionItem(action="tsumo")],
         )
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
         assert "tl" not in payload["aa"][0]
 
-    def test_service_event_payload__when_turn_event__should_carry_only_type_and_kuikae_types(self):
-        event = ServiceEvent(data=TurnEvent(kuikae_tiles=[4, 7], target=SeatTarget(seat=0)))
+    def test_game_event_payload__when_turn_event__should_carry_only_type_and_kuikae_types(self):
+        event = TurnEvent(kuikae_tiles=[4, 7], target=SeatTarget(seat=0))
 
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert payload == {"t": 12, "kt": [4, 7]}
 
 
@@ -156,16 +147,14 @@ class TestShapeCallPromptPayload:
 
 class TestMeldEventPayload:
     def test_meld_event_payload__should_use_compact_format(self):
-        event = ServiceEvent(
-            data=MeldEvent(
-                meld_type=MeldViewType.ADDED_KAN,
-                caller_seat=0,
-                tile_ids=[4, 5, 6, 7],
-                called_tile_id=5,
-                from_seat=2,
-            ),
+        event = MeldEvent(
+            meld_type=MeldViewType.ADDED_KAN,
+            caller_seat=0,
+            tile_ids=[4, 5, 6, 7],
+            called_tile_id=5,
+            from_seat=2,
         )
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert payload["t"] == EVENT_TYPE_MELD
         assert "m" in payload
         assert set(payload.keys()) == {"t", "m"}
@@ -235,29 +224,26 @@ class TestStampWaitId:
     )
     def test_stamp_wait_id__when_event_may_open_the_wait__should_stamp_only_the_opening_one(self, kind, event, stamped):
         awaiting = Awaiting(kind=kind, seats=frozenset({1}), wait_id=7, round_number=0)
-        service_event = ServiceEvent(data=event)
 
-        payload = stamp_wait_id(service_event_payload(service_event), service_event, awaiting)
+        payload = stamp_wait_id(game_event_payload(event), event, awaiting)
         assert payload.get("wi") == (7 if stamped else None)
 
 
 class TestRoundEndPayload:
     def test_round_end_payload__when_tsumo_fields_none__should_omit_them(self):
-        event = ServiceEvent(
-            data=RoundEndEvent(
-                result=TsumoResult(
-                    winner_seat=0,
-                    hand_result=_HAND_RESULT,
-                    scores=_SCORES,
-                    score_changes=_SCORES,
-                    riichi_sticks_collected=0,
-                    closed_tiles=[],
-                    melds=[],
-                    win_tile=1,
-                ),
+        event = RoundEndEvent(
+            result=TsumoResult(
+                winner_seat=0,
+                hand_result=_HAND_RESULT,
+                scores=_SCORES,
+                score_changes=_SCORES,
+                riichi_sticks_collected=0,
+                closed_tiles=[],
+                melds=[],
+                win_tile=1,
             ),
         )
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert "result" not in payload
         assert payload["rt"] == WireRoundResultType.TSUMO
         assert "ps" not in payload
@@ -266,57 +252,53 @@ class TestRoundEndPayload:
         assert payload["wt"] == 1
 
     def test_round_end_payload__when_tsumo_fields_present__should_keep_them(self):
-        event = ServiceEvent(
-            data=RoundEndEvent(
-                result=TsumoResult(
-                    winner_seat=0,
-                    hand_result=_HAND_RESULT,
-                    scores=_SCORES,
-                    score_changes=_SCORES,
-                    riichi_sticks_collected=0,
-                    closed_tiles=[],
-                    melds=[],
-                    win_tile=1,
-                    pao_seat=2,
-                    ura_dora_indicators=[10],
-                ),
+        event = RoundEndEvent(
+            result=TsumoResult(
+                winner_seat=0,
+                hand_result=_HAND_RESULT,
+                scores=_SCORES,
+                score_changes=_SCORES,
+                riichi_sticks_collected=0,
+                closed_tiles=[],
+                melds=[],
+                win_tile=1,
+                pao_seat=2,
+                ura_dora_indicators=[10],
             ),
         )
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert payload["ps"] == 2
         assert payload["ud"] == [10]
         assert payload["hr"]["pt"] == 10
 
     def test_round_end_payload__when_double_ron_winner_fields_none__should_omit_them(self):
-        event = ServiceEvent(
-            data=RoundEndEvent(
-                result=DoubleRonResult(
-                    loser_seat=1,
-                    winning_tile=10,
-                    winners=[
-                        DoubleRonWinner(
-                            winner_seat=0,
-                            hand_result=_HAND_RESULT,
-                            score_changes=_SCORES,
-                            riichi_sticks_collected=0,
-                            closed_tiles=[],
-                            melds=[],
-                        ),
-                        DoubleRonWinner(
-                            winner_seat=2,
-                            hand_result=_HAND_RESULT,
-                            score_changes=_SCORES,
-                            riichi_sticks_collected=0,
-                            closed_tiles=[],
-                            melds=[],
-                        ),
-                    ],
-                    scores=_SCORES,
-                    score_changes=_SCORES,
-                ),
+        event = RoundEndEvent(
+            result=DoubleRonResult(
+                loser_seat=1,
+                winning_tile=10,
+                winners=[
+                    DoubleRonWinner(
+                        winner_seat=0,
+                        hand_result=_HAND_RESULT,
+                        score_changes=_SCORES,
+                        riichi_sticks_collected=0,
+                        closed_tiles=[],
+                        melds=[],
+                    ),
+                    DoubleRonWinner(
+                        winner_seat=2,
+                        hand_result=_HAND_RESULT,
+                        score_changes=_SCORES,
+                        riichi_sticks_collected=0,
+                        closed_tiles=[],
+                        melds=[],
+                    ),
+                ],
+                scores=_SCORES,
+                score_changes=_SCORES,
             ),
         )
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert payload["rt"] == WireRoundResultType.DOUBLE_RON
         for winner in payload["wn"]:
             assert "ps" not in winner

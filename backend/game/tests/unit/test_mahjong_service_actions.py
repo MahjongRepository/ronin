@@ -61,14 +61,14 @@ class TestMahjongGameServiceAddedKanChankan:
             action=GameAction.CALL_KAN,
             data={"tile_id": pin_3_copies[3], "kan_type": KanType.ADDED},
         )
-        assert [(e.event, e.target) for e in update.events] == [
+        assert [(e.type, e.target) for e in update.events] == [
             (EventType.CALL_PROMPT, SeatTarget(seat=robber_seat)),
             (EventType.MELD, BroadcastTarget()),
             (EventType.DRAW, SeatTarget(seat=player.seat)),
             (EventType.FURITEN, SeatTarget(seat=robber_seat)),
         ]
-        assert update.events[0].data.call_type == CallType.CHANKAN
-        added_kan = update.events[1].data
+        assert update.events[0].call_type == CallType.CHANKAN
+        added_kan = update.events[1]
         assert (added_kan.meld_type, added_kan.called_tile_id, added_kan.from_seat) == (
             MeldViewType.ADDED_KAN,
             pin_3_copies[0],
@@ -104,7 +104,7 @@ class TestProcessActionResultRoundEnd:
         result = ActionResult(events=[round_end], state=runtime.state)
 
         events = service._process_action_result_internal(runtime, result)
-        assert [e.event for e in events] == [EventType.ROUND_END]
+        assert [e.type for e in events] == [EventType.ROUND_END]
         assert runtime.pending_confirm is not None
 
 
@@ -136,7 +136,7 @@ class TestMahjongGameServiceChankanPrompt:
 
         result = ActionResult(events=[chankan_prompt], state=runtime.state)
         events = service._process_action_result_internal(runtime, result)
-        assert [e.data for e in events] == [chankan_prompt]
+        assert events == [chankan_prompt]
         assert runtime.state.round_state.pending_call_prompt == prompt
 
 
@@ -157,7 +157,7 @@ class TestNoDataActionDispatchRouting:
         game_state = runtime.state
 
         update = service.handle_action(runtime, seat=player.seat, action=action, data={})
-        assert [(e.event, e.data.code) for e in update.events] == [(EventType.ERROR, GameErrorCode.NOT_YOUR_TURN)]
+        assert [(e.type, e.code) for e in update.events] == [(EventType.ERROR, GameErrorCode.NOT_YOUR_TURN)]
         assert runtime.state is game_state
         assert update.awaiting.wait_id == game_state.wait_id
 
@@ -175,5 +175,5 @@ class TestNoDataActionDispatchRouting:
 
         events = service.handle_action(runtime, seat=player_seat, action=action, data=data).events
         assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert events[0].data.code == code
+        assert events[0].type == EventType.ERROR
+        assert events[0].code == code
