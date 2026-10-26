@@ -3,6 +3,7 @@ import sys
 
 from shared.auth.password import BcryptHasher
 from shared.auth.service import AuthError, AuthService
+from shared.auth.session_store import AuthSessionStore
 from shared.auth.settings import AuthSettings
 from shared.db import Database, SqlitePlayerRepository
 
@@ -20,7 +21,11 @@ async def main() -> None:
 
     try:
         player_repo = SqlitePlayerRepository(db)
-        auth_service = AuthService(player_repo, password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds))
+        auth_service = AuthService(
+            player_repo,
+            AuthSessionStore(),
+            password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds),
+        )
         player, raw_api_key = await auth_service.register_bot(bot_name)
     except AuthError as e:
         print(f"Error: {e}")

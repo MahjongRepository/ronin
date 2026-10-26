@@ -11,12 +11,10 @@ def make_test_game_ticket(
     room_id: str,
     user_id: str = "test-user-id",
 ) -> str:
-    now = time.time()
     ticket = GameTicket(
         user_id=user_id,
         username=username,
         room_id=room_id,
-        issued_at=now,
-        expires_at=now + TICKET_TTL_SECONDS,
+        expires_at=time.time() + TICKET_TTL_SECONDS,
     )
     return sign_game_ticket(ticket, TEST_TICKET_SECRET)
