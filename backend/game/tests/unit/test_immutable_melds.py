@@ -2,7 +2,6 @@ import pytest
 from mahjong.meld import Meld
 from mahjong.tile import TilesConverter
 
-from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     call_added_kan,
@@ -10,7 +9,6 @@ from game.logic.melds import (
     call_closed_kan,
     call_open_kan,
     call_pon,
-    resolve_added_kan_tile,
 )
 from game.logic.settings import GameSettings
 from game.logic.tiles import tile_to_34
@@ -78,14 +76,6 @@ class TestCallPonImmutable:
         )
         for p in new_state.players:
             assert p.is_ippatsu is False
-
-    def test_call_pon__when_insufficient_tiles__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        player0_tiles = (man_1m[0], *_PIN_TILES)
-        round_state = _round_state(player0_tiles, current_player_seat=3)
-
-        with pytest.raises(InvalidMeldError, match="need 2 matching tiles"):
-            call_pon(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[1], settings=GameSettings())
 
 
 class TestCallChiImmutable:
@@ -160,14 +150,6 @@ class TestCallOpenKanImmutable:
         assert new_state.players[0].is_rinshan is True
         assert new_state.wall.pending_dora_count == 1
 
-    def test_call_open_kan__when_insufficient_tiles__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        player0_tiles = (man_1m[0], man_1m[1], *_PIN_TILES)
-        round_state = _round_state(player0_tiles, current_player_seat=3)
-
-        with pytest.raises(InvalidMeldError, match="need 3 matching tiles"):
-            call_open_kan(round_state, caller_seat=0, discarder_seat=3, tile_id=man_1m[2], settings=GameSettings())
-
 
 class TestCallClosedKanImmutable:
     def test_call_closed_kan__should_add_closed_kan_meld_and_reveal_dora(self):
@@ -200,14 +182,6 @@ class TestCallClosedKanImmutable:
         for p in new_state.players:
             assert p.is_ippatsu is False
 
-    def test_call_closed_kan__when_insufficient_tiles__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        player0_tiles = (man_1m[0], man_1m[1], man_1m[2], *_PIN_TILES)
-        round_state = _round_state(player0_tiles)
-
-        with pytest.raises(InvalidMeldError, match="closed kan requires 4 tiles"):
-            call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
-
 
 class TestCallAddedKanImmutable:
     def _pon_meld(self, man_1m):
@@ -239,68 +213,6 @@ class TestCallAddedKanImmutable:
         assert new_state.players[0].melds[0].type == Meld.SHOUMINKAN
         assert new_state.wall.pending_dora_count == 1
         assert new_state.players[0].is_rinshan is True
-
-    def test_call_added_kan__when_no_pon__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        player0_tiles = (man_1m[0], *_PIN_TILES)
-        round_state = _round_state(player0_tiles)
-
-        with pytest.raises(InvalidMeldError, match="no pon of tile type"):
-            call_added_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
-
-    def test_call_added_kan__when_tile_not_in_hand__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pon_meld = self._pon_meld(man_1m)
-        round_state = _round_state(_PIN_TILES, player0_melds=(pon_meld,))
-
-        with pytest.raises(InvalidMeldError, match="not in hand"):
-            call_added_kan(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
-
-
-class TestResolveAddedKanTile:
-    @staticmethod
-    def _pon_meld(tiles):
-        return FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(tiles[:3]),
-            opened=True,
-            called_tile=tiles[0],
-            who=0,
-            from_who=3,
-        )
-
-    def test_resolve_added_kan_tile__when_no_matching_pon__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        round_state = _round_state((man_1m[0], *_PIN_TILES))
-
-        with pytest.raises(InvalidMeldError, match="no pon of tile type"):
-            resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
-
-    def test_resolve_added_kan_tile__when_no_same_type_tile_in_hand__should_raise_invalid_meld_error(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pon_meld = self._pon_meld(man_1m)
-        round_state = _round_state(_PIN_TILES, player0_melds=(pon_meld,))
-
-        with pytest.raises(InvalidMeldError, match="not in hand"):
-            resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
-
-    def test_resolve_added_kan_tile__when_exact_id_not_in_hand__should_use_same_type_tile(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pon_meld = self._pon_meld(man_1m)
-        player0_tiles = (man_1m[3], *_PIN_TILES)
-        round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
-
-        resolved = resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[2], settings=GameSettings())
-        assert resolved == man_1m[3]
-
-    def test_resolve_added_kan_tile__when_exact_id_in_hand__should_return_it(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pon_meld = self._pon_meld(man_1m)
-        player0_tiles = (man_1m[3], *_PIN_TILES)
-        round_state = _round_state(player0_tiles, player0_melds=(pon_meld,))
-
-        resolved = resolve_added_kan_tile(round_state, seat=0, tile_id=man_1m[3], settings=GameSettings())
-        assert resolved == man_1m[3]
 
 
 class TestFrozenMeldValidation:

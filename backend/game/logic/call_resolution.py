@@ -8,7 +8,6 @@ from game.logic.abortive import (
 )
 from game.logic.action_result import ActionResult, create_draw_event, create_turn_event
 from game.logic.enums import (
-    MELD_CALL_PRIORITY,
     GameAction,
     KanType,
     MeldCallType,
@@ -23,7 +22,7 @@ from game.logic.events import (
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import call_added_kan, call_closed_kan
 from game.logic.riichi import declare_riichi
-from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT
+from game.logic.settings import TRIPLE_RON_COUNT
 from game.logic.state_utils import (
     advance_turn,
     clear_pending_prompt,
@@ -57,24 +56,14 @@ _ACTION_TO_MELD_CALL_TYPE = {
 }
 
 
-def pick_best_meld_response(
-    meld_responses: list[CallResponse],
-    prompt: PendingCallPrompt,
-) -> CallResponse:
+def pick_best_meld_response(meld_responses: list[CallResponse]) -> CallResponse:
     """
     Pick the highest-priority meld response.
 
-    Priority comes from the call actually made, not the best one the seat was offered: kan > pon > chi. Tie-break:
-    counter-clockwise distance from the discarder (closer = higher priority). Every response is a call the prompt
-    offered its seat (validated on submit).
+    Priority comes from the call actually made, not the best one the seat was offered: a pon or kan beats a chi. No
+    seat order is needed: one seat at most can pon or kan a discard, and only the next seat can chi it.
     """
-
-    def sort_key(response: CallResponse) -> tuple[int, int]:
-        priority = MELD_CALL_PRIORITY[_ACTION_TO_MELD_CALL_TYPE[response.action]]
-        distance = (response.seat - prompt.from_seat) % NUM_PLAYERS
-        return priority, distance
-
-    return min(meld_responses, key=sort_key)
+    return min(meld_responses, key=lambda r: r.action == GameAction.CALL_CHI)
 
 
 def _kan_open_to_chankan(round_state: MahjongRoundState, prompt: PendingCallPrompt) -> RobbedKan:
@@ -329,7 +318,7 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
         return ActionResult(events, state=new_game_state)
 
     if meld_responses:
-        best = pick_best_meld_response(meld_responses, prompt)
+        best = pick_best_meld_response(meld_responses)
         logger.debug("call resolved: meld", caller_seat=best.seat, call_type=best.action.value)
         meld_result = _resolve_meld_response(resolved_game, prompt=prompt, best=best)
         return ActionResult(extra_events + meld_result.events, state=meld_result.state)

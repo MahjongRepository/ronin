@@ -35,14 +35,9 @@ def all_player_tiles(player: MahjongPlayer) -> list[int]:
     Build a complete 136-format tile list from closed hand tiles and meld tiles.
 
     The mahjong library expects ALL tiles (closed + open melds) to be passed to HandCalculator.estimate_hand_value and
-    Agari.is_agari. Meld tiles that already exist in player.tiles are not double-counted.
+    Agari.is_agari.
     """
-    hand_ids = set(player.tiles)
-    all_tiles = list(player.tiles)
-    for meld in player.melds:
-        all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
-
-    return all_tiles
+    return all_tiles_from_hand_and_melds(player.tiles, player.melds)
 
 
 def all_tiles_from_hand_and_melds(
@@ -52,15 +47,9 @@ def all_tiles_from_hand_and_melds(
     """
     Build a complete 136-format tile list from explicit hand tiles and melds.
 
-    Accepts hand tiles and melds directly rather than reading from a player object. Meld tiles that already exist in
-    hand_tiles are not double-counted.
+    Accepts hand tiles and melds directly rather than reading from a player object.
     """
-    hand_ids = set(hand_tiles)
-    all_tiles = list(hand_tiles)
-    for meld in melds:
-        all_tiles.extend(t for t in meld.tiles if t not in hand_ids)
-
-    return all_tiles
+    return [*hand_tiles, *(t for meld in melds for t in meld.tiles)]
 
 
 def check_tsumo(player: MahjongPlayer) -> bool:
@@ -76,12 +65,9 @@ def check_tsumo(player: MahjongPlayer) -> bool:
     for t in player.tiles:
         tiles_34[t // 4] += 1
 
-    if player.melds:
-        hand_ids = set(player.tiles)
-        for meld in player.melds:
-            for t in meld.tiles:
-                if t not in hand_ids:
-                    tiles_34[t // 4] += 1
+    for meld in player.melds:
+        for t in meld.tiles:
+            tiles_34[t // 4] += 1
 
     open_sets_34 = _melds_to_34_sets(player.melds)
     return Agari.is_agari(tiles_34, open_sets_34)
@@ -141,11 +127,9 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
     # Build full tiles_34 (closed + melds) by adding meld tile counts to
     # the existing closed_tiles_34, avoiding a second hand_to_34_array call.
     tiles_34 = list(closed_tiles_34)
-    hand_ids = set(player.tiles)
     for meld in player.melds:
         for t in meld.tiles:
-            if t not in hand_ids:
-                tiles_34[t // 4] += 1
+            tiles_34[t // 4] += 1
 
     # compute open sets once — the result is the same for every tile check
     open_sets = _melds_to_34_sets(player.melds)
@@ -431,12 +415,9 @@ def check_tsumo_with_tiles(player: MahjongPlayer, tiles: list[int]) -> bool:
     for t in tiles:
         tiles_34[t // 4] += 1
 
-    if player.melds:
-        hand_ids = set(tiles)
-        for meld in player.melds:
-            for t in meld.tiles:
-                if t not in hand_ids:
-                    tiles_34[t // 4] += 1
+    for meld in player.melds:
+        for t in meld.tiles:
+            tiles_34[t // 4] += 1
 
     open_sets_34 = _melds_to_34_sets(player.melds)
     return Agari.is_agari(tiles_34, open_sets_34)

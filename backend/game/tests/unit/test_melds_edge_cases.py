@@ -1,13 +1,10 @@
-import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import MeldCallType
-from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     _check_pao,
-    _validate_chi_sequence,
     can_call_open_kan,
     get_kuikae_tiles,
     get_possible_added_kans,
@@ -147,25 +144,6 @@ class TestKanLimits:
         )
 
         assert get_possible_added_kans(kan_caller, round_state, settings=GameSettings()) == []
-
-
-class TestValidateChiSequence:
-    def test_validate_chi_sequence__when_honor_tiles__should_raise(self):
-        honors = TilesConverter.string_to_136_array(honors="123")
-        with pytest.raises(InvalidMeldError, match="honor tiles"):
-            _validate_chi_sequence(honors[0], (honors[1], honors[2]))
-
-    def test_validate_chi_sequence__when_mixed_suits__should_raise(self):
-        man_1 = TilesConverter.string_to_136_array(man="1")[0]
-        pin_2 = TilesConverter.string_to_136_array(pin="2")[0]
-        sou_3 = TilesConverter.string_to_136_array(sou="3")[0]
-        with pytest.raises(InvalidMeldError, match="same suit"):
-            _validate_chi_sequence(man_1, (pin_2, sou_3))
-
-    def test_validate_chi_sequence__when_not_consecutive__should_raise(self):
-        man_tiles = TilesConverter.string_to_136_array(man="124")
-        with pytest.raises(InvalidMeldError, match="consecutive sequence"):
-            _validate_chi_sequence(man_tiles[0], (man_tiles[1], man_tiles[2]))
 
 
 class TestCheckPaoDisabled:

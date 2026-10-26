@@ -58,7 +58,7 @@ class TestDoubleYakumanSetting:
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
         man_pair = TilesConverter.string_to_136_array(man="11")
-        all_tiles = tuple(east_tiles) + tuple(closed_tiles) + (man_pair[0],)
+        all_tiles = (*closed_tiles, man_pair[0])
 
         east_pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -92,7 +92,7 @@ class TestYakumanStacking:
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
         pair_tiles = TilesConverter.string_to_136_array(honors="55")
-        all_tiles = tuple(east_tiles) + tuple(closed_tiles) + (pair_tiles[0],)
+        all_tiles = (*closed_tiles, pair_tiles[0])
 
         east_pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -122,7 +122,7 @@ class TestYakumanStacking:
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
         pair_tiles = TilesConverter.string_to_136_array(honors="55")
-        all_tiles = tuple(east_tiles) + tuple(closed_tiles) + (pair_tiles[0],)
+        all_tiles = (*closed_tiles, pair_tiles[0])
 
         east_pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -151,7 +151,7 @@ class TestYakumanStacking:
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         closed_tiles = TilesConverter.string_to_136_array(honors="222333444")
         pair_tiles = TilesConverter.string_to_136_array(honors="55")
-        all_tiles = tuple(east_tiles) + tuple(closed_tiles) + (pair_tiles[0],)
+        all_tiles = (*closed_tiles, pair_tiles[0])
 
         east_pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
