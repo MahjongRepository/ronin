@@ -27,7 +27,6 @@ MAX_TILE_COPIES = 4
 
 # the 13 terminal/honor tile types required for kokushi musou
 KOKUSHI_TILES_34 = frozenset({0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33})
-KOKUSHI_HAND_SIZE = 13
 KOKUSHI_MIN_UNIQUE_TYPES = 12
 
 
@@ -389,20 +388,14 @@ def is_chankan_possible(round_state: MahjongRoundState, caller_seat: int, kan_ti
 
 def is_kokushi_tenpai(player: MahjongPlayer) -> bool:
     """
-    Check if a player's hand is specifically kokushi musou tenpai.
+    Check if a player's waiting hand (13 tiles, between turns) is specifically kokushi musou tenpai.
 
-    Kokushi requires a closed hand (no melds) with 12 or 13 of the 13
-    terminal/honor tile types.  Tenpai forms:
+    Kokushi requires a closed hand with 12 or 13 of the 13 terminal/honor tile types (a hand with a meld holds at most
+    10 tiles, so it falls short).  Tenpai forms:
     - 12 unique types + 1 pair: waiting for the missing 13th type
     - 13 unique types (no pair): 13-way wait for any type
     """
-    if player.melds:
-        return False
-
     tiles_34 = hand_to_34_array(player.tiles)
-    total = sum(tiles_34)
-    if total != KOKUSHI_HAND_SIZE:
-        return False
 
     # every tile must be a kokushi terminal/honor type
     for i in range(NUM_TILE_TYPES):

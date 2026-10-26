@@ -6,11 +6,10 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_kans
-from game.logic.action_handlers import _handle_self_kan, handle_discard, handle_kan, handle_pass, handle_pon, handle_ron
+from game.logic.action_handlers import handle_chi, handle_discard, handle_kan, handle_pass, handle_pon, handle_ron
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     AbortiveDrawType,
     CallType,
@@ -29,25 +28,23 @@ from game.logic.events import (
     DrawEvent,
     MeldEvent,
     RoundEndEvent,
+    SeatTarget,
 )
 from game.logic.exceptions import InvalidGameActionError
 from game.logic.invariants import verify_tile_ownership
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
-    call_added_kan,
-    call_closed_kan,
-    call_open_kan,
     can_call_pon,
     get_possible_added_kans,
     get_possible_closed_kans,
 )
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer, PendingCallPrompt
+from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
 from game.logic.tiles import NUM_TILES, tile_to_34
-from game.logic.turn import _process_added_kan_call, _process_closed_kan_call
-from game.logic.types import DiscardActionData, KanActionData, PonActionData
+from game.logic.turn import process_discard_phase
+from game.logic.types import ChiActionData, DiscardActionData, KanActionData, PonActionData
 from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall
 from game.logic.win import (
     get_waiting_tiles,
@@ -56,60 +53,90 @@ from game.logic.win import (
 )
 from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
+from game.tests.unit.helpers import _update_round_state
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_DEFAULT_DEAD_WALL = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-_DEFAULT_WALL = tuple(TilesConverter.string_to_136_array(man="1111222233334444"))
+_ONE_MAN = tuple(tile_copies(0, man="1111"))
+_KAN_SEAT_REST = tuple(tile_copies(1, pin="123456789", sou="2"))
+_FILLER = {seat: tuple(tile_copies(seat, man="34579", sou="345678", honors="56")) for seat in (1, 2, 3)}
+_KOKUSHI_ON_ONE_MAN = create_player(seat=1, tiles=tile_copies(0, man="99", pin="19", sou="19", honors="1234567"))
 
 
-def _make_round_state(
-    player0_tiles,
+def _kan_game(
+    seat_0: MahjongPlayer,
     *,
-    player0_melds=(),
-    player1_tiles=None,
-    player1_melds=(),
-    player2_tiles=None,
-    player2_melds=(),
-    player3_tiles=None,
-    player3_melds=(),
-    current_player_seat=0,
-    wall=None,
-    dead_wall=None,
-    is_after_meld_call=False,
-    pending_dora_count=0,
-):
-    players = [
-        create_player(seat=0, tiles=player0_tiles, melds=player0_melds),
-        create_player(
-            seat=1,
-            tiles=player1_tiles or TilesConverter.string_to_136_array(man="123", pin="123", sou="123456"),
-            melds=player1_melds,
-        ),
-        create_player(
-            seat=2,
-            tiles=player2_tiles or TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            melds=player2_melds,
-        ),
-        create_player(
-            seat=3,
-            tiles=player3_tiles or TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            melds=player3_melds,
-        ),
-    ]
-    rs = create_round_state(
-        players=players,
-        wall=wall or _DEFAULT_WALL,
-        dead_wall=dead_wall or _DEFAULT_DEAD_WALL,
-        dora_indicators=(dead_wall or _DEFAULT_DEAD_WALL)[2:3],
-        current_player_seat=current_player_seat,
-        pending_dora_count=pending_dora_count,
+    seat_1: MahjongPlayer | None = None,
+    seat_3: MahjongPlayer | None = None,
+    current_player_seat: int = 0,
+    settings: GameSettings | None = None,
+) -> MahjongGameState:
+    players = (
+        seat_0,
+        seat_1 or create_player(seat=1, tiles=_FILLER[1]),
+        create_player(seat=2, tiles=_FILLER[2]),
+        seat_3 or create_player(seat=3, tiles=_FILLER[3]),
     )
-    if is_after_meld_call:
-        rs = rs.model_copy(update={"is_after_meld_call": True})
+    return create_dealt_game_state(players, current_player_seat=current_player_seat, settings=settings)
 
-    return rs
+
+def _one_man_quad_after_draw() -> MahjongPlayer:
+    return create_player(seat=0, tiles=(*_ONE_MAN, *_KAN_SEAT_REST))
+
+
+def _one_man_pon_from_seat_3() -> FrozenMeld:
+    return FrozenMeld(
+        meld_type=FrozenMeld.PON, tiles=_ONE_MAN[:3], opened=True, called_tile=_ONE_MAN[2], who=0, from_who=3
+    )
+
+
+def _seat_3_after_discarding(tile_id: int) -> MahjongPlayer:
+    return create_player(seat=3, tiles=_FILLER[3], discards=(Discard(tile_id=tile_id),))
+
+
+def _call_kan(game_state: MahjongGameState, *, seat: int, tile_id: int, kan_type: KanType) -> ActionResult:
+    result = handle_kan(game_state, seat=seat, data=KanActionData(tile_id=tile_id, kan_type=kan_type))
+    assert isinstance(result, ActionResult)
+    return result
+
+
+def _open_kan_on_seat_3_discard(settings: GameSettings) -> tuple[MahjongGameState, MahjongGameState]:
+    seat_0 = create_player(seat=0, tiles=(*_ONE_MAN[:3], *_KAN_SEAT_REST))
+    seat_3 = create_player(seat=3, tiles=(_ONE_MAN[3], *_FILLER[3]))
+    game_state = _kan_game(seat_0, seat_3=seat_3, current_player_seat=3, settings=settings)
+    prompted, _events = process_discard_phase(game_state, _ONE_MAN[3])
+    assert prompted.round_state.pending_call_prompt is not None
+
+    kan = _call_kan(prompted, seat=0, tile_id=_ONE_MAN[3], kan_type=KanType.OPEN)
+    assert kan.state.round_state.players[0].melds[0].type == FrozenMeld.KAN
+    return game_state, kan.state
+
+
+def _chi_by_seat_holding_quad_and_upgradable_pon() -> MahjongGameState:
+    three_pin = tile_copies(0, pin="3")[0]
+    one_two_pin = tuple(tile_copies(1, pin="12"))
+    seat_0 = create_player(
+        seat=0,
+        tiles=(
+            _ONE_MAN[3],
+            *tile_copies(0, man="2222"),
+            *one_two_pin,
+            *tile_copies(1, sou="2"),
+            *tile_copies(0, honors="77"),
+        ),
+        melds=(_one_man_pon_from_seat_3(),),
+    )
+    seat_3 = create_player(seat=3, tiles=(three_pin, *_FILLER[3]), discards=(Discard(tile_id=_ONE_MAN[2]),))
+    game_state = _kan_game(seat_0, seat_3=seat_3, current_player_seat=3)
+    assert get_possible_closed_kans(seat_0, game_state.round_state, settings=game_state.settings) != []
+    assert get_possible_added_kans(seat_0, game_state.round_state, settings=game_state.settings) != []
+
+    prompted, _events = process_discard_phase(game_state, three_pin)
+    chi = handle_chi(prompted, seat=0, data=ChiActionData(tile_id=three_pin, sequence_tiles=one_two_pin))
+    assert isinstance(chi, ActionResult)
+    assert chi.state.round_state.is_after_meld_call
+    return chi.state
 
 
 # ---------------------------------------------------------------------------
@@ -117,69 +144,44 @@ def _make_round_state(
 # ---------------------------------------------------------------------------
 class TestMinWallForKan:
     def test_closed_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
-        tiles_4m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*tiles_4m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles, wall=(10, 11))
+        runtime = GameRuntime(game_id="game", state=_kan_game(_one_man_quad_after_draw()), ai=AIPlayerController({}))
+        wall = runtime.state.round_state.wall
+        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:2]}))
+        player = round_state.players[0]
 
-        # default min_wall_for_kan=2: exactly 2 tiles → can kan
-        settings = GameSettings()
-        assert get_possible_closed_kans(round_state.players[0], round_state, settings=settings) == [
-            tile_to_34(tiles_4m[0])
-        ]
+        assert get_possible_closed_kans(player, round_state, settings=GameSettings()) == [tile_to_34(_ONE_MAN[0])]
+        assert get_possible_closed_kans(player, round_state, settings=GameSettings(min_wall_for_kan=3)) == []
 
-        # custom min_wall_for_kan=3: only 2 tiles → cannot kan
-        settings_3 = GameSettings(min_wall_for_kan=3)
-        assert get_possible_closed_kans(round_state.players[0], round_state, settings=settings_3) == []
+    def test_added_kan__when_min_wall_for_kan_setting_changes__should_require_that_many_wall_tiles(self):
+        seat_0 = create_player(seat=0, tiles=(_ONE_MAN[3], *_KAN_SEAT_REST), melds=(_one_man_pon_from_seat_3(),))
+        game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]))
+        runtime = GameRuntime(game_id="game", state=game_state, ai=AIPlayerController({}))
+        wall = runtime.state.round_state.wall
+        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:2]}))
+        player = round_state.players[0]
+
+        assert get_possible_added_kans(player, round_state, settings=GameSettings()) == [tile_to_34(_ONE_MAN[0])]
+        assert get_possible_added_kans(player, round_state, settings=GameSettings(min_wall_for_kan=3)) == []
 
 
 # ---------------------------------------------------------------------------
 # Kan after pon/chi on same turn: not allowed (fundamental)
 # ---------------------------------------------------------------------------
 class TestKanAfterMeldCallBlocked:
-    def test_closed_kan__when_after_meld_call__should_not_be_possible(self):
-        tiles_4m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="1234567")
-        player0_tiles = (*tiles_4m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles, is_after_meld_call=True)
+    def test_kan__when_after_meld_call__should_offer_neither_closed_nor_added_kan(self):
+        game_state = _chi_by_seat_holding_quad_and_upgradable_pon()
+        round_state = game_state.round_state
+        player = round_state.players[0]
 
-        settings = GameSettings()
-        result = get_possible_closed_kans(round_state.players[0], round_state, settings=settings)
-        assert result == []
+        assert get_possible_closed_kans(player, round_state, settings=game_state.settings) == []
+        assert get_possible_added_kans(player, round_state, settings=game_state.settings) == []
 
-    def test_added_kan__when_after_meld_call__should_not_be_possible(self):
-        # player has a pon of 1m and the 4th copy in hand
-        tiles_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        # 3 tiles in pon, 1 in hand
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(tiles_1m[:3]),
-            opened=True,
-            called_tile=tiles_1m[2],
-            who=0,
-            from_who=1,
-        )
-        player0_tiles = (tiles_1m[3], *pin_tiles)
-        round_state = _make_round_state(
-            player0_tiles,
-            player0_melds=(pon_meld,),
-            is_after_meld_call=True,
-        )
+    def test_handle_kan__when_closed_kan_right_after_meld_call__should_raise(self):
+        game_state = _chi_by_seat_holding_quad_and_upgradable_pon()
+        two_man = tile_copies(0, man="2")[0]
 
-        settings = GameSettings()
-        result = get_possible_added_kans(round_state.players[0], round_state, settings=settings)
-        assert result == []
-
-    def test_closed_kan__when_not_after_meld_call__should_be_possible(self):
-        tiles_4m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*tiles_4m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles, is_after_meld_call=False)
-
-        settings = GameSettings()
-        result = get_possible_closed_kans(round_state.players[0], round_state, settings=settings)
-        assert result == [tile_to_34(tiles_4m[0])]
+        with pytest.raises(InvalidGameActionError, match="cannot declare kan after a meld call"):
+            handle_kan(game_state, seat=0, data=KanActionData(tile_id=two_man, kan_type=KanType.CLOSED))
 
 
 # ---------------------------------------------------------------------------
@@ -187,27 +189,21 @@ class TestKanAfterMeldCallBlocked:
 # ---------------------------------------------------------------------------
 class TestConsecutiveClosedKans:
     def test_closed_kan__when_second_kan_follows_first__should_allow_it_and_reveal_new_dora(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        man_2m = TilesConverter.string_to_136_array(man="2222")
-        pin_tiles = TilesConverter.string_to_136_array(pin="12345")
-        player0_tiles = (*man_1m, *man_2m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles)
-        settings = GameSettings()
+        two_man = tile_copies(0, man="2222")
+        seat_0 = create_player(seat=0, tiles=(*_ONE_MAN, *two_man, *tile_copies(1, pin="12345", sou="2")))
+        game_state = _kan_game(seat_0)
+        dora_before = len(game_state.round_state.wall.dora_indicators)
 
-        # first kan
-        new_state, meld1 = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
-        assert meld1.type == FrozenMeld.KAN
-        dora_count_1 = len(new_state.wall.dora_indicators)
+        first = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[0], kan_type=KanType.CLOSED)
+        first_round = first.state.round_state
+        assert len(first_round.wall.dora_indicators) == dora_before + 1
+        assert get_possible_closed_kans(first_round.players[0], first_round, settings=first.state.settings) == [
+            tile_to_34(two_man[0])
+        ]
 
-        # second kan should also be possible
-        possible = get_possible_closed_kans(new_state.players[0], new_state, settings=settings)
-        man_2m_34 = tile_to_34(man_2m[0])
-        assert man_2m_34 in possible
-
-        new_state2, meld2 = call_closed_kan(new_state, seat=0, tile_id=man_2m[0], settings=settings)
-        assert meld2.type == FrozenMeld.KAN
-        # each kan should reveal a new dora indicator (immediate for closed kan)
-        assert len(new_state2.wall.dora_indicators) == dora_count_1 + 1
+        second = _call_kan(first.state, seat=0, tile_id=two_man[0], kan_type=KanType.CLOSED)
+        assert [m.type for m in second.state.round_state.players[0].melds] == [FrozenMeld.KAN, FrozenMeld.KAN]
+        assert len(second.state.round_state.wall.dora_indicators) == dora_before + 2
 
 
 _FIVE_MAN = tuple(tile_copies(copy, man="5")[0] for copy in range(4))
@@ -454,103 +450,45 @@ class TestFourKansAbort:
 # Kan dora timing (configurable)
 # ---------------------------------------------------------------------------
 class TestKanDoraTiming:
-    def test_kan_dora__when_closed_kan_by_default__should_reveal_dora_immediately(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles)
-        settings = GameSettings()  # kandora_immediate_for_closed_kan=True
+    @pytest.mark.parametrize(
+        ("settings", "revealed", "pending"),
+        [
+            pytest.param(GameSettings(), 1, 0, id="immediate_by_default"),
+            pytest.param(GameSettings(kandora_immediate_for_closed_kan=False), 0, 1, id="deferred_when_setting_off"),
+            pytest.param(GameSettings(has_kandora=False), 0, 0, id="none_when_kandora_disabled"),
+        ],
+    )
+    def test_kan_dora__when_closed_kan__should_follow_the_closed_kan_dora_settings(self, settings, revealed, pending):
+        game_state = _kan_game(_one_man_quad_after_draw(), settings=settings)
+        dora_before = len(game_state.round_state.wall.dora_indicators)
 
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
-        # dora immediately revealed
-        assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
-        assert new_state.wall.pending_dora_count == 0
+        kan = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[0], kan_type=KanType.CLOSED)
+        wall = kan.state.round_state.wall
+        assert (len(wall.dora_indicators) - dora_before, wall.pending_dora_count) == (revealed, pending)
 
-    def test_kan_dora__when_closed_kan_immediate_setting_off__should_defer_dora(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles)
-        settings = GameSettings(kandora_immediate_for_closed_kan=False)
+    @pytest.mark.parametrize(
+        ("settings", "revealed", "pending"),
+        [
+            pytest.param(GameSettings(), 0, 1, id="deferred_by_default"),
+            pytest.param(GameSettings(kandora_deferred_for_open_kan=False), 1, 0, id="immediate_when_setting_off"),
+        ],
+    )
+    def test_kan_dora__when_open_kan__should_follow_the_open_kan_dora_setting(self, settings, revealed, pending):
+        before_discard, after_kan = _open_kan_on_seat_3_discard(settings)
+        dora_before = len(before_discard.round_state.wall.dora_indicators)
 
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
-        # dora not immediately revealed, pending instead
-        assert len(new_state.wall.dora_indicators) == initial_dora_count
-        assert new_state.wall.pending_dora_count == 1
-
-    def test_kan_dora__when_open_kan_by_default__should_defer_dora(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        # player 0 has 3 copies, player 3 discards the 4th
-        player0_tiles = (*man_1m[:3], *pin_tiles)
-        round_state = _make_round_state(player0_tiles, current_player_seat=3)
-        settings = GameSettings()  # kandora_deferred_for_open_kan=True
-
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_state, _meld = call_open_kan(
-            round_state,
-            caller_seat=0,
-            discarder_seat=3,
-            tile_id=man_1m[3],
-            settings=settings,
-        )
-        # dora deferred
-        assert len(new_state.wall.dora_indicators) == initial_dora_count
-        assert new_state.wall.pending_dora_count == 1
-
-    def test_kan_dora__when_open_kan_deferred_setting_off__should_reveal_dora_immediately(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m[:3], *pin_tiles)
-        round_state = _make_round_state(player0_tiles, current_player_seat=3)
-        settings = GameSettings(kandora_deferred_for_open_kan=False)
-
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_state, _meld = call_open_kan(
-            round_state,
-            caller_seat=0,
-            discarder_seat=3,
-            tile_id=man_1m[3],
-            settings=settings,
-        )
-        # dora immediately revealed
-        assert len(new_state.wall.dora_indicators) == initial_dora_count + 1
-        assert new_state.wall.pending_dora_count == 0
+        wall = after_kan.round_state.wall
+        assert (len(wall.dora_indicators) - dora_before, wall.pending_dora_count) == (revealed, pending)
 
     def test_kan_dora__when_added_kan_by_default__should_defer_dora(self):
-        tiles_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(tiles_1m[:3]),
-            opened=True,
-            called_tile=tiles_1m[2],
-            who=0,
-            from_who=1,
-        )
-        player0_tiles = (tiles_1m[3], *pin_tiles)
-        round_state = _make_round_state(player0_tiles, player0_melds=(pon_meld,))
-        settings = GameSettings()  # kandora_deferred_for_open_kan=True
+        seat_0 = create_player(seat=0, tiles=(_ONE_MAN[3], *_KAN_SEAT_REST), melds=(_one_man_pon_from_seat_3(),))
+        game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]))
+        dora_before = len(game_state.round_state.wall.dora_indicators)
 
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_state, _meld = call_added_kan(round_state, seat=0, tile_id=tiles_1m[3], settings=settings)
-        # dora deferred
-        assert len(new_state.wall.dora_indicators) == initial_dora_count
-        assert new_state.wall.pending_dora_count == 1
-
-    def test_kan_dora__when_kandora_disabled__should_not_reveal_dora(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-        round_state = _make_round_state(player0_tiles)
-        settings = GameSettings(has_kandora=False)
-
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
-        assert len(new_state.wall.dora_indicators) == initial_dora_count
-        assert new_state.wall.pending_dora_count == 0
+        kan = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[3], kan_type=KanType.ADDED)
+        wall = kan.state.round_state.wall
+        assert kan.state.round_state.players[0].melds[0].type == FrozenMeld.SHOUMINKAN
+        assert (len(wall.dora_indicators), wall.pending_dora_count) == (dora_before, 1)
 
     def test_kan_dora__when_open_kan_replacement_discard_is_ponned__should_reveal_dora_before_the_pon(self):
         nine_pin = tile_copies(0, pin="9999")
@@ -601,18 +539,6 @@ class TestIsKokushiTenpai:
         player = create_player(seat=0, tiles=tiles)
         assert is_kokushi_tenpai(player) is True
 
-    def test_is_kokushi_tenpai__when_player_has_meld__should_return_false(self):
-        tiles = TilesConverter.string_to_136_array(man="19", pin="19", sou="19", honors="1234567")
-        meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(honors="111")),
-            opened=True,
-            who=0,
-            from_who=1,
-        )
-        player = create_player(seat=0, tiles=tiles[:10], melds=(meld,))
-        assert is_kokushi_tenpai(player) is False
-
     def test_is_kokushi_tenpai__when_hand_has_non_terminal_suited_tile__should_return_false(self):
         tiles = TilesConverter.string_to_136_array(man="15", pin="19", sou="19", honors="1234567")
         player = create_player(seat=0, tiles=tiles)
@@ -630,20 +556,9 @@ class TestIsKokushiTenpai:
 # ---------------------------------------------------------------------------
 class TestKokushiChankanOnAnkan:
     def test_kokushi_chankan__when_kokushi_waits_on_closed_kan_tile__should_allow_robbing(self):
-        # player 1 has kokushi tenpai, missing 1m (pair of 9m)
-        kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
-        # player 0 declares closed kan on 1m
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
+        round_state = _kan_game(_one_man_quad_after_draw(), seat_1=_KOKUSHI_ON_ONE_MAN).round_state
 
-        round_state = _make_round_state(
-            player0_tiles,
-            player1_tiles=kokushi_tiles,
-        )
-
-        chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
-        assert 1 in chankan_seats
+        assert is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=_ONE_MAN[0]) == [1]
 
     def test_kokushi_chankan__when_tenpai_hand_is_not_kokushi__should_not_allow_robbing_closed_kan(self):
         one_man = tile_copies(0, man="1111")
@@ -659,187 +574,74 @@ class TestKokushiChankanOnAnkan:
 
         assert is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=one_man[0]) == []
 
-    def test_kokushi_chankan__when_kokushi_is_permanent_furiten__should_not_allow_robbing(self):
-        # kokushi tenpai missing 1m (pair of 9m)
-        kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
+    def test_closed_kan__when_kokushi_can_rob__should_prompt_chankan_and_complete_the_kan_once_declined(self):
+        game_state = _kan_game(_one_man_quad_after_draw(), seat_1=_KOKUSHI_ON_ONE_MAN)
 
-        players = [
-            create_player(seat=0, tiles=player0_tiles),
-            create_player(
-                seat=1,
-                tiles=kokushi_tiles,
-                # discarded 1m previously → permanent furiten on 1m wait
-                discards=(Discard(tile_id=TilesConverter.string_to_136_array(man="1")[0], is_tsumogiri=False),),
-            ),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
+        kan = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[0], kan_type=KanType.CLOSED)
+        prompt = kan.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert (prompt.kind, prompt.callers) == (PromptKind.CHANKAN, (Caller(seat=1, can_ron=True),))
+        assert [(e.target, e.call_type) for e in kan.events if isinstance(e, CallPromptEvent)] == [
+            (SeatTarget(seat=1), CallType.CHANKAN),
         ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-        )
+        assert kan.state.round_state.players[0].melds == ()
 
-        chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
-        assert chankan_seats == []
-
-    def test_process_closed_kan_call__when_kokushi_can_rob__should_create_chankan_prompt(self):
-        # kokushi tenpai missing 1m (pair of 9m)
-        kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        round_state = _make_round_state(
-            player0_tiles,
-            player1_tiles=kokushi_tiles,
-        )
-        game_state = create_game_state(round_state)
-
-        new_gs, events = _process_closed_kan_call(game_state, caller_seat=0, tile_id=man_1m[0])
-        new_rs = new_gs.round_state
-        # should create a chankan prompt, not execute the kan
-        chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
-        assert len(chankan_events) == 1
-        assert new_rs.pending_call_prompt is not None
-        assert new_rs.pending_call_prompt.kind == PromptKind.CHANKAN
-
-    def test_process_closed_kan_call__when_no_kokushi_can_rob__should_execute_kan(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        round_state = _make_round_state(player0_tiles)
-        game_state = create_game_state(round_state)
-
-        new_gs, events = _process_closed_kan_call(game_state, caller_seat=0, tile_id=man_1m[0])
-        new_rs = new_gs.round_state
-        # should execute the kan (MeldEvent, not CallPromptEvent)
-        meld_events = [e for e in events if isinstance(e, MeldEvent) and e.meld_type == MeldViewType.CLOSED_KAN]
-        assert len(meld_events) == 1
-        assert new_rs.pending_call_prompt is None
+        declined = handle_pass(kan.state, seat=1)
+        assert isinstance(declined, ActionResult)
+        assert [(e.meld_type, e.caller_seat) for e in declined.events if isinstance(e, MeldEvent)] == [
+            (MeldViewType.CLOSED_KAN, 0),
+        ]
+        assert [m.type for m in declined.state.round_state.players[0].melds] == [FrozenMeld.KAN]
 
 
 # ---------------------------------------------------------------------------
 # Chankan preservation: ippatsu not cleared, dora not flipped (fundamental)
 # ---------------------------------------------------------------------------
+_FIRST_GO_AROUND = tuple(tile_copies(0, honors="123"))
+_AFTER_PON = tuple(tile_copies(1, honors="1234"))
+
+
 class TestChankanPreservation:
-    def test_chankan_prompt__when_added_kan_declared__should_preserve_ippatsu(self):
-        # player 1 has ippatsu and is tenpai waiting on 3p
-        tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        pin_3 = TilesConverter.string_to_136_array(pin="3333")
-        pin_other = TilesConverter.string_to_136_array(pin="6789", sou="12345")
-
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pin_3[:3]),
-            opened=True,
-            called_tile=pin_3[2],
-            who=0,
-            from_who=3,
+    def test_chankan_prompt__when_added_kan_declared__should_preserve_ippatsu_and_not_reveal_dora(self):
+        three_pin = tile_copies(0, pin="3333")
+        pon_from_seat_3 = FrozenMeld(
+            meld_type=FrozenMeld.PON, tiles=three_pin[:3], opened=True, called_tile=three_pin[2], who=0, from_who=3
         )
-        # player 0 has pon of 3p + 4th copy in hand, tries added kan
-        player0_tiles = (pin_3[3], *pin_other)
-
-        players = [
-            create_player(seat=0, tiles=player0_tiles, melds=(pon_meld,)),
-            create_player(seat=1, tiles=tiles_p1, is_riichi=True, is_ippatsu=True),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-            current_player_seat=0,
+        seat_0 = create_player(
+            seat=0,
+            tiles=(three_pin[3], *tile_copies(0, pin="6789", sou="12345", honors="7")),
+            melds=(pon_from_seat_3,),
+            discards=(Discard(tile_id=_FIRST_GO_AROUND[0]), Discard(tile_id=_AFTER_PON[0])),
         )
-        game_state = create_game_state(round_state)
-
-        new_gs, events = _process_added_kan_call(game_state, caller_seat=0, tile_id=pin_3[3])
-        new_rs = new_gs.round_state
-        # chankan prompt should be created (not executing the kan)
-        chankan_events = [e for e in events if isinstance(e, CallPromptEvent) and e.call_type == CallType.CHANKAN]
-        assert len(chankan_events) == 1
-        # ippatsu should be preserved (kan not executed yet)
-        assert new_rs.players[1].is_ippatsu is True
-
-    def test_chankan_prompt__when_added_kan_declared__should_not_reveal_dora(self):
-        tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        pin_3 = TilesConverter.string_to_136_array(pin="3333")
-        pin_other = TilesConverter.string_to_136_array(pin="6789", sou="12345")
-
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pin_3[:3]),
-            opened=True,
-            called_tile=pin_3[2],
-            who=0,
-            from_who=3,
+        riichi_ippatsu_on_three_pin = create_player(
+            seat=1,
+            tiles=tile_copies(0, man="123456789", pin="1255"),
+            discards=(Discard(tile_id=_FIRST_GO_AROUND[1]), Discard(tile_id=_AFTER_PON[1], is_riichi_discard=True)),
+            is_riichi=True,
+            is_ippatsu=True,
         )
-        player0_tiles = (pin_3[3], *pin_other)
-
-        players = [
-            create_player(seat=0, tiles=player0_tiles, melds=(pon_meld,)),
-            create_player(seat=1, tiles=tiles_p1, is_riichi=True),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-            current_player_seat=0,
+        seat_2 = create_player(
+            seat=2,
+            tiles=_FILLER[2],
+            discards=(Discard(tile_id=_FIRST_GO_AROUND[2]), Discard(tile_id=_AFTER_PON[2])),
         )
-        game_state = create_game_state(round_state)
+        seat_3 = create_player(
+            seat=3,
+            tiles=_FILLER[3],
+            discards=(Discard(tile_id=three_pin[2]), Discard(tile_id=_AFTER_PON[3])),
+        )
+        game_state = create_dealt_game_state(
+            (seat_0, riichi_ippatsu_on_three_pin, seat_2, seat_3),
+            all_discards=(*_FIRST_GO_AROUND, three_pin[2], *_AFTER_PON),
+        )
+        dora_before = len(game_state.round_state.wall.dora_indicators)
 
-        initial_dora_count = len(round_state.wall.dora_indicators)
-        new_gs, _events = _process_added_kan_call(game_state, caller_seat=0, tile_id=pin_3[3])
-        new_rs = new_gs.round_state
-        # dora should not be revealed (kan not executed yet)
-        assert len(new_rs.wall.dora_indicators) == initial_dora_count
-        assert new_rs.wall.pending_dora_count == 0
-
-
-# ---------------------------------------------------------------------------
-# Action handler guard: kan after meld call raises error
-# ---------------------------------------------------------------------------
-class TestHandleSelfKanAfterMeld:
-    def test_handle_self_kan__when_after_meld_call__should_raise(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        round_state = _make_round_state(player0_tiles)
-        round_state = round_state.model_copy(update={"is_after_meld_call": True})
-        game_state = create_game_state(round_state)
-
-        data = KanActionData(tile_id=man_1m[0], kan_type=KanType.CLOSED)
-        with pytest.raises(InvalidGameActionError, match="cannot declare kan after a meld call"):
-            _handle_self_kan(game_state, seat=0, data=data)
+        kan = _call_kan(game_state, seat=0, tile_id=three_pin[3], kan_type=KanType.ADDED)
+        round_state = kan.state.round_state
+        assert round_state.pending_call_prompt is not None
+        assert round_state.pending_call_prompt.kind == PromptKind.CHANKAN
+        assert round_state.players[1].is_ippatsu is True
+        assert (len(round_state.wall.dora_indicators), round_state.wall.pending_dora_count) == (dora_before, 0)
 
 
 def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> GameRuntime:
@@ -866,17 +668,7 @@ def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> Gam
             discards=(Discard(tile_id=tile_copies(0, honors="4")[0]),),
         ),
     )
-    all_discards = tuple(player.discards[0].tile_id for player in players)
-    dealt = {tile for player in players for tile in player.tiles} | set(all_discards)
-    undealt = [tile for tile in range(NUM_TILES) if tile not in dealt]
-    round_state = create_round_state(
-        players=players,
-        wall=undealt[:-DEAD_WALL_SIZE],
-        dead_wall=undealt[-DEAD_WALL_SIZE:],
-        phase=RoundPhase.PLAYING,
-        all_discards=all_discards,
-    )
-    return GameRuntime(game_id="game1", state=create_game_state(round_state), ai=AIPlayerController({}))
+    return GameRuntime(game_id="game1", state=create_dealt_game_state(players), ai=AIPlayerController({}))
 
 
 def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> None:
@@ -979,126 +771,3 @@ class TestRiichiClosedKanValidation:
             (FrozenMeld.KAN, False, tile_to_34(drawn_one_man))
         ]
         assert _waits(player, player.tiles[:-1]) == five_sou_wait
-
-
-# ---------------------------------------------------------------------------
-# Resolve chankan decline for closed kan (kokushi chankan)
-# ---------------------------------------------------------------------------
-class TestResolveChankanDeclineClosedKan:
-    def test_resolve_chankan_decline__when_closed_kan__should_complete_kan(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        round_state = _make_round_state(player0_tiles)
-        round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
-        game_state = create_game_state(round_state)
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.CHANKAN,
-            tile_id=man_1m[0],
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True),),
-            responses=(),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
-
-
-# ---------------------------------------------------------------------------
-# Additional kokushi chankan edge cases for coverage
-# ---------------------------------------------------------------------------
-class TestKokushiChankanEdgeCases:
-    def test_kokushi_chankan__when_kokushi_waits_on_other_tile__should_not_allow_robbing(self):
-        # kokushi tenpai missing 1m (waiting on 1m), but kan tile is 2m
-        kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
-        man_2m = TilesConverter.string_to_136_array(man="2222")
-        pin_tiles = TilesConverter.string_to_136_array(pin="12345")
-        player0_tiles = (*man_2m, *pin_tiles)
-
-        players = [
-            create_player(seat=0, tiles=player0_tiles),
-            create_player(seat=1, tiles=kokushi_tiles),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-            current_player_seat=0,
-        )
-
-        chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_2m[0])
-        assert chankan_seats == []
-
-    def test_kokushi_chankan__when_kokushi_is_riichi_furiten__should_not_allow_robbing(self):
-        kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        players = [
-            create_player(seat=0, tiles=player0_tiles),
-            create_player(seat=1, tiles=kokushi_tiles, is_riichi=True, is_riichi_furiten=True),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-            current_player_seat=0,
-        )
-
-        chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
-        assert 1 not in chankan_seats
-
-    def test_kokushi_chankan__when_kokushi_is_temporary_furiten__should_not_allow_robbing(self):
-        kokushi_tiles = TilesConverter.string_to_136_array(man="99", pin="19", sou="19", honors="1234567")
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        players = [
-            create_player(seat=0, tiles=player0_tiles),
-            create_player(seat=1, tiles=kokushi_tiles, is_temporary_furiten=True),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-            current_player_seat=0,
-        )
-
-        chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
-        assert 1 not in chankan_seats

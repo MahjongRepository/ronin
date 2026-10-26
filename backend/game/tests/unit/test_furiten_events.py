@@ -6,10 +6,9 @@ from game.logic.events import EventType, FuritenEvent, SeatTarget, ServiceEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.runtime import GameRuntime
 from game.logic.state import Discard
-from game.logic.tiles import NUM_TILES, tile_to_34
-from game.logic.wall import DEAD_WALL_SIZE
+from game.logic.tiles import tile_to_34
 from game.logic.win import get_waiting_tiles
-from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.helpers import (
     _find_player,
@@ -67,21 +66,9 @@ def _waiting_seat_runtime(
             discards=(Discard(tile_id=tile_copies(2, sou="1")[0]),),
         ),
     )
-    all_discards = tuple(player.discards[0].tile_id for player in players)
-    dealt = {tile for player in players for tile in player.tiles} | set(all_discards)
-    undealt = [tile for tile in range(NUM_TILES) if tile not in dealt and tile != waiting_seat_draw]
-    round_state = create_round_state(
-        players=players,
-        wall=(waiting_seat_draw, *undealt[:-DEAD_WALL_SIZE]),
-        dead_wall=undealt[-DEAD_WALL_SIZE:],
-        phase=RoundPhase.PLAYING,
-        all_discards=all_discards,
-    )
-    assert get_waiting_tiles(round_state.players[WAITING_SEAT]) == {
-        tile_to_34(THREE_MAN_WAIT),
-        tile_to_34(SIX_MAN_WAIT),
-    }
-    return GameRuntime(game_id="game1", state=create_game_state(round_state), ai=AIPlayerController({}))
+    game_state = create_dealt_game_state(players, draws=(waiting_seat_draw,))
+    assert get_waiting_tiles(players[WAITING_SEAT]) == {tile_to_34(THREE_MAN_WAIT), tile_to_34(SIX_MAN_WAIT)}
+    return GameRuntime(game_id="game1", state=game_state, ai=AIPlayerController({}))
 
 
 def _discard_furiten_runtime(*, waiting_seat_draw: int) -> GameRuntime:

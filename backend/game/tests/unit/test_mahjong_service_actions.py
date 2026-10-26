@@ -7,6 +7,7 @@ from game.logic.enums import (
     GameAction,
     GameErrorCode,
     KanType,
+    MeldViewType,
     PromptKind,
     RoundPhase,
     RoundResultType,
@@ -67,6 +68,12 @@ class TestMahjongGameServiceAddedKanChankan:
             (EventType.FURITEN, SeatTarget(seat=robber_seat)),
         ]
         assert update.events[0].data.call_type == CallType.CHANKAN
+        added_kan = update.events[1].data
+        assert (added_kan.meld_type, added_kan.called_tile_id, added_kan.from_seat) == (
+            MeldViewType.ADDED_KAN,
+            pin_3_copies[0],
+            (player.seat + 3) % 4,
+        )
         round_state = runtime.state.round_state
         assert round_state.pending_call_prompt is None
         assert round_state.players[player.seat].melds[0].meld_type == FrozenMeld.SHOUMINKAN
