@@ -96,8 +96,12 @@ Deferred Dora reveal applies even if the discard is subsequently claimed for a m
 
 - Applies to: Big Three Dragons, Big Four Winds. Does NOT apply to Suukantsu (Four Quads).
 - Trigger: Discarding the tile that completes the third dragon set or fourth wind set
-- Tsumo: Liable player pays full score
-- Ron (by third party): Liable player and discarder split 50/50
+- Liability covers only the value of the liable yakuman (Big Three Dragons, or Big Four Winds at its double-yakuman value when double yakuman is enabled). Any other yakuman in the same hand (e.g. All Honors) is settled normally.
+- Tsumo: Liable player pays the liable yakuman's whole value and the whole honba bonus. The other yakuman's value is paid as an ordinary tsumo by all three players, the liable player included. Example: dealer Big Three Dragons + All Honors (96,000) — liable player pays 48,000 + 16,000, the other two pay 16,000 each.
+- Ron off a player other than the liable one: Liable player pays half the liable yakuman's value and the whole honba bonus; the discarder pays the other half and any other yakuman's value. Example: the same dealer hand by ron — liable player pays 24,000, discarder 72,000.
+- Ron off the liable player: They pay the full hand value and honba bonus, as an ordinary ron
+- Riichi sticks go to the winner as usual. In a double ron each winner is settled separately: liability applies only to the winner it is for, whose honba bonus the liable player pays (unless they are the discarder); the discarder pays the other winner's honba bonus.
+- With a lowered set threshold, a winning hand that does not score the liable yakuman carries no liability: the win is settled normally, so the would-be liable player still pays their ordinary share on a tsumo, or in full when they dealt in.
 
 ### Dealer Rotation
 

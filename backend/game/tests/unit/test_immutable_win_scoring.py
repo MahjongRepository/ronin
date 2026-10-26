@@ -1,3 +1,4 @@
+from mahjong.hand_calculating.yaku_list.yakuman import Daisangen
 from mahjong.tile import TilesConverter
 
 from game.logic.enums import RoundResultType
@@ -95,46 +96,6 @@ class TestProcessExhaustiveDrawPayment:
 
 
 class TestApplyDoubleRonWithPao:
-    def test_apply_double_ron_score__when_pao_on_one_winner__should_split_that_winners_payment(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
-        # seat 0 has pao on seat 3
-        players_list = list(players)
-        players_list[0] = players_list[0].model_copy(update={"pao_seat": 3})
-        round_state = MahjongRoundState(wall=make_wall(), dealer_seat=0, players=tuple(players_list))
-        game_state = MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
-
-        hand_result_0 = HandResult(
-            han=13,
-            fu=30,
-            cost_main=32000,
-            cost_additional=0,
-            yaku=[YakuInfo(yaku_id=0, han=13)],
-        )
-        hand_result_2 = HandResult(
-            han=2,
-            fu=30,
-            cost_main=2000,
-            cost_additional=0,
-            yaku=[YakuInfo(yaku_id=0, han=1)],
-        )
-
-        winners = [(0, hand_result_0), (2, hand_result_2)]
-        new_game, result = apply_double_ron_score(
-            game_state,
-            winners=winners,
-            loser_seat=1,
-            winning_tile=0,
-        )
-        new_round = new_game.round_state
-        # seat 0's 32000: split 50/50 between loser(1) and pao(3) -> 16000 each
-        # seat 2's 2000: full from loser(1)
-        assert new_round.players[0].score == 25000 + 32000
-        assert new_round.players[1].score == 25000 - 18000  # 16000 + 2000
-        assert new_round.players[2].score == 25000 + 2000
-        assert new_round.players[3].score == 25000 - 16000  # pao
-        assert result.winners[0].pao_seat == 3
-        assert result.winners[1].pao_seat is None
-
     def test_apply_double_ron_score__when_one_winner_owes_pao_to_the_other__should_report_each_value_and_payment(self):
         players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
         players_list = list(players)
@@ -142,7 +103,7 @@ class TestApplyDoubleRonWithPao:
         round_state = MahjongRoundState(wall=make_wall(), dealer_seat=0, players=tuple(players_list))
         game_state = MahjongGameState(round_state=round_state, honba_sticks=0, riichi_sticks=0)
         mangan = HandResult(han=5, fu=30, cost_main=8000, yaku=[YakuInfo(yaku_id=0, han=5)])
-        yakuman = HandResult(han=13, fu=30, cost_main=32000, yaku=[YakuInfo(yaku_id=0, han=13)])
+        yakuman = HandResult(han=13, fu=30, cost_main=32000, yaku=[YakuInfo(yaku_id=Daisangen.yaku_id, han=13)])
 
         _new_game, result = apply_double_ron_score(
             game_state,

@@ -1,7 +1,9 @@
 import pytest
+from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, DaiSuushii, Tsuuiisou
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import RoundResultType
+from game.logic.enums import RoundPhase, RoundResultType
+from game.logic.events import GameEvent, RoundEndEvent
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import (
     HandResult,
@@ -15,13 +17,17 @@ from game.logic.scoring import (
 )
 from game.logic.settings import GameSettings
 from game.logic.state import (
+    Discard,
     MahjongGameState,
+    MahjongPlayer,
     seat_to_wind,
 )
 from game.logic.state_utils import update_player
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34
-from game.logic.types import DoubleRonResult, YakuInfo
+from game.logic.turn import process_ron_call, process_tsumo_call
+from game.logic.types import DoubleRonResult, RonCallInput, RonResult, RoundResult, TsumoResult, YakuInfo
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import FIRST_URA_POSITION
 
 
@@ -582,216 +588,272 @@ class TestApplyNagashiManganScore:
         assert sum(result.score_changes.values()) == 0
 
 
+_DAISANGEN_WIN_TILE = tile_copies(1, sou="9")[0]
+_DAISANGEN_TSUUIISOU_WIN_TILE = tile_copies(1, honors="2")[0]
+_ITTSUU_SHANPON_HAND = (
+    *tile_copies(0, man="123456789"),
+    *TilesConverter.string_to_136_array(pin="11"),
+    *tile_copies(2, sou="9"),
+    *tile_copies(3, sou="9"),
+)
+
+
+def _honor_pons(seat: int, *, from_seat: int, honors: str) -> tuple[FrozenMeld, ...]:
+    return tuple(
+        FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(pon_tiles),
+            opened=True,
+            called_tile=pon_tiles[0],
+            who=seat,
+            from_who=from_seat,
+        )
+        for pon_tiles in (TilesConverter.string_to_136_array(honors=honor * 3) for honor in honors)
+    )
+
+
+def _daisangen_player(seat: int, *, pao_seat: int, closed_tiles: list[int]) -> MahjongPlayer:
+    melds = _honor_pons(seat, from_seat=pao_seat, honors="567")
+    return create_player(seat=seat, tiles=closed_tiles, melds=melds, pao_seat=pao_seat)
+
+
+def _daisangen_tanki_player(seat: int, *, pao_seat: int) -> MahjongPlayer:
+    return _daisangen_player(seat, pao_seat=pao_seat, closed_tiles=tile_copies(0, pin="234", sou="9"))
+
+
+def _daisangen_tsuuiisou_tanki_player(seat: int, *, pao_seat: int) -> MahjongPlayer:
+    east_triplet_and_south = TilesConverter.string_to_136_array(honors="1112")
+    return _daisangen_player(seat, pao_seat=pao_seat, closed_tiles=east_triplet_and_south)
+
+
+def _with_drawn_tile(player: MahjongPlayer, tile: int) -> MahjongPlayer:
+    return player.model_copy(update={"tiles": (*player.tiles, tile)})
+
+
+def _stage_pao_win(
+    *,
+    dealer_seat: int,
+    winners: list[MahjongPlayer],
+    current_seat: int,
+    discarded_tile: int | None = None,
+    honba_sticks: int = 0,
+    riichi_sticks: int = 0,
+    settings: GameSettings | None = None,
+) -> MahjongGameState:
+    winners_by_seat = {winner.seat: winner for winner in winners}
+    filler_copies = iter((1, 2, 3))
+    players = []
+    for seat in range(4):
+        if seat in winners_by_seat:
+            players.append(winners_by_seat[seat])
+            continue
+
+        is_discarder = discarded_tile is not None and seat == current_seat
+        discards = [Discard(tile_id=discarded_tile)] if is_discarder else []
+        filler_hand = tile_copies(next(filler_copies), man="123456789", pin="5678")
+        players.append(create_player(seat=seat, tiles=filler_hand, discards=discards))
+
+    round_state = create_round_state(
+        players=players,
+        wall=tile_copies(0, sou="2345678"),
+        dora_indicators=tile_copies(0, sou="1"),
+        dealer_seat=dealer_seat,
+        current_player_seat=current_seat,
+        phase=RoundPhase.PLAYING,
+    )
+    return create_game_state(round_state, honba_sticks=honba_sticks, riichi_sticks=riichi_sticks, settings=settings)
+
+
+def _round_result(events: list[GameEvent]) -> RoundResult:
+    assert len(events) == 1
+    assert isinstance(events[0], RoundEndEvent)
+    return events[0].result
+
+
 class TestPaoTsumoScoring:
-    def _create_game_state(self) -> MahjongGameState:
-        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3]) for i in range(4))
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
-        )
-        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
+    def test_pao__when_non_dealer_tsumo_with_honba__should_charge_pao_player_everything(self):
+        winner = _with_drawn_tile(_daisangen_tanki_player(1, pao_seat=2), _DAISANGEN_WIN_TILE)
+        game_state = _stage_pao_win(dealer_seat=0, winners=[winner], current_seat=1, honba_sticks=1, riichi_sticks=1)
 
-    def test_pao__when_non_dealer_yakuman_tsumo__should_charge_pao_player_everything(self):
-        game_state = self._create_game_state()
-        # seat 1 wins with pao on seat 2
-        # yakuman tsumo: dealer pays 16000, non-dealer pays 8000 each
-        round_state = update_player(game_state.round_state, 1, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
-
-        new_game_state, result = apply_tsumo_score(
-            game_state,
-            winner_seat=1,
-            hand_result=hand_result,
-        )
-        new_round_state = new_game_state.round_state
-        # total would be: 16000 (from dealer) + 8000 + 8000 = 32000
-        # pao player (seat 2) pays all 32000
+        _new_state, events = process_tsumo_call(game_state, winner_seat=1)
+        result = _round_result(events)
+        assert isinstance(result, TsumoResult)
         assert result.pao_seat == 2
-        assert new_round_state.players[0].score == 25000  # dealer pays nothing
-        assert new_round_state.players[1].score == 25000 + 32000  # winner gets all
-        assert new_round_state.players[2].score == 25000 - 32000  # pao pays all
-        assert new_round_state.players[3].score == 25000  # other pays nothing
-
-    def test_pao__when_dealer_yakuman_tsumo__should_charge_pao_player_everything(self):
-        game_state = self._create_game_state()
-        # seat 0 (dealer) wins with pao on seat 3
-        # dealer yakuman tsumo: each non-dealer pays 16000
-        round_state = update_player(game_state.round_state, 0, pao_seat=3)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=0, yaku=_yaku(0))
-
-        new_game_state, result = apply_tsumo_score(
-            game_state,
-            winner_seat=0,
-            hand_result=hand_result,
-        )
-        new_round_state = new_game_state.round_state
-        # total would be: 16000 * 3 = 48000
-        assert result.pao_seat == 3
-        assert new_round_state.players[0].score == 25000 + 48000
-        assert new_round_state.players[1].score == 25000
-        assert new_round_state.players[2].score == 25000
-        assert new_round_state.players[3].score == 25000 - 48000
-
-    def test_pao__when_tsumo_with_riichi_sticks__should_give_sticks_to_winner(self):
-        game_state = self._create_game_state()
-        round_state = update_player(game_state.round_state, 1, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 2})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
-
-        new_game_state, result = apply_tsumo_score(
-            game_state,
-            winner_seat=1,
-            hand_result=hand_result,
-        )
-        new_round_state = new_game_state.round_state
-        # total tsumo: 32000 + 2000 riichi bonus
-        assert new_round_state.players[1].score == 25000 + 34000
-        assert new_round_state.players[2].score == 25000 - 32000
-        assert result.riichi_sticks_collected == 2
-
-    def test_pao__when_tsumo_with_honba__should_charge_honba_to_pao_player(self):
-        game_state = self._create_game_state()
-        round_state = update_player(game_state.round_state, 1, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
-        hand_result = HandResult(han=13, fu=30, cost_main=16000, cost_additional=8000, yaku=_yaku(0))
-
-        new_game_state, result = apply_tsumo_score(
-            game_state,
-            winner_seat=1,
-            hand_result=hand_result,
-        )
-        new_round_state = new_game_state.round_state
-        # honba: 100 per loser * 2 sticks = 200 per loser, 600 total
-        # total normal: 32000 + 600 honba = 32600
-        assert new_round_state.players[1].score == 25000 + 32600
-        assert new_round_state.players[2].score == 25000 - 32600
         assert result.hand_result.points == 32000
+        assert result.score_changes == {0: 0, 1: 33300, 2: -32300, 3: 0}
+        assert result.riichi_sticks_collected == 1
+
+    def test_pao__when_dealer_tsumo_stacks_another_yakuman__should_charge_pao_player_only_the_pao_yakuman_and_honba(
+        self,
+    ):
+        winner = _with_drawn_tile(_daisangen_tsuuiisou_tanki_player(0, pao_seat=3), _DAISANGEN_TSUUIISOU_WIN_TILE)
+        game_state = _stage_pao_win(dealer_seat=0, winners=[winner], current_seat=0, honba_sticks=1)
+
+        _new_state, events = process_tsumo_call(game_state, winner_seat=0)
+        result = _round_result(events)
+        assert isinstance(result, TsumoResult)
+        assert [y.yaku_id for y in result.hand_result.yaku] == [Daisangen.yaku_id, Tsuuiisou.yaku_id]
+        assert result.hand_result.points == 96000
+        assert result.score_changes == {0: 96300, 1: -16000, 2: -16000, 3: -64300}
 
 
 class TestPaoRonScoring:
-    def _create_game_state(self) -> MahjongGameState:
-        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3]) for i in range(4))
-        round_state = create_round_state(
-            players=players,
+    def test_pao__when_dealer_rons_off_other_player__should_split_hand_value_and_give_sticks_to_winner(self):
+        winner = _daisangen_tanki_player(0, pao_seat=2)
+        game_state = _stage_pao_win(
             dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
+            winners=[winner],
+            current_seat=1,
+            discarded_tile=_DAISANGEN_WIN_TILE,
+            riichi_sticks=1,
         )
-        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
-    def test_pao__when_ron_on_other_player__should_split_payment_with_pao_player(self):
-        game_state = self._create_game_state()
-        # seat 0 wins by ron off seat 1, pao on seat 2
-        round_state = update_player(game_state.round_state, 0, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
-
-        new_game_state, result = apply_ron_score(
+        _new_state, events = process_ron_call(
             game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
+            ron_input=RonCallInput(ron_callers=[0], tile_id=_DAISANGEN_WIN_TILE, discarder_seat=1),
         )
-        new_round_state = new_game_state.round_state
-        # 32000 split: loser pays 16000, pao pays 16000
+        result = _round_result(events)
+        assert isinstance(result, RonResult)
         assert result.pao_seat == 2
-        assert new_round_state.players[0].score == 25000 + 32000
-        assert new_round_state.players[1].score == 25000 - 16000
-        assert new_round_state.players[2].score == 25000 - 16000
-        assert new_round_state.players[3].score == 25000
-
-    def test_pao__when_ron_on_pao_player__should_charge_them_in_full(self):
-        game_state = self._create_game_state()
-        # seat 0 wins by ron off seat 1, pao also on seat 1
-        round_state = update_player(game_state.round_state, 0, pao_seat=1)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
-
-        new_game_state, result = apply_ron_score(
-            game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
-        )
-        new_round_state = new_game_state.round_state
-        # pao == loser: normal ron, loser pays full
-        assert result.pao_seat == 1
-        assert new_round_state.players[0].score == 25000 + 32000
-        assert new_round_state.players[1].score == 25000 - 32000
-        assert new_round_state.players[2].score == 25000
-        assert new_round_state.players[3].score == 25000
-
-    def test_pao__when_ron_with_honba__should_split_honba_between_payers(self):
-        game_state = self._create_game_state()
-        round_state = update_player(game_state.round_state, 0, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state, "honba_sticks": 2})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
-
-        new_game_state, _result = apply_ron_score(
-            game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
-        )
-        new_round_state = new_game_state.round_state
-        # total: 32000 + 600 honba = 32600, split: 16300 each
-        assert new_round_state.players[0].score == 25000 + 32600
-        assert new_round_state.players[1].score == 25000 - 16300
-        assert new_round_state.players[2].score == 25000 - 16300
-
-    def test_pao__when_ron_with_riichi_sticks__should_give_sticks_to_winner(self):
-        game_state = self._create_game_state()
-        round_state = update_player(game_state.round_state, 0, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state, "riichi_sticks": 1})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
-
-        new_game_state, result = apply_ron_score(
-            game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
-        )
-        new_round_state = new_game_state.round_state
-        # 32000 split: loser 16000, pao 16000; winner also gets 1000 riichi
-        assert new_round_state.players[0].score == 25000 + 33000
-        assert new_round_state.players[1].score == 25000 - 16000
-        assert new_round_state.players[2].score == 25000 - 16000
+        assert result.hand_result.points == 48000
+        assert result.score_changes == {0: 49000, 1: -24000, 2: -24000, 3: 0}
         assert result.riichi_sticks_collected == 1
 
-
-class TestPaoRonScoreConservation:
-    def _create_game_state(self) -> MahjongGameState:
-        players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3]) for i in range(4))
-        round_state = create_round_state(
-            players=players,
+    def test_pao__when_ron_on_pao_player__should_charge_them_in_full(self):
+        winner = _daisangen_tanki_player(1, pao_seat=3)
+        game_state = _stage_pao_win(
             dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
+            winners=[winner],
+            current_seat=3,
+            discarded_tile=_DAISANGEN_WIN_TILE,
+            honba_sticks=1,
         )
-        return create_game_state(round_state=round_state, honba_sticks=0, riichi_sticks=0)
 
-    def test_pao__when_ron_on_other_player__should_sum_score_changes_to_zero(self):
-        game_state = self._create_game_state()
-        round_state = update_player(game_state.round_state, 0, pao_seat=2)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        hand_result = HandResult(han=13, fu=30, cost_main=32000, cost_additional=0, yaku=_yaku(0))
-
-        _new_game_state, result = apply_ron_score(
+        _new_state, events = process_ron_call(
             game_state,
-            winner_seat=0,
-            loser_seat=1,
-            hand_result=hand_result,
-            winning_tile=0,
+            ron_input=RonCallInput(ron_callers=[1], tile_id=_DAISANGEN_WIN_TILE, discarder_seat=3),
         )
-        assert sum(result.score_changes.values()) == 0
+        result = _round_result(events)
+        assert isinstance(result, RonResult)
+        assert result.pao_seat == 3
+        assert result.hand_result.points == 32000
+        assert result.score_changes == {0: 0, 1: 32300, 2: 0, 3: -32300}
+
+    def test_pao__when_ron_off_another_player_with_honba__should_charge_the_whole_honba_to_the_pao_player(self):
+        winner = _daisangen_tanki_player(1, pao_seat=3)
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[winner],
+            current_seat=2,
+            discarded_tile=_DAISANGEN_WIN_TILE,
+            honba_sticks=1,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[1], tile_id=_DAISANGEN_WIN_TILE, discarder_seat=2),
+        )
+        result = _round_result(events)
+        assert isinstance(result, RonResult)
+        assert result.hand_result.points == 32000
+        assert result.score_changes == {0: 0, 1: 32300, 2: -16000, 3: -16300}
+
+    def test_pao__when_dealer_ron_stacks_another_yakuman__should_charge_pao_player_half_the_pao_yakuman_and_honba(
+        self,
+    ):
+        winner = _daisangen_tsuuiisou_tanki_player(0, pao_seat=3)
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[winner],
+            current_seat=1,
+            discarded_tile=_DAISANGEN_TSUUIISOU_WIN_TILE,
+            honba_sticks=1,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[0], tile_id=_DAISANGEN_TSUUIISOU_WIN_TILE, discarder_seat=1),
+        )
+        result = _round_result(events)
+        assert isinstance(result, RonResult)
+        assert [y.yaku_id for y in result.hand_result.yaku] == [Daisangen.yaku_id, Tsuuiisou.yaku_id]
+        assert result.hand_result.points == 96000
+        assert result.score_changes == {0: 96300, 1: -72000, 2: 0, 3: -24300}
+
+    def test_pao__when_double_yakuman_daisuushii_ron_stacks_tsuuiisou__should_weigh_the_pao_share_by_han(self):
+        melds = (*_honor_pons(1, from_seat=0, honors="123"), *_honor_pons(1, from_seat=3, honors="4"))
+        winner = create_player(seat=1, tiles=tile_copies(0, honors="5"), melds=melds, pao_seat=3)
+        haku_win_tile = tile_copies(1, honors="5")[0]
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[winner],
+            current_seat=2,
+            discarded_tile=haku_win_tile,
+            honba_sticks=1,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[1], tile_id=haku_win_tile, discarder_seat=2),
+        )
+        result = _round_result(events)
+        assert isinstance(result, RonResult)
+        assert [(y.yaku_id, y.han) for y in result.hand_result.yaku] == [
+            (Tsuuiisou.yaku_id, 13),
+            (DaiSuushii.yaku_id, 26),
+        ]
+        assert result.pao_seat == 3
+        assert result.hand_result.points == 96000
+        assert result.score_changes == {0: 0, 1: 96300, 2: -64000, 3: -32300}
+
+    def test_pao__when_lowered_threshold_hand_wins_without_the_pao_yakuman__should_settle_as_ordinary_ron(self):
+        settings = GameSettings(daisangen_pao_set_threshold=2)
+        closed_tiles = [*tile_copies(0, pin="234678"), *TilesConverter.string_to_136_array(honors="7")]
+        melds = _honor_pons(1, from_seat=3, honors="56")
+        winner = create_player(seat=1, tiles=closed_tiles, melds=melds, pao_seat=3)
+        chun_win_tile = tile_copies(1, honors="7")[0]
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[winner],
+            current_seat=2,
+            discarded_tile=chun_win_tile,
+            settings=settings,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[1], tile_id=chun_win_tile, discarder_seat=2),
+        )
+        result = _round_result(events)
+        assert isinstance(result, RonResult)
+        assert result.pao_seat is None
+        assert result.hand_result.points == 12000
+        assert result.score_changes == {0: 0, 1: 12000, 2: -12000, 3: 0}
+
+    def test_pao__when_double_ron_with_honba__should_charge_the_pao_winners_honba_to_the_pao_player(self):
+        pao_winner = _daisangen_tanki_player(0, pao_seat=2)
+        other_winner = create_player(seat=1, tiles=_ITTSUU_SHANPON_HAND)
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[pao_winner, other_winner],
+            current_seat=3,
+            discarded_tile=_DAISANGEN_WIN_TILE,
+            honba_sticks=1,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[0, 1], tile_id=_DAISANGEN_WIN_TILE, discarder_seat=3),
+        )
+        result = _round_result(events)
+        assert isinstance(result, DoubleRonResult)
+        assert [w.pao_seat for w in result.winners] == [2, None]
+        assert [w.hand_result.points for w in result.winners] == [48000, 5200]
+        assert [w.score_changes for w in result.winners] == [
+            {0: 48300, 1: 0, 2: -24300, 3: -24000},
+            {0: 0, 1: 5500, 2: 0, 3: -5500},
+        ]
+        assert result.score_changes == {0: 48300, 1: 5500, 2: -24300, 3: -29500}
 
 
 class TestChankanYakuScoring:

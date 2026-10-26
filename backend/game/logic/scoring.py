@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import structlog
 from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
+from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, DaiSuushii
 
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.meld_wrapper import frozen_melds_to_melds
@@ -42,6 +43,8 @@ if TYPE_CHECKING:
     )
 
 logger = structlog.get_logger()
+
+_PAO_YAKU_IDS = frozenset({Daisangen.yaku_id, DaiSuushii.yaku_id})
 
 
 @dataclass
@@ -263,15 +266,71 @@ def _tsumo_payment_for_seat(
     is_dealer_win: bool,
     dealer_seat: int,
     hand_result: HandResult,
-    honba_bonus_per_loser: int,
 ) -> int:
     """
-    Calculate the tsumo payment amount a given seat owes.
+    Calculate the hand value a given seat owes on a tsumo, before honba.
     """
     if is_dealer_win or seat == dealer_seat:
-        return hand_result.cost_main + honba_bonus_per_loser
+        return hand_result.cost_main
 
-    return hand_result.cost_additional + honba_bonus_per_loser
+    return hand_result.cost_additional
+
+
+def _pao_yakuman_han(hand_result: HandResult) -> int:
+    """
+    Sum the han of the hand's yakuman that pao can cover (daisangen, daisuushii).
+    """
+    return sum(y.han for y in hand_result.yaku if y.yaku_id in _PAO_YAKU_IDS)
+
+
+def _liable_seat(winner: MahjongPlayer, hand_result: HandResult) -> int | None:
+    """
+    Return the seat liable (pao) for the winner's hand, or None when no liability applies.
+
+    A liability covers only a pao yakuman the hand actually scores, which a lowered set threshold does not guarantee.
+    """
+    if winner.pao_seat is None or _pao_yakuman_han(hand_result) == 0:
+        return None
+
+    return winner.pao_seat
+
+
+def _pao_share(payment: int, hand_result: HandResult) -> int:
+    """
+    Return the part of a yakuman payment owed for its pao yakuman.
+
+    Yakuman payments scale with the yakuman count, so the share of the pao yakuman's han is exact.
+    """
+    return payment * _pao_yakuman_han(hand_result) // hand_result.han
+
+
+def _tsumo_payer_changes(
+    *,
+    payments: dict[int, int],
+    liable_seat: int | None,
+    hand_result: HandResult,
+    honba_bonus_per_loser: int,
+) -> dict[int, int]:
+    """
+    Charge each loser's tsumo payment and honba bonus to the seats that pay them.
+
+    With a liable (pao) player, the liable player pays the pao yakuman's part of every loser's payment and the whole
+    honba bonus; each loser, the liable player included, pays the rest of their own payment as usual.
+    """
+    changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
+    if liable_seat is None:
+        for seat, payment in payments.items():
+            changes[seat] = -(payment + honba_bonus_per_loser)
+
+        return changes
+
+    changes[liable_seat] = -honba_bonus_per_loser * len(payments)
+    for seat, payment in payments.items():
+        pao_part = _pao_share(payment, hand_result)
+        changes[seat] -= payment - pao_part
+        changes[liable_seat] -= pao_part
+
+    return changes
 
 
 def apply_tsumo_score(
@@ -291,58 +350,38 @@ def apply_tsumo_score(
     - Each loser pays: +honba/3 bonus (300 total = 100 per loser)
 
     Payment structure (pao / liability):
-    - The liable player pays the full tsumo amount alone
-    - Other players pay nothing
+    - The liable player pays the pao yakuman's whole value and the whole honba bonus
+    - Any other yakuman in the hand is paid as a normal tsumo, the liable player included
     """
     round_state = game_state.round_state
     settings = game_state.settings
     scores = _current_scores(game_state)
     winner = round_state.players[winner_seat]
+    liable_seat = _liable_seat(winner, hand_result)
 
     is_dealer_win = winner_seat == round_state.dealer_seat
     honba_bonus_per_loser = game_state.honba_sticks * settings.honba_tsumo_bonus_per_loser
+    riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
-    hand_points = sum(
-        _tsumo_payment_for_seat(
-            s,
+    payments = {
+        seat: _tsumo_payment_for_seat(
+            seat,
             is_dealer_win=is_dealer_win,
             dealer_seat=round_state.dealer_seat,
             hand_result=hand_result,
-            honba_bonus_per_loser=0,
         )
-        for s in range(NUM_PLAYERS)
-        if s != winner_seat
+        for seat in range(NUM_PLAYERS)
+        if seat != winner_seat
+    }
+    hand_points = sum(payments.values())
+
+    score_changes = _tsumo_payer_changes(
+        payments=payments,
+        liable_seat=liable_seat,
+        hand_result=hand_result,
+        honba_bonus_per_loser=honba_bonus_per_loser,
     )
-
-    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
-
-    if winner.pao_seat is not None:
-        # pao tsumo: liable player pays the full amount
-        total_payment = hand_points + honba_bonus_per_loser * (NUM_PLAYERS - 1)
-        score_changes[winner.pao_seat] = -total_payment
-        score_changes[winner_seat] = total_payment
-    else:
-        # normal tsumo scoring
-        total_payment = 0
-        for seat in range(NUM_PLAYERS):
-            if seat == winner_seat:
-                continue
-
-            payment = _tsumo_payment_for_seat(
-                seat,
-                is_dealer_win=is_dealer_win,
-                dealer_seat=round_state.dealer_seat,
-                hand_result=hand_result,
-                honba_bonus_per_loser=honba_bonus_per_loser,
-            )
-            score_changes[seat] = -payment
-            total_payment += payment
-
-        score_changes[winner_seat] = total_payment
-
-    # winner receives riichi sticks
-    riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
-    score_changes[winner_seat] += riichi_bonus
+    score_changes[winner_seat] = hand_points + honba_bonus_per_loser * len(payments) + riichi_bonus
 
     new_game_state = _apply_score_changes(game_state, score_changes)
     return (
@@ -356,10 +395,34 @@ def apply_tsumo_score(
             closed_tiles=list(winner.tiles[:-1]),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             win_tile=winner.tiles[-1],
-            pao_seat=winner.pao_seat,
+            pao_seat=liable_seat,
             ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
+
+
+def _ron_payer_changes(
+    *,
+    liable_seat: int | None,
+    loser_seat: int,
+    hand_result: HandResult,
+    honba_bonus: int,
+) -> dict[int, int]:
+    """
+    Charge one ron winner's hand value and honba bonus to the seats that pay it.
+
+    A liable (pao) player other than the discarder pays half the pao yakuman's value and the whole honba bonus; the
+    discarder pays the rest of the hand value. Otherwise the discarder pays everything.
+    """
+    changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
+    if liable_seat is None or liable_seat == loser_seat:
+        changes[loser_seat] = -(hand_result.cost_main + honba_bonus)
+        return changes
+
+    liable_half = _pao_share(hand_result.cost_main, hand_result) // 2
+    changes[loser_seat] = -(hand_result.cost_main - liable_half)
+    changes[liable_seat] = -(liable_half + honba_bonus)
+    return changes
 
 
 def apply_ron_score(
@@ -378,40 +441,29 @@ def apply_ron_score(
     - Loser pays: main_cost + honba * 300
     - Winner gets: main_cost + riichi_sticks * 1000 + honba * 300
 
-    Payment structure (pao / liability, pao_seat != loser_seat):
-    - Loser and pao player split the payment 50/50
+    Payment structure (pao / liability, liable player != loser):
+    - The liable player pays half the pao yakuman's value and the whole honba bonus
+    - The loser pays the other half and any other yakuman in the hand
     - Winner receives the full amount
 
-    If pao_seat == loser_seat, normal ron applies (pao player pays full as they would anyway).
+    If the liable player is the loser, normal ron applies (they pay in full as they would anyway).
     """
     round_state = game_state.round_state
     settings = game_state.settings
     scores = _current_scores(game_state)
     winner = round_state.players[winner_seat]
 
-    # honba bonus from loser
     honba_bonus = game_state.honba_sticks * settings.honba_ron_bonus
-
-    total_payment = hand_result.cost_main + honba_bonus
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
-    score_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
-
-    if winner.pao_seat is not None and winner.pao_seat != loser_seat:
-        # pao ron with different pao player: split 50/50
-        # assign rounding remainder to the pao (liable) player
-        half = total_payment // 2
-        pao_half = total_payment - half
-        score_changes[loser_seat] = -half
-        score_changes[winner.pao_seat] -= pao_half
-        score_changes[winner_seat] = total_payment
-    else:
-        # normal ron (including pao_seat == loser_seat case)
-        score_changes[loser_seat] = -total_payment
-        score_changes[winner_seat] = total_payment
-
-    # winner receives riichi sticks
-    score_changes[winner_seat] += riichi_bonus
+    liable_seat = _liable_seat(winner, hand_result)
+    score_changes = _ron_payer_changes(
+        liable_seat=liable_seat,
+        loser_seat=loser_seat,
+        hand_result=hand_result,
+        honba_bonus=honba_bonus,
+    )
+    score_changes[winner_seat] = hand_result.cost_main + honba_bonus + riichi_bonus
 
     new_game_state = _apply_score_changes(game_state, score_changes)
     return (
@@ -426,7 +478,7 @@ def apply_ron_score(
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
             closed_tiles=list(winner.tiles),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
-            pao_seat=winner.pao_seat,
+            pao_seat=liable_seat,
             ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
@@ -446,7 +498,8 @@ def apply_double_ron_score(
     Payment structure:
     - Loser pays each winner separately: main_cost + honba * 300
     - Riichi sticks go to winner closest to loser's right (counter-clockwise)
-    - Each winner's pao is evaluated independently (same logic as single ron)
+    - Each winner's pao is evaluated independently (same logic as single ron): a liable player other than the loser
+      pays half that winner's pao yakuman and that winner's whole honba bonus, and the loser pays the rest
     """
     round_state = game_state.round_state
     settings = game_state.settings
@@ -471,21 +524,15 @@ def apply_double_ron_score(
     winner_results = []
     for winner_seat, hand_result in winners:
         winner = round_state.players[winner_seat]
-        payment = hand_result.cost_main + honba_bonus
-        winner_changes: dict[int, int] = dict.fromkeys(range(NUM_PLAYERS), 0)
+        liable_seat = _liable_seat(winner, hand_result)
+        winner_changes = _ron_payer_changes(
+            liable_seat=liable_seat,
+            loser_seat=loser_seat,
+            hand_result=hand_result,
+            honba_bonus=honba_bonus,
+        )
 
-        if winner.pao_seat is not None and winner.pao_seat != loser_seat:
-            # pao ron with different pao player: split 50/50
-            # assign rounding remainder to the pao (liable) player
-            half = payment // 2
-            pao_half = payment - half
-            winner_changes[loser_seat] -= half
-            winner_changes[winner.pao_seat] -= pao_half
-        else:
-            # normal ron (including pao_seat == loser_seat case)
-            winner_changes[loser_seat] -= payment
-
-        winner_total = payment
+        winner_total = hand_result.cost_main + honba_bonus
         if winner_seat == riichi_receiver:
             winner_total += riichi_bonus
 
@@ -503,7 +550,7 @@ def apply_double_ron_score(
                 ),
                 closed_tiles=list(winner.tiles),
                 melds=[frozen_meld_to_compact(m) for m in winner.melds],
-                pao_seat=winner.pao_seat,
+                pao_seat=liable_seat,
                 ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
             ),
         )
