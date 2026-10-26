@@ -192,10 +192,21 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert CSRF_COOKIE_NAME in response.cookies
 
-    def test_room_page__when_room_not_found__should_redirect_to_lobby(self, client):
+    @pytest.mark.parametrize(
+        ("game_session_status", "location"),
+        [(200, "/play/game%201"), (404, "/"), (500, "/")],
+        ids=["playing", "not_playing", "lookup_failed"],
+    )
+    def test_room_page__when_room_not_found__should_redirect_to_the_users_live_game_or_the_lobby(
+        self, client, game_server, game_session_status, location
+    ):
+        game_server.respond = lambda _request: httpx.Response(
+            game_session_status, json={"game_id": "game 1", "game_ticket": "ticket"}
+        )
+
         response = client.get("/rooms/nonexistent-room", follow_redirects=False)
         assert response.status_code == 303
-        assert response.headers["location"] == "/"
+        assert response.headers["location"] == location
 
     def test_storybook_page__when_first_visit__should_set_csrf_cookie(self, app):
         with open_client(app) as c:

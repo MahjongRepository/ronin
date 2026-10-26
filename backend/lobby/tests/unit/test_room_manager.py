@@ -13,9 +13,10 @@ if TYPE_CHECKING:
 
 
 def _join(mgr: LobbyRoomManager, *, room_id: str, connection_id: str, user_id: str, username: str) -> LobbyRoom | str:
-    return mgr.join_room(
+    join = mgr.join_room(
         room_id=room_id, player=make_player(connection_id=connection_id, user_id=user_id, username=username)
     )
+    return join if isinstance(join, str) else join.room
 
 
 def _seated_connections(room: LobbyRoom) -> list[str | None]:
@@ -83,20 +84,53 @@ class TestJoinRoom:
         assert result == "room_full"
 
     def test_room_manager_join_room__when_occupancy_reports_a_conflict__should_return_it_without_seating(self):
-        mgr = LobbyRoomManager(find_conflict=lambda user_id: "already_in_queue" if user_id == "queued-user" else None)
+        mgr = LobbyRoomManager(
+            find_conflict=lambda user_id, _room_id: "already_in_queue" if user_id == "queued-user" else None
+        )
         room = mgr.create_room("room-1")
 
         result = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="queued-user", username="Alice")
         assert result == "already_in_queue"
         assert room.is_empty
 
-    def test_room_manager_join_room__when_room_transitioning__should_return_room_transitioning(self):
+    def test_room_manager_join_room__when_room_transitioning__should_refuse_even_a_seated_users_takeover(self):
         mgr = LobbyRoomManager()
         room = mgr.create_room("room-1")
+        _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
         room.transitioning = True
 
-        result = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
-        assert result == "room_transitioning"
+        assert _join(mgr, room_id="room-1", connection_id="conn-2", user_id="user-2", username="Bob") == (
+            "room_transitioning"
+        )
+        assert _join(mgr, room_id="room-1", connection_id="conn-1b", user_id="user-1", username="Alice") == (
+            "room_transitioning"
+        )
+        assert _seated_connections(room) == ["conn-1", None, None, None]
+
+    def test_room_manager_join_room__when_user_rejoins_a_full_room__should_take_over_seat_readiness_and_host_order(
+        self,
+    ):
+        mgr = LobbyRoomManager()
+        room = mgr.create_room("room-1")
+        _join(mgr, room_id="room-1", connection_id="host", user_id="u0", username="P0")
+        _join(mgr, room_id="room-1", connection_id="leaver", user_id="u1", username="P1")
+        _join(mgr, room_id="room-1", connection_id="old", user_id="u2", username="P2")
+        _join(mgr, room_id="room-1", connection_id="last", user_id="u3", username="P3")
+        mgr.set_ready("room-1", "old", ready=True)
+        mgr.leave_room("room-1", "leaver")
+        _join(mgr, room_id="room-1", connection_id="later", user_id="u4", username="P4")
+        new_player = make_player(connection_id="new", user_id="u2", username="P2")
+
+        join = mgr.join_room(room_id="room-1", player=new_player)
+        assert not isinstance(join, str)
+        assert join.displaced is not None
+        assert join.displaced.connection_id == "old"
+        assert _seated_connections(room) == ["host", "later", "new", "last"]
+        assert room.member("new").ready is True
+        assert mgr.leave_room("room-1", "old") is False
+
+        mgr.leave_room("room-1", "host")
+        assert _host_connection(room) == "new"
 
     def test_room_manager_join_room__when_owner_alone__should_report_can_start(self):
         mgr = LobbyRoomManager()
@@ -207,7 +241,7 @@ class TestLeaveRoom:
 
         mgr.clear_transitioning("room-1")
         assert _seated_connections(room) == ["conn-1", None, None, None]
-        assert room.has_user("user-2") is False
+        assert room.member_of_user("user-2") is None
 
 
 class TestSetReady:

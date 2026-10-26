@@ -85,17 +85,24 @@ def _create_seating(
     Build the room and matchmaking managers and the occupancy rule they both enforce.
     """
 
-    def find_lobby_conflict(user_id: str) -> str | None:
+    def find_room_conflict(user_id: str, room_id: str) -> str | None:
         """
         Apply the occupancy rule built below from the room and queue managers this function is injected into.
         """
-        return occupancy.find_lobby_conflict(user_id)
+        return occupancy.find_room_conflict(user_id, room_id)
 
-    room_manager = LobbyRoomManager(room_ttl_seconds=300, find_conflict=find_lobby_conflict)
-    matchmaking_manager = MatchmakingManager(find_conflict=find_lobby_conflict)
+    def find_queue_conflict(user_id: str) -> str | None:
+        """
+        Apply the occupancy rule built below from the room and queue managers this function is injected into.
+        """
+        return occupancy.find_queue_conflict(user_id)
+
+    room_manager = LobbyRoomManager(room_ttl_seconds=300, find_conflict=find_room_conflict)
+    matchmaking_manager = MatchmakingManager(find_conflict=find_queue_conflict)
     occupancy = Occupancy(
-        is_seated=room_manager.has_user_in_any_room,
-        is_queued=matchmaking_manager.has_user,
+        find_room=room_manager.find_user_room,
+        is_queued=matchmaking_manager.is_queued,
+        is_matched=matchmaking_manager.is_matched,
         is_playing=is_playing,
     )
     return room_manager, matchmaking_manager, occupancy

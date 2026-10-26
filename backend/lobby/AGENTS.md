@@ -53,8 +53,23 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 * A user is in at most one place: one room seat, the matchmaking queue (queued or matched), or one
   game they are playing. A rejected join is told the reason and closed.
+* A join to the place the user already holds (their seat in the same room, full or not, or their
+  unmatched queue entry) takes it over instead: the new connection keeps the seat, readiness and
+  arrival (so host succession) or the queue position, and the old one is told
+  `replaced_by_new_connection` and closed. Lobby sockets never reconnect, so this is how a reload
+  or a second tab gets past a dead socket the server has not noticed yet. When two connections of
+  one user join at once, the last one admitted wins, which is the one whose playing lookup finished
+  last, not necessarily the newest. A place is never traded for another, and never taken over once
+  its game is being created: a transitioning room refuses every join, and a matched user is
+  refused as `match_starting` (by a room join too), retryable answers that the handoff recovery
+  turns into the game once it exists.
+* Everything keyed by connection (ready, start, leave, chat, cleanup) misses for a taken-over
+  connection, so its buffered input and late cleanup change nothing.
 * Room and queue occupancy is checked synchronously inside the step that seats or queues the user,
   so the two exclude each other atomically on the event loop and the lobby needs no lock.
+* The occupancy rule runs before anything else in that step (a room's existence included), so a
+  join that a start handed to its game during the lookup is always refused as `already_in_game`
+  and handed that game, even once the start has removed the room.
 * "Playing" comes only from the game server's in-memory sessions, never from `played_games`, whose
   `ended_at` stays NULL after a crash. The handlers ask the game server before the occupancy check,
   and `Occupancy` rejects a join whose answer a concurrent game start made stale.
@@ -67,7 +82,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 * A join refused as `already_in_game` is answered with the user's live game as `game_starting`
   when the game server can name it, so a lost handoff is repaired by any lobby join; the game page
-  recovers through `GET /api/game-session`. The flow is in `docs/architecture.md`.
+  recovers through `GET /api/game-session`. The room page of a room that is gone redirects a
+  playing user to their game's page (to the lobby when they play none or the lookup fails). The flow is in `docs/architecture.md`.
 * Recovery returns the participant's own ticket from the game server; the lobby never caches or
   re-signs tickets. It asks only for the authenticated user's id, and its lookup never fails open:
   a failure keeps `already_in_game` (or answers 503), distinct from "no game".

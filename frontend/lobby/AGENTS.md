@@ -21,6 +21,10 @@ A join refused as `already_in_game` can instead be answered with `game_starting`
 user already plays, as the join's first and only message, so each page handles `game_starting`
 the same way whether or not it was ever seated or queued.
 
+A room join refused because a game is being created (`room_transitioning`, `match_starting`)
+reopens the socket after a short delay, a bounded number of times, so the page follows the game once
+it exists; a seated player refused the same way mid-start just waits for `game_starting`.
+
 ## Conventions
 
 * Imports use the `@/` alias for `src/`.

@@ -13,7 +13,9 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
   humans (chosen at creation, bot API only) are seated and every non-owner human is ready. Nothing
   starts automatically. When the owner leaves, ownership passes to the earliest remaining joiner.
   The seats are the room's one record of its members; the owner is derived from arrival order, never
-  from seat index, since a refilled low seat holds a later joiner.
+  from seat index, since a refilled low seat holds a later joiner. A user rejoining their own seat
+  takes it over on the new connection (`lobby/AGENTS.md`, Occupancy): the member keeps its arrival
+  and ready flag, and the room gets a state resync, not `player_joined`/`player_left`.
 * Every room step after a join's playing lookup is synchronous because a send is an enqueue, so
   nothing interleaves inside a step and rooms take no lock.
 * The owner's start marks the room transitioning, so joins and ready toggles arriving during the

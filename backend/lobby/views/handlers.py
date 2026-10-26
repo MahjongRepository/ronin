@@ -2,17 +2,24 @@ from __future__ import annotations
 
 import uuid
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
+import structlog
 from starlette.responses import RedirectResponse
 
 from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
+from lobby.game_transition import GameLookupError, find_game_handoff
 
 if TYPE_CHECKING:
+    import httpx
     from starlette.requests import Request
     from starlette.responses import Response
     from starlette.templating import Jinja2Templates
 
     from lobby.rooms.manager import LobbyRoomManager
+    from lobby.settings import LobbyServerSettings
+
+logger = structlog.get_logger()
 
 
 def _render_lobby_with_error(
@@ -127,14 +134,19 @@ async def matchmaking_page(request: Request) -> Response:
 
 
 async def room_page(request: Request) -> Response:
-    """GET /rooms/{room_id} - render the room page."""
+    """
+    GET /rooms/{room_id} - render the room page.
+
+    A room that is gone sends the user to the lobby, or to the game page of the game they play: a room is removed once
+    its game starts, and the game page recovers a lost handoff on its own.
+    """
     templates: Jinja2Templates = request.app.state.templates
     room_manager: LobbyRoomManager = request.app.state.room_manager
     room_id = request.path_params["room_id"]
 
     room = room_manager.get_room(room_id)
     if room is None:
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse(await _find_live_game_page(request) or "/", status_code=303)
 
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
@@ -155,3 +167,21 @@ async def room_page(request: Request) -> Response:
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
 
     return response
+
+
+async def _find_live_game_page(request: Request) -> str | None:
+    """
+    Return the game page of the game the authenticated user plays, or None when they play none or the lookup failed.
+    """
+    settings: LobbyServerSettings = request.app.state.settings
+    game_server: httpx.AsyncClient = request.app.state.game_server
+    try:
+        handoff = await find_game_handoff(request.user.user_id, settings=settings, game_server=game_server)
+    except GameLookupError as e:
+        logger.warning("game handoff lookup failed", username=request.user.username, error=str(e))
+        return None
+
+    if handoff is None:
+        return None
+
+    return f"{handoff.game_client_url}/{quote(handoff.game_id, safe='')}"

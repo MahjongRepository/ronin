@@ -109,15 +109,25 @@ sequenceDiagram
     O->>G: GET /players/{user_id} (2s timeout, fails open)
     G-->>O: 200 playing / 404 not playing
     Note over H,O: one synchronous step
-    H->>O: find_lobby_conflict(user_id)
+    H->>O: find_room_conflict(user_id, room_id) / find_queue_conflict(user_id)
     O-->>H: conflict reason or None
-    H->>H: seat or queue the user
+    H->>H: seat or queue the user, or take over their own seat or entry
     H->>O: admitting closes
 ```
 
 The lookup can go stale: a game start may hand the user to a game while the request is in flight.
-`start_game` therefore marks every open admission of its players, and `find_lobby_conflict`
-rejects a marked one as `already_in_game` in the same synchronous step that would seat or queue.
+`start_game` therefore marks every open admission of its players, and both conflict checks reject
+a marked one as `already_in_game` in the same synchronous step that would seat or queue.
+
+A join to the place the user already holds (their seat in that room, or their unmatched queue
+entry) is admitted and takes the place over: the new connection keeps the seat, readiness and
+arrival order or the queue position, and the old connection gets `replaced_by_new_connection` and
+a close. Once the place's game is being created nothing is taken over: a transitioning room refuses
+the join as `room_transitioning` and a matched user gets `match_starting`; a later join finds the
+game and is handed it (below). The room page retries such a join on its own after a short delay;
+the matchmaking page offers a retry. The occupancy check runs first in the seating step, so a join
+whose lookup overlapped its own room's start is answered `already_in_game` with the game, never
+`room_not_found`.
 
 The game server is the backstop: `POST /games` refuses a player already in one of its games with
 409, and "playing" is answered only from its in-memory sessions (a disconnected participant still
@@ -140,8 +150,9 @@ re-signed or rotated:
   id, and adds the `ws_url` and `game_client_url` a start would send. A lookup failure is an error,
   not "not playing": unlike the occupancy lookup it never fails open.
 * Two entry points: a room or matchmaking join refused as `already_in_game` is answered with
-  `game_starting` (both lobby pages already follow it), and the game page, finding no handoff in
-  its tab, fetches `GET /api/game-session` (a same-origin JSON route under the login), stores the
+  `game_starting` (both lobby pages already follow it; the room page of a room removed by its
+  game's start redirects a playing user to that game's page), and the game page, finding no
+  handoff in its tab, fetches `GET /api/game-session` (a same-origin JSON route under the login), stores the
   answer like the lobby does and plays on; a different live game sends it to that game's page.
 * The client then joins as after any start: JOIN_GAME while pending, RECONNECT after
   `join_game_already_started` once the game plays (it may start between the lookup and the join),

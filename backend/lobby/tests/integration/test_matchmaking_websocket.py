@@ -57,29 +57,50 @@ class TestMatchmakingWebSocket:
             assert app.state.matchmaking_manager.queue_size == 1
         assert app.state.matchmaking_manager.queue_size == 0
 
-    async def test_matchmaking_websocket__when_already_in_queue__should_reject_the_second_socket(self, app):
-        first_peer, first_handler = await _queue_player(app, "alice")
+    async def test_matchmaking_websocket__when_queued_user_connects_again__should_hand_the_entry_to_the_new_socket(
+        self, app
+    ):
+        old_peer, old_handler = await _queue_player(app, "alice")
+        others = [await _queue_player(app, username) for username in ("bob", "carol")]
+        bob_peer = others[0][0]
 
-        second_peer = AsgiPeer()
-        await matchmaking_websocket(_matchmaking_socket(app, second_peer, username="alice"))
-        assert second_peer.received_json() == [{"type": "error", "message": "already_in_queue"}]
-        assert second_peer.close_codes() == [4000]
-        assert app.state.matchmaking_manager.queue_size == 1
+        new_peer, new_handler = await _queue_player(app, "alice")
+        await old_handler
+        assert new_peer.received_json() == [{"type": "queue_joined", "position": 1, "queue_size": 3}]
+        assert old_peer.received_json()[-1] == {"type": "error", "message": "replaced_by_new_connection"}
+        assert old_peer.close_codes() == [4000]
+        assert [message["type"] for message in bob_peer.received_json()] == ["queue_joined", "queue_update"]
+        queued_usernames = [player.username for player in app.state.matchmaking_manager.get_queued_players()]
+        assert queued_usernames == ["alice", "bob", "carol"]
 
-        first_peer.disconnect()
-        await first_handler
+        new_peer.disconnect()
+        await new_handler
+        queued_usernames = [player.username for player in app.state.matchmaking_manager.get_queued_players()]
+        assert queued_usernames == ["bob", "carol"]
 
-    async def test_matchmaking_websocket__when_user_is_playing__should_reject_with_already_in_game(self, make_app):
+        for peer, handler in others:
+            peer.disconnect()
+            await handler
+
+    async def test_matchmaking_websocket__when_user_is_playing__should_reject_with_already_in_game(
+        self, make_app, caplog
+    ):
         async def alice_playing(user_id):
             return user_id == "alice-id"
 
         app = make_app(is_playing=alice_playing)
+        bob_peer, bob_handler = await _queue_player(app, "bob")
 
         peer = AsgiPeer()
         await matchmaking_websocket(_matchmaking_socket(app, peer, username="alice"))
         assert peer.received_json() == [{"type": "error", "message": "already_in_game"}]
         assert peer.close_codes() == [4000]
-        assert app.state.matchmaking_manager.queue_size == 0
+        assert app.state.matchmaking_manager.queue_size == 1
+        assert [message["type"] for message in bob_peer.received_json()] == ["queue_joined"]
+        assert "player left matchmaking queue" not in caplog.text
+
+        bob_peer.disconnect()
+        await bob_handler
 
     def test_matchmaking_websocket__when_already_in_room__should_send_error(self, app, client):
         room = app.state.room_manager.create_room("test-room")
@@ -166,6 +187,35 @@ class TestMatchmakingGameTransition:
         assert held_peer.received_json()[-1]["type"] == "game_starting"
         assert held_peer.close_codes() == [1000]
         assert app.state.matchmaking_manager.queue_size == 0
+
+    async def test_matchmaking_websocket__when_a_matched_user_connects_again__should_reject_with_match_starting(
+        self, app, game_server
+    ):
+        creation_requested = asyncio.Event()
+        creation_released = asyncio.Event()
+
+        async def held_creation(_request: httpx.Request) -> httpx.Response:
+            creation_requested.set()
+            await creation_released.wait()
+            return httpx.Response(201)
+
+        game_server.respond = held_creation
+        queued = [await _queue_player(app, username) for username in ("alice", "bob", "carol")]
+        completing_join = asyncio.create_task(
+            matchmaking_websocket(_matchmaking_socket(app, AsgiPeer(), username="dave"))
+        )
+        await creation_requested.wait()
+
+        rejoining_peer = AsgiPeer()
+        await matchmaking_websocket(_matchmaking_socket(app, rejoining_peer, username="alice"))
+        assert rejoining_peer.received_json() == [{"type": "error", "message": "match_starting"}]
+        assert rejoining_peer.close_codes() == [4000]
+
+        creation_released.set()
+        await completing_join
+        for peer, handler in queued:
+            await handler
+            assert peer.received_json()[-1]["type"] == "game_starting"
 
     @pytest.mark.parametrize(
         ("create_game", "first_player_last_message"),
