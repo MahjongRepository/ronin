@@ -119,9 +119,6 @@ class RoninSession {
             this.reconnectTries = 0;
             this.onReconnected(msg);
             break;
-        case wire.SESSION.GAME_LEFT:
-            this.goLobby();
-            break;
         default:
             console.warn('[ronin] unknown session message:', msg);
         }

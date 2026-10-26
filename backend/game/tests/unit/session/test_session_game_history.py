@@ -187,7 +187,7 @@ class TestGameAbandonmentRecording:
     ):
         conns = create_started_game(manager_with_repo, player_names=["Alice"])
 
-        manager_with_repo.leave_game(conns[0])
+        manager_with_repo.disconnect(conns[0])
         await wait_for_background_tasks(manager_with_repo)
         recorded = game_repo.games["game1"]
         assert recorded.end_reason == GameEndReason.ABANDONED
@@ -211,7 +211,7 @@ class TestGameAbandonmentRecording:
             conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager_with_repo)
         )
         for conn in conns:
-            manager_with_repo.leave_game(conn)
+            manager_with_repo.disconnect(conn)
         await wait_for_background_tasks(manager_with_repo)
         assert manager_with_repo.get_game("game1") is None
         assert [game.end_reason for game in game_repo.finishes] == [GameEndReason.COMPLETED]

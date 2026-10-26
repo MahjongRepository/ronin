@@ -291,7 +291,7 @@ sequenceDiagram
     end
     P-->>WS: socket closes
     WS->>R: handle_disconnect
-    R->>SM: leave_game → seat played by AI until RECONNECT
+    R->>SM: disconnect → seat played by AI until RECONNECT
 ```
 
 * A participant is keyed by its ticket for the whole game and its seat never rotates, so a reconnect

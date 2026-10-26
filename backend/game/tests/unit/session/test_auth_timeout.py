@@ -21,12 +21,12 @@ class TestAuthTimeout:
         # join_game/reconnect from registering this closing connection.
         assert conn.connection_id not in manager._connections
 
-    async def test_auth_timeout__when_connection_unregistered__should_cancel_timeout(self, manager):
+    async def test_auth_timeout__when_unauthenticated_connection_disconnects__should_cancel_timeout(self, manager):
         conn = MockConnection()
         manager.register_connection(conn)
         assert conn.connection_id in manager._auth_timeouts
 
-        manager.unregister_connection(conn)
+        manager.disconnect(conn)
         assert conn.connection_id not in manager._auth_timeouts
 
     async def test_auth_timeout__when_player_joins_game__should_cancel_timeout(self, manager):

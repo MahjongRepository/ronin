@@ -64,7 +64,6 @@ const wire = {
     /* session messages: type */
     SESSION: {
         ERROR:              'session_error',
-        GAME_LEFT:          'game_left',
         PLAYER_LEFT:        'player_left',
         PLAYER_RECONNECTED: 'player_reconnected',
         GAME_RECONNECTED:   'game_reconnected',

@@ -15,10 +15,10 @@ from .helpers import create_started_game, current_wait_id
 
 
 class TestSessionManager:
-    async def test_leave_game__when_player_leaves__should_notify_others(self, manager):
+    async def test_disconnect__when_player_leaves__should_notify_others(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
 
-        manager.leave_game(conns[1])
+        manager.disconnect(conns[1])
         assert len(conns[0].sent_messages) == 1
         assert conns[0].sent_messages[0]["type"] == SessionMessageType.PLAYER_LEFT
         assert conns[0].sent_messages[0]["player_name"] == "Bob"

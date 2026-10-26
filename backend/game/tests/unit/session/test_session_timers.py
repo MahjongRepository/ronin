@@ -196,7 +196,7 @@ class TestWaitTimers:
         alice, bob = (participant_of(manager, conn) for conn in conns)
         first_round_bank = TimerConfig().initial_bank_seconds + TimerConfig().round_bonus_seconds
         assert (alice.timer._bank_seconds, bob.timer._bank_seconds) == (first_round_bank, first_round_bank)
-        manager.leave_game(conns[1], notify_player=False)
+        manager.disconnect(conns[1])
         game = game_of(manager)
         assert (game.awaiting.kind, game.awaiting.seats) == (WaitKind.TURN, frozenset({alice.seat}))
 
@@ -241,7 +241,7 @@ def _discard_the_drawn_tile(manager: SessionManager, participant: Participant) -
 
 
 def _disconnect(manager: SessionManager, participant: Participant) -> None:
-    manager.leave_game(participant.connection, notify_player=False)
+    manager.disconnect(participant.connection)
 
 
 class TestTimerCallbackLifecycle:
