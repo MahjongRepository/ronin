@@ -86,7 +86,7 @@ from game.logic.win import (
 
 if TYPE_CHECKING:
     from game.logic.settings import GameSettings
-    from game.logic.types import MeldCallInput, RonCallInput
+    from game.logic.types import MeldCallInput, RobbedKan, RonCallInput
 
 logger = structlog.get_logger()
 
@@ -253,14 +253,15 @@ def _abort_round(
     events: list[GameEvent],
     *,
     ron_seats: list[int] | None = None,
+    robbed_kan: RobbedKan | None = None,
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
     End the round in an abortive draw, clearing the pending call prompt if there is one.
 
-    ron_seats are the declaring seats of a triple ron, in caller order.
+    ron_seats are the declaring seats of a triple ron, in caller order, and robbed_kan the kan they robbed.
     """
     logger.debug("abortive draw", draw_type=draw_type.value)
-    result = process_abortive_draw(game_state.round_state, draw_type, ron_seats=ron_seats)
+    result = process_abortive_draw(game_state.round_state, draw_type, ron_seats=ron_seats, robbed_kan=robbed_kan)
     new_game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
     new_game_state, round_end = finish_round(new_game_state, result)
     events.append(round_end)
@@ -436,7 +437,7 @@ def process_ron_call(
     ron_callers = ron_input.ron_callers
     tile_id = ron_input.tile_id
     discarder_seat = ron_input.discarder_seat
-    is_chankan = ron_input.is_chankan
+    is_chankan = ron_input.robbed_kan is not None
 
     if len(ron_callers) == 1:
         # single ron
@@ -513,6 +514,7 @@ def process_ron_call(
             tile_id=tile_id,
         )
 
+    result = result.model_copy(update={"robbed_kan": ron_input.robbed_kan})
     new_game_state, round_end = finish_round(new_game_state, result)
     return new_game_state, [round_end]
 

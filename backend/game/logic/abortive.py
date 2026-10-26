@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         MahjongPlayer,
         MahjongRoundState,
     )
+    from game.logic.types import RobbedKan
 
 
 def can_call_kyuushu_kyuuhai(
@@ -152,12 +153,13 @@ def process_abortive_draw(
     draw_type: AbortiveDrawType,
     *,
     ron_seats: list[int] | None = None,
+    robbed_kan: RobbedKan | None = None,
 ) -> AbortiveDrawResult:
     """
     Process an abortive draw.
 
     No score changes occur. Honba increment is handled by process_round_end. ron_seats names the declarers of a triple
-    ron.
+    ron, and robbed_kan the kan they robbed when it was a chankan.
     """
     scores = {p.seat: p.score for p in round_state.players}
     return AbortiveDrawResult(
@@ -165,4 +167,5 @@ def process_abortive_draw(
         scores=scores,
         score_changes={p.seat: 0 for p in round_state.players},
         ron_seats=ron_seats,
+        robbed_kan=robbed_kan,
     )

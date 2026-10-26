@@ -166,9 +166,23 @@ class TsumoResult(BaseModel):
     ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
 
 
+class RobbedKan(BaseModel):
+    """
+    A kan robbed by chankan, as its declarer declared it: an added kan, or a closed kan robbed by kokushi musou.
+
+    A robbed kan never completes, so no meld event records it; the result of the ron that robbed it carries it instead.
+    """
+
+    seat: int = Field(serialization_alias="s")
+    tile_id: int = Field(serialization_alias="ti")
+    kan_type: KanType = Field(serialization_alias="kty")
+
+
 class RonResult(BaseModel):
     """
     Result of a ron (discard) win.
+
+    robbed_kan is the kan the ron robbed, for a chankan; None for a ron on a discard.
     """
 
     type: RoundResultType = RoundResultType.RON
@@ -183,6 +197,7 @@ class RonResult(BaseModel):
     melds: list[int] = Field(serialization_alias="ml")
     pao_seat: int | None = Field(default=None, serialization_alias="ps")
     ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
+    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
 
 
 class DoubleRonWinner(BaseModel):
@@ -206,6 +221,8 @@ class DoubleRonWinner(BaseModel):
 class DoubleRonResult(BaseModel):
     """
     Result of a double ron win.
+
+    robbed_kan is the kan the rons robbed, for a chankan; None for rons on a discard.
     """
 
     type: RoundResultType = RoundResultType.DOUBLE_RON
@@ -214,6 +231,7 @@ class DoubleRonResult(BaseModel):
     winners: list[DoubleRonWinner] = Field(serialization_alias="wn")
     scores: WireScoreMap = Field(serialization_alias="scs")
     score_changes: WireScoreMap = Field(serialization_alias="sch")
+    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
 
 
 class TenpaiHand(BaseModel):
@@ -244,7 +262,8 @@ class AbortiveDrawResult(BaseModel):
     Result of an abortive draw.
 
     seat is the seat that declared kyuushu kyuuhai; ron_seats are the seats that declared a triple ron, in caller order
-    (counter-clockwise from the discarder). Both stay None for every other draw.
+    (counter-clockwise from the discarder), and robbed_kan the kan they robbed when the triple ron was a chankan. All
+    stay None for every other draw.
     """
 
     type: RoundResultType = RoundResultType.ABORTIVE_DRAW
@@ -253,6 +272,7 @@ class AbortiveDrawResult(BaseModel):
     score_changes: WireScoreMap = Field(serialization_alias="sch")
     seat: int | None = Field(default=None, serialization_alias="s")
     ron_seats: list[int] | None = Field(default=None, serialization_alias="rcl")
+    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
 
 
 class NagashiManganResult(BaseModel):
@@ -307,6 +327,8 @@ class MeldCaller(BaseModel):
 class RonCallInput(BaseModel):
     """
     Input data for ron call processing.
+
+    robbed_kan is the kan the ron robs, for a chankan.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -314,7 +336,7 @@ class RonCallInput(BaseModel):
     ron_callers: list[int] = Field(min_length=1)
     tile_id: int
     discarder_seat: int
-    is_chankan: bool = False
+    robbed_kan: RobbedKan | None = None
 
 
 class MeldCallInput(BaseModel):

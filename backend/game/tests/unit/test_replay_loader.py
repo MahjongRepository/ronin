@@ -549,80 +549,65 @@ def test_load_replay__when_player_seats_are_not_0_to_3__should_raise():
         load_replay_from_string(f"{VERSION_TAG_LINE}\n{bad_started}")
 
 
-def test_load_replay__when_tsumo_round_end_missing_winner_seat__should_raise():
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.TSUMO,
-        },
-    )
-    content = _build_event_log(round_end)
-    with pytest.raises(ReplayLoadError, match="tsumo round_end missing or invalid field"):
-        load_replay_from_string(content)
-
-
-def test_load_replay__when_ron_round_end_missing_winner_seat__should_raise():
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.RON,
-        },
-    )
-    content = _build_event_log(round_end)
-    with pytest.raises(ReplayLoadError, match="ron round_end missing or invalid field"):
-        load_replay_from_string(content)
-
-
-def test_load_replay__when_double_ron_has_no_winners__should_raise():
-    # Empty winners list
-    round_end_empty = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.DOUBLE_RON,
-            "wn": [],
-        },
-    )
-    with pytest.raises(ReplayLoadError, match="must have at least one winner"):
-        load_replay_from_string(_build_event_log(round_end_empty))
-
-    # Missing winners field
-    round_end_missing = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.DOUBLE_RON,
-        },
-    )
-    with pytest.raises(ReplayLoadError, match="must have at least one winner"):
-        load_replay_from_string(_build_event_log(round_end_missing))
-
-
-def test_load_replay__when_double_ron_winner_missing_seat__should_raise():
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.DOUBLE_RON,
-            "wn": [{"some_field": 1}],
-        },
-    )
-    content = _build_event_log(round_end)
-    with pytest.raises(ReplayLoadError, match="double_ron round_end missing or invalid field"):
-        load_replay_from_string(content)
-
-
-def test_load_replay__when_nine_terminals_missing_seat__should_raise():
-    round_end = json.dumps(
-        {
-            "t": EVENT_TYPE_INT[EventType.ROUND_END],
-            "rt": WireRoundResultType.ABORTIVE_DRAW,
-            "rn": "nine_terminals",
-        },
-    )
-    content = _build_event_log(round_end)
-    with pytest.raises(ReplayLoadError, match="nine_terminals abortive_draw missing or invalid field"):
-        load_replay_from_string(content)
-
-
+_ROUND_END = EVENT_TYPE_INT[EventType.ROUND_END]
+_RON_BY_BOB = {"t": _ROUND_END, "rt": WireRoundResultType.RON, "ws": 1, "ls": 0}
 _MISSING = object()
+
+
+@pytest.mark.parametrize(
+    "round_end",
+    [
+        pytest.param({"t": _ROUND_END, "rt": WireRoundResultType.TSUMO}, id="tsumo_missing"),
+        pytest.param({**_RON_BY_BOB, "ws": True}, id="ron_bool"),
+        pytest.param({**_RON_BY_BOB, "ws": 1.0}, id="ron_float"),
+        pytest.param({**_RON_BY_BOB, "ws": 7}, id="ron_unknown"),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.DOUBLE_RON, "ls": 0, "wn": [{"some_field": 1}]},
+            id="double_ron_winner_missing",
+        ),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.ABORTIVE_DRAW, "rn": "nine_terminals"},
+            id="nine_terminals_missing",
+        ),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.ABORTIVE_DRAW, "rn": "triple_ron", "rcl": [True, 2, 3]},
+            id="triple_ron_bool",
+        ),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.ABORTIVE_DRAW, "rn": "triple_ron", "rcl": [1, 2, "3"]},
+            id="triple_ron_string",
+        ),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.ABORTIVE_DRAW, "rn": "triple_ron", "rcl": [1, 2, 7]},
+            id="triple_ron_unknown",
+        ),
+        pytest.param({**_RON_BY_BOB, "rk": {"s": True, "ti": 47, "kty": "added"}}, id="robbed_kan_bool"),
+        pytest.param({**_RON_BY_BOB, "rk": {"s": 0.0, "ti": 47, "kty": "added"}}, id="robbed_kan_float"),
+    ],
+)
+def test_load_replay__when_round_end_seat_malformed__should_raise(round_end: dict[str, object]):
+    content = _build_event_log(json.dumps(round_end))
+    with pytest.raises(ReplayLoadError, match="is not a known seat"):
+        load_replay_from_string(content)
+
+
+@pytest.mark.parametrize(
+    ("winners", "error"),
+    [
+        pytest.param(_MISSING, "must have a non-empty winner list", id="missing"),
+        pytest.param([], "must have a non-empty winner list", id="empty"),
+        pytest.param(5, "must have a non-empty winner list", id="not_a_list"),
+        pytest.param([5], "winner must be an object", id="winner_not_an_object"),
+    ],
+)
+def test_load_replay__when_double_ron_winners_malformed__should_raise(winners: object, error: str):
+    round_end: dict[str, object] = {"t": _ROUND_END, "rt": WireRoundResultType.DOUBLE_RON, "ls": 0}
+    if winners is not _MISSING:
+        round_end["wn"] = winners
+
+    content = _build_event_log(json.dumps(round_end))
+    with pytest.raises(ReplayLoadError, match=error):
+        load_replay_from_string(content)
 
 
 @pytest.mark.parametrize(
@@ -635,9 +620,6 @@ _MISSING = object()
         pytest.param([1, 2], id="too_few"),
         pytest.param([0, 1, 2, 3], id="too_many"),
         pytest.param([1, 1, 2], id="duplicate"),
-        pytest.param([True, 2, 3], id="bool"),
-        pytest.param([1, 2, "3"], id="string"),
-        pytest.param([1, 2, 7], id="unknown_seat"),
     ],
 )
 def test_load_replay__when_triple_ron_ron_seats_malformed__should_raise(ron_seats: object):
@@ -651,6 +633,39 @@ def test_load_replay__when_triple_ron_ron_seats_malformed__should_raise(ron_seat
 
     content = _build_event_log(json.dumps(round_end))
     with pytest.raises(ReplayLoadError, match="triple_ron abortive_draw has invalid ron seats"):
+        load_replay_from_string(content)
+
+
+@pytest.mark.parametrize(
+    "robbed_kan",
+    [
+        pytest.param("added", id="not_an_object"),
+        pytest.param({"s": 0, "ti": 47}, id="missing_kan_type"),
+        pytest.param({"s": 0, "ti": True, "kty": "added"}, id="bool_tile"),
+        pytest.param({"s": 0, "ti": -1, "kty": "added"}, id="negative_tile"),
+        pytest.param({"s": 0, "ti": 136, "kty": "added"}, id="tile_past_the_last"),
+        pytest.param({"s": 0, "ti": 47, "kty": "open"}, id="open_kan"),
+        pytest.param({"s": 0, "ti": 47, "kty": "pon"}, id="unknown_kan_type"),
+    ],
+)
+def test_load_replay__when_robbed_kan_malformed__should_raise(robbed_kan: object):
+    content = _build_event_log(json.dumps({**_RON_BY_BOB, "rk": robbed_kan}))
+    with pytest.raises(ReplayLoadError, match=r"invalid robbed kan \(rk\)"):
+        load_replay_from_string(content)
+
+
+@pytest.mark.parametrize(
+    "round_end",
+    [
+        pytest.param({"t": _ROUND_END, "rt": WireRoundResultType.TSUMO, "ws": 1}, id="tsumo"),
+        pytest.param({"t": _ROUND_END, "rt": WireRoundResultType.ABORTIVE_DRAW, "rn": "four_kans"}, id="four_kans"),
+        pytest.param({"t": _ROUND_END, "rt": WireRoundResultType.EXHAUSTIVE_DRAW}, id="exhaustive_draw"),
+    ],
+)
+def test_load_replay__when_round_end_that_robs_no_kan_carries_one__should_raise(round_end: dict[str, object]):
+    robbed_kan = {"s": 0, "ti": 47, "kty": "added"}
+    content = _build_event_log(json.dumps({**round_end, "rk": robbed_kan}))
+    with pytest.raises(ReplayLoadError, match=r"robs no kan carries a robbed kan \(rk\)"):
         load_replay_from_string(content)
 
 
