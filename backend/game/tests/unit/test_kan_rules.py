@@ -3,10 +3,12 @@ from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_kans
 from game.logic.action_handlers import _handle_self_kan
+from game.logic.ai_player_controller import AIPlayerController
 from game.logic.call_resolution import resolve_call_prompt
-from game.logic.enums import CallType, KanType, MeldViewType, PromptKind, RoundPhase
+from game.logic.enums import CallType, GameAction, KanType, MeldViewType, PromptKind, RoundPhase
 from game.logic.events import CallPromptEvent, MeldEvent, RoundEndEvent
 from game.logic.exceptions import InvalidGameActionError
+from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     call_added_kan,
@@ -15,17 +17,20 @@ from game.logic.melds import (
     get_possible_added_kans,
     get_possible_closed_kans,
 )
+from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, PendingCallPrompt
-from game.logic.tiles import tile_to_34
+from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import _process_added_kan_call, _process_closed_kan_call
 from game.logic.types import KanActionData
+from game.logic.wall import DEAD_WALL_SIZE
 from game.logic.win import (
     is_chankan_possible,
     is_kokushi_chankan_possible,
     is_kokushi_tenpai,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 
 _DEFAULT_DEAD_WALL = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
 _DEFAULT_WALL = tuple(TilesConverter.string_to_136_array(man="1111222233334444"))
@@ -634,6 +639,55 @@ class TestHandleSelfKanAfterMeld:
         data = KanActionData(tile_id=man_1m[0], kan_type=KanType.CLOSED)
         with pytest.raises(InvalidGameActionError, match="cannot declare kan after a meld call"):
             _handle_self_kan(game_state, seat=0, data=data)
+
+
+class TestRiichiClosedKanValidation:
+    def test_closed_kan__when_riichi_seat_holds_three_copies_of_drawn_tile__should_kick_seat(self):
+        drawn_one_man = tile_copies(2, man="1")[0]
+        players = (
+            create_player(
+                seat=0,
+                tiles=(*tile_copies(0, man="11", pin="123456789", sou="12"), drawn_one_man),
+                discards=(Discard(tile_id=tile_copies(0, honors="1")[0], is_riichi_discard=True),),
+                is_riichi=True,
+            ),
+            create_player(
+                seat=1,
+                tiles=tile_copies(1, pin="123456789", sou="3456"),
+                discards=(Discard(tile_id=tile_copies(0, honors="2")[0]),),
+            ),
+            create_player(
+                seat=2,
+                tiles=tile_copies(2, pin="123456789", sou="3456"),
+                discards=(Discard(tile_id=tile_copies(0, honors="3")[0]),),
+            ),
+            create_player(
+                seat=3,
+                tiles=tile_copies(3, pin="123456789", sou="3456"),
+                discards=(Discard(tile_id=tile_copies(0, honors="4")[0]),),
+            ),
+        )
+        all_discards = tuple(player.discards[0].tile_id for player in players)
+        dealt = {tile for player in players for tile in player.tiles} | set(all_discards)
+        undealt = [tile for tile in range(NUM_TILES) if tile not in dealt]
+        round_state = create_round_state(
+            players=players,
+            wall=undealt[:-DEAD_WALL_SIZE],
+            dead_wall=undealt[-DEAD_WALL_SIZE:],
+            phase=RoundPhase.PLAYING,
+            all_discards=all_discards,
+        )
+        game_state = create_game_state(round_state)
+        runtime = GameRuntime(game_id="game1", state=game_state, ai=AIPlayerController({}))
+
+        with pytest.raises(InvalidGameActionError, match="closed kan requires 4 tiles"):
+            MahjongGameService().handle_action(
+                runtime,
+                seat=0,
+                action=GameAction.CALL_KAN,
+                data={"tile_id": drawn_one_man, "kan_type": KanType.CLOSED},
+            )
+        assert runtime.state is game_state
 
 
 # ---------------------------------------------------------------------------

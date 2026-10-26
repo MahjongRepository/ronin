@@ -241,9 +241,8 @@ class TestRiichiKanWaitPreservation:
 
     def test_riichi_kan__when_kan_changes_waits__should_reject_it(self):
         # Create a hand where kan changes waits
-        # Hand: 1112345678999m (tenpai on 1m, 4m, 7m)
         # If we kan 1111m or 9999m, waits change
-        tiles = TilesConverter.string_to_136_array(man="1112345678999")
+        tiles = TilesConverter.string_to_136_array(man="11112345678999")
         player = create_player(seat=0, tiles=tiles, is_riichi=True)
         # Check if kan on 1m changes waits
         tile_34_1m = tile_to_34(tiles[0])  # 1m

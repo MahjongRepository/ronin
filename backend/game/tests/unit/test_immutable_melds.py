@@ -205,7 +205,7 @@ class TestCallClosedKanImmutable:
         player0_tiles = (man_1m[0], man_1m[1], man_1m[2], *_PIN_TILES)
         round_state = _round_state(player0_tiles)
 
-        with pytest.raises(InvalidMeldError, match="need 4 matching tiles"):
+        with pytest.raises(InvalidMeldError, match="closed kan requires 4 tiles"):
             call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
 
 

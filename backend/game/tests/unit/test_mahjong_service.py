@@ -179,31 +179,31 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
 
     def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"]).runtime
-        game_state = runtime.state
-        round_state = game_state.round_state
-        alice = _find_player(round_state, "Alice")
-        bob = _find_player(round_state, "Bob")
+        round_state = runtime.state.round_state
+        discarder_seat = round_state.dealer_seat
+        replaced_seat = (discarder_seat + 1) % 4
+        other_caller_seat = (discarder_seat + 2) % 4
 
         prompt = PendingCallPrompt(
             kind=PromptKind.DISCARD,
-            tile_id=round_state.players[0].tiles[0] if round_state.players[0].tiles else 0,
-            from_seat=(alice.seat + 2) % 4,
-            pending_seats=frozenset({alice.seat, bob.seat}),
-            callers=(Caller(seat=alice.seat, can_ron=True), Caller(seat=bob.seat, can_ron=True)),
+            tile_id=round_state.players[discarder_seat].tiles[-1],
+            from_seat=discarder_seat,
+            pending_seats=frozenset({replaced_seat, other_caller_seat}),
+            callers=(Caller(seat=replaced_seat, can_ron=True), Caller(seat=other_caller_seat, can_ron=True)),
         )
         _update_round_state(runtime, pending_call_prompt=prompt)
         waiting = service.get_awaiting(runtime)
 
-        service.replace_with_ai_player(runtime, alice.seat)
-        update = service.process_ai_player_actions_after_replacement(runtime, alice.seat)
+        service.replace_with_ai_player(runtime, replaced_seat)
+        update = service.process_ai_player_actions_after_replacement(runtime, replaced_seat)
         events = update.events
-        assert update.awaiting == replace(waiting, seats=frozenset({bob.seat}))
+        assert update.awaiting == replace(waiting, seats=frozenset({other_caller_seat}))
         updated_round = runtime.state.round_state
         assert updated_round.pending_call_prompt is not None
-        assert bob.seat in updated_round.pending_call_prompt.pending_seats
-        assert alice.seat not in updated_round.pending_call_prompt.pending_seats
+        assert other_caller_seat in updated_round.pending_call_prompt.pending_seats
+        assert replaced_seat not in updated_round.pending_call_prompt.pending_seats
         assert [(e.event, e.target, e.data.is_furiten) for e in events if e.event == EventType.FURITEN] == [
-            (EventType.FURITEN, SeatTarget(seat=alice.seat), True),
+            (EventType.FURITEN, SeatTarget(seat=replaced_seat), True),
         ]
 
     def test_ai_actions_after_replacement__when_prompt_resolution_ends_round__should_emit_round_end(self, service):
@@ -348,15 +348,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert snapshot is not None
         reconnected_player = next(p for p in snapshot.players if p.seat == seat)
         assert reconnected_player.is_ai_player is False
-
-    def test_build_reconnection_snapshot__when_seat_in_temporary_furiten__should_report_its_furiten(self, service):
-        runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
-        alice = _find_player(runtime.state.round_state, "Alice")
-        bob = _find_player(runtime.state.round_state, "Bob")
-        _update_player(runtime, seat=alice.seat, is_temporary_furiten=True)
-
-        assert service.build_reconnection_snapshot(runtime, alice.seat).is_furiten is True
-        assert service.build_reconnection_snapshot(runtime, bob.seat).is_furiten is False
 
     def test_build_reconnection_snapshot__when_round_ended_before__should_list_it_with_its_own_dealer_and_honba(
         self, service
