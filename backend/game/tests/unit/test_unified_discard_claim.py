@@ -1,7 +1,6 @@
-import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.action_handlers import handle_pass, handle_pon, handle_ron
+from game.logic.action_handlers import handle_chi, handle_discard, handle_pass, handle_pon, handle_ron
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     AbortiveDrawType,
@@ -12,8 +11,15 @@ from game.logic.enums import (
     RoundPhase,
     RoundResultType,
 )
-from game.logic.events import CallPromptEvent, DrawEvent, MeldEvent, RiichiDeclaredEvent, RoundEndEvent, SeatTarget
-from game.logic.exceptions import InvalidGameActionError
+from game.logic.events import (
+    CallPromptEvent,
+    DrawEvent,
+    MeldEvent,
+    RiichiDeclaredEvent,
+    RoundEndEvent,
+    SeatTarget,
+    TurnEvent,
+)
 from game.logic.state import (
     Caller,
     CallResponse,
@@ -22,9 +28,12 @@ from game.logic.state import (
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_game_with_round
+from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
-from game.logic.types import PonActionData
+from game.logic.types import ChiActionData, DiscardActionData, MeldCaller, PonActionData
+from game.logic.win import get_waiting_tiles
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 
 
 def _make_wall_and_dead_wall():
@@ -34,52 +43,52 @@ def _make_wall_and_dead_wall():
 
 
 class TestRonPlusMeldCallersRonWins:
-    def test_discard_claim__when_ron_and_meld_callers__should_resolve_ron(self):
-        ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
-        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        pon_tiles = TilesConverter.string_to_136_array(pin="33")
-
-        wall, dead_wall = _make_wall_and_dead_wall()
+    def test_discard_claim__when_dual_seat_calls_a_meld_and_another_seat_rons__should_resolve_ron(self):
+        three_pin = tile_copies(2, pin="3")[0]
+        one_pin, two_pin = tile_copies(0, pin="12")
+        dealer_hand = (
+            *tile_copies(0, honors="123467"),
+            *tile_copies(1, honors="123467"),
+            *tile_copies(2, honors="1"),
+            three_pin,
+        )
+        man_ittsu_on_three_pin = (*tile_copies(0, man="123456789", pin="125"), *tile_copies(1, pin="5"))
+        sou_ittsu_on_three_pin = (*tile_copies(0, sou="123456789", honors="5"), *tile_copies(1, pin="12", honors="5"))
+        no_pin_hand = (*tile_copies(1, man="123456789"), *tile_copies(1, sou="1234"))
         players = (
-            create_player(seat=0, tiles=(discard_tile,)),
-            create_player(seat=1, tiles=ron_hand),
-            create_player(seat=2, tiles=pon_tiles),
-            create_player(seat=3),
+            create_player(seat=0, tiles=dealer_hand),
+            create_player(seat=1, tiles=man_ittsu_on_three_pin),
+            create_player(seat=2, tiles=sou_ittsu_on_three_pin),
+            create_player(seat=3, tiles=no_pin_hand),
         )
         round_state = create_round_state(
             players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
+            wall=tile_copies(2, man="123456789"),
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
         )
         game_state = create_game_state(round_state)
+        assert get_waiting_tiles(players[1]) == get_waiting_tiles(players[2]) == {tile_to_34(three_pin)}
 
-        # process_discard_phase creates a unified DISCARD prompt
-        new_game, events = process_discard_phase(game_state, discard_tile)
-        new_round = new_game.round_state
-        assert [e.target for e in events if isinstance(e, CallPromptEvent)] == [SeatTarget(seat=1), SeatTarget(seat=2)]
-        prompt = new_round.pending_call_prompt
+        prompted_game, events = process_discard_phase(game_state, three_pin)
+        prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
-        assert prompt.callers == (
-            Caller(seat=1, can_ron=True),
-            Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
-        )
+        chi = MeldOption(call_type=MeldCallType.CHI, options=((one_pin, two_pin),))
+        assert prompt.callers == (Caller(seat=1, can_ron=True, melds=(chi,)), Caller(seat=2, can_ron=True))
+        assert [(e.target, e.call_type) for e in events if isinstance(e, CallPromptEvent)] == [
+            (SeatTarget(seat=1), CallType.RON),
+            (SeatTarget(seat=2), CallType.RON),
+        ]
 
-        resolved_prompt = prompt.model_copy(
-            update={
-                "pending_seats": frozenset(),
-                "responses": (CallResponse(seat=1, action=GameAction.CALL_RON),),
-            },
+        chi_result = handle_chi(
+            prompted_game, seat=1, data=ChiActionData(tile_id=three_pin, sequence_tiles=(one_pin, two_pin))
         )
-        new_round = new_round.model_copy(update={"pending_call_prompt": resolved_prompt})
-        new_game = update_game_with_round(new_game, new_round)
+        assert chi_result.events == []
 
-        result = resolve_call_prompt(new_game)
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.RON
+        ron_result = handle_ron(chi_result.state, seat=2)
+        round_ends = [e for e in ron_result.events if isinstance(e, RoundEndEvent)]
+        assert [(e.result.type, e.result.winner_seat) for e in round_ends] == [(RoundResultType.RON, 2)]
+        assert not [e for e in ron_result.events if isinstance(e, MeldEvent)]
 
 
 class TestRonPassMeldClaims:
@@ -271,61 +280,91 @@ class TestAllRonPassMeldWins:
         assert meld_events[0].caller_seat == 2  # pon wins over chi
 
 
-class TestDualEligibleSeatRonDominant:
-    def test_discard_claim__when_seat_eligible_for_ron_and_meld__should_offer_ron_only(self):
-        ron_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
-        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-
-        wall, dead_wall = _make_wall_and_dead_wall()
-        # seat 1 has ron hand AND can pon (has two pin 3s)
+class TestDualEligibleSeatRonAndMeld:
+    def test_discard_claim__when_seat_can_ron_and_pon_and_chooses_pon__should_offer_both_and_make_it_furiten(self):
+        three_pin = tile_copies(2, pin="3")[0]
+        dealer_hand = (*tile_copies(0, honors="1234567"), *tile_copies(1, honors="123456"), three_pin)
+        ittsu_shanpon_on_three_and_five_pin = (*tile_copies(0, man="123456789", pin="35"), *tile_copies(1, pin="35"))
+        no_pin_hand = (*tile_copies(0, sou="123456789"), *tile_copies(2, honors="1234"))
+        other_no_pin_hand = (*tile_copies(1, sou="123456789"), *tile_copies(2, sou="1234"))
         players = (
-            create_player(seat=0, tiles=(discard_tile,)),
-            create_player(seat=1, tiles=ron_hand),
-            create_player(seat=2),
-            create_player(seat=3),
+            create_player(seat=0, tiles=dealer_hand),
+            create_player(seat=1, tiles=ittsu_shanpon_on_three_and_five_pin),
+            create_player(seat=2, tiles=no_pin_hand),
+            create_player(seat=3, tiles=other_no_pin_hand),
         )
         round_state = create_round_state(
             players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
+            wall=tile_copies(2, man="123456789"),
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
         )
         game_state = create_game_state(round_state)
+        assert get_waiting_tiles(players[1]) == {tile_to_34(three_pin), tile_to_34(tile_copies(0, pin="5")[0])}
 
-        new_game, _events = process_discard_phase(game_state, discard_tile)
-        new_round = new_game.round_state
-        prompt = new_round.pending_call_prompt
+        prompted_game, events = process_discard_phase(game_state, three_pin)
+        prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
-        assert prompt.callers == (Caller(seat=1, can_ron=True),)
+        assert prompt.callers == (Caller(seat=1, can_ron=True, melds=(MeldOption(call_type=MeldCallType.PON),)),)
+        assert [(e.target, e.call_type, e.callers) for e in events if isinstance(e, CallPromptEvent)] == [
+            (SeatTarget(seat=1), CallType.RON, [MeldCaller(seat=1, call_type=MeldCallType.PON)]),
+        ]
 
-    def test_discard_claim__when_ron_caller_responds_pon__should_reject(self):
-        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        result = handle_pon(prompted_game, seat=1, data=PonActionData(tile_id=three_pin))
+        melds = [e for e in result.events if isinstance(e, MeldEvent)]
+        assert [(e.caller_seat, e.called_tile_id) for e in melds] == [(1, three_pin)]
+        assert [e.target for e in result.events if isinstance(e, TurnEvent)] == [SeatTarget(seat=1)]
+        assert result.state.round_state.pending_call_prompt is None
+        assert result.state.round_state.players[1].is_temporary_furiten is True
 
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=discard_tile,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, can_ron=True),),
+    def test_discard_claim__when_seat_chooses_chi_over_ron_and_loses_it_to_a_pon__should_be_furiten_on_its_other_wait(
+        self,
+    ):
+        four_pin = tile_copies(3, pin="4")[0]
+        two_pin, three_pin = tile_copies(0, pin="23")
+        other_winning_one_pin = tile_copies(1, pin="1")[0]
+        dealer_hand = (*tile_copies(1, honors="1234567"), *tile_copies(2, honors="123456"), four_pin)
+        man_ittsu_on_one_and_four_pin = (*tile_copies(0, man="123456789", pin="235"), *tile_copies(1, pin="5"))
+        pon_hand_holding_one_pin = (
+            *tile_copies(1, pin="4"),
+            *tile_copies(2, pin="4"),
+            other_winning_one_pin,
+            *tile_copies(0, sou="13579", honors="12345"),
         )
-
-        wall, dead_wall = _make_wall_and_dead_wall()
-        players = tuple(create_player(seat=i) for i in range(4))
+        no_pin_hand = (*tile_copies(1, man="123456789"), *tile_copies(0, sou="2468"))
+        players = (
+            create_player(seat=0, tiles=dealer_hand),
+            create_player(seat=1, tiles=man_ittsu_on_one_and_four_pin),
+            create_player(seat=2, tiles=pon_hand_holding_one_pin),
+            create_player(seat=3, tiles=no_pin_hand),
+        )
         round_state = create_round_state(
             players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
+            wall=tile_copies(2, man="123456789"),
             phase=RoundPhase.PLAYING,
             current_player_seat=0,
-            pending_call_prompt=prompt,
         )
         game_state = create_game_state(round_state)
+        assert get_waiting_tiles(players[1]) == {tile_to_34(other_winning_one_pin), tile_to_34(four_pin)}
 
-        with pytest.raises(InvalidGameActionError, match="only ron is valid"):
-            handle_pon(game_state, seat=1, data=PonActionData(tile_id=discard_tile))
+        prompted_game, _events = process_discard_phase(game_state, four_pin)
+        prompt = prompted_game.round_state.pending_call_prompt
+        assert prompt is not None
+        assert [(c.seat, c.can_ron, [m.call_type for m in c.melds]) for c in prompt.callers] == [
+            (1, True, [MeldCallType.CHI]),
+            (2, False, [MeldCallType.PON]),
+        ]
+
+        chi_result = handle_chi(
+            prompted_game, seat=1, data=ChiActionData(tile_id=four_pin, sequence_tiles=(two_pin, three_pin))
+        )
+        pon_result = handle_pon(chi_result.state, seat=2, data=PonActionData(tile_id=four_pin))
+        assert [e.caller_seat for e in pon_result.events if isinstance(e, MeldEvent)] == [2]
+        assert pon_result.state.round_state.players[1].is_temporary_furiten is True
+
+        discard_result = handle_discard(pon_result.state, seat=2, data=DiscardActionData(tile_id=other_winning_one_pin))
+        assert not [e for e in discard_result.events if isinstance(e, CallPromptEvent)]
+        assert discard_result.state.round_state.pending_call_prompt is None
 
 
 class TestDualEligibleSeatPassFuriten:

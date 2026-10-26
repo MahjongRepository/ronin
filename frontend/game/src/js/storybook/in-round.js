@@ -70,10 +70,17 @@ export const DECISION_VARIANTS = Object.freeze([
     },
     {
         key: "ron",
-        title: "Ron on a discard",
+        title: "Ron or pon on a discard",
         hand: "m234p456s678s99z11",
         events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "z1")],
-        offer: { ron: true },
+        offer: { ron: true, peng: ["z111="] },
+    },
+    {
+        key: "ron-chi",
+        title: "Ron or chi on a discard",
+        hand: "m234p23456s678s55",
+        events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "p4")],
+        offer: { ron: true, chi: ["p234-", "p34-5", "p4-56"] },
     },
     {
         key: "chi",

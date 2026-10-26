@@ -119,6 +119,22 @@ class TestShapeCallPromptPayload:
             "cs": 0,
         }
 
+    def test_shape_call_prompt_payload__when_ron_prompt_seat_can_also_pon__should_list_the_pon(self):
+        payload = {
+            "clt": WireCallType.RON,
+            "ti": 42,
+            "frs": 1,
+            "clr": [{"s": 2, "clt": WireMeldCallType.PON, "opt": None}],
+        }
+        result = shape_call_prompt_payload(payload)
+        assert result == {
+            "clt": WireCallType.RON,
+            "ti": 42,
+            "frs": 1,
+            "cs": 2,
+            "ac": [{"clt": WireMeldCallType.PON}],
+        }
+
     def test_shape_call_prompt_payload__when_meld_prompt_has_multiple_call_types__should_list_all_call_types(self):
         payload = {
             "clt": WireCallType.MELD,

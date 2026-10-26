@@ -112,12 +112,26 @@ class TestGetCallResponseTsumogiriDeclines:
 
 
 class TestGetCallResponseAcceptingAI:
-    def test_get_call_response__when_accepting_ai_and_ron_caller__should_call_ron(self):
+    def test_get_call_response__when_accepting_ai_offered_ron_and_pon__should_call_ron(self):
         controller = AIPlayerController({1: _AcceptAllAI()})
         rs = _create_round_state()
+        caller = Caller(seat=1, can_ron=True, melds=(MeldOption(call_type=MeldCallType.PON),))
 
-        result = controller.get_call_response(round_state=rs, tile_id=0, caller=Caller(seat=1, can_ron=True))
+        result = controller.get_call_response(round_state=rs, tile_id=_string_to_136_tile(man="1"), caller=caller)
         assert result == (GameAction.CALL_RON, {})
+
+    def test_get_call_response__when_ai_declines_ron_but_accepts_pon__should_call_pon(self):
+        class PonOverRonAI(_AcceptAllAI):
+            def should_call_ron(self, player, discarded_tile, round_state) -> bool:
+                return False
+
+        controller = AIPlayerController({1: PonOverRonAI()})
+        rs = _create_round_state()
+        tile_id = _string_to_136_tile(man="1")
+        caller = Caller(seat=1, can_ron=True, melds=(MeldOption(call_type=MeldCallType.PON),))
+
+        result = controller.get_call_response(round_state=rs, tile_id=tile_id, caller=caller)
+        assert result == (GameAction.CALL_PON, {"tile_id": tile_id})
 
     def test_get_call_response__when_accepting_ai_and_pon__should_call_pon_with_tile_id(self):
         controller = AIPlayerController({1: _AcceptAllAI()})

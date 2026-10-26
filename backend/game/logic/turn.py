@@ -273,10 +273,17 @@ def _build_discard_prompt(
     meld_callers: list[Caller],
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Create the DISCARD call prompt for all callers, ron callers first, and its per-seat prompt events.
+    Create the DISCARD call prompt for all callers and its per-seat prompt events.
+
+    Ron callers come first, each with the melds it may make instead of the ron, then the seats that can only meld.
     """
     round_state = game_state.round_state
-    callers = (*(Caller(seat=seat, can_ron=True) for seat in ron_callers), *meld_callers)
+    melds_by_seat = {c.seat: c.melds for c in meld_callers}
+    ron_caller_set = set(ron_callers)
+    callers = (
+        *(Caller(seat=seat, can_ron=True, melds=melds_by_seat.get(seat, ())) for seat in ron_callers),
+        *(c for c in meld_callers if c.seat not in ron_caller_set),
+    )
     prompt = PendingCallPrompt(
         kind=PromptKind.DISCARD,
         tile_id=tile_id,
@@ -327,7 +334,7 @@ def process_discard_phase(
     2. Validate and execute discard
     3. Check for four winds abortive draw
     4. Check for ron callers (triple ron is judged from their declarations when the prompt resolves)
-    5. Check for meld callers (ron-dominant policy)
+    5. Check for meld callers (a seat that can ron is offered its melds too)
     6. If any callers: create unified DISCARD prompt
     7. No callers: reveal deferred dora, finalize riichi, advance turn
     """
@@ -367,13 +374,7 @@ def process_discard_phase(
     )
     new_game_state = update_game_with_round(game_state, new_round_state)
 
-    # find meld callers (ron-dominant: seats with ron don't get meld options)
-    ron_caller_set = set(ron_callers)
-    all_meld_callers = _find_meld_callers(
-        new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings
-    )
-    meld_callers = [c for c in all_meld_callers if c.seat not in ron_caller_set]
-
+    meld_callers = _find_meld_callers(new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings)
     if ron_callers or meld_callers:
         new_game_state, prompt_events = _build_discard_prompt(
             new_game_state,

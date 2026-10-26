@@ -172,28 +172,13 @@ def _validate_caller_action_matches_prompt(
     """
     Validate that the player's response action is among the calls the prompt offered the seat.
 
-    A ron caller may only ron; a meld caller may make only one of its melds. Raises InvalidGameActionError otherwise.
+    The offered calls are the seat's ron and its melds. Raises InvalidGameActionError otherwise.
     """
     caller = prompt.caller(seat)
-    if caller.can_ron:
-        if action != GameAction.CALL_RON:
-            raise InvalidGameActionError(
-                action=action.value,
-                seat=seat,
-                reason=f"only ron is valid for this seat on a {prompt.kind.value} prompt",
-            )
-
-        return
-
-    if action == GameAction.CALL_RON:
-        raise InvalidGameActionError(
-            action=action.value,
-            seat=seat,
-            reason=f"cannot call ron on a {prompt.kind.value} prompt",
-        )
-
-    if action not in {_MELD_CALL_TYPE_TO_GAME_ACTION[m.call_type] for m in caller.melds}:
-        available = ", ".join(m.call_type.value for m in caller.melds)
+    ron = [GameAction.CALL_RON] if caller.can_ron else []
+    offered = [*ron, *(_MELD_CALL_TYPE_TO_GAME_ACTION[m.call_type] for m in caller.melds)]
+    if action not in offered:
+        available = ", ".join(a.value for a in offered)
         raise InvalidGameActionError(
             action=action.value,
             seat=seat,
@@ -208,6 +193,17 @@ _MELD_CALL_TYPE_TO_GAME_ACTION: dict[MeldCallType, GameAction] = {
 }
 
 
+def _decline_ron(round_state: MahjongRoundState, seat: int) -> MahjongRoundState:
+    """
+    Make a seat that declined its ron (or chankan) temporarily furiten, and riichi furiten for good when in riichi.
+    """
+    new_round_state = apply_temporary_furiten(round_state, seat)
+    if new_round_state.players[seat].is_riichi:
+        new_round_state = update_player(new_round_state, seat, is_riichi_furiten=True)
+
+    return new_round_state
+
+
 # --- Action Handlers ---
 
 
@@ -218,9 +214,15 @@ def _record_call_response(
 ) -> ActionResult:
     """
     Record a validated call response on the pending prompt, and resolve the prompt once no seat is pending.
+
+    A meld from a seat that could ron declines the ron, with the furiten a pass would bring.
     """
+    round_state = game_state.round_state
+    if response.action != GameAction.CALL_RON and prompt.caller(response.seat).can_ron:
+        round_state = _decline_ron(round_state, response.seat)
+
     new_prompt = add_prompt_response(prompt, response)
-    new_round_state = game_state.round_state.model_copy(update={"pending_call_prompt": new_prompt})
+    new_round_state = round_state.model_copy(update={"pending_call_prompt": new_prompt})
     new_game_state = update_game_with_round(game_state, new_round_state)
 
     if not new_prompt.pending_seats:
@@ -518,12 +520,8 @@ def handle_pass(
         logger.warning("invalid pass: no pending call prompt", seat=seat)
         return Refusal(code=GameErrorCode.INVALID_PASS, message="no pending call prompt")
 
-    # apply furiten for passing on ron/chankan opportunity
     if prompt.caller(seat).can_ron:
-        new_round_state = apply_temporary_furiten(new_round_state, seat)
-        player = new_round_state.players[seat]
-        if player.is_riichi:
-            new_round_state = update_player(new_round_state, seat, is_riichi_furiten=True)
+        new_round_state = _decline_ron(new_round_state, seat)
 
     # Remove from pending without recording a CallResponse. resolve_call_prompt
     # treats absence from responses as a pass; only actionable responses (ron, pon,

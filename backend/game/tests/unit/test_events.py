@@ -36,7 +36,7 @@ class TestBuildCallPromptEvents:
             from_seat=0,
             pending_seats=frozenset({1, 3}),
             callers=(
-                Caller(seat=3, can_ron=True),
+                Caller(seat=3, can_ron=True, melds=(MeldOption(call_type=MeldCallType.PON),)),
                 Caller(
                     seat=1,
                     melds=(
@@ -52,7 +52,7 @@ class TestBuildCallPromptEvents:
             (SeatTarget(seat=3), CallType.RON, 55, 0),
             (SeatTarget(seat=1), CallType.MELD, 55, 0),
         ]
-        assert events[0].callers == [3]
+        assert events[0].callers == [MeldCaller(seat=3, call_type=MeldCallType.PON)]
         assert events[1].callers == [
             MeldCaller(seat=1, call_type=MeldCallType.PON),
             MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(chi_shape,)),

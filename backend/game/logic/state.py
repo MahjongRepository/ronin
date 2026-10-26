@@ -51,9 +51,9 @@ class MeldOption(BaseModel):
 
 class Caller(BaseModel):
     """
-    A seat eligible to respond to a call prompt: by ron, or by one of its melds (kan > pon > chi).
+    A seat eligible to respond to a call prompt: by ron, by one of its melds (kan > pon > chi), or by either.
 
-    A seat that could both ron and meld is a ron caller only, with no melds.
+    A seat that can both ron and meld is offered all of them; making a meld instead declines the ron.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -68,8 +68,9 @@ class PendingCallPrompt(BaseModel):
     Immutable pending call prompt.
 
     Callers are in prompt order, which is also the order of the per-seat prompt events and the order ron winners are
-    ranked in: for a discard, ron callers by distance from the discarder, then meld callers by their best meld (kan >
-    pon > chi), then seat index; for a chankan, ron callers counter-clockwise from the kan caller.
+    ranked in: for a discard, ron callers (with any melds they may make instead) by distance from the discarder, then
+    the meld-only callers by their best meld (kan > pon > chi), then seat index; for a chankan, ron callers
+    counter-clockwise from the kan caller.
     """
 
     model_config = ConfigDict(frozen=True)
