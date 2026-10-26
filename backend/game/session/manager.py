@@ -905,8 +905,8 @@ class SessionManager:
         Run the effects of a game's end on what the claim detached: replay, finish record, closes.
 
         Each step is its own error boundary: an unexpected failure is logged and the steps after it, down to the last
-        close, still run. An unexpected error saving a completed game's replay turns its end into a failure. A game with
-        no start record (it never started) records no finish.
+        close, still run. Any error saving a completed game's replay, storage errors included, turns its end into a
+        failure. A game with no start record (it never started) records no finish.
         """
         game_id = game.game_id
         end_reason = ending.reason

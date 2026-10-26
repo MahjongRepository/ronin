@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock
-
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
@@ -10,7 +8,13 @@ from game.logic.types import PlayerStanding
 from game.messaging.types import SessionErrorCode
 from game.session.replay_collector import ReplayCollector
 from game.tests.helpers.session import make_session_manager
-from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, FakeGameRepository, FakeReplayStorage
+from game.tests.mocks import (
+    MOCK_AWAITING,
+    MOCK_GAME_OVER,
+    FailingReplayStorage,
+    FakeGameRepository,
+    FakeReplayStorage,
+)
 from shared.dal.models import GameEndReason
 
 from .helpers import ENGINE_SEED, create_started_game, game_of, runtime_of, wait_for_background_tasks
@@ -22,6 +26,7 @@ def _make_game_end_event() -> ServiceEvent:
             winner_seat=0,
             standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
             leftover_riichi_bonus=0,
+            num_rounds=1,
         ),
     )
 
@@ -71,14 +76,13 @@ class TestSessionReplay:
         await wait_for_background_tasks(manager)
         assert list(storage.saved) == ["game1"]
 
-    async def test_replay_save__when_it_raises_after_a_completion__should_record_an_error_end_and_close_with_1011(
-        self, monkeypatch
+    async def test_replay_save__when_storage_fails_after_a_completion__should_record_an_error_end_and_close_with_1011(
+        self,
     ):
         game_repo = FakeGameRepository()
-        manager = make_session_manager(repository=game_repo)
+        manager = make_session_manager(repository=game_repo, storage=FailingReplayStorage())
         conns = create_started_game(manager)
         game = game_of(manager)
-        monkeypatch.setattr(manager._replay_collector, "save", AsyncMock(side_effect=RuntimeError("disk gone")))
 
         manager._broadcast_events(game, [_make_game_end_event()], MOCK_GAME_OVER)
         await wait_for_background_tasks(manager)

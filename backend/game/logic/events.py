@@ -234,7 +234,7 @@ class GameEndedEvent(GameEvent):
     winner_seat: int = Field(serialization_alias="ws")
     standings: list[PlayerStanding] = Field(serialization_alias="st")
     leftover_riichi_bonus: WireScore = Field(serialization_alias="lb")
-    num_rounds: int = Field(default=0, serialization_alias="nr")
+    num_rounds: int = Field(serialization_alias="nr")
 
 
 class FuritenEvent(GameEvent):

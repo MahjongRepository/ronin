@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import Response
 
-from shared.storage import _MIN_GAME_ID_LEN, replay_file_path
+from shared.storage import MIN_GAME_ID_LENGTH, replay_file_path
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -53,7 +53,7 @@ async def replay_content(request: Request) -> Response:
     game_id = request.path_params["game_id"]
     if (
         not game_id
-        or len(game_id) < _MIN_GAME_ID_LEN
+        or len(game_id) < MIN_GAME_ID_LENGTH
         or len(game_id) > _GAME_ID_MAX_LEN
         or not _GAME_ID_RE.match(game_id)
     ):

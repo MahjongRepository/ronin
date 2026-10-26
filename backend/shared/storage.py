@@ -16,7 +16,7 @@ _REPLAY_DIR_MODE = 0o700
 _REPLAY_FILE_MODE = 0o600
 
 # Game IDs shorter than this cannot produce a two-level shard prefix.
-_MIN_GAME_ID_LEN = 4
+MIN_GAME_ID_LENGTH = 4
 
 
 def replay_file_path(replay_dir: Path, game_id: str) -> Path:
@@ -26,8 +26,8 @@ def replay_file_path(replay_dir: Path, game_id: str) -> Path:
     Use the first 4 characters of game_id as a two-level directory prefix (2 chars each) to distribute files across
     subdirectories. Require game_id to be at least 4 characters long.
     """
-    if len(game_id) < _MIN_GAME_ID_LEN:
-        raise ValueError(f"game_id must be at least {_MIN_GAME_ID_LEN} characters, got {len(game_id)}")
+    if len(game_id) < MIN_GAME_ID_LENGTH:
+        raise ValueError(f"game_id must be at least {MIN_GAME_ID_LENGTH} characters, got {len(game_id)}")
 
     prefix_a = game_id[:2]
     prefix_b = game_id[2:4]

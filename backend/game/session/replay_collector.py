@@ -5,8 +5,6 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
-import structlog
-
 from game.logic.events import (
     CallPromptEvent,
     DrawEvent,
@@ -23,8 +21,6 @@ if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
     from game.logic.settings import GameSettings
     from shared.storage import ReplayStorage
-
-logger = structlog.get_logger()
 
 # Seat-targeted event types included in replay persistence.
 # DrawEvent carries the drawn tile ID needed for full game reconstruction.
@@ -151,12 +147,9 @@ class ReplayCollector:
         """
         Persist a game's detached replay lines.
 
-        File I/O is offloaded to a worker thread to avoid blocking the async event loop. Errors during storage are
-        logged but never raised, to avoid blocking the game-end cleanup flow.
+        File I/O is offloaded to a worker thread to avoid blocking the async event loop. A storage error propagates to
+        the caller, whose game-end finalizer turns the end into a failure.
         """
-        try:
-            version_tag = json.dumps({"version": REPLAY_VERSION})
-            content = "\n".join([version_tag, *lines])
-            await asyncio.to_thread(self._storage.save_replay, game_id, content)
-        except (OSError, ValueError):  # fmt: skip
-            logger.exception("failed to save replay")
+        version_tag = json.dumps({"version": REPLAY_VERSION})
+        content = "\n".join([version_tag, *lines])
+        await asyncio.to_thread(self._storage.save_replay, game_id, content)

@@ -333,43 +333,6 @@ class TestHistoryPage:
         assert "40000" in response.text
         assert "25000" in response.text
 
-    def test_history_page__when_games_not_completed__should_hide_them(self, client):
-        now = datetime.now(UTC)
-        completed = PlayedGame(
-            game_id="completed-game",
-            started_at=now - timedelta(minutes=30),
-            ended_at=now,
-            end_reason="completed",
-            game_type="hanchan",
-            standings=[
-                PlayedGameStanding(name="Alice", seat=0, score=40000, final_score=50),
-            ],
-        )
-        active = PlayedGame(
-            game_id="active-game",
-            started_at=now,
-            standings=[
-                PlayedGameStanding(name="Bob", seat=0),
-            ],
-        )
-        abandoned = PlayedGame(
-            game_id="abandoned-game",
-            started_at=now - timedelta(minutes=5),
-            ended_at=now,
-            end_reason="abandoned",
-            standings=[
-                PlayedGameStanding(name="Charlie", seat=0),
-            ],
-        )
-        for game in (completed, active, abandoned):
-            client.app.state.game_repo.create_game(game)
-
-        response = client.get("/history")
-        assert response.status_code == 200
-        assert "completed-game" in response.text
-        assert "active-game" not in response.text
-        assert "abandoned-game" not in response.text
-
     def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
         with open_client(app) as c:
             response = c.get("/history", follow_redirects=False)

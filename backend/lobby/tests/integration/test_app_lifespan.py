@@ -8,7 +8,7 @@ from lobby.rooms.manager import LobbyRoomManager
 
 def _assert_database_closed(app) -> None:
     with pytest.raises(RuntimeError, match="not open"):
-        asyncio.run(app.state.game_repo.get_recent_games())
+        asyncio.run(app.state.game_repo.get_recent_completed_games())
 
 
 class TestLobbyLifespan:
