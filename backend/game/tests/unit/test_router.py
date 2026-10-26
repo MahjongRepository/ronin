@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from game.logic.enums import GameAction
 from game.messaging.types import (
     SessionErrorCode,
     SessionMessageType,
@@ -20,7 +21,7 @@ def _setup_player_in_game(session_manager, connection):
     ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
     specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
     session_manager.create_pending_game(game_id="game1", player_specs=specs)
-    session_manager.join_game(connection, game_id="game1", session_token=ticket)
+    session_manager.join_game(connection, session_token=ticket)
     connection._outbox.clear()
 
 
@@ -37,7 +38,7 @@ class TestMessageRouterBranches:
     async def test_message_router__when_reconnect_without_session__should_return_no_session_error(self, setup):
         router, connection, _ = setup
 
-        ticket = make_test_game_ticket(username="Alice", room_id="test-game")
+        ticket = make_test_game_ticket(username="Alice", room_id=connection.game_id)
         router.handle_message(
             connection,
             {
@@ -70,7 +71,7 @@ class TestMessageRouterBranches:
         ticket = make_test_game_ticket(username="Alice", room_id="other-game")
 
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
-        session_manager.create_pending_game(game_id="test-game", player_specs=specs)
+        session_manager.create_pending_game(game_id=connection.game_id, player_specs=specs)
 
         router.handle_message(
             connection,
@@ -122,6 +123,28 @@ class TestMessageRouterBranches:
         ]
         session_manager.handle_game_action.assert_not_called()
 
+    async def test_message_router__when_chi_arrives__should_hand_the_game_action_its_tile_and_sequence(self, setup):
+        router, connection, session_manager = setup
+        _setup_player_in_game(session_manager, connection)
+        session_manager.handle_game_action = MagicMock()
+
+        router.handle_message(
+            connection,
+            {
+                "t": WireClientMessageType.GAME_ACTION,
+                "wi": 3,
+                "a": WireGameAction.CALL_CHI,
+                "ti": 8,
+                "sequence_tiles": [4, 12],
+            },
+        )
+        session_manager.handle_game_action.assert_called_once_with(
+            connection=connection,
+            action=GameAction.CALL_CHI,
+            data={"tile_id": 8, "sequence_tiles": (4, 12)},
+            wait_id=3,
+        )
+
     async def test_message_router__when_game_action_raises__should_fail_the_players_game(self, setup):
         router, connection, session_manager = setup
         _setup_player_in_game(session_manager, connection)
@@ -166,7 +189,7 @@ class TestMessageRouterEntryPointFailures:
         ticket = make_test_game_ticket(username="Alice", room_id="game1", user_id="user-0")
         specs = [PlayerSpec(name="Alice", user_id="user-0", game_ticket=ticket)]
         session_manager.create_pending_game(game_id="game1", player_specs=specs)
-        connection = MockConnection(game_id="game1")
+        connection = MockConnection()
         router.handle_connect(connection)
 
         router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})

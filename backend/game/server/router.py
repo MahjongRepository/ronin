@@ -5,15 +5,10 @@ from pydantic import ValidationError
 
 from game.logic.enums import GameAction
 from game.messaging.types import (
-    ChiMessage,
-    DiscardMessage,
     ErrorMessage,
+    GameActionMessage,
     JoinGameMessage,
-    KanMessage,
-    NoDataActionMessage,
-    PonMessage,
     ReconnectMessage,
-    RiichiMessage,
     SessionErrorCode,
     parse_client_message,
 )
@@ -24,16 +19,6 @@ if TYPE_CHECKING:
     from game.session.manager import SessionManager
 
 logger = structlog.get_logger()
-
-
-_GAME_ACTION_TYPES = (
-    DiscardMessage,
-    RiichiMessage,
-    PonMessage,
-    ChiMessage,
-    KanMessage,
-    NoDataActionMessage,
-)
 
 _INVALID_MESSAGE_REASON = "Invalid message"
 
@@ -71,21 +56,23 @@ class MessageRouter:
             )
             return
 
-        if isinstance(message, _GAME_ACTION_TYPES):
-            self._handle_game_action(connection, message)
-        elif isinstance(message, JoinGameMessage):
-            self._handle_join_game(connection, message)
-        elif isinstance(message, ReconnectMessage):
-            self._handle_reconnect(connection, message)
+        match message:
+            case GameActionMessage():
+                self._handle_game_action(connection, message)
+            case JoinGameMessage():
+                self._handle_join_game(connection, message)
+            case ReconnectMessage():
+                self._handle_reconnect(connection, message)
+            case _:  # pragma: no cover (exhaustive)
+                raise AssertionError(f"unhandled client message: {type(message).__name__}")
 
     def _verify_ticket(
         self,
         connection: ConnectionProtocol,
         ticket_str: str,
-        game_id: str,
     ) -> GameTicket | None:
         """
-        Verify game ticket signature, expiry, and game binding.
+        Verify game ticket signature, expiry, and binding to the connection's game.
 
         Send error on failure.
         """
@@ -95,8 +82,10 @@ class MessageRouter:
             self._send_ticket_error(connection, "Invalid game ticket")
             return None
 
-        if ticket.room_id != game_id:
-            logger.warning("ticket game_id mismatch", ticket_room_id=ticket.room_id, expected_game_id=game_id)
+        if ticket.room_id != connection.game_id:
+            logger.warning(
+                "ticket game_id mismatch", ticket_room_id=ticket.room_id, expected_game_id=connection.game_id
+            )
             self._send_ticket_error(connection, "Ticket game_id mismatch")
             return None
 
@@ -118,17 +107,13 @@ class MessageRouter:
         """
         Verify game ticket and join a pending game.
         """
-        ticket = self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
+        ticket = self._verify_ticket(connection, ticket_str=message.game_ticket)
         if ticket is None:
             return
 
         game = self._session_manager.get_game(connection.game_id)
         try:
-            self._session_manager.join_game(
-                connection=connection,
-                game_id=connection.game_id,
-                session_token=message.game_ticket,
-            )
+            self._session_manager.join_game(connection=connection, session_token=message.game_ticket)
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="join failed", exc=exc)
 
@@ -140,24 +125,20 @@ class MessageRouter:
         """
         Verify game ticket and attempt reconnection.
         """
-        ticket = self._verify_ticket(connection, ticket_str=message.game_ticket, game_id=connection.game_id)
+        ticket = self._verify_ticket(connection, ticket_str=message.game_ticket)
         if ticket is None:
             return
 
         game = self._session_manager.get_game(connection.game_id)
         try:
-            self._session_manager.reconnect(
-                connection=connection,
-                game_id=connection.game_id,
-                session_token=message.game_ticket,
-            )
+            self._session_manager.reconnect(connection=connection, session_token=message.game_ticket)
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="reconnect failed", exc=exc)
 
     def _handle_game_action(
         self,
         connection: ConnectionProtocol,
-        message: DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
+        message: GameActionMessage,
     ) -> None:
         """
         Route a game action message; an unexpected error is a server fault that fails the connection's game.

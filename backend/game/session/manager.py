@@ -220,9 +220,9 @@ class SessionManager:
         game.pending_timeout = self._spawn(self._pending_game_timeout(game))
         logger.info("pending game created", game_id=game_id, expected_count=len(player_specs))
 
-    def join_game(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
+    def join_game(self, connection: ConnectionProtocol, *, session_token: str) -> None:
         """
-        Bind a connection to its participant in a pending game; the last expected join starts the game.
+        Bind a connection to its participant in the connection's pending game; the last expected join starts the game.
 
         A participant that already has a connection (a stale socket or another client) is moved to the new one, and the
         old one is replaced (`_bind`). A JOIN_GAME on a connection the server already evicted is dropped unanswered.
@@ -230,7 +230,7 @@ class SessionManager:
         if self._connections.get(connection.connection_id) is not connection:
             return
 
-        game = self._games.get(game_id)
+        game = self._games.get(connection.game_id)
         if game is None:
             self._send_error(connection, code=SessionErrorCode.JOIN_GAME_NOT_FOUND, message="Game not found")
             return
@@ -540,7 +540,7 @@ class SessionManager:
         )
         connection.send_message(service_event_payload(ServiceEvent(data=error)))
 
-    def reconnect(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
+    def reconnect(self, connection: ConnectionProtocol, *, session_token: str) -> None:
         """
         Bind a new connection to a participant of a playing game and send it the game's state.
 
@@ -556,7 +556,7 @@ class SessionManager:
         if self._connections.get(connection.connection_id) is not connection:
             return
 
-        participant = self._reconnecting_participant(connection, game_id=game_id, session_token=session_token)
+        participant = self._reconnecting_participant(connection, session_token=session_token)
         if participant is None:
             return
 
@@ -593,7 +593,6 @@ class SessionManager:
         self,
         connection: ConnectionProtocol,
         *,
-        game_id: str,
         session_token: str,
     ) -> Participant | None:
         """
@@ -611,7 +610,7 @@ class SessionManager:
             )
             return None
 
-        if participant.game.game_id != game_id:
+        if participant.game.game_id != connection.game_id:
             self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_GAME_MISMATCH,

@@ -48,9 +48,9 @@ def _error_codes(conn: MockConnection) -> list[str]:
 
 
 def _join(manager, ticket: str, game_id: str = "game1") -> MockConnection:
-    conn = MockConnection()
+    conn = MockConnection(game_id=game_id)
     manager.register_connection(conn)
-    manager.join_game(conn, game_id=game_id, session_token=ticket)
+    manager.join_game(conn, session_token=ticket)
     return conn
 
 
@@ -95,7 +95,7 @@ class TestJoinGame:
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         conn = _join(manager, "ticket-0")
 
-        manager.join_game(conn, game_id="game1", session_token="ticket-1")
+        manager.join_game(conn, session_token="ticket-1")
         assert _error_codes(conn) == [SessionErrorCode.ALREADY_IN_GAME]
 
     async def test_join_game__when_ticket_belongs_to_other_game__should_return_game_mismatch_error(self, manager):
@@ -122,7 +122,7 @@ class TestJoinGame:
         assert conn1.connection_id not in manager._connections
         assert (conn1._close_code, conn1._close_reason) == (4002, "replaced_by_new_connection")
 
-        manager.join_game(conn1, game_id="game1", session_token="ticket-0")
+        manager.join_game(conn1, session_token="ticket-0")
         manager.disconnect(conn1)
         assert [participant.connection for participant in game.connected()] == [conn2]
 
@@ -168,7 +168,7 @@ class TestPendingGameTimeout:
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        manager.reconnect(reconnecting, game_id="game1", session_token="ticket-1")
+        manager.reconnect(reconnecting, session_token="ticket-1")
         reconnected = [m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert [m["s"] for m in reconnected] == [absent.seat]
 
@@ -235,7 +235,7 @@ class TestGameStartPause:
         manager.disconnect(bob)
         early_reconnect = MockConnection()
         manager.register_connection(early_reconnect)
-        manager.reconnect(early_reconnect, game_id="game1", session_token="ticket-1")
+        manager.reconnect(early_reconnect, session_token="ticket-1")
         assert _error_codes(early_reconnect) == [SessionErrorCode.RECONNECT_RETRY_LATER]
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is False
         assert [m.get("t", m.get("type")) for m in alice.sent_messages] == [
@@ -247,7 +247,7 @@ class TestGameStartPause:
         assert alice.sent_messages[2]["t"] == ROUND_STARTED_T
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is True
 
-        manager.reconnect(early_reconnect, game_id="game1", session_token="ticket-1")
+        manager.reconnect(early_reconnect, session_token="ticket-1")
         reconnected = [m for m in early_reconnect.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert [m["s"] for m in reconnected] == [bob_seat]
 

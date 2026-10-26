@@ -21,5 +21,5 @@ class TestSessionCleanup:
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        manager.reconnect(reconnecting, game_id="game1", session_token=alice_ticket)
+        manager.reconnect(reconnecting, session_token=alice_ticket)
         assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_NO_SESSION]

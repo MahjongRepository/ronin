@@ -212,7 +212,7 @@ class TestWaitTimers:
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        manager.reconnect(reconnecting, game_id="game1", session_token=bob.ticket)
+        manager.reconnect(reconnecting, session_token=bob.ticket)
         assert bob.connection is reconnecting
         assert bob.timer._bank_seconds == first_round_bank
 

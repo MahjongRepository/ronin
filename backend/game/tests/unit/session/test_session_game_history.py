@@ -158,7 +158,7 @@ class TestGameCompletionRecording:
         )
         alice = MockConnection()
         manager.register_connection(alice)
-        manager.join_game(alice, game_id="game1", session_token="ticket-0")
+        manager.join_game(alice, session_token="ticket-0")
         pending_timeout = game_of(manager).pending_timeout
         assert pending_timeout is not None
         await pending_timeout

@@ -56,9 +56,9 @@ def create_started_game(
 
     connections: list[MockConnection] = []
     for i, _name in enumerate(player_names):
-        conn = MockConnection()
+        conn = MockConnection(game_id=game_id)
         manager.register_connection(conn)
-        manager.join_game(conn, game_id=game_id, session_token=tickets[i])
+        manager.join_game(conn, session_token=tickets[i])
         connections.append(conn)
 
     # clear message history for clean test assertions
@@ -76,9 +76,9 @@ def disconnect_and_reconnect(
     token = participant_of(manager, conn).ticket
     manager.disconnect(conn)
 
-    new_conn = MockConnection()
+    new_conn = MockConnection(game_id=game_id)
     manager.register_connection(new_conn)
-    manager.reconnect(new_conn, game_id=game_id, session_token=token)
+    manager.reconnect(new_conn, session_token=token)
     reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
     assert len(reconnect_msgs) == 1, f"Expected 1 game_reconnected message, got {len(reconnect_msgs)}"
 

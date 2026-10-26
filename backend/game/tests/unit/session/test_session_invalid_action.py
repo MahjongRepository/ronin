@@ -167,7 +167,7 @@ class TestKickedConnection:
         )
         assert kicked._close_code == 1008
 
-        manager.reconnect(kicked, game_id="game1", session_token=kicked_token)
+        manager.reconnect(kicked, session_token=kicked_token)
         assert manager.get_connection_game(kicked) is None
         assert not player_of[kicked].is_connected
         other_seat = player_of[other].seat

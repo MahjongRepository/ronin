@@ -7,7 +7,7 @@ from game.messaging.protocol import ConnectionProtocol
 
 
 class MockConnection(ConnectionProtocol):
-    def __init__(self, connection_id: str | None = None, game_id: str = "test-game") -> None:
+    def __init__(self, connection_id: str | None = None, game_id: str = "game1") -> None:
         self._connection_id = connection_id or str(uuid4())
         self._game_id = game_id
         self._inbox: asyncio.Queue[bytes] = asyncio.Queue()
