@@ -142,15 +142,15 @@ const DOUBLE_RON = {
         },
         {
             ws: 2,
-            hr: { han: 13, fu: 30, yk: [{ yi: 102, han: 13 }], pt: 320 },
-            sch: { 0: -163, 1: -163, 2: 326, 3: 0 },
+            hr: { han: 13, fu: 30, yk: [{ yi: 103, han: 13 }], pt: 320 },
+            sch: { 0: -160, 1: -166, 2: 326, 3: 0 },
             rc: 0,
-            ct: [3, 20, 24, 28, 124, 125, 126, 128, 129, 130, 132, 133, 134],
-            ml: [],
+            ct: [3, 20, 24, 28],
+            ml: [20706, 20846, 20998],
             ps: 1,
         },
     ],
-    sch: { 0: -249, 1: -67, 2: 326, 3: 0 },
+    sch: { 0: -246, 1: -70, 2: 326, 3: 0 },
 };
 const DIALOG_READY_MS = 800;
 const RESULT_SHOWN_MS = 500;
@@ -604,7 +604,7 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(shownOf(table, "hule")[1].data).toMatchObject({
             l: 2,
             defen: 32000,
-            fenpei: [-16300, -16300, 32600, 0],
+            fenpei: [-16000, -16600, 32600, 0],
         });
         expect(table.player.model).toMatchObject({
             changbang: 2,
