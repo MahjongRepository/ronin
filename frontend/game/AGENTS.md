@@ -84,7 +84,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds only reopens
   the turn. Other seats' face-down hands are rebuilt to the snapshot's tile counts, a 3n+2 one
   holding its turn's draw, since their draws are not replayed. The round's number within its wind
-  comes from the first dealer, which the snapshot gives only as the dealer dice. The final standings' ledger (the shadow's round logs) is seeded
+  comes from the first dealer, which the snapshot gives only as the dealer dice. A snapshot taken
+  during a round advance is the round that ended, with its result; it shows the table and opens no
+  confirmation: a seat that disconnected during the wait was confirmed by its disconnect, and a
+  seat an AI player held at the round end was never required. The final standings' ledger (the shadow's round logs) is seeded
   from the snapshot's round history, as reduced round logs holding only what the standings read.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
   `backend/game/wire/`; change both in the same change. The client sends no heartbeat: liveness is

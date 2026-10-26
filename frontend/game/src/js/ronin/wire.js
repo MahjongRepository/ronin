@@ -93,6 +93,9 @@ const wire = {
     /* game_started, game_reconnected: tm = { tb, bk, rb, mb, md } */
     TIMER_SETTINGS: 'tm',
 
+    /* game_reconnected during a round advance: re = the round end's result fields { rt, ... } */
+    ROUND_RESULT: 're',
+
     NUM_TILES:     136,
     SEAT_SPACE:    544,   /* 4 × 136 */
     DISCARD_FLAGS: 4,     /* bit 0 = tsumogiri, bit 1 = riichi */

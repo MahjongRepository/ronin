@@ -18,6 +18,7 @@ from game.logic.events import (
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
     WAIT_ID_KEY,
+    reconnection_payload,
     service_event_payload,
     shape_call_prompt_payload,
     stamp_timer_settings,
@@ -556,7 +557,7 @@ class SessionManager:
         self._bind(participant, connection)
         awaiting = self._game_service.get_awaiting(runtime)
         game.awaiting = awaiting
-        payload = snapshot.model_dump(by_alias=True, exclude_none=True)
+        payload = reconnection_payload(snapshot)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
         payload[WAIT_ID_KEY] = awaiting.wait_id
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))

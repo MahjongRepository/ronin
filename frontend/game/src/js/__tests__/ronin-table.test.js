@@ -1033,7 +1033,7 @@ describe("the ronin table (Translate and Reply)", () => {
                         sch: { 0: 0, 1: -10, 2: 10, 3: 0 },
                     },
                 ],
-                rk: { s: 1, ti: 67, kty: "added" },
+                re: { rt: 1, ws: 2, ls: 1, wt: 67, rk: { s: 1, ti: 67, kty: "added" } },
             }),
         );
 

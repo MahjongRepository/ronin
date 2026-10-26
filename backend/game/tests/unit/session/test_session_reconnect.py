@@ -25,6 +25,7 @@ from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
 from game.tests.unit.session.helpers import (
+    arrange_exhaustive_draw,
     arrange_final_discard,
     create_started_game,
     current_wait_id,
@@ -36,6 +37,7 @@ from game.tests.unit.session.helpers import (
     wait_for_background_tasks,
 )
 from game.wire.compact import encode_draw
+from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 
 
@@ -282,6 +284,30 @@ class TestReconnectToEndedGame:
         manager.register_connection(reconnecting)
         manager.reconnect(reconnecting, game_id="game1", session_token=bob_token)
         assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_NO_SESSION]
+
+
+class TestReconnectDuringRoundAdvance:
+    async def test_reconnect__when_round_advance_pending__should_send_round_result_and_wait_id(self, seeded_engine):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice_seat = participant_of(manager, conns[0]).seat
+        bob_token = participant_of(manager, conns[1]).ticket
+        assert runtime_of(manager).state.round_state.current_player_seat == alice_seat
+        manager.leave_game(conns[1], notify_player=False)
+        arrange_exhaustive_draw(runtime_of(manager))
+        run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
+        assert game_of(manager).awaiting.kind == WaitKind.ROUND_ADVANCE
+
+        reconnecting = MockConnection()
+        manager.register_connection(reconnecting)
+        manager.reconnect(reconnecting, game_id="game1", session_token=bob_token)
+        reconnected = next(
+            m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED
+        )
+        assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
+        assert reconnected["wi"] == current_wait_id(manager)
+
+        await manager.shutdown()
 
 
 class TestReconnectToPendingGame:

@@ -17,7 +17,7 @@ from game.logic.action_handlers import (
 from game.logic.action_result import Refusal, create_draw_event, create_turn_event
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
-from game.logic.enums import GameAction, GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind
+from game.logic.enums import GameAction, GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind, WindName
 from game.logic.events import (
     ErrorEvent,
     GameEndedEvent,
@@ -47,12 +47,12 @@ from game.logic.state import (
     MahjongGameState,
     PendingCallPrompt,
     get_player_view,
+    wind_name,
 )
 from game.logic.turn import (
     process_draw_phase,
 )
 from game.logic.types import (
-    AbortiveDrawResult,
     ChiActionData,
     DiscardActionData,
     DiscardInfo,
@@ -63,7 +63,6 @@ from game.logic.types import (
     PonActionData,
     ReconnectionSnapshot,
     RiichiActionData,
-    RonResult,
     RoundResult,
 )
 from game.logic.wall import tiles_remaining
@@ -71,7 +70,6 @@ from game.logic.wall import tiles_remaining
 if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
     from game.logic.settings import GameSettings
-    from game.logic.types import RobbedKan
 
 logger = structlog.get_logger()
 
@@ -87,14 +85,54 @@ class _CallStart:
     seats: frozenset[int]
 
 
-def _robbed_kan_of(result: RoundResult | None) -> RobbedKan | None:
+@dataclass(frozen=True)
+class _RoundHeader:
     """
-    Return the kan a round's result robbed by chankan, or None for a round without one (or still in play).
+    The header a reconnect snapshot shows its round with: the dealer, wind, round number and honba.
     """
-    if isinstance(result, RonResult | DoubleRonResult | AbortiveDrawResult):
-        return result.robbed_kan
 
-    return None
+    dealer_seat: int
+    round_wind: WindName
+    round_number: int
+    honba_sticks: int
+
+
+def _current_round_number(game_state: MahjongGameState) -> int:
+    """
+    Return the number of the current round: the round in play, or the one that ended, through its advance wait.
+
+    The round end has already advanced the round number to the next round's, so an ended round's is the one before it.
+    """
+    if game_state.round_state.phase == RoundPhase.FINISHED:
+        return game_state.round_number - 1
+
+    return game_state.round_number
+
+
+def _snapshot_round_header(game_state: MahjongGameState) -> _RoundHeader:
+    """
+    Return the header of the round a reconnect snapshot shows: the round in play, or the one that ended.
+
+    The round end has already moved the dealer, wind and honba on to the next round, so an ended round's come from its
+    round history entry, taken before that advance.
+    """
+    round_state = game_state.round_state
+    round_number = _current_round_number(game_state)
+    if round_state.phase != RoundPhase.FINISHED:
+        return _RoundHeader(
+            dealer_seat=round_state.dealer_seat,
+            round_wind=wind_name(round_state.round_wind),
+            round_number=round_number,
+            honba_sticks=game_state.honba_sticks,
+        )
+
+    ended = game_state.round_history[-1]
+    return _RoundHeader(
+        dealer_seat=ended.dealer_seat,
+        round_wind=ended.round_wind,
+        round_number=round_number,
+        honba_sticks=ended.honba_sticks,
+    )
 
 
 class MahjongGameService(GameService):
@@ -388,13 +426,12 @@ class MahjongGameService(GameService):
         Build the Awaiting for a wait: its seats without the AI players' ones, and the round it belongs to.
         """
         game_state = runtime.state
-        round_over = game_state.round_state.phase == RoundPhase.FINISHED
         pending = runtime.pending_confirm
         return Awaiting(
             kind=kind,
             seats=frozenset(s for s in seats if not runtime.ai.is_ai_player(s)),
             wait_id=game_state.wait_id,
-            round_number=game_state.round_number - 1 if round_over else game_state.round_number,
+            round_number=_current_round_number(game_state),
             results_shown=pending.results_shown if kind == WaitKind.ROUND_ADVANCE and pending is not None else 1,
         )
 
@@ -672,17 +709,18 @@ class MahjongGameService(GameService):
         ]
 
         view = get_player_view(game_state, seat)
+        header = _snapshot_round_header(game_state)
         return ReconnectionSnapshot(
             game_id=runtime.game_id,
             players=players_info,
-            dealer_seat=round_state.dealer_seat,
+            dealer_seat=header.dealer_seat,
             dealer_dice=game_state.dealer_dice,
             seat=seat,
-            round_wind=view.round_wind,
-            round_number=view.round_number,
+            round_wind=header.round_wind,
+            round_number=header.round_number,
             current_player_seat=round_state.current_player_seat,
             dora_indicators=view.dora_indicators,
-            honba_sticks=view.honba_sticks,
+            honba_sticks=header.honba_sticks,
             riichi_sticks=view.riichi_sticks,
             my_tiles=view.my_tiles,
             dice=view.dice,
@@ -690,7 +728,7 @@ class MahjongGameService(GameService):
             player_states=player_states,
             is_furiten=runtime.furiten.is_furiten(seat),
             round_history=list(game_state.round_history),
-            robbed_kan=_robbed_kan_of(round_state.result),
+            result=round_state.result,
         )
 
     def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
