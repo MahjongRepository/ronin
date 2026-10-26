@@ -338,3 +338,48 @@ class TestHistoryPage:
             response = c.get("/history", follow_redirects=False)
             assert response.status_code == 303
             assert "/login" in response.headers["location"]
+
+
+class TestGameSessionRoute:
+    @pytest.fixture
+    def client(self, client):
+        register_with_csrf(client, "alice")
+        return client
+
+    @pytest.fixture
+    def user_id(self, client):
+        return client.app.state.auth_service.validate_session(client.cookies["session_id"]).user_id
+
+    def test_game_session_route__when_user_is_playing__should_return_their_own_handoff_uncached(
+        self, client, game_server, user_id
+    ):
+        looked_up: list[str] = []
+
+        def answer_the_internal_caller(request: httpx.Request) -> httpx.Response:
+            looked_up.append(request.url.path)
+            if request.headers.get("authorization") != f"Bearer {client.app.state.settings.internal_api_secret}":
+                return httpx.Response(401)
+
+            return httpx.Response(200, json={"game_id": "game-1", "game_ticket": f"ticket-of-{request.url.path}"})
+
+        game_server.respond = answer_the_internal_caller
+
+        response = client.get("/api/game-session")
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json() == {
+            "game_id": "game-1",
+            "ws_url": "wss://game-client.invalid/ws/game-1",
+            "game_ticket": f"ticket-of-/players/{user_id}/game-session",
+            "game_client_url": "/play",
+        }
+        assert looked_up == [f"/players/{user_id}/game-session"]
+
+    def test_game_session_route__when_no_game_or_lookup_fails__should_tell_them_apart(self, client, game_server):
+        game_server.respond = lambda _request: httpx.Response(404)
+        missing = client.get("/api/game-session")
+        assert (missing.status_code, missing.json()) == (404, {"error": "not_playing"})
+
+        game_server.respond = lambda _request: httpx.Response(500)
+        failed = client.get("/api/game-session")
+        assert (failed.status_code, failed.json()) == (503, {"error": "game_lookup_failed"})

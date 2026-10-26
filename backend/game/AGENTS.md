@@ -36,6 +36,10 @@ Mandatory for all game server code; review must catch violations.
 * A connection the server closes is evicted from the registry in the same synchronous step, so a
   pipelined or concurrent join/reconnect cannot pick it up.
 * A ticket's game must match the path's `game_id`; the ticket checks themselves are `shared/auth/`'s.
+* A REST route that returns a credential (the participant ticket lookup) answers only the internal
+  API secret as a bearer token, compared in constant time, and marks every answer
+  `Cache-Control: no-store`: in development the game server's CORS lets the lobby origin's scripts
+  read its GETs, so its bind address is no isolation.
 * Read REST bodies with `request.stream()` and a hard size cutoff, never `await request.body()` on
   untrusted input; handle `ClientDisconnect`.
 * Validate the `game_id` path parameter before the handshake; the reject and the accept go through

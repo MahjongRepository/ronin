@@ -30,14 +30,26 @@ class TestGameServerSettings:
             GameServerSettings(replay_dir="")
 
     def test_game_server_settings__when_deployment_values_unset__should_raise_for_each(self, monkeypatch):
-        for name in ("GAME_CORS_ORIGINS", "GAME_REPLAY_DIR", "AUTH_DATABASE_PATH", "AUTH_GAME_TICKET_SECRET"):
+        for name in (
+            "GAME_CORS_ORIGINS",
+            "GAME_REPLAY_DIR",
+            "AUTH_DATABASE_PATH",
+            "AUTH_GAME_TICKET_SECRET",
+            "AUTH_INTERNAL_API_SECRET",
+        ):
             monkeypatch.delenv(name)
 
         with pytest.raises(ValidationError) as exc_info:
             GameServerSettings()
 
         missing = {error["loc"][0] for error in exc_info.value.errors() if error["type"] == "missing"}
-        assert missing == {"cors_origins", "replay_dir", "AUTH_DATABASE_PATH", "AUTH_GAME_TICKET_SECRET"}
+        assert missing == {
+            "cors_origins",
+            "replay_dir",
+            "AUTH_DATABASE_PATH",
+            "AUTH_GAME_TICKET_SECRET",
+            "AUTH_INTERNAL_API_SECRET",
+        }
 
     def test_database_path__when_env_set__should_use_env_value(self, monkeypatch):
         monkeypatch.setenv("AUTH_DATABASE_PATH", "custom/auth.db")

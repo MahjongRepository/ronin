@@ -177,19 +177,27 @@ class SessionManager:
         """
         return sum(1 for game in self._games.values() if game.lifecycle is GameLifecycle.PLAYING)
 
-    def get_playing_game_id(self, user_id: str) -> str | None:
+    def get_playing_participant(self, user_id: str) -> Participant | None:
         """
-        Return the id of the game the user is playing, or None.
+        Return the user's participant in the game they are playing, or None.
 
         A user plays a game from its creation (pending included) until its end is claimed: a participant of theirs in a
         registered game counts, connected or not. A disconnected player keeps counting on purpose, so the lobby keeps
-        them out of rooms and matchmaking until that game ends.
+        them out of rooms and matchmaking until that game ends, and can hand them back the participant's own ticket.
         """
         for game in self._games.values():
-            if any(participant.user_id == user_id for participant in game.participants):
-                return game.game_id
+            for participant in game.participants:
+                if participant.user_id == user_id:
+                    return participant
 
         return None
+
+    def get_playing_game_id(self, user_id: str) -> str | None:
+        """
+        Return the id of the game the user is playing (`get_playing_participant`), or None.
+        """
+        participant = self.get_playing_participant(user_id)
+        return participant.game.game_id if participant is not None else None
 
     def _send_error(self, connection: ConnectionProtocol, *, code: SessionErrorCode, message: str) -> None:
         logger.warning("session error sent to client", error_code=code.value, error_message=message)

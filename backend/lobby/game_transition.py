@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from dataclasses import asdict, dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import httpx
 import structlog
+from pydantic import BaseModel, Field, ValidationError
 
 from shared.auth.game_ticket import create_signed_ticket
 
@@ -31,7 +33,36 @@ class GameStartError(Exception):
         self.reason = reason
 
 
+class GameLookupError(Exception):
+    """
+    The game server could not say which game a user is playing; ``str()`` is a fixed description without credentials.
+    """
+
+
+@dataclass(frozen=True)
+class GameHandoff:
+    """
+    What a player needs to reach their seat: the game, its WebSocket URL, their ticket and where the game client lives.
+
+    ``game_starting`` carries it, and the game page's recovery returns it; the ticket stays out of the repr.
+    """
+
+    game_id: str
+    ws_url: str
+    game_ticket: str = field(repr=False)
+    game_client_url: str
+
+    def to_game_starting(self) -> dict[str, str]:
+        return {"type": "game_starting", **asdict(self)}
+
+
+class _LiveSeat(BaseModel):
+    game_id: str = Field(min_length=1)
+    game_ticket: str = Field(min_length=1)
+
+
 _PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
+_HANDOFF_LOOKUP_TIMEOUT_SECONDS = 2.0
 _START_REQUEST_TIMEOUT = httpx.Timeout(10.0)
 _KEEPALIVE_EXPIRY_SECONDS = 2.0
 _GAME_SERVER_LIMITS = httpx.Limits(
@@ -63,6 +94,15 @@ def create_game_server_client(
     the window for reusing a connection the server is closing.
     """
     return httpx.AsyncClient(base_url=game_server_url, transport=transport, limits=_GAME_SERVER_LIMITS)
+
+
+def _build_handoff(*, game_id: str, game_ticket: str, settings: LobbyServerSettings) -> GameHandoff:
+    return GameHandoff(
+        game_id=game_id,
+        ws_url=f"{settings.game_server_ws_url}/ws/{game_id}",
+        game_ticket=game_ticket,
+        game_client_url=settings.game_client_url,
+    )
 
 
 async def start_game(  # noqa: PLR0913
@@ -122,20 +162,12 @@ async def start_game(  # noqa: PLR0913
         log.error("failed to create game", status=response.status_code, body=response.text)
         raise GameStartError(_REFUSAL_REASONS.get(response.status_code, _GAME_SERVER_ERROR))
 
-    ws_url = f"{settings.game_server_ws_url}/ws/{game_id}"
     for player, ticket in zip(players, tickets, strict=True):
-        player.send(
-            {
-                "type": "game_starting",
-                "ws_url": ws_url,
-                "game_ticket": ticket,
-                "game_id": game_id,
-                "game_client_url": settings.game_client_url,
-            },
-        )
+        handoff = _build_handoff(game_id=game_id, game_ticket=ticket, settings=settings)
+        player.send(handoff.to_game_starting())
         player.connection.close()
 
-    log.info("game transition complete", ws_url=ws_url)
+    log.info("game transition complete")
     return game_id
 
 
@@ -163,3 +195,78 @@ async def is_user_playing(user_id: str, *, game_server: httpx.AsyncClient) -> bo
         )
 
     return False
+
+
+async def find_game_handoff(
+    user_id: str,
+    *,
+    settings: LobbyServerSettings,
+    game_server: httpx.AsyncClient,
+) -> GameHandoff | None:
+    """
+    Recover the handoff of the game the user is playing, with their participant's exact ticket, or None when they play
+    none.
+
+    The caller passes only an authenticated user's own id. The game server answers this lookup only for the internal API
+    secret, sent as a header so it stays out of every logged URL. It takes at most ``_HANDOFF_LOOKUP_TIMEOUT_SECONDS``
+    and, unlike the occupancy lookup, never fails open: a failure raises ``GameLookupError``, so a caller tells "no
+    game" apart from "could not ask".
+    """
+    try:
+        async with asyncio.timeout(_HANDOFF_LOOKUP_TIMEOUT_SECONDS):
+            response = await game_server.get(
+                f"/players/{quote(user_id, safe='')}/game-session",
+                headers={"Authorization": f"Bearer {settings.internal_api_secret}"},
+            )
+    except (httpx.HTTPError, TimeoutError) as e:
+        raise GameLookupError(f"request failed: {type(e).__name__}") from e
+
+    if response.status_code == HTTPStatus.NOT_FOUND:
+        return None
+
+    if response.status_code == HTTPStatus.UNAUTHORIZED:
+        logger.error(
+            "game server refused the internal API secret: AUTH_INTERNAL_API_SECRET differs between the servers"
+        )
+        raise GameLookupError("internal API secret refused")
+
+    if response.status_code != HTTPStatus.OK:
+        raise GameLookupError(f"unexpected status {response.status_code}")
+
+    try:
+        seat = _LiveSeat.model_validate_json(response.content)
+    except ValidationError:
+        raise GameLookupError("malformed answer") from None
+
+    return _build_handoff(game_id=seat.game_id, game_ticket=seat.game_ticket, settings=settings)
+
+
+async def hand_back_live_game(
+    player: LobbyPlayer,
+    *,
+    settings: LobbyServerSettings,
+    game_server: httpx.AsyncClient,
+) -> bool:
+    """
+    Send a player whose join was refused as ``already_in_game`` the handoff of the game they play, as ``game_starting``,
+    and close with 1000; return whether it was sent.
+
+    Both lobby pages follow ``game_starting`` into the game, so this repairs a handoff lost to a closed socket or a
+    closed game tab. On False the caller answers ``already_in_game`` as before: the lookup failed, or the game ended
+    after the join's own lookup, and the next join attempt sees the current state.
+    """
+    log = logger.bind(username=player.username)
+    try:
+        handoff = await find_game_handoff(player.user_id, settings=settings, game_server=game_server)
+    except GameLookupError as e:
+        log.warning("game handoff lookup failed", error=str(e))
+        return False
+
+    if handoff is None:
+        log.info("no live game to hand back")
+        return False
+
+    player.send(handoff.to_game_starting())
+    player.connection.close()
+    log.info("live game handed back", game_id=handoff.game_id)
+    return True

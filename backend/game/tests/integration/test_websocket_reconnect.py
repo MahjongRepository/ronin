@@ -148,3 +148,58 @@ class TestWebSocketReconnect:
             assert action_msg["t"] == EVENT_TYPE_INT[EventType.DRAW]
             assert action_msg["seat"] == 0
             assert action_msg["success"] is True
+
+
+def _look_up_game_session(client: TestClient, user_id: str):
+    secret = client.app.state.settings.internal_api_secret
+    return client.get(f"/players/{user_id}/game-session", headers={"Authorization": f"Bearer {secret}"})
+
+
+class TestGameSessionLookup:
+    @pytest.fixture
+    def client(self):
+        session_manager = make_session_manager()
+        app = create_app(game_service=session_manager._game_service, session_manager=session_manager)
+        with TestClient(app) as client:
+            yield client
+
+    def test_game_session_lookup__when_another_player_is_connected__should_return_the_ticket_that_joins_and_reconnects(
+        self, client
+    ):
+        tickets = create_pending_game(client, game_id="test_game", num_ai_players=2)
+        with client.websocket_connect("/ws/test_game") as player2:
+            send_ws(player2, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[1]})
+
+            pending_lookup = _look_up_game_session(client, "user-0")
+            assert pending_lookup.status_code == 200
+            assert pending_lookup.headers["cache-control"] == "no-store"
+            assert pending_lookup.json() == {"game_id": "test_game", "game_ticket": tickets[0]}
+
+            with client.websocket_connect("/ws/test_game") as player1:
+                started = join_game_and_start(player1, pending_lookup.json()["game_ticket"])
+                assert started[0]["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
+
+            playing_lookup = _look_up_game_session(client, "user-0")
+            assert playing_lookup.json() == {"game_id": "test_game", "game_ticket": tickets[0]}
+
+            with client.websocket_connect("/ws/test_game") as player1:
+                send_ws(
+                    player1, {"t": WireClientMessageType.RECONNECT, "game_ticket": playing_lookup.json()["game_ticket"]}
+                )
+                assert recv_ws(player1)["type"] == SessionMessageType.GAME_RECONNECTED
+
+    @pytest.mark.parametrize(
+        "authorization",
+        [None, "Bearer wrong-secret", "{secret}"],
+        ids=["no-header", "wrong-secret", "no-bearer-prefix"],
+    )
+    def test_game_session_lookup__when_caller_lacks_the_internal_secret__should_answer_401_without_the_ticket(
+        self, client, authorization
+    ):
+        create_pending_game(client, game_id="test_game")
+        secret = client.app.state.settings.internal_api_secret
+        headers = {} if authorization is None else {"Authorization": authorization.format(secret=secret)}
+
+        response = client.get("/players/user-0/game-session", headers=headers)
+        assert response.status_code == 401
+        assert response.json() == {"error": "Unauthorized"}

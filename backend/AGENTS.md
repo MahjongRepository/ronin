@@ -48,8 +48,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
 * Deployment-specific values are required fields: `deploy/docker-compose.yml` supplies them in
   production, `bin/local-settings.sh` locally, and `.env.tests` in tests, where the paths point at
   `/nonexistent/` so a test that touches them must pass its own `tmp_path`.
-* Both servers share the game ticket secret (the lobby signs tickets, the game server verifies them)
-  and the SQLite database.
+* Both servers share the game ticket secret (the lobby signs tickets, the game server verifies them),
+  the internal API secret (the lobby's bearer token on the game server's credential-returning
+  lookup) and the SQLite database.
 
 ## Conventions
 

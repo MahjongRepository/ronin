@@ -21,6 +21,7 @@ class GameServerSettings(BaseSettings):
     # The secret lives under the AUTH_ namespace because it's shared auth infrastructure,
     # but GameServerSettings uses GAME_ prefix. validation_alias overrides the env var name.
     game_ticket_secret: str = Field(validation_alias="AUTH_GAME_TICKET_SECRET", min_length=1)
+    internal_api_secret: str = Field(validation_alias="AUTH_INTERNAL_API_SECRET", min_length=1)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

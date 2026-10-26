@@ -14,8 +14,12 @@ from this app's Vite dev server under `make run-local-server` (`backend/lobby/AG
 ## Handoff
 
 When a game starts, the room and matchmaking pages store the game socket URL and ticket for the game
-client (`session/`) and navigate to `game_client_url`/`<game_id>`. The storage key and shape are the
-handoff contract in `docs/architecture.md`; change them only together with the game client.
+client (`session/`) and navigate to `game_client_url`/`<game_id>`. The storage key and shape are
+the handoff contract in `docs/architecture.md`; change them only together with the game client.
+
+A join refused as `already_in_game` can instead be answered with `game_starting` for the game the
+user already plays, as the join's first and only message, so each page handles `game_starting`
+the same way whether or not it was ever seated or queued.
 
 ## Conventions
 

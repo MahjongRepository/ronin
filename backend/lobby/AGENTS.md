@@ -20,8 +20,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
   The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the
   occupancy rule as an injected callable.
-* `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls
-  and the "is this user playing" lookup. `websocket_utils.py` — the WebSocket `Origin` check.
+* `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls,
+  the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the
+  WebSocket `Origin` check.
 * The lobby calls the game server through one HTTP client per app, built in `create_app()` and
   closed in the lifespan. Its idle connections expire well before the game server's keep-alive
   timeout (uvicorn's 5s default), since a start sent on a connection the server is closing fails
@@ -61,6 +62,15 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   playing is the backstop.
 * The WebSocket joins are the only gates: room creation does not check.
 
+## Handoff recovery
+
+* A join refused as `already_in_game` is answered with the user's live game as `game_starting`
+  when the game server can name it, so a lost handoff is repaired by any lobby join; the game page
+  recovers through `GET /api/game-session`. The flow is in `docs/architecture.md`.
+* Recovery returns the participant's own ticket from the game server; the lobby never caches or
+  re-signs tickets. It asks only for the authenticated user's id, and its lookup never fails open:
+  a failure keeps `already_in_game` (or answers 503), distinct from "no game".
+
 ## Auth model
 
 * Humans register and log in with username and password and get a session cookie. Every session is
@@ -77,12 +87,16 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 Mandatory for all lobby code; review must catch violations.
 
 * Every HTML form POST validates the CSRF token (`auth/csrf.py`); bot API routes are exempt.
-* Every HTTP route gets exactly one policy decorator (`protected_html`, `bot_only`, `public_route`);
-  startup fails for a `Route` without one. WebSocket routes authenticate inside the handler.
+* Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_json`, `bot_only`,
+  `public_route`); startup fails for a `Route` without one. WebSocket routes authenticate inside the
+  handler. `protected_json` is for JSON a page script fetches: a JSON 401, never a login redirect.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off.
-* Credentials never travel in a URL: uvicorn and Traefik log every path with its query string.
+* Credentials never travel in a URL: uvicorn and Traefik log every path with its query string. A
+  response carrying a credential (a game ticket) is `Cache-Control: no-store`.
+* The internal API secret is sent only to the game server, as a bearer header; no page or browser
+  response ever holds it.
 * Room and matchmaking WebSockets refuse any socket whose `Origin` is not exactly the configured
   one, a setting every deployment must supply.
 * Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,

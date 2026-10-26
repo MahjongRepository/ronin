@@ -4,7 +4,7 @@ import "../css/pages.styl";
 
 import $ from "jquery";
 
-import { readGameSession } from "./game-session.js";
+import { RECOVERY, readGameSession, recoverGameSession } from "./game-session.js";
 import { finishLoading, loadTileImages, showLoadingError } from "./loading.js";
 import { showReplay } from "./replay.js";
 import startGame from "./ronin.js";
@@ -13,24 +13,48 @@ import { showStorybook } from "./storybook.js";
 
 const LOBBY_URL = "/";
 
-function showMissingSession() {
+function showSessionProblem(text, ...links) {
     finishLoading();
     $("body")
         .removeClass("board")
         .addClass("page")
         .empty()
-        .append(
-            $('<p class="missing-session">').append(
-                "セッションが見つかりません。",
-                $("<a>").attr("href", LOBBY_URL).text("ロビーへ"),
-            ),
+        .append($('<p class="missing-session">').append(text, ...links));
+}
+
+function lobbyLink() {
+    return $("<a>").attr("href", LOBBY_URL).text("ロビーへ");
+}
+
+async function findGameSession(gameId) {
+    const stored = readGameSession(gameId);
+    if (stored) {
+        return stored;
+    }
+    const recovery = await recoverGameSession();
+    if (recovery.status === RECOVERY.FAILED) {
+        showSessionProblem(
+            "セッションを復元できませんでした。",
+            $("<a>").attr("href", window.location.href).text("再読み込み"),
+            " ",
+            lobbyLink(),
         );
+        return null;
+    }
+    if (recovery.status === RECOVERY.MISSING) {
+        showSessionProblem("セッションが見つかりません。", lobbyLink());
+        return null;
+    }
+    if (recovery.gameId !== gameId) {
+        window.location.replace(recovery.gameUrl);
+        return null;
+    }
+    return recovery.session;
 }
 
 async function showGame(gameId) {
-    const session = readGameSession(gameId);
+    const session = await findGameSession(gameId);
     if (!session) {
-        showMissingSession();
         return;
     }
     await loadTileImages();

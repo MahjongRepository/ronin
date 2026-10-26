@@ -52,7 +52,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   read `Majiang` at load time evaluate after it.
 * **Handoff:** the game page reads the socket URL and ticket only from the lobby's `sessionStorage`
   entry (key and shape in `docs/architecture.md`); credentials never come from the URL. Without one
-  the page says so and links to the lobby.
+  it recovers the handoff from the lobby (`GET /api/game-session`, `game-session.js`) and stores it
+  under the same key; a player with no game is told so and linked to the lobby, a failed lookup gets
+  a reload link instead, and a different live game sends the page to that game. A recovered ticket
+  joins like a delivered one, falling back to RECONNECT once the game plays.
 * **Live game:** `ronin.js` builds majiang-ui's `Player`, `Board` and `GameCtl` and connects them to
   the ronin layer. The session joins with the ticket, reconnects with backoff and resumes the seat
   with the same ticket, and sends the player to the lobby on a permanent join or reconnect error.

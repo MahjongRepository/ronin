@@ -12,6 +12,7 @@ class TestLobbyServerSettings:
             "LOBBY_GAME_SERVER_WS_URL",
             "LOBBY_REPLAY_DIR",
             "LOBBY_WS_ALLOWED_ORIGIN",
+            "AUTH_INTERNAL_API_SECRET",
         ):
             monkeypatch.delenv(name)
 
@@ -19,7 +20,14 @@ class TestLobbyServerSettings:
             LobbyServerSettings()
 
         missing = {error["loc"][0] for error in exc_info.value.errors() if error["type"] == "missing"}
-        assert missing == {"allowed_hosts", "game_server_url", "game_server_ws_url", "replay_dir", "ws_allowed_origin"}
+        assert missing == {
+            "allowed_hosts",
+            "game_server_url",
+            "game_server_ws_url",
+            "replay_dir",
+            "ws_allowed_origin",
+            "AUTH_INTERNAL_API_SECRET",
+        }
 
     @pytest.mark.parametrize(
         ("env_name", "value"),

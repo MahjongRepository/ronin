@@ -13,6 +13,7 @@ from lobby.auth.models import AuthenticatedPlayer
 from lobby.auth.policy import (
     bot_only,
     protected_html,
+    protected_json,
     public_route,
     validate_route_auth_policy,
 )
@@ -84,6 +85,24 @@ class TestProtectedHtml:
     async def test_protected_html__when_authenticated__should_call_handler(self):
         wrapped = protected_html(_dummy_handler)
         request = _make_request(authenticated=True)
+
+        result = await wrapped(request)
+        assert result == "ok"
+
+
+class TestProtectedJson:
+    async def test_protected_json__when_unauthenticated__should_return_401_instead_of_a_redirect(self):
+        wrapped = protected_json(_dummy_handler)
+        request = _make_request(authenticated=False)
+
+        result = await wrapped(request)
+        assert result.status_code == 401
+        assert result.body == b'{"error":"Authentication required"}'
+
+    @pytest.mark.parametrize("account_type", [AccountType.HUMAN, AccountType.BOT])
+    async def test_protected_json__when_authenticated__should_call_handler_for_either_account_type(self, account_type):
+        wrapped = protected_json(_dummy_handler)
+        request = _make_request(authenticated=True, account_type=account_type)
 
         result = await wrapped(request)
         assert result == "ok"
