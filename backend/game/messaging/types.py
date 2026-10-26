@@ -35,31 +35,33 @@ class SessionErrorCode(StrEnum):
 _TILE_ID_FIELD = Field(ge=0, lt=NUM_TILES, validation_alias="ti")
 
 
-class _GameActionMessage(BaseModel):
+class GameActionMessage(BaseModel, frozen=True):
     """
-    A game action: every one echoes the id of the wait it answers (`wi`), as the server last sent it.
+    A game action: every one names its action (`a`) and echoes the id of the wait it answers (`wi`), as the server last
+    sent it.
     """
 
     t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
+    a: WireGameAction
     wait_id: int = Field(ge=0, validation_alias="wi")
 
 
-class DiscardMessage(_GameActionMessage):
+class DiscardMessage(GameActionMessage):
     a: Literal[WireGameAction.DISCARD] = WireGameAction.DISCARD
     tile_id: int = _TILE_ID_FIELD
 
 
-class RiichiMessage(_GameActionMessage):
+class RiichiMessage(GameActionMessage):
     a: Literal[WireGameAction.DECLARE_RIICHI] = WireGameAction.DECLARE_RIICHI
     tile_id: int = _TILE_ID_FIELD
 
 
-class PonMessage(_GameActionMessage):
+class PonMessage(GameActionMessage):
     a: Literal[WireGameAction.CALL_PON] = WireGameAction.CALL_PON
     tile_id: int = _TILE_ID_FIELD
 
 
-class ChiMessage(_GameActionMessage):
+class ChiMessage(GameActionMessage):
     a: Literal[WireGameAction.CALL_CHI] = WireGameAction.CALL_CHI
     tile_id: int = _TILE_ID_FIELD
     sequence_tiles: tuple[
@@ -68,13 +70,13 @@ class ChiMessage(_GameActionMessage):
     ]
 
 
-class KanMessage(_GameActionMessage):
+class KanMessage(GameActionMessage):
     a: Literal[WireGameAction.CALL_KAN] = WireGameAction.CALL_KAN
     tile_id: int = _TILE_ID_FIELD
     kan_type: KanType
 
 
-class NoDataActionMessage(_GameActionMessage):
+class NoDataActionMessage(GameActionMessage):
     a: Literal[
         WireGameAction.DECLARE_TSUMO,
         WireGameAction.CALL_RON,
@@ -84,7 +86,7 @@ class NoDataActionMessage(_GameActionMessage):
     ]
 
 
-GameActionMessage = Annotated[
+_AnyGameActionMessage = Annotated[
     DiscardMessage | RiichiMessage | PonMessage | ChiMessage | KanMessage | NoDataActionMessage,
     Field(discriminator="a"),
 ]
@@ -100,16 +102,7 @@ class JoinGameMessage(BaseModel):
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
-ClientMessage = (
-    DiscardMessage
-    | RiichiMessage
-    | PonMessage
-    | ChiMessage
-    | KanMessage
-    | NoDataActionMessage
-    | ReconnectMessage
-    | JoinGameMessage
-)
+ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage
 
 
 class PlayerLeftMessage(BaseModel):
@@ -151,7 +144,7 @@ _NonGameMessage = Annotated[
 ]
 
 _non_game_adapter = TypeAdapter(_NonGameMessage)
-_game_action_adapter = TypeAdapter(GameActionMessage)
+_game_action_adapter = TypeAdapter(_AnyGameActionMessage)
 
 
 def parse_client_message(data: dict[str, Any]) -> ClientMessage:

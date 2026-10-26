@@ -101,7 +101,7 @@ class TestFailGame:
         )
         conn = MockConnection()
         manager.register_connection(conn)
-        manager.join_game(conn, game_id="game1", session_token="ticket-0")
+        manager.join_game(conn, session_token="ticket-0")
         timeout_task = game_of(manager).pending_timeout
 
         manager.fail_game(game_of(manager), reason="join failed")
@@ -157,7 +157,7 @@ class TestFailGame:
         )
         conn = MockConnection()
         manager.register_connection(conn)
-        manager.join_game(conn, game_id="game1", session_token="ticket-0")
+        manager.join_game(conn, session_token="ticket-0")
 
         timeout_task = game_of(manager).pending_timeout
         assert timeout_task is not None

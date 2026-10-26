@@ -135,9 +135,9 @@ class TestConnectionWriters:
         self, table, monkeypatch
     ):
         monkeypatch.setattr(shared_websocket, "_SEND_QUEUE_LIMIT", 2)
-        bob = MockConnection(game_id="game1")
+        bob = MockConnection()
         table.manager.register_connection(bob)
-        table.manager.join_game(bob, game_id="game1", session_token=table.tickets["Bob"])
+        table.manager.join_game(bob, session_token=table.tickets["Bob"])
         alice, alice_endpoint = table.join_over_socket("Alice", held=True)
 
         await alice_endpoint

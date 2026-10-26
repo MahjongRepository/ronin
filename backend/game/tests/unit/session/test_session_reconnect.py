@@ -80,7 +80,7 @@ class TestSessionManagerReconnect:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        manager.reconnect(new_conn, game_id="game1", session_token=alice_token)
+        manager.reconnect(new_conn, session_token=alice_token)
         reconnect_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert len(reconnect_msgs) == 1
         assert reconnect_msgs[0]["gid"] == "game1"
@@ -96,7 +96,7 @@ class TestSessionManagerReconnect:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        manager.reconnect(new_conn, game_id="game1", session_token="nonexistent-token")
+        manager.reconnect(new_conn, session_token="nonexistent-token")
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_NO_SESSION
@@ -108,9 +108,9 @@ class TestSessionManagerReconnect:
         alice_token = participant_of(manager, alice_conn).ticket
         manager.disconnect(alice_conn)
 
-        new_conn = MockConnection()
+        new_conn = MockConnection(game_id="wrong_game_id")
         manager.register_connection(new_conn)
-        manager.reconnect(new_conn, game_id="wrong_game_id", session_token=alice_token)
+        manager.reconnect(new_conn, session_token=alice_token)
         error_msgs = [m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         assert len(error_msgs) == 1
         assert error_msgs[0]["code"] == SessionErrorCode.RECONNECT_GAME_MISMATCH
@@ -135,7 +135,7 @@ class TestBankTimePreservation:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        manager.reconnect(new_conn, game_id="game1", session_token=alice.ticket)
+        manager.reconnect(new_conn, session_token=alice.ticket)
         assert alice.connection is new_conn
         assert alice.timer._bank_seconds == bank_after_leave
         reconnected = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
@@ -168,7 +168,7 @@ class TestReconnectTakeover:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        manager.reconnect(new_conn, game_id="game1", session_token=alice.ticket)
+        manager.reconnect(new_conn, session_token=alice.ticket)
         reconnected, draw = new_conn.sent_messages
         drawn_tile = runtime.state.round_state.players[alice.seat].tiles[-1]
         assert (reconnected["type"], reconnected["wi"]) == (SessionMessageType.GAME_RECONNECTED, awaiting.wait_id)
@@ -219,7 +219,7 @@ class TestReconnectTakeover:
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
-        manager.reconnect(new_conn, game_id="game1", session_token=carol.ticket)
+        manager.reconnect(new_conn, session_token=carol.ticket)
         reconnected, call_prompt = new_conn.sent_messages
         assert reconnected["wi"] == prompt.wait_id
         assert (call_prompt["t"], call_prompt["ti"], call_prompt["cs"], call_prompt["wi"], call_prompt["el"]) == (
@@ -260,7 +260,7 @@ class TestReconnectTakeover:
         for participant in (alice, bob):
             new_conn = MockConnection()
             manager.register_connection(new_conn)
-            manager.reconnect(new_conn, game_id="game1", session_token=participant.ticket)
+            manager.reconnect(new_conn, session_token=participant.ticket)
             [reconnected] = new_conn.sent_messages
             assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
             owed[participant.name] = reconnected["oc"]
@@ -280,7 +280,7 @@ class TestReconnectTakeover:
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, alice_conn)
 
-        manager.reconnect(bob_conn, game_id="game1", session_token=alice.ticket)
+        manager.reconnect(bob_conn, session_token=alice.ticket)
         assert [m["code"] for m in bob_conn.sent_messages] == [SessionErrorCode.RECONNECT_ALREADY_ACTIVE]
         assert alice.connection is alice_conn
         assert not alice_conn.is_closed
@@ -297,7 +297,7 @@ class TestReconnectEdgeCases:
         manager.disconnect(alice_conn)
 
         bob_conn = conns[1]
-        manager.reconnect(bob_conn, game_id="game1", session_token=alice_token)
+        manager.reconnect(bob_conn, session_token=alice_token)
         error_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.ERROR]
         reconnect_errors = [m for m in error_msgs if m["code"] == SessionErrorCode.RECONNECT_ALREADY_ACTIVE]
         assert len(reconnect_errors) == 1
@@ -313,7 +313,7 @@ class TestReconnectEdgeCases:
             raise RuntimeError("snapshot failed")
 
         manager._game_service.build_reconnection_snapshot = raise_error
-        new_conn = MockConnection(game_id="game1")
+        new_conn = MockConnection()
         router.handle_connect(new_conn)
 
         router.handle_message(new_conn, {"t": WireClientMessageType.RECONNECT, "game_ticket": alice_token})
@@ -338,7 +338,7 @@ class TestReconnectToEndedGame:
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        manager.reconnect(reconnecting, game_id="game1", session_token=bob_token)
+        manager.reconnect(reconnecting, session_token=bob_token)
         assert [m["code"] for m in reconnecting.sent_messages] == [SessionErrorCode.RECONNECT_NO_SESSION]
 
 
@@ -356,7 +356,7 @@ class TestReconnectDuringRoundAdvance:
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        manager.reconnect(reconnecting, game_id="game1", session_token=bob_token)
+        manager.reconnect(reconnecting, session_token=bob_token)
         reconnected = next(
             m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED
         )
@@ -378,14 +378,14 @@ class TestReconnectToPendingGame:
         for spec in specs[:2]:
             conn = MockConnection()
             manager.register_connection(conn)
-            manager.join_game(conn, game_id="game1", session_token=spec.game_ticket)
+            manager.join_game(conn, session_token=spec.game_ticket)
             joined.append(conn)
 
         manager.disconnect(joined[0])
 
         before_start = MockConnection()
         manager.register_connection(before_start)
-        manager.reconnect(before_start, game_id="game1", session_token="ticket-A")
+        manager.reconnect(before_start, session_token="ticket-A")
         assert [m["code"] for m in before_start.sent_messages] == [SessionErrorCode.RECONNECT_RETRY_LATER]
         assert manager.get_playing_game_id("user-A") == "game1"
 
