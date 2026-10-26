@@ -9,7 +9,6 @@ from game.logic.abortive import (
     check_four_kans,
     check_four_riichi,
     check_four_winds,
-    check_triple_ron,
     process_abortive_draw,
 )
 from game.logic.action_result import create_draw_event
@@ -327,7 +326,7 @@ def process_discard_phase(
     1. If is_riichi: validate riichi conditions
     2. Validate and execute discard
     3. Check for four winds abortive draw
-    4. Check for ron callers; check triple ron abortive draw
+    4. Check for ron callers (triple ron is judged from their declarations when the prompt resolves)
     5. Check for meld callers (ron-dominant policy)
     6. If any callers: create unified DISCARD prompt
     7. No callers: reveal deferred dora, finalize riichi, advance turn
@@ -367,9 +366,6 @@ def process_discard_phase(
         new_round_state, tile_id=tile_id, discarder_seat=current_seat, ron_callers=ron_callers
     )
     new_game_state = update_game_with_round(game_state, new_round_state)
-
-    if settings.has_triple_ron_abort and check_triple_ron(ron_callers, settings.triple_ron_count):
-        return _abort_round(new_game_state, draw_type=AbortiveDrawType.TRIPLE_RON, events=events)
 
     # find meld callers (ron-dominant: seats with ron don't get meld options)
     ron_caller_set = set(ron_callers)

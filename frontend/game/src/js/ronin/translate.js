@@ -551,9 +551,10 @@ class Translate {
         this.syncWall();
 
         const winners = results.filter(m => m.hule).map(m => m.hule.l);
-        if (! winners.length) return this.showResults(results);
+        const callers = msg.rt == wire.RT.ABORTIVE ? (msg.rcl || []).map(seat => s.l(seat)) : winners;
+        if (! callers.length) return this.showResults(results);
         const call = msg.rt == wire.RT.TSUMO ? 'zimo' : 'rong';
-        if (P._view) for (const l of winners) P._view.say(call, l);
+        if (P._view) for (const l of callers) P._view.say(call, l);
         this.winCallTimer = setTimeout(() => this.showResults(results), WIN_CALL_MS);
     }
 

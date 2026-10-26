@@ -4,15 +4,18 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
-from game.logic.action_handlers import handle_ron, handle_tsumo
+from game.logic.action_handlers import handle_pass, handle_ron, handle_tsumo
+from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
 from game.logic.enums import CallType, GameAction, MeldCallType, PlayerAction, PromptKind, RoundPhase, RoundResultType
 from game.logic.events import CallPromptEvent, DrawEvent, RoundEndEvent
 from game.logic.exceptions import InvalidRiichiError, ScoringError
+from game.logic.invariants import verify_tile_ownership
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult, ScoringContext, calculate_hand_value_with_tiles
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, CallResponse, Discard, PendingCallPrompt
+from game.logic.state import Caller, CallResponse, Discard, MahjongGameState, PendingCallPrompt
+from game.logic.tiles import NUM_TILES
 from game.logic.turn import (
     _maybe_emit_dora_event,
     _validate_riichi_discard,
@@ -23,7 +26,42 @@ from game.logic.turn import (
     process_tsumo_call,
 )
 from game.logic.types import MeldCallInput, RonCallInput
+from game.logic.wall import DEAD_WALL_SIZE
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import (
+    PIN_3_TRIPLE_RON_CALLER_HANDS,
+    PIN_3_TRIPLE_RON_DEALER_HAND,
+    PIN_3_TRIPLE_RON_DISCARD,
+)
+
+
+def _create_pin_3_discard_with_three_ron_callers() -> MahjongGameState:
+    players = (
+        create_player(seat=0, tiles=(*PIN_3_TRIPLE_RON_DEALER_HAND, PIN_3_TRIPLE_RON_DISCARD)),
+        *(create_player(seat=seat, tiles=hand) for seat, hand in enumerate(PIN_3_TRIPLE_RON_CALLER_HANDS, start=1)),
+    )
+    dealt = {tile for player in players for tile in player.tiles}
+    undealt = [tile for tile in range(NUM_TILES) if tile not in dealt]
+    round_state = create_round_state(
+        players=players,
+        wall=undealt[:-DEAD_WALL_SIZE],
+        dead_wall=undealt[-DEAD_WALL_SIZE:],
+        phase=RoundPhase.PLAYING,
+        current_player_seat=0,
+    )
+    game_state = create_game_state(round_state, riichi_sticks=1)
+    verify_tile_ownership(game_state)
+    return game_state
+
+
+def _respond_to_call_prompt(game_state: MahjongGameState, responses: dict[int, GameAction]) -> ActionResult:
+    result = ActionResult([], state=game_state)
+    for seat, action in responses.items():
+        handler = handle_ron if action == GameAction.CALL_RON else handle_pass
+        result = handler(result.state, seat=seat)
+        assert isinstance(result, ActionResult)
+
+    return result
 
 
 class TestKyuushuKyuuhaiDrawPhase:
@@ -462,33 +500,40 @@ class TestAbortiveDrawIntegration:
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_WINDS
 
-    def test_abortive_draw__when_three_players_ron__should_abort_triple_ron(self):
-        tenpai_hand = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
-        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        players = (
-            create_player(seat=0, tiles=(discard_tile,)),
-            create_player(seat=1, tiles=tenpai_hand),
-            create_player(seat=2, tiles=tenpai_hand),
-            create_player(seat=3, tiles=tenpai_hand),
-        )
+    def test_triple_ron__when_three_ron_callers_declare__should_abort_without_score_changes(self):
+        game_state = _create_pin_3_discard_with_three_ron_callers()
 
-        wall = tuple(TilesConverter.string_to_136_array(man="5555"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = create_round_state(
-            players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-        game_state = create_game_state(round_state)
+        prompted_game, events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
+        prompt = prompted_game.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == tuple(Caller(seat=seat, can_ron=True) for seat in (1, 2, 3))
+        assert not [e for e in events if isinstance(e, RoundEndEvent)]
 
-        _new_game, events = process_discard_phase(game_state, discard_tile)
-        round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
+        result = _respond_to_call_prompt(
+            prompted_game,
+            {1: GameAction.CALL_RON, 2: GameAction.CALL_RON, 3: GameAction.CALL_RON},
+        )
+        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.TRIPLE_RON
+        assert round_end_events[0].result.score_changes == {0: 0, 1: 0, 2: 0, 3: 0}
+        assert result.state.round_state.phase == RoundPhase.FINISHED
+        assert result.state.riichi_sticks == 1
+
+    def test_triple_ron__when_one_of_three_ron_callers_passes__should_resolve_double_ron(self):
+        game_state = _create_pin_3_discard_with_three_ron_callers()
+
+        prompted_game, _events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
+        result = _respond_to_call_prompt(
+            prompted_game,
+            {1: GameAction.CALL_RON, 2: GameAction.PASS, 3: GameAction.CALL_RON},
+        )
+        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
+        assert len(round_end_events) == 1
+        double_ron = round_end_events[0].result
+        assert double_ron.type == RoundResultType.DOUBLE_RON
+        assert [winner.winner_seat for winner in double_ron.winners] == [1, 3]
+        assert double_ron.loser_seat == 0
 
     def test_abortive_draw__when_four_players_riichi__should_abort_four_riichi(self):
         hand_tiles_0 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))

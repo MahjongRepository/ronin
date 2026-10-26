@@ -4,7 +4,6 @@ from game.logic.abortive import (
     AbortiveDrawType,
     can_call_kyuushu_kyuuhai,
     check_four_winds,
-    check_triple_ron,
     process_abortive_draw,
 )
 from game.logic.enums import RoundResultType
@@ -63,11 +62,6 @@ class TestFourWindsThresholds:
 
         assert check_four_winds(rs, settings_default) is False
         assert check_four_winds(rs, settings_custom) is True
-
-
-class TestTripleRonThresholds:
-    def test_check_triple_ron__when_custom_count_of_two__should_detect_abort(self):
-        assert check_triple_ron([0, 2], 2) is True
 
 
 class TestProcessAbortiveDraw:

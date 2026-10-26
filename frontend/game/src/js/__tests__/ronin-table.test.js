@@ -797,6 +797,36 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.player.lastShown).toBe("hule");
     });
 
+    it("calls out ron for every seat that declared a triple ron before its abortive draw result", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+        const say = vi.fn();
+        table.player.view = { kaiju() {}, redraw() {}, update() {}, say };
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+
+        table.receive({
+            t: 4,
+            rt: 4,
+            rn: "triple_ron",
+            rcl: [1, 2, 3],
+            sch: { 0: 0, 1: 0, 2: 0, 3: 0 },
+            wi: 2,
+        });
+        expect(say.mock.calls).toEqual([
+            ["rong", 1],
+            ["rong", 2],
+            ["rong", 3],
+        ]);
+        expect(table.player.lastShown).not.toBe("pingju");
+        vi.advanceTimersByTime(WIN_CALL_MS);
+        expect(shownOf(table, "pingju")[0].data).toMatchObject({
+            name: "三家和了",
+            fenpei: [0, 0, 0, 0],
+        });
+    });
+
     it("seeds the final standings with the rounds before a reconnect, every double ron winner marked, so each column adds up to its final score", () => {
         const table = startTable(BASE_HAND, {}, { gt: 1 });
         table.translate.reconnect({

@@ -51,11 +51,13 @@ class ReplayOptions:
 @dataclass(frozen=True)
 class _ReplayRunContext:
     """
-    Bundle the service, the options and the replayed game's runtime for internal replay functions.
+    Bundle the service, the options, the replayed input events and the replayed game's runtime for internal replay
+    functions.
     """
 
     service: GameService
     opts: ReplayOptions
+    events: tuple[ReplayInputEvent, ...]
     runtime: GameRuntime
 
 
@@ -120,7 +122,7 @@ def _execute_replay(
         wall=list(replay.wall) if replay.wall is not None else None,
     )
     runtime = start.runtime
-    ctx = _ReplayRunContext(service=service, opts=opts, runtime=runtime)
+    ctx = _ReplayRunContext(service=service, opts=opts, events=replay.events, runtime=runtime)
 
     initial_state = runtime.state
     seat_by_player = dict(zip(replay.player_names, start.seats, strict=True))
@@ -131,7 +133,7 @@ def _execute_replay(
 
     steps: list[ReplayStep] = []
     step_count = 0
-    for input_event in replay.events:
+    for index, input_event in enumerate(replay.events):
         _check_step_limit(step_count, opts.max_steps)
         if runtime.state.game_phase == GamePhase.FINISHED:
             if opts.strict:
@@ -145,7 +147,11 @@ def _execute_replay(
 
         if opts.auto_pass_calls:
             step_count = _handle_auto_pass_for_input(
-                ctx, input_event=input_event, seating=seating, steps=steps, step_count=step_count
+                ctx,
+                index=index,
+                seating=seating,
+                steps=steps,
+                step_count=step_count,
             )
 
         # Auto-pass resolution may end the round (e.g. exhaustive draw after
@@ -324,27 +330,50 @@ def _inject_round_confirmations(
 
 def _handle_auto_pass_for_input(
     ctx: _ReplayRunContext,
-    input_event: ReplayInputEvent,
+    *,
+    index: int,
     seating: _ReplaySeating,
     steps: list[ReplayStep],
     step_count: int,
 ) -> int:
     """
-    Handle auto-pass logic before processing an input event.
+    Handle auto-pass logic before processing the input event at index.
 
     If a call prompt is pending:
     - If the input is a call response from a pending seat, skip that seat
       (it will be processed normally) and auto-pass the remaining seats.
+      A ron also spares the seats of the rons that directly follow it in the
+      input: a double or triple ron is recorded as consecutive CALL_RON inputs
+      answering the same prompt.
     - Otherwise, auto-pass all pending seats first.
     """
     prompt = ctx.runtime.state.round_state.pending_call_prompt
     if prompt is None:
         return step_count
 
+    events = ctx.events
+    input_event = events[index]
     input_seat = seating.seat_by_player[input_event.player_name]
     is_call_response = input_event.action in _CALL_RESPONSE_ACTIONS and input_seat in prompt.pending_seats
-    exclude_seats = frozenset({input_seat}) if is_call_response else frozenset()
-    return _inject_pass_calls(ctx, seating=seating, steps=steps, step_count=step_count, exclude_seats=exclude_seats)
+    if not is_call_response:
+        return _inject_pass_calls(ctx, seating=seating, steps=steps, step_count=step_count)
+
+    responding_seats = {input_seat}
+    if input_event.action == GameAction.CALL_RON:
+        for later_index in range(index + 1, len(events)):
+            later_event = events[later_index]
+            if later_event.action != GameAction.CALL_RON:
+                break
+
+            responding_seats.add(seating.seat_by_player[later_event.player_name])
+
+    return _inject_pass_calls(
+        ctx,
+        seating=seating,
+        steps=steps,
+        step_count=step_count,
+        exclude_seats=frozenset(responding_seats),
+    )
 
 
 def _inject_pass_calls(
@@ -358,8 +387,9 @@ def _inject_pass_calls(
     """
     Inject synthetic PASS steps for pending call prompt seats.
 
-    exclude_seats: seats to skip (e.g., the seat of the next input event
-    that is itself a call response).
+    exclude_seats: seats to skip because input events answer for them: the
+    seat of the next input event when it is a call response, plus the seats
+    of the rons that directly follow a ron.
     """
     prompt = ctx.runtime.state.round_state.pending_call_prompt
     if prompt is None:

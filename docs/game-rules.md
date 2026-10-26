@@ -170,7 +170,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 - Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chi, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
 - Four Winds: All four players discard the same wind on first turn
 - Four Riichi: After fourth riichi succeeds (if no one wins on the discard)
-- Triple Ron: Three opponents declare Ron on the same discard (no score changes)
+- Triple Ron: Three opponents declare Ron on the same discard or on the same added-kan tile (chankan); no score changes. Being able to ron is not enough: each eligible player is offered the call, and if one of them passes, the other two win by double ron (or head bump when double ron is disabled).
 
 ### Yakuman Options
 

@@ -242,6 +242,9 @@ class ExhaustiveDrawResult(BaseModel):
 class AbortiveDrawResult(BaseModel):
     """
     Result of an abortive draw.
+
+    seat is the seat that declared kyuushu kyuuhai; ron_seats are the seats that declared a triple ron, in caller order
+    (counter-clockwise from the discarder). Both stay None for every other draw.
     """
 
     type: RoundResultType = RoundResultType.ABORTIVE_DRAW
@@ -249,6 +252,7 @@ class AbortiveDrawResult(BaseModel):
     scores: WireScoreMap = Field(serialization_alias="scs")
     score_changes: WireScoreMap = Field(serialization_alias="sch")
     seat: int | None = Field(default=None, serialization_alias="s")
+    ron_seats: list[int] | None = Field(default=None, serialization_alias="rcl")
 
 
 class NagashiManganResult(BaseModel):

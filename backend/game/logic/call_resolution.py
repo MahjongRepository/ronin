@@ -25,7 +25,7 @@ from game.logic.events import (
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import call_added_kan, call_closed_kan
 from game.logic.riichi import declare_riichi
-from game.logic.settings import NUM_PLAYERS
+from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT
 from game.logic.state_utils import (
     advance_turn,
     clear_pending_prompt,
@@ -92,8 +92,12 @@ def _resolve_ron_responses(
 
     # triple ron - abortive draw (all three opponents declared ron)
     settings = game_state.settings
-    if settings.has_triple_ron_abort and len(ron_responses) == settings.triple_ron_count:
-        result = process_abortive_draw(game_state.round_state, AbortiveDrawType.TRIPLE_RON)
+    if settings.has_triple_ron_abort and len(ron_responses) == TRIPLE_RON_COUNT:
+        result = process_abortive_draw(
+            game_state.round_state,
+            AbortiveDrawType.TRIPLE_RON,
+            ron_seats=[r.seat for r in ron_responses],
+        )
         new_game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
         new_game_state, round_end = finish_round(new_game_state, result)
         return ActionResult([round_end], state=new_game_state)
@@ -317,7 +321,7 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
 
     # priority 1: ron
     if ron_responses:
-        logger.debug("call resolved: ron", winner_seats=[r.seat for r in ron_responses])
+        logger.debug("call resolved: ron declared", ron_seats=[r.seat for r in ron_responses])
         return _resolve_ron_responses(game_state, prompt=prompt, ron_responses=ron_responses)
 
     if prompt.kind == PromptKind.CHANKAN:
