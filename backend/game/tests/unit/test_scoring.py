@@ -467,7 +467,6 @@ def _stage_pao_win(
     discarded_tile: int | None = None,
     honba_sticks: int = 0,
     riichi_sticks: int = 0,
-    settings: GameSettings | None = None,
 ) -> MahjongGameState:
     winners_by_seat = {winner.seat: winner for winner in winners}
     filler_copies = iter((1, 2, 3))
@@ -490,7 +489,7 @@ def _stage_pao_win(
         current_player_seat=current_seat,
         phase=RoundPhase.PLAYING,
     )
-    return create_game_state(round_state, honba_sticks=honba_sticks, riichi_sticks=riichi_sticks, settings=settings)
+    return create_game_state(round_state, honba_sticks=honba_sticks, riichi_sticks=riichi_sticks)
 
 
 def _round_result(events: list[GameEvent]) -> RoundResult:
@@ -634,30 +633,6 @@ class TestPaoRonScoring:
         assert result.pao_seat == 3
         assert result.hand_result.points == 96000
         assert result.score_changes == {0: 0, 1: 96300, 2: -64000, 3: -32300}
-
-    def test_pao__when_lowered_threshold_hand_wins_without_the_pao_yakuman__should_settle_as_ordinary_ron(self):
-        settings = GameSettings(daisangen_pao_set_threshold=2)
-        closed_tiles = [*tile_copies(0, pin="234678"), *TilesConverter.string_to_136_array(honors="7")]
-        melds = _honor_pons(1, from_seat=3, honors="56")
-        winner = create_player(seat=1, tiles=closed_tiles, melds=melds, pao_seat=3)
-        chun_win_tile = tile_copies(1, honors="7")[0]
-        game_state = _stage_pao_win(
-            dealer_seat=0,
-            winners=[winner],
-            current_seat=2,
-            discarded_tile=chun_win_tile,
-            settings=settings,
-        )
-
-        _new_state, events = process_ron_call(
-            game_state,
-            ron_input=RonCallInput(ron_callers=[1], tile_id=chun_win_tile, discarder_seat=2),
-        )
-        result = _round_result(events)
-        assert isinstance(result, RonResult)
-        assert result.pao_seat is None
-        assert result.hand_result.points == 12000
-        assert result.score_changes == {0: 0, 1: 12000, 2: -12000, 3: 0}
 
     def test_pao__when_double_ron_with_honba__should_charge_the_pao_winners_honba_to_the_pao_player(self):
         pao_winner = _daisangen_tanki_player(0, pao_seat=2)

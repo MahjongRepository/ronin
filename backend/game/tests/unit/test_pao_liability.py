@@ -14,47 +14,8 @@ from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 
 
-class TestPaoCustomThresholds:
-    def test_pao__when_daisangen_threshold_is_2_and_second_dragon_called__should_assign_pao(self):
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        melds = (FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),)
-        player = create_player(seat=0, melds=melds)
-
-        hatsu_tile = TilesConverter.string_to_136_array(honors="6")[0]
-        hatsu_34 = tile_to_34(hatsu_tile)
-
-        settings = GameSettings(daisangen_pao_set_threshold=2)
-        result = _check_pao(player, discarder_seat=2, called_tile_34=hatsu_34, settings=settings)
-        assert result == 2
-
-    def test_pao__when_second_dragon_called_with_default_threshold__should_not_assign_pao(self):
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        melds = (FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),)
-        player = create_player(seat=0, melds=melds)
-
-        hatsu_tile = TilesConverter.string_to_136_array(honors="6")[0]
-        hatsu_34 = tile_to_34(hatsu_tile)
-
-        result = _check_pao(player, discarder_seat=2, called_tile_34=hatsu_34, settings=GameSettings())
-        assert result is None
-
-    def test_pao__when_daisuushii_threshold_is_3_and_third_wind_called__should_assign_pao(self):
-        east_tiles = TilesConverter.string_to_136_array(honors="111")
-        south_tiles = TilesConverter.string_to_136_array(honors="222")
-        melds = (
-            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(east_tiles), opened=True, who=0),
-            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(south_tiles), opened=True, who=0),
-        )
-        player = create_player(seat=0, melds=melds)
-
-        west_tile = TilesConverter.string_to_136_array(honors="3")[0]
-        west_34 = tile_to_34(west_tile)
-
-        settings = GameSettings(daisuushii_pao_set_threshold=3)
-        result = _check_pao(player, discarder_seat=1, called_tile_34=west_34, settings=settings)
-        assert result == 1
-
-    def test_pao__when_third_wind_called_with_default_threshold__should_not_assign_pao(self):
+class TestPaoBeforeLastWindSet:
+    def test_pao__when_third_wind_called__should_not_assign_pao(self):
         east_tiles = TilesConverter.string_to_136_array(honors="111")
         south_tiles = TilesConverter.string_to_136_array(honors="222")
         melds = (
@@ -89,7 +50,7 @@ class TestNoSuukantsuPao:
         assert result is None
 
 
-class TestKanCountsInPaoThreshold:
+class TestKanCountsTowardPaoSet:
     @pytest.mark.parametrize("is_open_kan", [False, True])
     def test_pao__when_dragon_kan_and_third_dragon_called__should_count_kan_and_assign_pao(self, is_open_kan):
         haku_tiles = TilesConverter.string_to_136_array(honors="5555")
@@ -196,6 +157,34 @@ class TestPaoOnCalls:
         assert kan.state.round_state.players[0].melds[-1].type == FrozenMeld.KAN
         assert kan.state.round_state.players[0].pao_seat == 1
 
+    def test_pao__when_closed_kan_completes_third_dragon__should_not_set_pao(self):
+        chun = tile_copies(0, honors="7777")
+        melds = _dragon_pons("56")
+        players = (
+            create_player(
+                seat=0,
+                tiles=(*tile_copies(0, man="1234"), *chun),
+                melds=melds,
+                discards=tuple(Discard(tile_id=t) for t in tile_copies(0, sou="12")),
+            ),
+            create_player(seat=1, tiles=tile_copies(1, sou="123456789", pin="1234")),
+            *(
+                create_player(
+                    seat=seat,
+                    tiles=tile_copies(seat, sou="123456789", pin="1234"),
+                    discards=tuple(Discard(tile_id=m.called_tile) for m in melds if m.from_who == seat),
+                )
+                for seat in (2, 3)
+            ),
+        )
+        game_state = create_dealt_game_state(players, current_player_seat=0)
+
+        kan = handle_kan(game_state, seat=0, data=KanActionData(tile_id=chun[3], kan_type=KanType.CLOSED))
+        assert isinstance(kan, ActionResult)
+        assert kan.state.round_state.players[0].melds[-1].type == FrozenMeld.KAN
+        assert not kan.state.round_state.players[0].melds[-1].opened
+        assert kan.state.round_state.players[0].pao_seat is None
+
     def test_pao__when_two_dragon_pons_and_a_suited_pon__should_not_set_pao(self):
         nine_man = tile_copies(0, man="999")
         offered = _discard_to_dragon_caller(
@@ -210,7 +199,7 @@ class TestPaoOnCalls:
         ("dragon_pons", "filler"),
         [("", tile_copies(0, man="123456789", pin="12")), ("5", tile_copies(0, man="12345678"))],
     )
-    def test_pao__when_pon_is_below_threshold__should_not_set_pao(self, dragon_pons, filler):
+    def test_pao__when_pon_is_not_the_third_dragon__should_not_set_pao(self, dragon_pons, filler):
         hatsu = tile_copies(0, honors="666")
         offered = _discard_to_dragon_caller(
             dragon_pons=dragon_pons, closed_tiles=(*hatsu[:2], *filler), discarded=hatsu[2]

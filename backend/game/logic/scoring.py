@@ -283,18 +283,6 @@ def _pao_yakuman_han(hand_result: HandResult) -> int:
     return sum(y.han for y in hand_result.yaku if y.yaku_id in _PAO_YAKU_IDS)
 
 
-def _liable_seat(winner: MahjongPlayer, hand_result: HandResult) -> int | None:
-    """
-    Return the seat liable (pao) for the winner's hand, or None when no liability applies.
-
-    A liability covers only a pao yakuman the hand actually scores, which a lowered set threshold does not guarantee.
-    """
-    if winner.pao_seat is None or _pao_yakuman_han(hand_result) == 0:
-        return None
-
-    return winner.pao_seat
-
-
 def _pao_share(payment: int, hand_result: HandResult) -> int:
     """
     Return the part of a yakuman payment owed for its pao yakuman.
@@ -357,7 +345,7 @@ def apply_tsumo_score(
     settings = game_state.settings
     scores = _current_scores(game_state)
     winner = round_state.players[winner_seat]
-    liable_seat = _liable_seat(winner, hand_result)
+    liable_seat = winner.pao_seat
 
     is_dealer_win = winner_seat == round_state.dealer_seat
     honba_bonus_per_loser = game_state.honba_sticks * settings.honba_tsumo_bonus_per_loser
@@ -456,7 +444,7 @@ def apply_ron_score(
     honba_bonus = game_state.honba_sticks * settings.honba_ron_bonus
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
-    liable_seat = _liable_seat(winner, hand_result)
+    liable_seat = winner.pao_seat
     score_changes = _ron_payer_changes(
         liable_seat=liable_seat,
         loser_seat=loser_seat,
@@ -519,7 +507,7 @@ def apply_double_ron_score(
     winner_results = []
     for winner_seat, hand_result in winners:
         winner = round_state.players[winner_seat]
-        liable_seat = _liable_seat(winner, hand_result)
+        liable_seat = winner.pao_seat
         winner_changes = _ron_payer_changes(
             liable_seat=liable_seat,
             loser_seat=loser_seat,

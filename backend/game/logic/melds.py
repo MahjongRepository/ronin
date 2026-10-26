@@ -433,19 +433,19 @@ def _check_pao(
     settings: GameSettings,
 ) -> int | None:
     """
-    Check for pao liability after a meld call (pon, open kan, or added kan).
+    Check for pao liability after a pon or open kan.
 
-    Pao triggers when:
-    - daisangen_pao_set_threshold dragon sets are completed (Big Three Dragons / daisangen)
-    - daisuushii_pao_set_threshold wind sets are completed (Big Four Winds / daisuushii)
+    Pao triggers on the call that completes the last set of daisangen (the third dragon) or daisuushii (the fourth
+    wind). A player holds at most four melds, so this happens at most once per round and the hand can then only win by
+    that yakuman.
 
     Returns the pao_seat if triggered, None otherwise.
     """
-    pao_rules: list[tuple[frozenset[int], int, bool]] = [
-        (_DRAGON_TILES, settings.daisangen_pao_set_threshold, settings.has_daisangen_pao),
-        (_WIND_TILES, settings.daisuushii_pao_set_threshold, settings.has_daisuushii_pao),
+    pao_rules: list[tuple[frozenset[int], bool]] = [
+        (_DRAGON_TILES, settings.has_daisangen_pao),
+        (_WIND_TILES, settings.has_daisuushii_pao),
     ]
-    for tile_set, threshold, enabled in pao_rules:
+    for tile_set, enabled in pao_rules:
         if called_tile_34 not in tile_set:
             continue
 
@@ -453,7 +453,7 @@ def _check_pao(
             continue
 
         count = sum(1 for m in player.melds if tile_to_34(m.tiles[0]) in tile_set)
-        if count + 1 >= threshold:
+        if count == len(tile_set) - 1:
             return discarder_seat
 
     return None

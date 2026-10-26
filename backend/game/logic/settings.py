@@ -87,9 +87,7 @@ class GameSettings(BaseModel):
     has_daisharin: bool = False
     has_daisharin_other_suits: bool = False
     has_daichisei: bool = False
-    has_sashikomi_yakuman: bool = False
     limit_to_sextuple_yakuman: bool = True
-    paarenchan_needs_yaku: bool = True
 
     # --- Dora Rules ---
     has_omote_dora: bool = True
@@ -138,8 +136,6 @@ class GameSettings(BaseModel):
     # --- Pao Rules ---
     has_daisangen_pao: bool = True
     has_daisuushii_pao: bool = True
-    daisangen_pao_set_threshold: int = 3
-    daisuushii_pao_set_threshold: int = 4
 
 
 NUM_PLAYERS = 4
@@ -201,7 +197,5 @@ def build_optional_rules(settings: GameSettings) -> OptionalRules:
         has_daisharin=settings.has_daisharin,
         has_daisharin_other_suits=settings.has_daisharin_other_suits,
         has_daichisei=settings.has_daichisei,
-        has_sashikomi_yakuman=settings.has_sashikomi_yakuman,
         limit_to_sextuple_yakuman=settings.limit_to_sextuple_yakuman,
-        paarenchan_needs_yaku=settings.paarenchan_needs_yaku,
     )
