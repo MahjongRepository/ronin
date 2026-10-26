@@ -930,6 +930,71 @@ describe("the ronin table (Translate and Reply)", () => {
         ).toEqual([false, true, false, true]);
     });
 
+    it("shows フリテン above the seat's own nameplate while the server reports furiten, until it reports it over or the next deal", () => {
+        const { table } = startTableOnPage();
+        const shown = () => !$("#board .board > .furiten").hasClass("hide");
+        expect(shown()).toBe(false);
+
+        table.receive({ t: 11, f: true });
+        expect(shown()).toBe(true);
+
+        table.receive({ t: 11, f: false });
+        expect(shown()).toBe(false);
+
+        table.receive({ t: 11, f: true });
+        table.receive({
+            t: 9,
+            s: 0,
+            w: 0,
+            n: 1,
+            dl: 1,
+            cp: 1,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
+            dc: [1, 1],
+        });
+        expect(shown()).toBe(false);
+    });
+
+    it("shows the reconnect snapshot's furiten above the seat's own nameplate", () => {
+        const { table } = startTableOnPage();
+        table.translate.reconnect({
+            gid: "g",
+            p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 0 })),
+            dl: 0,
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            s: 0,
+            w: 0,
+            n: 0,
+            cp: 1,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            dc: [1, 1],
+            tr: 69,
+            pst: [0, 1, 2, 3].map((s) => ({
+                s,
+                sc: 250,
+                dsc: s === 0 ? [{ ti: 120 }] : [],
+                ml: [],
+                ri: false,
+            })),
+            f: true,
+            rh: [],
+            wi: 7,
+            tm: TIMER_SETTINGS,
+        });
+
+        expect($("#board .board > .furiten").hasClass("hide")).toBe(false);
+    });
+
     it("resumes its turn after a reconnect without taking the re-sent draw twice", () => {
         const table = startTable();
         const hand = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112, 120];

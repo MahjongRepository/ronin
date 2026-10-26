@@ -163,6 +163,12 @@ const RON_ON_NORTH = Object.freeze({
     rivers: [...FIRST_RIVERS, "z4 z1 s9 m1 p8 s2"],
 });
 
+const PASSED_WEST_WIN = Object.freeze({
+    ...MID_ROUND,
+    shoupai: [RON_WAIT_HAND, "", "", DRAWN_HIDDEN_HAND],
+    rivers: [FIRST_RIVERS[0], FIRST_RIVERS[1], "z3 p9 z6 m9 s8 s5", "z4 z1 s9 m1 p8"],
+});
+
 const RONIN_TSUMO = Object.freeze({
     ...RON_ON_NORTH,
     shoupai: [`${RON_WAIT_HAND}s8`, "", "", ""],
@@ -311,6 +317,7 @@ export const TABLE_VARIANTS = Object.freeze([
         table: MID_ROUND,
         connected: [true, true, true, false],
     },
+    { key: "furiten", title: "Furiten after a passed win", table: PASSED_WEST_WIN, furiten: true },
     {
         key: "kaiju",
         title: "Game start",
@@ -374,7 +381,7 @@ export function createTableModel({ round, shoupai, rivers, dora, paishu, lunban 
     return model;
 }
 
-function drawTable(header, pai, { table, say = [], connected }) {
+function drawTable(header, pai, { table, say = [], connected, furiten = false }) {
     const board = showBoardPage(header, pai, createTableModel(table), { viewpoint: VIEWPOINT });
     board.sound_on = false;
     for (const [name, l] of say) {
@@ -383,6 +390,7 @@ function drawTable(header, pai, { table, say = [], connected }) {
     if (connected) {
         board.players(connected);
     }
+    board.furiten(furiten);
 }
 
 function showGameStart(header, pai, { gameStarted }) {

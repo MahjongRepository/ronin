@@ -38,7 +38,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Furiten prohibits ron, including chankan, on every winning tile. It does not prohibit an otherwise legal tsumo.
 - Furiten scope: Based on the player's full discard history — all tiles the player has discarded this hand, regardless of whether another player subsequently claimed them. Tiles in own kans do NOT create furiten.
 - Discard furiten: Permanent while wait includes a previously discarded tile
-- Temporary furiten: Triggered when a player passes on a winning tile (declines Ron on another player's discard, by passing or by calling a meld on it instead). Resets on player's next discard.
+- Temporary furiten: Triggered when another player's discard, or an added-kan tile open to chankan, completes the player's hand and the player does not win on it: by passing, by calling a meld on it instead, or because Ron was not possible (no yaku, or already furiten). A riichi player gets riichi furiten instead. Resets on player's next discard.
 - Riichi furiten: Permanent for the rest of the hand (never clears)
 - Furiten riichi declaration: Allowed (player may declare riichi while in furiten; can only win by tsumo)
 

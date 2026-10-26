@@ -68,6 +68,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   drawn one. The turn after the seat's own pon or chi opens with the server's `turn` event, not with
   the meld, and its kuikae types are the tiles it blocks. A call prompt, a chankan prompt included (it precedes
   its kan's meld event), reopens the decision on the discard the model already played.
+  Furiten is the server's too: the board shows フリテン above the seat's nameplate from the `furiten` event and
+  the reconnect snapshot, and a new deal hides it.
 * **Wait ids:** every action echoes the wait id of the last server message that carried one (a
   draw, the `turn` event after the seat's own pon or chi, a call prompt, a round end, the
   reconnect snapshot). A round end without one is the game's last: nothing is confirmed, and the

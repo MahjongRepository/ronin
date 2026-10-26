@@ -4,18 +4,19 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
-from game.logic.action_handlers import handle_pass, handle_ron, handle_tsumo
+from game.logic.action_handlers import handle_discard, handle_pass, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
 from game.logic.enums import CallType, GameAction, MeldCallType, PlayerAction, PromptKind, RoundPhase, RoundResultType
-from game.logic.events import CallPromptEvent, DrawEvent, RoundEndEvent
+from game.logic.events import CallPromptEvent, DrawEvent, FuritenEvent, RoundEndEvent, SeatTarget
 from game.logic.exceptions import InvalidRiichiError, ScoringError
+from game.logic.furiten_tracker import FuritenTracker
 from game.logic.invariants import verify_tile_ownership
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult, ScoringContext, calculate_hand_value_with_tiles
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, CallResponse, Discard, MahjongGameState, MeldOption, PendingCallPrompt
-from game.logic.tiles import NUM_TILES
+from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import (
     _maybe_emit_dora_event,
     _validate_riichi_discard,
@@ -25,8 +26,9 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
-from game.logic.types import MeldCallInput, RonCallInput
+from game.logic.types import DiscardActionData, MeldCallInput, RonCallInput
 from game.logic.wall import DEAD_WALL_SIZE
+from game.logic.win import get_waiting_tiles
 from game.tests.conftest import create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
@@ -204,6 +206,75 @@ class TestRiichiFuriten:
         assert new_round.pending_call_prompt is not None
         assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
         assert new_round.players[1].is_riichi_furiten is False
+
+
+def _discard_after_draw(game_state: MahjongGameState, seat: int, tile_id: int) -> ActionResult:
+    drawn_game, _events = process_draw_phase(game_state)
+    assert drawn_game.round_state.current_player_seat == seat
+    result = handle_discard(drawn_game, seat=seat, data=DiscardActionData(tile_id=tile_id))
+    assert isinstance(result, ActionResult)
+    return result
+
+
+class TestTemporaryFuriten:
+    def test_temporary_furiten__when_winning_tile_without_yaku_passes__should_block_ron_until_own_discard(self):
+        three_man_without_yaku = tile_copies(1, man="3")[0]
+        six_man_with_ittsu = tile_copies(1, man="6")[0]
+        later_six_man_with_ittsu = tile_copies(2, man="6")[0]
+        seat_3_draw = tile_copies(1, honors="5")[0]
+        seat_0_draw = tile_copies(1, honors="7")[0]
+        seat_1_draw = tile_copies(0, honors="6")[0]
+        ittsu_on_six_man = (
+            *tile_copies(0, man="12345789", pin="9", sou="22"),
+            *tile_copies(1, pin="9"),
+            *tile_copies(2, pin="9"),
+        )
+        players = (
+            create_player(seat=0, tiles=(*tile_copies(1, pin="12345678", sou="9"), *tile_copies(2, honors="1234"))),
+            create_player(seat=1, tiles=ittsu_on_six_man, discards=(Discard(tile_id=tile_copies(0, honors="7")[0]),)),
+            create_player(seat=2, tiles=(*tile_copies(0, sou="13456789", honors="12345"), three_man_without_yaku)),
+            create_player(
+                seat=3, tiles=(six_man_with_ittsu, *tile_copies(0, pin="12345678"), *tile_copies(1, honors="1234"))
+            ),
+        )
+        draws = (seat_3_draw, seat_0_draw, seat_1_draw, later_six_man_with_ittsu)
+        dealt = {tile for player in players for tile in (*player.tiles, *(d.tile_id for d in player.discards))}
+        undealt = [tile for tile in range(NUM_TILES) if tile not in dealt and tile not in draws]
+        round_state = create_round_state(
+            players=players,
+            wall=(*draws, *undealt[:-DEAD_WALL_SIZE]),
+            dead_wall=undealt[-DEAD_WALL_SIZE:],
+            phase=RoundPhase.PLAYING,
+            current_player_seat=2,
+            all_discards=(players[1].discards[0].tile_id,),
+        )
+        game_state = create_game_state(round_state)
+        verify_tile_ownership(game_state)
+        assert get_waiting_tiles(players[1]) == {tile_to_34(three_man_without_yaku), tile_to_34(six_man_with_ittsu)}
+        furiten = FuritenTracker()
+
+        passed = handle_discard(game_state, seat=2, data=DiscardActionData(tile_id=three_man_without_yaku))
+        assert isinstance(passed, ActionResult)
+        assert passed.state.round_state.pending_call_prompt is None
+        assert [e.data for e in furiten.check_changes(passed.state.round_state)] == [
+            FuritenEvent(is_furiten=True, target=SeatTarget(seat=1)),
+        ]
+
+        missed = _discard_after_draw(passed.state, seat=3, tile_id=six_man_with_ittsu)
+        assert not [e for e in missed.events if isinstance(e, CallPromptEvent)]
+        assert missed.state.round_state.pending_call_prompt is None
+
+        before_own_discard = _discard_after_draw(missed.state, seat=0, tile_id=seat_0_draw)
+        own_discard = _discard_after_draw(before_own_discard.state, seat=1, tile_id=seat_1_draw)
+        assert own_discard.state.round_state.players[1].is_temporary_furiten is False
+        assert [e.data for e in furiten.check_changes(own_discard.state.round_state)] == [
+            FuritenEvent(is_furiten=False, target=SeatTarget(seat=1)),
+        ]
+
+        offered = _discard_after_draw(own_discard.state, seat=2, tile_id=later_six_man_with_ittsu)
+        prompt = offered.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=1, can_ron=True),)
 
 
 class TestChiOpportunity:
