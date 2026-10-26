@@ -20,6 +20,7 @@ from game.logic.settings import GameSettings, validate_settings
 from game.logic.state import Discard
 from game.logic.types import YakuInfo
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
 
 if TYPE_CHECKING:
@@ -222,10 +223,8 @@ class TestKeishikiTenpai:
         assert result is True
 
     def test_is_tempai__when_all_copies_of_wait_in_own_hand__should_be_false(self):
-        # closed: 123m 456m 789m 9p (10 tiles) + pon of 9p (3 tiles in meld) = 13
-        # waiting on 9p, but all 4 copies are in hand(1) + pon(3)
-        closed_tiles = list(TilesConverter.string_to_136_array(man="123456789", pin="9"))
-        pon_tiles = TilesConverter.string_to_136_array(pin="999")
+        closed_tiles = [*tile_copies(0, man="123456789"), *tile_copies(3, pin="9")]
+        pon_tiles = tile_copies(0, pin="999")
         pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
             tiles=tuple(pon_tiles),

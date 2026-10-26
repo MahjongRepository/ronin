@@ -5,6 +5,7 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.action_result import ActionResult
+from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import GameAction, KanType, PlayerAction, PromptKind, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
     DiscardEvent,
@@ -14,6 +15,7 @@ from game.logic.events import (
 from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
+from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, PendingCallPrompt
 from game.logic.tiles import tile_to_34
@@ -21,6 +23,8 @@ from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
 )
+from game.tests.conftest import create_dealt_game_state, create_player
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import (
     _find_player,
@@ -155,27 +159,30 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         assert tile_to_34(discard.tile_id) not in chi_kuikae
         assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
 
-    def test_ai_actions_after_replacement__when_replaced_player_is_pending_caller__should_clear_their_seat(
+    def test_ai_actions_after_replacement__when_replaced_player_is_pending_caller__should_answer_and_play_its_turn(
         self, service
     ):
-        runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
-        game_state = runtime.state
-        round_state = game_state.round_state
-        alice = _find_player(round_state, "Alice")
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=round_state.players[0].tiles[0] if round_state.players[0].tiles else 0,
-            from_seat=(alice.seat + 1) % 4,
-            pending_seats=frozenset({alice.seat}),
-            callers=(Caller(seat=alice.seat, can_ron=True),),
+        chun_discard = tile_copies(1, honors="7")[0]
+        players = (
+            create_player(
+                seat=0,
+                tiles=(chun_discard, *tile_copies(0, sou="123456789"), *tile_copies(1, honors="1234")),
+            ),
+            create_player(seat=1, tiles=tile_copies(0, man="123456789", pin="444", honors="7")),
+            create_player(seat=2, tiles=(*tile_copies(1, sou="123456789"), *tile_copies(2, honors="1234"))),
+            create_player(seat=3, tiles=(*tile_copies(2, sou="123456789"), *tile_copies(3, honors="1234"))),
         )
-        _update_round_state(runtime, pending_call_prompt=prompt)
+        runtime = GameRuntime(game_id="game1", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        service.handle_action(runtime, seat=0, action=GameAction.DISCARD, data={"tile_id": chun_discard})
+        prompt = runtime.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=1, can_ron=True),)
 
-        service.replace_with_ai_player(runtime, alice.seat)
-        service.process_ai_player_actions_after_replacement(runtime, alice.seat)
-        later_prompt = runtime.state.round_state.pending_call_prompt
-        assert later_prompt is None or alice.seat not in later_prompt.pending_seats
+        service.replace_with_ai_player(runtime, 1)
+        events = service.process_ai_player_actions_after_replacement(runtime, 1).events
+        assert runtime.state.round_state.pending_call_prompt is None
+        assert [e.data.seat for e in events if isinstance(e.data, DiscardEvent)] == [1]
+        assert runtime.state.round_state.current_player_seat == 2
 
     def test_ai_actions_after_replacement__when_other_player_still_pending__should_keep_prompt_for_them(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"]).runtime

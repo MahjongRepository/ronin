@@ -1,18 +1,30 @@
 from __future__ import annotations
 
+from mahjong.hand_calculating.yaku_list import AkaDora, Haitei, Houtei, Ittsu, Rinshan, Tsumo
 from mahjong.tile import TilesConverter
 
+from game.logic.action_handlers import handle_discard, handle_kan, handle_ron, handle_tsumo
+from game.logic.action_result import ActionResult, Refusal
+from game.logic.ai_player_controller import AIPlayerController
+from game.logic.enums import KanType
+from game.logic.events import RoundEndEvent
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import check_nagashi_mangan, process_exhaustive_draw
+from game.logic.runtime import GameRuntime
 from game.logic.scoring import (
     ScoringContext,
     apply_nagashi_mangan_score,
     calculate_hand_value,
 )
 from game.logic.settings import GameSettings
-from game.logic.state import Discard
+from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
+from game.logic.tiles import tile_to_34
+from game.logic.turn import process_draw_phase
+from game.logic.types import DiscardActionData, KanActionData, RonResult, TsumoResult
 from game.logic.win import is_chiihou
-from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
+from game.tests.unit.helpers import _update_round_state
 
 # --- Tenhou (Blessing of Heaven) ---
 
@@ -165,230 +177,102 @@ class TestChiihouScoring:
         assert not any(y.yaku_id == 116 for y in result.yaku)
 
 
-# --- Haitei Raoyue (Under the Sea) ---
+_ITTSU_EAST_TANKI = tuple(tile_copies(0, man="123456789", pin="444", honors="1"))
+_LAST_EAST = tile_copies(1, honors="1")[0]
 
 
-class TestHaiteiRaoyue:
-    def test_haitei__when_tsumo_on_last_tile__should_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            discards=(Discard(tile_id=0),),
-        )
+def _before_last_draw(players: tuple[MahjongPlayer, ...], *, drawing_seat: int) -> MahjongGameState:
+    runtime = GameRuntime(
+        game_id="game",
+        state=create_dealt_game_state(players, draws=(_LAST_EAST,), current_player_seat=drawing_seat),
+        ai=AIPlayerController({}),
+    )
+    wall = runtime.state.round_state.wall
+    _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": (_LAST_EAST,)}))
+    drawn_game, _events = process_draw_phase(runtime.state)
+    assert drawn_game.round_state.players[drawing_seat].tiles[-1] == _LAST_EAST
+    assert drawn_game.round_state.wall.live_tiles == ()
+    return drawn_game
+
+
+def _yaku_ids(result: ActionResult | Refusal) -> list[int]:
+    assert isinstance(result, ActionResult)
+    round_end = result.events[-1]
+    assert isinstance(round_end, RoundEndEvent)
+    assert isinstance(round_end.result, (TsumoResult, RonResult))
+    return sorted(y.yaku_id for y in round_end.result.hand_result.yaku)
+
+
+class TestHaiteiAndHoutei:
+    def test_haitei__when_tsumo_on_last_tile__should_award_haitei_not_houtei(self):
         players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
+            create_player(seat=0, tiles=tile_copies(1, sou="123456789", honors="2345")),
+            create_player(seat=1, tiles=_ITTSU_EAST_TANKI),
+            create_player(seat=2, tiles=tile_copies(2, sou="123456789", honors="2345")),
+            create_player(seat=3, tiles=tile_copies(3, sou="123456789", honors="2345")),
         )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=[],
+        game_state = _before_last_draw(players, drawing_seat=1)
+
+        assert _yaku_ids(handle_tsumo(game_state, seat=1)) == sorted(
+            (Tsumo.yaku_id, Haitei.yaku_id, Ittsu.yaku_id, AkaDora.yaku_id)
         )
 
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        assert any(y.yaku_id == 6 for y in result.yaku)
-
-    def test_haitei__when_wall_has_tiles__should_not_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            discards=(Discard(tile_id=0),),
-        )
+    def test_houtei__when_ron_on_last_discard__should_award_houtei_not_haitei(self):
         players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
+            create_player(seat=0, tiles=(*tile_copies(1, sou="123456789", honors="234"), *tile_copies(2, honors="1"))),
+            create_player(seat=1, tiles=(*tile_copies(2, sou="123456789", honors="234"), *tile_copies(3, pin="9"))),
+            create_player(seat=2, tiles=_ITTSU_EAST_TANKI),
+            create_player(seat=3, tiles=(*tile_copies(3, sou="123456789", honors="234"), *tile_copies(3, honors="1"))),
         )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(10)),
-        )
+        game_state = _before_last_draw(players, drawing_seat=1)
 
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        assert not any(y.yaku_id == 6 for y in result.yaku)
+        last_discard = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=_LAST_EAST))
+        assert isinstance(last_discard, ActionResult)
+        prompt = last_discard.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=2, can_ron=True),)
 
-    def test_haitei__when_ron__should_award_houtei_instead(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            is_riichi=True,
-            discards=(Discard(tile_id=0),),
+        assert _yaku_ids(handle_ron(last_discard.state, seat=2)) == sorted(
+            (Houtei.yaku_id, Ittsu.yaku_id, AkaDora.yaku_id)
         )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=[],
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=False,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # haitei (id=6) should NOT be present; houtei (id=7) should be
-        assert not any(y.yaku_id == 6 for y in result.yaku)
-        assert any(y.yaku_id == 7 for y in result.yaku)
-
-
-# --- Houtei Raoyui (Under the River) ---
-
-
-class TestHouteiRaoyui:
-    def test_houtei__when_ron_on_last_discard__should_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            is_riichi=True,
-            discards=(Discard(tile_id=0),),
-        )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=[],
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=False,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        assert any(y.yaku_id == 7 for y in result.yaku)
-
-    def test_houtei__when_tsumo__should_award_haitei_instead(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            discards=(Discard(tile_id=0),),
-        )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=[],
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # houtei (id=7) should NOT be present; haitei (id=6) should be
-        assert not any(y.yaku_id == 7 for y in result.yaku)
-        assert any(y.yaku_id == 6 for y in result.yaku)
 
 
 # --- Rinshan Kaihou ---
 
 
 class TestRinshanKaihou:
-    def test_rinshan__when_rinshan_flag_set__should_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            is_rinshan=True,
-            discards=(Discard(tile_id=0),),
-        )
+    def test_rinshan__when_closed_kan_replacement_tile_completes_hand__should_award_yaku(self):
+        one_man_quad = tuple(tile_copies(0, man="1111"))
+        north_tanki_with_ittsu = (*one_man_quad, *tile_copies(0, pin="123456789", honors="4"))
         players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
+            create_player(
+                seat=0, tiles=north_tanki_with_ittsu, discards=(Discard(tile_id=tile_copies(0, sou="9")[0]),)
+            ),
+            *(
+                create_player(
+                    seat=seat,
+                    tiles=tile_copies(seat, pin="123456789", sou="1234"),
+                    discards=(Discard(tile_id=tile_copies(seat, sou="9")[0]),),
+                )
+                for seat in range(1, 4)
+            ),
         )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(10)),
-        )
+        game_state = create_dealt_game_state(players)
+        rinshan_tile = game_state.round_state.wall.dead_wall.rinshan[0]
+        assert tile_to_34(rinshan_tile) == tile_to_34(north_tanki_with_ittsu[-1])
 
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        assert any(y.yaku_id == 5 for y in result.yaku)
+        kan = handle_kan(game_state, seat=0, data=KanActionData(tile_id=one_man_quad[0], kan_type=KanType.CLOSED))
+        assert isinstance(kan, ActionResult)
+        assert kan.state.round_state.players[0].tiles[-1] == rinshan_tile
 
-    def test_rinshan__when_rinshan_flag_clear__should_not_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            is_rinshan=False,
-            discards=(Discard(tile_id=0),),
+        tsumo = handle_tsumo(kan.state, seat=0)
+        assert isinstance(tsumo, ActionResult)
+        round_end = tsumo.events[-1]
+        assert isinstance(round_end, RoundEndEvent)
+        assert isinstance(round_end.result, TsumoResult)
+        assert sorted(y.yaku_id for y in round_end.result.hand_result.yaku) == sorted(
+            (Tsumo.yaku_id, Rinshan.yaku_id, Ittsu.yaku_id, AkaDora.yaku_id)
         )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(10)),
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        assert not any(y.yaku_id == 5 for y in result.yaku)
 
 
 # --- Ryuuiisou (All Green) ---

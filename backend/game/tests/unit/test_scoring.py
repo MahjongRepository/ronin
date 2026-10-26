@@ -114,31 +114,6 @@ class TestCalculateHandValue:
         assert [(y.yaku_id, y.han) for y in result.yaku] == [(1, 1), (27, 2), (120, 1), (121, 2), (122, 1)]
         assert result.han == 7
 
-    def test_calculate_hand_value__when_open_hand_has_no_yaku__should_return_no_yaku_error(self):
-        # open hand with no yaku
-        closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
-        pon_tiles = TilesConverter.string_to_136_array(man="111")
-        win_tile = TilesConverter.string_to_136_array(man="5")[:1]
-        all_tiles = tuple(closed_tiles + pon_tiles + win_tile)
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        game_state = _create_scoring_game_state()
-        round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
-        player = round_state.players[0]
-
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, win_tile[0])
-        assert result.error == "no_yaku"
-
     def test_calculate_hand_value__when_open_hand_ron_with_meld_tiles_outside_hand__should_score_yakuhai(self):
         # after meld call in actual gameplay, meld tiles are removed from player.tiles
         # closed: 234m 567m 23s 55s (10 tiles) + PON(Haku) (meld) = 13 total
@@ -855,6 +830,30 @@ class TestPaoRonScoring:
         ]
         assert result.score_changes == {0: 48300, 1: 5500, 2: -24300, 3: -29500}
 
+    def test_pao__when_double_ron_liable_player_is_the_other_winner__should_charge_them_half_the_yakuman(self):
+        other_winner = create_player(seat=1, tiles=_ITTSUU_SHANPON_HAND)
+        pao_winner = _daisangen_tanki_player(2, pao_seat=1)
+        game_state = _stage_pao_win(
+            dealer_seat=0,
+            winners=[other_winner, pao_winner],
+            current_seat=0,
+            discarded_tile=_DAISANGEN_WIN_TILE,
+        )
+
+        _new_state, events = process_ron_call(
+            game_state,
+            ron_input=RonCallInput(ron_callers=[1, 2], tile_id=_DAISANGEN_WIN_TILE, discarder_seat=0),
+        )
+        result = _round_result(events)
+        assert isinstance(result, DoubleRonResult)
+        assert [w.pao_seat for w in result.winners] == [None, 1]
+        assert [w.hand_result.points for w in result.winners] == [5200, 32000]
+        assert [w.score_changes for w in result.winners] == [
+            {0: -5200, 1: 5200, 2: 0, 3: 0},
+            {0: -16000, 1: -16000, 2: 32000, 3: 0},
+        ]
+        assert result.score_changes == {0: -21200, 1: -10800, 2: 32000, 3: 0}
+
 
 class TestChankanYakuScoring:
     def test_calculate_hand_value__when_chankan__should_include_chankan_yaku(self):
@@ -926,8 +925,7 @@ class TestChankanYakuScoring:
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
 
         game_state = _create_scoring_game_state()
-        # add win tile (5m)
-        win_tile = TilesConverter.string_to_136_array(man="5")[0]
+        win_tile = tile_copies(1, man="5")[0]
         all_tiles = (*tuple(closed_tiles), win_tile)
         round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
         player = round_state.players[0]
@@ -963,8 +961,8 @@ class TestHandValueParityBetweenFunctions:
     def test_calculate_hand_value_with_tiles__when_no_yaku__should_match_calculate_hand_value_error(self):
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-        win_tile = TilesConverter.string_to_136_array(man="5")[:1]
-        all_tiles = tuple(closed_tiles + pon_tiles + win_tile)
+        win_tile = tile_copies(1, man="5")
+        hand_after_draw = (*closed_tiles, *win_tile)
 
         pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -976,13 +974,13 @@ class TestHandValueParityBetweenFunctions:
         )
 
         game_state = _create_scoring_game_state()
-        round_state = update_player(game_state.round_state, 0, tiles=all_tiles, melds=(pon,))
+        round_state = update_player(game_state.round_state, 0, tiles=hand_after_draw, melds=(pon,))
         player = round_state.players[0]
 
         settings = GameSettings()
         ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
         result_a = calculate_hand_value(ctx, win_tile[0])
-        result_b = calculate_hand_value_with_tiles(ctx, tiles=list(all_tiles), win_tile=win_tile[0])
+        result_b = calculate_hand_value_with_tiles(ctx, tiles=[*hand_after_draw, *pon_tiles], win_tile=win_tile[0])
         assert result_a.error == result_b.error == "no_yaku"
 
 
@@ -1009,12 +1007,20 @@ class TestNagashiManganPreservesRiichiSticks:
 
 class TestUraDoraScoringIntegration:
     def _build_game_state(self, *, dead_wall, dora_indicators, tiles, is_riichi):
-        dummy_discard_tiles = TilesConverter.string_to_136_array(man="1112")
+        nine_pin_closed_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, pin="9999")), opened=False, who=1, from_who=1
+        )
+        riichi_discard = Discard(tile_id=tile_copies(0, honors="7")[0], is_riichi_discard=True)
         players = (
-            create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
+            create_player(seat=0, tiles=tuple(tiles), is_riichi=is_riichi, discards=(riichi_discard,)),
+            create_player(
+                seat=1,
+                tiles=(*tile_copies(1, pin="12345678"), *tile_copies(0, honors="55")),
+                melds=(nine_pin_closed_kan,),
+                discards=(Discard(tile_id=tile_copies(1, honors="7")[0]),),
+            ),
+            create_player(seat=2, tiles=(*tile_copies(2, pin="12345678"), *tile_copies(0, honors="66234"))),
+            create_player(seat=3, tiles=(*tile_copies(3, pin="12345678"), *tile_copies(2, honors="56234"))),
         )
         round_state = create_round_state(
             players=players,
@@ -1022,8 +1028,8 @@ class TestUraDoraScoringIntegration:
             current_player_seat=0,
             dora_indicators=dora_indicators,
             dead_wall=dead_wall,
-            wall=tuple(range(70)),
-            all_discards=dummy_discard_tiles,
+            wall=tile_copies(2, man="123456789"),
+            all_discards=tuple(d.tile_id for p in players for d in p.discards),
         )
         return create_game_state(round_state=round_state)
 
@@ -1031,14 +1037,13 @@ class TestUraDoraScoringIntegration:
         tiles = TilesConverter.string_to_136_array(man="123456789", sou="12355")
         win_tile = tiles[-1]
 
-        # 2 dora indicators (simulating 1 kan)
-        dora_indicator_1 = TilesConverter.string_to_136_array(man="1")[0]
-        dora_indicator_2 = TilesConverter.string_to_136_array(man="5")[0]
+        dora_indicator_1 = tile_copies(1, man="1")[0]
+        dora_indicator_2 = tile_copies(1, man="5")[0]
 
         # ura dora 1: indicator 4s -> ura dora 5s (2 copies in hand = 2 han)
         # ura dora 2: indicator 1s -> ura dora 2s (1 copy in hand = 1 han)
-        ura_tile_1 = TilesConverter.string_to_136_array(sou="4")[0]
-        ura_tile_2 = TilesConverter.string_to_136_array(sou="1")[0]
+        ura_tile_1 = tile_copies(1, sou="4")[0]
+        ura_tile_2 = tile_copies(1, sou="1")[0]
 
         dead_wall: list[int | None] = [None] * 14
         dead_wall[2] = dora_indicator_1

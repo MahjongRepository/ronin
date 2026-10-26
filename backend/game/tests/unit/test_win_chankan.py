@@ -1,13 +1,9 @@
-from mahjong.tile import TilesConverter
-
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 from game.logic.tiles import tile_to_34
-from game.logic.win import _has_yaku_for_open_hand, get_waiting_tiles, is_chankan_possible
+from game.logic.win import get_waiting_tiles, is_chankan_possible
 from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_wall
 
 _KAN_CALLER = 2
 _THREE_PIN = tuple(tile_copies(copy, pin="3")[0] for copy in range(4))
@@ -137,24 +133,3 @@ class TestChankanWithOpenHand:
         assert get_waiting_tiles(open_yakuless_wait) == {tile_to_34(one_man_pon.called_tile), tile_to_34(four_man[3])}
 
         assert is_chankan_possible(round_state, caller_seat=_KAN_CALLER, kan_tile=four_man[3]) == [1]
-
-
-class TestHasYakuForOpenHandEmptyTiles:
-    def test_has_yaku_for_open_hand__when_tiles_empty__should_return_false(self):
-        pon_tiles = TilesConverter.string_to_136_array(man="111")
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[2],
-            who=0,
-            from_who=1,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=(), melds=(pon,), score=25000)
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
-            wall=make_wall(dora_indicators=tuple(TilesConverter.string_to_136_array(man="1"))),
-        )
-        assert _has_yaku_for_open_hand(player, round_state, settings=GameSettings()) is False

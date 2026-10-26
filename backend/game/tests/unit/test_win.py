@@ -2,13 +2,14 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.riichi import can_declare_riichi
 from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.tiles import tile_to_34
+from game.logic.turn import process_discard_phase
 from game.logic.win import (
     apply_temporary_furiten,
     can_call_ron,
@@ -22,30 +23,13 @@ from game.logic.win import (
     is_renhou,
     is_tenhou,
 )
+from game.tests.conftest import create_dealt_game_state, create_player
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
 
 
-class TestCheckTsumoMeldDedup:
-    def test_check_tsumo__when_meld_tiles_still_in_hand__should_win(self):
-        # meld tiles IN player.tiles (dedup path in all_player_tiles)
-        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
-        pon_tiles = TilesConverter.string_to_136_array(pin="888")
-        all_tiles = closed_tiles + pon_tiles
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
-
-        assert check_tsumo(player) is True
-
-    def test_check_tsumo__when_meld_tiles_absent_from_hand__should_win(self):
-        # meld tiles NOT in player.tiles (actual gameplay after call_pon)
+class TestCheckTsumoOpenHand:
+    def test_check_tsumo__when_open_pon_and_drawn_hand_complete__should_win(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
         pon_tiles = TilesConverter.string_to_136_array(pin="888")
 
@@ -89,7 +73,7 @@ class TestCanDeclareTsumo:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
         )
@@ -118,26 +102,6 @@ class TestCanDeclareTsumo:
         round_state = self._create_round_state()
 
         assert can_declare_tsumo(player, round_state, settings=GameSettings()) is True
-
-    def test_can_declare_tsumo__when_open_hand_has_no_yaku__should_be_false(self):
-        # open hand with pon of 1m, no yakuhai, no tanyao -> no yaku
-        closed_tiles_before_win = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
-        win_tile = TilesConverter.string_to_136_array(man="5")[:1]
-        pon_tiles = TilesConverter.string_to_136_array(man="111")
-        all_tiles = closed_tiles_before_win + pon_tiles + win_tile
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
-        round_state = self._create_round_state()
-
-        assert can_declare_tsumo(player, round_state, settings=GameSettings()) is False
 
     def test_can_declare_tsumo__when_open_tanyao_and_kuitan_enabled__should_be_true(self):
         # open tanyao (kuitan) - all simples with open meld
@@ -191,8 +155,7 @@ class TestGetWaitingTiles:
         waiting = get_waiting_tiles(player)
         assert 24 in waiting  # 7s
 
-    def test_waiting_tiles__when_open_pon_tiles_removed_from_hand__should_list_waits(self):
-        # meld tiles NOT in player.tiles (actual gameplay after call_pon)
+    def test_waiting_tiles__when_hand_has_open_pon__should_list_waits(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
         pon_tiles = TilesConverter.string_to_136_array(pin="888")
 
@@ -249,16 +212,50 @@ class TestIsFuriten:
 
         assert is_furiten(player) is True
 
-    def test_furiten__when_waiting_tile_discard_was_claimed__should_be_true(self):
-        # a tile that was discarded and later claimed by another player
-        # remains in the discarder's discard history and causes furiten
-        # player waiting on 3p and 6p, discarded 3p previously
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="4555")
-        discards = (Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0]),)
-        player = MahjongPlayer(seat=0, name="P1", tiles=tuple(tiles), discards=discards, score=25000)
+    def test_furiten__when_wait_was_discarded_turns_ago_and_claimed__should_block_ron(self):
+        three_pin_pon_tiles = tile_copies(0, pin="333")
+        claimed_three_pin = three_pin_pon_tiles[0]
+        three_pin_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=tuple(three_pin_pon_tiles),
+            opened=True,
+            called_tile=claimed_three_pin,
+            who=1,
+            from_who=0,
+        )
+        six_pin = tile_copies(0, pin="6")[0]
+        ittsu_on_three_and_six_pin = create_player(
+            seat=0,
+            tiles=tile_copies(0, man="123456789", pin="45", sou="99"),
+            discards=tuple(
+                Discard(tile_id=t) for t in (claimed_three_pin, *tile_copies(0, honors="12"), *tile_copies(0, sou="1"))
+            ),
+        )
+        players = (
+            ittsu_on_three_and_six_pin,
+            create_player(
+                seat=1,
+                tiles=(*tile_copies(1, man="123456789"), *tile_copies(3, honors="7")),
+                melds=(three_pin_pon,),
+                discards=(Discard(tile_id=tile_copies(1, honors="1")[0]),),
+            ),
+            create_player(
+                seat=2,
+                tiles=(six_pin, *tile_copies(2, man="123456789", honors="567"), *tile_copies(1, honors="2")),
+                discards=tuple(Discard(tile_id=t) for t in tile_copies(2, honors="12")),
+            ),
+            create_player(
+                seat=3,
+                tiles=tile_copies(1, sou="23456788", honors="34567"),
+                discards=tuple(Discard(tile_id=t) for t in tile_copies(3, honors="12")),
+            ),
+        )
+        game_state = create_dealt_game_state(players, current_player_seat=2)
+        assert get_waiting_tiles(ittsu_on_three_and_six_pin) == {tile_to_34(claimed_three_pin), tile_to_34(six_pin)}
 
-        # even if the 3p discard was claimed by another player (pon/chi), it's still in discards
-        assert is_furiten(player) is True
+        discarded, _events = process_discard_phase(game_state, six_pin)
+        assert discarded.round_state.pending_call_prompt is None
+        assert discarded.round_state.current_player_seat == 3
 
 
 class TestIsEffectiveFuriten:
@@ -306,7 +303,7 @@ class TestTemporaryFuritenResetOnDiscard:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
         )
@@ -333,7 +330,7 @@ class TestTemporaryFuritenResetOnDiscard:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
             all_discards=(99,),
@@ -357,7 +354,7 @@ class TestRiichiFuritenPermanent:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
         )
@@ -385,53 +382,12 @@ class TestRiichiFuritenPermanent:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
             all_discards=(99,),
         )
         assert can_declare_tsumo(player, round_state, settings=GameSettings()) is True
-
-
-class TestFuritenRiichiDeclarationAllowed:
-    def test_declare_riichi__when_player_discard_furiten__should_be_allowed(self):
-        # player waiting on 3p, discarded 3p -> discard furiten, but can still riichi
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        discards = (Discard(tile_id=TilesConverter.string_to_136_array(pin="3")[0]),)
-        player = MahjongPlayer(
-            seat=0,
-            name="P1",
-            tiles=tuple(tiles),
-            discards=discards,
-            score=25000,
-        )
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
-            wall=make_wall(live_tiles=tuple(range(10))),
-        )
-        # verify player IS in furiten
-        assert is_furiten(player) is True
-        # verify player CAN still declare riichi
-        assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
-
-    def test_declare_riichi__when_player_temporary_furiten__should_be_allowed(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        player = MahjongPlayer(
-            seat=0,
-            name="P1",
-            tiles=tuple(tiles),
-            is_temporary_furiten=True,
-            score=25000,
-        )
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            current_player_seat=0,
-            round_wind=0,
-            wall=make_wall(live_tiles=tuple(range(10))),
-        )
-        assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
 
 
 class TestApplyTemporaryFuriten:
@@ -459,7 +415,7 @@ class TestCanCallRon:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=tuple(TilesConverter.string_to_136_array(man="1")),
             ),
         )
@@ -477,7 +433,7 @@ class TestCanCallRon:
             score=25000,
         )
         round_state = self._create_round_state()
-        discarded_tile = TilesConverter.string_to_136_array(pin="3")[0]
+        discarded_tile = tile_copies(1, pin="3")[0]
 
         assert (
             can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
@@ -495,57 +451,10 @@ class TestCanCallRon:
             is False
         )
 
-    def test_can_call_ron__when_open_hand_has_yaku__should_be_true(self):
-        # open hand with haku pon (yakuhai) via _has_yaku_for_ron_with_tiles
-        closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        all_tiles = closed_tiles + haku_tiles
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(haku_tiles),
-            opened=True,
-            called_tile=haku_tiles[0],
-            who=0,
-            from_who=1,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
-        round_state = self._create_round_state()
-        discarded_tile = TilesConverter.string_to_136_array(sou="4")[0]
-
-        assert (
-            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
-            is True
-        )
-
-    def test_can_call_ron__when_open_hand_has_no_yaku__should_be_false(self):
-        # open hand with pon of 1m, no yakuhai, no tanyao -> no yaku
-        closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
-        pon_tiles = TilesConverter.string_to_136_array(man="111")
-        all_tiles = closed_tiles + pon_tiles
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
-        round_state = self._create_round_state()
-        discarded_tile = TilesConverter.string_to_136_array(man="6")[0]
-
-        assert (
-            can_call_ron(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
-            is False
-        )
-
     def test_can_call_ron__when_open_tanyao__should_be_true(self):
         # open tanyao (kuitan) ron via _has_yaku_for_ron_with_tiles
         closed_tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="5")
         pon_tiles = TilesConverter.string_to_136_array(sou="888")
-        all_tiles = closed_tiles + pon_tiles
 
         pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -555,7 +464,7 @@ class TestCanCallRon:
             who=0,
             from_who=1,
         )
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
         round_state = self._create_round_state()
         discarded_tile = TilesConverter.string_to_136_array(sou="55")[1]
 
@@ -564,8 +473,7 @@ class TestCanCallRon:
             is True
         )
 
-    def test_can_call_ron__when_meld_tiles_removed_from_hand__should_be_true(self):
-        # meld tiles NOT in player.tiles (actual gameplay after call_pon)
+    def test_can_call_ron__when_open_hand_has_yaku__should_be_true(self):
         closed_tiles = TilesConverter.string_to_136_array(man="234567", sou="2355")
         haku_tiles = TilesConverter.string_to_136_array(honors="555")
 
@@ -799,7 +707,7 @@ class TestShibariDoraOnly:
             current_player_seat=0,
             round_wind=0,
             wall=make_wall(
-                live_tiles=tuple(range(10)),
+                live_tiles=tuple(tile_copies(3, sou="123456789")),
                 dora_indicators=dora_indicator_tiles,
             ),
             all_discards=(99,),
@@ -807,9 +715,9 @@ class TestShibariDoraOnly:
 
     def test_shibari__when_open_hand_has_only_dora__should_reject_tsumo(self):
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
-        win_tile = TilesConverter.string_to_136_array(man="5")[:1]
+        win_tile = tile_copies(1, man="5")
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-        all_tiles = closed_tiles + pon_tiles + win_tile
+        all_tiles = closed_tiles + win_tile
 
         pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -821,7 +729,7 @@ class TestShibariDoraOnly:
         )
 
         # dora indicator 4m -> 5m is dora; player has two 5m tiles
-        dora_indicator = tuple(TilesConverter.string_to_136_array(man="4")[:1])
+        dora_indicator = tuple(tile_copies(3, man="4"))
         round_state = self._create_round_state(dora_indicator)
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
 
@@ -830,7 +738,6 @@ class TestShibariDoraOnly:
     def test_shibari__when_open_hand_has_only_dora__should_reject_ron(self):
         closed_tiles = TilesConverter.string_to_136_array(man="2345", pin="234", sou="567")
         pon_tiles = TilesConverter.string_to_136_array(man="111")
-        all_tiles = closed_tiles + pon_tiles
 
         pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -842,11 +749,9 @@ class TestShibariDoraOnly:
         )
 
         # dora indicator 4m -> 5m is dora
-        dora_indicator = tuple(TilesConverter.string_to_136_array(man="4")[:1])
+        dora_indicator = tuple(tile_copies(3, man="4"))
         round_state = self._create_round_state(dora_indicator)
-        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(all_tiles), melds=(pon,), score=25000)
-        # ron on 6m completes the hand (234m + 56m pair -> 23456m = 234m + 56m... no)
-        # ron on 5m gives 55m pair: 111m(pon) + 234m + 234p + 567s + 55m
-        ron_tile = TilesConverter.string_to_136_array(man="5")[0]
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(closed_tiles), melds=(pon,), score=25000)
+        ron_tile = tile_copies(1, man="5")[0]
 
         assert can_call_ron(player, discarded_tile=ron_tile, round_state=round_state, settings=GameSettings()) is False

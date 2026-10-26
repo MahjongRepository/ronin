@@ -1,10 +1,17 @@
+import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.action_handlers import handle_discard, handle_kan, handle_pon
+from game.logic.action_result import ActionResult
+from game.logic.enums import KanType
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.melds import _check_pao, call_pon
+from game.logic.melds import _check_pao
 from game.logic.settings import GameSettings
+from game.logic.state import Discard
 from game.logic.tiles import tile_to_34
-from game.tests.conftest import create_player, create_round_state
+from game.logic.types import DiscardActionData, KanActionData, PonActionData
+from game.tests.conftest import create_dealt_game_state, create_player
+from game.tests.helpers.hands import tile_copies
 
 
 class TestPaoCustomThresholds:
@@ -82,14 +89,13 @@ class TestNoSuukantsuPao:
         assert result is None
 
 
-class TestClosedKanCountsInPaoThreshold:
-    def test_pao__when_closed_dragon_kan_and_third_dragon_called__should_count_kan_and_assign_pao(self):
-        # closed kan of Haku (concealed, opened=False)
+class TestKanCountsInPaoThreshold:
+    @pytest.mark.parametrize("is_open_kan", [False, True])
+    def test_pao__when_dragon_kan_and_third_dragon_called__should_count_kan_and_assign_pao(self, is_open_kan):
         haku_tiles = TilesConverter.string_to_136_array(honors="5555")
-        # open pon of Hatsu
         hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
         melds = (
-            FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(haku_tiles), opened=False, who=0),
+            FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(haku_tiles), opened=is_open_kan, who=0),
             FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(hatsu_tiles), opened=True, who=0),
         )
         player = create_player(seat=0, melds=melds)
@@ -118,51 +124,98 @@ class TestClosedKanCountsInPaoThreshold:
         assert result == 2
 
 
-class TestPaoIntegrationWithCallPon:
+_DRAGON_PON_DISCARDERS = {5: 2, 6: 3}
+
+
+def _dragon_pons(honors: str) -> tuple[FrozenMeld, ...]:
+    pons = []
+    for honor in honors:
+        pon_tiles = tile_copies(0, honors=honor * 3)
+        pons.append(
+            FrozenMeld(
+                meld_type=FrozenMeld.PON,
+                tiles=tuple(pon_tiles),
+                opened=True,
+                called_tile=pon_tiles[0],
+                who=0,
+                from_who=_DRAGON_PON_DISCARDERS[int(honor)],
+            )
+        )
+
+    return tuple(pons)
+
+
+def _discard_to_dragon_caller(*, dragon_pons: str, closed_tiles: tuple[int, ...], discarded: int) -> ActionResult:
+    melds = _dragon_pons(dragon_pons)
+    players = (
+        create_player(
+            seat=0,
+            tiles=closed_tiles,
+            melds=melds,
+            discards=tuple(Discard(tile_id=t) for t in tile_copies(0, sou="12")[: len(melds)]),
+        ),
+        create_player(seat=1, tiles=(discarded, *tile_copies(1, sou="123456789", pin="1234"))),
+        *(
+            create_player(
+                seat=seat,
+                tiles=tile_copies(seat, sou="123456789", pin="1234"),
+                discards=tuple(Discard(tile_id=m.called_tile) for m in melds if m.from_who == seat),
+            )
+            for seat in (2, 3)
+        ),
+    )
+    game_state = create_dealt_game_state(players, current_player_seat=1)
+
+    discard = handle_discard(game_state, seat=1, data=DiscardActionData(tile_id=discarded))
+    assert isinstance(discard, ActionResult)
+    prompt = discard.state.round_state.pending_call_prompt
+    assert prompt is not None
+    assert [c.seat for c in prompt.callers] == [0]
+    return discard
+
+
+class TestPaoOnCalls:
     def test_pao__when_pon_completes_third_dragon__should_make_discarder_liable(self):
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
-        chun_tiles = TilesConverter.string_to_136_array(honors="77")
-        hand_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        melds = (
-            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),
-            FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(hatsu_tiles), opened=True, who=0),
+        chun = tile_copies(0, honors="777")
+        offered = _discard_to_dragon_caller(
+            dragon_pons="56", closed_tiles=(*chun[:2], *tile_copies(0, man="12345")), discarded=chun[2]
         )
-        player = create_player(seat=0, tiles=tuple(chun_tiles) + tuple(hand_tiles), melds=melds)
 
-        players = [player] + [create_player(seat=i) for i in range(1, 4)]
-        wall = tuple(TilesConverter.string_to_136_array(man="123456"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333344"))
-        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
+        pon = handle_pon(offered.state, seat=0, data=PonActionData(tile_id=chun[2]))
+        assert isinstance(pon, ActionResult)
+        assert pon.state.round_state.players[0].pao_seat == 1
 
-        chun_discarded = TilesConverter.string_to_136_array(honors="7")[0]
-        new_state, _meld = call_pon(
-            round_state,
-            caller_seat=0,
-            discarder_seat=1,
-            tile_id=chun_discarded,
-            settings=GameSettings(),
+    def test_pao__when_open_kan_completes_third_dragon__should_make_discarder_liable(self):
+        chun = tile_copies(0, honors="7777")
+        offered = _discard_to_dragon_caller(
+            dragon_pons="56", closed_tiles=(*chun[:3], *tile_copies(0, man="1234")), discarded=chun[3]
         )
-        assert new_state.players[0].pao_seat == 1
 
-    def test_pao__when_pon_is_below_threshold__should_not_set_pao(self):
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        hatsu_tiles = TilesConverter.string_to_136_array(honors="66")
-        hand_tiles = TilesConverter.string_to_136_array(pin="12345678")
-        melds = (FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, who=0),)
-        player = create_player(seat=0, tiles=tuple(hatsu_tiles) + tuple(hand_tiles), melds=melds)
+        kan = handle_kan(offered.state, seat=0, data=KanActionData(tile_id=chun[3], kan_type=KanType.OPEN))
+        assert isinstance(kan, ActionResult)
+        assert kan.state.round_state.players[0].melds[-1].type == FrozenMeld.KAN
+        assert kan.state.round_state.players[0].pao_seat == 1
 
-        players = [player] + [create_player(seat=i) for i in range(1, 4)]
-        wall = tuple(TilesConverter.string_to_136_array(man="123456"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333344"))
-        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
-
-        hatsu_discarded = TilesConverter.string_to_136_array(honors="6")[0]
-        new_state, _meld = call_pon(
-            round_state,
-            caller_seat=0,
-            discarder_seat=2,
-            tile_id=hatsu_discarded,
-            settings=GameSettings(),
+    def test_pao__when_two_dragon_pons_and_a_suited_pon__should_not_set_pao(self):
+        nine_man = tile_copies(0, man="999")
+        offered = _discard_to_dragon_caller(
+            dragon_pons="56", closed_tiles=(*nine_man[:2], *tile_copies(0, man="12345")), discarded=nine_man[2]
         )
-        assert new_state.players[0].pao_seat is None
+
+        pon = handle_pon(offered.state, seat=0, data=PonActionData(tile_id=nine_man[2]))
+        assert isinstance(pon, ActionResult)
+        assert pon.state.round_state.players[0].pao_seat is None
+
+    @pytest.mark.parametrize(
+        ("dragon_pons", "filler"),
+        [("", tile_copies(0, man="123456789", pin="12")), ("5", tile_copies(0, man="12345678"))],
+    )
+    def test_pao__when_pon_is_below_threshold__should_not_set_pao(self, dragon_pons, filler):
+        hatsu = tile_copies(0, honors="666")
+        offered = _discard_to_dragon_caller(
+            dragon_pons=dragon_pons, closed_tiles=(*hatsu[:2], *filler), discarded=hatsu[2]
+        )
+
+        pon = handle_pon(offered.state, seat=0, data=PonActionData(tile_id=hatsu[2]))
+        assert isinstance(pon, ActionResult)
+        assert pon.state.round_state.players[0].pao_seat is None

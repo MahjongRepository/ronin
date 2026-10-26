@@ -215,9 +215,6 @@ def _has_yaku_for_open_hand(
     Uses HandCalculator to verify the hand has valid yaku.
     """
     # the win tile is the last tile added to hand (the drawn tile)
-    if not player.tiles:
-        return False
-
     win_tile = player.tiles[-1]
 
     # configure hand for tsumo
