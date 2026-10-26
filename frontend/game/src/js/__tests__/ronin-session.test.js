@@ -35,9 +35,9 @@ class FakeWebSocket {
         });
     }
 
-    drop() {
+    drop(code = 1006) {
         this.readyState = 3;
-        this.onclose();
+        this.onclose({ code, reason: "" });
     }
 }
 
@@ -114,6 +114,42 @@ describe("RoninSession", () => {
 
         expect(ws.sent).toEqual([JOIN, RECONNECT, RECONNECT]);
         expect(FakeWebSocket.created).toHaveLength(1);
+    });
+
+    it.each([
+        ["another connection took the seat over", 4002],
+        ["the server kicked the seat for an impossible action", 1008],
+    ])(
+        "leaves for the lobby without reconnecting when %s, cancelling a scheduled reconnect retry",
+        (_, code) => {
+            sessionStorage.setItem("game_session:g", "{}");
+            ({ session } = connectSession());
+            const ws = latestSocket();
+            ws.receive({ type: "session_error", code: "join_game_already_started", message: "" });
+            ws.receive({ type: "session_error", code: "reconnect_retry_later", message: "" });
+
+            ws.drop(code);
+            vi.advanceTimersByTime(60_000);
+
+            expect(ws.sent).toEqual([JOIN, RECONNECT]);
+            expect(FakeWebSocket.created).toHaveLength(1);
+            expect(sessionStorage.getItem("game_session:g")).toBeNull();
+        },
+    );
+
+    it.each([
+        ["a network drop", 1006],
+        ["a game end close whose game end it never got", 1000],
+    ])("resumes the seat after %s", (_, code) => {
+        ({ session } = connectSession());
+        latestSocket().receive(ROUND_STARTED);
+
+        latestSocket().drop(code);
+        vi.advanceTimersByTime(1_000);
+        latestSocket().open();
+
+        expect(FakeWebSocket.created).toHaveLength(2);
+        expect(latestSocket().sent).toEqual([RECONNECT]);
     });
 
     it("stays closed once the game has ended", () => {

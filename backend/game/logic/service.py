@@ -152,13 +152,14 @@ class GameService(Protocol):
         """
         Build a full game state snapshot for a reconnecting player at the given seat.
 
-        Must be called after restore_human_player() so the AI player flag is correct.
+        For a seat an AI player held, call it after restore_human_player() so the AI player flag is correct.
         """
         ...
 
-    def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
-        Rebuild the event that opened the seat's turn: its draw with its available actions, or the turn event right
-        after its own pon or chi; none when the turn is not the seat's.
+        Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw with its
+        available actions (the turn event right after its own pon or chi); none for a round advance or a wait that does
+        not await the seat.
         """
         ...

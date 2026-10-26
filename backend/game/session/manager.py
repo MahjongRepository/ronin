@@ -17,6 +17,8 @@ from game.logic.events import (
 )
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
+    CONFIRMATION_OWED_KEY,
+    WAIT_ELAPSED_KEY,
     WAIT_ID_KEY,
     reconnection_payload,
     service_event_payload,
@@ -128,6 +130,24 @@ class SessionManager:
             participant.connection = None
 
     def _bind(self, participant: Participant, connection: ConnectionProtocol) -> None:
+        """
+        Bind a connection to its participant, replacing the connection the participant still has.
+
+        The replaced connection is evicted before its close, so its late messages and its disconnect touch no one, and
+        closed with 4002 `replaced_by_new_connection`, which tells its client to stop reconnecting: two live clients of
+        one participant would otherwise take the seat back from each other forever. Its timer is the participant's, so a
+        replacement leaves it running.
+        """
+        replaced = participant.connection
+        if replaced is not None:
+            logger.info(
+                "replacing a participant's connection",
+                old_connection_id=replaced.connection_id,
+                new_connection_id=connection.connection_id,
+            )
+            self._evict_connection(replaced)
+            replaced.close(code=4002, reason="replaced_by_new_connection")
+
         participant.connection = connection
         self._bound[connection.connection_id] = participant
         self._cancel_auth_timeout(connection.connection_id)
@@ -196,8 +216,8 @@ class SessionManager:
         """
         Bind a connection to its participant in a pending game; the last expected join starts the game.
 
-        A participant that already has a connection (a stale socket) is moved to the new one, and the old one is evicted
-        and closed. A JOIN_GAME on a connection the server already evicted is dropped unanswered.
+        A participant that already has a connection (a stale socket or another client) is moved to the new one, and the
+        old one is replaced (`_bind`). A JOIN_GAME on a connection the server already evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
             return
@@ -254,20 +274,10 @@ class SessionManager:
 
     def _admit(self, game: GameSession, participant: Participant, connection: ConnectionProtocol) -> None:
         """
-        Bind the joining connection, replacing a stale one, and start the game once every participant is connected.
+        Bind the joining connection, replacing any the participant has, and start the game once every participant is
+        connected.
         """
         structlog.contextvars.bind_contextvars(game_id=game.game_id)
-        stale = participant.connection
-        if stale is not None:
-            logger.info(
-                "evicting stale connection for duplicate JOIN_GAME",
-                game_id=game.game_id,
-                old_connection_id=stale.connection_id,
-                new_connection_id=connection.connection_id,
-            )
-            self._evict_connection(stale)
-            stale.close(code=1000, reason="replaced_by_new_connection")
-
         self._bind(participant, connection)
         connected = len(game.connected())
         logger.info(
@@ -524,12 +534,16 @@ class SessionManager:
 
     def reconnect(self, connection: ConnectionProtocol, *, game_id: str, session_token: str) -> None:
         """
-        Bind a new connection to a disconnected participant of a playing game and send it the game's state.
+        Bind a new connection to a participant of a playing game and send it the game's state.
 
-        Take the seat back from the AI player (`restore_human_player`), send the `game_reconnected` snapshot with the
-        current wait id and the seat's timer settings (its bank as of its last turn), broadcast `player_reconnected`,
-        and, when the game awaits that seat's turn, re-send its draw and start its turn timer. A RECONNECT on a
-        connection the server already evicted is dropped unanswered.
+        A disconnected participant takes its seat back from the AI player (`restore_human_player`), and the others get
+        `player_reconnected`. A participant still bound to a connection (a half-open socket after a network switch, or
+        another client) has that connection replaced (`_bind`) instead: its seat was never handed over, the others never
+        saw it leave, and the wait, its timers and the bank carry on untouched. Either way the new connection gets the
+        `game_reconnected` snapshot with the current wait id, the seat's timer settings (its bank as of its last turn)
+        and, during a round advance, whether the seat still owes its confirmation; then the event that opened the wait
+        the game owes the seat, if any (`_send_wait_on_reconnect`). A RECONNECT on a connection the server already
+        evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
             return
@@ -542,7 +556,10 @@ class SessionManager:
         seat = self._seat_of(participant)
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=seat)
         runtime = self._runtime_of(game)
-        self._game_service.restore_human_player(runtime, seat)
+        taking_over = participant.is_connected
+        if not taking_over:
+            self._game_service.restore_human_player(runtime, seat)
+
         snapshot = self._game_service.build_reconnection_snapshot(runtime, seat)
         self._bind(participant, connection)
         awaiting = self._game_service.get_awaiting(runtime)
@@ -550,15 +567,19 @@ class SessionManager:
         payload = reconnection_payload(snapshot)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
         payload[WAIT_ID_KEY] = awaiting.wait_id
-        connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
+        if awaiting.kind == WaitKind.ROUND_ADVANCE:
+            payload[CONFIRMATION_OWED_KEY] = seat in awaiting.seats
 
-        self._broadcast_to_game(
-            game,
-            PlayerReconnectedMessage(player_name=participant.name).model_dump(),
-            exclude=connection,
-        )
-        self._send_turn_state_on_reconnect(participant, connection, awaiting=awaiting)
-        logger.info("player reconnected")
+        connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
+        if not taking_over:
+            self._broadcast_to_game(
+                game,
+                PlayerReconnectedMessage(player_name=participant.name).model_dump(),
+                exclude=connection,
+            )
+
+        self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
+        logger.info("connection taken over" if taking_over else "player reconnected")
 
     def _reconnecting_participant(
         self,
@@ -570,15 +591,15 @@ class SessionManager:
         """
         Return the participant a RECONNECT names, or None after answering why it cannot reconnect (yet).
 
-        A game that has not dealt its first round (pending, or in its game start pause), or a participant whose old
-        connection the server has not seen drop yet, answers retry later: the client retries.
+        A game that has not dealt its first round (pending, or in its game start pause) answers retry later: the client
+        retries. A connection already bound to a participant is refused before any connection is replaced.
         """
         participant = self._participants_by_ticket.get(session_token)
         if participant is None:
             self._send_error(
                 connection,
                 code=SessionErrorCode.RECONNECT_NO_SESSION,
-                message="No disconnected session found",
+                message="No live game for this ticket",
             )
             return None
 
@@ -598,14 +619,6 @@ class SessionManager:
             )
             return None
 
-        if participant.is_connected:
-            self._send_error(
-                connection,
-                code=SessionErrorCode.RECONNECT_RETRY_LATER,
-                message="Session not yet disconnected, retry shortly",
-            )
-            return None
-
         if connection.connection_id in self._bound:
             self._send_error(
                 connection,
@@ -616,7 +629,7 @@ class SessionManager:
 
         return participant
 
-    def _send_turn_state_on_reconnect(
+    def _send_wait_on_reconnect(
         self,
         participant: Participant,
         connection: ConnectionProtocol,
@@ -624,19 +637,25 @@ class SessionManager:
         awaiting: Awaiting,
     ) -> None:
         """
-        Re-send the event that opened the turn (the draw, or the turn event after the seat's own pon or chi) and start
-        the turn timer for a reconnected participant whose turn the game awaits.
+        Re-send the event that opened the wait the game owes a reconnected participant: its call prompt, or its turn's
+        draw (the turn event after its own pon or chi).
 
-        Sent directly instead of through `_send_events`, so the replay does not record the draw twice.
+        Only a taken-over seat can be awaited: an AI player answers any wait of a seat it holds at once. The wait's
+        timer keeps running from its opening, so nothing is re-armed; the event carries how long it has run (`el`), so
+        the client counts down what is left and charges the bank as the server will. Sent directly instead of through
+        `_send_events`, so the replay does not record the event twice.
         """
         seat = self._seat_of(participant)
-        if awaiting.kind != WaitKind.TURN or seat not in awaiting.seats:
-            return
+        elapsed = participant.timer.elapsed_seconds
+        for event in self._game_service.build_wait_events_for_seat(self._runtime_of(participant.game), seat):
+            message = service_event_payload(event)
+            if isinstance(event.data, CallPromptEvent):
+                message = shape_call_prompt_payload(message)
 
-        for event in self._game_service.build_turn_event_for_seat(self._runtime_of(participant.game), seat):
-            connection.send_message(stamp_wait_id(service_event_payload(event), event, awaiting))
+            if elapsed is not None:
+                message[WAIT_ELAPSED_KEY] = elapsed
 
-        self._start_turn_timer(participant)
+            connection.send_message(stamp_wait_id(message, event, awaiting))
 
     def _follow_engine(
         self,

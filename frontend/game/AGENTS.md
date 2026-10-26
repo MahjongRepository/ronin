@@ -56,6 +56,12 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Live game:** `ronin.js` builds majiang-ui's `Player`, `Board` and `GameCtl` and connects them to
   the ronin layer. The session joins with the ticket, reconnects with backoff and resumes the seat
   with the same ticket, and sends the player to the lobby on a permanent join or reconnect error.
+  Two closes are permanent too and cancel any retry, a scheduled RECONNECT retry included: 4002
+  `replaced_by_new_connection` (another socket of the seat, usually another tab, took it over;
+  reconnecting would take it back, forever) and 1008 (the server kicked the seat for an impossible
+  action; reconnecting would loop through kick, AI turn and restore). Any other close reconnects,
+  1000 `game_ended` included: after the game end it stays closed, and without one the reconnect's
+  refusal leads to the lobby.
   Server events are translated into majiang-core model events the UI plays as if it ran the game
   itself; the UI's decisions are translated back into wire actions. A client-side shadow of the
   seat state supplies what the translation needs and the wire messages omit: physical tile ids,
@@ -79,16 +85,20 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   reconnect snapshot). A round end without one is the game's last: nothing is confirmed, and the
   final standings wait until the player dismisses that result. A refused action reopens its
   decision; a stale one does not.
-* **Reconnect:** the `game_reconnected` snapshot rebuilds the table and opens no decision; on the
-  seat's turn the server re-sends the event that opened it: the `turn` event after its own pon or
-  chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds only reopens
-  the turn. Other seats' face-down hands are rebuilt to the snapshot's tile counts, a 3n+2 one
-  holding its turn's draw, since their draws are not replayed. The round's number within its wind
+* **Reconnect:** the `game_reconnected` snapshot rebuilds the table and opens no decision; when the
+  game awaits the seat the server re-sends the event that opened the wait: the `turn` event after
+  its own pon or chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds
+  only reopens the turn, or the call prompt, which names the discard it reopens on. Other seats'
+  face-down hands are rebuilt to the snapshot's tile counts, a 3n+2 one holding its turn's draw,
+  since their draws are not replayed. The round's number within its wind
   comes from the first dealer, which the snapshot gives only as the dealer dice. A snapshot taken
-  during a round advance is the round that ended, with its result; it shows the table and opens no
-  confirmation: a seat that disconnected during the wait was confirmed by its disconnect, and a
-  seat an AI player held at the round end was never required. The final standings' ledger (the shadow's round logs) is seeded
-  from the snapshot's round history, as reduced round logs holding only what the standings read.
+  during a round advance is the round that ended, with its result; it shows the table, and the result
+  to confirm only when the snapshot says the seat still owes the confirmation (`oc`), which only a
+  takeover of a still-connected seat does: a seat that disconnected during the wait was confirmed
+  by its disconnect, and a seat an AI player held at the round end was never required. The final
+  standings' ledger (the shadow's round logs) is seeded from the snapshot's round history, as
+  reduced round logs holding only what the standings read; that history already holds a round
+  that ended, so its replay is logged nowhere.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
   `backend/game/wire/`; change both in the same change. The client sends no heartbeat: liveness is
   the WebSocket protocol ping (`docs/architecture.md`), and the server refuses unknown message types.
@@ -97,7 +107,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   call prompt's fixed time. `TurnClock` (`src/js/ronin/clock.js`) keeps the bank from the timer
   settings of `game_started` or the reconnect snapshot and mirrors the server's pacing rules,
   never re-synced: a decision runs from the server message that opens its wait to the one that
-  ends it, because a refused answer leaves the server's timer running. An own kan is the
+  ends it, because a refused answer leaves the server's timer running. A wait re-sent after a
+  reconnect names how long its server timer has run (`el`), and the decision is backdated by that
+  much, so a taken-over turn counts down what is left and charges the bank what the server does. An own kan is the
   exception: its meld waits out other seats' chankan prompt, so the clock holds at the answer
   (and runs on if it is refused). A countdown that runs out stops at 0 and does nothing else: the
   decision stays open until the server's timeout plays the default, never majiang-ui's default

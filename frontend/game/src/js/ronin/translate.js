@@ -310,10 +310,12 @@ class Translate {
         s.prompt = null;
         const zimo = { p: tiles.tileToStr(tileId), l: s.l(seat) };
         s.drawnTileId = tileId;
-        this.player.countdown(this.clock.startTurn());
+        this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED]));
 
         if (s.hand.indexOf(tileId) >= 0) {
-            this.present('zimo', Offer.forTurn(msg.aa, s), P => P.action_zimo(zimo, false));
+            const offer = Offer.forTurn(msg.aa, s);
+            this.retry = () => this.present('zimo', offer, P => P.action_zimo(zimo, false));
+            this.retry();
             return;
         }
 
@@ -366,7 +368,6 @@ class Translate {
         if (isRiichi) s.riichi[seat] = true;
 
         const m = { dapai: { p, l } };
-        s.lastDapai = m.dapai;
         this.feed(m, 'dapai');
         s.logMessage(m);
         this.syncWall();
@@ -423,14 +424,15 @@ class Translate {
     /** The seat's own pon or chi opens its turn without a draw: this event follows it with the types kuikae blocks. */
     turn(msg) {
         const offer = Offer.forCallTurn(msg.kt);
-        this.player.countdown(this.clock.startTurn());
+        this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED]));
         this.retry = () => this.present('fulou', offer, P => P.show_button(() => P.select_dapai()));
         this.retry();
     }
 
     /**
      * A chankan prompt first shows the kan it offers to rob as declared, with no prompt open: the declarer's hidden
-     * draw would answer an open one with a pass.
+     * draw would answer an open one with a pass. A discard's prompt names the discard it opens on, so a prompt the
+     * server re-sends after a reconnect reopens its decision too.
      */
     callPrompt(msg) {
         const s = this.shadow;
@@ -439,8 +441,8 @@ class Translate {
         if (chankan) this.declareKan(this.chankanKan(msg));
         s.prompt = msg;
         const offer = Offer.forPrompt(msg, s);
-        const dapai = s.lastDapai;
-        this.player.countdown(this.clock.startCallDecision());
+        const dapai = { l: s.l(msg.frs), p: tiles.tileToStr(msg.ti) };
+        this.player.countdown(this.clock.startCallDecision(msg[wire.WAIT_ELAPSED]));
         this.retry = () => {
             s.prompt = msg;
             this.present(chankan ? 'chankan' : 'dapai', offer,
@@ -741,11 +743,15 @@ class Translate {
         s.hand = mt.slice().sort((a, b) => a - b);
         s.drawnTileId = myTurn ? mt[mt.length - 1] : null;
 
+        const result = msg[wire.ROUND_RESULT];
+        const owed = result && msg[wire.CONFIRMATION_OWED];
+        /* an owed result plays its score changes over the table again, so the table starts from before them */
+        const settled = owed ? this.fenpei(result.sch) : [0, 0, 0, 0];
         const defen = [];
         const shoupai = [];
         for (let l = 0; l < 4; l++) {
             const seat = (msg.dl + l) % 4;
-            defen[l] = s.scores[seat];
+            defen[l] = s.scores[seat] - settled[l];
             shoupai[l] = seat == s.mySeat ? myHandStr : '_'.repeat(13);
         }
         P.clear_handler();
@@ -753,7 +759,8 @@ class Translate {
         const qipai = { zhuangfeng: msg.w, jushu: s.roundInWind, changbang: msg.h,
                         lizhibang: msg.r, defen, shoupai, baopai: s.dora[0] };
         this.feed({ qipai }, 'qipai');
-        s.startRoundLog({ qipai });
+        /* the round history already holds a round that ended, so its replay is logged nowhere */
+        if (! result) s.startRoundLog({ qipai });
 
         for (let i = 1; i < s.dora.length; i++) {
             const m = { kaigang: { baopai: s.dora[i] } };
@@ -823,8 +830,10 @@ class Translate {
             P._model.shoupai[l]._zimo = null;
             if (holdsDraw(seat)) this.feedModel({ zimo: { l, p: '_' } });
         }
-        const result = msg[wire.ROUND_RESULT];
-        if (result && result.rk) this.feedKan(result.rk);
+        if (result && result.rk) {
+            this.feedKan(result.rk);
+            s.declaredKan = result.rk;
+        }
         /* the replay ends on the last seat replayed, but a call on the pending discard marks its discarder's river */
         P._model.lunban = s.l(msg.cp);
 
@@ -837,6 +846,7 @@ class Translate {
         this.furiten(msg.f);
 
         P.clear_timer();
+        if (owed) this.roundEnd({ ...result, [wire.WAIT_ID]: msg[wire.WAIT_ID] });
     }
 }
 

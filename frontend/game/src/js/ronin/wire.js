@@ -89,11 +89,20 @@ const wire = {
 
     WAIT_ID: 'wi',
 
+    /* a wait's opening event re-sent after a reconnect: el = the seconds its server timer has run */
+    WAIT_ELAPSED: 'el',
+
     /* game_started, game_reconnected: tm = { tb, bk, rb, mb, md } */
     TIMER_SETTINGS: 'tm',
 
-    /* game_reconnected during a round advance: re = the round end's result fields { rt, ... } */
+    /* game_reconnected during a round advance: re = the round end's result fields { rt, ... },
+       oc = whether the seat still owes its confirmation */
     ROUND_RESULT: 're',
+    CONFIRMATION_OWED: 'oc',
+
+    /* WebSocket close codes the client must not reconnect after: another connection took the seat,
+       or the server kicked the seat for an impossible action */
+    CLOSE: { REPLACED: 4002, INVALID_ACTION: 1008 },
 
     NUM_TILES:     136,
     SEAT_SPACE:    544,   /* 4 × 136 */
