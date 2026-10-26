@@ -17,6 +17,9 @@ from lobby.views.game_client import (
     DevGameClient as DevGameClient,
 )
 from lobby.views.game_handlers import (
+    game_session as game_session,
+)
+from lobby.views.game_handlers import (
     play_page as play_page,
 )
 from lobby.views.game_handlers import (

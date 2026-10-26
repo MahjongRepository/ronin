@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from lobby.game_transition import GameStartError, start_game
+from lobby.game_transition import GameStartError, hand_back_live_game, start_game
+from lobby.occupancy import ALREADY_IN_GAME
 from lobby.players import LobbyPlayer
 from lobby.websocket_utils import check_origin
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
@@ -114,6 +115,11 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
             else:
                 position = ctx.matchmaking_manager.queue_size
                 matched = ctx.matchmaking_manager.try_match()
+
+    if rejection == ALREADY_IN_GAME and await hand_back_live_game(
+        player, settings=ctx.settings, game_server=ctx.game_server
+    ):
+        return False
 
     if rejection is not None:
         log.info("matchmaking rejected", reason=rejection)

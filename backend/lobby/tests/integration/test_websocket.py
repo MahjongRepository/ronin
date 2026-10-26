@@ -12,7 +12,13 @@ from lobby.auth.models import AuthenticatedPlayer
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.rooms import websocket as rooms_websocket_module
 from lobby.rooms.websocket import room_websocket
-from lobby.tests.conftest import AsgiPeer, HeldLookup, make_player, make_websocket, open_client
+from lobby.tests.conftest import (
+    AsgiPeer,
+    HeldLookup,
+    make_player,
+    make_websocket,
+    open_client,
+)
 from lobby.tests.integration.conftest import login_with_csrf, logout_with_csrf, register_with_csrf
 
 
@@ -659,23 +665,44 @@ class TestRoomOccupancy:
         assert late_peer.received_json() == [{"type": "error", "message": "already_in_game"}]
         assert second_room.is_empty
 
-    async def test_room_websocket__when_app_wires_the_game_server_lookup__should_reject_only_the_playing_user(
+    async def test_room_websocket__when_app_wires_the_game_server_lookup__should_hand_only_the_playing_user_their_game(
         self, make_app, game_server
     ):
-        def find_player_game(request: httpx.Request) -> httpx.Response:
-            if (request.url.host, request.url.path) == ("game-server.invalid", "/players/alice-id"):
+        looked_up: list[str] = []
+
+        def alice_plays_game_1(request: httpx.Request) -> httpx.Response:
+            looked_up.append(request.url.path)
+            if request.url.host != "game-server.invalid":
+                return httpx.Response(404)
+
+            if request.url.path == "/players/alice-id":
                 return httpx.Response(200, json={"game_id": "game-1"})
+
+            is_internal = request.headers.get("authorization") == f"Bearer {app.state.settings.internal_api_secret}"
+            if request.url.path == "/players/alice-id/game-session" and is_internal:
+                return httpx.Response(200, json={"game_id": "game-1", "game_ticket": "alice-game-1-ticket"})
 
             return httpx.Response(404)
 
-        game_server.respond = find_player_game
+        game_server.respond = alice_plays_game_1
         app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("wired-room")
 
         alice_peer = await _join_room_and_leave(app, room_id=room.room_id, username="alice")
-        assert alice_peer.received_json() == [{"type": "error", "message": "already_in_game"}]
+        assert alice_peer.received_json() == [
+            {
+                "type": "game_starting",
+                "game_id": "game-1",
+                "ws_url": "wss://game-client.invalid/ws/game-1",
+                "game_ticket": "alice-game-1-ticket",
+                "game_client_url": "/play",
+            }
+        ]
+        assert alice_peer.close_codes() == [1000]
+        assert room.is_empty
         bob_peer = await _join_room_and_leave(app, room_id=room.room_id, username="bob")
         assert bob_peer.received_json()[0]["type"] == "room_joined"
+        assert looked_up == ["/players/alice-id", "/players/alice-id/game-session", "/players/bob-id"]
 
     async def test_room_websocket__when_game_server_unreachable__should_let_the_user_join_and_warn(
         self, make_app, caplog

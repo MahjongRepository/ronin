@@ -1,4 +1,5 @@
 import contextlib
+import hmac
 import json
 from typing import TYPE_CHECKING
 
@@ -64,6 +65,41 @@ async def player_game(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Player is not in a game"}, status_code=404)
 
     return JSONResponse({"game_id": game_id})
+
+
+_NO_STORE = {"Cache-Control": "no-store"}
+_BEARER_PREFIX = "Bearer "
+
+
+def _is_internal_caller(request: Request, secret: str) -> bool:
+    """
+    Check the request carries the internal API secret as its bearer token.
+    """
+    authorization = request.headers.get("authorization", "")
+    if not authorization.startswith(_BEARER_PREFIX):
+        return False
+
+    return hmac.compare_digest(authorization.removeprefix(_BEARER_PREFIX).encode(), secret.encode())
+
+
+async def player_game_session(request: Request) -> JSONResponse:
+    """
+    Answer 200 with the game a user is playing and their participant's exact ticket, or 404 (internal, credential
+    bearing: the lobby's recovery of a lost game handoff).
+
+    The ticket is the very string the participant is keyed by, so it joins a pending game and reconnects to a playing
+    one. Only a caller with the internal API secret gets an answer, never a browser, and no answer is cached.
+    """
+    settings: GameServerSettings = request.app.state.settings
+    if not _is_internal_caller(request, settings.internal_api_secret):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401, headers=_NO_STORE)
+
+    session_manager: SessionManager = request.app.state.session_manager
+    participant = session_manager.get_playing_participant(request.path_params["user_id"])
+    if participant is None:
+        return JSONResponse({"error": "Player is not in a game"}, status_code=404, headers=_NO_STORE)
+
+    return JSONResponse({"game_id": participant.game.game_id, "game_ticket": participant.ticket}, headers=_NO_STORE)
 
 
 _MAX_REQUEST_BODY_SIZE = 4096
@@ -207,6 +243,7 @@ def create_app(
         Route("/status", status, methods=["GET"]),
         Route("/games", create_game, methods=["POST"]),
         Route("/players/{user_id}", player_game, methods=["GET"]),
+        Route("/players/{user_id}/game-session", player_game_session, methods=["GET"]),
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 

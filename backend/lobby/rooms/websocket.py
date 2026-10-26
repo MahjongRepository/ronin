@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import ValidationError
 
-from lobby.game_transition import GameStartError, start_game
+from lobby.game_transition import GameStartError, hand_back_live_game, start_game
+from lobby.occupancy import ALREADY_IN_GAME
 from lobby.players import LobbyPlayer
 from lobby.rooms.messages import (
     LobbyChatMessage,
@@ -119,18 +120,18 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
     """
     room = ctx.room_manager.get_room(ctx.room_id)
     if room is None:
-        _reject_join(player, ctx, reason="room_not_found")
+        await _reject_join(player, ctx, reason="room_not_found")
         return False
 
     with ctx.occupancy.admitting(player.user_id):
         game_conflict = await ctx.occupancy.find_game_conflict(player.user_id)
         if game_conflict is not None:
-            _reject_join(player, ctx, reason=game_conflict)
+            await _reject_join(player, ctx, reason=game_conflict)
             return False
 
         result = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
         if isinstance(result, str):
-            _reject_join(player, ctx, reason=result)
+            await _reject_join(player, ctx, reason=result)
             return False
 
         player.send(result)
@@ -149,7 +150,15 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
     return True
 
 
-def _reject_join(player: LobbyPlayer, ctx: _RoomContext, *, reason: str) -> None:
+async def _reject_join(player: LobbyPlayer, ctx: _RoomContext, *, reason: str) -> None:
+    """
+    Refuse the join with the reason and close; a user refused as already playing is handed back their game instead.
+    """
+    if reason == ALREADY_IN_GAME and await hand_back_live_game(
+        player, settings=ctx.settings, game_server=ctx.game_server
+    ):
+        return
+
     logger.info("join rejected", room_id=ctx.room_id, username=player.username, reason=reason)
     player.send({"type": "error", "message": reason})
     player.connection.close(code=4000, reason=reason)

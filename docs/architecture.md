@@ -6,8 +6,9 @@ classes) stays the reference for anything not drawn here.
 
 ## Components
 
-Two Starlette processes share one SQLite database and one HMAC secret. The lobby is the only
-public HTTP surface; the game server exposes REST to the lobby only and a WebSocket to players.
+Two Starlette processes share one SQLite database, one HMAC secret for game tickets and one
+internal API secret. The lobby is the only public HTTP surface; the game server exposes REST to the
+lobby only and a WebSocket to players.
 
 ```mermaid
 flowchart LR
@@ -26,7 +27,7 @@ flowchart LR
     end
 
     subgraph Game["Game server :8711"]
-        REST["REST<br/>POST /games, GET /players/{user_id}"]
+        REST["REST<br/>POST /games, GET /players/{user_id}[/game-session]"]
         WS["WebSocket /ws/{game_id}<br/>MessagePack"]
         SM["SessionManager<br/>live games, timers, AI takeover"]
         Engine["MahjongGameService<br/>rules engine"]
@@ -42,6 +43,7 @@ flowchart LR
     Rooms & MM --> Start
     Start -- "POST /games" --> REST
     Occ -- "GET /players/{user_id}" --> REST
+    Start -- "GET /players/{user_id}/game-session<br/>(recovery, bearer secret)" --> REST
     Start -. "game_starting:<br/>ws_url + game_ticket" .-> LobbyPages
     LobbyPages -. "navigate" .-> GameClient
     GameClient -- "JOIN_GAME / RECONNECT<br/>+ ticket" --> WS
@@ -120,6 +122,31 @@ rejects a marked one as `already_in_game` in the same synchronous step that woul
 The game server is the backstop: `POST /games` refuses a player already in one of its games with
 409, and "playing" is answered only from its in-memory sessions (a disconnected participant still
 counts until the game ends).
+
+## Recovering a lost handoff
+
+The ticket is signed once and delivered once, in `game_starting`, and the game client keeps it only
+in its tab's `sessionStorage`. A player whose lobby socket closed during the start, who closed the
+game tab, or whom the game client sent to the lobby (a 1008 kick, exhausted retries) holds a seat
+but no ticket, and occupancy keeps them out of everything else until the game ends. Recovery hands
+back the participant's own ticket, the same string the game server keys the seat by, so nothing is
+re-signed or rotated:
+
+* The game server's `GET /players/{user_id}/game-session` returns the user's game id and exact
+  ticket. It answers only the internal API secret as a bearer token (the game server's CORS lets
+  the lobby origin read its GETs in development, so network isolation alone is not enough), never
+  through Traefik, and every credential-bearing answer is `Cache-Control: no-store`.
+* The lobby asks it only for the authenticated user (`find_game_handoff`), never for a client-given
+  id, and adds the `ws_url` and `game_client_url` a start would send. A lookup failure is an error,
+  not "not playing": unlike the occupancy lookup it never fails open.
+* Two entry points: a room or matchmaking join refused as `already_in_game` is answered with
+  `game_starting` (both lobby pages already follow it), and the game page, finding no handoff in
+  its tab, fetches `GET /api/game-session` (a same-origin JSON route under the login), stores the
+  answer like the lobby does and plays on; a different live game sends it to that game's page.
+* The client then joins as after any start: JOIN_GAME while pending, RECONNECT after
+  `join_game_already_started` once the game plays (it may start between the lookup and the join),
+  taking the seat over from any socket still holding it. A game that ended meanwhile refuses the
+  join and the client returns to the lobby.
 
 ## Rooms
 
@@ -332,7 +359,10 @@ honours this contract can replace it.
   route needs its path added there.
 * **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
   `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session
-  storage is per origin, which is why the game client must be served by the lobby.
+  storage is per origin, which is why the game client must be served by the lobby. A game page
+  whose tab holds no entry recovers it from `GET /api/game-session` (`game_id`, `ws_url`,
+  `game_ticket`, `game_client_url`; 404 when the player plays no game, 503 when the lookup failed)
+  and stores it under the same key.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
   (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect.
 * **Closes:** the client reconnects after any close but two terminal ones, after which it stops

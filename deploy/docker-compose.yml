@@ -48,6 +48,7 @@ services:
       - "127.0.0.1:8710:8710"
     environment:
       AUTH_GAME_TICKET_SECRET: ${AUTH_GAME_TICKET_SECRET:?Set AUTH_GAME_TICKET_SECRET}
+      AUTH_INTERNAL_API_SECRET: ${AUTH_INTERNAL_API_SECRET:?Set AUTH_INTERNAL_API_SECRET}
       AUTH_DATABASE_PATH: /app/data/db/ronin.db
       AUTH_COOKIE_SECURE: "true"
       LOBBY_STATIC_DIR: /app/frontend/lobby/public
@@ -93,6 +94,7 @@ services:
       - "127.0.0.1:8711:8711"
     environment:
       AUTH_GAME_TICKET_SECRET: ${AUTH_GAME_TICKET_SECRET:?Set AUTH_GAME_TICKET_SECRET}
+      AUTH_INTERNAL_API_SECRET: ${AUTH_INTERNAL_API_SECRET:?Set AUTH_INTERNAL_API_SECRET}
       AUTH_DATABASE_PATH: /app/data/db/ronin.db
       GAME_REPLAY_DIR: /app/data/replays
       GAME_CORS_ORIGINS: https://%%DOMAIN%%

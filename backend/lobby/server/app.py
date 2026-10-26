@@ -19,6 +19,7 @@ from lobby.auth.backend import SessionOrApiKeyBackend
 from lobby.auth.policy import (
     bot_only,
     protected_html,
+    protected_json,
     public_route,
     validate_route_auth_policy,
 )
@@ -36,6 +37,7 @@ from lobby.views import (
     DevGameClient,
     create_room_and_redirect,
     create_templates,
+    game_session,
     history_page,
     join_room_and_redirect,
     load_vite_manifest,
@@ -178,6 +180,7 @@ def create_app(
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
+        Route("/api/game-session", protected_json(game_session), methods=["GET"], name="game_session"),
     ]
 
     if APP_VERSION == "dev":

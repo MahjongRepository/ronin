@@ -45,6 +45,7 @@ class LobbyServerSettings(BaseSettings):
     allowed_hosts: Annotated[list[str], NoDecode]
     game_server_url: str
     game_server_ws_url: str
+    internal_api_secret: str = Field(validation_alias="AUTH_INTERNAL_API_SECRET", min_length=1)
     static_dir: str = "frontend/lobby/public"
     assets_dir: str = "frontend/lobby/dist"
     vite_dev_url: str = ""  # Set to "http://localhost:5173" via LOBBY_VITE_DEV_URL when running Vite dev server

@@ -47,6 +47,7 @@ SSH into the server and edit `/opt/ronin/.env`:
 
 ```
 AUTH_GAME_TICKET_SECRET=<generate a random secret>
+AUTH_INTERNAL_API_SECRET=<generate another random secret>
 ACME_EMAIL=<your email for Let's Encrypt>
 ```
 
