@@ -14,7 +14,7 @@ from game.logic.events import (
 from game.logic.rng import RNG_VERSION
 from game.logic.runtime import GameRuntime
 from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
-from game.logic.settings import GameSettings, GameType
+from game.logic.settings import GameSettings
 from game.logic.types import GamePlayerInfo, PlayerView, ReconnectionSnapshot
 
 if TYPE_CHECKING:
@@ -36,13 +36,6 @@ class _MockPlayer:
         self.name = name
 
 
-class _MockSettings:
-    __slots__ = ("game_type",)
-
-    def __init__(self, game_type: str = GameType.HANCHAN) -> None:
-        self.game_type = game_type
-
-
 class _MockRoundState:
     __slots__ = ("players",)
 
@@ -58,13 +51,13 @@ class _MockGameState:
         seed: str = "",
         rng_version: str = RNG_VERSION,
         round_state: _MockRoundState | None = None,
-        settings: _MockSettings | None = None,
+        settings: GameSettings | None = None,
         round_number: int = 0,
     ) -> None:
         self.seed = seed
         self.rng_version = rng_version
         self.round_state = round_state or _MockRoundState()
-        self.settings = settings or _MockSettings()
+        self.settings = settings or GameSettings()
         self.round_number = round_number
 
 
@@ -109,7 +102,7 @@ class MockGameService(GameService):
         state = _MockGameState(
             seed=seed if seed is not None else "",
             round_state=_MockRoundState(players=[_MockPlayer(seat=i, name=name) for i, name in enumerate(all_names)]),
-            settings=_MockSettings(game_type=str(settings.game_type)) if settings is not None else None,
+            settings=settings,
         )
         runtime = GameRuntime(game_id=game_id, state=cast("MahjongGameState", state), ai=AIPlayerController({}))
 
@@ -120,7 +113,7 @@ class MockGameService(GameService):
             ServiceEvent(
                 data=GameStartedEvent(
                     game_id=game_id,
-                    game_type=settings.game_type if settings is not None else GameType.HANCHAN,
+                    game_type=state.settings.game_type,
                     players=players,
                     dealer_seat=0,
                     dealer_dice=((1, 1), (1, 1)),

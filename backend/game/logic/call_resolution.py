@@ -110,11 +110,13 @@ def _resolve_ron_responses(
     # atamahane: cap to double_ron_count if double ron enabled, else single winner only
     max_winners = settings.double_ron_count if settings.has_double_ron else 1
     ron_seats = [r.seat for r in ron_responses[:max_winners]]
+    head_bumped_seats = [r.seat for r in ron_responses[max_winners:]]
     ron_input = RonCallInput(
         ron_callers=ron_seats,
         tile_id=prompt.tile_id,
         discarder_seat=prompt.from_seat,
         robbed_kan=robbed_kan,
+        head_bumped_seats=head_bumped_seats or None,
     )
     new_game_state, events = process_ron_call(game_state, ron_input=ron_input)
 

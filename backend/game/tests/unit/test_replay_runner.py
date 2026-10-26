@@ -14,6 +14,7 @@ from game.logic.exceptions import InvalidGameActionError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
 from game.logic.service import Awaiting, GameUpdate
+from game.logic.settings import GameSettings
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.replay.loader import ReplayLoadError
 from game.replay.models import (
@@ -32,7 +33,6 @@ from game.replay.runner import (
 if TYPE_CHECKING:
     from game.logic.runtime import GameRuntime
     from game.logic.service import GameStart
-    from game.logic.settings import GameSettings
 
 PLAYER_NAMES = ("Alice", "Bob", "Charlie", "Diana")
 SEED = "a" * 192
@@ -57,7 +57,7 @@ def _build_replay(
     actions: tuple[tuple[str, GameAction, dict[str, Any]], ...] = (),
 ) -> ReplayInput:
     events = tuple(ReplayInputEvent(player_name=name, action=action, data=data) for name, action, data in actions)
-    return ReplayInput(seed=seed, player_names=player_names, events=events)
+    return ReplayInput(seed=seed, player_names=player_names, settings=GameSettings(), events=events)
 
 
 class _StubService:

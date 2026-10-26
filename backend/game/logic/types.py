@@ -182,7 +182,8 @@ class RonResult(BaseModel):
     """
     Result of a ron (discard) win.
 
-    robbed_kan is the kan the ron robbed, for a chankan; None for a ron on a discard.
+    robbed_kan is the kan the ron robbed, for a chankan; None for a ron on a discard. head_bumped_seats are the seats
+    that also declared ron but lost it to head bump, in caller order; None when no declaration was bumped.
     """
 
     type: RoundResultType = RoundResultType.RON
@@ -198,6 +199,7 @@ class RonResult(BaseModel):
     pao_seat: int | None = Field(default=None, serialization_alias="ps")
     ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
     robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
+    head_bumped_seats: list[int] | None = Field(default=None, serialization_alias="hbs")
 
 
 class DoubleRonWinner(BaseModel):
@@ -222,7 +224,8 @@ class DoubleRonResult(BaseModel):
     """
     Result of a double ron win.
 
-    robbed_kan is the kan the rons robbed, for a chankan; None for rons on a discard.
+    robbed_kan is the kan the rons robbed, for a chankan; None for rons on a discard. head_bumped_seats are the seats
+    that also declared ron but lost it to head bump, in caller order; None when no declaration was bumped.
     """
 
     type: RoundResultType = RoundResultType.DOUBLE_RON
@@ -232,6 +235,7 @@ class DoubleRonResult(BaseModel):
     scores: WireScoreMap = Field(serialization_alias="scs")
     score_changes: WireScoreMap = Field(serialization_alias="sch")
     robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
+    head_bumped_seats: list[int] | None = Field(default=None, serialization_alias="hbs")
 
 
 class TenpaiHand(BaseModel):
@@ -328,7 +332,8 @@ class RonCallInput(BaseModel):
     """
     Input data for ron call processing.
 
-    robbed_kan is the kan the ron robs, for a chankan.
+    robbed_kan is the kan the ron robs, for a chankan; head_bumped_seats the declarers head bump left out of
+    ron_callers, if any.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -337,6 +342,7 @@ class RonCallInput(BaseModel):
     tile_id: int
     discarder_seat: int
     robbed_kan: RobbedKan | None = None
+    head_bumped_seats: list[int] | None = None
 
 
 class MeldCallInput(BaseModel):

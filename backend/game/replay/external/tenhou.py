@@ -9,11 +9,12 @@ from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID, YakuConfi
 from mahjong.hand_calculating.yaku_list import Renhou
 from mahjong.hand_calculating.yaku_list.yakuman import RenhouYakuman
 
-from game.logic.enums import AbortiveDrawType, KanType, WireGameType
-from game.logic.settings import GameSettings
+from game.logic.enums import AbortiveDrawType, KanType
+from game.logic.settings import GameSettings, GameType
 from game.logic.types import WIRE_SCORE_DIVISOR
 from game.wire.compact import decode_discard, decode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
+from game.wire.replay_format import decode_replay_settings
 from shared.lib.melds.compact import MeldData, decode_meld_compact
 
 logger = structlog.get_logger()
@@ -32,12 +33,9 @@ ABORTIVE_REASON_TO_TENHOU = {
     AbortiveDrawType.TRIPLE_RON: "ron3",
 }
 
-# Han thresholds for tenhou limit field.
-_HAN_MANGAN = 5
-_HAN_HANEMAN = 6
-_HAN_BAIMAN = 8
-_HAN_SANBAIMAN = 11
-_HAN_YAKUMAN = 13
+_LIMIT_BY_BASE_POINTS = ((8000, 5), (6000, 4), (4000, 3), (3000, 2), (2000, 1))
+_NON_DEALER_BASE_POINTS_SHARES = 4
+_DEALER_BASE_POINTS_SHARES = 6
 
 YAKUMAN_YAKU_IDS = frozenset(
     yaku.yaku_id for yaku in vars(YakuConfig()).values() if isinstance(yaku, Yaku) and yaku.is_yakuman
@@ -46,13 +44,13 @@ TENHOU_ID_BY_YAKU_ID = {
     **YAKU_ID_TO_TENHOU_ID,
     RenhouYakuman.yaku_id: YAKU_ID_TO_TENHOU_ID[Renhou.yaku_id],
 }
-RIICHI_DEPOSIT = GameSettings().riichi_cost // WIRE_SCORE_DIVISOR
-
 TENHOU_GO_VS_HUMAN = 0x01
+TENHOU_GO_NO_AKADORA = 0x02
+TENHOU_GO_NO_KUITAN = 0x04
 TENHOU_GO_HANCHAN = 0x08
 TENHOU_GO_LENGTH_BITS = {
-    WireGameType.HANCHAN: TENHOU_GO_HANCHAN,
-    WireGameType.TONPUSEN: 0,
+    GameType.HANCHAN: TENHOU_GO_HANCHAN,
+    GameType.TONPUSEN: 0,
 }
 
 
@@ -250,45 +248,55 @@ def _double_ron_score_steps(result: dict[str, Any]) -> list[tuple[dict[str, int]
     return steps
 
 
-def _hand_payment(hand: dict[str, Any], honba: int) -> int:
+def _compute_limit(points: int, *, is_dealer: bool) -> int:
     """
-    Compute the hand payment for the tenhou ten attribute: full points (not hundreds), honba included, riichi excluded.
+    Compute the tenhou limit field from the hand's value in full points: the payment tier its base points reach.
+
+    0 = below mangan, 1 = mangan, 2 = haneman, 3 = baiman, 4 = sanbaiman, 5 = yakuman. Reading the tier from what the
+    engine paid follows its settings (kiriage mangan, kazoe yakuman off) and the fu-based mangans, which a han count
+    alone misses. A hand below mangan rounds up to at most 1975 base points, so it never reaches the mangan tier.
     """
-    return hand["pt"] * WIRE_SCORE_DIVISOR + honba * 300
+    shares = _DEALER_BASE_POINTS_SHARES if is_dealer else _NON_DEALER_BASE_POINTS_SHARES
+    base_points = points // shares
+    return next((limit for tier, limit in _LIMIT_BY_BASE_POINTS if base_points >= tier), 0)
 
 
-def _compute_limit(han: int) -> int:
-    """Compute the tenhou limit field from han count.
-
-    0 = below mangan, 1 = mangan, 2 = haneman, 3 = baiman,
-    4 = sanbaiman, 5 = yakuman.
+def _format_ten(hand: dict[str, Any], *, is_dealer: bool) -> str:
     """
-    if han >= _HAN_YAKUMAN:
-        return 5
+    Format the AGARI ten attribute: fu, the hand's value in full points and its limit.
 
-    if han >= _HAN_SANBAIMAN:
-        return 4
-
-    if han >= _HAN_BAIMAN:
-        return 3
-
-    if han >= _HAN_HANEMAN:
-        return 2
-
-    if han >= _HAN_MANGAN:
-        return 1
-
-    return 0
-
-
-def _tenhou_go_type(wire_game_type: int) -> int:
+    Tenhou writes the bare hand value: honba and riichi sticks appear only in ba and sc.
     """
-    Compute the tenhou GO type bitfield for a wire game type.
+    points = hand["pt"] * WIRE_SCORE_DIVISOR
+    return f"{hand['fu']},{points},{_compute_limit(points, is_dealer=is_dealer)}"
 
-    Four players against humans with red fives and open tanyao (their tenhou bits clear), plus the hanchan bit for an
-    East-South game.
+
+def _tenhou_go_type(settings: GameSettings) -> int:
     """
-    return TENHOU_GO_VS_HUMAN | TENHOU_GO_LENGTH_BITS[WireGameType(wire_game_type)]
+    Compute the tenhou GO type bitfield for a game's settings.
+
+    Four players against humans, the no-red-fives and no-open-tanyao bits set when the game had them off, plus the
+    hanchan bit for an East-South game.
+    """
+    go_type = TENHOU_GO_VS_HUMAN | TENHOU_GO_LENGTH_BITS[settings.game_type]
+    if not settings.has_akadora:
+        go_type |= TENHOU_GO_NO_AKADORA
+
+    if not settings.has_kuitan:
+        go_type |= TENHOU_GO_NO_KUITAN
+
+    return go_type
+
+
+def _recorded_settings(events: list[dict[str, Any]]) -> GameSettings:
+    """
+    Return the settings the replay's game_started event recorded, raising when the replay has no game_started.
+    """
+    game_started = next((e for e in events if e.get("t") == WireEventType.GAME_STARTED), None)
+    if game_started is None:
+        raise ValueError("replay has no game_started event")
+
+    return decode_replay_settings(game_started.get("gs"))
 
 
 def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
@@ -330,6 +338,7 @@ class TenhouConverter:
 
     def __init__(self, events: list[dict[str, Any]]) -> None:
         self.events = events
+        self.settings = _recorded_settings(events)
         self.tags: list[str] = []
 
         # Scores in wire format (hundreds), set from the first round_started event.
@@ -389,7 +398,7 @@ class TenhouConverter:
         self.tags.append('<mjloggm ver="2.3">')
         rng_version = event["rv"]
         self.tags.append(f'<SHUFFLE seed="{seed}" ref="{rng_version}"/>')
-        go_type = _tenhou_go_type(event["gt"])
+        go_type = _tenhou_go_type(self.settings)
         self.tags.append(f'<GO type="{go_type}" lobby="0"/>')
 
         names = [p["nm"] for p in players]
@@ -477,7 +486,7 @@ class TenhouConverter:
     def _handle_riichi_declared(self, event: dict[str, Any]) -> None:
         seat = event["s"]
         self._round_riichi_count += 1
-        self.scores[seat] -= RIICHI_DEPOSIT
+        self.scores[seat] -= self.settings.riichi_cost // WIRE_SCORE_DIVISOR
         scores_string = ",".join(str(score) for score in self.scores)
         self.tags.append(f'<REACH who="{seat}" ten="{scores_string}" step="2"/>')
 
@@ -584,13 +593,10 @@ class TenhouConverter:
         winner = result["ws"]
         from_who = result["ls"] if result["rt"] == WireRoundResultType.RON else winner
         hand = result["hr"]
-        fu = hand["fu"]
-        limit = _compute_limit(hand["han"])
+        ten_string = _format_ten(hand, is_dealer=winner == self.dealer)
 
         yaku_attr = _format_yaku_attr(hand["yk"])
         sc_string = _format_sc(result["scs"], result["sch"])
-
-        payment = _hand_payment(hand, self.honba)
 
         win_tile = result["wt"]
         hai_string = _format_winning_hand(result["ct"], win_tile)
@@ -603,7 +609,7 @@ class TenhouConverter:
 
         self.tags.append(
             f'<AGARI ba="{self.honba},{self._total_riichi_sticks}" '
-            f'hai="{hai_string}"{meld_attr} machi="{win_tile}" ten="{fu},{payment},{limit}"'
+            f'hai="{hai_string}"{meld_attr} machi="{win_tile}" ten="{ten_string}"'
             f'{yaku_attr} doraHai="{dora_string}"{ura_dora_attr} '
             f'who="{winner}" fromWho="{from_who}"{pao_attr} sc="{sc_string}" />',
         )
@@ -634,11 +640,8 @@ class TenhouConverter:
             riichi_sticks = self._total_riichi_sticks if i == 0 else 0
             sc_string = _format_sc(scores, changes)
             hand = w["hr"]
-            fu = hand["fu"]
-            limit = _compute_limit(hand["han"])
+            ten_string = _format_ten(hand, is_dealer=winner == self.dealer)
             yaku_attr = _format_yaku_attr(hand["yk"])
-
-            payment = _hand_payment(hand, self.honba)
 
             hai_string = _format_winning_hand(w["ct"], winning_tile)
             ura_dora_attr = _format_ura_dora_attr(w.get("ud"))
@@ -649,7 +652,7 @@ class TenhouConverter:
             self.tags.append(
                 f'<AGARI ba="{self.honba},{riichi_sticks}" '
                 f'hai="{hai_string}"{meld_attr} machi="{winning_tile}" '
-                f'ten="{fu},{payment},{limit}"'
+                f'ten="{ten_string}"'
                 f'{yaku_attr} doraHai="{dora_string}"{ura_dora_attr} '
                 f'who="{winner}" fromWho="{loser}"{pao_attr} sc="{sc_string}" />',
             )

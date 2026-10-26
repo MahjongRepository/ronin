@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from game.logic.enums import GameAction, GamePhase, WaitKind
@@ -89,13 +89,7 @@ def run_replay(
     """
     resolved_opts = opts or ReplayOptions()
     if not resolved_opts.game_id:
-        resolved_opts = ReplayOptions(
-            game_id=f"replay-{uuid.uuid4().hex}",
-            strict=resolved_opts.strict,
-            auto_confirm_rounds=resolved_opts.auto_confirm_rounds,
-            auto_pass_calls=resolved_opts.auto_pass_calls,
-            max_steps=resolved_opts.max_steps,
-        )
+        resolved_opts = replace(resolved_opts, game_id=f"replay-{uuid.uuid4().hex}")
 
     factory = service_factory or _default_service_factory
     return _execute_replay(factory(), resolved_opts, replay)
@@ -119,6 +113,7 @@ def _execute_replay(
         opts.game_id,
         list(replay.player_names),
         seed=replay.seed,
+        settings=replay.settings,
         wall=list(replay.wall) if replay.wall is not None else None,
     )
     runtime = start.runtime

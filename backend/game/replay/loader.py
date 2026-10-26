@@ -6,16 +6,17 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from game.logic.enums import AbortiveDrawType, GameAction, KanType
+from game.logic.enums import AbortiveDrawType, GameAction, KanType, WireGameType
 from game.logic.events import EventType
+from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.rng import RNG_VERSION, seat_permutation, validate_seed_hex
-from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT
+from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT, GameSettings, validate_settings
 from game.logic.tiles import NUM_TILES
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
-from game.wire.replay_format import REPLAY_VERSION
+from game.wire.replay_format import REPLAY_VERSION, decode_replay_settings
 from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.
@@ -93,6 +94,27 @@ def _validate_game_started(first: dict[str, Any]) -> tuple[str, str, list[dict[s
     return seed, rng_version, players
 
 
+def _parse_game_settings(first: dict[str, Any]) -> GameSettings:
+    """
+    Parse the game_started event's recorded settings (gs), which the engine must support and its game length (gt) must
+    match.
+    """
+    try:
+        settings = decode_replay_settings(first.get("gs"))
+        validate_settings(settings)
+    except (TypeError, ValueError, UnsupportedSettingsError) as exc:
+        raise ReplayLoadError(f"game_started event has invalid settings (gs): {exc}") from exc
+
+    game_type = first.get("gt")
+    expected_game_type = WireGameType[settings.game_type.name]
+    if not isinstance(game_type, int) or isinstance(game_type, bool) or game_type != expected_game_type:
+        raise ReplayLoadError(
+            f"game_started game type (gt) {game_type!r} does not match its settings' {expected_game_type.value}",
+        )
+
+    return settings
+
+
 def load_replay_from_string(content: str) -> ReplayInput:
     """
     Parse newline-delimited JSON objects into ReplayInput.
@@ -117,6 +139,7 @@ def load_replay_from_string(content: str) -> ReplayInput:
 
     seat_to_name = _extract_seat_to_name(players)
     player_names = _reconstruct_input_order(seed, seat_to_name)
+    settings = _parse_game_settings(events[1])
 
     actions: list[ReplayInputEvent] = []
     for event in events[2:]:
@@ -128,6 +151,7 @@ def load_replay_from_string(content: str) -> ReplayInput:
         seed=seed,
         rng_version=rng_version,
         player_names=player_names,
+        settings=settings,
         events=tuple(actions),
     )
 
@@ -347,6 +371,10 @@ def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> lis
     if event.get("rk") is not None and not can_rob_kan:
         raise ReplayLoadError(f"round_end that robs no kan carries a robbed kan (rk): {event['rk']!r}")
 
+    is_ron = result_type in (WireRoundResultType.RON, WireRoundResultType.DOUBLE_RON)
+    if event.get("hbs") is not None and not is_ron:
+        raise ReplayLoadError(f"round_end that is no ron carries head-bumped ron seats (hbs): {event['hbs']!r}")
+
     match result_type:
         case WireRoundResultType.TSUMO:
             return _parse_tsumo_round_end(event, seat_to_name)
@@ -379,6 +407,7 @@ def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -
     return [
         *_parse_robbed_kan(result, seat_to_name),
         ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON),
+        *_parse_head_bumped_rons(result, seat_to_name, winner_names={player_name}),
     ]
 
 
@@ -401,7 +430,12 @@ def _parse_double_ron_round_end(
         player_name = _parse_seat_player(winner.get("ws"), seat_to_name, field="double_ron round_end winner seat (ws)")
         rons.append(ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON))
 
-    return [*_parse_robbed_kan(result, seat_to_name), *rons]
+    winner_names = {ron.player_name for ron in rons}
+    return [
+        *_parse_robbed_kan(result, seat_to_name),
+        *rons,
+        *_parse_head_bumped_rons(result, seat_to_name, winner_names=winner_names),
+    ]
 
 
 def _parse_abortive_draw_round_end(
@@ -474,6 +508,38 @@ def _parse_robbed_kan(result: dict[str, Any], seat_to_name: dict[int, str]) -> l
             data={"tile_id": tile_id, "kan_type": kan_type},
         ),
     ]
+
+
+def _parse_head_bumped_rons(
+    result: dict[str, Any],
+    seat_to_name: dict[int, str],
+    *,
+    winner_names: set[str],
+) -> list[ReplayInputEvent]:
+    """
+    Parse the seats whose declared ron lost to head bump (hbs) into their CALL_RON, after the winners' rons.
+
+    The live game resolved its prompt with those declarations, so the replay must declare them too: a pass in their
+    place would leave them temporarily furiten. Absent when no declaration was bumped; when present it must hold
+    distinct known seats other than the winners, the discarder (ls) and a robbed kan's declarer.
+    """
+    seats = result.get("hbs")
+    if seats is None:
+        return []
+
+    if not isinstance(seats, list) or not seats:
+        raise ReplayLoadError(f"round_end has invalid head-bumped ron seats (hbs): {seats!r}")
+
+    player_names = [
+        _parse_seat_player(seat, seat_to_name, field="round_end head-bumped ron seat (hbs)") for seat in seats
+    ]
+    loser_name = _parse_seat_player(result.get("ls"), seat_to_name, field="round_end loser seat (ls)")
+    kan_declarer_names = {kan.player_name for kan in _parse_robbed_kan(result, seat_to_name)}
+    non_declarer_names = {*winner_names, loser_name, *kan_declarer_names}
+    if len(set(player_names)) != len(player_names) or non_declarer_names & set(player_names):
+        raise ReplayLoadError(f"round_end has invalid head-bumped ron seats (hbs): {seats!r}")
+
+    return [ReplayInputEvent(player_name=name, action=GameAction.CALL_RON) for name in player_names]
 
 
 def _parse_seat_player(seat: object, seat_to_name: dict[int, str], *, field: str) -> str:

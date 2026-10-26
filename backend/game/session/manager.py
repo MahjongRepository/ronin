@@ -331,7 +331,12 @@ class SessionManager:
         for participant, seat in zip(game.participants, start.seats, strict=True):
             participant.seat = seat
 
-        game.replay = ReplayRecord(seed=start.runtime.state.seed, rng_version=start.runtime.state.rng_version)
+        started_state = start.runtime.state
+        game.replay = ReplayRecord(
+            seed=started_state.seed,
+            rng_version=started_state.rng_version,
+            settings=started_state.settings,
+        )
         self._record_game_start(game, start.runtime)
         logger.info("pending game completed", game_id=game.game_id)
 
