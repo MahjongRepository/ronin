@@ -119,6 +119,7 @@ export default class Board {
             dialog:  null,
             summary: hide($('> .summary', root)),
             kaiju:   hide($('> .kaiju', root)),
+            furiten: hide($('> .furiten', root)),
         };
         this._say = [];
         this._lizhi = false;
@@ -156,6 +157,7 @@ export default class Board {
         this._timeout_id = clearTimeout(this._timeout_id);
         hide(this._view.summary);
         hide(this._view.kaiju);
+        hide(this._view.furiten);
 
         this._view.score.redraw(this.viewpoint);
 
@@ -353,6 +355,13 @@ export default class Board {
         if (paipu) fadeIn(summary(this._view.summary, paipu, this.viewpoint,
                                   name));
         else       hide(this._view.summary);
+    }
+
+    /* The viewpoint seat's フリテン above its nameplate while it may not ron;
+     * a new deal's redraw hides it. */
+    furiten(on) {
+        if (on) show(this._view.furiten);
+        else    hide(this._view.furiten);
     }
 
     players(players) {

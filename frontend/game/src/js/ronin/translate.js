@@ -186,7 +186,7 @@ class Translate {
             case wire.E.ROUND_END:     return this.roundEnd(msg);
             case wire.E.GAME_END:      return this.gameEnd(msg);
             case wire.E.RIICHI_DECL:   return;   /* riichi arrives as the discard's '*' */
-            case wire.E.FURITEN:       return;   /* the model tracks furiten itself */
+            case wire.E.FURITEN:       return this.furiten(msg.f);
             case wire.E.ERROR:         return this.gameError(msg);
             }
             console.warn('[ronin] unknown event t =', msg.t, msg);
@@ -449,6 +449,11 @@ class Translate {
     endCountdown() {
         this.clock.stop();
         this.player.clear_timer();
+    }
+
+    /** The server reports the seat's furiten as it changes; the board shows it on the seat's nameplate. */
+    furiten(on) {
+        if (this.player._view) this.player._view.furiten(on);
     }
 
     dora(msg) {
@@ -758,6 +763,7 @@ class Translate {
         this.syncWall();
 
         if (P._view && P._view.redraw) P._view.redraw();
+        this.furiten(msg.f);
 
         P.clear_timer();
     }

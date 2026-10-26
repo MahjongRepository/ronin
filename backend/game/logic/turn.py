@@ -73,13 +73,12 @@ from game.logic.state_utils import (
     update_game_with_round,
     update_player,
 )
-from game.logic.tiles import tile_to_34
 from game.logic.wall import clear_pending_dora
 from game.logic.win import (
     all_tiles_from_hand_and_melds,
     can_call_ron,
     can_declare_tsumo,
-    get_waiting_tiles,
+    check_tsumo_with_tiles,
     is_chankan_possible,
     is_kokushi_chankan_possible,
 )
@@ -148,38 +147,34 @@ def process_draw_phase(game_state: MahjongGameState) -> tuple[MahjongGameState, 
     return new_game_state, [create_draw_event(new_game_state, seat=current_seat, tile_id=drawn_tile)]
 
 
-def _check_riichi_furiten(
+def _apply_passed_tile_furiten(
     round_state: MahjongRoundState,
     tile_id: int,
     discarder_seat: int,
     ron_callers: list[int],
 ) -> MahjongRoundState:
     """
-    Set riichi furiten for riichi players whose winning tile just passed.
+    Make furiten every seat whose winning tile just passed without a ron offer.
 
-    A riichi player who is waiting on the discarded tile but did not (or could not) call ron becomes permanently furiten
-    for the rest of the hand.
+    A seat whose hand the discarded tile completes, but which cannot call ron on it (no yaku, or already furiten), is
+    temporarily furiten until its next discard; a riichi seat is riichi furiten for the rest of the hand. A ron caller
+    gets its furiten from its answer to the prompt instead (a pass or a meld declines the ron).
 
     Returns new round state with updated furiten flags.
     """
-    tile_34 = tile_to_34(tile_id)
     new_state = round_state
-
     for seat in range(NUM_PLAYERS):
-        if seat == discarder_seat:
+        if seat == discarder_seat or seat in ron_callers:
             continue
 
         player = new_state.players[seat]
-        if not player.is_riichi:
+        if not check_tsumo_with_tiles(player, [*player.tiles, tile_id]):
             continue
 
-        if seat in ron_callers:
-            # they can call ron; riichi furiten only applies if they later pass
-            continue
-
-        waiting = get_waiting_tiles(player)
-        if tile_34 in waiting:
+        if player.is_riichi:
             new_state = update_player(new_state, seat, is_riichi_furiten=True)
+        else:
+            new_state = update_player(new_state, seat, is_temporary_furiten=True)
 
     return new_state
 
@@ -367,9 +362,8 @@ def process_discard_phase(
         new_game_state = update_game_with_round(game_state, new_round_state)
         return _abort_round(new_game_state, draw_type=AbortiveDrawType.FOUR_WINDS, events=events)
 
-    # find ron callers and apply riichi furiten
     ron_callers = _find_ron_callers(new_round_state, tile_id=tile_id, discarder_seat=current_seat, settings=settings)
-    new_round_state = _check_riichi_furiten(
+    new_round_state = _apply_passed_tile_furiten(
         new_round_state, tile_id=tile_id, discarder_seat=current_seat, ron_callers=ron_callers
     )
     new_game_state = update_game_with_round(game_state, new_round_state)
