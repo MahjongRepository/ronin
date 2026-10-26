@@ -292,11 +292,10 @@ def can_call_open_kan(
 
 def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool:
     """
-    Check if declaring kan on this tile preserves the waiting tiles.
+    Check whether a riichi closed kan on this tile leaves the set of waiting tiles unchanged.
 
-    In riichi, a closed kan can only be declared if:
-    1. It doesn't change the waiting tiles
-    2. The tile is not one of the waiting tiles
+    The waits are compared as tile types; a change in set interpretation or yaku is allowed. A kan on a tile that is
+    itself a wait always fails, since the quad holds every copy and the tile can no longer be waited on.
     """
     # reduce to 13 tiles by removing one copy of the kan tile
     tiles_13 = list(player.tiles)
@@ -307,11 +306,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
 
     tenpai_player = player.model_copy(update={"tiles": tuple(tiles_13)})
     original_waits = get_waiting_tiles(tenpai_player)
-
-    # if the kan tile is one of the waits, the kan would change the waits
-    # (e.g., 78p + 999p can wait on 9p via 789p + 9p pair reading)
-    if tile_34 in original_waits:
-        return False
 
     # simulate kan: remove all 4 tiles from hand and add as a kan meld.
     # calculate_shanten operates on closed hand tiles only, so tiles must
@@ -341,8 +335,8 @@ def _find_closed_kan_candidates(
     """
     Find tile_34 values where the player holds 4 copies (closed kan candidates).
 
-    For riichi players, additional constraints apply: the drawn tile must be the kan tile, and the kan must preserve the
-    waiting tiles.
+    For a riichi player the drawn tile must be the kan tile (no okurikan), and the kan must leave the set of waiting
+    tiles unchanged.
     """
     possible = []
     for t34, count in tile_counts.items():

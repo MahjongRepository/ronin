@@ -31,7 +31,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
 - Minimum wall tiles for declaration: 4
 - After riichi is established, every discard must be the tile just drawn. The player may instead declare a legal win or a permitted concealed kan. The declaration discard itself may be any tile that keeps the hand tenpai.
-- Concealed quad during riichi (ankan): Allowed only if it doesn't change the hand's waiting tiles or set interpretation. Applies to concealed kan only — shouminkan is blocked during riichi. The drawn tile must be the kan tile.
+- Concealed quad during riichi (ankan), the Tenhou / Mahjong Soul rule: allowed only when the tile just drawn is the kan tile (no okurikan: a quad held before the draw cannot be declared) and the kan leaves the set of waiting tiles unchanged. A kan that narrows the waits, breaks tenpai, or quads a tile that is itself a wait is refused. A kan that changes only how the hand splits into sets, or its yaku, is allowed: 111222333m456p5s waiting on 5s may quad a drawn 1m although the hand loses its ippeikou reading. Applies to concealed kan only — shouminkan is blocked during riichi.
 - Riichi sticks on exhaustive/abortive draw: Remain on the table for the next hand. Awarded to 1st place at game end if uncollected.
 
 ### Furiten
