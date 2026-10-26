@@ -203,11 +203,3 @@ class TestValidateApiKey:
 
         result = await auth_service.validate_api_key("wrong-key-value")
         assert result is None
-
-
-class TestSessionStoreRequired:
-    async def test_auth_service_login__when_no_session_store__should_raise(self, player_repo):
-        svc = AuthService(player_repo, password_hasher=BcryptHasher(rounds=4))
-        await svc.register("alice", "password123")
-        with pytest.raises(RuntimeError, match="session_store is required"):
-            await svc.login("alice", "password123")

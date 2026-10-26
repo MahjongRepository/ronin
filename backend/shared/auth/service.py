@@ -36,7 +36,7 @@ class AuthService:
     def __init__(
         self,
         player_repo: PlayerRepository,
-        session_store: AuthSessionStore | None = None,
+        session_store: AuthSessionStore,
         *,
         password_hasher: PasswordHasher,
     ) -> None:
@@ -89,7 +89,6 @@ class AuthService:
 
         Reject bot accounts.
         """
-        store = self._require_session_store()
         player = await self._player_repo.get_by_username(username)
         if player is None:
             raise AuthError("Invalid credentials")
@@ -100,23 +99,22 @@ class AuthService:
         if not await self._hasher.verify(password, player.password_hash):
             raise AuthError("Invalid credentials")
 
-        return store.create_session(user_id=player.user_id, username=player.username)
+        return self._session_store.create_session(user_id=player.user_id, username=player.username)
 
     def validate_session(self, session_id: str | None) -> AuthSession | None:
         """
         Return the session if valid and not expired, otherwise None.
         """
-        store = self._require_session_store()
         if session_id is None:
             return None
 
-        return store.get_session(session_id)
+        return self._session_store.get_session(session_id)
 
     def logout(self, session_id: str) -> None:
         """
         Destroy a session.
         """
-        self._require_session_store().delete_session(session_id)
+        self._session_store.delete_session(session_id)
 
     async def validate_api_key(self, api_key: str) -> Player | None:
         """
@@ -126,12 +124,6 @@ class AuthService:
         return await self._player_repo.get_by_api_key_hash(key_hash)
 
     # -- private helpers --
-
-    def _require_session_store(self) -> AuthSessionStore:
-        if self._session_store is None:
-            raise RuntimeError("session_store is required for session operations")
-
-        return self._session_store
 
     async def _ensure_username_available(self, username: str) -> None:
         """

@@ -89,9 +89,9 @@ flowchart TD
 * Sessions are **in-memory** on the lobby with a 24h TTL: a restart logs everyone out.
 * Every HTTP route carries exactly one policy decorator; WebSocket handlers authenticate inside
   (`Origin` check, then `websocket.user`).
-* **Game tickets** are HMAC-SHA256 tokens `{user_id, username, room_id=game_id, issued_at,
-  expires_at}` signed by the lobby and verified by the game server. They are the only credential the
-  game server knows; it never sees cookies or API keys.
+* **Game tickets** are HMAC-SHA256 tokens `{user_id, username, room_id=game_id, expires_at}`
+  signed by the lobby and verified by the game server. They are the only credential the game
+  server knows; it never sees cookies or API keys.
 
 ## Occupancy: one place per user
 
