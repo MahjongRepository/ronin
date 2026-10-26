@@ -11,7 +11,7 @@ from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_op
 from game.logic.shanten import calculate_shanten
 from game.logic.state import seat_to_wind
 from game.logic.state_utils import update_player
-from game.logic.tiles import NUM_TILE_TYPES, WINDS_34, hand_to_34_array, tile_to_34
+from game.logic.tiles import DRAWN_HAND_REMAINDER, NUM_TILE_TYPES, WINDS_34, hand_to_34_array, tile_to_34
 from game.logic.wall import is_wall_exhausted
 
 if TYPE_CHECKING:
@@ -126,11 +126,14 @@ def get_waiting_tiles(player: MahjongPlayer) -> set[int]:
 
     Uses shanten calculator to identify which tiles would bring shanten to -1 (agari). Returns a set of tile_34 values
     (0-33) that complete the hand.
+
+    Waits belong to a waiting hand (3n+1 closed tiles). A drawn hand (3n+2: after the draw, or the player's own pon or
+    chi) has none of its own, so asking for them is an engine invariant breach and raises AssertionError rather than
+    answering an empty set for the wrong hand.
     """
-    # shanten operates on closed hand tiles only.
-    # Tile count can be invalid for calculate_replacement_number: empty hands
-    # (0 tiles from chankan checks) or 3n+0 counts like 12 tiles (after melds).
-    # calculate_shanten guards against these with sum().
+    if len(player.tiles) % 3 == DRAWN_HAND_REMAINDER:
+        raise AssertionError(f"seat {player.seat} holds a drawn hand of {len(player.tiles)} tiles, which has no waits")
+
     closed_tiles_34 = hand_to_34_array(player.tiles)
     current_shanten = calculate_shanten(closed_tiles_34)
     if current_shanten != 0:

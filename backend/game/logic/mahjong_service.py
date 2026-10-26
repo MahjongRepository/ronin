@@ -65,7 +65,6 @@ from game.logic.types import (
     RoundResult,
 )
 from game.logic.wall import tiles_remaining
-from game.logic.win import is_effective_furiten
 
 if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
@@ -675,7 +674,7 @@ class MahjongGameService(GameService):
             dice=view.dice,
             tiles_remaining=tiles_remaining(round_state.wall),
             player_states=player_states,
-            is_furiten=is_effective_furiten(round_state.players[seat]),
+            is_furiten=runtime.furiten.is_furiten(seat),
             round_history=list(game_state.round_history),
         )
 

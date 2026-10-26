@@ -404,9 +404,9 @@ class ReconnectionSnapshot(BaseModel):
     """
     Full game state snapshot sent to a reconnecting player.
 
-    is_furiten is the reconnecting seat's own effective furiten: the furiten event goes only to its seat and is not sent
-    again, so the snapshot restores it. round_history lists every finished round in play order, the current one included
-    once it has ended, so a reconnected client's standings cover the rounds it never saw.
+    is_furiten is the furiten last reported to the reconnecting seat (FuritenTracker): the furiten event goes only to
+    its seat and is not sent again, so the snapshot restores it. round_history lists every finished round in play order,
+    the current one included once it has ended, so a reconnected client's standings cover the rounds it never saw.
     """
 
     game_id: str = Field(serialization_alias="gid")

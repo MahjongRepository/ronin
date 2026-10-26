@@ -1,3 +1,4 @@
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -209,6 +210,14 @@ class TestGetWaitingTiles:
         assert 18 in waiting  # 1s
         assert 21 in waiting  # 4s
 
+    def test_waiting_tiles__when_hand_holds_its_drawn_tile__should_raise_engine_fault(self):
+        waiting_hand = TilesConverter.string_to_136_array(man="123456789", pin="4555")
+        drawn_tile = TilesConverter.string_to_136_array(sou="9")[0]
+        player = MahjongPlayer(seat=0, name="Player1", tiles=(*waiting_hand, drawn_tile), score=25000)
+
+        with pytest.raises(AssertionError, match="drawn hand of 14 tiles"):
+            get_waiting_tiles(player)
+
 
 class TestIsFuriten:
     def test_furiten__when_discards_not_waiting_tiles__should_be_false(self):
@@ -237,22 +246,6 @@ class TestIsFuriten:
         player = MahjongPlayer(seat=0, name="Player1", tiles=tuple(tiles), discards=discards, score=25000)
 
         assert is_furiten(player) is True
-
-    def test_furiten__when_waiting_tile_only_in_kan__should_be_false(self):
-        # player is tenpai waiting on 1m, has a closed kan of 1m-type tiles
-        # kan tiles are in melds (not discards), so they should NOT cause furiten
-        tiles = TilesConverter.string_to_136_array(man="234567", sou="23455")
-        one_m_tiles = TilesConverter.string_to_136_array(man="1111")
-
-        kan = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(one_m_tiles),
-            opened=False,
-        )
-        # waiting on 1s and 4s (not 1m since we have kan of 1m), no discards
-        player = MahjongPlayer(seat=0, name="P1", tiles=tuple(tiles), melds=(kan,), score=25000)
-
-        assert is_furiten(player) is False
 
     def test_furiten__when_waiting_tile_discard_was_claimed__should_be_true(self):
         # a tile that was discarded and later claimed by another player

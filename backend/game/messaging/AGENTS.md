@@ -16,7 +16,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   `turn` event to that seat names the tile types kuikae forbids it to discard instead, and a
   reconnect re-sends whichever of the two opened the turn; a discard's call
   prompt is split per seat; `furiten` goes only to its seat, and only on a change, so the
-  `game_reconnected` snapshot carries the seat's current furiten. Past rounds are never re-sent
+  `game_reconnected` snapshot carries the furiten last sent to the seat. Past rounds are never re-sent
   either, so the snapshot carries every finished round's ledger entry for the final standings.
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
   the reconnect snapshot always carries it. Every game action must echo it, and one for another wait

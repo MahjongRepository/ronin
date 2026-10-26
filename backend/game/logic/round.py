@@ -21,13 +21,17 @@ from game.logic.state_utils import (
     update_game_with_round,
     update_player,
 )
-from game.logic.tiles import NUM_TILE_TYPES, hand_to_34_array, is_terminal_or_honor, tile_to_34
+from game.logic.tiles import (
+    DRAWN_HAND_REMAINDER,
+    NUM_TILE_TYPES,
+    hand_to_34_array,
+    is_terminal_or_honor,
+    tile_to_34,
+)
 from game.logic.types import ExhaustiveDrawResult, NagashiManganResult, TenpaiHand
 from game.logic.win import MAX_TILE_COPIES
 
 logger = structlog.get_logger()
-
-_DRAWN_HAND_REMAINDER = 2
 
 
 def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
@@ -229,7 +233,7 @@ def is_tempai(
     """
     tiles_list = list(tiles)
 
-    if len(tiles_list) % 3 == _DRAWN_HAND_REMAINDER:
+    if len(tiles_list) % 3 == DRAWN_HAND_REMAINDER:
         # Compute the 34-array once, then modify in-place for each discard check.
         # Deduplicate by tile type: discarding two tiles of the same type yields
         # the same 34-array, so only one shanten check is needed per type.

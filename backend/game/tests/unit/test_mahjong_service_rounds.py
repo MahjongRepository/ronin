@@ -55,18 +55,18 @@ class TestMahjongGameServiceHandleTimeout:
 
     def test_handle_timeout__when_meld_timeout_with_pending_prompt__should_pass_for_the_seat(self, service):
         runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
-        game_state = runtime.state
-        round_state = game_state.round_state
-        player = _find_player(round_state, "Player")
+        player = _find_player(runtime.state.round_state, "Player")
+        discarder_seat = (player.seat + 1) % 4
+        _update_player(runtime, seat=player.seat, tiles=player.tiles[:-1])
 
         prompt = PendingCallPrompt(
             kind=PromptKind.DISCARD,
             tile_id=0,
-            from_seat=(player.seat + 1) % 4,
+            from_seat=discarder_seat,
             pending_seats=frozenset({player.seat}),
             callers=(Caller(seat=player.seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
         )
-        _update_round_state(runtime, pending_call_prompt=prompt)
+        _update_round_state(runtime, current_player_seat=discarder_seat, pending_call_prompt=prompt)
 
         events = service.handle_timeout(runtime, seat=player.seat, timeout_type=TimeoutType.MELD).events
         assert not any(isinstance(e.data, ErrorEvent) for e in events)

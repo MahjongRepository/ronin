@@ -307,8 +307,6 @@ def _kan_preserves_waits_for_riichi(player: MahjongPlayer, tile_34: int) -> bool
 
     tenpai_player = player.model_copy(update={"tiles": tuple(tiles_13)})
     original_waits = get_waiting_tiles(tenpai_player)
-    if not original_waits:
-        return False
 
     # if the kan tile is one of the waits, the kan would change the waits
     # (e.g., 78p + 999p can wait on 9p via 789p + 9p pair reading)
@@ -768,11 +766,20 @@ def validate_closed_kan(
     """
     Validate that a closed kan (ankan) declaration is legal without executing it.
 
-    Checks riichi constraints, kan preconditions (wall tiles, max kans), and that the player holds 4 copies of the tile
-    type. Raises InvalidMeldError on any violation.
+    Checks that the player holds 4 copies of the tile type, kan preconditions (wall tiles, max kans), and riichi
+    constraints. The copies come first: the riichi wait check simulates the kan and assumes them. Raises
+    InvalidMeldError on any violation.
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
+
+    count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
+    if count < TILES_FOR_CLOSED_KAN:
+        raise InvalidMeldError(
+            f"closed kan requires {TILES_FOR_CLOSED_KAN} tiles of type {tile_34}, player {seat} has {count}",
+        )
+
+    _validate_kan_preconditions(round_state, settings)
 
     if player.is_riichi:
         if tile_to_34(player.tiles[-1]) != tile_34:
@@ -780,14 +787,6 @@ def validate_closed_kan(
 
         if not _kan_preserves_waits_for_riichi(player, tile_34):
             raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
-
-    _validate_kan_preconditions(round_state, settings)
-
-    count = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
-    if count < TILES_FOR_CLOSED_KAN:
-        raise InvalidMeldError(
-            f"closed kan requires {TILES_FOR_CLOSED_KAN} tiles of type {tile_34}, player {seat} has {count}",
-        )
 
 
 def call_closed_kan(
@@ -802,18 +801,9 @@ def call_closed_kan(
 
     Player declares kan with 4 tiles from hand. The hand remains closed. Returns (new_round_state, created_meld).
     """
+    validate_closed_kan(round_state, seat=seat, tile_id=tile_id, settings=settings)
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
-
-    # riichi guard: drawn tile must be the kan tile, and kan must preserve waits
-    if player.is_riichi:
-        if tile_to_34(player.tiles[-1]) != tile_34:
-            raise InvalidMeldError("closed kan in riichi: drawn tile must be the kan tile")
-
-        if not _kan_preserves_waits_for_riichi(player, tile_34):
-            raise InvalidMeldError("closed kan in riichi must not change waiting tiles")
-
-    _validate_kan_preconditions(round_state, settings)
 
     removed_tiles, new_hand = _remove_matching_tiles(
         hand=player.tiles,
