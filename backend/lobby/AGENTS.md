@@ -22,7 +22,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   occupancy rule as an injected callable.
 * `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls,
   the "is this user playing" lookup and the recovery of a lost handoff. `websocket_utils.py` — the
-  WebSocket `Origin` check.
+  socket prologue rooms and matchmaking share (`Origin` check, auth, accept, the writer's lifetime);
+  each handler decides what an unexpected error does.
 * The lobby calls the game server through one HTTP client per app, built in `create_app()` and
   closed in the lifespan. Its idle connections expire well before the game server's keep-alive
   timeout (uvicorn's 5s default), since a start sent on a connection the server is closing fails

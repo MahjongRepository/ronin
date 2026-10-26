@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from typing import TYPE_CHECKING
 
 import structlog
@@ -9,7 +8,6 @@ from pydantic import ValidationError
 
 from lobby.game_transition import GameStartError, hand_back_live_game, start_game
 from lobby.occupancy import ALREADY_IN_GAME
-from lobby.players import LobbyPlayer
 from lobby.rooms.messages import (
     LobbyChatMessage,
     LobbyClientMessage,
@@ -18,9 +16,8 @@ from lobby.rooms.messages import (
     LobbyStartGameMessage,
     parse_lobby_message,
 )
-from lobby.websocket_utils import check_origin
+from lobby.websocket_utils import serve_lobby_socket
 from shared.rate_limit import TokenBucket
-from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
 if TYPE_CHECKING:
     import httpx
@@ -28,6 +25,7 @@ if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
     from lobby.occupancy import Occupancy
+    from lobby.players import LobbyPlayer
     from lobby.rooms.manager import LobbyRoomManager
     from lobby.rooms.models import LobbyRoom
     from lobby.settings import LobbyServerSettings
@@ -66,31 +64,10 @@ class _RoomContext:
 
 async def room_websocket(websocket: WebSocket) -> None:
     """
-    Handle a WebSocket connection for a lobby room; this task owns the connection's writer.
+    Handle a WebSocket connection for a lobby room.
     """
-    if not check_origin(websocket):
-        await reject_websocket(websocket, code=4003, reason="forbidden_origin")
-        return
-
-    if not websocket.user.is_authenticated:
-        await reject_websocket(websocket, code=4001, reason="unauthorized")
-        return
-
-    if not await accept_websocket(websocket):
-        return
-
-    connection_id = str(uuid.uuid4())
-    player = LobbyPlayer(
-        connection_id=connection_id,
-        user_id=websocket.user.user_id,
-        username=websocket.user.username,
-        connection=QueuedWebSocket(websocket, connection_id=connection_id),
-    )
-    player.connection.start_writer()
-    try:
-        await _serve_player(player, _RoomContext(websocket))
-    finally:
-        await player.connection.stop_writer()
+    ctx = _RoomContext(websocket)
+    await serve_lobby_socket(websocket, lambda player: _serve_player(player, ctx))
 
 
 async def _serve_player(player: LobbyPlayer, ctx: _RoomContext) -> None:
@@ -129,21 +106,25 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
             await _reject_join(player, ctx, reason=game_conflict)
             return False
 
-        result = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
-        if isinstance(result, str):
-            await _reject_join(player, ctx, reason=result)
+        room_or_error = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
+        if isinstance(room_or_error, str):
+            await _reject_join(player, ctx, reason=room_or_error)
             return False
 
-        player.send(result)
+        room = room_or_error
+        player.send(
+            {
+                "type": "room_joined",
+                "room_id": room.room_id,
+                "player_name": player.username,
+                "is_owner": room.is_host(player.connection_id),
+                **_room_state(room),
+            },
+        )
         logger.info("player joined room", room_id=ctx.room_id, username=player.username, player_count=room.player_count)
         _broadcast(
             room,
-            {
-                "type": "player_joined",
-                "player_name": player.username,
-                "players": [p.model_dump() for p in room.get_player_info()],
-                "can_start": room.can_start,
-            },
+            {"type": "player_joined", "player_name": player.username, **_room_state(room)},
             exclude=player.connection_id,
         )
 
@@ -169,20 +150,20 @@ def _broadcast(room: LobbyRoom, message: dict, *, exclude: str | None = None) ->
     Send a message to every player seated in the room, encoded once; ``exclude`` skips one connection.
     """
     payload = json.dumps(message)
-    for connection_id, member in room.players.items():
-        if connection_id != exclude:
+    for member in room.members:
+        if member.player.connection_id != exclude:
             member.player.connection.send_text(payload)
 
 
+def _room_state(room: LobbyRoom) -> dict:
+    """
+    Return the seat list and startability every room state message carries.
+    """
+    return {"can_start": room.can_start, "players": [p.model_dump() for p in room.get_player_info()]}
+
+
 def _send_room_state(room: LobbyRoom) -> None:
-    _broadcast(
-        room,
-        {
-            "type": "player_ready_changed",
-            "players": [p.model_dump() for p in room.get_player_info()],
-            "can_start": room.can_start,
-        },
-    )
+    _broadcast(room, {"type": "player_ready_changed", **_room_state(room)})
 
 
 async def _message_loop(player: LobbyPlayer, ctx: _RoomContext) -> None:
@@ -273,7 +254,7 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
 
     try:
         game_id = await start_game(
-            [member.player for member in room.players.values()],
+            [member.player for member in room.members],
             num_ai_players=room.num_ai_players,
             settings=ctx.settings,
             ticket_secret=ctx.auth_settings.game_ticket_secret,
@@ -321,7 +302,7 @@ def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext) -> None:
     if room is None:
         return
 
-    was_host = room.host_connection_id == player.connection_id
+    was_host = room.is_host(player.connection_id)
     if not ctx.room_manager.leave_room(ctx.room_id, player.connection_id):
         return
 
@@ -330,22 +311,8 @@ def _cleanup_connection(player: LobbyPlayer, ctx: _RoomContext) -> None:
     if room is None or room.transitioning:
         return
 
-    if was_host and room.host_connection_id is not None:
-        room.players[room.host_connection_id].player.send(
-            {
-                "type": "owner_changed",
-                "is_owner": True,
-                "can_start": room.can_start,
-                "players": [p.model_dump() for p in room.get_player_info()],
-            },
-        )
+    new_host = room.host
+    if was_host and new_host is not None:
+        new_host.player.send({"type": "owner_changed", "is_owner": True, **_room_state(room)})
 
-    _broadcast(
-        room,
-        {
-            "type": "player_left",
-            "player_name": player.username,
-            "players": [p.model_dump() for p in room.get_player_info()],
-            "can_start": room.can_start,
-        },
-    )
+    _broadcast(room, {"type": "player_left", "player_name": player.username, **_room_state(room)})

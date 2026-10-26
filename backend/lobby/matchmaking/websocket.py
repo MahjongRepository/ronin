@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import json
-import uuid
 from typing import TYPE_CHECKING
 
 import structlog
 
 from lobby.game_transition import GameStartError, hand_back_live_game, start_game
 from lobby.occupancy import ALREADY_IN_GAME
-from lobby.players import LobbyPlayer
-from lobby.websocket_utils import check_origin
-from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
+from lobby.websocket_utils import serve_lobby_socket
 
 if TYPE_CHECKING:
     import httpx
@@ -18,6 +15,7 @@ if TYPE_CHECKING:
 
     from lobby.matchmaking.manager import MatchmakingManager
     from lobby.occupancy import Occupancy
+    from lobby.players import LobbyPlayer
     from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
 
@@ -49,31 +47,10 @@ class _MatchmakingContext:
 
 async def matchmaking_websocket(websocket: WebSocket) -> None:
     """
-    Handle a WebSocket connection for matchmaking; this task owns the connection's writer.
+    Handle a WebSocket connection for matchmaking.
     """
-    if not check_origin(websocket):
-        await reject_websocket(websocket, code=4003, reason="forbidden_origin")
-        return
-
-    if not websocket.user.is_authenticated:
-        await reject_websocket(websocket, code=4001, reason="unauthorized")
-        return
-
-    if not await accept_websocket(websocket):
-        return
-
-    connection_id = str(uuid.uuid4())
-    player = LobbyPlayer(
-        connection_id=connection_id,
-        user_id=websocket.user.user_id,
-        username=websocket.user.username,
-        connection=QueuedWebSocket(websocket, connection_id=connection_id),
-    )
-    player.connection.start_writer()
-    try:
-        await _serve_player(player, _MatchmakingContext(websocket))
-    finally:
-        await player.connection.stop_writer()
+    ctx = _MatchmakingContext(websocket)
+    await serve_lobby_socket(websocket, lambda player: _serve_player(player, ctx))
 
 
 async def _serve_player(player: LobbyPlayer, ctx: _MatchmakingContext) -> None:
@@ -103,18 +80,14 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
     """
     log = logger.bind(username=player.username, connection_id=player.connection_id)
 
-    matched = None
-    position = 0
+    joined: int | list[LobbyPlayer] = 0
     with ctx.occupancy.admitting(player.user_id):
         rejection = await ctx.occupancy.find_game_conflict(player.user_id)
         if rejection is None:
             try:
-                ctx.matchmaking_manager.add_player(player)
+                joined = ctx.matchmaking_manager.add_player(player)
             except ValueError as e:
                 rejection = str(e)
-            else:
-                position = ctx.matchmaking_manager.queue_size
-                matched = ctx.matchmaking_manager.try_match()
 
     if rejection == ALREADY_IN_GAME and await hand_back_live_game(
         player, settings=ctx.settings, game_server=ctx.game_server
@@ -126,13 +99,13 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
         _send_error_and_close(player, reason=rejection)
         return False
 
-    if matched:
-        log.info("match found", players=[p.username for p in matched])
-        await _handle_match(matched, ctx)
+    if isinstance(joined, list):
+        log.info("match found", players=[p.username for p in joined])
+        await _handle_match(joined, ctx)
         return False
 
-    player.send({"type": "queue_joined", "position": position, "queue_size": position})
-    log.info("player queued", queue_size=position)
+    player.send({"type": "queue_joined", "position": joined, "queue_size": joined})
+    log.info("player queued", queue_size=joined)
     _broadcast_queue_update(ctx, exclude=player.connection_id)
     return True
 

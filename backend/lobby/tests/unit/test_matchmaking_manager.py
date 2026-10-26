@@ -17,10 +17,11 @@ def _make_entry(user_id: str = "u1", username: str = "alice", connection_id: str
 
 
 class TestAddPlayer:
-    def test_matchmaking_queue_add__should_increment_queue_size(self):
+    def test_matchmaking_queue_add__when_table_not_full__should_return_the_queue_position(self):
         mgr = MatchmakingManager()
-        mgr.add_player(_make_entry())
-        assert mgr.queue_size == 1
+        assert mgr.add_player(_make_entry(user_id="u1", connection_id="c1")) == 1
+        assert mgr.add_player(_make_entry(user_id="u2", connection_id="c2")) == 2
+        assert mgr.queue_size == 2
 
     def test_matchmaking_queue_add__when_occupancy_reports_a_conflict__should_raise_it_before_queueing(self):
         mgr = MatchmakingManager(find_conflict=lambda user_id: "already_in_room" if user_id == "u1" else None)
@@ -31,24 +32,23 @@ class TestAddPlayer:
         mgr.add_player(_make_entry(user_id="u2", connection_id="c2"))
         assert mgr.queue_size == 1
 
-    def test_matchmaking_queue_add__when_different_users__should_queue_both(self):
+    def test_matchmaking_queue_add__when_join_fills_the_table__should_return_the_matched_players_in_order(self):
         mgr = MatchmakingManager()
-        mgr.add_player(_make_entry(user_id="u1", connection_id="c1"))
-        mgr.add_player(_make_entry(user_id="u2", connection_id="c2"))
-        assert mgr.queue_size == 2
+        players = [_make_entry(user_id=f"u{i}", connection_id=f"c{i}") for i in range(MATCHMAKING_SEATS)]
+        for player in players[:-1]:
+            mgr.add_player(player)
+
+        assert mgr.add_player(players[-1]) == players
+        assert mgr.queue_size == 0
 
 
 class TestRemovePlayer:
-    def test_matchmaking_queue_remove__should_decrement_queue_size(self):
+    def test_matchmaking_queue_remove__should_report_whether_it_removed_the_connection(self):
         mgr = MatchmakingManager()
         mgr.add_player(_make_entry(connection_id="c1"))
-        mgr.remove_player("c1")
+        assert mgr.remove_player("c1") is True
         assert mgr.queue_size == 0
-
-    def test_matchmaking_queue_remove__when_user_not_queued__should_do_nothing(self):
-        mgr = MatchmakingManager()
-        mgr.remove_player("nonexistent")
-        assert mgr.queue_size == 0
+        assert mgr.remove_player("c1") is False
 
     def test_matchmaking_queue_remove__should_allow_user_to_rejoin(self):
         mgr = MatchmakingManager()
@@ -58,41 +58,14 @@ class TestRemovePlayer:
         assert mgr.queue_size == 1
 
 
-class TestTryMatch:
-    def test_matchmaking_try_match__when_not_enough_players__should_return_none(self):
+class TestInFlight:
+    def test_matchmaking_has_user__when_player_matched__should_count_until_the_match_is_resolved(self):
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS - 1):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
 
-        assert mgr.try_match() is None
-
-    def test_matchmaking_try_match__when_enough_players__should_return_matched_players(self):
-        mgr = MatchmakingManager()
-        for i in range(MATCHMAKING_SEATS):
-            mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
-
-        matched = mgr.try_match()
-        assert matched is not None
-        assert len(matched) == MATCHMAKING_SEATS
-        assert mgr.queue_size == 0
-
-    def test_matchmaking_try_match__when_extra_players__should_keep_them_queued(self):
-        mgr = MatchmakingManager()
-        for i in range(MATCHMAKING_SEATS + 2):
-            mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
-
-        matched = mgr.try_match()
-        assert matched is not None
-        assert len(matched) == MATCHMAKING_SEATS
-        assert mgr.queue_size == 2
-
-    def test_matchmaking_has_user__when_player_matched__should_count_until_the_match_is_resolved(self):
-        mgr = MatchmakingManager()
-        for i in range(MATCHMAKING_SEATS):
-            mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
-
         assert mgr.has_user("u0") is True
-        mgr.try_match()
+        mgr.add_player(_make_entry(user_id="last", connection_id="c-last"))
         assert mgr.has_user("u0") is True
-        mgr.clear_in_flight({f"u{i}" for i in range(MATCHMAKING_SEATS)})
+        mgr.clear_in_flight({"u0", "u1", "u2", "last"})
         assert mgr.has_user("u0") is False
