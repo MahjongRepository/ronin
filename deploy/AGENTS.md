@@ -35,6 +35,11 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
 * **Liveness is the WebSocket protocol ping.** Both uvicorn commands (and `bin/run-local-server.sh`)
   pin the `--ws` ping flags; the apps run no ping of their own, so removing the flags leaves dead
   sockets open.
+* **Frame size is capped before buffering.** Both uvicorn commands (and `bin/run-local-server.sh`)
+  pin `--ws-max-size`: uvicorn otherwise buffers a 16 MiB frame before the app's own size checks
+  run, and game sockets accept frames before they authenticate. The game cap is the decoder's
+  `MAX_BUFFER_LEN`, the lobby's twice its room message limit; keep each in step with that limit.
+  An oversized frame closes the socket with 1009. TestClient bypasses uvicorn, so no test pins this.
 * Per-service settings live in compose `environment:`, secrets only in `.env`. A deployment-specific
   setting has no default (`backend/AGENTS.md`), so a new one must be added here or the service fails
   to start and the deploy's health gate stops. A release that adds, renames or removes a required

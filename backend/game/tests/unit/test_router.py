@@ -91,14 +91,23 @@ class TestMessageRouterBranches:
         router.handle_disconnect(connection)
         assert len(connection.sent_messages) == 0
 
-    async def test_message_router__when_message_invalid__should_return_invalid_message_error(self, setup):
+    async def test_message_router__when_message_invalid__should_return_invalid_message_error_without_the_input(
+        self, setup, caplog
+    ):
         router, connection, _ = setup
+        ticket_in_the_type_tag = make_test_game_ticket(username="Alice", room_id="test-game")
 
-        router.handle_message(connection, {"t": "invalid"})
+        with caplog.at_level(logging.WARNING):
+            router.handle_message(connection, {"t": ticket_in_the_type_tag})
         assert len(connection.sent_messages) == 1
         response = connection.sent_messages[0]
         assert response["type"] == SessionMessageType.ERROR
         assert response["code"] == SessionErrorCode.INVALID_MESSAGE
+        assert ticket_in_the_type_tag not in str(response)
+        assert [(r.msg["event"], r.msg["error_types"], r.msg["error_count"]) for r in caplog.records] == [
+            ("invalid message", ["union_tag_invalid"], 1)
+        ]
+        assert ticket_in_the_type_tag not in caplog.text
 
     async def test_message_router__when_game_action_lacks_the_wait_id__should_refuse_it_as_invalid_message(self, setup):
         router, connection, session_manager = setup

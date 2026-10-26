@@ -143,40 +143,36 @@ class TestWebSocketIntegration:
     def test_websocket__when_burst_exceeded__should_return_rate_limited_error(self, client):
         with (
             patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
-            patch.object(ws_module, "_RATE_LIMIT_RATE", 1.0),
+            patch.object(ws_module, "_RATE_LIMIT_RATE", 0.0),
             client.websocket_connect("/ws/test_game") as ws,
         ):
-            # First 2 valid messages consume burst
-            for _ in range(2):
-                send_ws(ws, ACTION_OUTSIDE_A_GAME)
-                recv_ws(ws)
-
-            # Next valid message should be rate-limited
+            ws.send_bytes(b"\xff\xff\xff")
+            assert recv_ws(ws)["code"] == SessionErrorCode.INVALID_MESSAGE
             send_ws(ws, ACTION_OUTSIDE_A_GAME)
-            resp = recv_ws(ws)
-            assert resp["code"] == SessionErrorCode.RATE_LIMITED
+            assert recv_ws(ws)["code"] == SessionErrorCode.NOT_IN_GAME
 
-    def test_websocket__when_malformed_after_burst_exhausted__should_count_decode_strikes_and_disconnect(self, client):
+            send_ws(ws, ACTION_OUTSIDE_A_GAME)
+            assert recv_ws(ws)["code"] == SessionErrorCode.RATE_LIMITED
+
+    def test_websocket__when_malformed_after_burst_exhausted__should_drop_replies_and_disconnect_on_decode_strikes(
+        self, client
+    ):
         with (
             patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
-            patch.object(ws_module, "_RATE_LIMIT_RATE", 1.0),
+            patch.object(ws_module, "_RATE_LIMIT_RATE", 0.0),
             patch.object(ws_module, "_MAX_DECODE_ERRORS", 4),
             client.websocket_connect("/ws/test_game") as ws,
         ):
-            # Drain the bucket with valid messages
             for _ in range(2):
                 send_ws(ws, ACTION_OUTSIDE_A_GAME)
                 recv_ws(ws)
 
-            # Send malformed messages - they hit decode (not rate-limit) and
-            # accumulate strikes until disconnect
             for _ in range(4):
                 ws.send_bytes(b"\xff\xff\xff")
-                resp = recv_ws(ws)
-                assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
 
-            with pytest.raises(WebSocketDisconnect):
+            with pytest.raises(WebSocketDisconnect) as closed:
                 ws.receive_bytes()
+            assert (closed.value.code, closed.value.reason) == (4004, "too_many_decode_errors")
 
 
 class TestHealthEndpoint:

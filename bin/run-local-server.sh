@@ -78,7 +78,7 @@ trap cleanup EXIT INT TERM
 export LOBBY_GAME_CLIENT_URL="/play"
 
 echo "Starting game server on port $GAME_PORT..."
-uv run --project backend uvicorn --factory game.server.app:get_app --reload --host 0.0.0.0 --port $GAME_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20 &
+uv run --project backend uvicorn --factory game.server.app:get_app --reload --host 0.0.0.0 --port $GAME_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 262144 &
 GAME_PID=$!
 
 echo "Waiting for game server to be ready..."
@@ -107,4 +107,4 @@ fi
 
 echo "Starting lobby server on port $LOBBY_PORT..."
 echo "Open http://localhost:$LOBBY_PORT in your browser"
-uv run --project backend uvicorn --factory lobby.server.app:get_app --reload --host 0.0.0.0 --port $LOBBY_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20
+uv run --project backend uvicorn --factory lobby.server.app:get_app --reload --host 0.0.0.0 --port $LOBBY_PORT --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 8192

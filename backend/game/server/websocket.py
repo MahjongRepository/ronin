@@ -109,10 +109,12 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                 data = decode(await connection.receive_bytes())
             except DecodeError as e:
                 decode_errors += 1
-                logger.warning("decode error", error=str(e), strikes=decode_errors)
-                connection.send_message(
-                    ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
-                )
+                if bucket.consume():
+                    logger.warning("decode error", error=str(e), strikes=decode_errors)
+                    connection.send_message(
+                        ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
+                    )
+
                 if decode_errors >= _MAX_DECODE_ERRORS:
                     logger.info(
                         "too many decode errors, disconnecting",
