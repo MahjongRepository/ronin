@@ -156,8 +156,9 @@ class GameService(Protocol):
         """
         ...
 
-    def build_draw_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
-        Rebuild the draw event with available actions for a specific seat.
+        Rebuild the event that opened the seat's turn: its draw with its available actions, or the turn event right
+        after its own pon or chi; none when the turn is not the seat's.
         """
         ...

@@ -8,8 +8,8 @@ import { BEEP_SECONDS } from '../../vendor/majiang-ui/player.js';
 import { NO_OFFER } from './offer.js';
 
 /**
- * majiang-ui's player whose buttons offer exactly what the server offers: the server, not the local engine, judges
- * every win, call, kan, riichi and kyuushu, and refuses or disconnects on anything else.
+ * majiang-ui's player whose buttons and selectable tiles offer exactly what the server offers: the server, not the
+ * local engine, judges every win, call, kan, riichi, kyuushu and kuikae, and refuses or disconnects on anything else.
  */
 class RoninPlayer extends UI.Player {
 
@@ -24,7 +24,13 @@ class RoninPlayer extends UI.Player {
 
     allow_no_daopai() { return false; }
 
-    allow_lizhi(shoupai, p) { return this.offer.riichi && super.allow_lizhi(shoupai, p); }
+    allow_lizhi() { return this.offer.riichi; }
+
+    /** Any tile in hand, in riichi only the drawn one (majiang-core's own listing), but the types kuikae blocks. */
+    get_dapai(shoupai) {
+        const kuikae = this.offer.kuikae;
+        return shoupai.get_dapai(false).filter(p => kuikae.indexOf(p[0] + p[1].replace('0', '5')) < 0);
+    }
 
     get_gang_mianzi() { return this.offer.gang; }
 

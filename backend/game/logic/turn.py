@@ -44,11 +44,10 @@ from game.logic.melds import (
     resolve_added_kan_tile,
     validate_closed_kan,
 )
-from game.logic.riichi import can_declare_riichi, declare_riichi
+from game.logic.riichi import can_declare_riichi, declare_riichi, riichi_discards
 from game.logic.round import (
     discard_tile,
     draw_tile,
-    is_tempai,
     process_exhaustive_draw,
     reveal_pending_dora,
 )
@@ -246,19 +245,10 @@ def _validate_riichi_discard(
         logger.warning("cannot declare riichi: conditions not met", seat=player.seat)
         raise ImpossibleActionError("cannot declare riichi: conditions not met")
 
-    removed = False
-    simulated: list[int] = []
-    for t in player.tiles:
-        if t == tile_id and not removed:
-            removed = True
-            continue
-
-        simulated.append(t)
-
-    if not removed:
+    if tile_id not in player.tiles:
         raise ImpossibleActionError(f"tile {tile_id} not in hand")
 
-    if not is_tempai(tuple(simulated), player.melds):
+    if tile_id not in riichi_discards(player):
         raise InvalidRiichiError(f"hand is not tenpai after discarding tile {tile_id}")
 
 

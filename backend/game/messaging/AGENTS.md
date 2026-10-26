@@ -12,8 +12,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
   current bank; the client counts its own turns down from them and is never re-synced), and the
   first deal follows it only after the session's game start pause; a draw goes only to the drawing
-  seat, with its available actions when it has any; no draw follows the seat's
-  own pon or chi, nor is one re-sent on a reconnect before that seat's discard; a discard's call
+  seat, with its available actions when it has any; no draw follows the seat's own pon or chi: a
+  `turn` event to that seat names the tile types kuikae forbids it to discard instead, and a
+  reconnect re-sends whichever of the two opened the turn; a discard's call
   prompt is split per seat; `furiten` goes only to its seat, and only on a change, so the
   `game_reconnected` snapshot carries the seat's current furiten. Past rounds are never re-sent
   either, so the snapshot carries every finished round's ledger entry for the final standings.

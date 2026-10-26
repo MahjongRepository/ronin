@@ -1,7 +1,7 @@
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
-from game.logic.riichi import can_declare_riichi
+from game.logic.riichi import can_declare_riichi, riichi_discards
 from game.logic.settings import GameSettings
 from game.logic.state import (
     MahjongPlayer,
@@ -73,21 +73,22 @@ class TestCanDeclareRiichi:
         result = can_declare_riichi(player, round_state, settings=GameSettings())
         assert result is False
 
-    def test_can_declare_riichi__when_hand_has_closed_kan__should_allow(self):
+    def test_can_declare_riichi__when_hand_has_closed_kan_and_drew__should_allow_the_tenpai_keeping_discards(self):
         closed_kan = FrozenMeld(
             meld_type=FrozenMeld.KAN,
             tiles=tuple(TilesConverter.string_to_136_array(man="1111")),
             opened=False,
         )
-        # hand with closed kan has fewer tiles (10 instead of 13)
-        tempai_hand_with_kan = TilesConverter.string_to_136_array(man="2345678889")
+        man_nine = TilesConverter.string_to_136_array(man="9")[0]
+        stray_tile = TilesConverter.string_to_136_array(honors="1")[0]
+        drawn_hand_with_kan = (*TilesConverter.string_to_136_array(man="2345678889"), stray_tile)
         player, round_state = self._create_player_and_round_state(
-            tiles=tempai_hand_with_kan,
+            tiles=drawn_hand_with_kan,
             melds=(closed_kan,),
         )
 
-        result = can_declare_riichi(player, round_state, settings=GameSettings())
-        assert result is True
+        assert can_declare_riichi(player, round_state, settings=GameSettings()) is True
+        assert riichi_discards(player) == [man_nine, stray_tile]
 
     def test_can_declare_riichi__when_not_tempai__should_reject(self):
         player, round_state = self._create_player_and_round_state(tiles=self._create_non_tempai_hand())

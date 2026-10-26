@@ -44,7 +44,11 @@ export const DECISION_VARIANTS = Object.freeze([
             ...goAround("p9", "z6", "s1", "p1"),
             { zimo: { l: VIEWPOINT, p: "m3" } },
         ],
-        offer: { tsumo: true, riichi: true, gang: ["m1111"] },
+        offer: {
+            tsumo: true,
+            riichi: ["m1", "m2", "p5", "p6", "p7", "s7", "s8", "s9", "z5", "m3_"],
+            gang: ["m1111"],
+        },
     },
     {
         key: "open-hand",
@@ -108,7 +112,7 @@ export const DECISION_VARIANTS = Object.freeze([
             ...goAround("p9", "z6", "m1", "p1"),
             { zimo: { l: VIEWPOINT, p: "p5" } },
         ],
-        offer: { riichi: true },
+        offer: { riichi: ["p2", "p5_"] },
         press: "lizhi",
     },
     {

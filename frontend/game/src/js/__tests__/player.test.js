@@ -180,6 +180,29 @@ describe("RoninPlayer", () => {
         expect(player._callback).toHaveBeenCalledExactlyOnceWith({ dapai: "m1*" });
     });
 
+    it("lets the turn after a call discard any tile but the kuikae types the server blocks, a red five's included", () => {
+        const { player, root } = createPlayer(RoninPlayer);
+        player.action({
+            kaiju: { id: 0, rule: RONIN_RULE, title: "", player: ["", "", "", ""], qijia: 0 },
+        });
+        player.action({ qipai: dealDecision("m0p456s7789z11233") });
+        const hand = $(".shoupai.main .bingpai", root).append(
+            renderTile("m0"),
+            renderTile("s7"),
+            renderTile("p4"),
+        );
+        player.action({ dapai: { l: 2, p: "z3" } });
+        player.offer = { ...NO_OFFER, kuikae: ["m5", "s7"] };
+        const reply = vi.fn();
+
+        player.action({ fulou: { l: 0, m: "z333=" } }, reply);
+        hand.find('.pai[data-pai="m0"]').trigger("click");
+        hand.find('.pai[data-pai="s7"]').trigger("click");
+        expect(reply).not.toHaveBeenCalled();
+        hand.find('.pai[data-pai="p4"]').trigger("click");
+        expect(reply).toHaveBeenCalledExactlyOnceWith({ dapai: "p4" });
+    });
+
     it("offers a turn's kans without ×, keeps that through backing out of the kan choice, and takes a discard as declining them", () => {
         const { player, root, selector } = createPlayer(RoninPlayer);
         player.action({

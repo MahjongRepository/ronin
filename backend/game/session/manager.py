@@ -630,16 +630,16 @@ class SessionManager:
         awaiting: Awaiting,
     ) -> None:
         """
-        Re-send the draw and start the turn timer for a reconnected participant whose turn the game awaits.
+        Re-send the event that opened the turn (the draw, or the turn event after the seat's own pon or chi) and start
+        the turn timer for a reconnected participant whose turn the game awaits.
 
-        Sent directly instead of through `_send_events`, so the replay does not record the draw twice. Right after the
-        seat's own pon or chi there is no draw to re-send; the timer still starts.
+        Sent directly instead of through `_send_events`, so the replay does not record the draw twice.
         """
         seat = self._seat_of(participant)
         if awaiting.kind != WaitKind.TURN or seat not in awaiting.seats:
             return
 
-        for event in self._game_service.build_draw_event_for_seat(self._runtime_of(participant.game), seat):
+        for event in self._game_service.build_turn_event_for_seat(self._runtime_of(participant.game), seat):
             connection.send_message(stamp_wait_id(service_event_payload(event), event, awaiting))
 
         self._start_turn_timer(participant)

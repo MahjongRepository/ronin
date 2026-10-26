@@ -18,6 +18,7 @@ class WireEventType(IntEnum):
     ROUND_STARTED = 9
     GAME_END = 10
     FURITEN = 11
+    TURN = 12
 
 
 class WireRoundResultType(IntEnum):

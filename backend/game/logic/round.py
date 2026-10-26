@@ -27,8 +27,7 @@ from game.logic.win import MAX_TILE_COPIES
 
 logger = structlog.get_logger()
 
-# hand size constants
-HAND_SIZE_AFTER_DRAW = 14
+_DRAWN_HAND_REMAINDER = 2
 
 
 def _get_hand_waiting_tiles(tiles: list[int]) -> set[int]:
@@ -222,7 +221,7 @@ def is_tempai(
     player's own hand + melds) is NOT considered tenpai.
 
     Args:
-        tiles: The player's hand tiles (13 or 14 tiles).
+        tiles: The player's concealed tiles, before (3n+1) or after (3n+2) the draw; closed kans and calls leave fewer.
         melds: The player's melds (for karaten check).
 
     Returns:
@@ -230,14 +229,10 @@ def is_tempai(
     """
     tiles_list = list(tiles)
 
-    if len(tiles_list) == HAND_SIZE_AFTER_DRAW:
+    if len(tiles_list) % 3 == _DRAWN_HAND_REMAINDER:
         # Compute the 34-array once, then modify in-place for each discard check.
         # Deduplicate by tile type: discarding two tiles of the same type yields
         # the same 34-array, so only one shanten check is needed per type.
-        #
-        # Call calculate_replacement_number directly instead of calculate_shanten
-        # to skip the per-call sum(tiles_34) guard. After removing one tile from
-        # a 14-tile hand the count is always 13 (3*4+1), so the guard always passes.
         tiles_34 = hand_to_34_array(tiles_list)
         checked: set[int] = set()
         four = PlayerCount.FOUR
@@ -257,9 +252,6 @@ def is_tempai(
 
         return False
 
-    # Unlike the 14-tile loop above, tile count here can be invalid for
-    # calculate_replacement_number: empty hands (0 tiles) or 3n+0 counts
-    # like 15 tiles. calculate_shanten guards against these with sum().
     tiles_34 = hand_to_34_array(tiles_list)
     if calculate_shanten(tiles_34) != 0:
         return False

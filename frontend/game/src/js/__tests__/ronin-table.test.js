@@ -46,6 +46,10 @@ class TablePlayer extends Majiang.Player {
 
     clear_timer() {}
 
+    show_button(callback) {
+        callback();
+    }
+
     select_dapai() {
         this.shown.push({ name: "select_dapai" });
     }
@@ -208,7 +212,7 @@ describe("the ronin table (Translate and Reply)", () => {
         ]);
     });
 
-    it("offers a pon using a red five and discards after it under the meld's wait id", () => {
+    it("offers a pon using a red five and discards after it, blocking the turn event's kuikae type, under its wait id", () => {
         const table = startTable();
         table.receive(draw(0, 120, { wi: 1 }));
         table.decide({ dapai: "z4_" });
@@ -220,7 +224,12 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
         expect(table.player.offer.peng).toEqual(["m505-"]);
         table.decide({ fulou: "m505-" });
-        table.receive({ t: 0, m: 16844, wi: 3 });
+        const shownBeforeMeld = table.player.shown.length;
+        table.receive({ t: 0, m: 16844 });
+        expect(table.player.shown).toHaveLength(shownBeforeMeld);
+        table.receive({ t: 12, kt: [4], wi: 3 });
+        expect(table.player.lastShown).toBe("select_dapai");
+        expect(table.player.offer.kuikae).toEqual(["m5"]);
         table.decide({ dapai: "m1" });
 
         expect(table.player.shoupai._fulou).toEqual(["m505-"]);
@@ -283,7 +292,8 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
         vi.advanceTimersByTime(2000);
         table.decide({ fulou: "m505-" });
-        table.receive({ t: 0, m: 16844, wi: 3 });
+        table.receive({ t: 0, m: 16844 });
+        table.receive({ t: 12, kt: [4], wi: 3 });
         vi.advanceTimersByTime(10000);
         table.receive(discard(0, 0));
         table.receive({
@@ -329,13 +339,20 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(model.shan.paishu).toBe(63);
     });
 
-    it("turns the draw's available actions into tsumo, riichi, closed kan and kyuushu", () => {
+    it("turns the draw's available actions into tsumo, riichi with its discards, closed kan and kyuushu", () => {
         const table = startTable([52, 53, 54, 0, 4, 8, 36, 40, 44, 72, 76, 80, 108]);
 
         table.receive(
-            draw(0, 55, { wi: 4, aa: [{ a: 2 }, { a: 1 }, { a: 3, tl: [13] }, { a: 5 }] }),
+            draw(0, 55, {
+                wi: 4,
+                aa: [{ a: 2 }, { a: 1, tl: [108, 55] }, { a: 3, tl: [13] }, { a: 5 }],
+            }),
         );
-        expect(table.player.offer).toMatchObject({ tsumo: true, riichi: true, kyuushu: true });
+        expect(table.player.offer).toMatchObject({
+            tsumo: true,
+            riichi: ["z1", "p5_"],
+            kyuushu: true,
+        });
         table.decide({ hule: "-" });
         table.decide({ dapai: "z1*" });
         table.decide({ gang: table.player.offer.gang[0] });
@@ -357,7 +374,8 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(discard(0, 120));
         table.receive(discard(1, 124));
         table.receive(discard(2, 110));
-        table.receive({ t: 0, m: 20152, wi: 2 });
+        table.receive({ t: 0, m: 20152 });
+        table.receive({ t: 12, kt: [27], wi: 2 });
         table.decide({ dapai: "z3" });
         table.receive(discard(0, 116));
         table.receive(discard(1, 125));
@@ -400,6 +418,27 @@ describe("the ronin table (Translate and Reply)", () => {
 
         expect(hand.find('.pai[data-pai="m1"]').hasClass("deleted")).toBe(false);
         expect(hand.find('.pai[data-pai="z4"]').hasClass("deleted")).toBe(true);
+    });
+
+    it("shows the countdown of the turn its own pon opens, also when a refused discard reopens it", () => {
+        const { table, hand } = startTableOnPage();
+        const timer = $("#board .timer");
+        table.receive(draw(0, 120, { wi: 1 }));
+        hand.find('.zimo .pai[data-pai="z4"]').trigger("click");
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+        table.decide({ fulou: "m505-" });
+        table.receive({ t: 0, m: 16844 });
+
+        table.receive({ t: 12, kt: [4], wi: 3 });
+        expect(timer.hasClass("hide")).toBe(false);
+        hand.find('> .pai[data-pai="m1"]').trigger("click");
+        expect(timer.hasClass("hide")).toBe(true);
+        table.receive({ t: 7, cd: "invalid_discard", msg: "no" });
+        expect(timer.hasClass("hide")).toBe(false);
     });
 
     it("drops only the discarded tile after a refused click, whose mark is still on the hand", () => {
@@ -874,10 +913,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(draw(0, 120, { wi: 7 }));
         table.decide({ dapai: "z4_" });
 
-        expect(table.player.countdowns).toEqual([
-            [5, 12],
-            [5, 12],
-        ]);
+        expect(table.player.countdowns).toEqual([[5, 12]]);
         expect(table.player.model.jushu).toBe(1);
         expect(table.player.shoupai.toString()).toBe("m12305p123s123z12z4");
         expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 7 }]);

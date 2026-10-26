@@ -2,24 +2,29 @@
 
 import wire from './wire.js';
 import * as mianzi from './mianzi.js';
+import * as tiles from './tiles.js';
 
 /**
- * What the server lets the player do at a decision, in the terms majiang-ui asks about (tsumo, kyuushu, riichi, ron
- * and the mianzi strings of its kan, pon and chi buttons), plus the wire action each mianzi string stands for.
+ * What the server lets the player do at a decision, in the terms majiang-ui asks about (tsumo, kyuushu, ron, the
+ * discard strings of riichi, the tile types kuikae blocks from the discard, and the mianzi strings of its kan, pon
+ * and chi buttons), plus the wire action each mianzi string stands for.
  */
-const NO_OFFER = Object.freeze({
-    tsumo: false, kyuushu: false, riichi: false, ron: false,
-    gang: [], peng: [], chi: [], actions: {},
-});
+function emptyOffer() {
+    return { tsumo: false, kyuushu: false, ron: false,
+             riichi: [], kuikae: [], gang: [], peng: [], chi: [], actions: {} };
+}
+
+const NO_OFFER = Object.freeze(emptyOffer());
 
 function sameTypeIds(hand, tileId) {
     const t34 = Math.floor(tileId / 4);
     return hand.filter(id => Math.floor(id / 4) == t34);
 }
 
-function emptyOffer() {
-    return { tsumo: false, kyuushu: false, riichi: false, ron: false,
-             gang: [], peng: [], chi: [], actions: {} };
+/** majiang-ui's discard strings of tile ids, the drawn tile's marked '_' as its tsumogiri. */
+function dapaiStrs(ids, drawnTileId) {
+    const strs = (ids || []).map(id => tiles.tileToStr(id) + (id == drawnTileId ? '_' : ''));
+    return [...new Set(strs)];
 }
 
 function addCall(offer, kind, str, action) {
@@ -32,9 +37,9 @@ function forTurn(availableActions, shadow) {
     const hand = shadow.hand;
     for (const item of availableActions || []) {
         switch (item.a) {
+        case wire.PA.RIICHI:  offer.riichi = dapaiStrs(item.tl, shadow.drawnTileId); break;
         case wire.PA.TSUMO:   offer.tsumo = true;   break;
         case wire.PA.KYUUSHU: offer.kyuushu = true; break;
-        case wire.PA.RIICHI:  offer.riichi = true;  break;
         case wire.PA.KAN:
             for (const t34 of item.tl || []) {
                 const ids = hand.filter(id => Math.floor(id / 4) == t34);
@@ -55,6 +60,11 @@ function forTurn(availableActions, shadow) {
         }
     }
     return offer;
+}
+
+/** The turn after the seat's own pon or chi: a discard of any tile but the types kuikae blocks. */
+function forCallTurn(kuikaeTypes) {
+    return { ...emptyOffer(), kuikae: (kuikaeTypes || []).map(tiles.typeToStr) };
 }
 
 function forPrompt(prompt, shadow) {
@@ -89,4 +99,4 @@ function forPrompt(prompt, shadow) {
     return offer;
 }
 
-export { NO_OFFER, forTurn, forPrompt };
+export { NO_OFFER, forTurn, forCallTurn, forPrompt };

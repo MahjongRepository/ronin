@@ -37,6 +37,7 @@ const wire = {
         ROUND_STARTED: 9,
         GAME_END:      10,
         FURITEN:       11,
+        TURN:          12,
     },
 
     /* call_prompt: clt */
@@ -44,7 +45,7 @@ const wire = {
 
     MELD_CALL: { PON: 0, CHI: 1, OPEN_KAN: 2 },
 
-    /* draw: aa[].a */
+    /* draw: aa[].a; tl holds tile ids for RIICHI, tile types for KAN and ADDED_KAN */
     PA: { DISCARD: 0, RIICHI: 1, TSUMO: 2, KAN: 3, ADDED_KAN: 4, KYUUSHU: 5 },
 
     /* round_end: rt */

@@ -189,7 +189,7 @@ class TestReconnectTurnState:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_token = participant_of(manager, conns[0]).ticket
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
-        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
+        manager._game_service.build_turn_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
         manager._game_service.get_awaiting = lambda gid: _awaiting(WaitKind.TURN, seat=0)
         manager.leave_game(conns[0], notify_player=False)
 
@@ -218,7 +218,7 @@ class TestReconnectTurnState:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_token = participant_of(manager, conns[0]).ticket
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
-        manager._game_service.build_draw_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
+        manager._game_service.build_turn_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
         manager._game_service.get_awaiting = lambda gid: awaiting
         manager.leave_game(conns[0], notify_player=False)
 
