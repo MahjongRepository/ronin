@@ -1,3 +1,4 @@
+import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.meld_wrapper import FrozenMeld
@@ -5,8 +6,9 @@ from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings, RenhouValue
 from game.logic.state import Discard, MahjongPlayer
 from game.logic.state_utils import update_player
-from game.logic.win import can_call_ron, can_declare_tsumo, is_renhou
-from game.tests.conftest import create_player, create_round_state
+from game.logic.win import can_call_ron, can_declare_tsumo, check_tsumo_with_tiles, is_renhou
+from game.tests.conftest import create_dealt_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 
 
 def _make_round_state(*, wall=None, dead_wall=None, dora_indicators=None):
@@ -58,26 +60,40 @@ class TestKuitanToggle:
         # menzen tsumo is a yaku by itself, so closed tanyao is allowed
         assert can_declare_tsumo(player, round_state, settings=GameSettings(has_kuitan=False)) is True
 
-    def test_kuitan__when_disabled_and_open_tanyao_ron__should_reject_call(self):
-        closed_tiles = TilesConverter.string_to_136_array(man="234567", pin="234", sou="5")
-        pon_tiles = TilesConverter.string_to_136_array(sou="888")
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
+    @pytest.mark.parametrize(("has_kuitan", "can_ron"), [(True, True), (False, False)])
+    def test_kuitan__when_open_tanyao_ron__should_follow_the_setting(self, has_kuitan, can_ron):
+        eight_sou = tile_copies(0, sou="888")
+        five_sou_ron = tile_copies(1, sou="5")[0]
+        eight_sou_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON, tiles=tuple(eight_sou), opened=True, called_tile=eight_sou[0], who=1, from_who=0
         )
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(closed_tiles + pon_tiles), melds=(pon,), score=25000)
-        round_state = _make_round_state()
-        win_tile = TilesConverter.string_to_136_array(sou="55")[1]
+        players = (
+            create_player(
+                seat=0, tiles=tile_copies(1, man="123456789", honors="1234"), discards=(Discard(tile_id=eight_sou[0]),)
+            ),
+            create_player(
+                seat=1,
+                tiles=tile_copies(0, man="234567", pin="234", sou="5"),
+                melds=(eight_sou_pon,),
+                discards=(Discard(tile_id=tile_copies(1, honors="7")[0]),),
+            ),
+            create_player(
+                seat=2,
+                tiles=tile_copies(2, man="123456789", honors="1234"),
+                discards=(Discard(tile_id=tile_copies(2, honors="7")[0]),),
+            ),
+            create_player(
+                seat=3, tiles=tile_copies(3, man="123456789", honors="1234"), discards=(Discard(tile_id=five_sou_ron),)
+            ),
+        )
+        round_state = create_dealt_game_state(players, current_player_seat=3).round_state
+        tanyao_caller = round_state.players[1]
+        assert check_tsumo_with_tiles(tanyao_caller, [*tanyao_caller.tiles, five_sou_ron]) is True
 
+        settings = GameSettings(has_kuitan=has_kuitan)
         assert (
-            can_call_ron(
-                player, discarded_tile=win_tile, round_state=round_state, settings=GameSettings(has_kuitan=False)
-            )
-            is False
+            can_call_ron(tanyao_caller, discarded_tile=five_sou_ron, round_state=round_state, settings=settings)
+            is can_ron
         )
 
 

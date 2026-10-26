@@ -509,17 +509,12 @@ def apply_double_ron_score(
     honba_bonus = game_state.honba_sticks * settings.honba_ron_bonus
     riichi_bonus = game_state.riichi_sticks * settings.riichi_stick_value
 
-    # determine who gets riichi sticks: winner closest to loser's right (counter-clockwise)
     winner_seats = {w[0] for w in winners}
-    riichi_receiver: int | None = None
-    for offset in range(1, NUM_PLAYERS):
-        check_seat = (loser_seat + offset) % NUM_PLAYERS
-        if check_seat in winner_seats:
-            riichi_receiver = check_seat
-            break
-
-    if riichi_receiver is None:
-        raise ValueError("No riichi receiver found in double ron")
+    riichi_receiver = next(
+        (loser_seat + offset) % NUM_PLAYERS
+        for offset in range(1, NUM_PLAYERS)
+        if (loser_seat + offset) % NUM_PLAYERS in winner_seats
+    )
 
     winner_results = []
     for winner_seat, hand_result in winners:
