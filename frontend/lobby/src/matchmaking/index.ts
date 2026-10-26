@@ -3,12 +3,17 @@ import { describeOccupancyError } from "@/occupancy-errors";
 import { storeGameSession } from "@/session";
 
 const MATCH_FAILED = "match_failed";
-const RETRYABLE_ERRORS: ReadonlySet<unknown> = new Set([MATCH_FAILED, "already_in_game"]);
+const RETRYABLE_ERRORS: ReadonlySet<unknown> = new Set([
+    MATCH_FAILED,
+    "already_in_game",
+    "match_starting",
+]);
 const TERMINAL_ERRORS: ReadonlySet<unknown> = new Set([
     MATCH_FAILED,
     "already_in_game",
-    "already_in_queue",
     "already_in_room",
+    "match_starting",
+    "replaced_by_new_connection",
 ]);
 
 interface MatchmakingElements {

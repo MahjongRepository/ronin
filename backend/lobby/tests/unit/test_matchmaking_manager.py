@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lobby.matchmaking.manager import MatchmakingManager
+from lobby.matchmaking.manager import MatchmakingManager, QueuePlace
 from lobby.matchmaking.models import MATCHMAKING_SEATS
 from lobby.tests.conftest import make_player
 
@@ -19,8 +19,8 @@ def _make_entry(user_id: str = "u1", username: str = "alice", connection_id: str
 class TestAddPlayer:
     def test_matchmaking_queue_add__when_table_not_full__should_return_the_queue_position(self):
         mgr = MatchmakingManager()
-        assert mgr.add_player(_make_entry(user_id="u1", connection_id="c1")) == 1
-        assert mgr.add_player(_make_entry(user_id="u2", connection_id="c2")) == 2
+        assert mgr.add_player(_make_entry(user_id="u1", connection_id="c1")) == QueuePlace(position=1)
+        assert mgr.add_player(_make_entry(user_id="u2", connection_id="c2")) == QueuePlace(position=2)
         assert mgr.queue_size == 2
 
     def test_matchmaking_queue_add__when_occupancy_reports_a_conflict__should_raise_it_before_queueing(self):
@@ -59,13 +59,13 @@ class TestRemovePlayer:
 
 
 class TestInFlight:
-    def test_matchmaking_has_user__when_player_matched__should_count_until_the_match_is_resolved(self):
+    def test_matchmaking_is_matched__when_player_matched__should_hold_until_the_match_is_resolved(self):
         mgr = MatchmakingManager()
         for i in range(MATCHMAKING_SEATS - 1):
             mgr.add_player(_make_entry(user_id=f"u{i}", connection_id=f"c{i}"))
 
-        assert mgr.has_user("u0") is True
+        assert (mgr.is_queued("u0"), mgr.is_matched("u0")) == (True, False)
         mgr.add_player(_make_entry(user_id="last", connection_id="c-last"))
-        assert mgr.has_user("u0") is True
+        assert (mgr.is_queued("u0"), mgr.is_matched("u0")) == (False, True)
         mgr.clear_in_flight({"u0", "u1", "u2", "last"})
-        assert mgr.has_user("u0") is False
+        assert (mgr.is_queued("u0"), mgr.is_matched("u0")) == (False, False)

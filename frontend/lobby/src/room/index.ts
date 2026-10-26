@@ -28,7 +28,9 @@ export function initRoomPage(config: RoomConfig): void {
         updatePlayerList: () => updatePlayerList(state),
         updateStatusDisplay: () => updateStatusDisplay(state),
     };
-    const handlers = buildMessageHandlers(state, updateUI);
+    const handlers = buildMessageHandlers(state, updateUI, () =>
+        state.socket?.connect(config.wsUrl),
+    );
 
     renderRoomUI(container, config.roomId, actions);
 

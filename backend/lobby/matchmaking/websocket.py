@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING
 import structlog
 
 from lobby.game_transition import GameStartError, hand_back_live_game, start_game
-from lobby.occupancy import ALREADY_IN_GAME
+from lobby.occupancy import ALREADY_IN_GAME, REPLACED_BY_NEW_CONNECTION
 from lobby.websocket_utils import serve_lobby_socket
 
 if TYPE_CHECKING:
     import httpx
     from starlette.websockets import WebSocket
 
-    from lobby.matchmaking.manager import MatchmakingManager
+    from lobby.matchmaking.manager import MatchmakingManager, QueuePlace
     from lobby.occupancy import Occupancy
     from lobby.players import LobbyPlayer
     from lobby.settings import LobbyServerSettings
@@ -72,31 +72,24 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
     """
     Attempt to join the matchmaking queue.
 
-    Return True if the player is queued and should enter the message loop. Return False if the connection was rejected
-    or this join completed a match, whether its game was created or not: either way the socket is closed. The check that
-    the user is not playing a game, which asks the game server, runs first; ``add_player`` then checks the rest of the
-    occupancy rule in the same synchronous step that queues the user, including a start that handed the user to a game
-    while that lookup was in flight.
+    Return True if the player is queued, in a new entry or in the user's own entry taken over from their older
+    connection, and should enter the message loop. Return False if the connection was rejected or this join completed a
+    match, whether its game was created or not: either way the socket is closed. The check that the user is not playing
+    a game, which asks the game server, runs first; ``add_player`` then checks the rest of the occupancy rule in the
+    same synchronous step that queues the user, including a start that handed the user to a game while that lookup was
+    in flight.
     """
     log = logger.bind(username=player.username, connection_id=player.connection_id)
 
-    joined: int | list[LobbyPlayer] = 0
-    with ctx.occupancy.admitting(player.user_id):
-        rejection = await ctx.occupancy.find_game_conflict(player.user_id)
-        if rejection is None:
-            try:
-                joined = ctx.matchmaking_manager.add_player(player)
-            except ValueError as e:
-                rejection = str(e)
-
-    if rejection == ALREADY_IN_GAME and await hand_back_live_game(
+    joined = await _admit(player, ctx)
+    if joined == ALREADY_IN_GAME and await hand_back_live_game(
         player, settings=ctx.settings, game_server=ctx.game_server
     ):
         return False
 
-    if rejection is not None:
-        log.info("matchmaking rejected", reason=rejection)
-        _send_error_and_close(player, reason=rejection)
+    if isinstance(joined, str):
+        log.info("matchmaking rejected", reason=joined)
+        _send_error_and_close(player, reason=joined)
         return False
 
     if isinstance(joined, list):
@@ -104,10 +97,30 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
         await _handle_match(joined, ctx)
         return False
 
-    player.send({"type": "queue_joined", "position": joined, "queue_size": joined})
-    log.info("player queued", queue_size=joined)
+    player.send({"type": "queue_joined", "position": joined.position, "queue_size": ctx.matchmaking_manager.queue_size})
+    if joined.displaced is not None:
+        _send_error_and_close(joined.displaced, reason=REPLACED_BY_NEW_CONNECTION)
+        log.info("queue entry taken over by a new connection", position=joined.position)
+        return True
+
+    log.info("player queued", queue_size=joined.position)
     _broadcast_queue_update(ctx, exclude=player.connection_id)
     return True
+
+
+async def _admit(player: LobbyPlayer, ctx: _MatchmakingContext) -> QueuePlace | list[LobbyPlayer] | str:
+    """
+    Queue the player under the occupancy rule; return their queue place, the matched players, or the rejection.
+    """
+    with ctx.occupancy.admitting(player.user_id):
+        game_conflict = await ctx.occupancy.find_game_conflict(player.user_id)
+        if game_conflict is not None:
+            return game_conflict
+
+        try:
+            return ctx.matchmaking_manager.add_player(player)
+        except ValueError as e:
+            return str(e)
 
 
 async def _message_loop(player: LobbyPlayer) -> None:
@@ -167,8 +180,13 @@ def _broadcast_queue_update(ctx: _MatchmakingContext, *, exclude: str | None = N
 
 def _cleanup_connection(player: LobbyPlayer, ctx: _MatchmakingContext) -> None:
     """
-    Remove player from queue on disconnect.
+    Remove the player's queue entry once the socket ends and tell the rest of the queue.
+
+    A connection that holds no entry (rejected, matched, or taken over by the user's newer one) changes nothing, so
+    nothing is logged or sent.
     """
-    ctx.matchmaking_manager.remove_player(player.connection_id)
+    if not ctx.matchmaking_manager.remove_player(player.connection_id):
+        return
+
     logger.info("player left matchmaking queue", username=player.username)
     _broadcast_queue_update(ctx)

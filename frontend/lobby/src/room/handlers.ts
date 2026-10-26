@@ -18,17 +18,27 @@ interface ActionCallbacks {
 
 type MessageHandlerMap = Record<string, (msg: Record<string, unknown>) => void>;
 
-const START_FAILURE_TEXT: Readonly<Record<string, string>> = {
+const JOIN_RETRY_DELAY_MS = 2000;
+const MAX_JOIN_RETRIES = 30;
+const RETRYABLE_JOIN_ERRORS: ReadonlySet<unknown> = new Set([
+    "match_starting",
+    "room_transitioning",
+]);
+const JOIN_RETRIES_EXHAUSTED_TEXT = "The game did not start in time. Reload the page to try again.";
+
+const ROOM_ERROR_TEXT: Readonly<Record<string, string>> = {
     game_server_error: "The game server could not create the game. Try starting again.",
     game_server_full: "The game server is full. Try again in a few minutes.",
     game_server_unavailable: "The game server could not be reached. Try starting again.",
     internal_error: "Something went wrong starting the game. Try again.",
     player_in_game: "A player in this room is already in a game.",
+    room_not_found: "This room no longer exists.",
+    room_transitioning: "The game is starting.",
 };
 
 function describeRoomError(code: unknown): string {
-    if (typeof code === "string" && Object.hasOwn(START_FAILURE_TEXT, code)) {
-        return START_FAILURE_TEXT[code];
+    if (typeof code === "string" && Object.hasOwn(ROOM_ERROR_TEXT, code)) {
+        return ROOM_ERROR_TEXT[code];
     }
     return describeOccupancyError(code) ?? `Error: ${String(code)}`;
 }
@@ -59,7 +69,11 @@ function disconnectSocket(state: RoomState): void {
     }
 }
 
-function buildMessageHandlers(state: RoomState, updateUI: UpdateUICallbacks): MessageHandlerMap {
+function buildMessageHandlers(
+    state: RoomState,
+    updateUI: UpdateUICallbacks,
+    rejoin: () => void,
+): MessageHandlerMap {
     function appendChat(sender: string, text: string): void {
         state.chatMessages.push({
             sender,
@@ -96,6 +110,27 @@ function buildMessageHandlers(state: RoomState, updateUI: UpdateUICallbacks): Me
         appendChat(LOG_TYPE_SYSTEM, "You are now the host");
     }
 
+    function scheduleRejoin(code: unknown): void {
+        if (state.joinRetries >= MAX_JOIN_RETRIES) {
+            appendChat(LOG_TYPE_SYSTEM, JOIN_RETRIES_EXHAUSTED_TEXT);
+            return;
+        }
+        if (state.joinRetries === 0) {
+            appendChat(LOG_TYPE_SYSTEM, describeRoomError(code));
+        }
+        state.joinRetries += 1;
+        setTimeout(rejoin, JOIN_RETRY_DELAY_MS);
+    }
+
+    function onError(message: Record<string, unknown>): void {
+        const joined = state.currentPlayerName !== "";
+        if (joined || !RETRYABLE_JOIN_ERRORS.has(message.message)) {
+            appendChat(LOG_TYPE_SYSTEM, describeRoomError(message.message));
+            return;
+        }
+        scheduleRejoin(message.message);
+    }
+
     function onGameStarting(message: Record<string, unknown>): void {
         const gameId = message.game_id as string;
         const wsUrl = message.ws_url as string;
@@ -113,7 +148,7 @@ function buildMessageHandlers(state: RoomState, updateUI: UpdateUICallbacks): Me
 
     return {
         chat: (msg) => appendChat(msg.player_name as string, msg.text as string),
-        error: (msg) => appendChat(LOG_TYPE_SYSTEM, describeRoomError(msg.message)),
+        error: onError,
         game_starting: onGameStarting,
         owner_changed: onOwnerChanged,
         player_joined: onPlayerJoined,

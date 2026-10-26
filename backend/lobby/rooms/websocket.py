@@ -7,7 +7,7 @@ import structlog
 from pydantic import ValidationError
 
 from lobby.game_transition import GameStartError, hand_back_live_game, start_game
-from lobby.occupancy import ALREADY_IN_GAME
+from lobby.occupancy import ALREADY_IN_GAME, REPLACED_BY_NEW_CONNECTION
 from lobby.rooms.messages import (
     LobbyChatMessage,
     LobbyClientMessage,
@@ -92,26 +92,22 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
     The seat, the ack and the announcement are one synchronous step, so no broadcast can reach the player before its
     ``room_joined`` and none made after the seating misses it. It runs inside the handler's ``try/finally``, so the seat
     (and the host) is freed however the connection ends. The check that the user is not playing a game, which asks the
-    game server, runs first; ``join_room`` checks the rest of the occupancy rule, including a start that handed the user
-    to a game while that lookup was in flight.
+    game server, runs first, even for a room that is gone, so a join to a room whose game has started hands the user
+    that game; ``join_room`` checks the rest of the occupancy rule, including a start that handed the user to a game
+    while that lookup was in flight.
     """
-    room = ctx.room_manager.get_room(ctx.room_id)
-    if room is None:
-        await _reject_join(player, ctx, reason="room_not_found")
-        return False
-
     with ctx.occupancy.admitting(player.user_id):
         game_conflict = await ctx.occupancy.find_game_conflict(player.user_id)
         if game_conflict is not None:
             await _reject_join(player, ctx, reason=game_conflict)
             return False
 
-        room_or_error = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
-        if isinstance(room_or_error, str):
-            await _reject_join(player, ctx, reason=room_or_error)
+        join_or_error = ctx.room_manager.join_room(room_id=ctx.room_id, player=player)
+        if isinstance(join_or_error, str):
+            await _reject_join(player, ctx, reason=join_or_error)
             return False
 
-        room = room_or_error
+        room = join_or_error.room
         player.send(
             {
                 "type": "room_joined",
@@ -121,6 +117,10 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
                 **_room_state(room),
             },
         )
+        if join_or_error.displaced is not None:
+            _complete_takeover(player, ctx, room=room, displaced=join_or_error.displaced)
+            return True
+
         logger.info("player joined room", room_id=ctx.room_id, username=player.username, player_count=room.player_count)
         _broadcast(
             room,
@@ -129,6 +129,19 @@ async def _join(player: LobbyPlayer, ctx: _RoomContext) -> bool:
         )
 
     return True
+
+
+def _complete_takeover(player: LobbyPlayer, ctx: _RoomContext, *, room: LobbyRoom, displaced: LobbyPlayer) -> None:
+    """
+    Close the connection whose seat the player's new one took over, and resync the rest of the room.
+
+    Nobody joined or left, so the room gets its state, not ``player_joined``. The old connection is no longer seated:
+    its handler's buffered input and late cleanup miss.
+    """
+    displaced.send({"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
+    displaced.connection.close(code=4000, reason=REPLACED_BY_NEW_CONNECTION)
+    logger.info("room seat taken over by a new connection", room_id=ctx.room_id, username=player.username)
+    _broadcast(room, {"type": "player_ready_changed", **_room_state(room)}, exclude=player.connection_id)
 
 
 async def _reject_join(player: LobbyPlayer, ctx: _RoomContext, *, reason: str) -> None:
@@ -285,9 +298,11 @@ def _recover_failed_start(room: LobbyRoom, ctx: _RoomContext, *, reason: str) ->
 def _handle_chat(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyChatMessage) -> None:
     """
     Broadcast a chat message to the room, its sender included: the client shows only the echo.
+
+    Only a seated connection speaks, so a message still buffered on a connection whose seat was taken over is dropped.
     """
     room = ctx.room_manager.get_room(ctx.room_id)
-    if room is not None:
+    if room is not None and room.member(player.connection_id) is not None:
         _broadcast(room, {"type": "chat", "player_name": player.username, "text": message.text})
 
 

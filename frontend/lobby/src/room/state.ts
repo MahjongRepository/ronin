@@ -24,6 +24,7 @@ interface RoomState {
     isOwner: boolean;
     canStart: boolean;
     currentPlayerName: string;
+    joinRetries: number;
     socket: LobbySocket | null;
 }
 
@@ -34,6 +35,7 @@ function createRoomState(): RoomState {
         connectionStatus: "disconnected",
         currentPlayerName: "",
         isOwner: false,
+        joinRetries: 0,
         players: [],
         socket: null,
     };

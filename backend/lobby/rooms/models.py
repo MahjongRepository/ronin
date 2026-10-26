@@ -176,8 +176,8 @@ class LobbyRoom:
 
         return info
 
-    def has_user(self, user_id: str) -> bool:
+    def member_of_user(self, user_id: str) -> RoomMember | None:
         """
-        Check if a user is already in this room (prevents multi-tab seat hogging).
+        Return the member seated for this user, whichever connection holds the seat, or None.
         """
-        return any(member.player.user_id == user_id for member in self.members)
+        return next((member for member in self.members if member.player.user_id == user_id), None)

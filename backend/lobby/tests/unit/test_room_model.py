@@ -137,9 +137,9 @@ class TestGetPlayerInfo:
         assert info[0].ready is True
 
 
-class TestHasUser:
-    def test_lobby_room_has_user__should_match_only_seated_users(self):
+class TestMemberOfUser:
+    def test_lobby_room_member_of_user__should_match_only_seated_users(self):
         room = LobbyRoom(room_id="r1")
-        _seat(room, 0, "conn-1")
-        assert room.has_user("user-conn-1") is True
-        assert room.has_user("user-other") is False
+        member = _seat(room, 0, "conn-1")
+        assert room.member_of_user("user-conn-1") is member
+        assert room.member_of_user("user-other") is None

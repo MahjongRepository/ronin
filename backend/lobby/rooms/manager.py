@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import structlog
@@ -17,8 +18,18 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
-def _no_conflict(_user_id: str) -> str | None:
+def _no_conflict(_user_id: str, _room_id: str) -> str | None:
     return None
+
+
+@dataclass(frozen=True)
+class RoomJoin:
+    """
+    A join that seated its player: ``displaced`` is the connection whose seat it took over, or None for a new seat.
+    """
+
+    room: LobbyRoom
+    displaced: LobbyPlayer | None = None
 
 
 class LobbyRoomManager:
@@ -27,15 +38,16 @@ class LobbyRoomManager:
 
     State management: the WebSocket handler calls the manager and sends the responses. The only socket work here is the
     reaper's, which enqueues each expired room's 4002 closes. ``find_conflict`` is the occupancy rule ``create_app()``
-    injects (``lobby.occupancy``), the only link to the matchmaking feature: it returns why a user cannot take a seat
-    (seated in any room, this one included, or queued), or None.
+    injects (``lobby.occupancy``), the only link to the matchmaking feature: given a user and a room, it returns why the
+    user cannot be seated there (seated in another room, or queued), or None, which also admits a user already seated
+    in that room to take their seat over.
     """
 
     def __init__(
         self,
         room_ttl_seconds: int = 300,
         reaper_interval_seconds: float = 30,
-        find_conflict: Callable[[str], str | None] = _no_conflict,
+        find_conflict: Callable[[str, str], str | None] = _no_conflict,
     ) -> None:
         self._find_conflict = find_conflict
         self._rooms: dict[str, LobbyRoom] = {}
@@ -52,10 +64,22 @@ class LobbyRoomManager:
         logger.info("room created", room_id=room_id, min_human_players=min_human_players)
         return room
 
-    def join_room(self, *, room_id: str, player: LobbyPlayer) -> LobbyRoom | str:
+    def join_room(self, *, room_id: str, player: LobbyPlayer) -> RoomJoin | str:
         """
-        Seat the player in the first bot seat of the room; return the room, or the error string.
+        Seat the player in the first bot seat of the room, or hand them the seat their user already holds there; return
+        the join, or the error string.
+
+        The occupancy rule runs first, so a join that a start handed to its game while the join's playing lookup was in
+        flight is refused as ``already_in_game`` (and handed that game) even though the start has since removed or
+        reopened the room. A takeover swaps only the member's connection, so the seat, the ready flag and the arrival
+        (and with it the ownership order) stay, and it needs no open seat. A transitioning room refuses every other
+        join, takeovers included: the start has already listed its players, and their tickets go to the connections it
+        listed.
         """
+        conflict = self._find_conflict(player.user_id, room_id)
+        if conflict is not None:
+            return conflict
+
         room = self._rooms.get(room_id)
         if room is None:
             return "room_not_found"
@@ -63,16 +87,17 @@ class LobbyRoomManager:
         if room.transitioning:
             return "room_transitioning"
 
+        member = room.member_of_user(player.user_id)
+        if member is not None:
+            displaced, member.player = member.player, player
+            return RoomJoin(room=room, displaced=displaced)
+
         seat = room.first_open_seat()
         if seat is None:
             return "room_full"
 
-        conflict = self._find_conflict(player.user_id)
-        if conflict is not None:
-            return conflict
-
         room.seat_player(seat, player)
-        return room
+        return RoomJoin(room=room)
 
     def leave_room(self, room_id: str, connection_id: str) -> bool:
         """
@@ -185,11 +210,11 @@ class LobbyRoomManager:
             if not room.transitioning
         ]
 
-    def has_user_in_any_room(self, user_id: str) -> bool:
+    def find_user_room(self, user_id: str) -> str | None:
         """
-        Check if a user is in any active room.
+        Return the id of the room the user is seated in, or None.
         """
-        return any(room.has_user(user_id) for room in self._rooms.values())
+        return next((room.room_id for room in self._rooms.values() if room.member_of_user(user_id) is not None), None)
 
     def remove_room(self, room_id: str) -> None:
         """

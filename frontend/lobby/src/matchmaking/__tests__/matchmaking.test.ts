@@ -90,10 +90,19 @@ describe("initMatchmakingPage", () => {
             "You are already playing a game. Finish it before joining another.",
             false,
         ],
-        ["already_in_queue", "You are already searching for a match. Leave the queue first.", true],
         ["already_in_room", "You are already seated in a room. Leave it first.", true],
+        [
+            "match_starting",
+            "Your match is starting. Try again in a moment to join its game.",
+            false,
+        ],
+        [
+            "replaced_by_new_connection",
+            "You opened this page again in another tab or window, which took over.",
+            true,
+        ],
     ])(
-        "keeps the %s rejection as a sentence, offering a retry only after a game",
+        "keeps the %s rejection as a sentence, offering a retry only when a new join can succeed",
         (code, sentence, retryHidden) => {
             const container = renderPage();
 
