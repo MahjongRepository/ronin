@@ -51,11 +51,10 @@ class TestTenhouAndChiihou:
         discarded = handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=dealer_discard))
         assert isinstance(discarded, ActionResult)
         assert discarded.state.round_state.pending_call_prompt is None
-        drawn_game, _events = process_draw_phase(discarded.state)
-        assert drawn_game.round_state.all_discards == (dealer_discard,)
-        assert drawn_game.round_state.players[1].tiles[-1] == drawn_three_pin
+        assert discarded.state.round_state.all_discards == (dealer_discard,)
+        assert discarded.state.round_state.players[1].tiles[-1] == drawn_three_pin
 
-        assert _yaku_ids(handle_tsumo(drawn_game, seat=1)) == [Chiihou.yaku_id]
+        assert _yaku_ids(handle_tsumo(discarded.state, seat=1)) == [Chiihou.yaku_id]
 
 
 _ITTSU_EAST_TANKI = tuple(tile_copies(0, man="123456789", pin="444", honors="1"))

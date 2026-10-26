@@ -16,14 +16,12 @@ class ActionResult:
     """
     An accepted action: its events and the game state after it, which the service stores.
 
-    needs_post_discard marks an accepted discard: when it opened no call prompt, the service draws for the next player.
     Defined outside action_handlers so that call_resolution and the other handler subsystems can import it without an
     import cycle.
     """
 
     events: list[GameEvent]
     state: MahjongGameState
-    needs_post_discard: bool = False
 
 
 @dataclass(frozen=True)

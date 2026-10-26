@@ -11,11 +11,13 @@ from game.logic.abortive import (
     find_passed_discard_abort,
     process_abortive_draw,
 )
-from game.logic.action_result import create_draw_event
+from game.logic.action_result import create_draw_event, create_turn_event
 from game.logic.enums import (
+    KanType,
     MeldCallType,
     MeldViewType,
     PromptKind,
+    RoundPhase,
 )
 from game.logic.events import (
     DiscardEvent,
@@ -68,7 +70,6 @@ from game.logic.state import (
 )
 from game.logic.state_utils import (
     advance_turn,
-    clear_pending_prompt,
     finish_round,
     update_game_with_round,
     update_player,
@@ -88,19 +89,6 @@ if TYPE_CHECKING:
     from game.logic.types import MeldCallInput, RobbedKan, RonCallInput
 
 logger = structlog.get_logger()
-
-
-def _maybe_emit_dora_event(
-    old_dora_count: int,
-    new_round_state: MahjongRoundState,
-    events: list[GameEvent],
-) -> None:
-    """
-    Append DoraRevealedEvents for each new dora indicator revealed.
-    """
-    events.extend(
-        DoraRevealedEvent(tile_id=indicator) for indicator in new_round_state.wall.dora_indicators[old_dora_count:]
-    )
 
 
 def emit_deferred_dora_events(
@@ -255,14 +243,13 @@ def _abort_round(
     robbed_kan: RobbedKan | None = None,
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    End the round in an abortive draw, clearing the pending call prompt if there is one.
+    End the round in an abortive draw.
 
     ron_seats are the declaring seats of a triple ron, in caller order, and robbed_kan the kan they robbed.
     """
     logger.debug("abortive draw", draw_type=draw_type.value)
     result = process_abortive_draw(game_state.round_state, draw_type, ron_seats=ron_seats, robbed_kan=robbed_kan)
-    new_game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
-    new_game_state, round_end = finish_round(new_game_state, result)
+    new_game_state, round_end = finish_round(game_state, result)
     events.append(round_end)
     return new_game_state, events
 
@@ -296,31 +283,34 @@ def _build_discard_prompt(
     return update_game_with_round(game_state, new_round_state), list(build_call_prompt_events(prompt))
 
 
-def _finalize_no_callers(
-    game_state: MahjongGameState,
-    current_seat: int,
-    *,
-    riichi_pending: bool,
-    events: list[GameEvent],
-) -> tuple[MahjongGameState, list[GameEvent]]:
+def pass_ron_window(game_state: MahjongGameState, discarder_seat: int) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Handle the no-callers path: reveal deferred dora, finalize riichi, end a four riichi or four kans hand, or advance
-    the turn.
+    Settle a discard that passed every ron: reveal deferred dora, finalize the discarder's riichi, then end a four
+    riichi or four kans hand.
+
+    Runs before a meld on the discard executes, so the discard is still the discarder's last one. The returned round is
+    finished when an abort ended it.
     """
-    settings = game_state.settings
-    new_round_state, dora_events = emit_deferred_dora_events(game_state.round_state)
-    events.extend(dora_events)
+    new_round_state, events = emit_deferred_dora_events(game_state.round_state)
     new_game_state = update_game_with_round(game_state, new_round_state)
 
-    if riichi_pending:
-        new_game_state = declare_riichi(new_game_state, seat=current_seat)
-        events.append(RiichiDeclaredEvent(seat=current_seat))
+    discarder = new_round_state.players[discarder_seat]
+    if discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
+        new_game_state = declare_riichi(new_game_state, seat=discarder_seat)
+        events.append(RiichiDeclaredEvent(seat=discarder_seat))
 
-    draw_type = find_passed_discard_abort(new_game_state.round_state, settings)
+    draw_type = find_passed_discard_abort(new_game_state.round_state, new_game_state.settings)
     if draw_type is not None:
         return _abort_round(new_game_state, draw_type=draw_type, events=events)
 
-    return update_game_with_round(new_game_state, advance_turn(new_game_state.round_state)), events
+    return new_game_state, events
+
+
+def draw_for_next_player(game_state: MahjongGameState) -> tuple[MahjongGameState, list[GameEvent]]:
+    """
+    Pass the turn to the next seat and draw for it (process_draw_phase).
+    """
+    return process_draw_phase(update_game_with_round(game_state, advance_turn(game_state.round_state)))
 
 
 def process_discard_phase(
@@ -339,7 +329,7 @@ def process_discard_phase(
     4. Check for ron callers (triple ron is judged from their declarations when the prompt resolves)
     5. Check for meld callers (a seat that can ron is offered its melds too; none on a four kans replacement discard)
     6. If any callers: create unified DISCARD prompt
-    7. No callers: reveal deferred dora, finalize riichi, end a four riichi or four kans hand, advance turn
+    7. No callers: pass the ron window (pass_ron_window), then draw for the next player
     """
     events: list[GameEvent] = []
     round_state = game_state.round_state
@@ -347,10 +337,8 @@ def process_discard_phase(
     player = round_state.players[current_seat]
     settings = game_state.settings
 
-    riichi_pending = False
     if is_riichi:
         _validate_riichi_discard(player, round_state, tile_id=tile_id, settings=settings)
-        riichi_pending = True
 
     new_round_state, discard = discard_tile(round_state, current_seat, tile_id, is_riichi=is_riichi)
 
@@ -386,12 +374,13 @@ def process_discard_phase(
         )
         return new_game_state, events + prompt_events
 
-    return _finalize_no_callers(
-        new_game_state,
-        current_seat,
-        riichi_pending=riichi_pending,
-        events=events,
-    )
+    new_game_state, passed_events = pass_ron_window(new_game_state, discarder_seat=current_seat)
+    events.extend(passed_events)
+    if new_game_state.round_state.phase == RoundPhase.FINISHED:
+        return new_game_state, events
+
+    new_game_state, draw_events = draw_for_next_player(new_game_state)
+    return new_game_state, events + draw_events
 
 
 def _find_ron_callers(
@@ -427,9 +416,7 @@ def process_ron_call(
     ron_input: RonCallInput,
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Process ron call(s) from one or more players and end the round.
-
-    Uses local tile copies for hand calculation.
+    Score the ron of each caller, one or two of them, and end the round.
     """
     round_state = game_state.round_state
     settings = game_state.settings
@@ -438,15 +425,10 @@ def process_ron_call(
     discarder_seat = ron_input.discarder_seat
     is_chankan = ron_input.robbed_kan is not None
 
-    if len(ron_callers) == 1:
-        # single ron
-        winner_seat = ron_callers[0]
+    winners = []
+    for winner_seat in ron_callers:
         winner = round_state.players[winner_seat]
-
-        # build complete tile list with the ron tile added (closed hand + melds + win tile)
-        tiles_with_win = all_tiles_from_hand_and_melds([*list(winner.tiles), tile_id], winner.melds)
-
-        # calculate hand value using explicit tiles list
+        tiles_with_win = all_tiles_from_hand_and_melds([*winner.tiles, tile_id], winner.melds)
         ctx = ScoringContext(
             player=winner,
             round_state=round_state,
@@ -457,15 +439,8 @@ def process_ron_call(
         hand_result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_win, win_tile=tile_id)
         if hand_result.error:
             logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
-            raise ScoringError(f"ron calculation error: {hand_result.error}")
+            raise ScoringError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
 
-        new_game_state, result = apply_ron_score(
-            game_state,
-            winner_seat=winner_seat,
-            loser_seat=discarder_seat,
-            hand_result=hand_result,
-            winning_tile=tile_id,
-        )
         logger.debug(
             "ron declared",
             winner_seat=winner_seat,
@@ -475,42 +450,23 @@ def process_ron_call(
             fu=hand_result.fu,
             cost=hand_result.cost_main,
         )
+        winners.append((winner_seat, hand_result))
 
+    if len(winners) == 1:
+        [(winner_seat, hand_result)] = winners
+        new_game_state, result = apply_ron_score(
+            game_state,
+            winner_seat=winner_seat,
+            loser_seat=discarder_seat,
+            hand_result=hand_result,
+            winning_tile=tile_id,
+        )
     else:
-        # double ron
-        winners = []
-        for winner_seat in ron_callers:
-            winner = round_state.players[winner_seat]
-
-            # build complete tile list with the ron tile added (closed hand + melds + win tile)
-            tiles_with_win = all_tiles_from_hand_and_melds([*list(winner.tiles), tile_id], winner.melds)
-
-            # calculate hand value using explicit tiles list
-            ctx = ScoringContext(
-                player=winner,
-                round_state=round_state,
-                settings=settings,
-                is_tsumo=False,
-                is_chankan=is_chankan,
-            )
-            hand_result = calculate_hand_value_with_tiles(ctx, tiles=tiles_with_win, win_tile=tile_id)
-            if hand_result.error:
-                logger.error("ron calculation error", winner_seat=winner_seat, error=hand_result.error)
-                raise ScoringError(f"ron calculation error for seat {winner_seat}: {hand_result.error}")
-
-            winners.append((winner_seat, hand_result))
-
         new_game_state, result = apply_double_ron_score(
             game_state,
             winners=winners,
             loser_seat=discarder_seat,
             winning_tile=tile_id,
-        )
-        logger.debug(
-            "double ron declared",
-            winner_seats=[s for s, _ in winners],
-            loser_seat=discarder_seat,
-            tile_id=tile_id,
         )
 
     result = result.model_copy(
@@ -589,7 +545,7 @@ def _process_pon_call(
             called_tile_id=tile_id,
         ),
     ]
-    return update_game_with_round(game_state, new_round_state), events
+    return _open_turn_after_call(game_state, new_round_state, caller_seat=caller_seat, events=events)
 
 
 def _process_chi_call(
@@ -622,7 +578,22 @@ def _process_chi_call(
             called_tile_id=tile_id,
         ),
     ]
-    return update_game_with_round(game_state, new_round_state), events
+    return _open_turn_after_call(game_state, new_round_state, caller_seat=caller_seat, events=events)
+
+
+def _open_turn_after_call(
+    game_state: MahjongGameState,
+    new_round_state: MahjongRoundState,
+    *,
+    caller_seat: int,
+    events: list[GameEvent],
+) -> tuple[MahjongGameState, list[GameEvent]]:
+    """
+    Adopt the round state a pon or chi produced and open the caller's turn, which draws nothing.
+    """
+    new_game_state = update_game_with_round(game_state, new_round_state)
+    events.append(create_turn_event(new_game_state, seat=caller_seat))
+    return new_game_state, events
 
 
 def _process_open_kan_call(
@@ -635,28 +606,45 @@ def _process_open_kan_call(
     Handle an open kan meld call.
     """
     logger.debug("open kan called", caller_seat=caller_seat, from_seat=discarder_seat, tile_id=tile_id)
-
-    round_state = game_state.round_state
-    old_dora_count = len(round_state.wall.dora_indicators)
     new_round_state, meld = call_open_kan(
-        round_state,
+        game_state.round_state,
         caller_seat=caller_seat,
         discarder_seat=discarder_seat,
         tile_id=tile_id,
         settings=game_state.settings,
     )
-    tile_ids = list(meld.tiles)
-    events: list[GameEvent] = [
-        MeldEvent(
-            meld_type=MeldViewType.OPEN_KAN,
-            caller_seat=caller_seat,
-            tile_ids=tile_ids,
-            from_seat=discarder_seat,
-            called_tile_id=tile_id,
-        ),
-    ]
-    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
-    return update_game_with_round(game_state, new_round_state), events
+    meld_event = MeldEvent(
+        meld_type=MeldViewType.OPEN_KAN,
+        caller_seat=caller_seat,
+        tile_ids=list(meld.tiles),
+        from_seat=discarder_seat,
+        called_tile_id=tile_id,
+    )
+    return _complete_kan(game_state, new_round_state, caller_seat=caller_seat, meld_event=meld_event)
+
+
+def _complete_kan(
+    game_state: MahjongGameState,
+    new_round_state: MahjongRoundState,
+    *,
+    caller_seat: int,
+    meld_event: MeldEvent,
+) -> tuple[MahjongGameState, list[GameEvent]]:
+    """
+    Adopt the round state a kan produced: emit its meld event, the dora it revealed at once, and the rinshan draw.
+
+    The draw event is the kan's one rinshan draw, on every kan path.
+    """
+    old_dora_count = len(game_state.round_state.wall.dora_indicators)
+    events: list[GameEvent] = [meld_event]
+    events.extend(
+        DoraRevealedEvent(tile_id=tile_id) for tile_id in new_round_state.wall.dora_indicators[old_dora_count:]
+    )
+
+    new_game_state = update_game_with_round(game_state, new_round_state)
+    drawn_tile = new_round_state.players[caller_seat].tiles[-1]
+    events.append(create_draw_event(new_game_state, seat=caller_seat, tile_id=drawn_tile))
+    return new_game_state, events
 
 
 def _build_chankan_prompt(
@@ -700,20 +688,22 @@ def _process_closed_kan_call(
     if kokushi_seats:
         return _build_chankan_prompt(game_state, caller_seat=caller_seat, tile_id=tile_id, seats=kokushi_seats)
 
-    old_dora_count = len(round_state.wall.dora_indicators)
+    return _execute_closed_kan(game_state, caller_seat=caller_seat, tile_id=tile_id)
+
+
+def _execute_closed_kan(
+    game_state: MahjongGameState,
+    caller_seat: int,
+    tile_id: int,
+) -> tuple[MahjongGameState, list[GameEvent]]:
+    """
+    Execute a validated closed kan nobody robs: the meld, its dora and the rinshan draw.
+    """
     new_round_state, meld = call_closed_kan(
-        round_state, seat=caller_seat, tile_id=tile_id, settings=game_state.settings
+        game_state.round_state, seat=caller_seat, tile_id=tile_id, settings=game_state.settings
     )
-    tile_ids = list(meld.tiles)
-    events: list[GameEvent] = [
-        MeldEvent(
-            meld_type=MeldViewType.CLOSED_KAN,
-            caller_seat=caller_seat,
-            tile_ids=tile_ids,
-        ),
-    ]
-    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
-    return update_game_with_round(game_state, new_round_state), events
+    meld_event = MeldEvent(meld_type=MeldViewType.CLOSED_KAN, caller_seat=caller_seat, tile_ids=list(meld.tiles))
+    return _complete_kan(game_state, new_round_state, caller_seat=caller_seat, meld_event=meld_event)
 
 
 def _process_added_kan_call(
@@ -742,22 +732,39 @@ def _process_added_kan_call(
     if chankan_seats:
         return _build_chankan_prompt(game_state, caller_seat=caller_seat, tile_id=resolved_tile_id, seats=chankan_seats)
 
-    old_dora_count = len(round_state.wall.dora_indicators)
+    return _execute_added_kan(game_state, caller_seat=caller_seat, tile_id=resolved_tile_id)
+
+
+def _execute_added_kan(
+    game_state: MahjongGameState,
+    caller_seat: int,
+    tile_id: int,
+) -> tuple[MahjongGameState, list[GameEvent]]:
+    """
+    Execute a validated added kan nobody robs, tile_id the resolved in-hand copy: the meld, its dora and the rinshan
+    draw.
+    """
     new_round_state, meld = call_added_kan(
-        round_state, seat=caller_seat, tile_id=resolved_tile_id, settings=game_state.settings
+        game_state.round_state, seat=caller_seat, tile_id=tile_id, settings=game_state.settings
     )
-    tile_ids = list(meld.tiles)
-    events: list[GameEvent] = [
-        MeldEvent(
-            meld_type=MeldViewType.ADDED_KAN,
-            caller_seat=caller_seat,
-            tile_ids=tile_ids,
-            called_tile_id=meld.called_tile,
-            from_seat=meld.from_who,
-        ),
-    ]
-    _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
-    return update_game_with_round(game_state, new_round_state), events
+    meld_event = MeldEvent(
+        meld_type=MeldViewType.ADDED_KAN,
+        caller_seat=caller_seat,
+        tile_ids=list(meld.tiles),
+        called_tile_id=meld.called_tile,
+        from_seat=meld.from_who,
+    )
+    return _complete_kan(game_state, new_round_state, caller_seat=caller_seat, meld_event=meld_event)
+
+
+def execute_unrobbed_kan(game_state: MahjongGameState, kan: RobbedKan) -> tuple[MahjongGameState, list[GameEvent]]:
+    """
+    Execute the kan a chankan prompt offered once every robber declined it.
+    """
+    if kan.kan_type == KanType.ADDED:
+        return _execute_added_kan(game_state, caller_seat=kan.seat, tile_id=kan.tile_id)
+
+    return _execute_closed_kan(game_state, caller_seat=kan.seat, tile_id=kan.tile_id)
 
 
 def process_meld_call(
@@ -770,6 +777,9 @@ def process_meld_call(
     For pon/chi/open kan: the tile_id is the discarded tile being called.
     For closed kan: tile_id is one of the 4 tiles to kan.
     For added kan: tile_id is the 4th tile to add to existing pon.
+
+    The events end with what opens the caller's next step: the turn event after a pon or chi, the rinshan draw after a
+    kan, or the chankan prompt events when a closed or added kan can be robbed.
     """
     caller_seat = meld_input.caller_seat
     call_type = meld_input.call_type

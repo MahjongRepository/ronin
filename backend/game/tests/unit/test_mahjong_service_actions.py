@@ -101,7 +101,7 @@ class TestProcessActionResultRoundEnd:
             ),
         )
         _update_round_state(runtime, phase=RoundPhase.FINISHED, result=round_end.result)
-        result = ActionResult(events=[round_end], state=runtime.state, needs_post_discard=True)
+        result = ActionResult(events=[round_end], state=runtime.state)
 
         events = service._process_action_result_internal(runtime, result)
         assert [e.event for e in events] == [EventType.ROUND_END]

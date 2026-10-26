@@ -28,6 +28,7 @@ from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.tiles import NUM_TILES, tile_to_34
+from game.logic.turn import process_draw_phase
 from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
@@ -118,7 +119,7 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         assert events == []
 
     def test_ai_actions_after_replacement__when_replaced_player_has_turn__should_play_turn(self, service):
-        runtime = service.start_game("game1", ["Alice"]).runtime
+        runtime = service.start_game("game1", ["Alice", "Bob"]).runtime
         game_state = runtime.state
         round_state = game_state.round_state
         player = _find_player(round_state, "Alice")
@@ -388,7 +389,9 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
         _update_player(runtime, seat=riichi_seat, tiles=tuple(tenpai_hand), is_riichi=True)
         _update_round_state(runtime, wall=make_wall())
-        service._process_action_result_internal(runtime, ActionResult([], state=runtime.state, needs_post_discard=True))
+        exhausted_game, draw_events = process_draw_phase(runtime.state)
+        runtime.commit(exhausted_game)
+        service._process_action_result_internal(runtime, ActionResult(draw_events, state=exhausted_game))
         service.handle_timeout(runtime, seat=alice.seat, timeout_type=TimeoutType.ROUND_ADVANCE)
         assert runtime.state.round_number == 1
 
@@ -416,7 +419,9 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
         _update_player(runtime, seat=tenpai_seat, tiles=tuple(tenpai_hand))
         _update_round_state(runtime, wall=make_wall())
-        service._process_action_result_internal(runtime, ActionResult([], state=runtime.state, needs_post_discard=True))
+        exhausted_game, draw_events = process_draw_phase(runtime.state)
+        runtime.commit(exhausted_game)
+        service._process_action_result_internal(runtime, ActionResult(draw_events, state=exhausted_game))
         assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
         assert (runtime.state.round_state.dealer_seat, runtime.state.round_number, runtime.state.honba_sticks) == (
             tenpai_seat,

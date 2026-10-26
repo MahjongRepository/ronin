@@ -4,7 +4,7 @@ from game.logic.abortive import (
     call_kyuushu_kyuuhai,
     can_call_kyuushu_kyuuhai,
 )
-from game.logic.action_result import ActionResult, Refusal, create_draw_event
+from game.logic.action_result import ActionResult, Refusal
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
     GameAction,
@@ -208,9 +208,8 @@ def handle_discard(
     """
     Handle a discard action.
 
-    Validates the player's turn and tile_id, then processes the discard. Returns ActionResult with events, post-discard
-    flag, and new state; an illegal discard (kuikae, riichi tsumogiri) is refused, a tile not in hand raises
-    InvalidGameActionError.
+    Validates the player's turn and tile_id, then processes the discard. Returns ActionResult with events and new state;
+    an illegal discard (kuikae, riichi tsumogiri) is refused, a tile not in hand raises InvalidGameActionError.
     """
     if not _is_turn_of(game_state.round_state, seat):
         return _NOT_YOUR_TURN
@@ -222,7 +221,7 @@ def handle_discard(
     except GameRuleError as e:
         return _create_rule_refusal(e)
 
-    return ActionResult(events, state=new_game_state, needs_post_discard=True)
+    return ActionResult(events, state=new_game_state)
 
 
 def handle_riichi(
@@ -248,7 +247,7 @@ def handle_riichi(
     except GameRuleError as e:
         return _create_rule_refusal(e)
 
-    return ActionResult(events, state=new_game_state, needs_post_discard=True)
+    return ActionResult(events, state=new_game_state)
 
 
 def handle_tsumo(
@@ -386,8 +385,8 @@ def _handle_self_kan(
     """
     Handle closed or added kan during the player's own turn.
 
-    Executes the kan immediately via process_meld_call. Unless it opened a chankan prompt (the kan waits for the
-    robbers' answers), emits the draw event for the dead wall replacement tile.
+    Executes the kan immediately via process_meld_call, with its rinshan draw, unless it opened a chankan prompt (the
+    kan then waits for the robbers' answers).
     """
     # after pon/chi, the player must discard — kan requires a drawn tile
     if game_state.round_state.is_after_meld_call:
@@ -404,14 +403,7 @@ def _handle_self_kan(
     except ImpossibleActionError as e:
         raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
 
-    new_round_state = new_game_state.round_state
-    if new_round_state.pending_call_prompt is not None:
-        return ActionResult(events, state=new_game_state)
-
-    drawn_tile = new_round_state.players[seat].tiles[-1]
-    return ActionResult(
-        [*events, create_draw_event(new_game_state, seat=seat, tile_id=drawn_tile)], state=new_game_state
-    )
+    return ActionResult(events, state=new_game_state)
 
 
 def handle_kan(

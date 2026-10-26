@@ -47,7 +47,7 @@ def _create_frozen_game_state() -> MahjongGameState:
 
 
 class TestResolveMeldResponse:
-    def test_resolve_meld_response__when_open_kan_with_minimal_live_wall__should_resolve_kan(self):
+    def test_resolve_call_prompt__when_open_kan_declared_with_minimal_live_wall__should_resolve_kan(self):
         five_man = tile_copies(0, man="5")[0]
         players = (
             create_player(seat=0, tiles=tile_copies(0, man="5", pin="123456789", honors="1234")),

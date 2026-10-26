@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
 from game.logic.action_handlers import handle_discard, handle_kan, handle_pass, handle_riichi, handle_ron, handle_tsumo
@@ -39,14 +38,13 @@ from game.logic.scoring import HandResult, ScoringContext, calculate_hand_value_
 from game.logic.state import Caller, Discard, MahjongGameState, MeldOption
 from game.logic.tiles import tile_to_34
 from game.logic.turn import (
-    _maybe_emit_dora_event,
     process_discard_phase,
     process_draw_phase,
     process_meld_call,
 )
 from game.logic.types import DiscardActionData, KanActionData, MeldCallInput, RiichiActionData
 from game.logic.win import get_waiting_tiles
-from game.tests.conftest import create_dealt_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
     PIN_3_TRIPLE_RON_DEALER_HAND,
@@ -127,7 +125,7 @@ class TestRinshanTsumoAfterOpenKan:
 
 
 class TestExhaustiveDrawPhase:
-    def test_process_draw_phase__when_live_wall_empty__should_end_round_with_exhaustive_draw(self):
+    def test_exhaustive_draw__when_last_discard_has_no_callers__should_end_round(self):
         last_discard = tile_copies(0, honors="7")[0]
         players = (
             create_player(seat=0, tiles=(last_discard, *tile_copies(0, man="123456789", pin="1255"))),
@@ -138,14 +136,10 @@ class TestExhaustiveDrawPhase:
         _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": ()}))
         discarded = handle_discard(runtime.state, seat=0, data=DiscardActionData(tile_id=last_discard))
         assert isinstance(discarded, ActionResult)
-        assert discarded.state.round_state.pending_call_prompt is None
-        assert discarded.state.round_state.current_player_seat == 1
-
-        new_game, events = process_draw_phase(discarded.state)
-        assert new_game.round_state.phase == RoundPhase.FINISHED
-        assert [type(e) for e in events] == [RoundEndEvent]
-        assert events[0].result.type == RoundResultType.EXHAUSTIVE_DRAW
-        assert events[0].result.tempai_seats == [0]
+        assert discarded.state.round_state.phase == RoundPhase.FINISHED
+        assert [type(e) for e in discarded.events] == [DiscardEvent, RoundEndEvent]
+        assert discarded.events[-1].result.type == RoundResultType.EXHAUSTIVE_DRAW
+        assert discarded.events[-1].result.tempai_seats == [0]
 
 
 _RIICHI_FURITEN_DISCARDED_THREE_PIN = tile_copies(2, pin="3")[0]
@@ -208,15 +202,14 @@ class TestRiichiFuriten:
         assert isinstance(own_discard, ActionResult)
         assert own_discard.state.round_state.players[1].is_riichi_furiten is True
 
-        later_wait = _discard_after_draw(own_discard.state, seat=2, tile_id=_RIICHI_FURITEN_LATER_THREE_PIN)
+        later_wait = _discard(own_discard.state, seat=2, tile_id=_RIICHI_FURITEN_LATER_THREE_PIN)
         assert later_wait.state.round_state.pending_call_prompt is None
         assert later_wait.state.round_state.players[1].is_riichi_furiten is True
 
 
-def _discard_after_draw(game_state: MahjongGameState, seat: int, tile_id: int) -> ActionResult:
-    drawn_game, _events = process_draw_phase(game_state)
-    assert drawn_game.round_state.current_player_seat == seat
-    result = handle_discard(drawn_game, seat=seat, data=DiscardActionData(tile_id=tile_id))
+def _discard(game_state: MahjongGameState, seat: int, tile_id: int) -> ActionResult:
+    assert game_state.round_state.current_player_seat == seat
+    result = handle_discard(game_state, seat=seat, data=DiscardActionData(tile_id=tile_id))
     assert isinstance(result, ActionResult)
     return result
 
@@ -257,18 +250,18 @@ class TestTemporaryFuriten:
             FuritenEvent(is_furiten=True, target=SeatTarget(seat=1)),
         ]
 
-        missed = _discard_after_draw(passed.state, seat=3, tile_id=six_man_with_ittsu)
+        missed = _discard(passed.state, seat=3, tile_id=six_man_with_ittsu)
         assert not [e for e in missed.events if isinstance(e, CallPromptEvent)]
         assert missed.state.round_state.pending_call_prompt is None
 
-        before_own_discard = _discard_after_draw(missed.state, seat=0, tile_id=seat_0_draw)
-        own_discard = _discard_after_draw(before_own_discard.state, seat=1, tile_id=seat_1_draw)
+        before_own_discard = _discard(missed.state, seat=0, tile_id=seat_0_draw)
+        own_discard = _discard(before_own_discard.state, seat=1, tile_id=seat_1_draw)
         assert own_discard.state.round_state.players[1].is_temporary_furiten is False
         assert [e.data for e in furiten.check_changes(own_discard.state.round_state)] == [
             FuritenEvent(is_furiten=False, target=SeatTarget(seat=1)),
         ]
 
-        offered = _discard_after_draw(own_discard.state, seat=2, tile_id=later_six_man_with_ittsu)
+        offered = _discard(own_discard.state, seat=2, tile_id=later_six_man_with_ittsu)
         prompt = offered.state.round_state.pending_call_prompt
         assert prompt is not None
         assert prompt.callers == (Caller(seat=1, can_ron=True),)
@@ -290,20 +283,6 @@ class TestFindRonCallers:
         prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
         assert [(c.seat, c.can_ron) for c in prompt.callers] == [(3, True), (0, True)]
-
-
-class TestSingleRonHandError:
-    def test_single_ron__when_hand_result_error__should_raise(self):
-        prompted, _events = process_discard_phase(
-            _create_pin_3_discard_with_three_ron_callers(), PIN_3_TRIPLE_RON_DISCARD
-        )
-        others_passed = _respond_to_call_prompt(prompted, {2: GameAction.PASS, 3: GameAction.PASS})
-
-        with (
-            patch("game.logic.turn.calculate_hand_value_with_tiles", return_value=HandResult(error="mock error")),
-            pytest.raises(ScoringError, match="ron calculation error"),
-        ):
-            handle_ron(others_passed.state, seat=1)
 
 
 class TestDoubleRonHandError:
@@ -572,41 +551,3 @@ class TestAddedKanNormalPath:
         assert result.state.round_state.pending_call_prompt is None
         assert [type(e) for e in result.events] == [MeldEvent, DrawEvent]
         assert [m.type for m in result.state.round_state.players[0].melds] == [FrozenMeld.SHOUMINKAN]
-
-
-class TestMaybeEmitDoraEvent:
-    def test_dora_event__when_no_new_dora__should_emit_nothing(self):
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = create_round_state(
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-        )
-
-        events = []
-        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
-        assert events == []
-
-    def test_dora_event__when_one_new_dora__should_emit_one_event(self):
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = create_round_state(
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2], dead_wall[3]),
-        )
-
-        events = []
-        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
-        assert len(events) == 1
-        assert events[0].tile_id == dead_wall[3]
-
-    def test_dora_event__when_multiple_new_dora__should_emit_event_for_each(self):
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = create_round_state(
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2], dead_wall[3], dead_wall[4]),
-        )
-
-        events = []
-        _maybe_emit_dora_event(old_dora_count=1, new_round_state=round_state, events=events)
-        assert len(events) == 2
-        assert events[0].tile_id == dead_wall[3]
-        assert events[1].tile_id == dead_wall[4]
