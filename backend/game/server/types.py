@@ -3,12 +3,13 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from game.session.models import PlayerSpec
+from shared.storage import MIN_GAME_ID_LENGTH
 
 
 class CreateGameRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    game_id: str = Field(min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    game_id: str = Field(min_length=MIN_GAME_ID_LENGTH, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     num_ai_players: int = Field(default=3, ge=0, le=3, strict=True)
     players: list[PlayerSpec] = Field(min_length=1, max_length=4)
 

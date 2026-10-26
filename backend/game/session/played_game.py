@@ -41,7 +41,7 @@ def build_finish_record(
         update={
             "ended_at": ended_at,
             "end_reason": end_reason,
-            "num_rounds_played": game_ended_event.num_rounds if game_ended_event.num_rounds > 0 else None,
+            "num_rounds_played": game_ended_event.num_rounds,
             "standings": standings,
         },
     )

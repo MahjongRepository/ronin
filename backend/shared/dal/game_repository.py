@@ -28,4 +28,7 @@ class GameRepository(ABC):
         """
 
     @abstractmethod
-    async def get_recent_games(self, limit: int = 20) -> list[PlayedGame]: ...
+    async def get_recent_completed_games(self, limit: int = 20) -> list[PlayedGame]:
+        """
+        Return the most recently started completed games, newest first.
+        """

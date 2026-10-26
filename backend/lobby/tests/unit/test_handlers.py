@@ -121,40 +121,8 @@ class TestPrepareGamesForDisplay:
         assert entry["players"][0]["score"] == 35000
         assert entry["players"][1]["score"] == 25000
         assert entry["players"][1]["is_winner"] is False
-        assert entry["status"] == "completed"
         assert entry["game_type_label"] == "南"
         assert entry["duration_label"] == "30m 0s"
-
-    def test_prepare_history_for_display__when_game_in_progress__should_have_no_winner(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(
-            game_id="game-2",
-            started_at=now,
-            standings=[
-                _make_standing(name="Alice", seat=0),
-                _make_standing(name="Bob", seat=1),
-            ],
-        )
-        result = _prepare_history_for_display([game])
-        entry = result[0]
-        assert all(not p["is_winner"] for p in entry["players"])
-        assert entry["status"] == "active"
-        assert entry["duration_label"] is None
-
-    def test_prepare_history_for_display__when_game_abandoned__should_show_active_status(self):
-        now = datetime.now(UTC)
-        game = PlayedGame(
-            game_id="game-3",
-            started_at=now - timedelta(minutes=5),
-            ended_at=now,
-            end_reason="abandoned",
-            standings=[_make_standing(name="Alice", seat=0), _make_standing(name="Bot-1", seat=1)],
-        )
-        result = _prepare_history_for_display([game])
-        entry = result[0]
-        assert entry["status"] == "active"
-        assert all(not p["is_winner"] for p in entry["players"])
-        assert entry["duration_label"] == "5m 0s"
 
     def test_prepare_history_for_display__when_tonpusen__should_label_east(self):
         now = datetime.now(UTC)

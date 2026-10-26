@@ -15,9 +15,6 @@
         <article class="games-card" style="--card-index: {{ loop.index0 }}" data-replay-url="/play/history/{{ entry.game.game_id }}">
             <header class="games-card-header">
                 <div class="games-card-label">
-                    {% if entry.status == 'active' %}
-                    <span class="games-badge games-badge--active">live</span>
-                    {% endif %}
                     {% if entry.game_type_label %}
                     <span class="games-wind">{{ entry.game_type_label }}</span>
                     {% endif %}
@@ -30,9 +27,7 @@
             <div class="games-standings">
                 {% for player in entry.players %}
                 <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if player.name == username else '' }}">
-                    {% if entry.status == 'completed' %}
                     <span class="games-rank">{{ loop.index }}</span>
-                    {% endif %}
                     <span class="games-name">{{ player.name }}</span>
                     {% if player.score is not none %}
                     <span class="games-score">{{ player.score }}</span>

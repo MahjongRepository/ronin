@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from shared.dal.game_repository import GameRepository
-from shared.dal.models import PlayedGame
+from shared.dal.models import GameEndReason, PlayedGame
 
 if TYPE_CHECKING:
     import sqlite3
@@ -31,11 +31,11 @@ class SqliteGameRepository(GameRepository):
     def finish_game(self, game: PlayedGame) -> None:
         self._db.post_write(partial(_upsert_game_finish, game=game), operation="finish_game", game_id=game.game_id)
 
-    async def get_recent_games(self, limit: int = 20) -> list[PlayedGame]:
+    async def get_recent_completed_games(self, limit: int = 20) -> list[PlayedGame]:
         """
-        Retrieve the most recent games, ordered by started_at descending.
+        Retrieve the most recent completed games, ordered by started_at descending.
         """
-        return await self._db.submit_read(partial(_select_recent_games, limit=limit))
+        return await self._db.submit_read(partial(_select_recent_completed_games, limit=limit))
 
 
 def _game_row(game: PlayedGame) -> tuple[str, str, str | None, str | None, str]:
@@ -70,9 +70,9 @@ def _upsert_game_finish(conn: sqlite3.Connection, *, game: PlayedGame) -> None:
         logger.warning("game already finished, keeping its first finish", game_id=game.game_id)
 
 
-def _select_recent_games(conn: sqlite3.Connection, *, limit: int) -> list[PlayedGame]:
+def _select_recent_completed_games(conn: sqlite3.Connection, *, limit: int) -> list[PlayedGame]:
     rows = conn.execute(
-        "SELECT data FROM played_games ORDER BY started_at DESC LIMIT ?",
-        (limit,),
+        "SELECT data FROM played_games WHERE end_reason = ? ORDER BY started_at DESC LIMIT ?",
+        (GameEndReason.COMPLETED, limit),
     ).fetchall()
     return [PlayedGame.model_validate(json.loads(row[0])) for row in rows]

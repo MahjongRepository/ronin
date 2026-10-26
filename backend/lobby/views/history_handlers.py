@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
-from shared.dal.models import GameEndReason
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -42,8 +41,6 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
     """
     result = []
     for game in games:
-        # Completed games: standings in placement order from game logic, standings[0] is winner
-        # In-progress/abandoned: standings in seat order, no scores
         has_scores = game.standings and game.standings[0].final_score is not None
         players = [
             {
@@ -59,13 +56,11 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
         if game.ended_at:
             duration_label = _format_duration(game.started_at, game.ended_at)
 
-        status = "completed" if game.end_reason == GameEndReason.COMPLETED else "active"
         result.append(
             {
                 "game": game,
                 "players": players,
                 "duration_label": duration_label,
-                "status": status,
                 "game_type_label": (
                     "南" if game.game_type == "hanchan" else "東" if game.game_type == "tonpusen" else ""
                 ),
@@ -80,9 +75,8 @@ async def history_page(request: Request) -> Response:
     templates: Jinja2Templates = request.app.state.templates
     game_repo = request.app.state.game_repo
 
-    games = await game_repo.get_recent_games(limit=20)
-    completed_games = [g for g in games if g.end_reason == GameEndReason.COMPLETED]
-    display_games = _prepare_history_for_display(completed_games)
+    games = await game_repo.get_recent_completed_games(limit=20)
+    display_games = _prepare_history_for_display(games)
 
     csrf_token, is_new = get_or_create_csrf_token(request)
     response = templates.TemplateResponse(

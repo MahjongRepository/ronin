@@ -223,7 +223,7 @@ class TestStatusEndpoint:
         assert "commit" in data
 
     def test_status_endpoint__when_game_pending__should_count_it_as_pending(self, client):
-        create_pending_game(client, game_id="r1")
+        create_pending_game(client, game_id="room1")
 
         response = client.get("/status")
         data = response.json()
@@ -308,11 +308,11 @@ class TestCreateGameEndpoint:
 
     def test_create_game_endpoint__when_server_at_capacity__should_return_503(self, client):
         for i in range(100):
-            ticket = make_test_game_ticket(username=f"P{i}", room_id=f"r{i}", user_id=f"u-{i}")
+            ticket = make_test_game_ticket(username=f"P{i}", room_id=f"room{i}", user_id=f"u-{i}")
             resp = client.post(
                 "/games",
                 json={
-                    "game_id": f"r{i}",
+                    "game_id": f"room{i}",
                     "players": [{"name": f"P{i}", "user_id": f"u-{i}", "game_ticket": ticket}],
                 },
             )
