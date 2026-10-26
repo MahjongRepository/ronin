@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
 import pytest
-from mahjong.tile import TilesConverter
 
+from game.logic.abortive import can_call_kyuushu_kyuuhai
 from game.logic.action_handlers import (
     handle_chi,
     handle_discard,
@@ -23,7 +23,6 @@ from game.logic.enums import (
     GameErrorCode,
     KanType,
     MeldCallType,
-    PromptKind,
     RoundPhase,
     TimeoutType,
 )
@@ -35,19 +34,17 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     call_added_kan,
     call_chi,
-    call_closed_kan,
-    call_open_kan,
 )
+from game.logic.riichi import can_declare_riichi
 from game.logic.round import draw_tile
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import (
     Caller,
     Discard,
+    MahjongGameState,
     MeldOption,
-    PendingCallPrompt,
 )
-from game.logic.state_utils import update_player
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
 from game.logic.types import (
@@ -58,9 +55,9 @@ from game.logic.types import (
     RiichiActionData,
     SeatConfig,
 )
-from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
-from game.tests.unit.helpers import _find_player, _update_player
+from game.tests.unit.helpers import _find_player, _update_round_state
 
 
 def _default_seat_configs():
@@ -78,165 +75,147 @@ def _create_frozen_game_state():
     return game_state.model_copy(update={"round_state": new_round_state})
 
 
+_NINE_MAN = tuple(tile_copies(copy, man="9")[0] for copy in range(4))
+_CHI_SEAT_SIX_MAN, _CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN = tile_copies(0, man="678")
+_CHI_SEAT_ONE_PIN = tile_copies(0, pin="1")[0]
+_NINE_MAN_CALL_HANDS = (
+    create_player(seat=0, tiles=(_NINE_MAN[0], *tile_copies(0, sou="123456789", honors="1234"))),
+    create_player(seat=1, tiles=(*tile_copies(0, man="678", pin="159", honors="567"), *tile_copies(1, honors="1234"))),
+    create_player(seat=2, tiles=(*_NINE_MAN[1:], *tile_copies(1, sou="123456789", honors="5"))),
+    create_player(seat=3, tiles=(*tile_copies(2, honors="1234567"), *tile_copies(1, pin="234678"))),
+)
+
+
+def _nine_man_discard_prompt() -> MahjongGameState:
+    prompted, _events = process_discard_phase(create_dealt_game_state(_NINE_MAN_CALL_HANDS), _NINE_MAN[0])
+    prompt = prompted.round_state.pending_call_prompt
+    assert prompt is not None
+    assert prompt.callers == (
+        Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN), MeldOption(call_type=MeldCallType.PON))),
+        Caller(
+            seat=1,
+            melds=(MeldOption(call_type=MeldCallType.CHI, options=((_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN),)),),
+        ),
+    )
+    return prompted
+
+
+def _offer_seat_1(game_state: MahjongGameState, *melds: MeldOption) -> MahjongGameState:
+    prompt = game_state.round_state.pending_call_prompt
+    callers = tuple(Caller(seat=1, melds=melds) if c.seat == 1 else c for c in prompt.callers)
+    round_state = game_state.round_state.model_copy(
+        update={"pending_call_prompt": prompt.model_copy(update={"callers": callers})}
+    )
+    return game_state.model_copy(update={"round_state": round_state})
+
+
 class TestChiEarlyValidation:
-    def _create_chi_state(self):
-        # seat 0 discards 1m (tile 0), seat 1 is kamicha
-        # Give seat 1 tiles that allow chi: 2m, 3m
-        tile_1m = 0  # 1m
-        tile_2m = 4  # 2m
-        tile_3m = 8  # 3m
-        tile_4m = 12  # 4m
-
-        seat0_tiles = (tile_1m, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64)
-        seat1_tiles = (tile_2m, tile_3m, tile_4m, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104)
-        players = [
-            create_player(seat=0, tiles=seat0_tiles),
-            create_player(seat=1, tiles=seat1_tiles),
-            create_player(seat=2, tiles=(16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 29, 30, 31)),
-            create_player(seat=3, tiles=(33, 34, 35, 37, 38, 39, 41, 42, 43, 45, 46, 47, 49)),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(108, 136)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-            pending_call_prompt=PendingCallPrompt(
-                kind=PromptKind.DISCARD,
-                tile_id=tile_1m,
-                from_seat=0,
-                pending_seats=frozenset({1}),
-                callers=(
-                    Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=((tile_2m, tile_3m),)),)),
-                ),
+    def test_chi_validation__when_seat_offered_pon_and_chi_sends_an_offered_chi__should_accept_it(self):
+        pon_and_chi_seat = create_player(
+            seat=1,
+            tiles=(
+                *_NINE_MAN[1:3],
+                *tile_copies(0, man="78", pin="159", honors="567"),
+                *tile_copies(1, honors="123"),
             ),
         )
-        return create_game_state(round_state)
-
-    def test_chi_validation__when_tiles_not_in_hand__should_raise(self):
-        game_state = self._create_chi_state()
-        data = ChiActionData(tile_id=0, sequence_tiles=(999, 8))
-        with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_chi(game_state, seat=1, data=data)
-
-    def test_chi_validation__when_invalid_sequence__should_raise(self):
-        game_state = self._create_chi_state()
-        round_state = game_state.round_state
-        # Give seat 1 a tile that doesn't form a valid sequence with 1m
-        tile_7m = 24  # 7m
-        new_tiles = (4, 8, tile_7m, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104)
-        round_state = update_player(round_state, 1, tiles=new_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        data = ChiActionData(tile_id=0, sequence_tiles=(4, tile_7m))
-        with pytest.raises(InvalidGameActionError, match="valid chi sequence"):
-            handle_chi(game_state, seat=1, data=data)
-
-    def test_chi_validation__when_sequence_crosses_suit_boundary__should_raise(self):
-        # 8m (type 7, suit 0) + 9m (type 8, suit 0) + 1p (type 9, suit 1)
-        # These are numerically consecutive (7,8,9) but cross suits.
-        tile_9m = 32  # type 8
-        tile_8m = 28  # type 7
-        tile_1p = 36  # type 9
-        seat0_tiles = (tile_9m, 20, 24, 40, 44, 48, 52, 56, 60, 64, 72, 76, 80)
-        seat1_tiles = (tile_8m, tile_1p, 12, 68, 84, 88, 92, 96, 100, 104, 108, 112, 116)
-
-        players = [
-            create_player(seat=0, tiles=seat0_tiles),
-            create_player(seat=1, tiles=seat1_tiles),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(120, 136)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-            pending_call_prompt=PendingCallPrompt(
-                kind=PromptKind.DISCARD,
-                tile_id=tile_9m,
-                from_seat=0,
-                pending_seats=frozenset({1}),
-                callers=(
-                    Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=((tile_8m, tile_1p),)),)),
-                ),
-            ),
+        players = (
+            _NINE_MAN_CALL_HANDS[0],
+            pon_and_chi_seat,
+            create_player(seat=2, tiles=(_NINE_MAN[3], *tile_copies(1, sou="123456789", honors="567"))),
+            _NINE_MAN_CALL_HANDS[3],
         )
-        game_state = create_game_state(round_state)
+        prompted, _events = process_discard_phase(create_dealt_game_state(players), _NINE_MAN[0])
+        prompt = prompted.round_state.pending_call_prompt
+        assert prompt is not None
+        assert [(c.seat, [m.call_type for m in c.melds]) for c in prompt.callers] == [
+            (1, [MeldCallType.PON, MeldCallType.CHI]),
+        ]
 
-        data = ChiActionData(tile_id=tile_9m, sequence_tiles=(tile_8m, tile_1p))
-        with pytest.raises(InvalidGameActionError, match="valid chi sequence"):
+        sequence_tiles = (_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN)
+        chi = handle_chi(prompted, seat=1, data=ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=sequence_tiles))
+        assert isinstance(chi, ActionResult)
+        assert [m.type for m in chi.state.round_state.players[1].melds] == [FrozenMeld.CHI]
+
+    @pytest.mark.parametrize(
+        ("sequence_tiles", "reason"),
+        [
+            pytest.param((_CHI_SEAT_SEVEN_MAN, tile_copies(1, man="8")[0]), "not in hand", id="tile_not_in_hand"),
+            pytest.param((_CHI_SEAT_SIX_MAN, _CHI_SEAT_EIGHT_MAN), "valid chi sequence", id="not_consecutive"),
+            pytest.param((_CHI_SEAT_EIGHT_MAN, _CHI_SEAT_ONE_PIN), "valid chi sequence", id="crosses_suit_boundary"),
+        ],
+    )
+    def test_chi_validation__when_sequence_tiles_are_not_a_held_sequence__should_raise(self, sequence_tiles, reason):
+        game_state = _nine_man_discard_prompt()
+        data = ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=sequence_tiles)
+
+        with pytest.raises(InvalidGameActionError, match=reason):
             handle_chi(game_state, seat=1, data=data)
 
     def test_chi_validation__when_sequence_not_among_options_and_pon_also_offered__should_raise(self):
-        game_state = self._create_chi_state()
-        round_state = game_state.round_state
-        prompt = round_state.pending_call_prompt
-        chi_offered_only_3m_4m = MeldOption(call_type=MeldCallType.CHI, options=((8, 12),))
-        caller = Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON), chi_offered_only_3m_4m))
-        new_prompt = prompt.model_copy(update={"callers": (caller,)})
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": new_prompt},
+        offered_no_chi_shape = MeldOption(call_type=MeldCallType.CHI, options=())
+        game_state = _offer_seat_1(
+            _nine_man_discard_prompt(), MeldOption(call_type=MeldCallType.PON), offered_no_chi_shape
         )
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        data = ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=(_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN))
 
-        # Submit (2m, 3m) which IS a valid sequence with 1m but NOT among options
-        data = ChiActionData(tile_id=0, sequence_tiles=(4, 8))
         with pytest.raises(InvalidGameActionError, match="not among available"):
             handle_chi(game_state, seat=1, data=data)
 
-    def test_chi_validation__when_valid_sequence__should_succeed(self):
-        game_state = self._create_chi_state()
-        data = ChiActionData(tile_id=0, sequence_tiles=(4, 8))
 
-        result = handle_chi(game_state, seat=1, data=data)
-        assert isinstance(result, ActionResult)
-
-
-class TestPonEarlyValidation:
-    def _create_pon_state(self):
-        tile_1m = 0
-        tile_1m_2 = 1
-        tile_1m_3 = 2
-
-        players = [
-            create_player(seat=0, tiles=(tile_1m, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64)),
-            create_player(seat=1, tiles=(tile_1m_2, tile_1m_3, 8, 12, 16, 68, 72, 76, 80, 84, 88, 92, 96)),
-            create_player(seat=2, tiles=(100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112)),
-            create_player(seat=3, tiles=(113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(126, 136)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-            pending_call_prompt=PendingCallPrompt(
-                kind=PromptKind.DISCARD,
-                tile_id=tile_1m,
-                from_seat=0,
-                pending_seats=frozenset({1}),
-                callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
+class TestMatchingTileCountValidation:
+    @pytest.mark.parametrize(
+        ("call_type", "submit"),
+        [
+            pytest.param(
+                MeldCallType.PON,
+                lambda gs: handle_pon(gs, seat=1, data=PonActionData(tile_id=_NINE_MAN[0])),
+                id="pon",
             ),
-        )
-        return create_game_state(round_state)
-
-    def test_pon_validation__when_not_enough_matching_tiles__should_raise(self):
-        game_state = self._create_pon_state()
-        round_state = game_state.round_state
-        # Remove matching tiles from seat 1's hand
-        new_tiles = (8, 12, 16, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104)
-        round_state = update_player(round_state, 1, tiles=new_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
+            pytest.param(
+                MeldCallType.OPEN_KAN,
+                lambda gs: handle_kan(gs, seat=1, data=KanActionData(tile_id=_NINE_MAN[0], kan_type=KanType.OPEN)),
+                id="open_kan",
+            ),
+        ],
+    )
+    def test_meld_validation__when_seat_holds_too_few_matching_tiles__should_raise(self, call_type, submit):
+        game_state = _offer_seat_1(_nine_man_discard_prompt(), MeldOption(call_type=call_type))
 
         with pytest.raises(InvalidGameActionError, match="not enough matching tiles"):
-            handle_pon(game_state, seat=1, data=PonActionData(tile_id=0))
+            submit(game_state)
 
-    def test_pon_validation__when_valid__should_succeed(self):
-        game_state = self._create_pon_state()
-        result = handle_pon(game_state, seat=1, data=PonActionData(tile_id=0))
-        assert isinstance(result, ActionResult)
+
+class TestCallTileMismatch:
+    @pytest.mark.parametrize(
+        ("submit", "refusal_code"),
+        [
+            pytest.param(
+                lambda gs: handle_pon(gs, seat=2, data=PonActionData(tile_id=_NINE_MAN[1])),
+                GameErrorCode.INVALID_PON,
+                id="pon",
+            ),
+            pytest.param(
+                lambda gs: handle_kan(gs, seat=2, data=KanActionData(tile_id=_NINE_MAN[1], kan_type=KanType.OPEN)),
+                GameErrorCode.INVALID_KAN,
+                id="open_kan",
+            ),
+            pytest.param(
+                lambda gs: handle_chi(
+                    gs,
+                    seat=1,
+                    data=ChiActionData(tile_id=_NINE_MAN[1], sequence_tiles=(_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN)),
+                ),
+                GameErrorCode.INVALID_CHI,
+                id="chi",
+            ),
+        ],
+    )
+    def test_call_response__when_tile_id_mismatches_prompt__should_refuse(self, submit, refusal_code):
+        game_state = _nine_man_discard_prompt()
+
+        result = submit(game_state)
+        assert result == Refusal(code=refusal_code, message="tile_id mismatch")
 
 
 _THREE_PIN = tile_copies(3, pin="3")[0]
@@ -290,58 +269,6 @@ class TestResponseActionMatchesPrompt:
             submit(prompted)
 
 
-class TestOpenKanEarlyValidation:
-    def _create_open_kan_state(self):
-        tile_1m = 0
-        players = [
-            create_player(seat=0, tiles=(tile_1m, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64)),
-            create_player(seat=1, tiles=(1, 2, 3, 8, 12, 68, 72, 76, 80, 84, 88, 92, 96)),
-            create_player(seat=2, tiles=(100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112)),
-            create_player(seat=3, tiles=(113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125)),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(126, 136)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-            pending_call_prompt=PendingCallPrompt(
-                kind=PromptKind.DISCARD,
-                tile_id=tile_1m,
-                from_seat=0,
-                pending_seats=frozenset({1}),
-                callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
-            ),
-        )
-        return create_game_state(round_state)
-
-    def test_open_kan_validation__when_no_pending_prompt__should_refuse(self):
-        game_state = _create_frozen_game_state()
-        data = KanActionData(tile_id=0, kan_type=KanType.OPEN)
-
-        result = handle_kan(game_state, seat=0, data=data)
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_KAN
-
-    def test_open_kan_validation__when_not_enough_tiles__should_raise(self):
-        game_state = self._create_open_kan_state()
-        round_state = game_state.round_state
-        # Remove matching tiles
-        new_tiles = (8, 12, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108)
-        round_state = update_player(round_state, 1, tiles=new_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError, match="not enough matching tiles"):
-            handle_kan(game_state, seat=1, data=KanActionData(tile_id=0, kan_type=KanType.OPEN))
-
-    def test_open_kan_validation__when_tile_id_mismatches_prompt__should_refuse(self):
-        game_state = self._create_open_kan_state()
-        data = KanActionData(tile_id=999, kan_type=KanType.OPEN)
-
-        result = handle_kan(game_state, seat=1, data=data)
-        assert result == Refusal(code=GameErrorCode.INVALID_KAN, message="tile_id mismatch")
-
-
 class TestAddedKanRiichiRejection:
     def test_added_kan__when_player_in_riichi__should_raise(self):
         drawn_one_man = tile_copies(3, man="1")[0]
@@ -368,168 +295,88 @@ class TestAddedKanRiichiRejection:
 
 class TestKanExecutionGuards:
     def test_closed_kan__when_wall_too_short__should_raise(self):
-        tiles = tuple(TilesConverter.string_to_136_array(man="1111234", pin="234", sou="56"))
-        players = [
-            create_player(seat=0, tiles=tiles),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=(130,),  # only 1 tile, need at least 2
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-        tile_1m = TilesConverter.string_to_136_array(man="1")[0]
+        runtime = GameRuntime(game_id="test", state=_create_frozen_game_state(), ai=AIPlayerController({}))
+        wall = runtime.state.round_state.wall
+        _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": wall.live_tiles[:1]}))
+        one_man_quad = runtime.state.round_state.players[0].tiles[:4]
+        assert len({tile_to_34(t) for t in one_man_quad}) == 1
 
-        with pytest.raises(InvalidMeldError, match="not enough tiles in wall"):
-            call_closed_kan(round_state, seat=0, tile_id=tile_1m, settings=settings)
-
-    def test_added_kan__when_wall_too_short__should_raise(self):
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=(0, 1, 2),
-            opened=True,
-            who=0,
-        )
-        players = [
-            create_player(seat=0, tiles=(3, 8, 12, 16, 20, 24, 28, 32, 36, 40), melds=(pon_meld,)),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=(130,),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="not enough tiles in wall"):
-            call_added_kan(round_state, seat=0, tile_id=3, settings=settings)
+        data = KanActionData(tile_id=one_man_quad[0], kan_type=KanType.CLOSED)
+        with pytest.raises(InvalidGameActionError, match="not enough tiles in wall"):
+            handle_kan(runtime.state, seat=0, data=data)
 
     def test_added_kan__when_total_kans_at_limit__should_raise(self):
-        kan1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=False, who=0)
-        kan2 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(8, 9, 10, 11), opened=False, who=0)
-        kan3 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(12, 13, 14, 15), opened=False, who=0)
-        kan4 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(16, 17, 18, 19), opened=False, who=0)
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=(0, 1, 2),
-            opened=True,
-            who=0,
+        five_pin = tile_copies(0, pin="5555")
+        seat_0_quads = tuple(
+            FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, sou=quad)), opened=False, who=0)
+            for quad in ("1111", "2222", "3333", "4444")
         )
-        melds = (kan1, kan2, kan3, kan4, pon_meld)
-
-        players = [
-            create_player(seat=0, tiles=(3, 24, 28, 32, 36, 40), melds=melds),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
+        five_pin_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON, tiles=five_pin[:3], opened=True, called_tile=five_pin[2], who=1, from_who=3
         )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="maximum kans per round"):
-            call_added_kan(round_state, seat=0, tile_id=3, settings=settings)
-
-    def test_closed_kan__when_total_kans_at_limit__should_raise(self):
-        kan1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False, who=0)
-        kan2 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=False, who=0)
-        kan3 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(8, 9, 10, 11), opened=False, who=0)
-        kan4 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(12, 13, 14, 15), opened=False, who=0)
-
-        tiles = tuple(TilesConverter.string_to_136_array(man="5555"))
-        players = [
-            create_player(seat=0, tiles=tiles, melds=(kan1, kan2, kan3, kan4)),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
+        players = (
+            create_player(seat=0, tiles=tile_copies(0, honors="7"), melds=seat_0_quads),
+            create_player(
+                seat=1, tiles=(five_pin[3], *tile_copies(0, man="123456789", honors="1")), melds=(five_pin_pon,)
+            ),
+            create_player(seat=2, tiles=tile_copies(1, man="123456789", honors="2345")),
+            create_player(
+                seat=3,
+                tiles=tile_copies(2, man="123456789", honors="2345"),
+                discards=(Discard(tile_id=five_pin[2]),),
+            ),
         )
-        settings = GameSettings()
-        tile_5m = TilesConverter.string_to_136_array(man="5")[0]
+        game_state = create_dealt_game_state(players, current_player_seat=1)
 
-        with pytest.raises(InvalidMeldError, match="maximum kans per round"):
-            call_closed_kan(round_state, seat=0, tile_id=tile_5m, settings=settings)
+        data = KanActionData(tile_id=five_pin[3], kan_type=KanType.ADDED)
+        with pytest.raises(InvalidGameActionError, match="maximum kans per round"):
+            handle_kan(game_state, seat=1, data=data)
+
+
+_TENPAI_DEALER_AFTER_DRAW = tuple(tile_copies(0, man="112345", pin="456", sou="789", honors="11"))
+_RIICHI_JUNK_HANDS = {seat: tuple(tile_copies(seat, man="6789", pin="12389", sou="1234")) for seat in (1, 2, 3)}
+
+
+def _tenpai_dealer_after_draw() -> MahjongGameState:
+    players = (
+        create_player(seat=0, tiles=_TENPAI_DEALER_AFTER_DRAW),
+        *(create_player(seat=seat, tiles=_RIICHI_JUNK_HANDS[seat]) for seat in (1, 2, 3)),
+    )
+    return create_dealt_game_state(players)
 
 
 class TestRiichiDiscardTenpaiValidation:
     def test_riichi_discard__when_discard_breaks_tenpai__should_refuse_with_invalid_riichi(self):
-        # Hand: 112345m 456p 789s 11z (14 tiles)
-        # can_declare_riichi passes because discarding 5m keeps tenpai
-        # But discarding 3m (tile 8) breaks tenpai
-        all_tiles = tuple(TilesConverter.string_to_136_array(man="112345", pin="456", sou="789", honors="11"))
-        assert len(all_tiles) == 14
+        three_man = tile_copies(0, man="3")[0]
 
-        players = [
-            create_player(seat=0, tiles=all_tiles, score=25000),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
+        result = handle_riichi(_tenpai_dealer_after_draw(), seat=0, data=RiichiActionData(tile_id=three_man))
+        assert result == Refusal(
+            code=GameErrorCode.INVALID_RIICHI, message=f"hand is not tenpai after discarding tile {three_man}"
         )
-        game_state = create_game_state(round_state)
 
-        # Discard 3m (tile 8) - breaks tenpai
-        result = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=8))
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_RIICHI
 
-    def test_riichi_discard__when_discard_keeps_tenpai__should_succeed(self):
-        # Hand: 112345m 456p 789s 11z (14 tiles)
-        # Discarding 5m (tile 16) preserves tenpai
-        all_tiles = tuple(TilesConverter.string_to_136_array(man="112345", pin="456", sou="789", honors="11"))
-        assert len(all_tiles) == 14
+class TestRiichiRaisesInvalidGameActionError:
+    def test_riichi__when_riichi_not_offered__should_raise_invalid_game_action(self):
+        game_state = _create_frozen_game_state()
+        dealer = game_state.round_state.players[0]
+        assert not can_declare_riichi(dealer, game_state.round_state, settings=game_state.settings)
 
-        players = [
-            create_player(seat=0, tiles=all_tiles, score=25000),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-        )
-        game_state = create_game_state(round_state)
+        with pytest.raises(InvalidGameActionError, match="cannot declare riichi: conditions not met"):
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=dealer.tiles[-1]))
 
-        # Discarding 5m (tile 16) preserves tenpai
-        result = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=16))
-        assert isinstance(result, ActionResult)
-        assert result.needs_post_discard is True
+    def test_riichi__when_tenpai_hand_and_tile_not_in_hand__should_raise(self):
+        game_state = _tenpai_dealer_after_draw()
+        other_seats_tile = game_state.round_state.players[1].tiles[0]
+
+        with pytest.raises(InvalidGameActionError, match="not in hand"):
+            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=other_seats_tile))
 
 
 class TestKyuushuRuleGate:
     def test_kyuushu_kyuuhai__when_conditions_not_met__should_raise(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # Add discards so kyuushu conditions are not met
-        round_state = update_player(round_state, 0, discards=(Discard(tile_id=0),))
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        dealer = game_state.round_state.players[0]
+        assert not can_call_kyuushu_kyuuhai(dealer, game_state.round_state, settings=game_state.settings)
 
         with pytest.raises(InvalidGameActionError, match="conditions not met"):
             handle_kyuushu(game_state, seat=0)
@@ -556,23 +403,9 @@ class TestPendingCallPromptStateGate:
         ids=["discard", "riichi", "tsumo", "kyuushu", "closed_kan", "added_kan"],
     )
     def test_turn_action__when_prompt_pending__should_answer_not_your_turn_without_kick(self, action, data):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        own_tile = round_state.players[0].tiles[-1]
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
+        game_state = _nine_man_discard_prompt()
         runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({}))
+        own_tile = game_state.round_state.players[0].tiles[-1]
 
         action_data = {key: own_tile if value == "own" else value for key, value in data.items()}
         update = MahjongGameService().handle_action(runtime, seat=0, action=action, data=action_data)
@@ -603,16 +436,36 @@ class TestCallChiDefenseInDepth:
             call_chi(round_state, caller_seat=1, discarder_seat=0, tile_id=0, sequence_tiles=(5, 9), settings=settings)
 
 
-class TestSoftErrorsRemainUnchanged:
-    @pytest.mark.parametrize("forbidding_rule", ["kuikae", "riichi_tsumogiri"])
-    def test_discard__when_rule_forbids_the_tile__should_refuse_with_invalid_discard(self, forbidding_rule):
-        game_state = _create_frozen_game_state()
-        first_tile = game_state.round_state.players[0].tiles[0]
-        fields = {"kuikae_tiles": (tile_to_34(first_tile),)} if forbidding_rule == "kuikae" else {"is_riichi": True}
-        round_state = update_player(game_state.round_state, 0, **fields)
-        game_state = game_state.model_copy(update={"round_state": round_state})
+def _kuikae_seat_after_chi() -> tuple[MahjongGameState, int, int]:
+    passed = handle_pass(_nine_man_discard_prompt(), seat=2)
+    sequence_tiles = (_CHI_SEAT_SEVEN_MAN, _CHI_SEAT_EIGHT_MAN)
+    chi = handle_chi(passed.state, seat=1, data=ChiActionData(tile_id=_NINE_MAN[0], sequence_tiles=sequence_tiles))
+    assert isinstance(chi, ActionResult)
+    assert tile_to_34(_CHI_SEAT_SIX_MAN) in chi.state.round_state.players[1].kuikae_tiles
+    return chi.state, 1, _CHI_SEAT_SIX_MAN
 
-        result = handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=first_tile))
+
+def _riichi_dealer_after_draw() -> tuple[MahjongGameState, int, int]:
+    waiting_hand = tile_copies(0, man="11234", pin="456", sou="789", honors="11")
+    riichi_dealer = create_player(
+        seat=0,
+        tiles=(*waiting_hand, tile_copies(0, man="9")[0]),
+        discards=(Discard(tile_id=tile_copies(0, honors="7")[0], is_riichi_discard=True),),
+        is_riichi=True,
+    )
+    players = (riichi_dealer, *(create_player(seat=seat, tiles=_RIICHI_JUNK_HANDS[seat]) for seat in (1, 2, 3)))
+    return create_dealt_game_state(players), 0, waiting_hand[0]
+
+
+class TestSoftErrorsRemainUnchanged:
+    @pytest.mark.parametrize(
+        "stage_forbidden_discard",
+        [pytest.param(_kuikae_seat_after_chi, id="kuikae"), pytest.param(_riichi_dealer_after_draw, id="riichi")],
+    )
+    def test_discard__when_rule_forbids_the_tile__should_refuse_with_invalid_discard(self, stage_forbidden_discard):
+        game_state, seat, forbidden_tile = stage_forbidden_discard()
+
+        result = handle_discard(game_state, seat=seat, data=DiscardActionData(tile_id=forbidden_tile))
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.INVALID_DISCARD
 
@@ -637,63 +490,9 @@ class TestSoftErrorsRemainUnchanged:
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.INVALID_PASS
 
-    def test_soft_error__when_pon_tile_mismatches__should_return_refusal(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        # Send wrong tile_id - this is a race condition
-        result = handle_pon(game_state, seat=1, data=PonActionData(tile_id=999))
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_PON
-
     def test_soft_error__when_seat_not_pending__should_return_refusal(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, can_ron=True),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        # Seat 2 is not pending
-        result = handle_ron(game_state, seat=2)
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_RON
-
-
-class TestOpenKanRiichiGuard:
-    def test_open_kan_execution__when_player_in_riichi__should_reject(self):
-        players = [
-            create_player(seat=0, tiles=(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48)),
-            create_player(seat=1, tiles=(1, 2, 3, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88), is_riichi=True),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(92, 136)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="cannot call open kan while in riichi"):
-            call_open_kan(round_state, caller_seat=1, discarder_seat=0, tile_id=0, settings=settings)
+        result = handle_ron(_nine_man_discard_prompt(), seat=3)
+        assert result == Refusal(code=GameErrorCode.INVALID_RON, message="no pending call prompt")
 
 
 # --- Phase 3: Error Handling Conversion Tests ---
@@ -708,66 +507,6 @@ class TestDiscardRaisesInvalidGameActionError:
         assert exc_info.value.seat == 0
 
 
-class TestRiichiRaisesInvalidGameActionError:
-    def test_riichi__when_tile_not_in_hand__should_raise_invalid_game_action(self):
-        game_state = _create_frozen_game_state()
-
-        with pytest.raises(InvalidGameActionError, match="declare_riichi") as exc_info:
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=999))
-        assert exc_info.value.seat == 0
-
-    def test_riichi__when_already_in_riichi__should_raise_invalid_game_action(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        round_state = update_player(round_state, 0, is_riichi=True)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        tile_id = round_state.players[0].tiles[0]
-
-        with pytest.raises(InvalidGameActionError, match="declare_riichi"):
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=tile_id))
-
-    def test_riichi__when_not_enough_points__should_raise_invalid_game_action(self):
-        all_tiles = tuple(TilesConverter.string_to_136_array(man="112345", pin="456", sou="789", honors="11"))
-        players = [
-            create_player(seat=0, tiles=all_tiles, score=500),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-        )
-        game_state = create_game_state(round_state)
-
-        with pytest.raises(InvalidGameActionError, match="declare_riichi"):
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=all_tiles[0]))
-
-    def test_riichi__when_hand_open__should_raise_invalid_game_action(self):
-        pon_meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=(0, 1, 2), opened=True, who=0)
-        all_tiles = tuple(TilesConverter.string_to_136_array(man="12345", pin="456", sou="789", honors="1"))
-        players = [
-            create_player(seat=0, tiles=all_tiles, melds=(pon_meld,), score=25000),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-        )
-        game_state = create_game_state(round_state)
-
-        with pytest.raises(InvalidGameActionError, match="declare_riichi"):
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=all_tiles[0]))
-
-
 class TestTsumoRaisesInvalidGameActionError:
     def test_tsumo__when_hand_not_winning__should_raise_invalid_game_action(self):
         game_state = _create_frozen_game_state()
@@ -780,19 +519,12 @@ class TestTsumoRaisesInvalidGameActionError:
 class TestKanRaisesInvalidGameActionError:
     def test_closed_kan__when_not_enough_tiles__should_raise_invalid_game_action(self):
         game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        # Explicitly set tiles that don't contain 4 of any tile (all distinct in 34-tile space)
-        no_kan_tiles = tuple(
-            TilesConverter.string_to_136_array(
-                man="123456789",
-                pin="12345",
-            ),
-        )
-        round_state = update_player(round_state, 0, tiles=no_kan_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        dealer_hand = game_state.round_state.players[0].tiles
+        lone_tile = dealer_hand[-1]
+        assert [tile_to_34(t) for t in dealer_hand].count(tile_to_34(lone_tile)) == 1
 
-        data = KanActionData(tile_id=no_kan_tiles[0], kan_type=KanType.CLOSED)
-        with pytest.raises(InvalidGameActionError, match="call_kan"):
+        data = KanActionData(tile_id=lone_tile, kan_type=KanType.CLOSED)
+        with pytest.raises(InvalidGameActionError, match="closed kan requires 4 tiles"):
             handle_kan(game_state, seat=0, data=data)
 
 
@@ -805,44 +537,29 @@ class TestServerGeneratedActionRefusals:
     def runtime(self, service):
         return service.start_game("test", ["Player"], seed="a" * 192).runtime
 
-    @staticmethod
-    def _make_ai_seat_current(runtime):
-        ai_player_seat = min(runtime.ai.ai_player_seats)
-        round_state = runtime.state.round_state.model_copy(update={"current_player_seat": ai_player_seat})
-        runtime.commit(runtime.state.model_copy(update={"round_state": round_state}))
-        return ai_player_seat
-
-    def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service, runtime):
-        game_state = runtime.state
-        ai_player_seat = min(runtime.ai.ai_player_seats)
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=(ai_player_seat + 1) % 4,
-            pending_seats=frozenset({ai_player_seat}),
-            callers=(Caller(seat=ai_player_seat, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-        )
-        round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
-        runtime.commit(game_state.model_copy(update={"round_state": round_state}))
+    def test_ai_call_response__when_handler_refuses_it__should_raise_generated_action_error(self, service):
+        game_state = _nine_man_discard_prompt()
+        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({1: AIPlayer()}))
+        prompt = game_state.round_state.pending_call_prompt
+        unheld_sequence = (_CHI_SEAT_SEVEN_MAN, tile_copies(1, man="8")[0])
 
         with (
-            patch.object(AIPlayer, "should_call_pon", return_value=True),
-            pytest.raises(GeneratedActionError, match="call_pon refused"),
+            patch.object(AIPlayer, "should_call_chi", return_value=unheld_sequence),
+            pytest.raises(GeneratedActionError, match="call_chi refused"),
         ):
             service._dispatch_ai_player_call_responses(runtime, prompt, [])
         assert runtime.state.round_state.pending_call_prompt == prompt
 
-    def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service, runtime):
-        ai_player_seat = self._make_ai_seat_current(runtime)
-        _update_player(runtime, seat=ai_player_seat, is_riichi=True)
-        state_before = runtime.state
+    def test_ai_turn__when_its_discard_gets_a_soft_error__should_raise_without_progress(self, service):
+        game_state, ai_seat, forbidden_tile = _riichi_dealer_after_draw()
+        runtime = GameRuntime(game_id="test", state=game_state, ai=AIPlayerController({ai_seat: AIPlayer()}))
 
         with (
-            patch.object(AIPlayer, "select_discard", lambda _self, player, _round_state: player.tiles[0]),
+            patch.object(AIPlayer, "select_discard", return_value=forbidden_tile),
             pytest.raises(GeneratedActionError, match="invalid_discard"),
         ):
             service._process_ai_player_followup(runtime)
-        assert runtime.state is state_before
+        assert runtime.state is game_state
 
     def test_turn_timeout__when_default_discard_is_refused__should_raise_instead_of_kicking(self, service, runtime):
         player_seat = _find_player(runtime.state.round_state, "Player").seat
@@ -861,86 +578,9 @@ class TestServerGeneratedActionRefusals:
             service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE)
 
     def test_handle_action__when_the_seat_is_ai_controlled__should_raise_as_a_server_fault(self, service, runtime):
-        ai_player_seat = self._make_ai_seat_current(runtime)
+        ai_player_seat = min(runtime.ai.ai_player_seats)
         state_before = runtime.state
 
         with pytest.raises(AssertionError, match=f"seat {ai_player_seat} is controlled by an AI player"):
             service.handle_action(runtime, seat=ai_player_seat, action=GameAction.DISCARD, data={"tile_id": 0})
         assert runtime.state is state_before
-
-
-class TestOpenKanDefenseInDepthGuards:
-    def test_open_kan__when_wall_insufficient__should_raise(self):
-        tile_5m = TilesConverter.string_to_136_array(man="5")[0]
-        players = [
-            create_player(seat=0, tiles=(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48)),
-            create_player(seat=1, tiles=(1, 2, 3, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88)),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=(90,),  # only 1 tile, below min_wall_for_kan=2
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="not enough tiles in wall for kan"):
-            call_open_kan(round_state, caller_seat=1, discarder_seat=0, tile_id=tile_5m, settings=settings)
-
-    def test_open_kan__when_max_kans_exceeded__should_raise(self):
-        tile_5m = TilesConverter.string_to_136_array(man="5")[0]
-        # Create 4 existing kan melds (max_kans_per_round default = 4)
-        kan_melds = tuple(
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(TilesConverter.string_to_136_array(man=str(i + 1) * 4)),
-                opened=True,
-                who=0,
-                from_who=0,
-            )
-            for i in range(4)
-        )
-        players = [
-            create_player(seat=0, tiles=(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48), melds=kan_melds),
-            create_player(seat=1, tiles=(1, 2, 3, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88)),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(92, 110)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="maximum kans per round reached"):
-            call_open_kan(round_state, caller_seat=1, discarder_seat=0, tile_id=tile_5m, settings=settings)
-
-
-class TestRiichiTileNotInHandValidation:
-    def test_riichi__when_tenpai_hand_and_tile_not_in_hand__should_raise(self):
-        # Hand: 112345m 456p 789s 11z (14 tiles) - this is tenpai
-        all_tiles = tuple(TilesConverter.string_to_136_array(man="112345", pin="456", sou="789", honors="11"))
-        assert len(all_tiles) == 14
-
-        players = [
-            create_player(seat=0, tiles=all_tiles, score=25000),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-        )
-        game_state = create_game_state(round_state)
-
-        # tile_id 999 is not in hand (but hand IS tenpai so can_declare_riichi passes)
-        with pytest.raises(InvalidGameActionError, match="not in hand"):
-            handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=999))

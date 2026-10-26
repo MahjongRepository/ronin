@@ -1,13 +1,11 @@
 from game.logic.action_handlers import (
-    handle_chi,
     handle_kan,
     handle_pass,
 )
-from game.logic.action_result import ActionResult, Refusal
+from game.logic.action_result import ActionResult
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import (
     AIPlayerType,
-    GameErrorCode,
     KanType,
     MeldCallType,
     PromptKind,
@@ -20,13 +18,11 @@ from game.logic.runtime import GameRuntime
 from game.logic.state import (
     Caller,
     MahjongGameState,
-    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
 from game.logic.turn import process_discard_phase
 from game.logic.types import (
-    ChiActionData,
     KanActionData,
     SeatConfig,
 )
@@ -78,33 +74,6 @@ class TestResolveMeldResponse:
         assert isinstance(kan, ActionResult)
         assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent]
         assert [m.type for m in kan.state.round_state.players[1].melds] == [FrozenMeld.KAN]
-
-
-class TestHandleChiTileMismatch:
-    def test_handle_chi__when_tile_mismatches_prompt__should_refuse_with_invalid_chi(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        # create pending call prompt for chi
-        tile_id = 0
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI),)),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        # call chi with mismatched tile_id
-        wrong_tile_id = 999
-        result = handle_chi(
-            game_state,
-            seat=1,
-            data=ChiActionData(tile_id=wrong_tile_id, sequence_tiles=(1, 2)),
-        )
-        assert result == Refusal(code=GameErrorCode.INVALID_CHI, message="tile_id mismatch")
 
 
 class TestChankanRiechiFuritenOnPass:
