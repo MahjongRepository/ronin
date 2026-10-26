@@ -220,8 +220,10 @@ def _read_message(player: LobbyPlayer, *, bucket: TokenBucket, frame: Message) -
         return parse_lobby_message(text)
     except json.JSONDecodeError:
         player.send({"type": "error", "message": "Invalid JSON"})
-    except (ValueError, ValidationError) as e:
-        player.send({"type": "error", "message": str(e)})
+    except ValidationError:
+        player.send({"type": "error", "message": "Invalid message"})
+    except ValueError:
+        player.send({"type": "error", "message": "Message too large"})
 
     return None
 

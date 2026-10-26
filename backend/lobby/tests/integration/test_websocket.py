@@ -142,16 +142,13 @@ class TestRoomWebSocket:
             ws.receive_json()  # room_joined
             big = json.dumps({"type": "chat", "text": "a" * 500, "x": "b" * 4000})
             ws.send_text(big)
-            msg = ws.receive_json()
-            assert msg["type"] == "error"
-            assert "too large" in msg["message"].lower()
+            assert ws.receive_json() == {"type": "error", "message": "Message too large"}
 
     def test_room_websocket__when_message_type_unknown__should_send_error(self, client, room_id):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:
             ws.receive_json()  # room_joined
             ws.send_text(json.dumps({"type": "unknown_type"}))
-            msg = ws.receive_json()
-            assert msg["type"] == "error"
+            assert ws.receive_json() == {"type": "error", "message": "Invalid message"}
 
     def test_room_websocket__when_last_player_disconnects__should_remove_room(self, client, app, room_id):
         with client.websocket_connect(f"/ws/rooms/{room_id}") as ws:

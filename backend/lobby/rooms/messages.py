@@ -49,6 +49,9 @@ def parse_lobby_message(
 ) -> LobbySetReadyMessage | LobbyChatMessage | LobbyLeaveRoomMessage | LobbyStartGameMessage:
     """
     Parse and validate a raw JSON string into a typed lobby message.
+
+    Raise ``json.JSONDecodeError`` for malformed JSON, ``ValidationError`` for an invalid message and a plain
+    ``ValueError`` for one over the size limit.
     """
     byte_len = len(raw.encode("utf-8"))
     if byte_len > _MAX_WS_MESSAGE_SIZE:

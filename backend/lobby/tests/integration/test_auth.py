@@ -5,7 +5,7 @@ import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
 
@@ -13,7 +13,7 @@ from lobby.auth.csrf import CSRF_COOKIE_NAME
 from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
     from starlette.testclient import TestClient
 
@@ -63,6 +63,10 @@ def _register_user(client: TestClient, username: str, password: str = "securepas
             "csrf_token": csrf,
         },
     )
+
+
+def _chunked(*chunks: bytes) -> Iterator[bytes]:
+    yield from chunks
 
 
 def _insert_player(client, player: Player) -> None:
@@ -126,6 +130,32 @@ class TestAuthEndpoints:
         )
         assert response.status_code == 200
         assert "Passwords do not match" in response.text
+
+    def test_register_route__when_chunked_body_oversized__should_return_413_without_registering(self, client):
+        csrf = _get_csrf_token(client, "/register")
+        fields = urlencode(
+            {
+                "username": "biguser",
+                "password": "securepass123",
+                "confirm_password": "securepass123",
+                "csrf_token": csrf,
+            }
+        )
+
+        response = client.post(
+            "/register",
+            content=_chunked(fields.encode(), b"&padding=" + b"x" * 5000),
+            headers={"content-type": "application/x-www-form-urlencoded"},
+            follow_redirects=False,
+        )
+        assert "content-length" not in response.request.headers
+        assert response.status_code == 413
+        assert "session_id" not in response.cookies
+
+        response = client.post(
+            "/register", content=fields, headers={"content-type": "application/x-www-form-urlencoded"}
+        )
+        assert response.url.path == "/"
 
     def test_register_route__when_username_taken__should_show_error(self, client):
         _register_user(client, username="takenuser")
@@ -347,6 +377,20 @@ class TestBotCreateRoom:
         )
         assert response.status_code == 400
         assert "min_human_players" in response.json()["error"]
+
+    def test_bot_create_room_route__when_chunked_body_oversized__should_return_413_without_creating_room(self, client):
+        _, raw_key = _insert_bot(client, user_id="bot-room-id", username="RoomBot")
+
+        response = client.post(
+            "/api/rooms",
+            content=_chunked(b'{"min_human_players": 1, "padding": "', b"x" * 5000, b'"}'),
+            headers={"content-type": "application/json", "x-api-key": raw_key},
+        )
+        assert "content-length" not in response.request.headers
+        assert response.status_code == 413
+        assert response.json() == {"error": "Request body too large"}
+        assert response.headers["x-frame-options"] == "DENY"
+        assert client.app.state.room_manager.get_rooms_info() == []
 
     @pytest.mark.parametrize("body", ["not json", '[{"min_human_players": 1}]'], ids=["not_json", "json_array"])
     def test_bot_create_room_route__when_body_not_a_json_object__should_return_400(self, client, body):

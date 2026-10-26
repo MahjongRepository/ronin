@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
+
+from starlette.requests import ClientDisconnect
+from starlette.responses import JSONResponse
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -107,6 +111,67 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+class _RequestBodyTooLargeError(Exception):
+    pass
+
+
+class RequestBodyLimitMiddleware:
+    """
+    Cap every HTTP request body at ``max_body_size`` bytes, and end a request quietly when its client disconnects.
+
+    It counts the bytes the app reads from ``receive``, so a chunked upload without ``Content-Length`` is capped as
+    well. Every lobby body (the form posts and the bot JSON API) is a few hundred bytes, and every handler reads its
+    body before acting, so an excess is answered 413 with no side effect. A small cap also keeps bot JSON far below the
+    nesting depth at which the JSON parser raises ``RecursionError``. A body read that finds the client gone raises
+    ``ClientDisconnect``; that is not a server error and nobody is left to read a response, so none is sent.
+
+    Once the response has started, frames pass through uncounted: a ``FileResponse`` reads ``receive`` while it streams,
+    only to notice a disconnect, and a 413 can no longer be sent. The 413 gets the security headers because this sits
+    inside ``SecurityHeadersMiddleware``. Starlette's own ``RequestBodyLimitMiddleware`` does not fit: its 413 is plain
+    text where the bot API answers JSON, it re-raises an excess found after the response started, and it lets
+    ``ClientDisconnect`` escape as a server error.
+    """
+
+    def __init__(self, app: ASGIApp, *, max_body_size: int) -> None:
+        self.app = app
+        self._max_body_size = max_body_size
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        received = 0
+        response_started = False
+
+        async def receive_within_limit() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request" and not response_started:
+                received += len(message.get("body", b""))
+                if received > self._max_body_size:
+                    raise _RequestBodyTooLargeError
+
+            return message
+
+        async def send_noting_start(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+
+            await send(message)
+
+        try:
+            await self.app(scope, receive_within_limit, send_noting_start)
+        except _RequestBodyTooLargeError:
+            response = JSONResponse(
+                {"error": "Request body too large"}, status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+            )
+            await response(scope, receive, send)
+        except ClientDisconnect:
+            return
 
 
 class SlashNormalizationMiddleware:

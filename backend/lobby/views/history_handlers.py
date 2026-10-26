@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
+from lobby.views.assets import render_page
 
 if TYPE_CHECKING:
     from datetime import datetime
 
     from starlette.requests import Request
     from starlette.responses import Response
-    from starlette.templating import Jinja2Templates
 
     from shared.dal.models import PlayedGame
 
@@ -72,24 +71,9 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
 
 async def history_page(request: Request) -> Response:
     """GET /history - render the history page with recent played games."""
-    templates: Jinja2Templates = request.app.state.templates
     game_repo = request.app.state.game_repo
-
     games = await game_repo.get_recent_completed_games(limit=20)
     display_games = _prepare_history_for_display(games)
-
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "history.html",
-        {
-            "games": display_games,
-            "username": request.user.username,
-            "csrf_token": csrf_token,
-        },
+    return render_page(
+        request, template_name="history.html", context={"games": display_games, "username": request.user.username}
     )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response

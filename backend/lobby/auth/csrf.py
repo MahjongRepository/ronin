@@ -46,7 +46,8 @@ def validate_csrf(request: Request, form_data: FormData) -> PlainTextResponse | 
     Check that the form CSRF token matches the cookie token.
 
     Returns a 403 response on failure, or None if the token is valid. Bot API routes (JSON + API key) skip this check:
-    they do not authenticate with cookies.
+    they do not authenticate with cookies. The tokens are compared as bytes: ``compare_digest`` raises on a str holding
+    a non-ASCII character, which a crafted form token can carry.
     """
     cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
     if not cookie_token:
@@ -56,7 +57,7 @@ def validate_csrf(request: Request, form_data: FormData) -> PlainTextResponse | 
     if not form_token or not isinstance(form_token, str):
         return PlainTextResponse("CSRF validation failed", status_code=403)
 
-    if not secrets.compare_digest(cookie_token, form_token):
+    if not secrets.compare_digest(cookie_token.encode(), form_token.encode()):
         return PlainTextResponse("CSRF validation failed", status_code=403)
 
     return None
