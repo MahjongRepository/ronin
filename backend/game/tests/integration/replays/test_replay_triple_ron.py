@@ -1,10 +1,12 @@
 import json
+import re
 
 from game.logic.enums import AbortiveDrawType, GameAction
 from game.logic.events import EventType, RoundEndEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
 from game.replay import run_replay
+from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_string
 from game.replay.models import ReplayInput
 from game.session.replay_collector import ReplayCollector, ReplayRecord
@@ -24,9 +26,14 @@ SEED = (
 PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
 DEALER = "Charlie"
 RON_CALLERS_BY_SEAT_ORDER = ("Bob", "Alice", "Diana")
+TENHOU_RON_CALLER_HANDS = (
+    ' hai1="0,4,8,12,16,20,24,28,32,36,40,124,125"'
+    ' hai2="48,52,72,76,80,84,88,92,96,100,104,128,129"'
+    ' hai3="5,9,13,17,21,25,45,49,53,56,93,97,101"'
+)
 
 
-def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abort():
+def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abort_and_its_tenhou_log():
     wall = make_start_wall(
         (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
         draws=(PIN_3_TRIPLE_RON_DISCARD,),
@@ -56,6 +63,8 @@ def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abo
         (DEALER, GameAction.DISCARD),
         *((player, GameAction.CALL_RON) for player in RON_CALLERS_BY_SEAT_ORDER),
     ]
+    tenhou_xml = TenhouConverter([json.loads(line) for line in record.lines]).convert()
+    assert re.findall(r'<RYUUKYOKU type="ron3" [^>]*sc="[^"]*"([^>]*) />', tenhou_xml) == [TENHOU_RON_CALLER_HANDS]
 
     trace = run_replay(
         ReplayInput(seed=loaded.seed, player_names=loaded.player_names, wall=wall, events=loaded.events),

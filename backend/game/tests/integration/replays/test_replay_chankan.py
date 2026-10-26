@@ -1,4 +1,5 @@
 import json
+import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -11,6 +12,7 @@ from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import NUM_TILES
 from game.replay import run_replay
+from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_string
 from game.replay.models import ReplayInput, ReplayTrace
 from game.replay.runner import ReplayOptions
@@ -41,6 +43,8 @@ PON_CALLER_HAND = (*PIN_3_COPIES[:2], *tile_copies(2, man="1469", sou="1479", ho
 PENCHAN_PIN_3_HAND = tile_copies(0, pin="1299", man="789", sou="456789")
 KANCHAN_PIN_3_HAND = (*tile_copies(1, pin="24", man="123", sou="345678"), *tile_copies(0, honors="11"))
 INERT_DRAWS = tile_copies(0, honors="666")
+TENHOU_PIN_3_PON = '<N who="1" m="18027" />'
+TENHOU_PIN_3_ADDED_KAN = '<N who="1" m="18035" />'
 
 MAN_1_COPIES = [tile_copies(copy, man="1")[0] for copy in range(4)]
 KOKUSHI_WAITING_ON_MAN_1_HANDS = (
@@ -77,7 +81,7 @@ def _kokushi_wall(robber_count: int) -> tuple[int, ...]:
 def _play_record_and_replay(
     wall: tuple[int, ...],
     actions: list[tuple[int, GameAction, dict[str, Any]]],
-) -> tuple[MahjongGameState, list[RoundResult], ReplayInput, ReplayTrace]:
+) -> tuple[MahjongGameState, list[RoundResult], ReplayInput, ReplayTrace, str]:
     service = MahjongGameService()
     start = service.start_game("chankan", list(PLAYERS), seed=SEED, wall=list(wall))
     runtime = start.runtime
@@ -97,17 +101,23 @@ def _play_record_and_replay(
         ReplayOptions(auto_confirm_rounds=False),
     )
     round_ends = [e.data.result for e in recorded_events if isinstance(e.data, RoundEndEvent)]
-    return runtime.state, round_ends, loaded, trace
+    tenhou_xml = TenhouConverter([json.loads(line) for line in record.lines]).convert()
+    return runtime.state, round_ends, loaded, trace, tenhou_xml
+
+
+def _tenhou_melds_and_round_ends(tenhou_xml: str) -> list[str]:
+    return re.findall(r"<N [^>]*>|<AGARI|<RYUUKYOKU", tenhou_xml)
 
 
 @pytest.mark.parametrize(
-    ("responses", "round_end_types", "pon_caller_meld", "replayed_tail"),
+    ("responses", "round_end_types", "pon_caller_meld", "replayed_tail", "tenhou_tags"),
     [
         pytest.param(
             [(PENCHAN_SEAT, GameAction.CALL_RON), (KANCHAN_SEAT, GameAction.PASS)],
             [RoundResultType.RON],
             FrozenMeld.PON,
             [(PON_CALLER, GameAction.CALL_KAN), (PENCHAN_SEAT, GameAction.CALL_RON)],
+            [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN, "<AGARI"],
             id="single_ron",
         ),
         pytest.param(
@@ -119,6 +129,7 @@ def _play_record_and_replay(
                 (PENCHAN_SEAT, GameAction.CALL_RON),
                 (KANCHAN_SEAT, GameAction.CALL_RON),
             ],
+            [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN, "<AGARI", "<AGARI"],
             id="double_ron",
         ),
         pytest.param(
@@ -126,12 +137,13 @@ def _play_record_and_replay(
             [],
             FrozenMeld.SHOUMINKAN,
             [(DEALER, GameAction.DISCARD), (PON_CALLER, GameAction.CALL_KAN)],
+            [TENHOU_PIN_3_PON, TENHOU_PIN_3_ADDED_KAN],
             id="declined",
         ),
     ],
 )
-def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_the_live_game(
-    responses, round_end_types, pon_caller_meld, replayed_tail
+def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_the_live_game_and_its_tenhou_log(
+    responses, round_end_types, pon_caller_meld, replayed_tail, tenhou_tags
 ):
     turns_to_added_kan = [
         (DEALER, GameAction.DISCARD, {"tile_id": PIN_3_DISCARD}),
@@ -145,7 +157,7 @@ def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_
         ),
         (PON_CALLER, GameAction.CALL_KAN, {"tile_id": PIN_3_ADDED, "kan_type": "added"}),
     ]
-    live_state, round_ends, loaded, trace = _play_record_and_replay(
+    live_state, round_ends, loaded, trace, tenhou_xml = _play_record_and_replay(
         _added_kan_wall(),
         [*turns_to_added_kan, *((seat, action, {}) for seat, action in responses)],
     )
@@ -155,18 +167,21 @@ def test_chankan_replay__when_added_kan_is_robbed_or_declined__should_reproduce_
     loaded_tail = [(e.player_name, e.action) for e in loaded.events[-len(replayed_tail) :]]
     assert loaded_tail == [(NAME_BY_SEAT[seat], action) for seat, action in replayed_tail]
     assert trace.final_state == live_state
+    assert _tenhou_melds_and_round_ends(tenhou_xml) == tenhou_tags
 
 
 @pytest.mark.parametrize(
-    ("robber_count", "result_type"),
+    ("robber_count", "result_type", "tenhou_round_end"),
     [
-        pytest.param(1, RoundResultType.RON, id="ron"),
-        pytest.param(3, RoundResultType.ABORTIVE_DRAW, id="triple_ron"),
+        pytest.param(1, RoundResultType.RON, "<AGARI", id="ron"),
+        pytest.param(3, RoundResultType.ABORTIVE_DRAW, "<RYUUKYOKU", id="triple_ron"),
     ],
 )
-def test_chankan_replay__when_kokushi_robs_a_closed_kan__should_reproduce_the_live_game(robber_count, result_type):
+def test_chankan_replay__when_kokushi_robs_a_closed_kan__should_reproduce_the_live_game_and_its_tenhou_log(
+    robber_count, result_type, tenhou_round_end
+):
     robber_seats = range(1, robber_count + 1)
-    live_state, round_ends, loaded, trace = _play_record_and_replay(
+    live_state, round_ends, loaded, trace, tenhou_xml = _play_record_and_replay(
         _kokushi_wall(robber_count),
         [
             (DEALER, GameAction.CALL_KAN, {"tile_id": MAN_1_COPIES[3], "kan_type": "closed"}),
@@ -180,3 +195,4 @@ def test_chankan_replay__when_kokushi_robs_a_closed_kan__should_reproduce_the_li
         *((NAME_BY_SEAT[seat], GameAction.CALL_RON, {}) for seat in robber_seats),
     ]
     assert trace.final_state == live_state
+    assert _tenhou_melds_and_round_ends(tenhou_xml) == ['<N who="0" m="0" />', tenhou_round_end]
