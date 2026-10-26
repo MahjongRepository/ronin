@@ -24,6 +24,7 @@ from game.logic.events import (
     GameStartedEvent,
     SeatTarget,
     ServiceEvent,
+    build_call_prompt_events,
     convert_events,
 )
 from game.logic.exceptions import GeneratedActionError, InvalidGameActionError
@@ -731,15 +732,25 @@ class MahjongGameService(GameService):
             result=round_state.result,
         )
 
-    def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
-        Rebuild the event that opened the seat's turn: its draw with its available actions, or the turn event.
+        Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw.
 
-        Right after the seat's own pon or chi it drew nothing: its turn opened with the turn event, as on the live path.
+        A turn opens with the draw and its available actions, or right after the seat's own pon or chi, when it drew
+        nothing, with the turn event, as on the live path. A round advance has no such event (the round's result is in
+        the reconnect snapshot), and neither has a wait that does not await the seat.
         """
+        kind, seats = self._current_wait(runtime)
+        if seat not in seats:
+            return []
+
         game_state = runtime.state
         round_state = game_state.round_state
-        if round_state.current_player_seat != seat:
+        prompt = round_state.pending_call_prompt
+        if kind == WaitKind.CALL and prompt is not None:
+            return convert_events([e for e in build_call_prompt_events(prompt) if e.target == SeatTarget(seat=seat)])
+
+        if kind != WaitKind.TURN:
             return []
 
         if round_state.is_after_meld_call:

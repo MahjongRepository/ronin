@@ -120,7 +120,7 @@ class TestJoinGame:
         assert game.lifecycle is GameLifecycle.PENDING
         assert [participant.connection for participant in game.connected()] == [conn2]
         assert conn1.connection_id not in manager._connections
-        assert (conn1._close_code, conn1._close_reason) == (1000, "replaced_by_new_connection")
+        assert (conn1._close_code, conn1._close_reason) == (4002, "replaced_by_new_connection")
 
         manager.join_game(conn1, game_id="game1", session_token="ticket-0")
         manager.disconnect(conn1)

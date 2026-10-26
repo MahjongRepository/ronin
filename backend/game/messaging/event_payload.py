@@ -28,6 +28,8 @@ WAIT_ID_KEY = "wi"
 VIEWER_SEAT_KEY = "s"
 TIMER_SETTINGS_KEY = "tm"
 ROUND_RESULT_KEY = "re"
+CONFIRMATION_OWED_KEY = "oc"
+WAIT_ELAPSED_KEY = "el"
 
 
 def service_event_payload(event: ServiceEvent) -> dict[str, Any]:

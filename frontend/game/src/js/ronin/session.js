@@ -9,6 +9,8 @@ const SILENCE_CHECK_INTERVAL_MS = 5000;
 
 const E = wire.SESSION_ERROR;
 
+const TERMINAL_CLOSE_CODES = new Set([wire.CLOSE.REPLACED, wire.CLOSE.INVALID_ACTION]);
+
 const LOBBY_CODES = new Set([
     E.INTERNAL_ERROR,
     E.NOT_IN_GAME,
@@ -22,9 +24,11 @@ const LOBBY_CODES = new Set([
 
 /**
  * The game socket: joins with the ticket, resumes the seat with the same ticket after a drop, and leaves for the lobby
- * on a permanent error. The client sends nothing on its own, so a socket whose peer vanished (a FIN lost while the
- * device slept) never closes by itself: a server silent for longer than any legitimate wait counts as a drop, checked
- * on the wall clock so the first check after a wake sees the whole gap.
+ * on a permanent error. A close that hands the seat on (another connection took it over, or the server kicked the
+ * seat for an impossible action) is permanent too: reconnecting would take the seat back from the other tab, or loop
+ * through kick, AI turn and restore, so it cancels any retry. The client sends nothing on its own, so a socket whose
+ * peer vanished (a FIN lost while the device slept) never closes by itself: a server silent for longer than any
+ * legitimate wait counts as a drop, checked on the wall clock so the first check after a wake sees the whole gap.
  */
 class RoninSession {
 
@@ -66,8 +70,13 @@ class RoninSession {
             catch (e) { console.error('[ronin] decode error:', e); return; }
             this.handle(msg);
         };
-        ws.onclose = () => {
+        ws.onclose = (ev) => {
             if (this.ws !== ws) return;
+            if (TERMINAL_CLOSE_CODES.has(ev.code)) {
+                console.warn('[ronin] leaving for the lobby on close:', ev.code, ev.reason);
+                this.goLobby();
+                return;
+            }
             this.dropSocket();
         };
         ws.onerror = () => {};

@@ -31,6 +31,17 @@ interleave.
   input order, never by name), and its timer lives as long as it does, so its bank survives a
   disconnect. A disconnected seat is played by an AI player until the participant reconnects; when
   no connected participant remains the game is abandoned, so there are never all-AI games.
+* **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
+  still bound to a connection (a half-open socket the server has not seen drop, or another tab)
+  replaces it through the one binder (`_bind`): the old connection is evicted, then closed with
+  4002 `replaced_by_new_connection`, which the client treats as terminal so two live clients cannot
+  take the seat back from each other forever. A connection already bound is refused before anyone
+  is replaced. A replacement is not a disconnect: no `player_left` or `player_reconnected`, no AI
+  player, no engine call, and the wait, its timers and the bank carry on, so the old connection's
+  late input and disconnect resolve to no participant (`_bound`) and touch nothing. The reconnect
+  snapshot says during a round advance whether the seat still owes its confirmation, which only a
+  replacement can make true: a disconnect confirms the seat, and a seat an AI player held at the
+  round end was never required.
 * **Playing.** A user plays a game from its creation (pending included) until its end is claimed,
   and a disconnected participant still counts, deliberately: the lobby keeps that user out of rooms
   and matchmaking until the game ends. The lobby's per-user lookup and `POST /games`' refusal of a
@@ -64,8 +75,10 @@ interleave.
   that lands even when the start write failed, and the first finish wins.
 * **Replays.** A game's replay lines are collected from the start and detached by the end claim; an
   abandoned game's are discarded, and a failure to save a completed game's replay turns its end
-  into a failure. A reconnect re-sends the turn's opening event (its draw or `turn` event)
-  directly, outside the replay path, so a draw is not recorded twice.
+  into a failure. A reconnect re-sends the opening event of the wait the game owes the seat (its
+  draw, its `turn` event or its call prompt) directly, outside the replay path, so it is not
+  recorded twice, and re-arms no timer: only a replaced connection's seat can be awaited, and its
+  timer kept running, so the event carries how long it has run for the client's countdown.
 * **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
   it, often another seat's action, so a fired timer binds its game and its own seat, and the
   finalizer its game with no seat; a new background task rebinds its context the same way.

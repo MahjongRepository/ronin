@@ -46,6 +46,7 @@ class TurnTimer:
         self._bank_seconds: float = config.initial_bank_seconds
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
+        self._started_at: float | None = None
 
     @property
     def task(self) -> asyncio.Task[None] | None:
@@ -61,6 +62,16 @@ class TurnTimer:
         """
         return self._bank_seconds
 
+    @property
+    def elapsed_seconds(self) -> float | None:
+        """
+        How long the running timer has run, or None when no timer runs.
+        """
+        if self._active_task is None or self._started_at is None:
+            return None
+
+        return time.monotonic() - self._started_at
+
     def add_round_bonus(self) -> None:
         """
         Add round bonus time to the bank, capped at max_bank_seconds.
@@ -75,7 +86,7 @@ class TurnTimer:
         Start the turn timer using base time + bank time.
         """
         self.cancel()
-        self._turn_start_time = time.monotonic()
+        self._turn_start_time = self._started_at = time.monotonic()
         total = self._config.base_turn_seconds + self._bank_seconds
         self._active_task = asyncio.create_task(self._run_timer(total, on_timeout))
 
@@ -91,6 +102,7 @@ class TurnTimer:
         """
         self.cancel()
         self._turn_start_time = None  # don't consume bank time
+        self._started_at = time.monotonic()
         self._active_task = asyncio.create_task(self._run_timer(duration, on_timeout))
 
     def stop(self) -> None:

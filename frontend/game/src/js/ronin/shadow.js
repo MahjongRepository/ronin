@@ -55,7 +55,6 @@ class Shadow {
         this.drawnTileId = null;
         this.prompt   = null;
         this.declaredKan = null;
-        this.lastDapai = null;
         this.offerActions = {};
         this.roundAdvance = false;
     }

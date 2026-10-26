@@ -6,7 +6,9 @@
  * the fixed call decision time and leaves the bank alone; each round start adds the round bonus, up to the cap. A
  * decision runs from the server message that opens its wait to the one that ends it, as the server's timer does, so a
  * refused answer keeps it running; an answer whose ending message can lag (a kan, behind other seats' chankan prompt)
- * holds it until then. It is never synced again, so it may drift from the server's by network delays.
+ * holds it until then. A wait the server re-sends after a reconnect names how long it has run, and the decision is
+ * backdated by that much, so a taken-over turn counts down what is left and charges the bank what the server will.
+ * It is never synced otherwise, so it may drift from the server's by network delays.
  */
 class TurnClock {
 
@@ -27,21 +29,24 @@ class TurnClock {
         this.bank = Math.min(this.bank + this.settings.rb, this.settings.mb);
     }
 
-    /** Open a turn; return its [base, bank] seconds, the limit and allowance of majiang-ui's timer. */
-    startTurn() {
-        this.open(true);
-        return [this.settings.tb, this.bank];
+    /**
+     * Open a turn that has run for elapsed seconds; return what is left of its [base, bank] seconds, the limit and
+     * allowance of majiang-ui's timer.
+     */
+    startTurn(elapsed = 0) {
+        this.open(true, elapsed);
+        return this.remaining();
     }
 
-    /** Open a call prompt; return its [decision, 0] seconds. */
-    startCallDecision() {
-        this.open(false);
-        return [this.settings.md, 0];
+    /** Open a call prompt that has run for elapsed seconds; return what is left of its [decision, 0] seconds. */
+    startCallDecision(elapsed = 0) {
+        this.open(false, elapsed);
+        return this.remaining();
     }
 
-    open(turn) {
+    open(turn, elapsed) {
         this.stop();
-        this.decision = { turn, startedAt: this.now() };
+        this.decision = { turn, startedAt: this.now() - elapsed * 1000 };
     }
 
     /** What is left of the open decision, as [limit, allowance] seconds; null when none is open. */

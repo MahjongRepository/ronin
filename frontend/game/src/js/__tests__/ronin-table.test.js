@@ -182,6 +182,11 @@ function startTableOnPage() {
 
 const shownOf = (table, name) => table.player.shown.filter((shown) => shown.name === name);
 
+const renderedTotals = (table, fenpei) => {
+    const model = table.player.model;
+    return [0, 1, 2, 3].map((l) => model.defen[model.player_id[l]] + fenpei[l]);
+};
+
 function snapshot(fields) {
     return {
         gid: "g",
@@ -1040,6 +1045,142 @@ describe("the ronin table (Translate and Reply)", () => {
         const declarer = table.player.model.shoupai[1];
         expect(declarer._fulou).toEqual(["p888-8"]);
         expect(declarer._bingpai._).toBe(10);
+        expect(shownOf(table, "hule")).toEqual([]);
+        expect(table.sent).toEqual([]);
+    });
+
+    it("confirms the round result a taken-over seat still owes after a reconnect during the round advance, at the snapshot's scores, counting the round once in the standings", () => {
+        const table = startTable();
+        const sch = { 0: 30, 1: -10, 2: -10, 3: -10 };
+        table.translate.reconnect(
+            snapshot({
+                cp: 1,
+                tr: 0,
+                pst: [280, 240, 240, 240].map((sc, s) => ({
+                    s,
+                    sc,
+                    dsc: [],
+                    ml: [],
+                    ri: false,
+                    tc: 13,
+                })),
+                rh: [{ w: 0, dl: 0, h: 0, rs: [], ws: [], ts: [0], sch }],
+                re: { rt: 3, ts: [0], th: [], sch },
+                oc: true,
+            }),
+        );
+        expect(table.player.lastShown).toBe("pingju");
+        expect(renderedTotals(table, table.player.shown.at(-1).data.fenpei)).toEqual([
+            28000, 24000, 24000, 24000,
+        ]);
+        table.decide({});
+        table.receive({
+            t: 10,
+            ws: 0,
+            st: [0, 1, 2, 3].map((s) => ({ s, sc: 250, fs: 0 })),
+            lb: 0,
+        });
+
+        expect(table.sent).toEqual([{ t: 3, a: 9, wi: 7 }]);
+        expect(table.player.lastShown).toBe("jieju");
+        expect(table.player.shown.at(-1).data.log).toHaveLength(1);
+    });
+
+    it("shows each win of an owed double ron after a reconnect at the snapshot's scores, not over them again", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+        table.translate.reconnect(
+            snapshot({
+                cp: 0,
+                tr: 50,
+                pst: [4, 180, 576, 250].map((sc, s) => ({
+                    s,
+                    sc,
+                    dsc: [],
+                    ml: [],
+                    ri: false,
+                    tc: 13,
+                })),
+                re: DOUBLE_RON,
+                oc: true,
+            }),
+        );
+        vi.advanceTimersByTime(WIN_CALL_MS);
+        table.decide({});
+        const [, second] = shownOf(table, "hule");
+
+        expect(renderedTotals(table, second.data.fenpei)).toEqual([400, 18000, 57600, 25000]);
+        table.decide({});
+        expect(table.sent).toEqual([{ t: 3, a: 9, wi: 7 }]);
+    });
+
+    it.each([
+        ["in its base time", 3, [2, 12], 12],
+        ["in its bank time", 9, [0, 8], 7],
+    ])(
+        "counts a turn re-sent after a takeover %s down from what the server left of it, and charges the bank as the server does",
+        (_, elapsed, countdown, bankAfter) => {
+            vi.useFakeTimers();
+            const table = startTable();
+            const hand = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112, 120];
+            table.translate.reconnect(
+                snapshot({
+                    cp: 0,
+                    mt: hand,
+                    tr: 69,
+                    tm: { ...TIMER_SETTINGS, bk: 12 },
+                    pst: [0, 1, 2, 3].map((s) => ({
+                        s,
+                        sc: 250,
+                        dsc: [],
+                        ml: [],
+                        ri: false,
+                        tc: s === 0 ? 14 : 13,
+                    })),
+                }),
+            );
+
+            table.receive(draw(0, 120, { wi: 7, el: elapsed }));
+            table.receive({ t: 7, cd: "invalid_discard", msg: "no" });
+            vi.advanceTimersByTime(1000);
+            table.decide({ dapai: "z4_" });
+            table.receive(discard(0, 120));
+            table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 8, el: 2 });
+            table.decide({});
+            table.receive(draw(0, 121, { wi: 9 }));
+
+            expect(shownOf(table, "zimo")).toHaveLength(3);
+            expect(table.player.countdowns.at(0)).toEqual(countdown);
+            expect(table.player.countdowns.slice(2)).toEqual([
+                [3, 0],
+                [5, bankAfter],
+            ]);
+        },
+    );
+
+    it("reopens the call prompt the server re-sends after a reconnect during its call wait, on the pending discard", () => {
+        const table = startTable();
+        table.translate.reconnect(
+            snapshot({
+                cp: 3,
+                tr: 66,
+                pst: [0, 1, 2, 3].map((s) => ({
+                    s,
+                    sc: 250,
+                    dsc: [[{ ti: 120 }], [{ ti: 124 }], [{ ti: 128 }], [{ ti: 18 }]][s],
+                    ml: [],
+                    ri: false,
+                    tc: 13,
+                })),
+            }),
+        );
+
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 8 });
+        expect(table.player.shown.at(-1)).toEqual({ name: "dapai", data: { l: 3, p: "m5" } });
+        expect(table.player.offer.peng).toEqual(["m505-"]);
+        table.decide({ fulou: "m505-" });
+
+        expect(table.sent).toEqual([{ t: 3, a: 4, ti: 18, wi: 8 }]);
     });
 
     it("rebuilds each opponent's face-down hand to its tile count beside its melds, the turn's draw held, after a reconnect", () => {

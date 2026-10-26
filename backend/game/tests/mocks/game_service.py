@@ -169,7 +169,7 @@ class MockGameService(GameService):
             round_history=[],
         )
 
-    def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         return []
 
     def process_ai_player_actions_after_replacement(

@@ -239,7 +239,7 @@ stateDiagram-v2
     PENDING --> PLAYING: pending timeout, someone connected (absent seats → AI)
     PENDING --> ENDING: pending timeout, nobody connected (abandoned)
     PENDING --> ENDING: server fault
-    PLAYING --> PLAYING: action / timeout / disconnect (seat → AI) / RECONNECT (seat back)
+    PLAYING --> PLAYING: action / timeout / disconnect (seat → AI) / RECONNECT (seat back, or socket replaced)
     PLAYING --> ENDING: game completed
     PLAYING --> ENDING: last connected human leaves (abandoned)
     PLAYING --> ENDING: server fault (fail_game)
@@ -296,6 +296,13 @@ sequenceDiagram
 
 * A participant is keyed by its ticket for the whole game and its seat never rotates, so a reconnect
   with the same ticket resumes the same seat and timer bank.
+* A JOIN_GAME or RECONNECT for a participant whose socket the server still holds (half-open after a
+  network switch, or another tab) replaces that socket at once: the old one closes with 4002
+  `replaced_by_new_connection`, after which its client stops reconnecting, or two tabs would take
+  the seat from each other forever. The wait carries on with its timer; the new socket gets the
+  snapshot and the event that opened the seat's wait. A 1008 kick is terminal for the client too;
+  a 1000 `game_ended` close is not, so a client that missed the game end reconnects and is refused
+  into the lobby.
 * An action for any wait but the current one is refused as stale and touches nothing.
 * Liveness is uvicorn's WebSocket ping; the apps run no heartbeat of their own. Rate limits, decode
   strikes and the auth timeout are in `backend/game/AGENTS.md`.
@@ -328,6 +335,11 @@ honours this contract can replace it.
   storage is per origin, which is why the game client must be served by the lobby.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
   (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect.
+* **Closes:** the client reconnects after any close but two terminal ones, after which it stops
+  reconnecting and cancels any scheduled retry: 4002 `replaced_by_new_connection` (another socket
+  of the seat took it over) and 1008 `invalid_game_action` (the seat was kicked). A 1000
+  `game_ended` close keeps reconnecting, so a client that missed the game end is refused into the
+  lobby.
 * **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
