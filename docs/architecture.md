@@ -250,7 +250,20 @@ stateDiagram-v2
 The end is claimed once, synchronously, for every reason: the claim sets ENDING, drops the game and
 its tickets from the registry (so the lobby's "playing" answer flips at once) and hands the effects
 to one finalizer task. The finalizer saves the replay (unless abandoned), posts the finish record
-(only for a game that recorded a start) and closes the sockets, then sets CLOSED.
+(only for a game that recorded a start) and closes the sockets, then sets CLOSED. Abandoned means no
+human connection remains, not that a player is at fault.
+
+A graceful stop (SIGTERM) runs no drain of its own: it goes through the normal disconnect path.
+uvicorn first closes every socket with 1012, delivering each handler its disconnect, and waits for
+the handlers up to `--timeout-graceful-shutdown`; each handler's own `finally` runs
+`handle_disconnect`. Timers and AI play keep running in that window. A playing game hands each
+leaving seat to an AI player and is abandoned at its last leave (no replay), unless AI play
+completes it first; a pending game only unbinds. On this normal path every disconnect is handled
+before the lifespan shutdown runs `SessionManager.shutdown()`, so only the pending games remain:
+it cancels the sleeping timers still registered, awaits every finalizer, and leaves the pending
+games unrecorded, since they never started. Past the timeout, uvicorn cancels the handlers still
+running and starts the lifespan shutdown without waiting for them, so their disconnects (and any
+abandonment they cause) can land after `shutdown()` has begun; that ordering is not guaranteed.
 
 Per connection:
 

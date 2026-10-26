@@ -1018,11 +1018,13 @@ class SessionManager:
 
     async def shutdown(self) -> None:
         """
-        Stop every background task before the server's resources close.
+        Stop every background task before the server's resources close; it ends no game itself.
 
-        Sleeping pending, game start pause, auth and turn timers are cancelled, all in one step, so none of them can
-        fire and end a game meanwhile; the games' finalizers are awaited, so their replay saves, finish record posts and
-        socket closes happen first. Games still running are not recorded as ended.
+        A graceful stop ends games only through the normal leave of each closed socket, which on the normal path runs
+        before this (`docs/architecture.md`). The sleeping tasks still registered are cancelled in one step, so none can
+        fire and start or end a game meanwhile. Every other task the manager spawned, each game's finalizer among them,
+        is awaited, never cancelled, so its replay save, finish record post and socket closes complete. A game still
+        registered vanishes with no record.
         """
         sleeping = [
             task
