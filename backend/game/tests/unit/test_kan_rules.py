@@ -2,28 +2,48 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_kans
-from game.logic.action_handlers import _handle_self_kan
+from game.logic.action_handlers import _handle_self_kan, handle_discard, handle_kan, handle_pass, handle_ron
+from game.logic.action_result import ActionResult, Refusal
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.call_resolution import resolve_call_prompt
-from game.logic.enums import CallType, GameAction, KanType, MeldViewType, PromptKind, RoundPhase
-from game.logic.events import CallPromptEvent, MeldEvent, RoundEndEvent
+from game.logic.enums import (
+    AbortiveDrawType,
+    CallType,
+    GameAction,
+    KanType,
+    MeldViewType,
+    PlayerAction,
+    PromptKind,
+    RoundPhase,
+    RoundResultType,
+)
+from game.logic.events import (
+    CallPromptEvent,
+    DiscardEvent,
+    DoraRevealedEvent,
+    DrawEvent,
+    MeldEvent,
+    RoundEndEvent,
+)
 from game.logic.exceptions import InvalidGameActionError
+from game.logic.invariants import verify_tile_ownership
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     call_added_kan,
     call_closed_kan,
     call_open_kan,
+    can_call_pon,
     get_possible_added_kans,
     get_possible_closed_kans,
 )
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, Discard, PendingCallPrompt
+from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer, PendingCallPrompt
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import _process_added_kan_call, _process_closed_kan_call
-from game.logic.types import KanActionData
-from game.logic.wall import DEAD_WALL_SIZE
+from game.logic.types import DiscardActionData, KanActionData
+from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall
 from game.logic.win import (
     is_chankan_possible,
     is_kokushi_chankan_possible,
@@ -245,6 +265,187 @@ class TestFourKansAbort:
 
         settings = GameSettings()
         assert check_four_kans(round_state, settings) is True
+
+
+_FIVE_MAN = tuple(tile_copies(copy, man="5")[0] for copy in range(4))
+_EIGHT_PIN = tuple(tile_copies(copy, pin="8")[0] for copy in range(4))
+_SEAT_0_KANS = (
+    FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, sou="1111")), opened=False, who=0, from_who=0),
+    FrozenMeld(meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, sou="9999")), opened=False, who=0, from_who=0),
+)
+_SEAT_1 = create_player(
+    seat=1,
+    tiles=tile_copies(0, man="13", pin="579", sou="246", honors="12"),
+    melds=(
+        FrozenMeld(
+            meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, honors="4444")), opened=False, who=1, from_who=1
+        ),
+    ),
+)
+_SEAT_2_TILES = tuple(tile_copies(0, man="679", pin="123", sou="3578", honors="356"))
+_SEAT_3_TILES = (*tile_copies(2, man="234", pin="567", sou="345"), _EIGHT_PIN[0])
+_RINSHAN_COMPLETING_SEAT_3 = _EIGHT_PIN[3]
+_CHUN_TRIPLET = tuple(tile_copies(0, honors="777"))
+
+
+def _game_with_three_kans_on_table(
+    players: tuple[MahjongPlayer, ...],
+    *,
+    current_player_seat: int,
+    all_discards: tuple[int, ...] = (),
+) -> MahjongGameState:
+    in_play = {
+        tile
+        for player in players
+        for tile in (*player.tiles, *(t for m in player.melds for t in m.tiles), *(d.tile_id for d in player.discards))
+    }
+    free = [tile for tile in range(NUM_TILES) if tile not in in_play and tile != _RINSHAN_COMPLETING_SEAT_3]
+    dead = (_RINSHAN_COMPLETING_SEAT_3, *free[1 - DEAD_WALL_SIZE :])
+    dead_wall = DeadWall(
+        rinshan=(dead[0],),
+        reserve=tuple(dead[1:4]),
+        indicators=tuple(TileStack(top=dead[i], bottom=dead[i + 1]) for i in range(4, DEAD_WALL_SIZE, 2)),
+        revealed_count=4,
+    )
+    round_state = create_round_state(
+        players=players,
+        wall_obj=Wall(live_tiles=tuple(free[: 1 - DEAD_WALL_SIZE]), dead_wall=dead_wall),
+        current_player_seat=current_player_seat,
+        all_discards=all_discards,
+        phase=RoundPhase.PLAYING,
+    )
+    game_state = create_game_state(round_state)
+    verify_tile_ownership(game_state)
+    assert check_four_kans(round_state, game_state.settings) is False
+    return game_state
+
+
+def _declare_kan(game_state: MahjongGameState, *, seat: int, tile_id: int, kan_type: KanType) -> ActionResult:
+    result = handle_kan(game_state, seat=seat, data=KanActionData(tile_id=tile_id, kan_type=kan_type))
+    assert isinstance(result, ActionResult)
+    assert result.state.round_state.phase == RoundPhase.PLAYING
+    assert check_four_kans(result.state.round_state, result.state.settings) is True
+    return result
+
+
+def _discard(game_state: MahjongGameState, *, seat: int, tile_id: int) -> ActionResult:
+    result = handle_discard(game_state, seat=seat, data=DiscardActionData(tile_id=tile_id))
+    assert isinstance(result, ActionResult)
+    return result
+
+
+def _assert_four_kans_abort(result: ActionResult | Refusal) -> None:
+    assert isinstance(result, ActionResult)
+    assert result.state.round_state.phase == RoundPhase.FINISHED
+    round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
+    assert len(round_ends) == 1
+    assert round_ends[0].result.type == RoundResultType.ABORTIVE_DRAW
+    assert round_ends[0].result.reason == AbortiveDrawType.FOUR_KANS
+
+
+def _ronnable_replacement_discard() -> ActionResult:
+    shanpon_on_eight_pin_with_chun = (_EIGHT_PIN[1], _EIGHT_PIN[2], *tile_copies(0, man="22"), *_CHUN_TRIPLET)
+    players = (
+        create_player(seat=0, tiles=shanpon_on_eight_pin_with_chun, melds=_SEAT_0_KANS),
+        _SEAT_1,
+        create_player(seat=2, tiles=_SEAT_2_TILES),
+        create_player(seat=3, tiles=(*_SEAT_3_TILES, *_FIVE_MAN)),
+    )
+    game_state = _game_with_three_kans_on_table(players, current_player_seat=3)
+    assert can_call_pon(players[0], _EIGHT_PIN[0])
+
+    kan = _declare_kan(game_state, seat=3, tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED)
+    assert [type(e) for e in kan.events] == [MeldEvent, DoraRevealedEvent, DrawEvent]
+
+    discard = _discard(kan.state, seat=3, tile_id=_EIGHT_PIN[0])
+    prompt = discard.state.round_state.pending_call_prompt
+    assert prompt is not None
+    assert prompt.callers == (Caller(seat=0, can_ron=True),)
+    return discard
+
+
+class TestFourKansAbortTiming:
+    def test_four_kans_abort__when_open_fourth_kan_replacement_discard_passes__should_reveal_kan_dora_then_abort(self):
+        pair_of_eight_pin_waiting_on_three_man = (
+            _EIGHT_PIN[1],
+            _EIGHT_PIN[2],
+            *tile_copies(0, man="24"),
+            *_CHUN_TRIPLET,
+        )
+        players = (
+            create_player(seat=0, tiles=pair_of_eight_pin_waiting_on_three_man, melds=_SEAT_0_KANS),
+            _SEAT_1,
+            create_player(seat=2, tiles=(*_SEAT_2_TILES, _FIVE_MAN[0])),
+            create_player(seat=3, tiles=(*_SEAT_3_TILES, *_FIVE_MAN[1:])),
+        )
+        game_state = _game_with_three_kans_on_table(players, current_player_seat=2)
+        assert can_call_pon(players[0], _EIGHT_PIN[0])
+
+        kan_offer = _discard(game_state, seat=2, tile_id=_FIVE_MAN[0])
+        kan = _declare_kan(kan_offer.state, seat=3, tile_id=_FIVE_MAN[0], kan_type=KanType.OPEN)
+        assert [type(e) for e in kan.events] == [MeldEvent, DrawEvent]
+        rinshan_draw = kan.events[1]
+        assert isinstance(rinshan_draw, DrawEvent)
+        assert rinshan_draw.tile_id == _RINSHAN_COMPLETING_SEAT_3
+        assert PlayerAction.TSUMO in {item.action for item in rinshan_draw.available_actions}
+        assert kan.state.round_state.wall.pending_dora_count == 1
+
+        replacement_discard = _discard(kan.state, seat=3, tile_id=_EIGHT_PIN[0])
+        assert replacement_discard.state.round_state.pending_call_prompt is None
+        assert [type(e) for e in replacement_discard.events] == [DiscardEvent, DoraRevealedEvent, RoundEndEvent]
+        kan_dora = replacement_discard.events[1]
+        assert isinstance(kan_dora, DoraRevealedEvent)
+        assert kan_dora.tile_id == game_state.round_state.wall.dead_wall.indicators[4].top
+        _assert_four_kans_abort(replacement_discard)
+
+    def test_four_kans_abort__when_replacement_discard_is_ronned__should_score_the_ron(self):
+        discard = _ronnable_replacement_discard()
+
+        ron = handle_ron(discard.state, seat=0)
+        assert isinstance(ron, ActionResult)
+        round_ends = [e for e in ron.events if isinstance(e, RoundEndEvent)]
+        assert len(round_ends) == 1
+        assert round_ends[0].result.type == RoundResultType.RON
+        assert round_ends[0].result.winner_seat == 0
+        assert round_ends[0].result.loser_seat == 3
+
+    def test_four_kans_abort__when_ron_caller_passes_replacement_discard__should_abort(self):
+        discard = _ronnable_replacement_discard()
+
+        _assert_four_kans_abort(handle_pass(discard.state, seat=0))
+
+    def test_four_kans_abort__when_chankan_on_fourth_kan_is_declined__should_draw_replacement_then_abort(self):
+        kanchan_on_five_man_with_chun = (*tile_copies(1, man="46"), _EIGHT_PIN[1], _EIGHT_PIN[2], *_CHUN_TRIPLET)
+        five_man_pon = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=_FIVE_MAN[:3],
+            opened=True,
+            called_tile=_FIVE_MAN[0],
+            who=3,
+            from_who=2,
+        )
+        players = (
+            create_player(seat=0, tiles=kanchan_on_five_man_with_chun, melds=_SEAT_0_KANS),
+            _SEAT_1,
+            create_player(seat=2, tiles=_SEAT_2_TILES, discards=(Discard(tile_id=_FIVE_MAN[0]),)),
+            create_player(seat=3, tiles=(*_SEAT_3_TILES, _FIVE_MAN[3]), melds=(five_man_pon,)),
+        )
+        game_state = _game_with_three_kans_on_table(players, current_player_seat=3, all_discards=(_FIVE_MAN[0],))
+
+        chankan_offer = handle_kan(game_state, seat=3, data=KanActionData(tile_id=_FIVE_MAN[3], kan_type=KanType.ADDED))
+        assert isinstance(chankan_offer, ActionResult)
+        prompt = chankan_offer.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.kind == PromptKind.CHANKAN
+        assert prompt.callers == (Caller(seat=0, can_ron=True),)
+
+        declined = handle_pass(chankan_offer.state, seat=0)
+        assert isinstance(declined, ActionResult)
+        assert declined.state.round_state.phase == RoundPhase.PLAYING
+        assert [type(e) for e in declined.events] == [MeldEvent, DrawEvent]
+        assert check_four_kans(declined.state.round_state, declined.state.settings) is True
+
+        _assert_four_kans_abort(_discard(declined.state, seat=3, tile_id=_EIGHT_PIN[0]))
 
 
 # ---------------------------------------------------------------------------
@@ -718,49 +919,6 @@ class TestResolveChankanDeclineClosedKan:
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.CLOSED_KAN
-
-    def test_resolve_chankan_decline__when_closed_kan_is_fourth_kan__should_abort_round(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        # player 0 already has 2 kans, player 1 has 1 kan → 3 total, 4th triggers abort
-        existing_kans_p0 = tuple(
-            FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 3), opened=False, who=0)
-            for i in range(2)
-        )
-        existing_kan_p1 = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=(12, 13, 14, 15),
-            opened=True,
-            who=1,
-            from_who=2,
-        )
-
-        round_state = _make_round_state(
-            player0_tiles,
-            player0_melds=existing_kans_p0,
-            player1_melds=(existing_kan_p1,),
-        )
-        round_state = round_state.model_copy(update={"phase": RoundPhase.PLAYING})
-        game_state = create_game_state(round_state)
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.CHANKAN,
-            tile_id=man_1m[0],
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True),),
-            responses=(),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        # should trigger four kans abort
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert result.state.round_state.phase == RoundPhase.FINISHED
 
 
 # ---------------------------------------------------------------------------

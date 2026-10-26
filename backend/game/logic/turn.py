@@ -7,8 +7,8 @@ import structlog
 from game.logic.abortive import (
     AbortiveDrawType,
     check_four_kans,
-    check_four_riichi,
     check_four_winds,
+    find_passed_discard_abort,
     process_abortive_draw,
 )
 from game.logic.action_result import create_draw_event
@@ -69,6 +69,7 @@ from game.logic.state import (
 )
 from game.logic.state_utils import (
     advance_turn,
+    clear_pending_prompt,
     finish_round,
     update_game_with_round,
     update_player,
@@ -191,10 +192,10 @@ def _find_meld_callers(
     Returns the meld callers ordered by their best meld (kan > pon > chi), then seat index; each caller's melds are in
     that priority order too, a chi with its options.
 
-    Last discard restriction: when the live wall is empty, no meld calls are
-    allowed (only ron). This applies to the final discard of a hand.
+    No meld calls are allowed (only ron) on a discard that ends the hand unless ronned: the final discard, when the live
+    wall is empty, and the fourth kan's replacement discard, when that kan makes a four kans abortive draw.
     """
-    if not round_state.wall.live_tiles:
+    if not round_state.wall.live_tiles or (settings.has_suukaikan and check_four_kans(round_state, settings)):
         return []
 
     callers: list[Caller] = []
@@ -250,13 +251,18 @@ def _abort_round(
     game_state: MahjongGameState,
     draw_type: AbortiveDrawType,
     events: list[GameEvent],
+    *,
+    ron_seats: list[int] | None = None,
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    End the round in an abortive draw.
+    End the round in an abortive draw, clearing the pending call prompt if there is one.
+
+    ron_seats are the declaring seats of a triple ron, in caller order.
     """
     logger.debug("abortive draw", draw_type=draw_type.value)
-    result = process_abortive_draw(game_state.round_state, draw_type)
-    new_game_state, round_end = finish_round(game_state, result)
+    result = process_abortive_draw(game_state.round_state, draw_type, ron_seats=ron_seats)
+    new_game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
+    new_game_state, round_end = finish_round(new_game_state, result)
     events.append(round_end)
     return new_game_state, events
 
@@ -298,7 +304,8 @@ def _finalize_no_callers(
     events: list[GameEvent],
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Handle the no-callers path: reveal deferred dora, finalize riichi, advance turn.
+    Handle the no-callers path: reveal deferred dora, finalize riichi, end a four riichi or four kans hand, or advance
+    the turn.
     """
     settings = game_state.settings
     new_round_state, dora_events = emit_deferred_dora_events(game_state.round_state)
@@ -309,8 +316,9 @@ def _finalize_no_callers(
         new_game_state = declare_riichi(new_game_state, seat=current_seat)
         events.append(RiichiDeclaredEvent(seat=current_seat))
 
-        if settings.has_suucha_riichi and check_four_riichi(new_game_state.round_state):
-            return _abort_round(new_game_state, draw_type=AbortiveDrawType.FOUR_RIICHI, events=events)
+    draw_type = find_passed_discard_abort(new_game_state.round_state, settings)
+    if draw_type is not None:
+        return _abort_round(new_game_state, draw_type=draw_type, events=events)
 
     return update_game_with_round(new_game_state, advance_turn(new_game_state.round_state)), events
 
@@ -329,9 +337,9 @@ def process_discard_phase(
     2. Validate and execute discard
     3. Check for four winds abortive draw
     4. Check for ron callers (triple ron is judged from their declarations when the prompt resolves)
-    5. Check for meld callers (a seat that can ron is offered its melds too)
+    5. Check for meld callers (a seat that can ron is offered its melds too; none on a four kans replacement discard)
     6. If any callers: create unified DISCARD prompt
-    7. No callers: reveal deferred dora, finalize riichi, advance turn
+    7. No callers: reveal deferred dora, finalize riichi, end a four riichi or four kans hand, advance turn
     """
     events: list[GameEvent] = []
     round_state = game_state.round_state
@@ -614,20 +622,6 @@ def _process_chi_call(
     return update_game_with_round(game_state, new_round_state), events
 
 
-def _check_four_kans_abort(
-    game_state: MahjongGameState,
-    events: list[GameEvent],
-) -> tuple[MahjongGameState, list[GameEvent]]:
-    """
-    End the round in a four kans abortive draw when the kan just made completes one.
-    """
-    settings = game_state.settings
-    if settings.has_suukaikan and check_four_kans(game_state.round_state, settings):
-        return _abort_round(game_state, draw_type=AbortiveDrawType.FOUR_KANS, events=events)
-
-    return game_state, events
-
-
 def _process_open_kan_call(
     game_state: MahjongGameState,
     caller_seat: int,
@@ -659,7 +653,7 @@ def _process_open_kan_call(
         ),
     ]
     _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
-    return _check_four_kans_abort(update_game_with_round(game_state, new_round_state), events=events)
+    return update_game_with_round(game_state, new_round_state), events
 
 
 def _build_chankan_prompt(
@@ -716,7 +710,7 @@ def _process_closed_kan_call(
         ),
     ]
     _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
-    return _check_four_kans_abort(update_game_with_round(game_state, new_round_state), events=events)
+    return update_game_with_round(game_state, new_round_state), events
 
 
 def _process_added_kan_call(
@@ -760,7 +754,7 @@ def _process_added_kan_call(
         ),
     ]
     _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
-    return _check_four_kans_abort(update_game_with_round(game_state, new_round_state), events=events)
+    return update_game_with_round(game_state, new_round_state), events
 
 
 def process_meld_call(

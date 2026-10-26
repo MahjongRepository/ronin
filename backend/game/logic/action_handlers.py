@@ -11,7 +11,6 @@ from game.logic.enums import (
     GameErrorCode,
     KanType,
     MeldCallType,
-    RoundPhase,
 )
 from game.logic.exceptions import GameRuleError, ImpossibleActionError, InvalidGameActionError
 from game.logic.state import (
@@ -423,8 +422,8 @@ def _handle_self_kan(
     """
     Handle closed or added kan during the player's own turn.
 
-    Executes the kan immediately via process_meld_call. Unless it ended the round (four kans) or opened a chankan prompt
-    (the kan waits for the robbers' answers), emits the draw event for the dead wall replacement tile.
+    Executes the kan immediately via process_meld_call. Unless it opened a chankan prompt (the kan waits for the
+    robbers' answers), emits the draw event for the dead wall replacement tile.
     """
     # after pon/chi, the player must discard — kan requires a drawn tile
     if game_state.round_state.is_after_meld_call:
@@ -442,7 +441,7 @@ def _handle_self_kan(
         raise InvalidGameActionError(action="call_kan", seat=seat, reason=str(e)) from e
 
     new_round_state = new_game_state.round_state
-    if new_round_state.phase == RoundPhase.FINISHED or new_round_state.pending_call_prompt is not None:
+    if new_round_state.pending_call_prompt is not None:
         return ActionResult(events, state=new_game_state)
 
     drawn_tile = new_round_state.players[seat].tiles[-1]

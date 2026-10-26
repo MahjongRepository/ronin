@@ -3,7 +3,6 @@ from mahjong.tile import TilesConverter
 from game.logic.action_handlers import handle_chi, handle_discard, handle_pass, handle_pon, handle_ron
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
-    AbortiveDrawType,
     CallType,
     GameAction,
     MeldCallType,
@@ -471,50 +470,6 @@ class TestRiichiFinalizationAfterRonPass:
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].caller_seat == 2
-
-
-class TestFourRiichiAbortAfterRonPass:
-    def test_discard_claim__when_fourth_riichi_discard_unclaimed__should_abort_four_riichi(self):
-        discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
-
-        players = (
-            create_player(
-                seat=0,
-                tiles=tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113")),
-                discards=(Discard(tile_id=discard_tile, is_riichi_discard=True),),
-            ),
-            create_player(seat=1, is_riichi=True),
-            create_player(seat=2, is_riichi=True),
-            create_player(seat=3, is_riichi=True),
-        )
-
-        wall, dead_wall = _make_wall_and_dead_wall()
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=discard_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True),),
-        )
-        round_state = create_round_state(
-            players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-            pending_call_prompt=prompt,
-        )
-        game_state = create_game_state(round_state)
-
-        result = resolve_call_prompt(game_state)
-        riichi_events = [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
-        assert len(riichi_events) == 1
-        assert riichi_events[0].seat == 0
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
-        assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
 
 
 class TestHandleRonOnDiscardPrompt:

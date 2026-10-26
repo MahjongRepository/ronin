@@ -87,10 +87,10 @@ def check_four_riichi(round_state: MahjongRoundState) -> bool:
 
 def check_four_kans(round_state: MahjongRoundState, settings: GameSettings) -> bool:
     """
-    Check if four kans have been declared by different players.
+    Check if four kans have been declared by different players (abortive draw condition).
 
-    This is an abortive draw condition - if 4 kans are declared by 2+ different players,
-    the round ends. If one player has all 4 kans, the game continues (suukantsu possible).
+    The round ends when 4 kans are declared by 2+ different players, once the fourth kan's replacement discard passes
+    without a ron. If one player has all 4 kans, the game continues (suukantsu possible).
     """
     total_kans = 0
     players_with_kans = set()
@@ -102,6 +102,21 @@ def check_four_kans(round_state: MahjongRoundState, settings: GameSettings) -> b
 
     # abortive draw only if max kans reached AND multiple players have kans
     return total_kans >= settings.max_kans_per_round and len(players_with_kans) >= settings.min_players_for_kan_abort
+
+
+def find_passed_discard_abort(round_state: MahjongRoundState, settings: GameSettings) -> AbortiveDrawType | None:
+    """
+    Return the abortive draw that ends the round once the current discard passes every ron, or None.
+
+    Four riichi applies once the fourth riichi has taken effect, four kans to the fourth kan's replacement discard.
+    """
+    if settings.has_suucha_riichi and check_four_riichi(round_state):
+        return AbortiveDrawType.FOUR_RIICHI
+
+    if settings.has_suukaikan and check_four_kans(round_state, settings):
+        return AbortiveDrawType.FOUR_KANS
+
+    return None
 
 
 def check_four_winds(round_state: MahjongRoundState, settings: GameSettings) -> bool:

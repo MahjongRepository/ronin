@@ -4,9 +4,7 @@ import structlog
 
 from game.logic.abortive import (
     AbortiveDrawType,
-    check_four_kans,
-    check_four_riichi,
-    process_abortive_draw,
+    find_passed_discard_abort,
 )
 from game.logic.action_result import ActionResult, create_draw_event, create_turn_event
 from game.logic.enums import (
@@ -15,7 +13,6 @@ from game.logic.enums import (
     MeldCallType,
     MeldViewType,
     PromptKind,
-    RoundPhase,
 )
 from game.logic.events import (
     GameEvent,
@@ -29,11 +26,11 @@ from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT
 from game.logic.state_utils import (
     advance_turn,
     clear_pending_prompt,
-    finish_round,
     update_game_with_round,
 )
 from game.logic.tiles import tile_to_34
 from game.logic.turn import (
+    _abort_round,
     _maybe_emit_dora_event,
     emit_deferred_dora_events,
     process_draw_phase,
@@ -93,14 +90,13 @@ def _resolve_ron_responses(
     # triple ron - abortive draw (all three opponents declared ron)
     settings = game_state.settings
     if settings.has_triple_ron_abort and len(ron_responses) == TRIPLE_RON_COUNT:
-        result = process_abortive_draw(
-            game_state.round_state,
-            AbortiveDrawType.TRIPLE_RON,
+        new_game_state, events = _abort_round(
+            game_state,
+            draw_type=AbortiveDrawType.TRIPLE_RON,
+            events=[],
             ron_seats=[r.seat for r in ron_responses],
         )
-        new_game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
-        new_game_state, round_end = finish_round(new_game_state, result)
-        return ActionResult([round_end], state=new_game_state)
+        return ActionResult(events, state=new_game_state)
 
     # atamahane: cap to double_ron_count if double ron enabled, else single winner only
     max_winners = settings.double_ron_count if settings.has_double_ron else 1
@@ -138,9 +134,6 @@ def _resolve_meld_response(
     new_round_state = clear_pending_prompt(new_game_state.round_state)
     new_game_state = update_game_with_round(new_game_state, new_round_state)
 
-    if new_round_state.phase == RoundPhase.FINISHED:
-        return ActionResult(events, state=new_game_state)
-
     if meld_type == MeldCallType.OPEN_KAN:
         # open kan draws from dead wall; include tile_id and available actions
         player = new_round_state.players[best.seat]
@@ -161,7 +154,7 @@ def _complete_kan_after_chankan_decline(
     """
     Shared logic for completing a kan after chankan opportunity was declined.
 
-    Executes the kan call, emits meld/dora events, checks four kans abort, and emits the dead wall draw event.
+    Executes the kan call, emits meld/dora events, and emits the dead wall draw event.
     """
     settings = game_state.settings
     round_state = game_state.round_state
@@ -189,17 +182,8 @@ def _complete_kan_after_chankan_decline(
 
     _maybe_emit_dora_event(old_dora_count=old_dora_count, new_round_state=new_round_state, events=events)
 
-    # check for four kans abortive draw
-    if settings.has_suukaikan and check_four_kans(new_round_state, settings):
-        result = process_abortive_draw(new_round_state, AbortiveDrawType.FOUR_KANS)
-        new_game_state, round_end = finish_round(new_game_state, result)
-        events.append(round_end)
-    # emit draw event for the dead wall tile with available actions
-    elif new_round_state.phase == RoundPhase.PLAYING:
-        player = new_round_state.players[caller_seat]
-        drawn_tile = player.tiles[-1]
-        events.append(create_draw_event(new_game_state, seat=caller_seat, tile_id=drawn_tile))
-
+    drawn_tile = new_round_state.players[caller_seat].tiles[-1]
+    events.append(create_draw_event(new_game_state, seat=caller_seat, tile_id=drawn_tile))
     return new_game_state, events
 
 
@@ -233,18 +217,16 @@ def complete_closed_kan_after_chankan_decline(
 def _finalize_discard_post_ron_check(
     game_state: MahjongGameState,
     prompt: PendingCallPrompt,
-) -> tuple[MahjongGameState, list[GameEvent], bool]:
+) -> tuple[MahjongGameState, list[GameEvent]]:
     """
     Reveal deferred dora and finalize pending riichi after ron check passes.
 
     Called when no one called ron on a DISCARD prompt. The discard has "passed" the ron window, so deferred dora from
     prior open/added kan is revealed and pending riichi bets are deposited.
 
-    Returns (new_game_state, events, riichi_finalized).
+    Returns (new_game_state, events).
     """
     events: list[GameEvent] = []
-    riichi_finalized = False
-
     new_round_state, dora_events = emit_deferred_dora_events(game_state.round_state)
     events.extend(dora_events)
     new_game_state = update_game_with_round(game_state, new_round_state)
@@ -253,9 +235,8 @@ def _finalize_discard_post_ron_check(
     if discarder.discards and discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
         new_game_state = declare_riichi(new_game_state, seat=prompt.from_seat)
         events.append(RiichiDeclaredEvent(seat=prompt.from_seat))
-        riichi_finalized = True
 
-    return new_game_state, events, riichi_finalized
+    return new_game_state, events
 
 
 def _resolve_all_passed_discard(
@@ -268,13 +249,8 @@ def _resolve_all_passed_discard(
     Dora/riichi finalization is already done by the caller. Advance turn and draw for next player.
     """
     new_game_state = update_game_with_round(game_state, advance_turn(game_state.round_state))
-
-    events = list(extra_events)
-    if new_game_state.round_state.phase == RoundPhase.PLAYING:
-        new_game_state, draw_events = process_draw_phase(new_game_state)
-        events.extend(draw_events)
-
-    return ActionResult(events, state=new_game_state)
+    new_game_state, draw_events = process_draw_phase(new_game_state)
+    return ActionResult([*extra_events, *draw_events], state=new_game_state)
 
 
 def _resolve_chankan_decline(
@@ -329,15 +305,12 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
         new_game_state = update_game_with_round(game_state, clear_pending_prompt(game_state.round_state))
         return _resolve_chankan_decline(new_game_state, prompt=prompt)
 
-    resolved_game, extra_events, riichi_finalized = _finalize_discard_post_ron_check(game_state, prompt=prompt)
+    resolved_game, extra_events = _finalize_discard_post_ron_check(game_state, prompt=prompt)
 
-    settings = resolved_game.settings
-    if riichi_finalized and settings.has_suucha_riichi and check_four_riichi(resolved_game.round_state):
-        result = process_abortive_draw(resolved_game.round_state, AbortiveDrawType.FOUR_RIICHI)
-        new_game_state = update_game_with_round(resolved_game, clear_pending_prompt(resolved_game.round_state))
-        new_game_state, round_end = finish_round(new_game_state, result)
-        extra_events.append(round_end)
-        return ActionResult(extra_events, state=new_game_state)
+    draw_type = find_passed_discard_abort(resolved_game.round_state, resolved_game.settings)
+    if draw_type is not None:
+        new_game_state, events = _abort_round(resolved_game, draw_type=draw_type, events=extra_events)
+        return ActionResult(events, state=new_game_state)
 
     if meld_responses:
         best = pick_best_meld_response(meld_responses, prompt)
