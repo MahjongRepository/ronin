@@ -66,14 +66,16 @@ def _make_game_end_events() -> list[ServiceEvent]:
 
 
 class TestFailGame:
-    async def test_fail_game__when_game_running__should_send_internal_error_record_error_and_close_with_1011(self):
+    async def test_fail_game__when_failed_twice__should_send_one_internal_error_record_one_error_and_close_with_1011(
+        self,
+    ):
         game_repo = FakeGameRepository()
         manager = make_session_manager(repository=game_repo)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         game = game_of(manager)
 
-        assert manager.fail_game(game, reason="engine fault", exc=RuntimeError("boom")) is True
-        assert manager.fail_game(game, reason="engine fault again") is False
+        manager.fail_game(game, reason="engine fault", exc=RuntimeError("boom"))
+        manager.fail_game(game, reason="engine fault again")
         assert game.lifecycle is GameLifecycle.ENDING
         assert manager.get_game("game1") is None
 
@@ -230,7 +232,7 @@ class TestFailGame:
     ):
         manager = make_session_manager(seeded_engine, storage=LocalReplayStorage(tmp_path))
         old_conns = create_started_game(manager, player_names=["Alice"])
-        assert manager.fail_game(game_of(manager), reason="engine fault") is True
+        manager.fail_game(game_of(manager), reason="engine fault")
 
         new_conns = create_started_game(manager, player_names=["Bob"])
         await wait_for_background_tasks(manager)
@@ -269,7 +271,7 @@ class TestGameEndOwnership:
         await fire_turn_timer_now(manager, game_id="game1", seat=alice_seat)
         await replay_saving.wait()
 
-        assert manager.fail_game(game, reason="engine fault") is False
+        manager.fail_game(game, reason="engine fault")
         resume_saving.set()
         await wait_for_background_tasks(manager)
         assert (alice._close_code, alice._close_reason) == (1000, "game_ended")
@@ -386,7 +388,7 @@ class TestGameEndFromTimeout:
         assert (conns[1]._close_code, conns[1]._close_reason) == (1000, "game_ended")
 
 
-class TestGameEndFromLeaveGame:
+class TestGameEndFromDisconnect:
     async def test_game_end__when_ai_replacement_after_leave_ends_game__should_close_remaining_with_1000(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
 
@@ -394,7 +396,7 @@ class TestGameEndFromLeaveGame:
             return_value=mock_update(_make_game_end_events(), MOCK_GAME_OVER),
         )
 
-        manager.leave_game(conns[0])
+        manager.disconnect(conns[0])
         await wait_for_background_tasks(manager)
         assert conns[1].is_closed
         assert conns[1]._close_code == 1000

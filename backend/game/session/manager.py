@@ -27,7 +27,6 @@ from game.messaging.event_payload import (
 )
 from game.messaging.types import (
     ErrorMessage,
-    GameLeftMessage,
     PlayerLeftMessage,
     PlayerReconnectedMessage,
     SessionErrorCode,
@@ -114,9 +113,6 @@ class SessionManager:
         self._connections[connection.connection_id] = connection
         self._auth_timeouts[connection.connection_id] = self._spawn(self._auth_timeout(connection))
 
-    def unregister_connection(self, connection: ConnectionProtocol) -> None:
-        self._evict_connection(connection)
-
     def _evict_connection(self, connection: ConnectionProtocol) -> None:
         """
         Drop a connection from the registry: no join, reconnect or action can pick it up afterwards.
@@ -135,10 +131,6 @@ class SessionManager:
         participant.connection = connection
         self._bound[connection.connection_id] = participant
         self._cancel_auth_timeout(connection.connection_id)
-
-    def _unbind(self, participant: Participant, connection: ConnectionProtocol) -> None:
-        self._bound.pop(connection.connection_id, None)
-        participant.connection = None
 
     def get_game(self, game_id: str) -> GameSession | None:
         return self._games.get(game_id)
@@ -397,23 +389,23 @@ class SessionManager:
         )
         self._game_repository.create_game(game.start_record)
 
-    def leave_game(self, connection: ConnectionProtocol, *, notify_player: bool = True) -> None:
+    def disconnect(self, connection: ConnectionProtocol) -> None:
         """
-        Take a closed connection's participant out of its game.
+        Evict a connection and take the participant bound to it out of its game.
 
-        In a pending game the participant waits for a new JOIN_GAME (the pending timeout handles an empty game). In a
-        playing game an AI player takes the seat, or, when nobody connected remains, the game is abandoned.
+        The eviction comes first and also cancels the auth timeout of a connection that never authenticated. The
+        participant is the one bound to this connection, so the late disconnect of a connection the server already
+        evicted or replaced touches no one. The rest of the game gets `player_left`; in a pending game the participant
+        then waits for a new JOIN_GAME (the pending timeout handles an empty game), and in a playing game an AI player
+        takes the seat, or, when nobody connected remains, the game is abandoned.
         """
         participant = self._bound.get(connection.connection_id)
+        self._evict_connection(connection)
         if participant is None:
             return
 
         game = participant.game
         logger.info("player left game")
-        self._unbind(participant, connection)
-        if notify_player:
-            connection.send_message(GameLeftMessage().model_dump())
-
         self._broadcast_to_game(game, PlayerLeftMessage(player_name=participant.name).model_dump())
         if game.lifecycle is GameLifecycle.PLAYING:
             self._release_seat(participant)
@@ -441,23 +433,17 @@ class SessionManager:
         update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
-    def _kick_player(
-        self,
-        participant: Participant,
-        connection: ConnectionProtocol,
-        error: InvalidGameActionError,
-    ) -> None:
+    def _kick_player(self, connection: ConnectionProtocol, error: InvalidGameActionError) -> None:
         """
         Disconnect a human who sent structurally impossible input for their own seat with 1008, and seat an AI player.
 
-        The connection leaves the registry first, so a RECONNECT pipelined on the closing socket is dropped. An error
-        while replacing the player propagates before the close: it is a server fault the caller's boundary turns into
-        fail_game, which closes the connection with 1011.
+        It runs the normal disconnect before the close, so the connection leaves the registry first and a RECONNECT
+        pipelined on the closing socket is dropped. An error while replacing the player propagates before the close: it
+        is a server fault, and the caller's boundary fails the game and closes this connection with 1011 itself, since
+        the game's finalizer no longer holds it.
         """
         logger.warning("invalid game action", action=error.action, reason=error.reason)
-        self._evict_connection(connection)
-        self._broadcast_to_game(participant.game, PlayerLeftMessage(player_name=participant.name).model_dump())
-        self._release_seat(participant)
+        self.disconnect(connection)
         connection.close(code=1008, reason="invalid_game_action")
 
     def handle_game_action(
@@ -495,7 +481,7 @@ class SessionManager:
         try:
             update = self._game_service.handle_action(self._runtime_of(game), seat=seat, action=action, data=data)
         except InvalidGameActionError as e:
-            self._kick_player(participant, connection, error=e)
+            self._kick_player(connection, error=e)
             return
 
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
@@ -850,20 +836,19 @@ class SessionManager:
         reason: GameEndReason,
         *,
         game_ended_event: GameEndedEvent | None = None,
-    ) -> bool:
+    ) -> None:
         """
         Claim a game's end and release it, synchronously, then hand its effects to one owned finalizer.
 
-        Only a pending or playing game can be claimed: the claimer gets True, every later caller False. The claim first
-        detaches the connected participants' connections and the replay lines (an abandoned game's replay is discarded)
-        and spawns the finalizer on them, so a release step that raised would still leave the game finished. It then
-        drops the game and its tickets from the registry, cancels the pending timeout, the game start pause and every
-        sleeping timer, evicts the detached connections and drops the engine runtime. The finalizer saves the replay,
-        posts the finish record and closes the detached connections (1000 for a completion, `internal_error` and 1011
-        for a failure).
+        Only a pending or playing game can be claimed; a later call does nothing. The claim first detaches the connected
+        participants' connections and the replay lines (an abandoned game's replay is discarded) and spawns the
+        finalizer on them, so a release step that raised would still leave the game finished. It then drops the game and
+        its tickets from the registry, cancels the pending timeout, the game start pause and every sleeping timer,
+        evicts the detached connections and drops the engine runtime. The finalizer saves the replay, posts the finish
+        record and closes the detached connections (1000 for a completion, `internal_error` and 1011 for a failure).
         """
         if not game.is_active:
-            return False
+            return
 
         game.lifecycle = GameLifecycle.ENDING
         connections = [participant.connection for participant in game.participants if participant.connection]
@@ -899,7 +884,6 @@ class SessionManager:
             self._evict_connection(connection)
 
         game.runtime = None
-        return True
 
     async def _finish_game(self, game: GameSession, ending: _Ending) -> None:
         """
@@ -956,20 +940,18 @@ class SessionManager:
             ),
         )
 
-    def fail_game(self, game: GameSession, *, reason: str, exc: BaseException | None = None) -> bool:
+    def fail_game(self, game: GameSession, *, reason: str, exc: BaseException | None = None) -> None:
         """
         End a game on a server fault: the one terminal path for one, idempotent and callable from any context.
 
         It claims the game's end as ERROR (`_end_game`) synchronously, so a later action, timeout, join or reconnect
         finds no game. The finalizer records the error end, saves whatever replay history exists, and sends every
         connected participant an `internal_error` session error before closing with 1011. The current task is never
-        cancelled or awaited.
-
-        Returns True when this call ended the game; False when its end was already claimed. Either way the caller skips
-        its normal broadcast and timers.
+        cancelled or awaited. A game whose end was already claimed keeps that end. Either way the caller skips its
+        normal broadcast and timers.
         """
         logger.error("game failed", game_id=game.game_id, reason=reason, exc_info=exc)
-        return self._end_game(game, GameEndReason.ERROR)
+        self._end_game(game, GameEndReason.ERROR)
 
     def fail_connection(
         self,

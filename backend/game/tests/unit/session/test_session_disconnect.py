@@ -16,7 +16,7 @@ class TestSessionManagerDisconnect:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat, bob_seat = (participant_of(manager, conn).seat for conn in conns)
 
-        manager.leave_game(conns[0])
+        manager.disconnect(conns[0])
         assert manager.get_game("game1") is not None
         snapshot = seeded_engine.build_reconnection_snapshot(runtime_of(manager), bob_seat)
         assert snapshot.players[alice_seat].is_ai_player is True
@@ -36,11 +36,11 @@ class TestSessionManagerDisconnect:
         manager._game_service.replace_with_ai_player = tracking_replace
 
         # first player leaves (triggers AI player replacement)
-        manager.leave_game(conns[0])
+        manager.disconnect(conns[0])
         assert len(replace_calls) == 1
 
         # second player leaves (last player -- no AI player replacement, game cleaned up)
-        manager.leave_game(conns[1])
+        manager.disconnect(conns[1])
         assert len(replace_calls) == 1  # no additional call
         assert manager.get_game("game1") is None
 
@@ -62,7 +62,7 @@ class TestSessionManagerDisconnect:
             return_value=mock_update([ai_player_event]),
         )
 
-        manager.leave_game(conns[0])
+        manager.disconnect(conns[0])
         # Bob should receive the AI player action event
         ai_player_msgs = [m for m in conns[1].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW]]
         assert len(ai_player_msgs) == 1

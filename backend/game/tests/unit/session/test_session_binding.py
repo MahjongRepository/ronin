@@ -15,8 +15,8 @@ class TestSessionCleanup:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_ticket = participant_of(manager, conns[0]).ticket
 
-        manager.leave_game(conns[0])
-        manager.leave_game(conns[1])
+        manager.disconnect(conns[0])
+        manager.disconnect(conns[1])
         assert manager.get_game("game1") is None
 
         reconnecting = MockConnection()

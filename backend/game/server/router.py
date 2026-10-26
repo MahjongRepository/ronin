@@ -178,12 +178,10 @@ class MessageRouter:
 
     def handle_disconnect(self, connection: ConnectionProtocol) -> None:
         """
-        Remove a closed connection from its game; an unexpected error is a server fault that fails that game.
+        Evict a closed connection and take it out of its game; an unexpected error is a server fault failing that game.
         """
         game = self._session_manager.get_connection_game(connection)
         try:
-            self._session_manager.leave_game(connection, notify_player=False)
+            self._session_manager.disconnect(connection)
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="disconnect failed", exc=exc)
-        finally:
-            self._session_manager.unregister_connection(connection)

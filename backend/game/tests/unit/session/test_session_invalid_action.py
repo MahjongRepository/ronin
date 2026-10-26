@@ -134,7 +134,6 @@ class TestSessionManagerInvalidAction:
         manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
         manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
 
-        # player.game_id is now None, so leave_game should return early
         replace_calls = []
         original_replace = manager._game_service.replace_with_ai_player
 
@@ -144,8 +143,7 @@ class TestSessionManagerInvalidAction:
 
         manager._game_service.replace_with_ai_player = tracking_replace
 
-        # simulate the WebSocket disconnect handler calling leave_game
-        manager.leave_game(conns[0])
+        manager.disconnect(conns[0])
         # no additional replacement should have happened
         assert len(replace_calls) == 0
 

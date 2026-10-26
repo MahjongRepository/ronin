@@ -96,7 +96,7 @@ class TestSessionManagerReconnect:
         snapshot = _make_snapshot("game1", seat=0).model_copy(update={"is_furiten": True})
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: snapshot
 
-        manager.leave_game(alice_conn, notify_player=False)
+        manager.disconnect(alice_conn)
         bob_conn._outbox.clear()
 
         new_conn = MockConnection()
@@ -140,7 +140,7 @@ class TestSessionManagerReconnect:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_token = participant_of(manager, alice_conn).ticket
-        manager.leave_game(alice_conn, notify_player=False)
+        manager.disconnect(alice_conn)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
@@ -163,7 +163,7 @@ class TestBankTimePreservation:
         timer._turn_start_time = time.monotonic() - (timer._config.base_turn_seconds + 1.0)
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
 
-        manager.leave_game(alice_conn, notify_player=False)
+        manager.disconnect(alice_conn)
         bank_after_leave = timer._bank_seconds
         assert bank_after_leave == pytest.approx(initial_bank - 1.0, abs=0.1)
 
@@ -183,7 +183,7 @@ class TestBankTimePreservation:
         initial_bank = timer._bank_seconds
         timer.start_meld_timer(MagicMock())
 
-        manager.leave_game(alice_conn, notify_player=False)
+        manager.disconnect(alice_conn)
         assert timer._bank_seconds == initial_bank
 
 
@@ -194,7 +194,7 @@ class TestReconnectTurnState:
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
         manager._game_service.build_turn_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
         manager._game_service.get_awaiting = lambda gid: _awaiting(WaitKind.TURN, seat=0)
-        manager.leave_game(conns[0], notify_player=False)
+        manager.disconnect(conns[0])
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
@@ -223,7 +223,7 @@ class TestReconnectTurnState:
         manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
         manager._game_service.build_turn_event_for_seat = lambda gid, seat: [_make_draw_event(seat=0, tile_id=42)]
         manager._game_service.get_awaiting = lambda gid: awaiting
-        manager.leave_game(conns[0], notify_player=False)
+        manager.disconnect(conns[0])
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
@@ -238,7 +238,7 @@ class TestReconnectEdgeCases:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn = conns[0]
         alice_token = participant_of(manager, alice_conn).ticket
-        manager.leave_game(alice_conn, notify_player=False)
+        manager.disconnect(alice_conn)
 
         bob_conn = conns[1]
         manager.reconnect(bob_conn, game_id="game1", session_token=alice_token)
@@ -251,7 +251,7 @@ class TestReconnectEdgeCases:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
         alice_token = participant_of(manager, conns[0]).ticket
-        manager.leave_game(conns[0], notify_player=False)
+        manager.disconnect(conns[0])
 
         def raise_error(gid, seat):
             raise RuntimeError("snapshot failed")
@@ -275,7 +275,7 @@ class TestReconnectToEndedGame:
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_seat = participant_of(manager, conns[0]).seat
         bob_token = participant_of(manager, conns[1]).ticket
-        manager.leave_game(conns[1], notify_player=False)
+        manager.disconnect(conns[1])
         arrange_final_discard(runtime_of(manager), seat=alice_seat)
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert manager.get_game("game1") is None
@@ -293,7 +293,7 @@ class TestReconnectDuringRoundAdvance:
         alice_seat = participant_of(manager, conns[0]).seat
         bob_token = participant_of(manager, conns[1]).ticket
         assert runtime_of(manager).state.round_state.current_player_seat == alice_seat
-        manager.leave_game(conns[1], notify_player=False)
+        manager.disconnect(conns[1])
         arrange_exhaustive_draw(runtime_of(manager))
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
         assert game_of(manager).awaiting.kind == WaitKind.ROUND_ADVANCE
@@ -324,8 +324,7 @@ class TestReconnectToPendingGame:
             manager.join_game(conn, game_id="game1", session_token=spec.game_ticket)
             joined.append(conn)
 
-        manager.leave_game(joined[0], notify_player=False)
-        manager.unregister_connection(joined[0])
+        manager.disconnect(joined[0])
 
         before_start = MockConnection()
         manager.register_connection(before_start)

@@ -74,7 +74,7 @@ def disconnect_and_reconnect(
     game_id: str = "game1",
 ) -> tuple[MockConnection, str]:
     token = participant_of(manager, conn).ticket
-    manager.leave_game(conn, notify_player=False)
+    manager.disconnect(conn)
 
     new_conn = MockConnection()
     manager.register_connection(new_conn)

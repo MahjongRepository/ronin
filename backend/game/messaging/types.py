@@ -9,7 +9,6 @@ from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 
 
 class SessionMessageType(StrEnum):
-    GAME_LEFT = "game_left"
     PLAYER_LEFT = "player_left"
     ERROR = "session_error"
     GAME_RECONNECTED = "game_reconnected"
@@ -111,10 +110,6 @@ ClientMessage = (
     | ReconnectMessage
     | JoinGameMessage
 )
-
-
-class GameLeftMessage(BaseModel):
-    type: Literal[SessionMessageType.GAME_LEFT] = SessionMessageType.GAME_LEFT
 
 
 class PlayerLeftMessage(BaseModel):

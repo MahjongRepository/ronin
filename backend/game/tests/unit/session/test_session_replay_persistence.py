@@ -96,7 +96,7 @@ class TestSessionReplay:
         manager = make_session_manager(repository=game_repo, storage=storage)
         conns = create_started_game(manager)
 
-        manager.leave_game(conns[0])
+        manager.disconnect(conns[0])
         await wait_for_background_tasks(manager)
         assert game_repo.games["game1"].end_reason == GameEndReason.ABANDONED
         assert storage.saved == {}

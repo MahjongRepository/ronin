@@ -123,7 +123,7 @@ class TestJoinGame:
         assert (conn1._close_code, conn1._close_reason) == (1000, "replaced_by_new_connection")
 
         manager.join_game(conn1, game_id="game1", session_token="ticket-0")
-        manager.leave_game(conn1)
+        manager.disconnect(conn1)
         assert [participant.connection for participant in game.connected()] == [conn2]
 
     async def test_join_game__when_second_of_two_humans_joins__should_start_game(self, manager):
@@ -232,7 +232,7 @@ class TestGameStartPause:
         bob_seat = game.participants[1].seat
         assert game.start_pause is not None
 
-        manager.leave_game(bob, notify_player=False)
+        manager.disconnect(bob)
         early_reconnect = MockConnection()
         manager.register_connection(early_reconnect)
         manager.reconnect(early_reconnect, game_id="game1", session_token="ticket-1")
@@ -263,8 +263,8 @@ class TestGameStartPause:
         start_pause = game.start_pause
         assert start_pause is not None
 
-        manager.leave_game(bob, notify_player=False)
-        manager.leave_game(alice, notify_player=False)
+        manager.disconnect(bob)
+        manager.disconnect(alice)
         assert manager.get_game("game1") is None
         assert game.start_pause is None
         with pytest.raises(asyncio.CancelledError):
@@ -283,7 +283,7 @@ class TestGameStartPause:
         start_pause = game_of(manager).start_pause
         assert start_pause is not None
 
-        manager.leave_game(bob, notify_player=False)
+        manager.disconnect(bob)
         await start_pause
         await wait_for_background_tasks(manager)
         assert manager.get_game("game1") is None
@@ -298,8 +298,7 @@ class TestPendingGameDisconnect:
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         conn1 = _join(manager, "ticket-0")
 
-        manager.leave_game(conn1, notify_player=False)
-        manager.unregister_connection(conn1)
+        manager.disconnect(conn1)
         game = game_of(manager)
         assert game.lifecycle is GameLifecycle.PENDING
         assert game.connected() == []
