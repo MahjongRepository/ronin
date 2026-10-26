@@ -101,6 +101,7 @@ class Database:
         self._drain_timeout_seconds = drain_timeout_seconds
         self._jobs: queue.SimpleQueue[_Job | _Stop] = queue.SimpleQueue()
         self._thread: threading.Thread | None = None
+        self._ownership = threading.Lock()
         self._running: _Job | None = None
         self._abandoned = False
         self._closing = False
@@ -155,8 +156,9 @@ class Database:
 
         Waits at most `drain_timeout_seconds` for the queue to drain (every queued write can wait out the busy timeout),
         so shutdown never hangs on a stuck write. Past that, every job still queued is dropped and reported (a posted
-        write logs its operation and game), the write still running is logged the same way, and the worker closes the
-        connection once that write returns.
+        write logs its operation and game), the write still running is logged the same way as "may or may not have
+        landed", and the worker closes the connection once that write returns. Each job gets exactly one report, so that
+        write's later outcome, commit or failure, is not reported again.
         """
         was_open = self._is_open
         self._closing = True
@@ -175,7 +177,10 @@ class Database:
         Report every job still queued behind a stuck one and the stuck one itself, then queue the close sentinel again.
         """
         logger.error("database worker did not drain before shutdown", timeout_seconds=self._drain_timeout_seconds)
-        self._abandoned = True
+        with self._ownership:
+            self._abandoned = True
+            running = self._running
+
         while True:
             try:
                 job = self._jobs.get_nowait()
@@ -185,7 +190,6 @@ class Database:
             if isinstance(job, _Job):
                 job.abandon(_DROPPED_UNRUN)
 
-        running = self._running
         if running is not None:
             running.abandon("still running at shutdown: it may or may not have landed")
 
@@ -227,20 +231,42 @@ class Database:
             if isinstance(job, _Stop):
                 return job
 
-            self._running = job
-            if self._abandoned:
-                self._running = None
+            if not self._claim(job):
                 job.abandon(_DROPPED_UNRUN)
                 continue
 
+            result: object = None
+            error: Exception | None = None
             try:
                 result = _run_in_transaction(conn, job.operation) if job.write else job.operation(conn)
             except Exception as exc:  # noqa: BLE001
-                job.report(None, exc)
-            else:
-                job.report(result, None)
+                error = exc
             finally:
-                self._running = None
+                reported_by_abandonment = self._release()
+
+            if not reported_by_abandonment:
+                job.report(result, error)
+
+    def _claim(self, job: _Job) -> bool:
+        """
+        Mark `job` as running unless the queue was abandoned, in which case the caller reports it as never run.
+        """
+        with self._ownership:
+            if self._abandoned:
+                return False
+
+            self._running = job
+            return True
+
+    def _release(self) -> bool:
+        """
+        Clear the running job and return whether abandonment already reported it.
+
+        A claim succeeds only before abandonment, so an abandonment since the claim snapshotted this job and reports it.
+        """
+        with self._ownership:
+            self._running = None
+            return self._abandoned
 
     def _connect(self) -> sqlite3.Connection:
         """
