@@ -1,15 +1,30 @@
+from __future__ import annotations
+
 import asyncio
+from typing import TYPE_CHECKING
 
 import pytest
 
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.tests.conftest import make_player
 
+if TYPE_CHECKING:
+    from lobby.rooms.models import LobbyRoom
 
-def _join(mgr: LobbyRoomManager, *, room_id: str, connection_id: str, user_id: str, username: str) -> dict | str:
+
+def _join(mgr: LobbyRoomManager, *, room_id: str, connection_id: str, user_id: str, username: str) -> LobbyRoom | str:
     return mgr.join_room(
         room_id=room_id, player=make_player(connection_id=connection_id, user_id=user_id, username=username)
     )
+
+
+def _seated_connections(room: LobbyRoom) -> list[str | None]:
+    return [None if member is None else member.player.connection_id for member in room.seats]
+
+
+def _host_connection(room: LobbyRoom) -> str | None:
+    host = room.host
+    return None if host is None else host.player.connection_id
 
 
 class TestCreateRoom:
@@ -18,7 +33,7 @@ class TestCreateRoom:
         room = mgr.create_room("room-1")
         assert room is not None
         assert mgr.get_room("room-1") is room
-        assert room.seats == [None, None, None, None]
+        assert _seated_connections(room) == [None, None, None, None]
         assert room.num_ai_players == 4
 
 
@@ -28,26 +43,18 @@ class TestJoinRoom:
         mgr.create_room("room-1")
 
         result = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
-        assert isinstance(result, dict)
-        assert result["type"] == "room_joined"
-        assert result["room_id"] == "room-1"
-        assert result["player_name"] == "Alice"
-        assert result["is_owner"] is True
-        assert len(result["players"]) == 4  # always 4 seats
-        room = mgr.get_room("room-1")
-        assert room.seats[0] == "conn-1"
-        assert room.seat_of("conn-1") == 0
+        assert result is mgr.get_room("room-1")
+        assert result.seat_of("conn-1") == 0
+        assert result.is_host("conn-1") is True
 
     def test_room_manager_join_room__when_second_player__should_take_seat_one(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
         _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
 
-        result = _join(mgr, room_id="room-1", connection_id="conn-2", user_id="user-2", username="Bob")
-        assert isinstance(result, dict)
-        assert result["is_owner"] is False
-        room = mgr.get_room("room-1")
-        assert room.seats[1] == "conn-2"
+        room = _join(mgr, room_id="room-1", connection_id="conn-2", user_id="user-2", username="Bob")
+        assert room.seat_of("conn-2") == 1
+        assert room.is_host("conn-2") is False
 
     def test_room_manager_join_room__when_seat_freed__should_fill_first_open_seat(self):
         mgr = LobbyRoomManager()
@@ -59,7 +66,7 @@ class TestJoinRoom:
         mgr.leave_room("room-1", "conn-1")
         _join(mgr, room_id="room-1", connection_id="conn-3", user_id="u3", username="P3")
         room = mgr.get_room("room-1")
-        assert room.seats[1] == "conn-3"  # filled the gap
+        assert room.seat_of("conn-3") == 1
 
     def test_room_manager_join_room__when_room_missing__should_return_room_not_found(self):
         mgr = LobbyRoomManager()
@@ -95,19 +102,15 @@ class TestJoinRoom:
         mgr = LobbyRoomManager()
         mgr.create_room("room-1")
 
-        result = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
-        assert isinstance(result, dict)
-        # Owner alone with default min_human_players=1 — can_start is True
-        assert result["can_start"] is True
+        room = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
+        assert room.can_start is True
 
     def test_room_manager_join_room__when_min_human_players_unmet__should_report_cannot_start(self):
         mgr = LobbyRoomManager()
         mgr.create_room("room-1", min_human_players=4)
 
-        result = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
-        assert isinstance(result, dict)
-        # Only 1 of 4 required humans — can_start is False
-        assert result["can_start"] is False
+        room = _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
+        assert room.can_start is False
 
 
 class TestMinHumanPlayers:
@@ -159,8 +162,7 @@ class TestLeaveRoom:
         mgr.leave_room("room-1", "conn-1")
         room = mgr.get_room("room-1")
         assert room is not None
-        assert room.seats[0] is None  # seat 0 restored to bot
-        assert room.seats[1] == "conn-2"  # seat 1 unchanged
+        assert _seated_connections(room) == [None, "conn-2", None, None]
 
     def test_room_manager_leave_room__when_last_player__should_remove_room(self):
         mgr = LobbyRoomManager()
@@ -181,12 +183,15 @@ class TestLeaveRoom:
         mgr.create_room("room-1")
         _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Alice")
         _join(mgr, room_id="room-1", connection_id="conn-2", user_id="user-2", username="Bob")
+        _join(mgr, room_id="room-1", connection_id="older", user_id="user-3", username="Carol")
+        mgr.leave_room("room-1", "conn-2")
+        _join(mgr, room_id="room-1", connection_id="later", user_id="user-4", username="Dave")
         room = mgr.get_room("room-1")
-        assert room.host_connection_id == "conn-1"
+        assert _host_connection(room) == "conn-1"
+        assert _seated_connections(room) == ["conn-1", "later", "older", None]
 
         mgr.leave_room("room-1", "conn-1")
-        room = mgr.get_room("room-1")
-        assert room.host_connection_id == "conn-2"
+        assert _host_connection(room) == "older"
 
     def test_room_manager_leave_room__when_transitioning__should_hold_seat_until_start_fails(self):
         mgr = LobbyRoomManager()
@@ -197,11 +202,11 @@ class TestLeaveRoom:
         mgr.start_game("room-1", "conn-1")
 
         mgr.leave_room("room-1", "conn-2")
-        assert room.seats == ["conn-1", "conn-2", None, None]
-        assert room.players["conn-2"].departed is True
+        assert _seated_connections(room) == ["conn-1", "conn-2", None, None]
+        assert room.member("conn-2").departed is True
 
         mgr.clear_transitioning("room-1")
-        assert room.seats == ["conn-1", None, None, None]
+        assert _seated_connections(room) == ["conn-1", None, None, None]
         assert room.has_user("user-2") is False
 
 
@@ -274,10 +279,8 @@ class TestSetReady:
         mgr.create_room("room-1")
         _join(mgr, room_id="room-1", connection_id="conn-1", user_id="user-1", username="Owner")
         _join(mgr, room_id="room-1", connection_id="conn-2", user_id="user-2", username="Bob")
-        room = mgr.get_room("room-1")
-        assert room is not None
+        mgr.leave_room("room-1", "conn-2")
 
-        room.players.pop("conn-2")
         result = mgr.set_ready("room-1", "conn-2", ready=True)
         assert result == "not_in_room"
 
@@ -367,7 +370,7 @@ class TestClearTransitioning:
 
         mgr.clear_transitioning("room-1")
         assert room.transitioning is False
-        assert room.players["conn-2"].ready is False
+        assert room.member("conn-2").ready is False
 
     def test_room_manager_clear_transitioning__when_host_and_guest_left_through_the_manager__should_drop_room(self):
         mgr = LobbyRoomManager()

@@ -31,52 +31,44 @@ class MatchmakingManager:
     def __init__(self, *, find_conflict: Callable[[str], str | None] = _no_conflict) -> None:
         self._find_conflict = find_conflict
         self._queue: list[LobbyPlayer] = []
-        self._user_ids: set[str] = set()
         self._in_flight: set[str] = set()
 
-    def add_player(self, player: LobbyPlayer) -> None:
+    def add_player(self, player: LobbyPlayer) -> int | list[LobbyPlayer]:
         """
-        Add a player to the matchmaking queue.
+        Queue the player; return their 1-based queue position, or the matched players when this join completed a match.
 
-        Raise ValueError with the occupancy conflict when the user cannot queue.
+        The queue never holds a full table: the join that fills it matches the whole queue, whose players stay held as
+        in flight until ``clear_in_flight``, since they leave the queue before their game is created. Raise ValueError
+        with the occupancy conflict when the user cannot queue.
         """
         conflict = self._find_conflict(player.user_id)
         if conflict is not None:
             raise ValueError(conflict)
 
         self._queue.append(player)
-        self._user_ids.add(player.user_id)
+        if len(self._queue) < MATCHMAKING_SEATS:
+            return len(self._queue)
+
+        matched, self._queue = self._queue, []
+        self._in_flight.update(matched_player.user_id for matched_player in matched)
+        return matched
 
     def has_user(self, user_id: str) -> bool:
         """
         Check if a user is queued, or matched and waiting for their game to be created.
         """
-        return user_id in self._user_ids or user_id in self._in_flight
+        return user_id in self._in_flight or any(player.user_id == user_id for player in self._queue)
 
-    def remove_player(self, connection_id: str) -> None:
+    def remove_player(self, connection_id: str) -> bool:
         """
-        Remove a player from the queue by connection_id.
+        Remove a player from the queue by connection_id; return False when that connection was not queued.
         """
         for i, player in enumerate(self._queue):
             if player.connection_id == connection_id:
-                self._user_ids.discard(player.user_id)
-                self._queue.pop(i)
-                return
+                del self._queue[i]
+                return True
 
-    def try_match(self) -> list[LobbyPlayer] | None:
-        """
-        Pop MATCHMAKING_SEATS players if enough in queue, else None.
-        """
-        if len(self._queue) >= MATCHMAKING_SEATS:
-            matched = self._queue[:MATCHMAKING_SEATS]
-            self._queue = self._queue[MATCHMAKING_SEATS:]
-            for player in matched:
-                self._user_ids.discard(player.user_id)
-                self._in_flight.add(player.user_id)
-
-            return matched
-
-        return None
+        return False
 
     @property
     def queue_size(self) -> int:

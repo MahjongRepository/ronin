@@ -386,7 +386,7 @@ class TestGameTransition:
         host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
         held_peer, held_handler = await _seat(app, room_id=room.room_id, username="bob")
         late_peer, late_handler = await _seat(app, room_id=room.room_id, username="carol")
-        for member in room.players.values():
+        for member in room.members:
             member.ready = True
         held_peer.send_gate = asyncio.Event()
 

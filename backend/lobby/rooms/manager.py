@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from lobby.rooms.models import LobbyRoom, RoomMember
+from lobby.rooms.models import LobbyRoom
 from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
@@ -52,11 +52,9 @@ class LobbyRoomManager:
         logger.info("room created", room_id=room_id, min_human_players=min_human_players)
         return room
 
-    def join_room(self, *, room_id: str, player: LobbyPlayer) -> dict | str:
+    def join_room(self, *, room_id: str, player: LobbyPlayer) -> LobbyRoom | str:
         """
-        Seat the player in the first bot seat of the room.
-
-        Return the ``room_joined`` message on success, or the error string on failure.
+        Seat the player in the first bot seat of the room; return the room, or the error string.
         """
         room = self._rooms.get(room_id)
         if room is None:
@@ -73,20 +71,8 @@ class LobbyRoomManager:
         if conflict is not None:
             return conflict
 
-        room.seats[seat] = player.connection_id
-        room.players[player.connection_id] = RoomMember(player=player)
-
-        if room.host_connection_id is None:
-            room.host_connection_id = player.connection_id
-
-        return {
-            "type": "room_joined",
-            "room_id": room_id,
-            "player_name": player.username,
-            "is_owner": room.host_connection_id == player.connection_id,
-            "can_start": room.can_start,
-            "players": [p.model_dump() for p in room.get_player_info()],
-        }
+        room.seat_player(seat, player)
+        return room
 
     def leave_room(self, room_id: str, connection_id: str) -> bool:
         """
@@ -97,29 +83,22 @@ class LobbyRoomManager:
         has left. The transition settles it: ``clear_transitioning`` on failure, ``remove_room`` on success.
         """
         room = self._rooms.get(room_id)
-        if room is None or connection_id not in room.players:
+        if room is None:
+            return False
+
+        member = room.member(connection_id)
+        if member is None:
             return False
 
         if room.transitioning:
-            room.players[connection_id].departed = True
+            member.departed = True
             return True
 
-        self._release_seat(room, connection_id)
+        room.vacate_seat(member)
         if room.is_empty:
             self._rooms.pop(room_id, None)
 
         return True
-
-    @staticmethod
-    def _release_seat(room: LobbyRoom, connection_id: str) -> None:
-        seat = room.seat_of(connection_id)
-        if seat is not None:
-            room.seats[seat] = None
-
-        room.players.pop(connection_id, None)
-
-        if room.host_connection_id == connection_id:
-            room.host_connection_id = next(iter(room.players), None)
 
     def set_ready(self, room_id: str, connection_id: str, *, ready: bool) -> LobbyRoom | str:
         """
@@ -134,11 +113,11 @@ class LobbyRoomManager:
         if room.transitioning:
             return "room_transitioning"
 
-        member = room.players.get(connection_id)
+        member = room.member(connection_id)
         if member is None:
             return "not_in_room"
 
-        if connection_id == room.host_connection_id:
+        if member is room.host:
             return "owner_cannot_ready"
 
         member.ready = ready
@@ -151,13 +130,13 @@ class LobbyRoomManager:
         The caller reads ``num_ai_players`` from the room.
         """
         room = self._rooms.get(room_id)
-        if room is None or connection_id not in room.players:
+        if room is None or room.member(connection_id) is None:
             return "not_in_room"
 
         if room.transitioning:
             return "room_transitioning"
 
-        if connection_id != room.host_connection_id:
+        if not room.is_host(connection_id):
             return "not_owner"
 
         if not room.can_start:
@@ -179,12 +158,11 @@ class LobbyRoomManager:
             return
 
         room.transitioning = False
-        departed = [conn_id for conn_id, member in room.players.items() if member.departed]
-        for conn_id in departed:
-            self._release_seat(room, conn_id)
-
-        for member in room.players.values():
-            member.ready = False
+        for member in room.members:
+            if member.departed:
+                room.vacate_seat(member)
+            else:
+                member.ready = False
 
         if room.is_empty:
             self._rooms.pop(room_id, None)
@@ -262,5 +240,5 @@ class LobbyRoomManager:
         for room in expired:
             self.remove_room(room.room_id)
             logger.info("room expired", room_id=room.room_id)
-            for member in room.players.values():
+            for member in room.members:
                 member.player.connection.close(code=4002, reason="room_expired")

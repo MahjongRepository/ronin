@@ -204,11 +204,12 @@ sequenceDiagram
 
     P1->>L: WS /ws/matchmaking
     L->>MM: add_player (occupancy check inside)
+    MM-->>L: queue position
     L-->>P1: queue_joined {position}
     L-->>P1: queue_update to the others
     P4->>L: WS /ws/matchmaking
-    L->>MM: add_player, then try_match
-    MM-->>L: 4 players popped, marked in-flight
+    L->>MM: add_player (fills the table)
+    MM-->>L: the 4 matched players, marked in-flight
     L->>GS: start_game(num_ai_players=0)
     alt game created
         L-->>P1: game_starting + close
