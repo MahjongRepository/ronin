@@ -6,10 +6,11 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from game.logic.enums import AbortiveDrawType, GameAction
+from game.logic.enums import AbortiveDrawType, GameAction, KanType
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION, seat_permutation, validate_seed_hex
 from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT
+from game.logic.tiles import NUM_TILES
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
@@ -340,6 +341,12 @@ def _parse_round_end(event: dict[str, Any], seat_to_name: dict[int, str]) -> lis
     Parse a round_end event into player action(s), if any.
     """
     result_type = event.get("rt")
+    can_rob_kan = result_type in (WireRoundResultType.RON, WireRoundResultType.DOUBLE_RON) or (
+        result_type == WireRoundResultType.ABORTIVE_DRAW and event.get("rn") == AbortiveDrawType.TRIPLE_RON
+    )
+    if event.get("rk") is not None and not can_rob_kan:
+        raise ReplayLoadError(f"round_end that robs no kan carries a robbed kan (rk): {event['rk']!r}")
+
     match result_type:
         case WireRoundResultType.TSUMO:
             return _parse_tsumo_round_end(event, seat_to_name)
@@ -360,12 +367,7 @@ def _parse_tsumo_round_end(result: dict[str, Any], seat_to_name: dict[int, str])
     """
     Parse a tsumo round_end result.
     """
-    try:
-        winner_seat = result["ws"]
-        player_name = seat_to_name[winner_seat]
-    except KeyError as exc:
-        raise ReplayLoadError(f"tsumo round_end missing or invalid field: {exc}") from exc
-
+    player_name = _parse_seat_player(result.get("ws"), seat_to_name, field="tsumo round_end winner seat (ws)")
     return [ReplayInputEvent(player_name=player_name, action=GameAction.DECLARE_TSUMO)]
 
 
@@ -373,13 +375,11 @@ def _parse_ron_round_end(result: dict[str, Any], seat_to_name: dict[int, str]) -
     """
     Parse a ron round_end result.
     """
-    try:
-        winner_seat = result["ws"]
-        player_name = seat_to_name[winner_seat]
-    except KeyError as exc:
-        raise ReplayLoadError(f"ron round_end missing or invalid field: {exc}") from exc
-
-    return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON)]
+    player_name = _parse_seat_player(result.get("ws"), seat_to_name, field="ron round_end winner seat (ws)")
+    return [
+        *_parse_robbed_kan(result, seat_to_name),
+        ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON),
+    ]
 
 
 def _parse_double_ron_round_end(
@@ -389,20 +389,19 @@ def _parse_double_ron_round_end(
     """
     Parse a double_ron round_end result.
     """
-    winners = result.get("wn", [])
-    if not winners:
-        raise ReplayLoadError("double_ron round_end must have at least one winner")
+    winners = result.get("wn")
+    if not isinstance(winners, list) or not winners:
+        raise ReplayLoadError(f"double_ron round_end must have a non-empty winner list (wn): {winners!r}")
 
-    try:
-        return [
-            ReplayInputEvent(
-                player_name=seat_to_name[w["ws"]],
-                action=GameAction.CALL_RON,
-            )
-            for w in winners
-        ]
-    except KeyError as exc:
-        raise ReplayLoadError(f"double_ron round_end missing or invalid field: {exc}") from exc
+    rons: list[ReplayInputEvent] = []
+    for winner in winners:
+        if not isinstance(winner, dict):
+            raise ReplayLoadError(f"double_ron round_end winner must be an object, got {winner!r}")
+
+        player_name = _parse_seat_player(winner.get("ws"), seat_to_name, field="double_ron round_end winner seat (ws)")
+        rons.append(ReplayInputEvent(player_name=player_name, action=GameAction.CALL_RON))
+
+    return [*_parse_robbed_kan(result, seat_to_name), *rons]
 
 
 def _parse_abortive_draw_round_end(
@@ -420,12 +419,7 @@ def _parse_abortive_draw_round_end(
         # Other abortive draws (four_riichi, etc.) are not player actions
         return None
 
-    try:
-        seat = result["s"]
-        player_name = seat_to_name[seat]
-    except KeyError as exc:
-        raise ReplayLoadError(f"nine_terminals abortive_draw missing or invalid field: {exc}") from exc
-
+    player_name = _parse_seat_player(result.get("s"), seat_to_name, field="nine_terminals abortive_draw seat (s)")
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_KYUUSHU)]
 
 
@@ -439,10 +433,55 @@ def _parse_triple_ron_declarations(
     The seats must be TRIPLE_RON_COUNT distinct known seats; anything else is a malformed replay.
     """
     seats = result.get("rcl")
-    is_seat_list = isinstance(seats, list) and all(
-        isinstance(seat, int) and not isinstance(seat, bool) and seat in seat_to_name for seat in seats
-    )
-    if not is_seat_list or len(seats) != TRIPLE_RON_COUNT or len(set(seats)) != len(seats):
+    if not isinstance(seats, list) or len(seats) != TRIPLE_RON_COUNT:
         raise ReplayLoadError(f"triple_ron abortive_draw has invalid ron seats (rcl): {seats!r}")
 
-    return [ReplayInputEvent(player_name=seat_to_name[seat], action=GameAction.CALL_RON) for seat in seats]
+    player_names = [
+        _parse_seat_player(seat, seat_to_name, field="triple_ron abortive_draw ron seat (rcl)") for seat in seats
+    ]
+    if len(set(player_names)) != len(player_names):
+        raise ReplayLoadError(f"triple_ron abortive_draw has invalid ron seats (rcl): {seats!r}")
+
+    rons = [ReplayInputEvent(player_name=name, action=GameAction.CALL_RON) for name in player_names]
+    return [*_parse_robbed_kan(result, seat_to_name), *rons]
+
+
+def _parse_robbed_kan(result: dict[str, Any], seat_to_name: dict[int, str]) -> list[ReplayInputEvent]:
+    """
+    Parse the kan a chankan robbed (rk) into the kan declaration that opened the chankan prompt, if the result has one.
+
+    A robbed kan never completes, so no meld event records it: its ron or triple ron result carries it instead, and its
+    declaration must precede the rons that answer it.
+    """
+    robbed_kan = result.get("rk")
+    if robbed_kan is None:
+        return []
+
+    if not isinstance(robbed_kan, dict):
+        raise ReplayLoadError(f"round_end has an invalid robbed kan (rk): {robbed_kan!r}")
+
+    player_name = _parse_seat_player(robbed_kan.get("s"), seat_to_name, field="round_end robbed kan (rk) seat (s)")
+    tile_id = robbed_kan.get("ti")
+    kan_type = robbed_kan.get("kty")
+    is_tile = isinstance(tile_id, int) and not isinstance(tile_id, bool) and 0 <= tile_id < NUM_TILES
+    if not is_tile or kan_type not in (KanType.ADDED.value, KanType.CLOSED.value):
+        raise ReplayLoadError(f"round_end has an invalid robbed kan (rk): {robbed_kan!r}")
+
+    return [
+        ReplayInputEvent(
+            player_name=player_name,
+            action=GameAction.CALL_KAN,
+            data={"tile_id": tile_id, "kan_type": kan_type},
+        ),
+    ]
+
+
+def _parse_seat_player(seat: object, seat_to_name: dict[int, str], *, field: str) -> str:
+    """
+    Return the player at a round_end's seat field; a missing seat, or one that is not a known integer seat, is a
+    malformed replay.
+    """
+    if not isinstance(seat, int) or isinstance(seat, bool) or seat not in seat_to_name:
+        raise ReplayLoadError(f"{field} is not a known seat: {seat!r}")
+
+    return seat_to_name[seat]

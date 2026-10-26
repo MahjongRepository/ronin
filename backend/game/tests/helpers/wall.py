@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import NUM_TILES
 from game.logic.wall import (
     DEAD_WALL_SIZE,
     DEAD_WALL_STACKS,
+    DEAL_BLOCKS,
     RINSHAN_STACKS,
+    TILES_PER_DEAL_BLOCK,
     DeadWall,
     TileStack,
     Wall,
@@ -19,6 +22,9 @@ if TYPE_CHECKING:
 FIRST_DORA_POSITION = RINSHAN_STACKS
 URA_OFFSET = DEAD_WALL_STACKS
 FIRST_URA_POSITION = FIRST_DORA_POSITION + URA_OFFSET
+DEAL_ROUND_SIZE = TILES_PER_DEAL_BLOCK * NUM_PLAYERS
+FINAL_DEAL_START = DEAL_BLOCKS * DEAL_ROUND_SIZE
+FIRST_DRAW_POSITION = FINAL_DEAL_START + NUM_PLAYERS
 
 
 def make_dead_wall(
@@ -92,3 +98,35 @@ def make_wall(
     free = iter(t for t in range(NUM_TILES - 1, -1, -1) if t not in taken)
     live = tuple(next(free) if t in dead_tiles else t for t in live_tiles)
     return Wall(live_tiles=live, dead_wall=dead, dice=dice)
+
+
+def _deal_positions(seat: int) -> list[int]:
+    blocks = [
+        position
+        for block in range(DEAL_BLOCKS)
+        for position in range(
+            block * DEAL_ROUND_SIZE + seat * TILES_PER_DEAL_BLOCK,
+            block * DEAL_ROUND_SIZE + (seat + 1) * TILES_PER_DEAL_BLOCK,
+        )
+    ]
+    return [*blocks, FINAL_DEAL_START + seat]
+
+
+def make_start_wall(hands: Sequence[Sequence[int]], *, draws: Sequence[int] = ()) -> tuple[int, ...]:
+    """
+    Build a full 136-tile wall for start_game that deals each seat its 13-tile hand and then the live draws in order.
+
+    hands are by seat with the first dealer at seat 0, and draws are the live wall's first draws (the dealer's first);
+    every other position holds the remaining tiles in ascending order.
+    """
+    placed = {
+        position: tile
+        for seat, hand in enumerate(hands)
+        for position, tile in zip(_deal_positions(seat), hand, strict=True)
+    }
+    placed.update(enumerate(draws, start=FIRST_DRAW_POSITION))
+    if len(set(placed.values())) != len(placed):
+        raise ValueError(f"start wall repeats a tile: {sorted(placed.values())}")
+
+    rest = iter(tile for tile in range(NUM_TILES) if tile not in placed.values())
+    return tuple(placed[position] if position in placed else next(rest) for position in range(NUM_TILES))

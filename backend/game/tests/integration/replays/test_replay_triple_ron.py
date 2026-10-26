@@ -4,9 +4,6 @@ from game.logic.enums import AbortiveDrawType, GameAction
 from game.logic.events import EventType, RoundEndEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
-from game.logic.settings import NUM_PLAYERS
-from game.logic.tiles import NUM_TILES
-from game.logic.wall import DEAL_BLOCKS, TILES_PER_DEAL_BLOCK
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_string
 from game.replay.models import ReplayInput
@@ -16,6 +13,7 @@ from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_DEALER_HAND,
     PIN_3_TRIPLE_RON_DISCARD,
 )
+from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.replay_format import REPLAY_VERSION
 
@@ -26,37 +24,13 @@ SEED = (
 PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
 DEALER = "Charlie"
 RON_CALLERS_BY_SEAT_ORDER = ("Bob", "Alice", "Diana")
-DEAL_ROUND_SIZE = TILES_PER_DEAL_BLOCK * NUM_PLAYERS
-FINAL_DEAL_START = DEAL_BLOCKS * DEAL_ROUND_SIZE
-DEALER_FIRST_DRAW_POSITION = FINAL_DEAL_START + NUM_PLAYERS
-
-
-def _deal_positions(seat: int) -> list[int]:
-    blocks = [
-        position
-        for block in range(DEAL_BLOCKS)
-        for position in range(
-            block * DEAL_ROUND_SIZE + seat * TILES_PER_DEAL_BLOCK,
-            block * DEAL_ROUND_SIZE + (seat + 1) * TILES_PER_DEAL_BLOCK,
-        )
-    ]
-    return [*blocks, FINAL_DEAL_START + seat]
-
-
-def _build_pin_3_triple_ron_wall() -> tuple[int, ...]:
-    hands = (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS)
-    placed = {
-        position: tile
-        for seat, hand in enumerate(hands)
-        for position, tile in zip(_deal_positions(seat), hand, strict=True)
-    }
-    placed[DEALER_FIRST_DRAW_POSITION] = PIN_3_TRIPLE_RON_DISCARD
-    rest = iter(tile for tile in range(NUM_TILES) if tile not in placed.values())
-    return tuple(placed[position] if position in placed else next(rest) for position in range(NUM_TILES))
 
 
 def test_triple_ron_replay__when_recorded_and_reloaded__should_reproduce_the_abort():
-    wall = _build_pin_3_triple_ron_wall()
+    wall = make_start_wall(
+        (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
+        draws=(PIN_3_TRIPLE_RON_DISCARD,),
+    )
     service = MahjongGameService()
     start = service.start_game("triple-ron", list(PLAYERS), seed=SEED, wall=list(wall))
     runtime = start.runtime
