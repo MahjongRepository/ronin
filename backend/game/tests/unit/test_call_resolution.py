@@ -61,7 +61,7 @@ class TestResolveWithoutPrompt:
 
 
 class TestResolvePonMeldResponse:
-    def test_resolve_meld_response__when_pon__should_emit_meld_then_turn_event_forbidding_the_called_type(self):
+    def test_resolve_call_prompt__when_pon_declared__should_emit_meld_then_turn_event_forbidding_the_called_type(self):
         nine_man = tile_copies(0, man="9")[0]
         players = (
             create_player(seat=0, tiles=tile_copies(0, man="9", pin="123456789", honors="1234")),

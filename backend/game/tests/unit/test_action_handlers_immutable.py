@@ -4,23 +4,17 @@ from game.logic.action_handlers import (
     handle_discard,
     handle_kan,
     handle_kyuushu,
-    handle_pass,
-    handle_pon,
     handle_riichi,
     handle_ron,
     handle_tsumo,
 )
 from game.logic.action_result import ActionResult, Refusal
-from game.logic.call_resolution import (
-    resolve_call_prompt,
-)
 from game.logic.enums import (
     AbortiveDrawType,
     AIPlayerType,
     GameAction,
     GameErrorCode,
     KanType,
-    MeldCallType,
     MeldViewType,
     PromptKind,
     RoundPhase,
@@ -28,7 +22,6 @@ from game.logic.enums import (
 )
 from game.logic.events import (
     DiscardEvent,
-    DrawEvent,
     MeldEvent,
     RoundEndEvent,
 )
@@ -36,9 +29,7 @@ from game.logic.game import init_game
 from game.logic.round import draw_tile
 from game.logic.state import (
     Caller,
-    CallResponse,
     MahjongGameState,
-    MeldOption,
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
@@ -46,7 +37,6 @@ from game.logic.types import (
     AbortiveDrawResult,
     DiscardActionData,
     KanActionData,
-    PonActionData,
     RiichiActionData,
     SeatConfig,
 )
@@ -79,7 +69,6 @@ class TestHandleDiscardImmutable:
             data=DiscardActionData(tile_id=tile_to_discard),
         )
         assert isinstance(result, ActionResult)
-        assert result.needs_post_discard is True
         # verify new state is returned
         # verify original state is unchanged
         assert round_state.players[0].tiles == game_state.round_state.players[0].tiles
@@ -114,7 +103,6 @@ class TestHandleRiichiImmutable:
             data=RiichiActionData(tile_id=tile_to_discard),
         )
         assert isinstance(result, ActionResult)
-        assert result.needs_post_discard is True
         # should have discard event
         discard_events = [e for e in result.events if isinstance(e, DiscardEvent)]
         assert len(discard_events) == 1
@@ -221,48 +209,6 @@ class TestHandleRonImmutable:
         assert 2 in prompt.pending_seats
 
 
-class TestHandlePonImmutable:
-    def _create_pon_opportunity(self) -> tuple[MahjongGameState, int]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # give player 1 two 1m tiles + filler
-        player1_tiles = tuple(
-            TilesConverter.string_to_136_array(man="11368", pin="2479", sou="358", honors="1"),
-        )
-        round_state = update_player(round_state, 1, tiles=player1_tiles)
-
-        tile_to_pon = TilesConverter.string_to_136_array(man="111")[2]  # 1m (3rd copy)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        return game_state, tile_to_pon
-
-    def test_handle_pon__when_valid__should_emit_pon_meld_without_draw(self):
-        game_state, tile_to_pon = self._create_pon_opportunity()
-        round_state = game_state.round_state
-
-        # set up pending call prompt for meld
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_to_pon,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = handle_pon(game_state, seat=1, data=PonActionData(tile_id=tile_to_pon))
-        assert isinstance(result, ActionResult)
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.PON
-        assert meld_events[0].caller_seat == 1
-        # no DrawEvent after pon — MeldEvent is the only signal
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 0
-
-
 class TestHandleKanImmutable:
     def _create_closed_kan_opportunity(self) -> tuple[MahjongGameState, int]:
         game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
@@ -300,43 +246,6 @@ class TestHandleKanImmutable:
         assert isinstance(result, Refusal)
         assert result.code == GameErrorCode.NOT_YOUR_TURN
 
-    def _create_open_kan_opportunity(self) -> tuple[MahjongGameState, int]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        tile_id = TilesConverter.string_to_136_array(man="5")[0]
-        # give player 1 three 5m tiles + filler for open kan
-        player1_tiles = tuple(TilesConverter.string_to_136_array(man="555368", pin="2479", sou="358"))
-        round_state = update_player(round_state, 1, tiles=player1_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        return game_state, tile_id
-
-    def test_handle_kan__when_open_kan__should_emit_open_kan_meld(self):
-        game_state, tile_id = self._create_open_kan_opportunity()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = handle_kan(
-            game_state,
-            seat=1,
-            data=KanActionData(tile_id=tile_id, kan_type=KanType.OPEN),
-        )
-        # should resolve: open kan executed through resolution
-        assert result.state.round_state.pending_call_prompt is None
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.OPEN_KAN
-
 
 class TestHandleKyuushuImmutable:
     def _create_kyuushu_opportunity(self) -> MahjongGameState:
@@ -365,128 +274,3 @@ class TestHandleKyuushuImmutable:
         assert isinstance(round_end_events[0].result, AbortiveDrawResult)
         assert round_end_events[0].result.reason == AbortiveDrawType.NINE_TERMINALS
         assert result.state.round_state.phase == RoundPhase.FINISHED
-
-
-class TestHandlePassImmutable:
-    def _create_pass_prompt_state(self) -> MahjongGameState:
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, can_ron=True),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        return game_state.model_copy(update={"round_state": round_state})
-
-    def test_handle_pass__when_ron_available__should_apply_temporary_furiten(self):
-        game_state = self._create_pass_prompt_state()
-        round_state = game_state.round_state
-        original_furiten = round_state.players[1].is_temporary_furiten
-
-        result = handle_pass(game_state, seat=1)
-        # passing on ron should set temporary furiten
-        assert result.state.round_state.players[1].is_temporary_furiten is True
-        # original should be unchanged
-        assert round_state.players[1].is_temporary_furiten == original_furiten
-
-    def test_handle_pass__when_riichi_player__should_set_riichi_furiten(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        # set player 1 in riichi
-        round_state = update_player(round_state, 1, is_riichi=True)
-
-        # set up pending ron prompt for riichi player
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, can_ron=True),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = handle_pass(game_state, seat=1)
-        # riichi player passing on ron should set riichi furiten
-        assert result.state.round_state.players[1].is_riichi_furiten is True
-
-
-class TestResolveMeldResponseImmutable:
-    def _create_pon_prompt_with_response(
-        self,
-    ) -> MahjongGameState:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        new_round_state, _tile = draw_tile(game_state.round_state)
-
-        # give player 1 two matching tiles for pon
-        tile_id = 0
-        player_tiles = [tile_id, tile_id + 1, *list(new_round_state.players[1].tiles)[:-2]]
-        new_round_state = update_player(new_round_state, 1, tiles=tuple(player_tiles))
-        new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.PLAYING})
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        # create prompt with pon response
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-            responses=(CallResponse(seat=1, action=GameAction.CALL_PON),),
-        )
-        new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
-        return game_state.model_copy(update={"round_state": new_round_state})
-
-    def test_resolve_meld_response__when_pon__should_emit_pon_meld(self):
-        game_state = self._create_pon_prompt_with_response()
-
-        result = resolve_call_prompt(game_state)
-        # should have meld event
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.PON
-
-
-class TestResolveOpenKanResponseImmutable:
-    def _create_open_kan_prompt(
-        self,
-    ) -> MahjongGameState:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        new_round_state, _tile = draw_tile(game_state.round_state)
-
-        # give player 1 three matching tiles for open kan
-        tile_id = 0
-        player_tiles = [tile_id, tile_id + 1, tile_id + 2, *list(new_round_state.players[1].tiles)[:-3]]
-        new_round_state = update_player(new_round_state, 1, tiles=tuple(player_tiles))
-        new_round_state = new_round_state.model_copy(update={"phase": RoundPhase.PLAYING})
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-
-        # create prompt with open kan response
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),),
-            responses=(CallResponse(seat=1, action=GameAction.CALL_KAN),),
-        )
-        new_round_state = new_round_state.model_copy(update={"pending_call_prompt": prompt})
-        return game_state.model_copy(update={"round_state": new_round_state})
-
-    def test_resolve_open_kan_response__should_emit_open_kan_meld_and_rinshan_draw(self):
-        game_state = self._create_open_kan_prompt()
-
-        result = resolve_call_prompt(game_state)
-        # should have meld event
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.OPEN_KAN
-        # should have draw event with tile_id and available_actions for dead wall tile
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 1
-        assert draw_events[0].tile_id is not None
-        assert draw_events[0].available_actions is not None

@@ -96,17 +96,15 @@ class TestRoundAdvanceWaiting:
         assert awaiting.kind == WaitKind.ROUND_ADVANCE
         assert awaiting.results_shown == 2
 
-    def test_round_advance__when_all_players_ai__should_start_next_round_immediately(self, service):
+    def test_round_end__when_no_seat_is_human__should_raise(self, service):
         start = service.start_game("game1", ["Player"], seed="a" * 192)
         runtime = start.runtime
-        player_seat = start.seats[0]
-        service.replace_with_ai_player(runtime, player_seat)
+        service.replace_with_ai_player(runtime, start.seats[0])
+        state_before = runtime.state
 
-        result = _make_exhaustive_draw_result()
-        events = service._handle_round_end(runtime, result)
-        round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
-        assert len(round_started) >= 4
-        assert runtime.pending_confirm is None
+        with pytest.raises(AssertionError, match="round ended with no human seat"):
+            service._handle_round_end(runtime, _make_exhaustive_draw_result())
+        assert runtime.state is state_before
 
 
 class TestConfirmRound:
@@ -217,20 +215,6 @@ class TestRoundAdvanceAIPlayerReplacement:
 
         unconfirmed = runtime.pending_confirm.unconfirmed_seats
         assert alice.seat not in unconfirmed
-
-    def test_ai_replacement__when_last_human_disconnects_during_advance__should_start_next_round(self, service):
-        runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
-        game_state = runtime.state
-        player = _find_player(game_state.round_state, "Player")
-
-        result = _make_exhaustive_draw_result()
-        service._handle_round_end(runtime, result)
-
-        service.replace_with_ai_player(runtime, player.seat)
-        events = service.process_ai_player_actions_after_replacement(runtime, player.seat).events
-        round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
-        assert len(round_started) >= 4
-        assert runtime.pending_confirm is None
 
 
 class TestRoundAdvanceGameEnd:

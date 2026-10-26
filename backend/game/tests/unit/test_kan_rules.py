@@ -415,7 +415,8 @@ class TestFourKansAbortTiming:
 
 def _assert_play_continues_to_seat(result: ActionResult, seat: int) -> None:
     assert result.state.round_state.phase == RoundPhase.PLAYING
-    assert [type(e) for e in result.events] == [DiscardEvent]
+    assert [type(e) for e in result.events] == [DiscardEvent, DrawEvent]
+    assert result.events[-1].target == SeatTarget(seat=seat)
     assert result.state.round_state.current_player_seat == seat
 
 

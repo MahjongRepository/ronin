@@ -351,7 +351,6 @@ class MahjongGameService(GameService):
         Run what follows a stored result, without the AI players' turns.
 
         The round ended: handle its end. A call prompt is pending (a discard's or a kan's): the AI seats answer it.
-        Otherwise a discard nobody can call leads to the next player's draw.
         """
         events = convert_events(result.events)
         if self._check_and_handle_round_end(runtime, events):
@@ -360,8 +359,6 @@ class MahjongGameService(GameService):
         prompt = runtime.state.round_state.pending_call_prompt
         if prompt is not None:
             self._answer_call_prompt_for_ai_players(runtime, prompt, events)
-        elif result.needs_post_discard:
-            self._draw_after_discard(runtime, events)
 
         return events
 
@@ -534,9 +531,9 @@ class MahjongGameService(GameService):
         """
         Handle the round's end when the stored round carries its result; return whether it did.
 
-        Appends the round end's own events (game end, or the next round when no human has to confirm) to events; the
-        RoundEndEvent itself is already there. The result stays on the round through the round-advance wait, so finding
-        that wait already open means the round end would be applied twice: a server fault.
+        Appends the round end's own events (the game end) to events; the RoundEndEvent itself is already there. The
+        result stays on the round through the round-advance wait, so finding that wait already open means the round end
+        would be applied twice: a server fault.
         """
         result = runtime.state.round_state.result
         if result is None:
@@ -560,15 +557,6 @@ class MahjongGameService(GameService):
         Human seats still pending keep the prompt open (and the round without a result).
         """
         self._dispatch_ai_player_call_responses(runtime, prompt, events)
-        self._check_and_handle_round_end(runtime, events)
-
-    def _draw_after_discard(self, runtime: GameRuntime, events: list[ServiceEvent]) -> None:
-        """
-        Draw for the next player after a discard nobody can call (process_discard_phase already advanced the turn).
-        """
-        new_game_state, draw_events = process_draw_phase(runtime.state)
-        runtime.commit(new_game_state)
-        events.extend(convert_events(draw_events))
         self._check_and_handle_round_end(runtime, events)
 
     def _dispatch_ai_player_call_responses(
@@ -600,7 +588,13 @@ class MahjongGameService(GameService):
     def _handle_round_end(self, runtime: GameRuntime, round_result: RoundResult) -> list[ServiceEvent]:
         """
         Handle the end of a round -- enter waiting state for confirmations.
+
+        The session abandons a game whose last human leaves, so a round never ends without a human seat to confirm it.
         """
+        human_seats = frozenset(range(NUM_PLAYERS)) - runtime.ai.ai_player_seats
+        if not human_seats:
+            raise AssertionError("round ended with no human seat")
+
         frozen_game = runtime.state
         logger.info("round ended", result_type=type(round_result).__name__)
 
@@ -629,10 +623,6 @@ class MahjongGameService(GameService):
         runtime.commit(frozen_game)
 
         # enter waiting state for round confirmation
-        human_seats = frozenset(range(NUM_PLAYERS)) - runtime.ai.ai_player_seats
-        if not human_seats:
-            return self._start_next_round(runtime)
-
         results_shown = len(round_result.winners) if isinstance(round_result, DoubleRonResult) else 1
         runtime.pending_confirm = PendingRoundAdvance(required_seats=human_seats, results_shown=results_shown)
         # return empty -- the RoundEndEvent is already in the caller's events list
