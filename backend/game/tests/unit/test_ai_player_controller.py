@@ -7,7 +7,10 @@ from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import GameAction, KanType, MeldCallType, PlayerAction, RoundPhase
 from game.logic.state import Caller, MahjongPlayer, MahjongRoundState, MeldOption
 from game.logic.tiles import tile_to_34
+from game.logic.turn import process_discard_phase
 from game.logic.types import AIPlayerAction
+from game.tests.conftest import create_dealt_game_state, create_player
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_136_tile
 
@@ -150,6 +153,33 @@ class TestGetCallResponseAcceptingAI:
 
         result = controller.get_call_response(round_state=rs, tile_id=tile_id, caller=caller)
         assert result == (GameAction.CALL_CHI, {"tile_id": tile_id, "sequence_tiles": (0, 4)})
+
+    def test_get_call_response__when_ai_declines_offered_open_kan__should_call_pon(self):
+        class KanDecliningAI(_AcceptAllAI):
+            def should_call_kan(self, player, kan_type, tile_34, round_state) -> bool:
+                return False
+
+        three_man = tile_copies(0, man="3333")
+        players = (
+            create_player(
+                seat=0, tiles=(three_man[3], *tile_copies(0, honors="1234567"), *tile_copies(1, honors="123456"))
+            ),
+            create_player(seat=1, tiles=(*three_man[:3], *tile_copies(0, man="24", pin="12345678"))),
+            create_player(seat=2, tiles=tile_copies(2, man="456789", honors="1234567")),
+            create_player(seat=3, tiles=tile_copies(3, man="456789", honors="1234567")),
+        )
+        prompted, _events = process_discard_phase(create_dealt_game_state(players), three_man[3])
+        prompt = prompted.round_state.pending_call_prompt
+        assert prompt is not None
+        assert [(c.seat, c.can_ron, [m.call_type for m in c.melds]) for c in prompt.callers] == [
+            (1, False, [MeldCallType.OPEN_KAN, MeldCallType.PON, MeldCallType.CHI]),
+        ]
+
+        controller = AIPlayerController({1: KanDecliningAI()})
+        result = controller.get_call_response(
+            round_state=prompted.round_state, tile_id=three_man[3], caller=prompt.caller(1)
+        )
+        assert result == (GameAction.CALL_PON, {"tile_id": three_man[3]})
 
     def test_get_call_response__when_accepting_ai_and_open_kan__should_call_kan_and_convert_tile_to_34(self):
         ai = _AcceptAllAI()

@@ -78,18 +78,21 @@ class AIPlayerController:
         """
         Get an AI caller's response to a call prompt as (GameAction, data).
 
-        A caller offered ron decides on it first; one that declines it, or a meld-only caller, decides on its first
-        (highest-priority) meld. Returns None if the AI player declines everything (passes).
+        A caller offered ron decides on it first; one that declines it, or a meld-only caller, is asked about its melds
+        in offer order (kan, pon, chi) and makes the first one it accepts. Returns None if the AI player declines
+        everything (passes).
         """
         ai_player = self._ai_players[caller.seat]
         player = round_state.players[caller.seat]
         if caller.can_ron and ai_player.should_call_ron(player, discarded_tile=tile_id, round_state=round_state):
             return GameAction.CALL_RON, {}
 
-        if not caller.melds:
-            return None
+        for meld in caller.melds:
+            response = _get_meld_response(ai_player, player, meld=meld, tile_id=tile_id, round_state=round_state)
+            if response is not None:
+                return response
 
-        return _get_meld_response(ai_player, player, meld=caller.melds[0], tile_id=tile_id, round_state=round_state)
+        return None
 
 
 def _get_meld_response(
