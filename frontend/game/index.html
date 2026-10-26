@@ -1,15 +1,58 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="loading">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=800">
     <title>Ronin - Game</title>
+    <style>
+      html.loading, html.loading body { margin: 0; background: #154; overflow: hidden; }
+      #loaddata { display: none; }
+      .loading #board, .loading #space { visibility: hidden; }
+      #game-loading, .game-loading {
+        position: fixed; inset: 0; z-index: 999; width: auto; margin: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 24px; padding: 32px; box-sizing: border-box; text-align: center;
+        background: #154;
+        color: #f2eee2; font: 18px/1.6 system-ui, sans-serif;
+      }
+      .game-loading .loading-brand { font-size: 0.7em; letter-spacing: 0.35em; color: #c9bb92; }
+      .game-loading .loading-mark {
+        width: 48px; height: 64px; box-sizing: border-box; border: 2px solid #d8c697;
+        border-radius: 8px; box-shadow: 4px 4px 0 #071f1a;
+        display: grid; place-items: center; font-size: 30px;
+      }
+      .game-loading p { margin: 0; }
+      .game-loading .loading-dots { display: flex; gap: 8px; }
+      .game-loading .loading-dots span {
+        width: 6px; height: 6px; border-radius: 50%; background: #d8c697;
+        animation: loading-pulse 1.2s ease-in-out infinite;
+      }
+      .game-loading .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+      .game-loading .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+      .game-loading a:any-link { color: #c9bb92; font-size: 0.8em; text-underline-offset: 4px; }
+      @keyframes loading-pulse { 50% { opacity: 0.25; transform: translateY(-4px); } }
+      @media (pointer: coarse) {
+        #game-loading, .game-loading { font-size: 32px; gap: 32px; }
+        .game-loading .loading-mark { width: 72px; height: 96px; font-size: 44px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .game-loading .loading-dots span { animation: none; }
+      }
+    </style>
     <script type="module" src="/src/js/main.js"></script>
     <link rel="icon" type="image/png" href="/img/icon.png">
     <link rel="apple-touch-icon" type="image/png" href="/img/icon.png">
   </head>
   <body class="board">
-    <div id="loaddata">
+    <div id="game-loading" class="game-loading">
+      <div class="loading-brand">RONIN</div>
+      <div class="loading-mark" aria-hidden="true">東</div>
+      <p role="status" aria-live="polite">読み込み中…</p>
+      <div class="loading-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <a href="/">ロビーへ戻る</a>
+      <noscript>JavaScript を有効にしてください。</noscript>
+    </div>
+    <div id="loaddata" hidden>
       <img class="pai" data-pai="m1" src="/img/m1.gif" alt="イーワン">
       <img class="pai" data-pai="m2" src="/img/m2.gif" alt="リャンワン">
       <img class="pai" data-pai="m3" src="/img/m3.gif" alt="サンワン">

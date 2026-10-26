@@ -140,6 +140,7 @@ def create_app(
         Route("/play/storybook/win", public_route(play_page), methods=["GET"], name="storybook_win_page"),
         Route("/play/storybook/draw", public_route(play_page), methods=["GET"], name="storybook_draw_page"),
         Route("/play/storybook/standings", public_route(play_page), methods=["GET"], name="storybook_standings_page"),
+        Route("/play/storybook/loading", public_route(play_page), methods=["GET"], name="storybook_loading_page"),
         Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
         Route(

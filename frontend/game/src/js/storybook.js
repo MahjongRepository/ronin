@@ -16,6 +16,7 @@ const PAGE_TITLES = Object.freeze({
     [STORYBOOK_PAGE.WIN]: "Win",
     [STORYBOOK_PAGE.DRAW]: "Draw",
     [STORYBOOK_PAGE.STANDINGS]: "Standings",
+    [STORYBOOK_PAGE.LOADING]: "Loading",
 });
 
 const TILE_SUITS = Object.freeze([
@@ -197,9 +198,18 @@ const SAMPLE_PAGES = Object.freeze({
 });
 
 export function showStorybook(page) {
-    const pai = Majiang.UI.pai($("#loaddata"));
     const nav = renderNav(page);
+    if (page === STORYBOOK_PAGE.LOADING) {
+        const preview = $("#game-loading").clone().removeAttr("id");
+        $("#space, #board").remove();
+        $("body")
+            .removeClass("board")
+            .addClass("storybook storybook-loading")
+            .append(nav, $('<main class="storybook-loading-preview">').append(preview));
+        return;
+    }
 
+    const pai = Majiang.UI.pai($("#loaddata"));
     if (page in BOARD_PAGES) {
         BOARD_PAGES[page](nav, pai);
         return;

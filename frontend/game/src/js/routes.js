@@ -15,6 +15,7 @@ export const STORYBOOK_PAGE = Object.freeze({
     WIN: "win",
     DRAW: "draw",
     STANDINGS: "standings",
+    LOADING: "loading",
 });
 const STORYBOOK_PAGES = Object.values(STORYBOOK_PAGE);
 

@@ -88,6 +88,25 @@ body.board > .storybook-header
 .storybook-header .storybook-variants
     font-size: 14px
 
+body.storybook-loading
+    display: flex
+    flex-direction: column
+    min-height: 100dvh
+    box-sizing: border-box
+    padding: 0
+    > .storybook-header
+        padding: 8px 16px 0
+
+.storybook-loading-preview
+    position: relative
+    display: flex
+    flex: 1
+    .game-loading
+        position: relative
+        flex: 1
+        min-height: 360px
+        z-index: auto
+
 @media screen and (max-height: 450px)
     body.storybook
         padding: 8px 16px
@@ -120,3 +139,8 @@ body.board > .storybook-header
     body.board > .storybook-header
         box-sizing: border-box
         padding-inline: 8px
+
+    body.storybook-loading
+        padding: 0
+        > .storybook-header
+            padding-inline: 16px
