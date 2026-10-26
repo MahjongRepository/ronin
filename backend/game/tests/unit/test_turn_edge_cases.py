@@ -157,66 +157,69 @@ class TestExhaustiveDrawPhase:
         assert round_end_events[0].result.type == RoundResultType.EXHAUSTIVE_DRAW
 
 
+_RIICHI_FURITEN_DISCARDED_THREE_PIN = tile_copies(2, pin="3")[0]
+_RIICHI_FURITEN_LATER_THREE_PIN = tile_copies(3, pin="3")[0]
+_RIICHI_SEAT_DRAW = tile_copies(1, honors="7")[0]
+_RIICHI_FURITEN_SEAT_2_DRAW = tile_copies(2, honors="7")[0]
+
+
+def _riichi_seat_waiting_on_three_pin(*, earlier_discards: tuple[Discard, ...] = ()) -> MahjongGameState:
+    riichi_discard = Discard(tile_id=tile_copies(0, honors="7")[0], is_riichi_discard=True)
+    players = (
+        create_player(
+            seat=0,
+            tiles=(
+                _RIICHI_FURITEN_DISCARDED_THREE_PIN,
+                *tile_copies(0, sou="123456789"),
+                *tile_copies(1, honors="1234"),
+            ),
+        ),
+        create_player(
+            seat=1,
+            tiles=tile_copies(0, man="123456789", pin="1255"),
+            discards=(*earlier_discards, riichi_discard),
+            is_riichi=True,
+        ),
+        create_player(
+            seat=2,
+            tiles=(_RIICHI_FURITEN_LATER_THREE_PIN, *tile_copies(1, sou="123456789"), *tile_copies(2, honors="123")),
+        ),
+        create_player(seat=3, tiles=(*tile_copies(2, sou="123456789"), *tile_copies(3, honors="1234"))),
+    )
+    game_state = create_dealt_game_state(players, draws=(_RIICHI_SEAT_DRAW, _RIICHI_FURITEN_SEAT_2_DRAW))
+    assert get_waiting_tiles(players[1]) == {tile_to_34(_RIICHI_FURITEN_DISCARDED_THREE_PIN)}
+    return game_state
+
+
 class TestRiichiFuriten:
     def test_riichi_furiten__when_riichi_player_discarded_winning_tile__should_flag_riichi_furiten(self):
-        hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
-        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        furiten_discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        players = (
-            create_player(seat=0, tiles=(discard_tile,)),
-            create_player(
-                seat=1,
-                tiles=hand_tiles_1,
-                is_riichi=True,
-                discards=(Discard(tile_id=furiten_discard_tile),),
-            ),
-            create_player(seat=2),
-            create_player(seat=3),
-        )
+        game_state = _riichi_seat_waiting_on_three_pin(earlier_discards=(Discard(tile_id=tile_copies(1, pin="3")[0]),))
 
-        wall = tuple(TilesConverter.string_to_136_array(man="5555"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = create_round_state(
-            players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-        game_state = create_game_state(round_state)
+        new_game, _events = process_discard_phase(game_state, _RIICHI_FURITEN_DISCARDED_THREE_PIN)
+        assert new_game.round_state.pending_call_prompt is None
+        assert new_game.round_state.players[1].is_riichi_furiten is True
 
-        new_game, _events = process_discard_phase(game_state, discard_tile)
-        new_round = new_game.round_state
-        assert new_round.players[1].is_riichi_furiten is True
+    def test_riichi_furiten__when_riichi_player_passes_winning_tile__should_block_ron_for_rest_of_hand(self):
+        game_state = _riichi_seat_waiting_on_three_pin()
 
-    def test_riichi_furiten__when_riichi_player_not_furiten__should_offer_ron_prompt(self):
-        hand_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
-        discard_tile = TilesConverter.string_to_136_array(pin="3")[0]
-        players = (
-            create_player(seat=0, tiles=(discard_tile,)),
-            create_player(seat=1, tiles=hand_tiles_1, is_riichi=True),
-            create_player(seat=2),
-            create_player(seat=3),
-        )
+        prompted, _events = process_discard_phase(game_state, _RIICHI_FURITEN_DISCARDED_THREE_PIN)
+        prompt = prompted.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=1, can_ron=True),)
+        assert prompted.round_state.players[1].is_riichi_furiten is False
 
-        wall = tuple(TilesConverter.string_to_136_array(man="5555"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        round_state = create_round_state(
-            players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-        game_state = create_game_state(round_state)
+        passed = handle_pass(prompted, seat=1)
+        assert isinstance(passed, ActionResult)
+        assert passed.state.round_state.players[1].tiles[-1] == _RIICHI_SEAT_DRAW
+        assert passed.state.round_state.players[1].is_riichi_furiten is True
 
-        new_game, _events = process_discard_phase(game_state, discard_tile)
-        new_round = new_game.round_state
-        assert new_round.pending_call_prompt is not None
-        assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
-        assert new_round.players[1].is_riichi_furiten is False
+        own_discard = handle_discard(passed.state, seat=1, data=DiscardActionData(tile_id=_RIICHI_SEAT_DRAW))
+        assert isinstance(own_discard, ActionResult)
+        assert own_discard.state.round_state.players[1].is_riichi_furiten is True
+
+        later_wait = _discard_after_draw(own_discard.state, seat=2, tile_id=_RIICHI_FURITEN_LATER_THREE_PIN)
+        assert later_wait.state.round_state.pending_call_prompt is None
+        assert later_wait.state.round_state.players[1].is_riichi_furiten is True
 
 
 def _discard_after_draw(game_state: MahjongGameState, seat: int, tile_id: int) -> ActionResult:

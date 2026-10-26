@@ -403,9 +403,6 @@ def get_possible_added_kans(
 
     Returns a list of tile_34 indices for pons that can be upgraded.
     """
-    if player.is_riichi:
-        return []
-
     # after pon/chi, the player must discard — kan requires a drawn tile
     if round_state.is_after_meld_call:
         return []

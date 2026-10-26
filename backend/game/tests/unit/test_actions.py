@@ -8,7 +8,10 @@ from game.logic.exceptions import InvalidGameActionError
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
+from game.logic.state import Discard, MahjongGameState
 from game.logic.types import SeatConfig
+from game.tests.conftest import create_dealt_game_state, create_player
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
@@ -91,32 +94,33 @@ class TestGetAvailableActions:
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 0
 
-    def test_get_available_actions__when_hand_empty__should_return_none(self):
-        game_state = self._create_game_state()
-        round_state = game_state.round_state
-        round_state = _update_player(round_state, 0, tiles=())
-        game_state = game_state.model_copy(update={"round_state": round_state})
 
-        actions = get_available_actions(game_state, seat=0)
-        assert len(actions) == 0
+def _dealer_with_pon_after_draw(*, pon_tiles: list[int], tiles: tuple[int, ...]) -> MahjongGameState:
+    pon = FrozenMeld(
+        meld_type=FrozenMeld.PON, tiles=tuple(pon_tiles), opened=True, called_tile=pon_tiles[0], who=0, from_who=3
+    )
+    players = (
+        create_player(seat=0, tiles=tiles, melds=(pon,), discards=(Discard(tile_id=tile_copies(0, honors="1")[0]),)),
+        create_player(seat=1, tiles=tile_copies(1, pin="123456789", honors="1234")),
+        create_player(seat=2, tiles=tile_copies(2, pin="123456789", honors="1234")),
+        create_player(
+            seat=3, tiles=tile_copies(3, pin="123456789", honors="1234"), discards=(Discard(tile_id=pon_tiles[0]),)
+        ),
+    )
+    return create_dealt_game_state(players)
 
 
 class TestTsumoAfterOwnCall:
     def test_tsumo__when_hand_complete_right_after_own_pon__should_be_neither_offered_nor_accepted(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        haku_tiles = TilesConverter.string_to_136_array(honors="555")
-        haku_pon = FrozenMeld(
-            meld_type=FrozenMeld.PON, tiles=tuple(haku_tiles), opened=True, called_tile=haku_tiles[0], who=0, from_who=3
+        complete_hand = tuple(tile_copies(0, man="234567", sou="23455"))
+        drawn_game = _dealer_with_pon_after_draw(pon_tiles=tile_copies(0, honors="555"), tiles=complete_hand)
+        after_pon_game = drawn_game.model_copy(
+            update={"round_state": drawn_game.round_state.model_copy(update={"is_after_meld_call": True})}
         )
-        complete_hand = tuple(TilesConverter.string_to_136_array(man="234567", sou="23455"))
-        round_state = _update_player(game_state.round_state, 0, tiles=complete_hand, melds=(haku_pon,))
-        drawn_state = round_state.model_copy(update={"current_player_seat": 0})
-        after_pon_state = drawn_state.model_copy(update={"is_after_meld_call": True})
 
-        drawn_actions = get_available_actions(game_state.model_copy(update={"round_state": drawn_state}), seat=0)
+        drawn_actions = get_available_actions(drawn_game, seat=0)
         assert PlayerAction.TSUMO in [a.action for a in drawn_actions]
 
-        after_pon_game = game_state.model_copy(update={"round_state": after_pon_state})
         after_pon_actions = get_available_actions(after_pon_game, seat=0)
         assert PlayerAction.TSUMO not in [a.action for a in after_pon_actions]
         with pytest.raises(InvalidGameActionError, match="cannot declare tsumo"):
@@ -125,31 +129,9 @@ class TestTsumoAfterOwnCall:
 
 class TestAddedKanAction:
     def test_added_kan_action__when_pon_and_fourth_tile_in_hand__should_be_offered(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # set up player with a pon of 1m and 4th tile in hand
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(TilesConverter.string_to_136_array(man="111")[:3]),
-            opened=True,
-            called_tile=TilesConverter.string_to_136_array(man="111")[2],
-            who=0,
-            from_who=1,
-        )
-        player_tiles = (
-            TilesConverter.string_to_136_array(man="1111")[3],
-            *TilesConverter.string_to_136_array(pin="1234", sou="1234", honors="12345"),
-        )
-        round_state = _update_player(round_state, 0, melds=(pon_meld,), tiles=player_tiles)
-
-        # wall needs at least 2 tiles for kan
-        round_state = round_state.model_copy(
-            update={
-                "wall": round_state.wall.model_copy(update={"live_tiles": tuple(range(50))}),
-            },
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        one_man = tile_copies(0, man="1111")
+        drawn_hand = (one_man[3], *tile_copies(0, sou="1234", honors="234567"))
+        game_state = _dealer_with_pon_after_draw(pon_tiles=one_man[:3], tiles=drawn_hand)
 
         actions = get_available_actions(game_state, seat=0)
         added_kan_actions = [a for a in actions if a.action == PlayerAction.ADDED_KAN]

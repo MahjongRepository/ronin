@@ -6,7 +6,7 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_kans
-from game.logic.action_handlers import _handle_self_kan, handle_discard, handle_kan, handle_pass, handle_ron
+from game.logic.action_handlers import _handle_self_kan, handle_discard, handle_kan, handle_pass, handle_pon, handle_ron
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
@@ -47,7 +47,7 @@ from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer, PendingCallPrompt
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import _process_added_kan_call, _process_closed_kan_call
-from game.logic.types import DiscardActionData, KanActionData
+from game.logic.types import DiscardActionData, KanActionData, PonActionData
 from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall
 from game.logic.win import (
     get_waiting_tiles,
@@ -551,6 +551,39 @@ class TestKanDoraTiming:
         new_state, _meld = call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
         assert len(new_state.wall.dora_indicators) == initial_dora_count
         assert new_state.wall.pending_dora_count == 0
+
+    def test_kan_dora__when_open_kan_replacement_discard_is_ponned__should_reveal_dora_before_the_pon(self):
+        nine_pin = tile_copies(0, pin="9999")
+        east = tile_copies(0, honors="111")
+        players = (
+            create_player(
+                seat=0, tiles=(nine_pin[3], *tile_copies(0, man="123456789"), *tile_copies(0, honors="2345"))
+            ),
+            create_player(seat=1, tiles=(*nine_pin[:3], east[0], *tile_copies(1, sou="123456789"))),
+            create_player(seat=2, tiles=(*tile_copies(2, sou="123456789"), *tile_copies(1, honors="2345"))),
+            create_player(seat=3, tiles=(*east[1:], *tile_copies(3, sou="123456789"), *tile_copies(2, honors="23"))),
+        )
+        game_state = create_dealt_game_state(players)
+        kan_dora_indicator = game_state.round_state.wall.dead_wall.indicators[1].top
+
+        kan_offer = _discard(game_state, seat=0, tile_id=nine_pin[3])
+        kan = handle_kan(kan_offer.state, seat=1, data=KanActionData(tile_id=nine_pin[3], kan_type=KanType.OPEN))
+        assert isinstance(kan, ActionResult)
+        assert kan.state.round_state.wall.pending_dora_count == 1
+
+        replacement_discard = _discard(kan.state, seat=1, tile_id=east[0])
+        assert replacement_discard.state.round_state.wall.pending_dora_count == 1
+        assert not [e for e in replacement_discard.events if isinstance(e, DoraRevealedEvent)]
+
+        pon = handle_pon(replacement_discard.state, seat=3, data=PonActionData(tile_id=east[0]))
+        assert isinstance(pon, ActionResult)
+        assert [type(e) for e in pon.events if isinstance(e, (DoraRevealedEvent, MeldEvent))] == [
+            DoraRevealedEvent,
+            MeldEvent,
+        ]
+        assert [e.tile_id for e in pon.events if isinstance(e, DoraRevealedEvent)] == [kan_dora_indicator]
+        assert pon.state.round_state.wall.pending_dora_count == 0
+        assert pon.state.round_state.players[3].melds[-1].type == FrozenMeld.PON
 
 
 # ---------------------------------------------------------------------------
