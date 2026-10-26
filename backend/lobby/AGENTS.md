@@ -104,6 +104,12 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 Mandatory for all lobby code; review must catch violations.
 
 * Every HTML form POST validates the CSRF token (`auth/csrf.py`); bot API routes are exempt.
+* Every request body is capped by `RequestBodyLimitMiddleware` (`server/middleware.py`), which
+  wraps every middleware that can read a body and sits inside the security headers. It counts
+  streamed bytes, not `Content-Length`, and answers a JSON 413; a client gone mid-upload ends the
+  request without an error. Starlette's own body-limit middleware lacks the last two, so do not
+  swap it in. A handler reads its body before any side effect, so a rejected body changes nothing.
+  Never raise the cap for one route: it also keeps bot JSON far below the parser's recursion depth.
 * Every HTTP route gets exactly one policy decorator (`protected_html`, `protected_json`, `bot_only`,
   `public_route`); startup fails for a `Route` without one. WebSocket routes authenticate inside the
   handler. `protected_json` is for JSON a page script fetches: a JSON 401, never a login redirect.

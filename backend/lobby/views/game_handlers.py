@@ -7,14 +7,13 @@ from typing import TYPE_CHECKING
 import structlog
 from starlette.responses import JSONResponse
 
-from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
 from lobby.game_transition import GameLookupError, find_game_handoff
+from lobby.views.assets import render_page
 
 if TYPE_CHECKING:
     import httpx
     from starlette.requests import Request
     from starlette.responses import Response
-    from starlette.templating import Jinja2Templates
 
     from lobby.settings import LobbyServerSettings
     from lobby.views.game_client import GameClient
@@ -60,17 +59,5 @@ async def storybook_page(request: Request) -> Response:
     """
     Render the lobby storybook page for development.
     """
-    templates: Jinja2Templates = request.app.state.templates
     username = request.user.username if request.user.is_authenticated else None
-
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "storybook.html",
-        {"username": username, "csrf_token": csrf_token},
-    )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
+    return render_page(request, template_name="storybook.html", context={"username": username})

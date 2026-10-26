@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -7,14 +8,19 @@ from typing import TYPE_CHECKING
 import pytest
 from starlette.applications import Starlette
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.testclient import TestClient
 
-from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
+from lobby.server.middleware import (
+    RequestBodyLimitMiddleware,
+    SecurityHeadersMiddleware,
+    SlashNormalizationMiddleware,
+)
 
 if TYPE_CHECKING:
     from starlette.requests import Request
+    from starlette.types import Message
     from starlette.websockets import WebSocket
 
 _LOBBY_SECURITY_HEADERS = {
@@ -70,6 +76,91 @@ def slash_client() -> TestClient:
 @pytest.fixture
 def security_client() -> TestClient:
     return TestClient(_make_security_headers_app())
+
+
+class _BodyLimitedApp:
+    def __init__(
+        self, *, frames: list[Message], served_file: Path | None = None, frames_after_start: bool = False
+    ) -> None:
+        self.read_bodies: list[bytes] = []
+        self.sent: list[Message] = []
+        self._frames: asyncio.Queue[Message] = asyncio.Queue()
+        for frame in frames:
+            self._frames.put_nowait(frame)
+
+        self._frames_after_start = frames_after_start
+        self._response_started = asyncio.Event()
+        self._served_file = served_file
+        app = Starlette(
+            routes=[
+                Route("/upload", self._read_body, methods=["POST"]),
+                Route("/file", self._serve_file, methods=["GET"]),
+            ]
+        )
+        app.add_middleware(RequestBodyLimitMiddleware, max_body_size=10)
+        self._app = app
+
+    async def _read_body(self, request: Request) -> JSONResponse:
+        self.read_bodies.append(await request.body())
+        return JSONResponse({})
+
+    async def _serve_file(self, _request: Request) -> FileResponse:
+        assert self._served_file is not None
+        return FileResponse(self._served_file)
+
+    async def _receive(self) -> Message:
+        if self._frames_after_start:
+            await self._response_started.wait()
+
+        return await self._frames.get()
+
+    async def _send(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            self._response_started.set()
+
+        self.sent.append(message)
+
+    async def request(self, method: str, path: str) -> None:
+        scope = {"type": "http", "method": method, "path": path, "headers": [], "query_string": b""}
+        await self._app(scope, self._receive, self._send)
+
+
+class TestRequestBodyLimitMiddleware:
+    async def test_request_body_limit_middleware__when_chunks_together_exceed_limit__should_return_413_unread(self):
+        app = _BodyLimitedApp(
+            frames=[
+                {"type": "http.request", "body": b"x" * 6, "more_body": True},
+                {"type": "http.request", "body": b"x" * 6, "more_body": False},
+            ],
+        )
+
+        await app.request("POST", "/upload")
+        assert app.read_bodies == []
+        assert app.sent[0]["status"] == 413
+
+    async def test_request_body_limit_middleware__when_client_disconnects__should_end_without_response(self):
+        app = _BodyLimitedApp(
+            frames=[{"type": "http.request", "body": b"part", "more_body": True}, {"type": "http.disconnect"}],
+        )
+
+        await app.request("POST", "/upload")
+        assert app.read_bodies == []
+        assert app.sent == []
+
+    async def test_request_body_limit_middleware__when_body_exceeds_limit_after_response_start__should_finish_response(
+        self, tmp_path: Path
+    ):
+        served_file = tmp_path / "page.html"
+        served_file.write_bytes(b"page" * 100)
+        app = _BodyLimitedApp(
+            frames=[{"type": "http.request", "body": b"x" * 20, "more_body": False}],
+            served_file=served_file,
+            frames_after_start=True,
+        )
+
+        await app.request("GET", "/file")
+        assert [message["status"] for message in app.sent if message["type"] == "http.response.start"] == [200]
+        assert b"".join(message.get("body", b"") for message in app.sent[1:]) == b"page" * 100
 
 
 class TestSlashNormalizationMiddleware:

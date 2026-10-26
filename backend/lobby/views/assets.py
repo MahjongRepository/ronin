@@ -2,8 +2,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from starlette.templating import Jinja2Templates
+
+from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    from shared.auth.settings import AuthSettings
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 LOBBY_ENTRY = "src/index.ts"
@@ -14,6 +23,20 @@ def create_templates() -> Jinja2Templates:
     Create Jinja2 template engine for lobby HTML templates.
     """
     return Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def render_page(request: Request, *, template_name: str, context: dict[str, object]) -> Response:
+    """
+    Render a lobby page with the CSRF token its forms carry, setting the CSRF cookie when the token is new.
+    """
+    templates: Jinja2Templates = request.app.state.templates
+    csrf_token, is_new = get_or_create_csrf_token(request)
+    response = templates.TemplateResponse(request, template_name, {**context, "csrf_token": csrf_token})
+    if is_new:
+        auth_settings: AuthSettings = request.app.state.auth_settings
+        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
+    return response
 
 
 def load_vite_manifest(assets_dir: str) -> dict[str, dict]:

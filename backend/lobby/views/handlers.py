@@ -7,14 +7,14 @@ from urllib.parse import quote
 import structlog
 from starlette.responses import RedirectResponse
 
-from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
+from lobby.auth.csrf import validate_csrf
 from lobby.game_transition import GameLookupError, find_game_handoff
+from lobby.views.assets import render_page
 
 if TYPE_CHECKING:
     import httpx
     from starlette.requests import Request
     from starlette.responses import Response
-    from starlette.templating import Jinja2Templates
 
     from lobby.rooms.manager import LobbyRoomManager
     from lobby.settings import LobbyServerSettings
@@ -22,57 +22,20 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
-def _render_lobby_with_error(
-    request: Request,
-    templates: Jinja2Templates,
-    rooms: list[dict],
-    username: str,
-    error: str,
-) -> Response:
+def _render_lobby(request: Request, *, error: str | None) -> Response:
     """
-    Render the lobby page with an error message.
+    Render the lobby page with the locally managed rooms and an optional error message.
     """
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "lobby.html",
-        {
-            "rooms": rooms,
-            "username": username,
-            "error": error,
-            "csrf_token": csrf_token,
-        },
+    room_manager: LobbyRoomManager = request.app.state.room_manager
+    rooms = room_manager.get_rooms_info()
+    return render_page(
+        request, template_name="lobby.html", context={"rooms": rooms, "username": request.user.username, "error": error}
     )
-    if is_new:  # pragma: no cover — CSRF validation guarantees cookie exists before this path
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
 
 
 async def lobby_page(request: Request) -> Response:
     """GET / - render the lobby page with locally managed rooms."""
-    templates: Jinja2Templates = request.app.state.templates
-    room_manager: LobbyRoomManager = request.app.state.room_manager
-    user = request.user
-    rooms = room_manager.get_rooms_info()
-
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "lobby.html",
-        {
-            "rooms": rooms,
-            "username": user.username,
-            "error": None,
-            "csrf_token": csrf_token,
-        },
-    )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
+    return _render_lobby(request, error=None)
 
 
 async def create_room_and_redirect(request: Request) -> Response:
@@ -95,42 +58,23 @@ async def join_room_and_redirect(request: Request) -> Response:
     if csrf_error:
         return csrf_error
 
-    templates: Jinja2Templates = request.app.state.templates
     room_manager: LobbyRoomManager = request.app.state.room_manager
-    user = request.user
     room_id = request.path_params["room_id"]
 
     room = room_manager.get_room(room_id)
     if room is None:
-        rooms = room_manager.get_rooms_info()
-        return _render_lobby_with_error(
-            request, templates=templates, rooms=rooms, username=user.username, error="Room not found"
-        )
+        return _render_lobby(request, error="Room not found")
 
     return RedirectResponse(f"/rooms/{room_id}", status_code=303)
 
 
 async def matchmaking_page(request: Request) -> Response:
     """GET /matchmaking - render matchmaking waiting page."""
-    templates: Jinja2Templates = request.app.state.templates
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     ws_url = f"{ws_scheme}://{request.url.netloc}/ws/matchmaking"
-
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "matchmaking.html",
-        {
-            "ws_url": ws_url,
-            "username": request.user.username,
-            "csrf_token": csrf_token,
-        },
+    return render_page(
+        request, template_name="matchmaking.html", context={"ws_url": ws_url, "username": request.user.username}
     )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
 
 
 async def room_page(request: Request) -> Response:
@@ -140,7 +84,6 @@ async def room_page(request: Request) -> Response:
     A room that is gone sends the user to the lobby, or to the game page of the game they play: a room is removed once
     its game starts, and the game page recovers a lost handoff on its own.
     """
-    templates: Jinja2Templates = request.app.state.templates
     room_manager: LobbyRoomManager = request.app.state.room_manager
     room_id = request.path_params["room_id"]
 
@@ -150,23 +93,11 @@ async def room_page(request: Request) -> Response:
 
     ws_scheme = "wss" if request.url.scheme == "https" else "ws"
     ws_url = f"{ws_scheme}://{request.url.netloc}/ws/rooms/{room_id}"
-
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
+    return render_page(
         request,
-        "room.html",
-        {
-            "room_id": room_id,
-            "ws_url": ws_url,
-            "username": request.user.username,
-            "csrf_token": csrf_token,
-        },
+        template_name="room.html",
+        context={"room_id": room_id, "ws_url": ws_url, "username": request.user.username},
     )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
 
 
 async def _find_live_game_page(request: Request) -> str | None:

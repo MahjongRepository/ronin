@@ -29,7 +29,11 @@ from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.rooms.websocket import room_websocket
-from lobby.server.middleware import SecurityHeadersMiddleware, SlashNormalizationMiddleware
+from lobby.server.middleware import (
+    RequestBodyLimitMiddleware,
+    SecurityHeadersMiddleware,
+    SlashNormalizationMiddleware,
+)
 from lobby.settings import LobbyServerSettings
 from lobby.views import (
     GAME_ASSETS_PATH,
@@ -65,6 +69,8 @@ from shared.db import Database, SqliteGameRepository, SqlitePlayerRepository
 from shared.logging import setup_logging
 
 logger = structlog.get_logger()
+
+_MAX_REQUEST_BODY_SIZE = 4096
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -231,16 +237,7 @@ def create_app(
             await db.close()
 
     app = Starlette(routes=routes, lifespan=lifespan)
-    app.add_middleware(SlashNormalizationMiddleware)
-    app.add_middleware(AuthenticationMiddleware, backend=SessionOrApiKeyBackend(auth_service))
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-API-Key"],
-    )
-    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    _add_middleware(app, settings=settings, auth_service=auth_service)
 
     app.state.game_client = game_client
     _attach_state(
@@ -257,6 +254,26 @@ def create_app(
 
     logger.info("lobby server ready")
     return app
+
+
+def _add_middleware(app: Starlette, *, settings: LobbyServerSettings, auth_service: AuthService) -> None:
+    """
+    Add the middleware stack, innermost first.
+
+    The body limit wraps everything that can read a body, so it sees every exception a body read raises, and sits inside
+    the security headers, so its 413 carries them.
+    """
+    app.add_middleware(SlashNormalizationMiddleware)
+    app.add_middleware(AuthenticationMiddleware, backend=SessionOrApiKeyBackend(auth_service))
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-API-Key"],
+    )
+    app.add_middleware(RequestBodyLimitMiddleware, max_body_size=_MAX_REQUEST_BODY_SIZE)
+    app.add_middleware(SecurityHeadersMiddleware, vite_dev_url=settings.vite_dev_url)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
 
 def _attach_state(  # noqa: PLR0913

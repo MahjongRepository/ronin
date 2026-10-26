@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
 from starlette.datastructures import FormData
 
 from lobby.auth.csrf import (
@@ -85,9 +86,10 @@ class TestValidateCsrf:
         assert result is not None
         assert result.status_code == 403
 
-    def test_validate_csrf__when_tokens_mismatch__should_return_403(self):
+    @pytest.mark.parametrize("form_token", ["token-b", "tökén-ä"], ids=["ascii", "non_ascii"])
+    def test_validate_csrf__when_tokens_mismatch__should_return_403(self, form_token: str):
         request = _make_request({CSRF_COOKIE_NAME: "token-a"})
-        form = FormData({CSRF_FORM_FIELD: "token-b"})
+        form = FormData({CSRF_FORM_FIELD: form_token})
 
         result = validate_csrf(request, form)
         assert result is not None

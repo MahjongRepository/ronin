@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 
 from starlette.responses import RedirectResponse, Response
 
-from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie, validate_csrf
+from lobby.auth.csrf import validate_csrf
+from lobby.views.assets import render_page
 from shared.auth.service import AuthError
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
 
@@ -34,25 +35,13 @@ def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSetti
 
 async def login_page(request: Request) -> Response:
     """GET /login - render login form with CSRF token."""
-    templates = request.app.state.templates
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "login.html",
-        {"error": None, "csrf_token": csrf_token},
-    )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
+    return render_page(request, template_name="login.html", context={"error": None})
 
 
 async def login(request: Request) -> Response:
     """POST /login - validate credentials, set session cookie, redirect to lobby."""
     auth_service = request.app.state.auth_service
     auth_settings = request.app.state.auth_settings
-    templates = request.app.state.templates
     form = await request.form()
 
     csrf_error = validate_csrf(request, form)
@@ -65,37 +54,20 @@ async def login(request: Request) -> Response:
     try:
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
-        csrf_token, _ = get_or_create_csrf_token(request)
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {"error": str(e), "csrf_token": csrf_token},
-        )
+        return render_page(request, template_name="login.html", context={"error": str(e)})
 
     return _redirect_with_session_cookie(session, auth_settings)
 
 
 async def register_page(request: Request) -> Response:
     """GET /register - render registration form with CSRF token."""
-    templates = request.app.state.templates
-    csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(
-        request,
-        "register.html",
-        {"error": None, "csrf_token": csrf_token},
-    )
-    if is_new:
-        auth_settings = request.app.state.auth_settings
-        set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
-
-    return response
+    return render_page(request, template_name="register.html", context={"error": None})
 
 
 async def register(request: Request) -> Response:
     """POST /register - create account, auto-login, redirect to lobby."""
     auth_service = request.app.state.auth_service
     auth_settings = request.app.state.auth_settings
-    templates = request.app.state.templates
     form = await request.form()
 
     csrf_error = validate_csrf(request, form)
@@ -106,23 +78,13 @@ async def register(request: Request) -> Response:
     password = form.get("password", "")
     confirm_password = form.get("confirm_password", "")
     if password != confirm_password:
-        csrf_token, _ = get_or_create_csrf_token(request)
-        return templates.TemplateResponse(
-            request,
-            "register.html",
-            {"error": "Passwords do not match", "csrf_token": csrf_token},
-        )
+        return render_page(request, template_name="register.html", context={"error": "Passwords do not match"})
 
     try:
         await auth_service.register(str(username), str(password))
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
-        csrf_token, _ = get_or_create_csrf_token(request)
-        return templates.TemplateResponse(
-            request,
-            "register.html",
-            {"error": str(e), "csrf_token": csrf_token},
-        )
+        return render_page(request, template_name="register.html", context={"error": str(e)})
 
     return _redirect_with_session_cookie(session, auth_settings)
 
