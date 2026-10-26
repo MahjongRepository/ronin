@@ -52,6 +52,7 @@ from game.logic.turn import (
     process_draw_phase,
 )
 from game.logic.types import (
+    AbortiveDrawResult,
     ChiActionData,
     DiscardActionData,
     DiscardInfo,
@@ -62,6 +63,7 @@ from game.logic.types import (
     PonActionData,
     ReconnectionSnapshot,
     RiichiActionData,
+    RonResult,
     RoundResult,
 )
 from game.logic.wall import tiles_remaining
@@ -69,6 +71,7 @@ from game.logic.wall import tiles_remaining
 if TYPE_CHECKING:
     from game.logic.action_result import ActionResult
     from game.logic.settings import GameSettings
+    from game.logic.types import RobbedKan
 
 logger = structlog.get_logger()
 
@@ -82,6 +85,16 @@ class _CallStart:
     state: MahjongGameState
     kind: WaitKind
     seats: frozenset[int]
+
+
+def _robbed_kan_of(result: RoundResult | None) -> RobbedKan | None:
+    """
+    Return the kan a round's result robbed by chankan, or None for a round without one (or still in play).
+    """
+    if isinstance(result, RonResult | DoubleRonResult | AbortiveDrawResult):
+        return result.robbed_kan
+
+    return None
 
 
 class MahjongGameService(GameService):
@@ -653,6 +666,7 @@ class MahjongGameService(GameService):
                 ],
                 melds=[frozen_meld_to_compact(m) for m in p.melds],
                 is_riichi=p.is_riichi,
+                tile_count=len(p.tiles),
             )
             for p in round_state.players
         ]
@@ -676,6 +690,7 @@ class MahjongGameService(GameService):
             player_states=player_states,
             is_furiten=runtime.furiten.is_furiten(seat),
             round_history=list(game_state.round_history),
+            robbed_kan=_robbed_kan_of(round_state.result),
         )
 
     def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:

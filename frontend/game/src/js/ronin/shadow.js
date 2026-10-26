@@ -34,6 +34,7 @@ class Shadow {
         this.waitId   = null;
         this.roundAdvance = false;
         this.prompt   = null;
+        this.declaredKan = null;               /* a kan shown at its chankan prompt, before its meld or round end */
         this.offerActions = {};
         this.log      = null;
         this.rounds   = [];
@@ -53,6 +54,7 @@ class Shadow {
         this.wallOffset = 0;
         this.drawnTileId = null;
         this.prompt   = null;
+        this.declaredKan = null;
         this.lastDapai = null;
         this.offerActions = {};
         this.roundAdvance = false;

@@ -18,14 +18,14 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Caller
-from game.logic.tiles import tile_to_34
+from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
 )
 from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_wall
+from game.tests.helpers.wall import make_start_wall, make_wall
 from game.tests.unit.helpers import (
     _find_player,
     _string_to_34_tile,
@@ -351,6 +351,11 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             game_player = game_state.round_state.players[ps.seat]
             assert ps.score == game_player.score
 
+        dealer_seat = game_state.round_state.dealer_seat
+        assert [ps.tile_count for ps in snapshot.player_states] == [
+            14 if seat == dealer_seat else 13 for seat in range(4)
+        ]
+
     def test_build_reconnection_snapshot__when_human_restored__should_mark_player_as_not_ai(self, service):
         runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
         player = _find_player(runtime.state.round_state, "Alice")
@@ -391,6 +396,31 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
                 "sch": {seat: 30 if seat == riichi_seat else -10 for seat in range(4)},
             },
         ]
+
+    def test_build_reconnection_snapshot__when_round_advance_follows_a_robbed_kan__should_name_the_robbed_kan(
+        self, service
+    ):
+        man_1 = [tile_copies(copy, man="1")[0] for copy in range(4)]
+        kokushi_on_man_1 = (*tile_copies(0, man="9", pin="19", sou="19", honors="1234567"), *tile_copies(3, man="9"))
+        others = [tile for tile in range(NUM_TILES) if tile not in {*man_1, *kokushi_on_man_1}]
+        dealer_hand = (*man_1[:3], *others[:10])
+        wall = make_start_wall((dealer_hand, kokushi_on_man_1, others[10:23], others[23:36]), draws=(man_1[3],))
+
+        runtime = service.start_game(
+            "game1",
+            ["Alice", "Bob", "Charlie", "Diana"],
+            seed="a" * 192,
+            settings=GameSettings(tobi_enabled=False),
+            wall=list(wall),
+        ).runtime
+        service.handle_action(
+            runtime, seat=0, action=GameAction.CALL_KAN, data={"tile_id": man_1[3], "kan_type": "closed"}
+        )
+        service.handle_action(runtime, seat=1, action=GameAction.CALL_RON, data={})
+        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
+
+        payload = service.build_reconnection_snapshot(runtime, 2).model_dump(by_alias=True, exclude_none=True)
+        assert payload["rk"] == {"s": 0, "ti": man_1[3], "kty": "closed"}
 
 
 class TestMahjongGameServiceBuildTurnEventForSeat:
