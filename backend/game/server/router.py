@@ -35,6 +35,8 @@ _GAME_ACTION_TYPES = (
     NoDataActionMessage,
 )
 
+_INVALID_MESSAGE_REASON = "Invalid message"
+
 
 class MessageRouter:
     """
@@ -57,10 +59,15 @@ class MessageRouter:
     ) -> None:
         try:
             message = parse_client_message(raw_message)
-        except (ValidationError, KeyError, TypeError, ValueError) as e:
-            logger.warning("invalid message", error=str(e))
+        except ValidationError as e:
+            errors = e.errors(include_url=False, include_context=False, include_input=False)
+            logger.warning(
+                "invalid message",
+                error_types=[error["type"] for error in errors],
+                error_count=len(errors),
+            )
             connection.send_message(
-                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
+                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=_INVALID_MESSAGE_REASON).model_dump(),
             )
             return
 

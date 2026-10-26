@@ -30,7 +30,8 @@ contracts in `backend/pyproject.toml`). Something two layers both need goes down
 Mandatory for all game server code; review must catch violations.
 
 * Rate-limit every WebSocket after decoding and before processing, so malformed frames always count:
-  undecodable frames (non-binary included) are consecutive strikes that close the connection.
+  every frame is charged once, an over-budget malformed frame gets no reply or log, and undecodable
+  frames (non-binary included) are consecutive strikes that close the connection.
 * A connection must authenticate (JOIN_GAME or RECONNECT) within the auth timeout or be closed.
 * A connection the server closes is evicted from the registry in the same synchronous step, so a
   pipelined or concurrent join/reconnect cannot pick it up.
@@ -49,7 +50,8 @@ Mandatory for all game server code; review must catch violations.
 * No exception from handling a message leaves the ASGI app: a router handler that reaches a game
   fails that game, anything else closes the socket as an internal error.
 * Concealed hand tiles are logged at DEBUG only; game tickets and session tokens are never logged at
-  INFO or above.
+  INFO or above. A message that fails validation is answered and logged without its input or the
+  validation text (a pydantic message can quote the input): only the error types.
 
 ## Tests
 
