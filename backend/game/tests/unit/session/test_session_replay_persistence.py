@@ -13,7 +13,7 @@ from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_AWAITING, MOCK_GAME_OVER, FakeGameRepository, FakeReplayStorage
 from shared.dal.models import GameEndReason
 
-from .helpers import ENGINE_SEED, create_started_game, game_of, wait_for_background_tasks
+from .helpers import ENGINE_SEED, create_started_game, game_of, runtime_of, wait_for_background_tasks
 
 
 def _make_game_end_event() -> ServiceEvent:
@@ -37,13 +37,14 @@ class TestReplayCollectorMerge:
 
 
 class TestSessionReplay:
-    async def test_replay_start__when_game_starts__should_record_with_the_engine_seed(self, seeded_engine):
+    async def test_replay_start__when_game_starts__should_record_with_the_engine_seed_and_settings(self, seeded_engine):
         manager = make_session_manager(seeded_engine)
         create_started_game(manager)
 
         replay = game_of(manager).replay
         assert replay is not None
-        assert (replay.seed, replay.rng_version) == (ENGINE_SEED, RNG_VERSION)
+        engine_settings = runtime_of(manager).state.settings
+        assert (replay.seed, replay.rng_version, replay.settings) == (ENGINE_SEED, RNG_VERSION, engine_settings)
         await manager.shutdown()
 
     async def test_replay_collect__when_events_broadcast__should_append_them_without_saving(self):

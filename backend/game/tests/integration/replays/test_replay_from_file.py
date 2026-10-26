@@ -1,12 +1,19 @@
+import json
 from pathlib import Path
 
+import pytest
+
 from game.logic.enums import GameAction
-from game.logic.events import EventType, SeatTarget
+from game.logic.events import EventType, RoundEndEvent, SeatTarget
 from game.logic.rng import RNG_VERSION
+from game.messaging.event_payload import service_event_payload
 from game.replay import run_replay
+from game.replay.external.tenhou import convert_replay
 from game.replay.loader import load_replay_from_file
+from game.wire.enums import WireEventType
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "simple_cases"
+ALL_FIXTURES = sorted((Path(__file__).parent / "fixtures").glob("*/*.txt"))
 
 
 def test_replay_runner__when_single_discard_replay_loaded__should_produce_consistent_trace():
@@ -47,3 +54,18 @@ def test_replay_runner__when_single_discard_replay_loaded__should_produce_consis
     assert discard_step.state_before == trace.initial_state
     # Last step ends at final state (regardless of synthetic steps)
     assert trace.steps[-1].state_after == trace.final_state
+
+
+@pytest.mark.parametrize("fixture", ALL_FIXTURES, ids=lambda path: path.stem)
+def test_replay_fixture__when_loaded_replayed_and_exported__should_reproduce_its_round_ends_and_rounds(fixture):
+    recorded_lines = [json.loads(line) for line in fixture.read_text().splitlines()[1:]]
+
+    trace = run_replay(load_replay_from_file(fixture))
+    replayed_events = [*trace.startup_events, *(e for step in trace.steps for e in step.emitted_events)]
+    replayed_round_ends = [
+        json.loads(json.dumps(service_event_payload(e))) for e in replayed_events if isinstance(e.data, RoundEndEvent)
+    ]
+    assert replayed_round_ends == [line for line in recorded_lines if line["t"] == WireEventType.ROUND_END]
+
+    tenhou_xml = convert_replay(fixture)
+    assert tenhou_xml.count("<INIT ") == sum(line["t"] == WireEventType.ROUND_STARTED for line in recorded_lines)

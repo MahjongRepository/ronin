@@ -17,10 +17,11 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import service_event_payload
-from game.wire.replay_format import REPLAY_VERSION
+from game.wire.replay_format import REPLAY_VERSION, encode_replay_settings
 
 if TYPE_CHECKING:
     from game.logic.events import ServiceEvent
+    from game.logic.settings import GameSettings
     from shared.storage import ReplayStorage
 
 logger = structlog.get_logger()
@@ -38,11 +39,13 @@ _EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
 @dataclass
 class ReplayRecord:
     """
-    One game's replay as recorded so far: the seed and RNG version its game_started line carries, and the lines.
+    One game's replay as recorded so far: the seed, RNG version and settings its game_started line carries, and the
+    lines.
     """
 
     seed: str
     rng_version: str
+    settings: GameSettings
     lines: list[str] = field(default_factory=list)
 
 
@@ -94,6 +97,7 @@ class ReplayCollector:
             if isinstance(event.data, GameStartedEvent):
                 payload["sd"] = record.seed
                 payload["rv"] = record.rng_version
+                payload["gs"] = encode_replay_settings(record.settings)
 
             buffer.append(json.dumps(payload, default=str))
 

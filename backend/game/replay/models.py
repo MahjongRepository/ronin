@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from game.logic.enums import GameAction
 from game.logic.events import ErrorEvent, ServiceEvent
 from game.logic.rng import RNG_VERSION
-from game.logic.settings import NUM_PLAYERS
+from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.state import MahjongGameState
 from game.logic.tiles import NUM_TILES
 
@@ -35,6 +35,7 @@ class ReplayInput(BaseModel):
     seed: str
     rng_version: str = RNG_VERSION
     player_names: tuple[str, str, str, str]
+    settings: GameSettings
     events: tuple[ReplayInputEvent, ...]
     wall: tuple[int, ...] | None = None
 

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 from game.logic.enums import GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION
+from game.logic.settings import GameSettings
 from game.replay import loader as replay_loader_module
 from game.replay.loader import (
     _MAX_REPLAY_EVENTS,
@@ -20,7 +21,7 @@ from game.replay.loader import (
 from game.wire.compact import encode_discard
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
-from game.wire.replay_format import REPLAY_VERSION
+from game.wire.replay_format import REPLAY_VERSION, encode_replay_settings
 from shared.lib.melds import MeldData, encode_meld_compact
 
 # Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3
@@ -28,20 +29,21 @@ _TEST_SEED = "0" * 191 + "6"
 
 VERSION_TAG_LINE = json.dumps({"version": REPLAY_VERSION})
 
-GAME_STARTED_LINE = json.dumps(
-    {
-        "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
-        "gid": "test-game",
-        "p": [
-            {"s": 0, "nm": "Alice", "ai": 0},
-            {"s": 1, "nm": "Bob", "ai": 0},
-            {"s": 2, "nm": "Charlie", "ai": 0},
-            {"s": 3, "nm": "Diana", "ai": 0},
-        ],
-        "sd": _TEST_SEED,
-        "rv": RNG_VERSION,
-    },
-)
+GAME_STARTED = {
+    "t": EVENT_TYPE_INT[EventType.GAME_STARTED],
+    "gid": "test-game",
+    "gt": 0,
+    "p": [
+        {"s": 0, "nm": "Alice", "ai": 0},
+        {"s": 1, "nm": "Bob", "ai": 0},
+        {"s": 2, "nm": "Charlie", "ai": 0},
+        {"s": 3, "nm": "Diana", "ai": 0},
+    ],
+    "sd": _TEST_SEED,
+    "rv": RNG_VERSION,
+    "gs": encode_replay_settings(GameSettings()),
+}
+GAME_STARTED_LINE = json.dumps(GAME_STARTED)
 
 ROUND_STARTED_LINE = json.dumps({"t": EVENT_TYPE_INT[EventType.ROUND_STARTED], "view": {"my_tiles": []}})
 DRAW_LINE = json.dumps({"t": EVENT_TYPE_INT[EventType.DRAW], "seat": 0, "tile_id": 108})
@@ -583,6 +585,8 @@ _MISSING = object()
         ),
         pytest.param({**_RON_BY_BOB, "rk": {"s": True, "ti": 47, "kty": "added"}}, id="robbed_kan_bool"),
         pytest.param({**_RON_BY_BOB, "rk": {"s": 0.0, "ti": 47, "kty": "added"}}, id="robbed_kan_float"),
+        pytest.param({**_RON_BY_BOB, "hbs": [True]}, id="head_bumped_bool"),
+        pytest.param({**_RON_BY_BOB, "hbs": [7]}, id="head_bumped_unknown"),
     ],
 )
 def test_load_replay__when_round_end_seat_malformed__should_raise(round_end: dict[str, object]):
@@ -667,6 +671,71 @@ def test_load_replay__when_round_end_that_robs_no_kan_carries_one__should_raise(
     content = _build_event_log(json.dumps({**round_end, "rk": robbed_kan}))
     with pytest.raises(ReplayLoadError, match=r"robs no kan carries a robbed kan \(rk\)"):
         load_replay_from_string(content)
+
+
+@pytest.mark.parametrize(
+    ("round_end", "error"),
+    [
+        pytest.param({**_RON_BY_BOB, "hbs": 2}, r"invalid head-bumped ron seats \(hbs\)", id="not_a_list"),
+        pytest.param({**_RON_BY_BOB, "hbs": []}, r"invalid head-bumped ron seats \(hbs\)", id="empty"),
+        pytest.param({**_RON_BY_BOB, "hbs": [2, 2]}, r"invalid head-bumped ron seats \(hbs\)", id="duplicate"),
+        pytest.param({**_RON_BY_BOB, "hbs": [1]}, r"invalid head-bumped ron seats \(hbs\)", id="the_winner"),
+        pytest.param({**_RON_BY_BOB, "hbs": [0]}, r"invalid head-bumped ron seats \(hbs\)", id="the_discarder"),
+        pytest.param(
+            {**_RON_BY_BOB, "rk": {"s": 3, "ti": 47, "kty": "added"}, "hbs": [3]},
+            r"invalid head-bumped ron seats \(hbs\)",
+            id="the_robbed_kan_declarer",
+        ),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.DOUBLE_RON, "ls": 0, "wn": [{"ws": 1}, {"ws": 2}], "hbs": [2]},
+            r"invalid head-bumped ron seats \(hbs\)",
+            id="a_double_ron_winner",
+        ),
+        pytest.param(
+            {"t": _ROUND_END, "rt": WireRoundResultType.TSUMO, "ws": 1, "hbs": [2]},
+            r"is no ron carries head-bumped ron seats \(hbs\)",
+            id="on_a_tsumo",
+        ),
+    ],
+)
+def test_load_replay__when_head_bumped_ron_seats_malformed__should_raise(round_end: dict[str, object], error: str):
+    content = _build_event_log(json.dumps(round_end))
+    with pytest.raises(ReplayLoadError, match=error):
+        load_replay_from_string(content)
+
+
+_DEFAULT_SETTINGS = encode_replay_settings(GameSettings())
+
+
+@pytest.mark.parametrize(
+    ("game_started", "error"),
+    [
+        pytest.param({**GAME_STARTED, "gs": _MISSING}, "invalid settings", id="missing"),
+        pytest.param({**GAME_STARTED, "gs": "hanchan"}, "invalid settings", id="not_an_object"),
+        pytest.param(
+            {**GAME_STARTED, "gs": {k: v for k, v in _DEFAULT_SETTINGS.items() if k != "has_double_ron"}},
+            "invalid settings",
+            id="missing_field",
+        ),
+        pytest.param({**GAME_STARTED, "gs": {**_DEFAULT_SETTINGS, "has_sanma": True}}, "invalid settings", id="extra"),
+        pytest.param(
+            {**GAME_STARTED, "gs": {**_DEFAULT_SETTINGS, "riichi_cost": "1000"}}, "invalid settings", id="type"
+        ),
+        pytest.param({**GAME_STARTED, "gs": {**_DEFAULT_SETTINGS, "has_kuitan": 1}}, "invalid settings", id="int_bool"),
+        pytest.param(
+            {**GAME_STARTED, "gs": {**_DEFAULT_SETTINGS, "has_agariyame": True}}, "invalid settings", id="unsupported"
+        ),
+        pytest.param({**GAME_STARTED, "gt": 1}, r"game type \(gt\) 1 does not match", id="game_type_mismatch"),
+        pytest.param({**GAME_STARTED, "gt": False}, r"game type \(gt\) False does not match", id="game_type_bool"),
+        pytest.param(
+            {k: v for k, v in GAME_STARTED.items() if k != "gt"}, r"game type \(gt\) None", id="game_type_missing"
+        ),
+    ],
+)
+def test_load_replay__when_game_settings_malformed__should_raise(game_started: dict[str, object], error: str):
+    recorded = {k: v for k, v in game_started.items() if v is not _MISSING}
+    with pytest.raises(ReplayLoadError, match=error):
+        load_replay_from_string(f"{VERSION_TAG_LINE}\n{json.dumps(recorded)}")
 
 
 def test_load_replay__when_discard_packed_value_is_bool__should_raise():

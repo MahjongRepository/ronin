@@ -513,7 +513,9 @@ def process_ron_call(
             tile_id=tile_id,
         )
 
-    result = result.model_copy(update={"robbed_kan": ron_input.robbed_kan})
+    result = result.model_copy(
+        update={"robbed_kan": ron_input.robbed_kan, "head_bumped_seats": ron_input.head_bumped_seats},
+    )
     new_game_state, round_end = finish_round(new_game_state, result)
     return new_game_state, [round_end]
 
