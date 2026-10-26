@@ -237,7 +237,7 @@ def _run_step(
     ).events
 
     if ctx.opts.strict:
-        errors = [e for e in events if e.event == EventType.ERROR]
+        errors = [e for e in events if e.type == EventType.ERROR]
         if errors:
             raise ReplayError(step_index=len(steps), event=input_event, errors=errors)
 

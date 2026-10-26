@@ -105,7 +105,7 @@ def _play_record_and_replay(
     recorded_events = list(start.events)
     for seat, action, data in actions:
         update = service.handle_action(runtime, seat=seat, action=action, data=data)
-        assert [e.data for e in update.events if e.event == EventType.ERROR] == []
+        assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
 
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
@@ -121,7 +121,7 @@ def _play_record_and_replay(
         ),
         ReplayOptions(auto_confirm_rounds=False),
     )
-    round_ends = [e.data.result for e in recorded_events if isinstance(e.data, RoundEndEvent)]
+    round_ends = [e.result for e in recorded_events if isinstance(e, RoundEndEvent)]
     tenhou_xml = TenhouConverter([json.loads(line) for line in record.lines]).convert()
     return runtime.state, round_ends, loaded, trace, tenhou_xml
 

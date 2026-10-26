@@ -8,10 +8,10 @@ from game.logic.events import (
     DiscardEvent,
     DrawEvent,
     EventType,
+    GameEvent,
     MeldEvent,
     RoundEndEvent,
     SeatTarget,
-    ServiceEvent,
     TurnEvent,
 )
 from game.logic.meld_compact import meld_event_to_compact
@@ -32,9 +32,9 @@ CONFIRMATION_OWED_KEY = "oc"
 WAIT_ELAPSED_KEY = "el"
 
 
-def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
+def game_event_payload(event: GameEvent) -> dict[str, Any]:
     """
-    Return the wire-format dict for a ServiceEvent payload.
+    Return the wire-format dict of a game event.
 
     Shape: {"t": <int>, **data_fields} with internal-only fields
     ("type" and "target" on the domain model) excluded.
@@ -44,34 +44,34 @@ def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
     All other events use Pydantic serialization aliases via by_alias=True,
     with None fields excluded via exclude_none=True.
     """
-    if isinstance(event.data, MeldEvent):
-        return {"t": WireEventType.MELD, "m": meld_event_to_compact(event.data)}
+    if isinstance(event, MeldEvent):
+        return {"t": WireEventType.MELD, "m": meld_event_to_compact(event)}
 
-    if isinstance(event.data, DrawEvent):
-        d = encode_draw(event.data.seat, event.data.tile_id)
+    if isinstance(event, DrawEvent):
+        d = encode_draw(event.seat, event.tile_id)
         payload: dict[str, Any] = {"t": EVENT_TYPE_INT[EventType.DRAW], "d": d}
-        if event.data.available_actions:
-            payload["aa"] = [aa.model_dump(by_alias=True, exclude_none=True) for aa in event.data.available_actions]
+        if event.available_actions:
+            payload["aa"] = [aa.model_dump(by_alias=True, exclude_none=True) for aa in event.available_actions]
 
         return payload
 
-    if isinstance(event.data, DiscardEvent):
+    if isinstance(event, DiscardEvent):
         return {
             "t": EVENT_TYPE_INT[EventType.DISCARD],
             "d": encode_discard(
-                event.data.seat,
-                event.data.tile_id,
-                is_tsumogiri=event.data.is_tsumogiri,
-                is_riichi=event.data.is_riichi,
+                event.seat,
+                event.tile_id,
+                is_tsumogiri=event.is_tsumogiri,
+                is_riichi=event.is_riichi,
             ),
         }
 
-    if isinstance(event.data, RoundEndEvent):
-        return {"t": EVENT_TYPE_INT[event.event], **round_result_payload(event.data.result)}
+    if isinstance(event, RoundEndEvent):
+        return {"t": EVENT_TYPE_INT[event.type], **round_result_payload(event.result)}
 
     return {
-        "t": EVENT_TYPE_INT[event.event],
-        **event.data.model_dump(
+        "t": EVENT_TYPE_INT[event.type],
+        **event.model_dump(
             exclude={"type", "target"},
             by_alias=True,
             exclude_none=True,
@@ -152,7 +152,7 @@ def stamp_timer_settings(payload: dict[str, Any], timer: TimerSettings) -> dict[
     return {**payload, TIMER_SETTINGS_KEY: timer.model_dump(by_alias=True)}
 
 
-def stamp_wait_id(payload: dict[str, Any], event: ServiceEvent, awaiting: Awaiting) -> dict[str, Any]:
+def stamp_wait_id(payload: dict[str, Any], event: GameEvent, awaiting: Awaiting) -> dict[str, Any]:
     """
     Add the wait id (`wi`) to the payload of an event that opens the awaited wait; leave any other payload as it is.
 
@@ -166,14 +166,13 @@ def stamp_wait_id(payload: dict[str, Any], event: ServiceEvent, awaiting: Awaiti
     return payload
 
 
-def _opens_wait(event: ServiceEvent, awaiting: Awaiting) -> bool:
-    data = event.data
+def _opens_wait(event: GameEvent, awaiting: Awaiting) -> bool:
     target = event.target
     to_awaited_seat = isinstance(target, SeatTarget) and target.seat in awaiting.seats
     if awaiting.kind == WaitKind.TURN:
-        return isinstance(data, DrawEvent | TurnEvent) and to_awaited_seat
+        return isinstance(event, DrawEvent | TurnEvent) and to_awaited_seat
 
     if awaiting.kind == WaitKind.CALL:
-        return isinstance(data, CallPromptEvent) and to_awaited_seat
+        return isinstance(event, CallPromptEvent) and to_awaited_seat
 
-    return awaiting.kind == WaitKind.ROUND_ADVANCE and isinstance(data, RoundEndEvent)
+    return awaiting.kind == WaitKind.ROUND_ADVANCE and isinstance(event, RoundEndEvent)

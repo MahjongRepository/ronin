@@ -246,7 +246,7 @@ class TestTemporaryFuriten:
         passed = handle_discard(game_state, seat=2, data=DiscardActionData(tile_id=three_man_without_yaku))
         assert isinstance(passed, ActionResult)
         assert passed.state.round_state.pending_call_prompt is None
-        assert [e.data for e in furiten.check_changes(passed.state.round_state)] == [
+        assert furiten.check_changes(passed.state.round_state) == [
             FuritenEvent(is_furiten=True, target=SeatTarget(seat=1)),
         ]
 
@@ -257,7 +257,7 @@ class TestTemporaryFuriten:
         before_own_discard = _discard(missed.state, seat=0, tile_id=seat_0_draw)
         own_discard = _discard(before_own_discard.state, seat=1, tile_id=seat_1_draw)
         assert own_discard.state.round_state.players[1].is_temporary_furiten is False
-        assert [e.data for e in furiten.check_changes(own_discard.state.round_state)] == [
+        assert furiten.check_changes(own_discard.state.round_state) == [
             FuritenEvent(is_furiten=False, target=SeatTarget(seat=1)),
         ]
 

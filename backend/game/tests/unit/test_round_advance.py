@@ -122,7 +122,7 @@ class TestConfirmRound:
         service._handle_round_end(runtime, result)
 
         events = service.handle_action(runtime, seat=player_seat, action=GameAction.CONFIRM_ROUND, data={}).events
-        round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
+        round_started = [e for e in events if e.type == EventType.ROUND_STARTED]
         assert len(round_started) == 4
         assert runtime.pending_confirm is None
         assert runtime.state.round_state.result is None
@@ -153,9 +153,9 @@ class TestConfirmRound:
 
         events = service.handle_action(runtime, seat=player_seat, action=GameAction.CONFIRM_ROUND, data={}).events
         assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_ACTION
+        assert events[0].type == EventType.ERROR
+        assert isinstance(events[0], ErrorEvent)
+        assert events[0].code == GameErrorCode.INVALID_ACTION
 
     def test_game_action__when_round_phase_finished__should_return_invalid_action_error(self, service):
         runtime = service.start_game("game1", ["Player"], seed="a" * 192).runtime
@@ -171,10 +171,10 @@ class TestConfirmRound:
             runtime, seat=player.seat, action=GameAction.DISCARD, data={"tile_id": tile_id}
         ).events
         assert len(events) == 1
-        assert events[0].event == EventType.ERROR
-        assert isinstance(events[0].data, ErrorEvent)
-        assert events[0].data.code == GameErrorCode.INVALID_ACTION
-        assert "not in progress" in events[0].data.message
+        assert events[0].type == EventType.ERROR
+        assert isinstance(events[0], ErrorEvent)
+        assert events[0].code == GameErrorCode.INVALID_ACTION
+        assert "not in progress" in events[0].message
 
 
 class TestRoundAdvanceTimeout:
@@ -191,7 +191,7 @@ class TestRoundAdvanceTimeout:
         service._handle_round_end(runtime, result)
 
         events = service.handle_timeout(runtime, seat=player_seat, timeout_type=TimeoutType.ROUND_ADVANCE).events
-        round_started = [e for e in events if e.event == EventType.ROUND_STARTED]
+        round_started = [e for e in events if e.type == EventType.ROUND_STARTED]
         assert len(round_started) == 4
 
 
@@ -234,6 +234,6 @@ class TestRoundAdvanceGameEnd:
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         )
         events = service._handle_round_end(runtime, result)
-        game_end_events = [e for e in events if e.event == EventType.GAME_END]
+        game_end_events = [e for e in events if e.type == EventType.GAME_END]
         assert len(game_end_events) == 1
         assert runtime.pending_confirm is None

@@ -8,7 +8,7 @@ from mahjong.tile import TilesConverter
 
 from game.logic.ai_player import AIPlayer
 from game.logic.enums import GameAction, TimeoutType, WaitKind
-from game.logic.events import EventType, GameEndedEvent, ServiceEvent
+from game.logic.events import EventType, GameEndedEvent, GameEvent
 from game.logic.exceptions import InvalidGameActionError, ScoringError
 from game.logic.scoring import HandResult
 from game.logic.types import PlayerStanding
@@ -49,18 +49,16 @@ from .helpers import (
 )
 
 
-def _make_game_end_events() -> list[ServiceEvent]:
+def _make_game_end_events() -> list[GameEvent]:
     return [
-        ServiceEvent(
-            data=GameEndedEvent(
-                type=EventType.GAME_END,
-                winner_seat=0,
-                standings=[
-                    PlayerStanding(seat=0, score=25000, final_score=0),
-                ],
-                leftover_riichi_bonus=0,
-                num_rounds=1,
-            ),
+        GameEndedEvent(
+            type=EventType.GAME_END,
+            winner_seat=0,
+            standings=[
+                PlayerStanding(seat=0, score=25000, final_score=0),
+            ],
+            leftover_riichi_bonus=0,
+            num_rounds=1,
         ),
     ]
 

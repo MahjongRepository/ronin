@@ -16,7 +16,6 @@ from game.logic.events import (
     RoundEndEvent,
     RoundStartedEvent,
     SeatTarget,
-    ServiceEvent,
 )
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import GameSettings, GameType
@@ -28,7 +27,7 @@ from game.logic.types import (
     PlayerView,
     TenpaiHand,
 )
-from game.messaging.event_payload import service_event_payload
+from game.messaging.event_payload import game_event_payload
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.mocks import FakeReplayStorage
 from game.wire.compact import encode_discard, encode_draw
@@ -52,123 +51,99 @@ _SEAT_TILES = {
 }
 
 
-def _make_discard_event(seat: int = 0, tile_id: int = 10) -> ServiceEvent:
-    return ServiceEvent(
-        data=DiscardEvent(seat=seat, tile_id=tile_id),
+def _make_discard_event(seat: int = 0, tile_id: int = 10) -> DiscardEvent:
+    return DiscardEvent(seat=seat, tile_id=tile_id)
+
+
+def _make_meld_event() -> MeldEvent:
+    return MeldEvent(
+        meld_type=MeldViewType.PON,
+        caller_seat=1,
+        from_seat=0,
+        tile_ids=[10, 11, 12],
+        called_tile_id=10,
     )
 
 
-def _make_meld_event() -> ServiceEvent:
-    return ServiceEvent(
-        data=MeldEvent(
-            meld_type=MeldViewType.PON,
-            caller_seat=1,
-            from_seat=0,
-            tile_ids=[10, 11, 12],
-            called_tile_id=10,
+def _make_riichi_event(seat: int = 0) -> RiichiDeclaredEvent:
+    return RiichiDeclaredEvent(seat=seat)
+
+
+def _make_dora_event() -> DoraRevealedEvent:
+    return DoraRevealedEvent(tile_id=5)
+
+
+def _make_game_started_event(game_id: str = "game1") -> GameStartedEvent:
+    return GameStartedEvent(
+        game_id=game_id,
+        game_type=GameType.HANCHAN,
+        players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
+        dealer_seat=0,
+        dealer_dice=((1, 1), (1, 1)),
+    )
+
+
+def _make_game_ended_event() -> GameEndedEvent:
+    return GameEndedEvent(
+        winner_seat=0,
+        standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
+        leftover_riichi_bonus=0,
+        num_rounds=1,
+    )
+
+
+def _make_round_end_event() -> RoundEndEvent:
+    return RoundEndEvent(
+        result=ExhaustiveDrawResult(
+            tempai_seats=[0],
+            noten_seats=[1, 2, 3],
+            tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
+            scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
+            score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
         ),
     )
 
 
-def _make_riichi_event(seat: int = 0) -> ServiceEvent:
-    return ServiceEvent(
-        data=RiichiDeclaredEvent(seat=seat),
+def _make_draw_event(seat: int = 0, tile_id: int = 1) -> DrawEvent:
+    return DrawEvent(seat=seat, tile_id=tile_id, target=SeatTarget(seat=seat))
+
+
+def _make_call_prompt_event(seat: int = 1) -> CallPromptEvent:
+    return CallPromptEvent(
+        call_type=CallType.MELD,
+        tile_id=10,
+        from_seat=0,
+        callers=[seat],
+        target=SeatTarget(seat=seat),
     )
 
 
-def _make_dora_event() -> ServiceEvent:
-    return ServiceEvent(
-        data=DoraRevealedEvent(tile_id=5),
-    )
+def _make_error_event(seat: int = 0) -> ErrorEvent:
+    return ErrorEvent(code=GameErrorCode.INVALID_ACTION, message="nope", target=SeatTarget(seat=seat))
 
 
-def _make_game_started_event(game_id: str = "game1") -> ServiceEvent:
-    return ServiceEvent(
-        data=GameStartedEvent(
-            game_id=game_id,
-            game_type=GameType.HANCHAN,
-            players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
-            dealer_seat=0,
-            dealer_dice=((1, 1), (1, 1)),
-        ),
-    )
+def _make_furiten_event(seat: int = 0) -> FuritenEvent:
+    return FuritenEvent(is_furiten=True, target=SeatTarget(seat=seat))
 
 
-def _make_game_ended_event() -> ServiceEvent:
-    return ServiceEvent(
-        data=GameEndedEvent(
-            winner_seat=0,
-            standings=[PlayerStanding(seat=0, score=25000, final_score=0)],
-            leftover_riichi_bonus=0,
-            num_rounds=1,
-        ),
-    )
-
-
-def _make_round_end_event() -> ServiceEvent:
-    return ServiceEvent(
-        data=RoundEndEvent(
-            result=ExhaustiveDrawResult(
-                tempai_seats=[0],
-                noten_seats=[1, 2, 3],
-                tenpai_hands=[TenpaiHand(seat=0, closed_tiles=[], melds=[])],
-                scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
-                score_changes={0: 3000, 1: -1000, 2: -1000, 3: -1000},
-            ),
-        ),
-    )
-
-
-def _make_draw_event(seat: int = 0, tile_id: int = 1) -> ServiceEvent:
-    return ServiceEvent(
-        data=DrawEvent(seat=seat, tile_id=tile_id, target=SeatTarget(seat=seat)),
-    )
-
-
-def _make_call_prompt_event(seat: int = 1) -> ServiceEvent:
-    return ServiceEvent(
-        data=CallPromptEvent(
-            call_type=CallType.MELD,
-            tile_id=10,
-            from_seat=0,
-            callers=[seat],
-            target=SeatTarget(seat=seat),
-        ),
-    )
-
-
-def _make_error_event(seat: int = 0) -> ServiceEvent:
-    return ServiceEvent(
-        data=ErrorEvent(code=GameErrorCode.INVALID_ACTION, message="nope", target=SeatTarget(seat=seat)),
-    )
-
-
-def _make_furiten_event(seat: int = 0) -> ServiceEvent:
-    return ServiceEvent(
-        data=FuritenEvent(is_furiten=True, target=SeatTarget(seat=seat)),
-    )
-
-
-def _make_round_started_event(seat: int = 0) -> ServiceEvent:
+def _make_round_started_event(seat: int = 0) -> RoundStartedEvent:
     players = [PlayerView(seat=s, score=25000) for s in range(4)]
-    return ServiceEvent(
-        data=RoundStartedEvent(
-            seat=seat,
-            round_wind=WindName.EAST,
-            round_number=1,
-            dealer_seat=0,
-            current_player_seat=0,
-            dora_indicators=[],
-            honba_sticks=0,
-            riichi_sticks=0,
-            my_tiles=_SEAT_TILES[seat],
-            players=players,
-            target=SeatTarget(seat=seat),
-        ),
+    return RoundStartedEvent(
+        seat=seat,
+        round_wind=WindName.EAST,
+        round_number=1,
+        dealer_seat=0,
+        current_player_seat=0,
+        dora_indicators=[],
+        honba_sticks=0,
+        riichi_sticks=0,
+        my_tiles=_SEAT_TILES[seat],
+        players=players,
+        target=SeatTarget(seat=seat),
     )
 
 
-def _make_all_round_started_events() -> list[ServiceEvent]:
+def _make_all_round_started_events() -> list[RoundStartedEvent]:
     return [_make_round_started_event(seat) for seat in range(4)]
 
 
@@ -240,13 +215,11 @@ class TestReplayCollectorFiltering:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        draw_with_actions = ServiceEvent(
-            data=DrawEvent(
-                seat=0,
-                tile_id=42,
-                target=SeatTarget(seat=0),
-                available_actions=[AvailableActionItem(action="discard", tiles=[42])],
-            ),
+        draw_with_actions = DrawEvent(
+            seat=0,
+            tile_id=42,
+            target=SeatTarget(seat=0),
+            available_actions=[AvailableActionItem(action="discard", tiles=[42])],
         )
 
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
@@ -404,9 +377,7 @@ class TestReplayCollectorJsonLines:
         storage = FakeReplayStorage()
         collector = ReplayCollector(storage)
 
-        riichi_discard = ServiceEvent(
-            data=DiscardEvent(seat=0, tile_id=10, is_riichi=True),
-        )
+        riichi_discard = DiscardEvent(seat=0, tile_id=10, is_riichi=True)
 
         replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
         collector.collect_events(replay, [riichi_discard])
@@ -455,7 +426,7 @@ class TestReplayCollectorSeedInReplay:
         game_ended = lines[2]
         assert "sd" not in game_ended
 
-    def test_service_event_payload__when_game_started__should_exclude_seed(self):
+    def test_game_event_payload__when_game_started__should_exclude_seed(self):
         event = _make_game_started_event()
-        payload = service_event_payload(event)
+        payload = game_event_payload(event)
         assert "sd" not in payload

@@ -9,11 +9,11 @@ from game.logic.enums import GameAction, WaitKind
 from game.logic.events import (
     EventType,
     GameEndedEvent,
+    GameEvent,
     GamePlayerInfo,
     GameStartedEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
-    ServiceEvent,
 )
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
@@ -29,7 +29,7 @@ from game.logic.types import (
     YakuInfo,
 )
 from game.logic.wall import DEAD_WALL_SIZE
-from game.messaging.event_payload import service_event_payload
+from game.messaging.event_payload import game_event_payload
 from game.replay.external.tenhou import TenhouConverter
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.hands import tile_copies
@@ -77,16 +77,14 @@ KAN_GAME_DRAWS = (*SOUTH_DRAWS, tile_copies(1, honors="4")[0], PIN_3_ADDED)
 
 
 def _game_started_replay_line(settings: GameSettings) -> dict[str, Any]:
-    event = ServiceEvent(
-        data=GameStartedEvent(
-            game_id="game1",
-            game_type=settings.game_type,
-            players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
-            dealer_seat=0,
-            dealer_dice=((1, 1), (1, 1)),
-        ),
+    event = GameStartedEvent(
+        game_id="game1",
+        game_type=settings.game_type,
+        players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
+        dealer_seat=0,
+        dealer_dice=((1, 1), (1, 1)),
     )
-    payload = {**service_event_payload(event), "sd": "a" * 192, "rv": RNG_VERSION}
+    payload = {**game_event_payload(event), "sd": "a" * 192, "rv": RNG_VERSION}
     return json.loads(json.dumps({**payload, "gs": encode_replay_settings(settings)}))
 
 
@@ -118,8 +116,8 @@ def _round_started_replay_line(honba: int) -> dict[str, Any]:
     }
 
 
-def _replay_line(event: ServiceEvent) -> dict[str, Any]:
-    return json.loads(json.dumps(service_event_payload(event)))
+def _replay_line(event: GameEvent) -> dict[str, Any]:
+    return json.loads(json.dumps(game_event_payload(event)))
 
 
 CUSTOM_STICK_SETTINGS = GameSettings(riichi_cost=2000, honba_ron_bonus=500, honba_tsumo_bonus_per_loser=200)
@@ -158,8 +156,8 @@ def _single_win_replay_lines(settings: GameSettings, result: RonResult | TsumoRe
     return [
         _game_started_replay_line(settings),
         _round_started_replay_line(honba=2),
-        _replay_line(ServiceEvent(data=RiichiDeclaredEvent(seat=0))),
-        _replay_line(ServiceEvent(data=RoundEndEvent(result=result))),
+        _replay_line(RiichiDeclaredEvent(seat=0)),
+        _replay_line(RoundEndEvent(result=result)),
     ]
 
 
@@ -229,8 +227,8 @@ def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_of_the_tier_
 
 def _game_end_replay_line(final_scores: dict[int, int]) -> dict[str, Any]:
     standings = [PlayerStanding(seat=seat, score=score, final_score=0) for seat, score in final_scores.items()]
-    event = ServiceEvent(data=GameEndedEvent(winner_seat=0, standings=standings, leftover_riichi_bonus=0, num_rounds=1))
-    return json.loads(json.dumps(service_event_payload(event)))
+    event = GameEndedEvent(winner_seat=0, standings=standings, leftover_riichi_bonus=0, num_rounds=1)
+    return json.loads(json.dumps(game_event_payload(event)))
 
 
 def _double_ron_winner(seat: int, score_changes: dict[int, int]) -> DoubleRonWinner:
@@ -256,7 +254,7 @@ def test_tenhou_converter__when_game_ending_double_ron__should_give_each_agari_i
         scores={0: 25000, 1: 25000, 2: 25000, 3: 24000},
         score_changes={0: 2000, 1: -5000, 2: 4000, 3: 0},
     )
-    round_end_line = _replay_line(ServiceEvent(data=RoundEndEvent(result=result)))
+    round_end_line = _replay_line(RoundEndEvent(result=result))
     game_end_line = _game_end_replay_line({0: 27000, 1: 20000, 2: 29000, 3: 24000})
 
     xml = TenhouConverter(
@@ -278,7 +276,7 @@ def _start_game(wall: tuple[int, ...], settings: GameSettings | None) -> tuple[M
     return service, start
 
 
-def _replay_lines(recorded_events: list[ServiceEvent], settings: GameSettings) -> list[dict[str, Any]]:
+def _replay_lines(recorded_events: list[GameEvent], settings: GameSettings) -> list[dict[str, Any]]:
     record = ReplayRecord(seed=SEED, rng_version=RNG_VERSION, settings=settings)
     ReplayCollector(FakeReplayStorage()).collect_events(record, recorded_events)
     return [json.loads(line) for line in record.lines]
@@ -293,7 +291,7 @@ def _play_and_record_replay_lines(
     recorded_events = list(start.events)
     for seat, action, data in actions:
         update = service.handle_action(start.runtime, seat=seat, action=action, data=data)
-        assert [e.data for e in update.events if e.event == EventType.ERROR] == []
+        assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
 
     return _replay_lines(recorded_events, start.runtime.state.settings)
@@ -313,7 +311,7 @@ def _play_by_tsumogiri_and_record_replay_lines(wall: tuple[int, ...], settings: 
                 start.runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": drawn_tile}
             )
 
-        assert [e.data for e in update.events if e.event == EventType.ERROR] == []
+        assert [e for e in update.events if e.type == EventType.ERROR] == []
         recorded_events += update.events
         awaiting = update.awaiting
 

@@ -87,7 +87,7 @@ def test_added_kan__when_replayed__should_upgrade_pon_and_draw_replacement():
     kan_step = kan_steps[0]
     assert kan_step.input_event.player_name == "Alice"
     # Verify meld event was emitted
-    step_event_types = [e.event for e in kan_step.emitted_events]
+    step_event_types = [e.type for e in kan_step.emitted_events]
     assert EventType.MELD in step_event_types
     # After kan: Alice (seat 2) should have the upgraded meld
     alice_after_kan = kan_step.state_after.round_state.players[2]
@@ -147,15 +147,15 @@ def test_added_kan__when_replayed__should_reveal_dora_after_replacement_discard(
     kan_step_idx = non_synthetic_steps.index(kan_step)
     discard_after_kan = non_synthetic_steps[kan_step_idx + 1]
     # Kan step: dora is deferred, so NO DoraRevealedEvent
-    kan_dora_events = [e for e in kan_step.emitted_events if e.event == EventType.DORA_REVEALED]
+    kan_dora_events = [e for e in kan_step.emitted_events if e.type == EventType.DORA_REVEALED]
     assert len(kan_dora_events) == 0, "added kan should not reveal dora immediately"
     # Kan step: pending_dora_count should be incremented
     assert kan_step.state_after.round_state.wall.pending_dora_count == 1
     # Discard step after kan: DoraRevealedEvent should be emitted
-    discard_dora_events = [e for e in discard_after_kan.emitted_events if e.event == EventType.DORA_REVEALED]
+    discard_dora_events = [e for e in discard_after_kan.emitted_events if e.type == EventType.DORA_REVEALED]
     assert len(discard_dora_events) == 1, "dora should be revealed after replacement discard"
     # Verify the revealed dora indicator tile
-    dora_event = discard_dora_events[0].data
+    dora_event = discard_dora_events[0]
     assert isinstance(dora_event, DoraRevealedEvent)
     assert dora_event.tile_id == SECOND_DORA_INDICATOR
     # After discard: dora_indicators should contain both the original and the kan dora

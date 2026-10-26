@@ -2,7 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
-from game.logic.events import BroadcastTarget, EventType, ServiceEvent
+from game.logic.events import BroadcastTarget, EventType
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
@@ -88,15 +88,13 @@ class TestSessionManagerInvalidAction:
     async def test_invalid_action__when_player_replaced__should_broadcast_ai_pending_actions(self, manager):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
 
-        ai_player_event = ServiceEvent(
-            data=MockResultEvent(
-                type=EventType.DRAW,
-                target=BroadcastTarget(),
-                seat=0,
-                action=GameAction.DISCARD,
-                input={},
-                success=True,
-            ),
+        ai_player_event = MockResultEvent(
+            type=EventType.DRAW,
+            target=BroadcastTarget(),
+            seat=0,
+            action=GameAction.DISCARD,
+            input={},
+            success=True,
         )
         manager._game_service.process_ai_player_actions_after_replacement = MagicMock(
             return_value=mock_update([ai_player_event]),

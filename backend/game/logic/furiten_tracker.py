@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from game.logic.enums import RoundPhase
-from game.logic.events import FuritenEvent, SeatTarget, ServiceEvent
+from game.logic.events import FuritenEvent, SeatTarget
 from game.logic.settings import NUM_PLAYERS
 from game.logic.tiles import DRAWN_HAND_REMAINDER
 from game.logic.win import is_effective_furiten
@@ -39,7 +39,7 @@ class FuritenTracker:
         """
         return self._state[seat]
 
-    def check_changes(self, round_state: MahjongRoundState) -> list[ServiceEvent]:
+    def check_changes(self, round_state: MahjongRoundState) -> list[FuritenEvent]:
         """
         Check all seats for furiten state changes and return events.
 
@@ -49,7 +49,7 @@ class FuritenTracker:
         if round_state.phase != RoundPhase.PLAYING:
             return []
 
-        events: list[ServiceEvent] = []
+        events: list[FuritenEvent] = []
         for seat in range(NUM_PLAYERS):
             player = round_state.players[seat]
             if player is self._checked_players.get(seat):
@@ -59,9 +59,7 @@ class FuritenTracker:
             current = self._current_furiten(seat, player)
             if current != self._state[seat]:
                 self._state[seat] = current
-                events.append(
-                    ServiceEvent.model_construct(data=FuritenEvent(is_furiten=current, target=SeatTarget(seat=seat))),
-                )
+                events.append(FuritenEvent(is_furiten=current, target=SeatTarget(seat=seat)))
 
         return events
 

@@ -21,11 +21,11 @@ from game.logic.enums import GameAction, GameErrorCode, GamePhase, RoundPhase, T
 from game.logic.events import (
     ErrorEvent,
     GameEndedEvent,
+    GameEvent,
     GameStartedEvent,
+    RoundStartedEvent,
     SeatTarget,
-    ServiceEvent,
     build_call_prompt_events,
-    convert_events,
 )
 from game.logic.exceptions import GeneratedActionError, InvalidGameActionError
 from game.logic.furiten_tracker import FuritenTracker
@@ -171,11 +171,14 @@ class MahjongGameService(GameService):
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
         logger.debug("starting game", player_names=player_names, hands=hands)
 
-        events = [self._create_game_started_event(runtime), *self._create_round_started_events(frozen_game)]
+        events: list[GameEvent] = [
+            self._create_game_started_event(runtime),
+            *self._create_round_started_events(frozen_game),
+        ]
 
         new_game_state, draw_events = process_draw_phase(frozen_game)
         runtime.commit(new_game_state)
-        events.extend(convert_events(draw_events))
+        events.extend(draw_events)
 
         # process AI player turns if dealer is an AI player
         if runtime.ai.is_ai_player(new_game_state.round_state.dealer_seat):
@@ -183,7 +186,7 @@ class MahjongGameService(GameService):
 
         return GameStart(runtime=runtime, events=events, awaiting=self._end_call(runtime, call), seats=player_seats)
 
-    def _create_game_started_event(self, runtime: GameRuntime) -> ServiceEvent:
+    def _create_game_started_event(self, runtime: GameRuntime) -> GameStartedEvent:
         """
         Create a single game_started event broadcast to all players.
         """
@@ -192,21 +195,19 @@ class MahjongGameService(GameService):
             GamePlayerInfo(seat=p.seat, name=p.name, is_ai_player=runtime.ai.is_ai_player(p.seat))
             for p in game_state.round_state.players
         ]
-        return ServiceEvent(
-            data=GameStartedEvent(
-                game_id=runtime.game_id,
-                game_type=game_state.settings.game_type,
-                players=players,
-                dealer_seat=game_state.round_state.dealer_seat,
-                dealer_dice=game_state.dealer_dice,
-            ),
+        return GameStartedEvent(
+            game_id=runtime.game_id,
+            game_type=game_state.settings.game_type,
+            players=players,
+            dealer_seat=game_state.round_state.dealer_seat,
+            dealer_dice=game_state.dealer_dice,
         )
 
-    def _create_round_started_events(self, game_state: MahjongGameState) -> list[ServiceEvent]:
+    def _create_round_started_events(self, game_state: MahjongGameState) -> list[RoundStartedEvent]:
         """
         Create round_started events for all players.
         """
-        return [ServiceEvent(data=get_player_view(game_state, seat)) for seat in range(NUM_PLAYERS)]
+        return [get_player_view(game_state, seat) for seat in range(NUM_PLAYERS)]
 
     def handle_action(
         self,
@@ -236,7 +237,7 @@ class MahjongGameService(GameService):
         seat: int,
         action: GameAction,
         data: dict[str, Any],
-    ) -> list[ServiceEvent]:
+    ) -> list[GameEvent]:
         """
         Run a player's action and the AI players' turns it leads to; return the events.
         """
@@ -264,7 +265,7 @@ class MahjongGameService(GameService):
         events = self._commit_and_process(runtime, result)
         return self._continue_with_ai_players(runtime, events)
 
-    def _continue_with_ai_players(self, runtime: GameRuntime, events: list[ServiceEvent]) -> list[ServiceEvent]:
+    def _continue_with_ai_players(self, runtime: GameRuntime, events: list[GameEvent]) -> list[GameEvent]:
         """
         Run the AI players' turns after an action, when the round still plays and no call prompt waits.
         """
@@ -274,7 +275,7 @@ class MahjongGameService(GameService):
 
         return events
 
-    def _commit_and_process(self, runtime: GameRuntime, result: ActionResult) -> list[ServiceEvent]:
+    def _commit_and_process(self, runtime: GameRuntime, result: ActionResult) -> list[GameEvent]:
         """
         Store a handler's result and run what follows it (_process_action_result_internal).
 
@@ -346,13 +347,13 @@ class MahjongGameService(GameService):
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"action {action} has no handler")
 
-    def _process_action_result_internal(self, runtime: GameRuntime, result: ActionResult) -> list[ServiceEvent]:
+    def _process_action_result_internal(self, runtime: GameRuntime, result: ActionResult) -> list[GameEvent]:
         """
         Run what follows a stored result, without the AI players' turns.
 
         The round ended: handle its end. A call prompt is pending (a discard's or a kan's): the AI seats answer it.
         """
-        events = convert_events(result.events)
+        events = list(result.events)
         if self._check_and_handle_round_end(runtime, events):
             return events
 
@@ -469,7 +470,7 @@ class MahjongGameService(GameService):
         seat: int,
         action: GameAction,
         data: dict[str, Any],
-    ) -> list[ServiceEvent]:
+    ) -> list[GameEvent]:
         """
         Run a timeout's default action for a seat, then the AI players' turns it leads to.
         """
@@ -477,7 +478,7 @@ class MahjongGameService(GameService):
         events = self._commit_and_process(runtime, result)
         return self._continue_with_ai_players(runtime, events)
 
-    def _handle_turn_timeout(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def _handle_turn_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Handle TURN timeout: make the default discard (choose_default_discard).
         """
@@ -494,7 +495,7 @@ class MahjongGameService(GameService):
         logger.info("turn timeout, auto-discarding", tile_id=tile_id)
         return self._run_generated_action(runtime, seat=seat, action=GameAction.DISCARD, data={"tile_id": tile_id})
 
-    def _handle_meld_timeout(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def _handle_meld_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Handle MELD timeout: pass on the call opportunity.
         """
@@ -505,7 +506,7 @@ class MahjongGameService(GameService):
         logger.info("meld timeout, auto-passing")
         return self._run_generated_action(runtime, seat=seat, action=GameAction.PASS, data={})
 
-    def _handle_round_advance_timeout(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def _handle_round_advance_timeout(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Handle ROUND_ADVANCE timeout: confirm the round end for the seat.
 
@@ -521,13 +522,13 @@ class MahjongGameService(GameService):
         code: GameErrorCode,
         message: str,
         seat: int,
-    ) -> list[ServiceEvent]:
+    ) -> list[GameEvent]:
         """
-        Create an error event for a seat, wrapped in a ServiceEvent.
+        Create an error event for a seat.
         """
-        return [ServiceEvent(data=ErrorEvent(code=code, message=message, target=SeatTarget(seat=seat)))]
+        return [ErrorEvent(code=code, message=message, target=SeatTarget(seat=seat))]
 
-    def _check_and_handle_round_end(self, runtime: GameRuntime, events: list[ServiceEvent]) -> bool:
+    def _check_and_handle_round_end(self, runtime: GameRuntime, events: list[GameEvent]) -> bool:
         """
         Handle the round's end when the stored round carries its result; return whether it did.
 
@@ -549,7 +550,7 @@ class MahjongGameService(GameService):
         self,
         runtime: GameRuntime,
         prompt: PendingCallPrompt,
-        events: list[ServiceEvent],
+        events: list[GameEvent],
     ) -> None:
         """
         Answer a pending call prompt for its AI seats, and handle the round end their answers may resolve it into.
@@ -563,7 +564,7 @@ class MahjongGameService(GameService):
         self,
         runtime: GameRuntime,
         prompt: PendingCallPrompt,
-        events: list[ServiceEvent],
+        events: list[GameEvent],
     ) -> None:
         """
         Dispatch AI player responses to the pending call prompt.
@@ -583,9 +584,9 @@ class MahjongGameService(GameService):
             logger.debug("AI player call response", action=action.value, ai_seat=seat)
             result = self._dispatch_generated_action(runtime, seat=seat, action=action, data=data)
             runtime.commit(result.state)
-            events.extend(convert_events(result.events))
+            events.extend(result.events)
 
-    def _handle_round_end(self, runtime: GameRuntime, round_result: RoundResult) -> list[ServiceEvent]:
+    def _handle_round_end(self, runtime: GameRuntime, round_result: RoundResult) -> list[GameEvent]:
         """
         Handle the end of a round -- enter waiting state for confirmations.
 
@@ -609,13 +610,11 @@ class MahjongGameService(GameService):
             )
             runtime.commit(frozen_game)
             return [
-                ServiceEvent(
-                    data=GameEndedEvent(
-                        winner_seat=game_result.winner_seat,
-                        standings=game_result.standings,
-                        leftover_riichi_bonus=game_result.leftover_riichi_bonus,
-                        num_rounds=frozen_game.round_number,
-                    ),
+                GameEndedEvent(
+                    winner_seat=game_result.winner_seat,
+                    standings=game_result.standings,
+                    leftover_riichi_bonus=game_result.leftover_riichi_bonus,
+                    num_rounds=frozen_game.round_number,
                 ),
             ]
 
@@ -628,7 +627,7 @@ class MahjongGameService(GameService):
         # return empty -- the RoundEndEvent is already in the caller's events list
         return []
 
-    def _handle_confirm_round(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def _handle_confirm_round(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Handle a player confirming readiness for the next round.
         """
@@ -649,7 +648,7 @@ class MahjongGameService(GameService):
         runtime.pending_confirm = None
         return self._start_next_round(runtime)
 
-    def _append_furiten_changes(self, runtime: GameRuntime, events: list[ServiceEvent]) -> list[ServiceEvent]:
+    def _append_furiten_changes(self, runtime: GameRuntime, events: list[GameEvent]) -> list[GameEvent]:
         """
         Append furiten state-change events if round is still playing.
         """
@@ -722,7 +721,7 @@ class MahjongGameService(GameService):
             result=round_state.result,
         )
 
-    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_wait_events_for_seat(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Rebuild the event that opened the wait the game owes the seat: its call prompt, or its turn's draw.
 
@@ -738,13 +737,13 @@ class MahjongGameService(GameService):
         round_state = game_state.round_state
         prompt = round_state.pending_call_prompt
         if kind == WaitKind.CALL and prompt is not None:
-            return convert_events([e for e in build_call_prompt_events(prompt) if e.target == SeatTarget(seat=seat)])
+            return [e for e in build_call_prompt_events(prompt) if e.target == SeatTarget(seat=seat)]
 
         if kind != WaitKind.TURN:
             return []
 
         if round_state.is_after_meld_call:
-            return convert_events([create_turn_event(game_state, seat=seat)])
+            return [create_turn_event(game_state, seat=seat)]
 
         player = round_state.players[seat]
         if not player.tiles:
@@ -752,10 +751,9 @@ class MahjongGameService(GameService):
 
         # The last tile in hand is the drawn tile
         tile_id = player.tiles[-1]
-        draw_event = create_draw_event(game_state, seat=seat, tile_id=tile_id)
-        return convert_events([draw_event])
+        return [create_draw_event(game_state, seat=seat, tile_id=tile_id)]
 
-    def _auto_confirm_pending_advance(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent] | None:
+    def _auto_confirm_pending_advance(self, runtime: GameRuntime, seat: int) -> list[GameEvent] | None:
         """
         Auto-confirm a seat's pending round advance after AI player replacement.
 
@@ -785,7 +783,7 @@ class MahjongGameService(GameService):
         game_state: MahjongGameState,
         *,
         seat: int,
-    ) -> list[ServiceEvent]:
+    ) -> list[GameEvent]:
         """
         Resolve the replaced seat's pending round confirmation or call response as an AI player, then run the AI turns.
         """
@@ -798,7 +796,7 @@ class MahjongGameService(GameService):
         if round_state.phase != RoundPhase.PLAYING:
             return []
 
-        events: list[ServiceEvent] = []
+        events: list[GameEvent] = []
 
         # if the replaced player had a pending call prompt, resolve their response as AI player
         prompt = round_state.pending_call_prompt
@@ -828,7 +826,7 @@ class MahjongGameService(GameService):
 
         return events
 
-    def _start_next_round(self, runtime: GameRuntime) -> list[ServiceEvent]:
+    def _start_next_round(self, runtime: GameRuntime) -> list[GameEvent]:
         """
         Start the next round and return events.
         """
@@ -840,25 +838,25 @@ class MahjongGameService(GameService):
         logger.debug("starting next round", hands=hands)
 
         runtime.furiten = FuritenTracker()
-        events = self._create_round_started_events(frozen_game)
+        events: list[GameEvent] = [*self._create_round_started_events(frozen_game)]
 
         new_game_state, draw_events = process_draw_phase(frozen_game)
         runtime.commit(new_game_state)
-        events.extend(convert_events(draw_events))
+        events.extend(draw_events)
 
         if runtime.ai.is_ai_player(new_game_state.round_state.dealer_seat):
             events.extend(self._process_ai_player_followup(runtime))
 
         return events
 
-    def _process_ai_player_followup(self, runtime: GameRuntime) -> list[ServiceEvent]:
+    def _process_ai_player_followup(self, runtime: GameRuntime) -> list[GameEvent]:
         """
         Process AI player turn actions iteratively.
 
         Loop until a player's turn is reached, a pending call prompt awaits player input, or the round ends. Each AI
         turn discards (or ends the round), so the loop always progresses; a refused AI action raises instead.
         """
-        all_events: list[ServiceEvent] = []
+        all_events: list[GameEvent] = []
         while True:
             round_state = runtime.state.round_state
             if round_state.phase != RoundPhase.PLAYING or round_state.pending_call_prompt is not None:
@@ -872,7 +870,7 @@ class MahjongGameService(GameService):
 
         return all_events
 
-    def _execute_ai_player_turn(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def _execute_ai_player_turn(self, runtime: GameRuntime, seat: int) -> list[GameEvent]:
         """
         Execute a single AI player turn action; an AI that has no action or makes a refused one is a server fault.
         """

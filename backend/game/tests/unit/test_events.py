@@ -1,30 +1,12 @@
 from game.logic.enums import CallType, MeldCallType, PromptKind
 from game.logic.events import (
-    DrawEvent,
-    EventType,
     SeatTarget,
-    ServiceEvent,
     build_call_prompt_events,
-    convert_events,
 )
 from game.logic.state import Caller, MeldOption, PendingCallPrompt
 from game.logic.types import (
     MeldCaller,
 )
-from game.tests.unit.helpers import _string_to_136_tile
-
-
-class TestConvertEvents:
-    def test_convert_events__when_typed_event__should_wrap_in_service_event(self):
-        events = [DrawEvent(seat=0, tile_id=_string_to_136_tile(man="1"), target=SeatTarget(seat=0))]
-
-        result = convert_events(events)
-        assert len(result) == 1
-        assert isinstance(result[0], ServiceEvent)
-        assert result[0].event == EventType.DRAW
-        assert isinstance(result[0].data, DrawEvent)
-        assert result[0].data.seat == 0
-        assert result[0].target == SeatTarget(seat=0)
 
 
 class TestBuildCallPromptEvents:

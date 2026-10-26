@@ -6,7 +6,7 @@ import pytest
 from game.logic.enums import GameAction
 from game.logic.events import EventType, RoundEndEvent, SeatTarget
 from game.logic.rng import RNG_VERSION
-from game.messaging.event_payload import service_event_payload
+from game.messaging.event_payload import game_event_payload
 from game.replay import run_replay
 from game.replay.external.tenhou import convert_replay
 from game.replay.loader import load_replay_from_file
@@ -33,22 +33,22 @@ def test_replay_runner__when_single_discard_replay_loaded__should_produce_consis
     assert trace.rng_version == RNG_VERSION
     assert len(trace.seat_by_player) == 4
     # Verify startup events contain GAME_STARTED and ROUND_STARTED
-    startup_types = [e.event for e in trace.startup_events]
+    startup_types = [e.type for e in trace.startup_events]
     assert EventType.GAME_STARTED in startup_types
     assert EventType.ROUND_STARTED in startup_types
     # Startup should include per-seat ROUND_STARTED events (4 seats)
     round_started_seat_events = [
-        e for e in trace.startup_events if e.event == EventType.ROUND_STARTED and isinstance(e.target, SeatTarget)
+        e for e in trace.startup_events if e.type == EventType.ROUND_STARTED and isinstance(e.target, SeatTarget)
     ]
     assert len(round_started_seat_events) == 4
     # Startup should include dealer draw
-    draw_events = [e for e in trace.startup_events if e.event == EventType.DRAW]
+    draw_events = [e for e in trace.startup_events if e.type == EventType.DRAW]
     assert len(draw_events) == 1
     # Verify the discard step produced DISCARD event
     non_synthetic_steps = [s for s in trace.steps if not s.synthetic]
     assert len(non_synthetic_steps) == 1
     discard_step = non_synthetic_steps[0]
-    step_event_types = [e.event for e in discard_step.emitted_events]
+    step_event_types = [e.type for e in discard_step.emitted_events]
     assert EventType.DISCARD in step_event_types
     # State transitions are consistent: first step starts from initial state
     assert discard_step.state_before == trace.initial_state
@@ -63,7 +63,7 @@ def test_replay_fixture__when_loaded_replayed_and_exported__should_reproduce_its
     trace = run_replay(load_replay_from_file(fixture))
     replayed_events = [*trace.startup_events, *(e for step in trace.steps for e in step.emitted_events)]
     replayed_round_ends = [
-        json.loads(json.dumps(service_event_payload(e))) for e in replayed_events if isinstance(e.data, RoundEndEvent)
+        json.loads(json.dumps(game_event_payload(e))) for e in replayed_events if isinstance(e, RoundEndEvent)
     ]
     assert replayed_round_ends == [line for line in recorded_lines if line["t"] == WireEventType.ROUND_END]
 
