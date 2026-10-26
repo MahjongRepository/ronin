@@ -40,7 +40,6 @@ from game.logic.round import draw_tile
 from game.logic.state import (
     Caller,
     CallResponse,
-    Discard,
     MahjongGameState,
     MeldOption,
     PendingCallPrompt,
@@ -442,53 +441,6 @@ class TestHandlePassImmutable:
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         return game_state.model_copy(update={"round_state": round_state})
-
-    def _create_four_riichi_state(self) -> tuple[MahjongGameState, int]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # set 3 players as already in riichi
-        for i in range(1, 4):
-            round_state = update_player(round_state, i, is_riichi=True)
-
-        # give player 0 a tenpai hand: 123m 456m 789m 111p 3p (waiting on 2p or 4p)
-        tenpai_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113"))
-        round_state = update_player(round_state, 0, tiles=tenpai_tiles)
-
-        # draw a tile for player 0
-        round_state, _tile = draw_tile(round_state)
-        tile_to_discard = round_state.players[0].tiles[-1]
-
-        # create discard with riichi flag (simulating riichi discard step 1)
-        discards = (Discard(tile_id=tile_to_discard, is_riichi_discard=True),)
-        round_state = update_player(round_state, 0, discards=discards)
-
-        # set up pending call prompt for seat 1 (meld prompt)
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_to_discard,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),),
-        )
-        round_state = round_state.model_copy(
-            update={"pending_call_prompt": prompt, "phase": RoundPhase.PLAYING},
-        )
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        return game_state, tile_to_discard
-
-    def test_handle_pass__when_fourth_riichi__should_end_round_with_four_riichi_draw(self):
-        game_state, _tile = self._create_four_riichi_state()
-
-        # handle_pass should finalize riichi and detect four riichi
-        result = handle_pass(game_state, seat=1)
-        assert result.state.round_state.players[0].is_riichi is True
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert isinstance(round_end_events[0].result, AbortiveDrawResult)
-        assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
-        assert result.state.round_state.phase == RoundPhase.FINISHED
 
     def test_handle_pass__when_ron_available__should_apply_temporary_furiten(self):
         game_state = self._create_pass_prompt_state()

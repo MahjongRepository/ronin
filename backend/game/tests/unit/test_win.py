@@ -210,12 +210,14 @@ class TestGetWaitingTiles:
         assert 18 in waiting  # 1s
         assert 21 in waiting  # 4s
 
-    def test_waiting_tiles__when_hand_holds_its_drawn_tile__should_raise_engine_fault(self):
+    @pytest.mark.parametrize("hand_size", [14, 12])
+    def test_waiting_tiles__when_hand_is_not_a_waiting_hand__should_raise_engine_fault(self, hand_size):
         waiting_hand = TilesConverter.string_to_136_array(man="123456789", pin="4555")
         drawn_tile = TilesConverter.string_to_136_array(sou="9")[0]
-        player = MahjongPlayer(seat=0, name="Player1", tiles=(*waiting_hand, drawn_tile), score=25000)
+        tiles = (*waiting_hand, drawn_tile)[:hand_size]
+        player = MahjongPlayer(seat=0, name="Player1", tiles=tiles, score=25000)
 
-        with pytest.raises(AssertionError, match="drawn hand of 14 tiles"):
+        with pytest.raises(AssertionError, match=f"holds {hand_size} tiles, not a waiting hand of 3n\\+1"):
             get_waiting_tiles(player)
 
 

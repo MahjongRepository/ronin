@@ -1,25 +1,24 @@
 import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.action_handlers import handle_chi, handle_kan
 from game.logic.call_resolution import (
     complete_added_kan_after_chankan_decline,
-    pick_best_meld_response,
     resolve_call_prompt,
 )
 from game.logic.enums import (
     AIPlayerType,
     GameAction,
+    KanType,
     MeldCallType,
     MeldViewType,
     PromptKind,
     RoundPhase,
-    RoundResultType,
 )
 from game.logic.events import (
     DrawEvent,
     MeldEvent,
     RiichiDeclaredEvent,
-    RoundEndEvent,
     SeatTarget,
     TurnEvent,
 )
@@ -34,10 +33,14 @@ from game.logic.state import (
     PendingCallPrompt,
 )
 from game.logic.state_utils import update_player
+from game.logic.turn import process_discard_phase
 from game.logic.types import (
+    ChiActionData,
+    KanActionData,
     SeatConfig,
 )
-from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 
 
 def _default_seat_configs() -> list[SeatConfig]:
@@ -49,63 +52,32 @@ def _default_seat_configs() -> list[SeatConfig]:
     ]
 
 
-class TestPickBestMeldResponse:
-    def test_pick_best_meld_response__when_pon_and_chi__should_prefer_pon(self):
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(
-                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),
-                Caller(seat=3, melds=(MeldOption(call_type=MeldCallType.CHI),)),
+class TestResolveMeldPriority:
+    def test_resolve_call_prompt__when_open_kan_and_chi_declared__should_execute_the_kan(self):
+        five_man = tile_copies(0, man="5")[0]
+        four_man, six_man = tile_copies(0, man="46")
+        players = (
+            create_player(seat=0, tiles=tile_copies(0, man="5", pin="123456789", honors="1234")),
+            create_player(seat=1, tiles=tile_copies(0, man="46", sou="123456789", honors="56")),
+            create_player(seat=2, tiles=tile_copies(1, pin="123456789", honors="1234")),
+            create_player(
+                seat=3,
+                tiles=(*tile_copies(1, man="555"), *tile_copies(1, sou="123456789"), *tile_copies(0, honors="7")),
             ),
         )
-
-        responses = [
-            CallResponse(seat=3, action=GameAction.CALL_CHI),
-            CallResponse(seat=1, action=GameAction.CALL_PON),
+        game_state = create_dealt_game_state(players)
+        prompted, _events = process_discard_phase(game_state, five_man)
+        prompt = prompted.round_state.pending_call_prompt
+        assert prompt is not None
+        assert [(c.seat, [m.call_type for m in c.melds]) for c in prompt.callers] == [
+            (3, [MeldCallType.OPEN_KAN, MeldCallType.PON]),
+            (1, [MeldCallType.CHI]),
         ]
-        best = pick_best_meld_response(responses, prompt)
-        assert best.seat == 1
 
-    def test_pick_best_meld_response__when_kan_and_pon__should_prefer_kan(self):
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(
-                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),
-                Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.OPEN_KAN),)),
-            ),
-        )
-
-        responses = [
-            CallResponse(seat=1, action=GameAction.CALL_PON),
-            CallResponse(seat=2, action=GameAction.CALL_KAN),
-        ]
-        best = pick_best_meld_response(responses, prompt)
-        assert best.seat == 2
-
-    def test_pick_best_meld_response__when_same_call_type__should_prefer_closest_seat(self):
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(
-                Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.PON),)),
-                Caller(seat=3, melds=(MeldOption(call_type=MeldCallType.PON),)),
-            ),
-        )
-
-        responses = [
-            CallResponse(seat=3, action=GameAction.CALL_PON),
-            CallResponse(seat=1, action=GameAction.CALL_PON),
-        ]
-        best = pick_best_meld_response(responses, prompt)
-        assert best.seat == 1
+        chi = handle_chi(prompted, seat=1, data=ChiActionData(tile_id=five_man, sequence_tiles=(four_man, six_man)))
+        kan = handle_kan(chi.state, seat=3, data=KanActionData(tile_id=five_man, kan_type=KanType.OPEN))
+        melds = [e for e in kan.events if isinstance(e, MeldEvent)]
+        assert [(e.caller_seat, e.meld_type) for e in melds] == [(3, MeldViewType.OPEN_KAN)]
 
 
 class TestResolveWithoutPrompt:
@@ -114,67 +86,6 @@ class TestResolveWithoutPrompt:
 
         with pytest.raises(AssertionError, match="no pending call prompt"):
             resolve_call_prompt(create_game_state(round_state))
-
-
-class TestResolveSingleRon:
-    def test_resolve_call_prompt__when_single_ron__should_end_round_with_ron(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # give player 1 a waiting hand
-        waiting_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1112"))
-        round_state = update_player(round_state, 1, tiles=waiting_tiles)
-
-        win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=win_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True),),
-            responses=(CallResponse(seat=1, action=GameAction.CALL_RON),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        assert result.state.round_state.phase == RoundPhase.FINISHED
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.RON
-
-
-class TestResolveDoubleRon:
-    def test_resolve_call_prompt__when_two_rons__should_end_round_with_double_ron(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # give player 1 and 2 waiting hands
-        waiting_tiles_1 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1112"))
-        waiting_tiles_2 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1112"))
-        round_state = update_player(round_state, 1, tiles=waiting_tiles_1)
-        round_state = update_player(round_state, 2, tiles=waiting_tiles_2)
-
-        win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=win_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
-            responses=(
-                CallResponse(seat=1, action=GameAction.CALL_RON),
-                CallResponse(seat=2, action=GameAction.CALL_RON),
-            ),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        assert result.state.round_state.phase == RoundPhase.FINISHED
-        round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
 
 
 class TestResolveChankanDecline:

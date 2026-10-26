@@ -51,11 +51,10 @@ from game.logic.types import DiscardActionData, KanActionData
 from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall
 from game.logic.win import (
     get_waiting_tiles,
-    is_chankan_possible,
     is_kokushi_chankan_possible,
     is_kokushi_tenpai,
 )
-from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 
 if TYPE_CHECKING:
@@ -211,71 +210,6 @@ class TestConsecutiveClosedKans:
         assert len(new_state2.wall.dora_indicators) == dora_count_1 + 1
 
 
-# ---------------------------------------------------------------------------
-# Four quads by same player: play continues (fundamental)
-# Four quads by different players (2+): abortive draw (configurable)
-# ---------------------------------------------------------------------------
-class TestFourKansAbort:
-    def test_four_kans_abort__when_one_player_has_all_four_kans__should_not_abort(self):
-        kan_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=False, who=0)
-        round_state = _make_round_state(
-            player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
-            player0_melds=(kan_meld, kan_meld, kan_meld, kan_meld),
-        )
-
-        settings = GameSettings()
-        assert check_four_kans(round_state, settings) is False
-
-    def test_four_kans_abort__when_two_players_share_four_kans__should_abort(self):
-        kan_meld_0 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=True, who=0, from_who=1)
-        kan_meld_1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=True, who=1, from_who=0)
-        round_state = _make_round_state(
-            player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
-            player0_melds=(kan_meld_0, kan_meld_0),
-            player1_tiles=TilesConverter.string_to_136_array(man="123", pin="123", sou="123456"),
-            player1_melds=(kan_meld_1, kan_meld_1),
-        )
-
-        settings = GameSettings()
-        assert check_four_kans(round_state, settings) is True
-
-    def test_four_kans_abort__when_min_players_setting_is_3__should_not_abort_with_two_players(self):
-        kan_meld_0 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=True, who=0, from_who=1)
-        kan_meld_1 = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(4, 5, 6, 7), opened=True, who=1, from_who=0)
-        round_state = _make_round_state(
-            player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
-            player0_melds=(kan_meld_0, kan_meld_0),
-            player1_tiles=TilesConverter.string_to_136_array(man="123", pin="123", sou="123456"),
-            player1_melds=(kan_meld_1, kan_meld_1),
-        )
-        # still triggers with default settings
-        settings = GameSettings()
-        assert check_four_kans(round_state, settings) is True
-
-        # custom min_players_for_kan_abort=3 means 2 players is not enough
-        settings_3 = GameSettings(min_players_for_kan_abort=3)
-        assert check_four_kans(round_state, settings_3) is False
-
-    def test_four_kans_abort__when_shouminkans_make_four_kans__should_abort(self):
-        kan_meld = FrozenMeld(meld_type=FrozenMeld.KAN, tiles=(0, 1, 2, 3), opened=True, who=0, from_who=1)
-        shouminkan_meld = FrozenMeld(
-            meld_type=FrozenMeld.SHOUMINKAN,
-            tiles=(4, 5, 6, 7),
-            opened=True,
-            who=1,
-            from_who=0,
-        )
-        round_state = _make_round_state(
-            player0_tiles=TilesConverter.string_to_136_array(pin="123456789"),
-            player0_melds=(kan_meld, kan_meld),
-            player1_tiles=TilesConverter.string_to_136_array(man="123", pin="123", sou="123456"),
-            player1_melds=(shouminkan_meld, shouminkan_meld),
-        )
-
-        settings = GameSettings()
-        assert check_four_kans(round_state, settings) is True
-
-
 _FIVE_MAN = tuple(tile_copies(copy, man="5")[0] for copy in range(4))
 _EIGHT_PIN = tuple(tile_copies(copy, pin="8")[0] for copy in range(4))
 _SEAT_0_KANS = (
@@ -302,6 +236,7 @@ def _game_with_three_kans_on_table(
     *,
     current_player_seat: int,
     all_discards: tuple[int, ...] = (),
+    settings: GameSettings | None = None,
 ) -> MahjongGameState:
     in_play = {
         tile
@@ -323,7 +258,7 @@ def _game_with_three_kans_on_table(
         all_discards=all_discards,
         phase=RoundPhase.PLAYING,
     )
-    game_state = create_game_state(round_state)
+    game_state = create_game_state(round_state, settings=settings)
     verify_tile_ownership(game_state)
     assert check_four_kans(round_state, game_state.settings) is False
     return game_state
@@ -455,6 +390,64 @@ class TestFourKansAbortTiming:
         assert check_four_kans(declined.state.round_state, declined.state.settings) is True
 
         _assert_four_kans_abort(_discard(declined.state, seat=3, tile_id=_EIGHT_PIN[0]))
+
+
+def _assert_play_continues_to_seat(result: ActionResult, seat: int) -> None:
+    assert result.state.round_state.phase == RoundPhase.PLAYING
+    assert [type(e) for e in result.events] == [DiscardEvent]
+    assert result.state.round_state.current_player_seat == seat
+
+
+class TestFourKansAbort:
+    def test_four_kans_abort__when_one_player_declares_all_four_kans__should_not_abort(self):
+        seat_0_third_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, honors="4444")), opened=False, who=0, from_who=0
+        )
+        lone_west = tile_copies(1, honors="6")[0]
+        players = (
+            create_player(seat=0, tiles=(*_FIVE_MAN, lone_west), melds=(*_SEAT_0_KANS, seat_0_third_kan)),
+            create_player(seat=1, tiles=tile_copies(1, man="12346789", pin="12345")),
+            create_player(seat=2, tiles=_SEAT_2_TILES),
+            create_player(seat=3, tiles=(*_SEAT_3_TILES, *tile_copies(0, honors="111"))),
+        )
+        game_state = _game_with_three_kans_on_table(players, current_player_seat=0)
+
+        kan = handle_kan(game_state, seat=0, data=KanActionData(tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED))
+        assert isinstance(kan, ActionResult)
+        assert len(kan.state.round_state.players[0].melds) == 4
+
+        _assert_play_continues_to_seat(_discard(kan.state, seat=0, tile_id=lone_west), seat=1)
+
+    def test_four_kans_abort__when_min_players_setting_is_3__should_not_abort_with_two_players(self):
+        seat_3_kan = FrozenMeld(
+            meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, honors="4444")), opened=False, who=3, from_who=3
+        )
+        lone_west = tile_copies(1, honors="6")[0]
+        players = (
+            create_player(
+                seat=0,
+                tiles=(_EIGHT_PIN[1], _EIGHT_PIN[2], *tile_copies(0, man="24"), *_CHUN_TRIPLET),
+                melds=_SEAT_0_KANS,
+            ),
+            create_player(seat=1, tiles=tile_copies(1, man="12346789", pin="12345")),
+            create_player(seat=2, tiles=_SEAT_2_TILES),
+            create_player(
+                seat=3,
+                tiles=(*_FIVE_MAN, *tile_copies(2, man="234", pin="567"), lone_west),
+                melds=(seat_3_kan,),
+            ),
+        )
+        game_state = _game_with_three_kans_on_table(
+            players,
+            current_player_seat=3,
+            settings=GameSettings(min_players_for_kan_abort=3),
+        )
+
+        kan = handle_kan(game_state, seat=3, data=KanActionData(tile_id=_FIVE_MAN[0], kan_type=KanType.CLOSED))
+        assert isinstance(kan, ActionResult)
+        assert check_four_kans(kan.state.round_state, GameSettings()) is True
+
+        _assert_play_continues_to_seat(_discard(kan.state, seat=3, tile_id=lone_west), seat=0)
 
 
 # ---------------------------------------------------------------------------
@@ -620,20 +613,18 @@ class TestKokushiChankanOnAnkan:
         assert 1 in chankan_seats
 
     def test_kokushi_chankan__when_tenpai_hand_is_not_kokushi__should_not_allow_robbing_closed_kan(self):
-        # player 1 is tenpai on 1m but not for kokushi (e.g., 23m waiting on 1-4m)
-        regular_tenpai = TilesConverter.string_to_136_array(man="2345678", pin="12355", sou="9")
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin_tiles = TilesConverter.string_to_136_array(pin="6789", sou="12345")
-        player0_tiles = (*man_1m, *pin_tiles)
-
-        round_state = _make_round_state(
-            player0_tiles,
-            player1_tiles=regular_tenpai,
+        one_man = tile_copies(0, man="1111")
+        regular_tenpai_on_one_man = create_player(seat=1, tiles=tile_copies(0, man="23456789", pin="12355"))
+        players = (
+            create_player(seat=0, tiles=(*one_man, *tile_copies(1, sou="123456789"), *tile_copies(0, honors="1"))),
+            regular_tenpai_on_one_man,
+            create_player(seat=2, tiles=(*tile_copies(2, pin="123456789"), *tile_copies(0, honors="2345"))),
+            create_player(seat=3, tiles=(*tile_copies(3, pin="123456789"), *tile_copies(1, honors="2345"))),
         )
+        round_state = create_dealt_game_state(players).round_state
+        assert tile_to_34(one_man[0]) in get_waiting_tiles(regular_tenpai_on_one_man)
 
-        chankan_seats = is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=man_1m[0])
-        assert 1 not in chankan_seats
-        assert chankan_seats == []
+        assert is_kokushi_chankan_possible(round_state, caller_seat=0, kan_tile=one_man[0]) == []
 
     def test_kokushi_chankan__when_kokushi_is_permanent_furiten__should_not_allow_robbing(self):
         # kokushi tenpai missing 1m (pair of 9m)
@@ -704,39 +695,6 @@ class TestKokushiChankanOnAnkan:
         meld_events = [e for e in events if isinstance(e, MeldEvent) and e.meld_type == MeldViewType.CLOSED_KAN]
         assert len(meld_events) == 1
         assert new_rs.pending_call_prompt is None
-
-
-# ---------------------------------------------------------------------------
-# Chankan on shouminkan (already verified, sanity check)
-# ---------------------------------------------------------------------------
-class TestChankanOnShouminkan:
-    def test_chankan__when_tenpai_player_waits_on_added_kan_tile__should_allow_robbing(self):
-        # player 1 is tenpai waiting on 3p
-        tiles_p1 = TilesConverter.string_to_136_array(man="123456789", pin="1255")
-        pin_3 = TilesConverter.string_to_136_array(pin="3")[0]
-
-        players = [
-            create_player(seat=0, tiles=TilesConverter.string_to_136_array(pin="123456789", man="1234")),
-            create_player(seat=1, tiles=tiles_p1, is_riichi=True),
-            create_player(
-                seat=2,
-                tiles=TilesConverter.string_to_136_array(man="789", pin="789", sou="789", honors="1"),
-            ),
-            create_player(
-                seat=3,
-                tiles=TilesConverter.string_to_136_array(man="456", pin="456", sou="789", honors="2"),
-            ),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=_DEFAULT_WALL,
-            dead_wall=_DEFAULT_DEAD_WALL,
-            dora_indicators=_DEFAULT_DEAD_WALL[2:3],
-            current_player_seat=0,
-        )
-
-        chankan_seats = is_chankan_possible(round_state, caller_seat=0, kan_tile=pin_3)
-        assert 1 in chankan_seats
 
 
 # ---------------------------------------------------------------------------

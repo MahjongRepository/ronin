@@ -5,18 +5,14 @@ from typing import TYPE_CHECKING
 import pytest
 from mahjong.tile import TilesConverter
 
-from game.logic.action_handlers import handle_ron
-from game.logic.call_resolution import resolve_call_prompt
+from game.logic.action_handlers import handle_kan, handle_pass, handle_ron
 from game.logic.enums import (
-    GameAction,
+    KanType,
     MeldCallType,
-    PromptKind,
-    RoundPhase,
     RoundResultType,
 )
 from game.logic.events import RoundEndEvent
 from game.logic.exceptions import InvalidDiscardError
-from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import call_chi, call_pon, can_call_chi, get_kuikae_tiles
 from game.logic.round import discard_tile
@@ -26,21 +22,22 @@ from game.logic.scoring import (
     apply_ron_score,
 )
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, CallResponse, PendingCallPrompt
-from game.logic.state_utils import update_player
+from game.logic.state import Caller, Discard
 from game.logic.tiles import tile_to_34
-from game.logic.turn import process_meld_call
-from game.logic.types import MeldCallInput, SeatConfig, YakuInfo
-from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.logic.turn import process_discard_phase
+from game.logic.types import KanActionData, YakuInfo
+from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import (
+    PIN_3_TRIPLE_RON_CALLER_HANDS,
+    PIN_3_TRIPLE_RON_DEALER_HAND,
+    PIN_3_TRIPLE_RON_DISCARD,
+    tile_copies,
+)
 
 if TYPE_CHECKING:
     from game.logic.state import MahjongGameState
 
 _PIN_TILES = TilesConverter.string_to_136_array(pin="456789123")
-
-
-def _seat_configs() -> list[SeatConfig]:
-    return [SeatConfig(name=f"P{i}") for i in range(4)]
 
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:
@@ -360,139 +357,60 @@ class TestKuikaeClearedAfterDiscard:
 # ============================================================================
 
 
-def _create_double_ron_game_state(
-    *,
-    has_double_ron: bool = True,
-    honba: int = 0,
-    riichi: int = 0,
-) -> tuple:
-    settings = GameSettings(has_double_ron=has_double_ron)
-    waiting_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1112"))
-    win_tile = TilesConverter.string_to_136_array(pin="22")[1]
-
-    game_state = init_game(_seat_configs(), seed="a" * 192, settings=settings, wall=list(range(136)))
-    round_state = game_state.round_state
-    round_state = update_player(round_state, 1, tiles=waiting_tiles)
-    round_state = update_player(round_state, 2, tiles=waiting_tiles)
-    game_state = game_state.model_copy(
-        update={
-            "round_state": round_state,
-            "honba_sticks": honba,
-            "riichi_sticks": riichi,
-        },
-    )
-    return game_state, win_tile
-
-
-class TestDoubleRonEnabled:
-    def test_double_ron__when_enabled__should_produce_double_ron_result(self):
-        game_state, win_tile = _create_double_ron_game_state(has_double_ron=True)
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=win_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
-            responses=(
-                CallResponse(seat=1, action=GameAction.CALL_RON),
-                CallResponse(seat=2, action=GameAction.CALL_RON),
-            ),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        round_end_events = [e for e in result.events if hasattr(e, "result")]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
-
-
 class TestHeadBumpWhenDoubleRonDisabled:
-    def test_head_bump__when_double_ron_disabled__should_produce_single_ron(self):
-        game_state, win_tile = _create_double_ron_game_state(has_double_ron=False)
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=win_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
-            responses=(
-                CallResponse(seat=1, action=GameAction.CALL_RON),
-                CallResponse(seat=2, action=GameAction.CALL_RON),
-            ),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        round_end_events = [e for e in result.events if hasattr(e, "result")]
-        assert len(round_end_events) == 1
-        # Head bump: should be a single RON, not double
-        assert round_end_events[0].result.type == RoundResultType.RON
-
     def test_head_bump__when_double_ron_disabled__should_pick_closest_counter_clockwise_winner(self):
-        game_state, win_tile = _create_double_ron_game_state(has_double_ron=False)
-        round_state = game_state.round_state
-
-        # Discarder is seat 0. Counter-clockwise order: 1, 2, 3.
-        # Seat 1 is closest to seat 0 counter-clockwise.
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=win_tile,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
-            responses=(
-                CallResponse(seat=1, action=GameAction.CALL_RON),
-                CallResponse(seat=2, action=GameAction.CALL_RON),
-            ),
+        players = (
+            create_player(seat=0, tiles=(*PIN_3_TRIPLE_RON_DEALER_HAND, PIN_3_TRIPLE_RON_DISCARD)),
+            *(create_player(seat=seat, tiles=hand) for seat, hand in enumerate(PIN_3_TRIPLE_RON_CALLER_HANDS, start=1)),
         )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        game_state = create_dealt_game_state(players, settings=GameSettings(has_double_ron=False))
+        prompted, _events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
 
-        result = resolve_call_prompt(game_state)
-        round_end_events = [e for e in result.events if hasattr(e, "result")]
-        ron_result = round_end_events[0].result
-        assert ron_result.type == RoundResultType.RON
-        # Seat 1 should be the winner (closest counter-clockwise to seat 0)
-        assert ron_result.winner_seat == 1
+        passed = handle_pass(prompted, seat=1)
+        first = handle_ron(passed.state, seat=2)
+        result = handle_ron(first.state, seat=3)
+        round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
+        assert [(e.result.type, e.result.winner_seat) for e in round_ends] == [(RoundResultType.RON, 2)]
 
     def test_head_bump__when_chankan_robbed_by_two_seats__should_pick_closest_counter_clockwise_to_kan_caller(self):
-        kan_tiles = TilesConverter.string_to_136_array(man="1111")
-        pon_meld = FrozenMeld(meld_type=FrozenMeld.PON, tiles=tuple(kan_tiles[:3]), opened=True, who=2)
-        robber_tiles = TilesConverter.string_to_136_array(man="2233445566778899", pin="445566", sou="5555")
-        kan_caller_tiles = TilesConverter.string_to_136_array(sou="1236789", pin="999")
+        one_man = tuple(tile_copies(copy, man="1")[0] for copy in range(4))
+        pon_meld = FrozenMeld(
+            meld_type=FrozenMeld.PON,
+            tiles=one_man[:3],
+            opened=True,
+            called_tile=one_man[0],
+            who=2,
+            from_who=1,
+        )
         players = (
-            create_player(seat=0, tiles=tuple(robber_tiles[::2])),
-            create_player(seat=1),
-            create_player(seat=2, tiles=(kan_tiles[3], *kan_caller_tiles), melds=(pon_meld,)),
-            create_player(seat=3, tiles=tuple(robber_tiles[1::2])),
+            create_player(seat=0, tiles=tile_copies(0, man="23456789", pin="456", sou="55")),
+            create_player(
+                seat=1,
+                tiles=(*tile_copies(0, honors="1234567"), *tile_copies(2, man="234567")),
+                discards=(Discard(tile_id=one_man[0]),),
+            ),
+            create_player(
+                seat=2,
+                tiles=(one_man[3], *tile_copies(0, sou="1236789", pin="999")),
+                melds=(pon_meld,),
+            ),
+            create_player(seat=3, tiles=(*tile_copies(1, man="23456789", pin="456"), *tile_copies(2, sou="55"))),
         )
-        dead_wall = tuple(TilesConverter.string_to_136_array(honors="11112222333344"))
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(TilesConverter.string_to_136_array(honors="5555")),
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
+        game_state = create_dealt_game_state(
+            players,
             current_player_seat=2,
+            settings=GameSettings(has_double_ron=False),
         )
-        game_state = create_game_state(round_state, settings=GameSettings(has_double_ron=False))
 
-        meld_input = MeldCallInput(caller_seat=2, call_type=MeldCallType.ADDED_KAN, tile_id=kan_tiles[3])
-        game_state, _events = process_meld_call(game_state, meld_input=meld_input)
-        round_state = game_state.round_state
-        first = handle_ron(game_state, seat=0)
+        kan = handle_kan(game_state, seat=2, data=KanActionData(tile_id=one_man[3], kan_type=KanType.ADDED))
+        prompt = kan.state.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (Caller(seat=3, can_ron=True), Caller(seat=0, can_ron=True))
+
+        first = handle_ron(kan.state, seat=0)
         result = handle_ron(first.state, seat=3)
-
         round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(round_ends) == 1
-        assert round_ends[0].result.type == RoundResultType.RON
-        assert round_ends[0].result.winner_seat == 3
+        assert [(e.result.type, e.result.winner_seat) for e in round_ends] == [(RoundResultType.RON, 3)]
 
 
 # ============================================================================

@@ -3,12 +3,15 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from game.logic.enums import RoundPhase
+from game.logic.invariants import verify_tile_ownership
 from game.logic.state import (
     Discard,
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.tiles import NUM_TILES
+from game.logic.wall import DEAD_WALL_SIZE
 from game.server.app import create_app
 from game.server.router import MessageRouter
 from game.tests.helpers.auth import TEST_TICKET_SECRET
@@ -108,6 +111,44 @@ def create_round_state(
         phase=phase,
         pending_call_prompt=pending_call_prompt,
     )
+
+
+def create_dealt_game_state(
+    players: Sequence[MahjongPlayer],
+    *,
+    draws: Sequence[int] = (),
+    current_player_seat: int = 0,
+    all_discards: Sequence[int] | None = None,
+    settings: GameSettings | None = None,
+    riichi_sticks: int = 0,
+) -> MahjongGameState:
+    """
+    Build a running round from staged players, dealing every tile they do not own to the walls.
+
+    The draws lead the live wall in order, the dead wall takes the last 14 free tiles and the live wall the rest.
+    all_discards defaults to the players' discards in seat order. Raises when the staged tiles overlap, so the state
+    owns each of the 136 tiles exactly once.
+    """
+    in_play = {
+        tile
+        for player in players
+        for tile in (*player.tiles, *(t for m in player.melds for t in m.tiles), *(d.tile_id for d in player.discards))
+    }
+    free = [tile for tile in range(NUM_TILES) if tile not in in_play and tile not in draws]
+    if all_discards is None:
+        all_discards = [d.tile_id for player in players for d in player.discards]
+
+    round_state = create_round_state(
+        players=players,
+        wall=(*draws, *free[:-DEAD_WALL_SIZE]),
+        dead_wall=free[-DEAD_WALL_SIZE:],
+        current_player_seat=current_player_seat,
+        all_discards=all_discards,
+        phase=RoundPhase.PLAYING,
+    )
+    game_state = create_game_state(round_state, riichi_sticks=riichi_sticks, settings=settings)
+    verify_tile_ownership(game_state)
+    return game_state
 
 
 def create_game_state(

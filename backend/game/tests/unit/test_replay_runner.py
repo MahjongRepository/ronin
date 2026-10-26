@@ -596,6 +596,78 @@ def test_auto_pass_calls__when_player_responds_to_prompt__should_pass_only_the_o
     assert synthetic_steps[0].input_event.action == GameAction.PASS
 
 
+def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_its_seat_before_this_ron():
+    dealer, dealer_tile = _probe_current_player_discard()
+    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    seat_by_name = {p.name: p.seat for p in probe_state.round_state.players}
+    ron_player, later_ron_player = [name for name in PLAYER_NAMES if name != dealer][:2]
+
+    class RonPromptService(_StubService):
+        def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: str | None = None,
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
+        ) -> GameStart:
+            start = super().start_game(game_id, player_names, seed=seed)
+            ron_seats = (seat_by_name[ron_player], seat_by_name[later_ron_player])
+            prompt = PendingCallPrompt(
+                kind=PromptKind.DISCARD,
+                tile_id=0,
+                from_seat=seat_by_name[dealer],
+                pending_seats=frozenset(ron_seats),
+                callers=tuple(Caller(seat=seat, can_ron=True) for seat in sorted(ron_seats)),
+            )
+            state = start.runtime.state
+            start.runtime.commit(
+                state.model_copy(
+                    update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": prompt})}
+                )
+            )
+            return start
+
+        def handle_action(
+            self,
+            runtime: GameRuntime,
+            *,
+            seat: int,
+            action: GameAction,
+            data: dict[str, Any],
+        ) -> GameUpdate:
+            if action not in (GameAction.PASS, GameAction.CALL_RON):
+                return super().handle_action(runtime, seat=seat, action=action, data=data)
+
+            state = runtime.state
+            prompt = state.round_state.pending_call_prompt
+            if prompt is not None:
+                pending = prompt.pending_seats - {seat}
+                new_prompt = prompt.model_copy(update={"pending_seats": pending}) if pending else None
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": new_prompt})}
+                    )
+                )
+
+            return _stub_update([])
+
+    replay = _build_replay(
+        actions=(
+            (ron_player, GameAction.CALL_RON, {}),
+            (dealer, GameAction.DISCARD, {"tile_id": dealer_tile}),
+            (later_ron_player, GameAction.CALL_RON, {}),
+        ),
+    )
+
+    trace = run_replay(replay, ReplayOptions(strict=False), service_factory=RonPromptService)
+    assert [(s.input_event.player_name, s.input_event.action, s.synthetic) for s in trace.steps[:2]] == [
+        (later_ron_player, GameAction.PASS, True),
+        (ron_player, GameAction.CALL_RON, False),
+    ]
+
+
 def test_auto_pass_calls__when_strict_and_synthetic_pass_errors__should_raise_replay_error():
 
     class PassErrorService(_StubService):
