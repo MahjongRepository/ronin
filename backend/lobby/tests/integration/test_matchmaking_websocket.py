@@ -1,17 +1,19 @@
 import asyncio
 import json
-from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from lobby import game_transition as game_transition_module
 from lobby.auth.models import AuthenticatedPlayer
-from lobby.game_transition import GameTransitionError
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.tests.conftest import AsgiPeer, HeldLookup, make_websocket
 from lobby.tests.integration.conftest import register_with_csrf
 from shared.auth.game_ticket import verify_game_ticket
+
+
+def _time_out_after_the_game_server_got_the_request(request: httpx.Request) -> httpx.Response:
+    raise httpx.ReadTimeout("read timed out after the game server got the request", request=request)
 
 
 def _matchmaking_socket(app, peer, *, username):
@@ -111,13 +113,9 @@ class TestMatchmakingOriginCheck:
 
 class TestMatchmakingGameTransition:
     async def test_matchmaking_websocket__when_game_creation_fails__should_close_all_four_and_let_them_queue_again(
-        self, app, monkeypatch
+        self, app, game_server
     ):
-        monkeypatch.setattr(
-            game_transition_module,
-            "create_game_on_server",
-            AsyncMock(side_effect=GameTransitionError("read timed out after the game server got the request")),
-        )
+        game_server.respond = _time_out_after_the_game_server_got_the_request
         queued = [await _queue_player(app, f"queued-{i}") for i in range(3)]
         fourth_peer = AsgiPeer()
 
@@ -135,10 +133,15 @@ class TestMatchmakingGameTransition:
         assert rejoining_peer.received_json()[0]["type"] == "queue_joined"
 
     async def test_matchmaking_websocket__when_a_matched_peer_is_held__should_start_the_game_for_the_rest(
-        self, app, monkeypatch
+        self, app, game_server
     ):
-        create_game = AsyncMock(return_value="ws://localhost:8711/ws/game")
-        monkeypatch.setattr(game_transition_module, "create_game_on_server", create_game)
+        created_game_ids: list[str] = []
+
+        def create_game(request: httpx.Request) -> httpx.Response:
+            created_game_ids.append(json.loads(request.content)["game_id"])
+            return httpx.Response(201)
+
+        game_server.respond = create_game
         queued = [await _queue_player(app, f"queued-{i}") for i in range(3)]
         held_peer, held_handler = queued[0]
         held_peer.send_gate = asyncio.Event()
@@ -152,7 +155,7 @@ class TestMatchmakingGameTransition:
             game_starting = peer.received_json()[-1]
             ticket = verify_game_ticket(game_starting["game_ticket"], "test-secret")
             assert game_starting["type"] == "game_starting"
-            assert game_starting["game_id"] == create_game.call_args.kwargs["game_id"]
+            assert [game_starting["game_id"]] == created_game_ids
             assert ticket is not None
             assert ticket.username == username
             assert peer.close_codes() == [1000]
@@ -167,20 +170,17 @@ class TestMatchmakingGameTransition:
     @pytest.mark.parametrize(
         ("create_game", "first_player_last_message"),
         [
-            (AsyncMock(return_value="ws://localhost:8711/ws/game"), "game_starting"),
-            (
-                AsyncMock(side_effect=GameTransitionError("read timed out after the game server got the request")),
-                "error",
-            ),
+            (lambda _request: httpx.Response(201), "game_starting"),
+            (_time_out_after_the_game_server_got_the_request, "error"),
         ],
         ids=["created", "creation_failed_after_the_game_server_got_it"],
     )
     async def test_matchmaking_websocket__when_a_match_starts_during_the_lookup__should_reject_with_already_in_game(
-        self, make_app, monkeypatch, create_game, first_player_last_message
+        self, make_app, game_server, create_game, first_player_last_message
     ):
         held_lookup = HeldLookup()
         app = make_app(is_playing=held_lookup)
-        monkeypatch.setattr(game_transition_module, "create_game_on_server", create_game)
+        game_server.respond = create_game
         queued = [await _queue_player(app, username) for username in ("alice", "bob", "carol")]
 
         held_lookup.held_user_id = "alice-id"

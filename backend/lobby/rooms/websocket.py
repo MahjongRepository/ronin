@@ -22,6 +22,7 @@ from shared.rate_limit import TokenBucket
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
 if TYPE_CHECKING:
+    import httpx
     from starlette.types import Message
     from starlette.websockets import WebSocket
 
@@ -46,6 +47,7 @@ class _RoomContext:
 
     __slots__ = (
         "auth_settings",
+        "game_server",
         "occupancy",
         "room_id",
         "room_manager",
@@ -56,6 +58,7 @@ class _RoomContext:
         self.room_id: str = websocket.path_params["room_id"]
         self.settings: LobbyServerSettings = websocket.app.state.settings
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
+        self.game_server: httpx.AsyncClient = websocket.app.state.game_server
         self.room_manager: LobbyRoomManager = websocket.app.state.room_manager
         self.occupancy: Occupancy = websocket.app.state.occupancy
 
@@ -266,6 +269,7 @@ async def _handle_start_game(player: LobbyPlayer, ctx: _RoomContext) -> bool:
             settings=ctx.settings,
             ticket_secret=ctx.auth_settings.game_ticket_secret,
             occupancy=ctx.occupancy,
+            game_server=ctx.game_server,
         )
     except GameStartError as e:
         _recover_failed_start(room, ctx, reason=e.reason)
@@ -285,7 +289,7 @@ def _recover_failed_start(room: LobbyRoom, ctx: _RoomContext, *, reason: str) ->
     """
     ctx.room_manager.clear_transitioning(room.room_id)
     _send_room_state(room)
-    _broadcast(room, {"type": "error", "message": f"Failed to start game: {reason}"})
+    _broadcast(room, {"type": "error", "message": reason})
 
 
 def _handle_chat(player: LobbyPlayer, ctx: _RoomContext, *, message: LobbyChatMessage) -> None:

@@ -22,6 +22,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   occupancy rule as an injected callable.
 * `game_transition.py` — the one game start for rooms and matchmaking, the game server client calls
   and the "is this user playing" lookup. `websocket_utils.py` — the WebSocket `Origin` check.
+* The lobby calls the game server through one HTTP client per app, built in `create_app()` and
+  closed in the lifespan. Its idle connections expire well before the game server's keep-alive
+  timeout (uvicorn's 5s default), since a start sent on a connection the server is closing fails
+  ambiguously. Each call keeps its own deadline rather than the client's default.
 * `players.py` — `LobbyPlayer`, one connected user and the only holder of its socket. Every send or
   close is an enqueue, so no handler, broadcast or reaper tick ever waits on a slow or dead peer.
 * `occupancy.py` — the one owner of the occupancy rule.
@@ -34,9 +38,11 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * Every attempt creates the game under a fresh game id (a room's id is not its game's id): a failed
   call may mean the game server created the game anyway, and a retry under the same id would
   collide with that orphan.
-* A failure before the game server confirms creation raises `GameStartError`, whose `reason` is the
-  text players see; each caller recovers its own way. After confirmation delivery only enqueues, so
-  one slow player delays nobody else.
+* A failure before the game server confirms creation raises `GameStartError` with a fixed reason
+  code; the game server's own text goes only to the log. Each caller recovers its own way: a room
+  sends the code, matchmaking `match_failed`. A 409 from the game server is its occupancy backstop
+  (the fresh id rules out a duplicate game), so its code is `player_in_game`. After confirmation
+  delivery only enqueues, so one slow player delays nobody else.
 * A match is resolved once, by the join that completed it, and a failed creation is terminal: the
   four are told and closed, nothing is retried or requeued. A matched player who disconnected
   meanwhile keeps the seat; the game server fills a seat nobody joins with AI.

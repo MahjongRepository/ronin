@@ -5,6 +5,7 @@ import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocket
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterator
     from pathlib import Path
 
-    import httpx
     from starlette.applications import Starlette
     from starlette.types import Message
 
@@ -82,8 +82,29 @@ class HeldLookup:
         return False
 
 
+def _refuse_connection(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("no game server in this test", request=request)
+
+
+class FakeGameServer:
+    def __init__(self) -> None:
+        self.respond: Callable[[httpx.Request], httpx.Response | Awaitable[httpx.Response]] = _refuse_connection
+
+    async def handle(self, request: httpx.Request) -> httpx.Response:
+        response = self.respond(request)
+        if isinstance(response, httpx.Response):
+            return response
+
+        return await response
+
+
 @pytest.fixture
-def make_app(tmp_path: Path) -> Callable[..., Starlette]:
+def game_server() -> FakeGameServer:
+    return FakeGameServer()
+
+
+@pytest.fixture
+def make_app(tmp_path: Path, game_server: FakeGameServer) -> Callable[..., Starlette]:
     def build(
         *,
         is_playing: Callable[[str], Awaitable[bool]] | None = nobody_playing,
@@ -97,6 +118,7 @@ def make_app(tmp_path: Path) -> Callable[..., Starlette]:
             settings=LobbyServerSettings(static_dir=str(static_dir), **settings_overrides),
             auth_settings=AuthSettings(database_path=str(tmp_path / "test.db")),
             is_playing=is_playing,
+            game_server_transport=httpx.MockTransport(game_server.handle),
             game_client_dev_transport=game_client_dev_transport,
         )
 

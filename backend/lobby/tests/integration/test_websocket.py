@@ -1,6 +1,6 @@
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -340,15 +340,6 @@ class TestMultiPlayerWebSocket:
             assert msg["type"] == "player_left"
 
 
-def _route_game_server(monkeypatch, game_server):
-    real_async_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        game_transition_module.httpx,
-        "AsyncClient",
-        lambda **kwargs: real_async_client(transport=httpx.MockTransport(game_server), **kwargs),
-    )
-
-
 class TestGameTransition:
     @pytest.fixture
     def client(self, client):
@@ -356,16 +347,16 @@ class TestGameTransition:
         return client
 
     def test_room_websocket__when_owner_starts_game__should_send_game_starting_and_remove_room(
-        self, client, app, monkeypatch
+        self, client, app, game_server
     ):
         room = app.state.room_manager.create_room("game-room")
         game_server_requests: list[httpx.Request] = []
 
-        def game_server(request):
+        def create_game(request: httpx.Request) -> httpx.Response:
             game_server_requests.append(request)
             return httpx.Response(201)
 
-        _route_game_server(monkeypatch, game_server)
+        game_server.respond = create_game
 
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()
@@ -382,9 +373,9 @@ class TestGameTransition:
         assert app.state.room_manager.get_room("game-room") is None
 
     async def test_room_websocket__when_a_peer_is_held_at_game_start__should_deliver_to_the_rest_and_remove_room(
-        self, app, monkeypatch
+        self, app, game_server
     ):
-        _route_game_server(monkeypatch, lambda _request: httpx.Response(201))
+        game_server.respond = lambda _request: httpx.Response(201)
         room = app.state.room_manager.create_room("held-peer-start")
         host_peer, host_handler = await _seat(app, room_id=room.room_id, username="alice")
         held_peer, held_handler = await _seat(app, room_id=room.room_id, username="bob")
@@ -416,14 +407,18 @@ class TestGameTransition:
             ws.receive_json()
             ws.send_text(json.dumps({"type": "start_game"}))
             assert ws.receive_json()["type"] == "player_ready_changed"
-            assert ws.receive_json() == {"type": "error", "message": "Failed to start game: internal error"}
+            assert ws.receive_json() == {"type": "error", "message": "internal_error"}
             assert room.transitioning is False
 
-    def test_room_websocket__when_game_server_returns_error__should_resync_and_send_error(
-        self, client, app, monkeypatch
+    @pytest.mark.parametrize(
+        ("status", "reason"),
+        [(500, "game_server_error"), (503, "game_server_full"), (409, "player_in_game")],
+    )
+    def test_room_websocket__when_game_server_refuses_the_game__should_resync_and_send_a_fixed_reason(
+        self, client, app, game_server, status, reason
     ):
         room = app.state.room_manager.create_room("fail-room")
-        _route_game_server(monkeypatch, lambda _request: httpx.Response(500, text="Internal Server Error"))
+        game_server.respond = lambda _request: httpx.Response(status, json={"error": "game server text"})
 
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()
@@ -433,44 +428,27 @@ class TestGameTransition:
             assert "players" in resync
             assert "can_start" in resync
 
-            msg = ws.receive_json()
-            assert msg == {
-                "type": "error",
-                "message": "Failed to start game: Game server returned 500: Internal Server Error",
-            }
+            assert ws.receive_json() == {"type": "error", "message": reason}
             room_after_failure = app.state.room_manager.get_room("fail-room")
             assert room_after_failure is not None
             assert room_after_failure.transitioning is False
 
-    def test_room_websocket__when_game_server_unreachable__should_resync_and_send_error(self, client, app, monkeypatch):
+    def test_room_websocket__when_game_server_unreachable__should_resync_and_send_a_fixed_reason(self, client, app):
         room = app.state.room_manager.create_room("conn-err-room")
-
-        def unreachable_game_server(_request):
-            raise httpx.ConnectError("Connection refused")
-
-        _route_game_server(monkeypatch, unreachable_game_server)
 
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()
             ws.send_text(json.dumps({"type": "start_game"}))
-            resync = ws.receive_json()
-            assert resync["type"] == "player_ready_changed"
-            assert "players" in resync
-            assert "can_start" in resync
-
-            msg = ws.receive_json()
-            assert msg == {
-                "type": "error",
-                "message": "Failed to start game: Failed to connect to game server: Connection refused",
-            }
+            assert ws.receive_json()["type"] == "player_ready_changed"
+            assert ws.receive_json() == {"type": "error", "message": "game_server_unavailable"}
 
     def test_room_websocket__when_start_retried_after_ambiguous_failure__should_start_under_a_fresh_game_id(
-        self, client, app, monkeypatch
+        self, client, app, game_server
     ):
         room = app.state.room_manager.create_room("retry-room")
         created_game_ids: list[str] = []
 
-        def game_server(request):
+        def create_game(request: httpx.Request) -> httpx.Response:
             game_id = json.loads(request.content)["game_id"]
             if game_id in created_game_ids:
                 return httpx.Response(409, text="Game already exists")
@@ -481,7 +459,7 @@ class TestGameTransition:
 
             return httpx.Response(201)
 
-        _route_game_server(monkeypatch, game_server)
+        game_server.respond = create_game
 
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()
@@ -656,13 +634,11 @@ class TestRoomOccupancy:
         await seated_handler
 
     async def test_room_websocket__when_the_users_room_starts_during_the_lookup__should_reject_with_already_in_game(
-        self, make_app, monkeypatch
+        self, make_app, game_server
     ):
         held_lookup = HeldLookup()
         app = make_app(is_playing=held_lookup)
-        monkeypatch.setattr(
-            game_transition_module, "create_game_on_server", AsyncMock(return_value="ws://localhost:8711/ws/game")
-        )
+        game_server.respond = lambda _request: httpx.Response(201)
         first_room = app.state.room_manager.create_room("first-room")
         second_room = app.state.room_manager.create_room("second-room")
         seated_peer = AsgiPeer()
@@ -684,15 +660,15 @@ class TestRoomOccupancy:
         assert second_room.is_empty
 
     async def test_room_websocket__when_app_wires_the_game_server_lookup__should_reject_only_the_playing_user(
-        self, make_app, monkeypatch
+        self, make_app, game_server
     ):
-        def game_server(request):
+        def find_player_game(request: httpx.Request) -> httpx.Response:
             if (request.url.host, request.url.path) == ("game-server.invalid", "/players/alice-id"):
                 return httpx.Response(200, json={"game_id": "game-1"})
 
             return httpx.Response(404)
 
-        _route_game_server(monkeypatch, game_server)
+        game_server.respond = find_player_game
         app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("wired-room")
 
@@ -702,12 +678,8 @@ class TestRoomOccupancy:
         assert bob_peer.received_json()[0]["type"] == "room_joined"
 
     async def test_room_websocket__when_game_server_unreachable__should_let_the_user_join_and_warn(
-        self, make_app, monkeypatch, caplog
+        self, make_app, caplog
     ):
-        def unreachable_game_server(_request):
-            raise httpx.ConnectError("connection refused")
-
-        _route_game_server(monkeypatch, unreachable_game_server)
         app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("fail-open-room")
 
@@ -716,13 +688,13 @@ class TestRoomOccupancy:
         assert caplog.text.count("playing lookup failed") == 1
 
     async def test_room_websocket__when_game_server_lookup_times_out__should_let_the_user_join_and_warn(
-        self, make_app, monkeypatch, caplog
+        self, make_app, game_server, monkeypatch, caplog
     ):
         async def stalled_game_server(_request):
             await asyncio.Event().wait()
 
         monkeypatch.setattr(game_transition_module, "_PLAYING_LOOKUP_TIMEOUT_SECONDS", 0.01)
-        _route_game_server(monkeypatch, stalled_game_server)
+        game_server.respond = stalled_game_server
         app = make_app(is_playing=None)
         room = app.state.room_manager.create_room("stalled-lookup-room")
 
