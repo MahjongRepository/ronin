@@ -622,6 +622,38 @@ def test_load_replay__when_nine_terminals_missing_seat__should_raise():
         load_replay_from_string(content)
 
 
+_MISSING = object()
+
+
+@pytest.mark.parametrize(
+    "ron_seats",
+    [
+        pytest.param(_MISSING, id="missing"),
+        pytest.param(None, id="null"),
+        pytest.param([], id="empty"),
+        pytest.param(1, id="not_a_list"),
+        pytest.param([1, 2], id="too_few"),
+        pytest.param([0, 1, 2, 3], id="too_many"),
+        pytest.param([1, 1, 2], id="duplicate"),
+        pytest.param([True, 2, 3], id="bool"),
+        pytest.param([1, 2, "3"], id="string"),
+        pytest.param([1, 2, 7], id="unknown_seat"),
+    ],
+)
+def test_load_replay__when_triple_ron_ron_seats_malformed__should_raise(ron_seats: object):
+    round_end: dict[str, object] = {
+        "t": EVENT_TYPE_INT[EventType.ROUND_END],
+        "rt": WireRoundResultType.ABORTIVE_DRAW,
+        "rn": "triple_ron",
+    }
+    if ron_seats is not _MISSING:
+        round_end["rcl"] = ron_seats
+
+    content = _build_event_log(json.dumps(round_end))
+    with pytest.raises(ReplayLoadError, match="triple_ron abortive_draw has invalid ron seats"):
+        load_replay_from_string(content)
+
+
 def test_load_replay__when_discard_packed_value_is_bool__should_raise():
     discard = json.dumps({"t": EVENT_TYPE_INT[EventType.DISCARD], "d": True})
     content = _build_event_log(discard)

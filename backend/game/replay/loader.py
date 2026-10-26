@@ -6,10 +6,10 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from game.logic.enums import GameAction
+from game.logic.enums import AbortiveDrawType, GameAction
 from game.logic.events import EventType
 from game.logic.rng import RNG_VERSION, seat_permutation, validate_seed_hex
-from game.logic.settings import NUM_PLAYERS
+from game.logic.settings import NUM_PLAYERS, TRIPLE_RON_COUNT
 from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
@@ -410,10 +410,13 @@ def _parse_abortive_draw_round_end(
     seat_to_name: dict[int, str],
 ) -> list[ReplayInputEvent] | None:
     """
-    Parse an abortive_draw round_end result.
+    Parse an abortive_draw round_end result: the kyuushu kyuuhai declaration or each triple ron declaration.
     """
     reason = result.get("rn")
-    if reason != "nine_terminals":
+    if reason == AbortiveDrawType.TRIPLE_RON:
+        return _parse_triple_ron_declarations(result, seat_to_name)
+
+    if reason != AbortiveDrawType.NINE_TERMINALS:
         # Other abortive draws (four_riichi, etc.) are not player actions
         return None
 
@@ -424,3 +427,22 @@ def _parse_abortive_draw_round_end(
         raise ReplayLoadError(f"nine_terminals abortive_draw missing or invalid field: {exc}") from exc
 
     return [ReplayInputEvent(player_name=player_name, action=GameAction.CALL_KYUUSHU)]
+
+
+def _parse_triple_ron_declarations(
+    result: dict[str, Any],
+    seat_to_name: dict[int, str],
+) -> list[ReplayInputEvent]:
+    """
+    Parse a triple_ron abortive_draw's declaring seats (rcl) into one CALL_RON per seat, in their recorded order.
+
+    The seats must be TRIPLE_RON_COUNT distinct known seats; anything else is a malformed replay.
+    """
+    seats = result.get("rcl")
+    is_seat_list = isinstance(seats, list) and all(
+        isinstance(seat, int) and not isinstance(seat, bool) and seat in seat_to_name for seat in seats
+    )
+    if not is_seat_list or len(seats) != TRIPLE_RON_COUNT or len(set(seats)) != len(seats):
+        raise ReplayLoadError(f"triple_ron abortive_draw has invalid ron seats (rcl): {seats!r}")
+
+    return [ReplayInputEvent(player_name=seat_to_name[seat], action=GameAction.CALL_RON) for seat in seats]

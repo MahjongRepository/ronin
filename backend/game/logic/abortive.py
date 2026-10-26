@@ -85,15 +85,6 @@ def check_four_riichi(round_state: MahjongRoundState) -> bool:
     return riichi_count == NUM_PLAYERS
 
 
-def check_triple_ron(ron_callers: list[int], triple_ron_count: int) -> bool:
-    """
-    Check if enough players simultaneously declare ron for an abortive draw.
-
-    When 2 players can ron, both win (double ron). When 3 players can ron, it's an abortive draw (triple ron).
-    """
-    return len(ron_callers) == triple_ron_count
-
-
 def check_four_kans(round_state: MahjongRoundState, settings: GameSettings) -> bool:
     """
     Check if four kans have been declared by different players.
@@ -144,15 +135,19 @@ def check_four_winds(round_state: MahjongRoundState, settings: GameSettings) -> 
 def process_abortive_draw(
     round_state: MahjongRoundState,
     draw_type: AbortiveDrawType,
+    *,
+    ron_seats: list[int] | None = None,
 ) -> AbortiveDrawResult:
     """
     Process an abortive draw.
 
-    No score changes occur. Honba increment is handled by process_round_end.
+    No score changes occur. Honba increment is handled by process_round_end. ron_seats names the declarers of a triple
+    ron.
     """
     scores = {p.seat: p.score for p in round_state.players}
     return AbortiveDrawResult(
         reason=draw_type,
         scores=scores,
         score_changes={p.seat: 0 for p in round_state.players},
+        ron_seats=ron_seats,
     )

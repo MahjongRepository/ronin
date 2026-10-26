@@ -31,7 +31,6 @@ from game.logic.state import (
     Caller,
     CallResponse,
     Discard,
-    MahjongGameState,
     MeldOption,
     PendingCallPrompt,
 )
@@ -49,12 +48,6 @@ def _default_seat_configs() -> list[SeatConfig]:
         SeatConfig(name="Tsumogiri 2", ai_player_type=AIPlayerType.TSUMOGIRI),
         SeatConfig(name="Tsumogiri 3", ai_player_type=AIPlayerType.TSUMOGIRI),
     ]
-
-
-def _create_frozen_game_state() -> MahjongGameState:
-    game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-    new_round_state, _tile = draw_tile(game_state.round_state)
-    return game_state.model_copy(update={"round_state": new_round_state})
 
 
 class TestPickBestMeldResponse:
@@ -183,33 +176,6 @@ class TestResolveDoubleRon:
         round_end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.DOUBLE_RON
-
-
-class TestResolveTripleRon:
-    def test_resolve_call_prompt__when_three_rons__should_end_round_with_triple_ron_draw(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=0,
-            from_seat=0,
-            pending_seats=frozenset(),
-            callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True), Caller(seat=3, can_ron=True)),
-            responses=(
-                CallResponse(seat=1, action=GameAction.CALL_RON),
-                CallResponse(seat=2, action=GameAction.CALL_RON),
-                CallResponse(seat=3, action=GameAction.CALL_RON),
-            ),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = resolve_call_prompt(game_state)
-        assert result.state.round_state.phase == RoundPhase.FINISHED
-        end_events = [e for e in result.events if isinstance(e, RoundEndEvent)]
-        assert len(end_events) == 1
-        assert end_events[0].result.reason == AbortiveDrawType.TRIPLE_RON
 
 
 class TestResolveChankanDecline:

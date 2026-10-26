@@ -48,6 +48,7 @@ class LeftoverRiichiBets(StrEnum):
 
 MAX_KANS = 4
 MIN_WALL_FOR_KAN = 2
+TRIPLE_RON_COUNT = 3
 
 
 class GameSettings(BaseModel):
@@ -110,7 +111,6 @@ class GameSettings(BaseModel):
     has_kyuushu_kyuuhai: bool = True
     has_triple_ron_abort: bool = True
     kyuushu_min_types: int = 9
-    triple_ron_count: int = 3
     min_players_for_kan_abort: int = 2
     four_winds_discard_count: int = 4
 

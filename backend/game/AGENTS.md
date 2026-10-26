@@ -53,8 +53,8 @@ Mandatory for all game server code; review must catch violations.
 
 State builders live in `tests/conftest.py` and `tests/unit/helpers.py`; `tests/mocks/` fakes the
 connection, engine, repository and storage, though lifecycle flows prefer the real seeded engine.
-`tests/helpers/` builds a manager over in-memory fakes, signs tickets and drives the endpoint over
-real and fake WebSockets; `tests/unit/session/` adds its own helpers and clock fixtures that run
+`tests/helpers/` builds a manager over in-memory fakes, signs tickets, drives the endpoint over
+real and fake WebSockets and holds hand staging shared by unit and integration tests; `tests/unit/session/` adds its own helpers and clock fixtures that run
 timers without waiting.
 Whole-game flows use the replay runner on `tests/integration/replays/fixtures/` or a built
 `ReplayInput`, asserting on each step's before/after state.

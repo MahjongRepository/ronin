@@ -8,7 +8,6 @@ from game.logic.abortive import (
     check_four_kans,
     check_four_riichi,
     check_four_winds,
-    check_triple_ron,
 )
 from game.logic.enums import RoundResultType
 from game.logic.meld_wrapper import FrozenMeld
@@ -226,20 +225,6 @@ class TestCheckFourRiichi:
         round_state = self._create_round_state(riichi_seats=(0, 1, 2))
 
         result = check_four_riichi(round_state)
-        assert result is False
-
-
-class TestCheckTripleRon:
-    def test_check_triple_ron__when_three_callers__should_abort(self):
-        ron_callers = [0, 1, 2]
-
-        result = check_triple_ron(ron_callers, 3)
-        assert result is True
-
-    def test_check_triple_ron__when_two_callers__should_not_abort(self):
-        ron_callers = [1, 3]
-
-        result = check_triple_ron(ron_callers, 3)
         assert result is False
 
 
