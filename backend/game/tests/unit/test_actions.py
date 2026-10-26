@@ -42,6 +42,24 @@ class TestGetAvailableActions:
         discard_actions = [a for a in actions if a.action == PlayerAction.DISCARD]
         assert len(discard_actions) == 0
 
+    def test_get_available_actions__when_closed_hand_can_riichi__should_list_only_tenpai_keeping_discards(self):
+        game_state = self._create_game_state()
+        pin_ones = TilesConverter.string_to_136_array(pin="11")
+        stray_tile = TilesConverter.string_to_136_array(sou="9")[0]
+        hand = (
+            *TilesConverter.string_to_136_array(man="123456789"),
+            *pin_ones,
+            *TilesConverter.string_to_136_array(pin="23"),
+            stray_tile,
+        )
+        round_state = _update_player(game_state.round_state, 0, tiles=hand)
+        game_state = game_state.model_copy(update={"round_state": round_state})
+
+        actions = get_available_actions(game_state, seat=0)
+        riichi_actions = [a for a in actions if a.action == PlayerAction.RIICHI]
+        assert len(riichi_actions) == 1
+        assert riichi_actions[0].tiles == [*pin_ones, stray_tile]
+
     def test_get_available_actions__when_kan_available__should_list_kan_tiles(self):
         game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state

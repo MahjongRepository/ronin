@@ -5,8 +5,9 @@ from game.logic.enums import GameErrorCode
 
 class GameRuleError(Exception):
     """
-    A rule judgment refused the acting seat's action: one the wire offered, refused by a rule the client cannot apply
-    without engine state it never receives (kuikae, a riichi player's tsumogiri, a riichi discard that breaks tenpai).
+    A rule judgment refused the acting seat's action: one the wire offered, refused by a rule of the discard (kuikae, a
+    riichi player's tsumogiri, a riichi discard that breaks tenpai). The client is told these rules, but a discard it
+    gets wrong is only refused, never kicked: the decision stays open.
 
     Raised only while validating an action, before anything changes. The action handler turns it into a Refusal carrying
     `code`, which the service answers with an ErrorEvent to the acting seat; the turn and its timer continue. Any other

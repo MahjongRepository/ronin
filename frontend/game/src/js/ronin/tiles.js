@@ -5,9 +5,10 @@ const RED_IDS = { 16: 'm0', 52: 'p0', 88: 's0' };
 const SUITS   = 'mps';
 
 function tileToStr(id) {
-    const red = RED_IDS[id];
-    if (red) return red;
-    const t34 = Math.floor(id / 4);
+    return RED_IDS[id] || typeToStr(Math.floor(id / 4));
+}
+
+function typeToStr(t34) {
     if (t34 < 27) return SUITS[Math.floor(t34 / 9)] + (t34 % 9 + 1);
     return 'z' + (t34 - 26);
 }
@@ -48,4 +49,4 @@ function handStr(ids) {
     return idsToStrs(ids).join('');
 }
 
-export { tileToStr, strTo34, strToBaseId, redIdOf, idsOf, idsToStrs, handStr };
+export { tileToStr, typeToStr, strTo34, strToBaseId, redIdOf, idsOf, idsToStrs, handStr };

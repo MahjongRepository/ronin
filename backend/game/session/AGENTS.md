@@ -64,5 +64,5 @@ interleave.
   that lands even when the start write failed, and the first finish wins.
 * **Replays.** A game's replay lines are collected from the start and detached by the end claim; an
   abandoned game's are discarded, and a failure to save a completed game's replay turns its end
-  into a failure. A reconnect re-sends the draw directly, outside the replay path, so it is not
-  recorded twice.
+  into a failure. A reconnect re-sends the turn's opening event (its draw or `turn` event)
+  directly, outside the replay path, so a draw is not recorded twice.

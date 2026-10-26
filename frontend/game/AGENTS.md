@@ -60,17 +60,22 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   itself; the UI's decisions are translated back into wire actions. A client-side shadow of the
   seat state supplies what the translation needs and the wire messages omit: physical tile ids,
   other seats' hidden draws and the live wall count.
-* **The server judges every decision.** majiang-core's own rule checks never decide a button: the
-  player (`src/js/ronin/player.js`) offers exactly what the server offered (a draw's available
-  actions, a call prompt's calls), because the server refuses an action it did not offer and
-  disconnects a seat for an impossible one. A call prompt, a chankan prompt included (it precedes
+* **The server judges every decision.** majiang-core's own rule checks never decide a button or a
+  selectable tile: the player (`src/js/ronin/player.js`) offers exactly what the server offered (a
+  draw's available actions, riichi's tenpai-keeping discards included, and a call prompt's calls),
+  because the server refuses an action it did not offer and disconnects a seat for an impossible
+  one. Discards are the one fixed rule the client applies: any tile in hand, in riichi only the
+  drawn one. The turn after the seat's own pon or chi opens with the server's `turn` event, not with
+  the meld, and its kuikae types are the tiles it blocks. A call prompt, a chankan prompt included (it precedes
   its kan's meld event), reopens the decision on the discard the model already played.
 * **Wait ids:** every action echoes the wait id of the last server message that carried one (a
-  draw, the seat's own pon or chi, a call prompt, a round end, the reconnect snapshot). A round end
-  without one is the game's last: nothing is confirmed, and the final standings wait until the
-  player dismisses that result. A refused action reopens its decision; a stale one does not.
-* **Reconnect:** the `game_reconnected` snapshot rebuilds the table; on the seat's turn the server
-  re-sends the draw already in the snapshot's hand, so a draw of a tile the hand holds only reopens
+  draw, the `turn` event after the seat's own pon or chi, a call prompt, a round end, the
+  reconnect snapshot). A round end without one is the game's last: nothing is confirmed, and the
+  final standings wait until the player dismisses that result. A refused action reopens its
+  decision; a stale one does not.
+* **Reconnect:** the `game_reconnected` snapshot rebuilds the table and opens no decision; on the
+  seat's turn the server re-sends the event that opened it: the `turn` event after its own pon or
+  chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds only reopens
   the turn. The round's number within its wind comes from the first dealer, which the snapshot
   gives only as the dealer dice. The final standings' ledger (the shadow's round logs) is seeded
   from the snapshot's round history, as reduced round logs holding only what the standings read.

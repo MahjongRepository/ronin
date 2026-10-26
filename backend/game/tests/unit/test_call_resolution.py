@@ -21,6 +21,8 @@ from game.logic.events import (
     MeldEvent,
     RiichiDeclaredEvent,
     RoundEndEvent,
+    SeatTarget,
+    TurnEvent,
 )
 from game.logic.game import init_game
 from game.logic.meld_wrapper import FrozenMeld
@@ -356,7 +358,7 @@ class TestCompleteAddedKanAfterChankanDecline:
 
 
 class TestResolvePonChiMeldResponse:
-    def test_resolve_meld_response__when_pon__should_emit_meld_without_draw(self):
+    def test_resolve_meld_response__when_pon__should_emit_meld_then_turn_event_forbidding_the_called_type(self):
         game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -385,13 +387,13 @@ class TestResolvePonChiMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(game_state)
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 0
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].caller_seat == 0
+        assert [type(e) for e in result.events] == [MeldEvent, TurnEvent]
+        meld_event, turn_event = result.events
+        assert meld_event.caller_seat == 0
+        assert turn_event.target == SeatTarget(seat=0)
+        assert turn_event.kuikae_tiles == [discard_tile // 4]
 
-    def test_resolve_meld_response__when_chi__should_emit_meld_without_draw(self):
+    def test_resolve_meld_response__when_chi__should_emit_meld_then_turn_event(self):
         game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
         round_state = game_state.round_state
 
@@ -419,11 +421,9 @@ class TestResolvePonChiMeldResponse:
         game_state = game_state.model_copy(update={"round_state": round_state})
 
         result = resolve_call_prompt(game_state)
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 0
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].caller_seat == 1
+        assert [type(e) for e in result.events] == [MeldEvent, TurnEvent]
+        assert result.events[0].caller_seat == 1
+        assert result.events[1].target == SeatTarget(seat=1)
 
 
 class TestRiichiDiscardAllPass:

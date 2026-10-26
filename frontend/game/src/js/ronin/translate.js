@@ -51,9 +51,6 @@ const KIND_OF_MELD = {
     [wire.MELD.ADDED_KAN]:  'gang',
 };
 
-/** The seat's own pon or chi opens its turn without a draw. */
-const TURN_OPENING_MELDS = new Set([wire.MELD.CHI, wire.MELD.PON]);
-
 const SAY_OF_MELD = {
     [wire.MELD.CHI]: 'chi',
     [wire.MELD.PON]: 'peng',
@@ -183,6 +180,7 @@ class Translate {
             case wire.E.DRAW:          return this.draw(msg);
             case wire.E.DISCARD:       return this.discard(msg);
             case wire.E.MELD:          return this.meld(msg);
+            case wire.E.TURN:          return this.turn(msg);
             case wire.E.CALL_PROMPT:   return this.callPrompt(msg);
             case wire.E.DORA_REVEALED: return this.dora(msg);
             case wire.E.ROUND_END:     return this.roundEnd(msg);
@@ -398,13 +396,19 @@ class Translate {
 
         const l = s.l(meld.callerSeat);
         const m = { [kind]: { m: str, l } };
-        if (mine && TURN_OPENING_MELDS.has(meld.meldType)) P.countdown(this.clock.startTurn());
-        this.feed(m, kind);
+        this.feedModel(m);
         s.logMessage(m);
         this.syncWall();
-        if (mine && kind == 'fulou') this.retry = () => this.present('fulou', Offer.NO_OFFER, P => P.action_fulou(m.fulou));
 
         if (P._view) P._view.say(SAY_OF_MELD[meld.meldType] || 'gang', l);
+    }
+
+    /** The seat's own pon or chi opens its turn without a draw: this event follows it with the types kuikae blocks. */
+    turn(msg) {
+        const offer = Offer.forCallTurn(msg.kt);
+        this.player.countdown(this.clock.startTurn());
+        this.retry = () => this.present('fulou', offer, P => P.show_button(() => P.select_dapai()));
+        this.retry();
     }
 
     callPrompt(msg) {
@@ -592,6 +596,13 @@ class Translate {
         this.feed({ jieju: paipu }, 'jieju');
     }
 
+    /** Play an event the model and view show but no decision answers: a meld, whose own turn opens with `turn`. */
+    feedModel(msg) {
+        this.player.offer = Offer.NO_OFFER;
+        this.shadow.offerActions = Offer.NO_OFFER.actions;
+        this.player.action(msg);
+    }
+
     feed(msg, kind, offer = Offer.NO_OFFER, callback = reply => this.answer(kind, reply)) {
         this.player.offer = offer;
         this.shadow.offerActions = offer.actions;
@@ -748,9 +759,6 @@ class Translate {
         if (P._view && P._view.redraw) P._view.redraw();
 
         P.clear_timer();
-        if (! myTurn) return;
-        P.countdown(this.clock.startTurn());
-        this.present('fulou', Offer.NO_OFFER, P => P.select_dapai());
     }
 }
 

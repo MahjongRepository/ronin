@@ -14,7 +14,7 @@ from game.logic.action_handlers import (
     handle_ron,
     handle_tsumo,
 )
-from game.logic.action_result import Refusal, create_draw_event
+from game.logic.action_result import Refusal, create_draw_event, create_turn_event
 from game.logic.ai_player import AIPlayer
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import GameAction, GameErrorCode, GamePhase, RoundPhase, TimeoutType, WaitKind
@@ -679,17 +679,19 @@ class MahjongGameService(GameService):
             round_history=list(game_state.round_history),
         )
 
-    def build_draw_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
+    def build_turn_event_for_seat(self, runtime: GameRuntime, seat: int) -> list[ServiceEvent]:
         """
-        Rebuild the draw event with available actions for a specific seat.
+        Rebuild the event that opened the seat's turn: its draw with its available actions, or the turn event.
 
-        Right after the seat's own pon or chi it drew nothing, so there is no draw to rebuild (no draw follows a pon or
-        chi on the live path either).
+        Right after the seat's own pon or chi it drew nothing: its turn opened with the turn event, as on the live path.
         """
         game_state = runtime.state
         round_state = game_state.round_state
-        if round_state.current_player_seat != seat or round_state.is_after_meld_call:
+        if round_state.current_player_seat != seat:
             return []
+
+        if round_state.is_after_meld_call:
+            return convert_events([create_turn_event(game_state, seat=seat)])
 
         player = round_state.players[seat]
         if not player.tiles:

@@ -8,7 +8,7 @@ from game.logic.abortive import (
     check_four_riichi,
     process_abortive_draw,
 )
-from game.logic.action_result import ActionResult, create_draw_event
+from game.logic.action_result import ActionResult, create_draw_event, create_turn_event
 from game.logic.enums import (
     MELD_CALL_PRIORITY,
     GameAction,
@@ -141,6 +141,8 @@ def _resolve_meld_response(
         # open kan draws from dead wall; include tile_id and available actions
         player = new_round_state.players[best.seat]
         events.append(create_draw_event(new_game_state, seat=best.seat, tile_id=player.tiles[-1]))
+    else:
+        events.append(create_turn_event(new_game_state, seat=best.seat))
 
     return ActionResult(events, state=new_game_state)
 

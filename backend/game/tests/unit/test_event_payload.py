@@ -10,6 +10,7 @@ from game.logic.events import (
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
+    TurnEvent,
 )
 from game.logic.service import Awaiting
 from game.logic.types import (
@@ -93,6 +94,12 @@ class TestServiceEventPayload:
         payload = service_event_payload(event)
         assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
         assert "tl" not in payload["aa"][0]
+
+    def test_service_event_payload__when_turn_event__should_carry_only_type_and_kuikae_types(self):
+        event = ServiceEvent(data=TurnEvent(kuikae_tiles=[4, 7], target=SeatTarget(seat=0)))
+
+        payload = service_event_payload(event)
+        assert payload == {"t": 12, "kt": [4, 7]}
 
 
 class TestShapeCallPromptPayload:
@@ -190,8 +197,8 @@ class TestStampWaitId:
         [
             (WaitKind.TURN, DrawEvent(seat=1, tile_id=8, target=SeatTarget(seat=1)), True),
             (WaitKind.TURN, DrawEvent(seat=2, tile_id=8, target=SeatTarget(seat=2)), False),
-            (WaitKind.TURN, _meld(MeldViewType.PON, caller_seat=1), True),
-            (WaitKind.TURN, _meld(MeldViewType.CHI, caller_seat=1), True),
+            (WaitKind.TURN, TurnEvent(kuikae_tiles=[], target=SeatTarget(seat=1)), True),
+            (WaitKind.TURN, _meld(MeldViewType.PON, caller_seat=1), False),
             (WaitKind.TURN, _meld(MeldViewType.CLOSED_KAN, caller_seat=1), False),
             (WaitKind.CALL, _prompt_to(1), True),
             (WaitKind.CALL, _prompt_to(2), False),
@@ -201,8 +208,8 @@ class TestStampWaitId:
         ids=[
             "turn_draw",
             "other_seats_draw",
-            "turn_after_pon",
-            "turn_after_chi",
+            "turn_after_own_call",
+            "own_pon_before_its_turn_event",
             "kan_before_its_draw",
             "call_prompt",
             "other_seats_prompt",

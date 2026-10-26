@@ -33,8 +33,9 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 ## Turn rules
 
 * `get_available_actions` (`actions.py`) builds a turn's offered actions in one place, for the live draw event and
-  the reconnect rebuild alike; each handler re-checks the predicate the offer used. Right after the player's own pon
-  or chi nothing was drawn: only a discard is legal, and no draw is sent.
+  the reconnect rebuild alike; each handler re-checks the predicate the offer used. Riichi lists the discards that
+  keep tenpai. A discard is never offered: any tile in hand is legal, in riichi only the drawn one, except right after
+  the player's own pon or chi, when nothing was drawn and a turn event names the tile types kuikae forbids.
 * `legal_discards` and `choose_default_discard` (`round.py`) are the one legal-discard rule, used by the discard
   validator, the turn timeout and the AI; the chi check drops a shape that would leave no legal discard, so the
   default chooser never comes up empty (if it does, that is an engine fault).
@@ -52,8 +53,9 @@ ron > pon/kan > chi > pass; dora reveal and riichi finalization after a discard 
 
 Every refusal or failure has exactly one outcome; `exceptions.py` says which class lands where.
 
-* **ErrorEvent to the acting seat, nothing changes, the turn and its timer go on**: a rule judgment the client cannot
-  make from the wire, or a race the server can detect from state alone.
+* **ErrorEvent to the acting seat, nothing changes, the turn and its timer go on**: a rule judgment on an offered
+  action, a discard's kuikae and riichi rules included although the wire carries them, or a race the server can detect
+  from state alone.
 * **Kick**: structurally impossible input the wire never offered, raised only by the handler validating the acting
   seat; the session disconnects that human and seats an AI player. A stale action never reaches the engine: the
   session rejects it by wait id.

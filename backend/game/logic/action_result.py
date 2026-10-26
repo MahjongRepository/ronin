@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from game.logic.actions import get_available_actions
-from game.logic.events import DrawEvent, GameEvent, SeatTarget
+from game.logic.events import DrawEvent, GameEvent, SeatTarget, TurnEvent
 
 if TYPE_CHECKING:
     from game.logic.enums import GameErrorCode
@@ -47,3 +47,11 @@ def create_draw_event(game_state: MahjongGameState, seat: int, tile_id: int) -> 
         available_actions=available_actions,
         target=SeatTarget(seat=seat),
     )
+
+
+def create_turn_event(game_state: MahjongGameState, seat: int) -> TurnEvent:
+    """
+    Create the event that opens a player's turn after their own pon or chi, with the tile types kuikae forbids.
+    """
+    player = game_state.round_state.players[seat]
+    return TurnEvent(kuikae_tiles=list(player.kuikae_tiles), target=SeatTarget(seat=seat))

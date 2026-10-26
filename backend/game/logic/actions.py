@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from game.logic.abortive import can_call_kyuushu_kyuuhai
 from game.logic.enums import PlayerAction
 from game.logic.melds import get_possible_added_kans, get_possible_closed_kans
-from game.logic.riichi import can_declare_riichi
+from game.logic.riichi import can_declare_riichi, riichi_discards
 from game.logic.types import AvailableActionItem
 from game.logic.win import can_declare_tsumo
 
@@ -17,11 +17,12 @@ def get_available_actions(game_state: MahjongGameState, seat: int) -> list[Avail
     """
     Return available actions for a player at their turn.
 
-    The single source of a turn's offered actions, for the draw event and its reconnect rebuild alike. Discard is
-    always available and handled implicitly by the client.
+    The single source of a draw's offered actions, for the draw event and its reconnect rebuild alike. Discard is
+    always available: the client may discard any tile in hand, in riichi only the drawn one; the kuikae types it may
+    not discard right after its own pon or chi come with that turn's event instead.
 
     Includes:
-    - riichi option (if eligible)
+    - riichi option (if eligible), with the tile ids whose discard keeps the hand in tenpai
     - tsumo option (if hand is winning and the player drew; never right after their own pon or chi)
     - kan options (closed and added)
     - kyuushu kyuuhai (if enabled and eligible on the player's first uninterrupted draw)
@@ -34,7 +35,7 @@ def get_available_actions(game_state: MahjongGameState, seat: int) -> list[Avail
 
     # check riichi eligibility
     if can_declare_riichi(player, round_state, settings=settings):
-        result.append(AvailableActionItem(action=PlayerAction.RIICHI))
+        result.append(AvailableActionItem(action=PlayerAction.RIICHI, tiles=riichi_discards(player)))
 
     # check tsumo
     if can_declare_tsumo(player, round_state, settings=settings):

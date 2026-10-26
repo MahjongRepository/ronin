@@ -24,6 +24,7 @@ from game.logic.types import (
 from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import (
     _find_player,
+    _string_to_34_tile,
     _update_player,
     _update_round_state,
 )
@@ -386,23 +387,23 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         ]
 
 
-class TestMahjongGameServiceBuildDrawEventForSeat:
+class TestMahjongGameServiceBuildTurnEventForSeat:
     @pytest.fixture
     def service(self):
         return MahjongGameService()
 
-    def test_build_draw_event_for_seat__when_seat_is_current_player__should_return_draw_event(self, service):
+    def test_build_turn_event_for_seat__when_seat_is_current_player__should_return_draw_event(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
         game_state = runtime.state
         current_seat = game_state.round_state.current_player_seat
 
-        events = service.build_draw_event_for_seat(runtime, current_seat)
+        events = service.build_turn_event_for_seat(runtime, current_seat)
         assert len(events) == 1
         assert events[0].event == EventType.DRAW
         assert isinstance(events[0].target, SeatTarget)
         assert events[0].target.seat == current_seat
 
-    def test_build_draw_event_for_seat__when_dealer_holds_nine_terminals_on_first_draw__should_offer_kyuushu(
+    def test_build_turn_event_for_seat__when_dealer_holds_nine_terminals_on_first_draw__should_offer_kyuushu(
         self, service
     ):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
@@ -413,29 +414,34 @@ class TestMahjongGameServiceBuildDrawEventForSeat:
         )
         _update_player(runtime, seat=dealer_seat, tiles=nine_terminal_types_hand)
 
-        events = service.build_draw_event_for_seat(runtime, dealer_seat)
+        events = service.build_turn_event_for_seat(runtime, dealer_seat)
         assert [a.action for a in events[0].data.available_actions] == [PlayerAction.KYUUSHU]
 
-    def test_build_draw_event_for_seat__when_right_after_own_call__should_return_empty(self, service):
+    def test_build_turn_event_for_seat__when_right_after_own_call__should_return_turn_event_with_kuikae(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
         current_seat = runtime.state.round_state.current_player_seat
+        kuikae_type = _string_to_34_tile(man="5")
+        _update_player(runtime, seat=current_seat, kuikae_tiles=(kuikae_type,))
         _update_round_state(runtime, is_after_meld_call=True)
 
-        assert service.build_draw_event_for_seat(runtime, current_seat) == []
+        events = service.build_turn_event_for_seat(runtime, current_seat)
+        assert [e.event for e in events] == [EventType.TURN]
+        assert events[0].target == SeatTarget(seat=current_seat)
+        assert events[0].data.kuikae_tiles == [kuikae_type]
 
-    def test_build_draw_event_for_seat__when_seat_is_not_current_player__should_return_empty(self, service):
+    def test_build_turn_event_for_seat__when_seat_is_not_current_player__should_return_empty(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
         game_state = runtime.state
         other_seat = (game_state.round_state.current_player_seat + 1) % 4
 
-        events = service.build_draw_event_for_seat(runtime, other_seat)
+        events = service.build_turn_event_for_seat(runtime, other_seat)
         assert events == []
 
-    def test_build_draw_event_for_seat__when_player_has_no_tiles__should_return_empty(self, service):
+    def test_build_turn_event_for_seat__when_player_has_no_tiles__should_return_empty(self, service):
         runtime = service.start_game("game1", ["Alice", "Bob", "Charlie", "Dave"], seed="a" * 192).runtime
         game_state = runtime.state
         current_seat = game_state.round_state.current_player_seat
         _update_player(runtime, seat=current_seat, tiles=())
 
-        events = service.build_draw_event_for_seat(runtime, current_seat)
+        events = service.build_turn_event_for_seat(runtime, current_seat)
         assert events == []

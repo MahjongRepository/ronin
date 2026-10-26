@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from game.logic.round import is_tempai
 from game.logic.state_utils import update_player
+from game.logic.tiles import tile_to_34
 from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
@@ -49,6 +50,26 @@ def can_declare_riichi(
 
     # must be in tempai
     return is_tempai(player.tiles, player.melds)
+
+
+def riichi_discards(player: MahjongPlayer) -> list[int]:
+    """
+    Return the tiles a riichi declaration may discard, in hand order: those whose discard keeps the hand in tenpai.
+    """
+    tenpai_types: set[int] = set()
+    checked_types: set[int] = set()
+    for tile_id in player.tiles:
+        tile_34 = tile_to_34(tile_id)
+        if tile_34 in checked_types:
+            continue
+
+        checked_types.add(tile_34)
+        remaining = list(player.tiles)
+        remaining.remove(tile_id)
+        if is_tempai(remaining, player.melds):
+            tenpai_types.add(tile_34)
+
+    return [t for t in player.tiles if tile_to_34(t) in tenpai_types]
 
 
 def declare_riichi(game_state: MahjongGameState, seat: int) -> MahjongGameState:

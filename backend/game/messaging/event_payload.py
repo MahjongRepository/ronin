@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import MeldViewType, RoundResultType, WaitKind, WireCallType
+from game.logic.enums import RoundResultType, WaitKind, WireCallType
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
@@ -12,6 +12,7 @@ from game.logic.events import (
     RoundEndEvent,
     SeatTarget,
     ServiceEvent,
+    TurnEvent,
 )
 from game.logic.meld_compact import meld_event_to_compact
 from game.wire.compact import encode_discard, encode_draw
@@ -25,8 +26,6 @@ if TYPE_CHECKING:
 WAIT_ID_KEY = "wi"
 VIEWER_SEAT_KEY = "s"
 TIMER_SETTINGS_KEY = "tm"
-
-_TURN_OPENING_MELDS = frozenset({MeldViewType.PON, MeldViewType.CHI})
 
 
 def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
@@ -143,9 +142,9 @@ def stamp_wait_id(payload: dict[str, Any], event: ServiceEvent, awaiting: Awaiti
     """
     Add the wait id (`wi`) to the payload of an event that opens the awaited wait; leave any other payload as it is.
 
-    The opening events: for a turn, the draw to the awaited seat, or that seat's pon or chi when no draw follows; for a
-    call prompt, each prompt to an awaited seat; for a round advance, the round end. A game over opens no wait. Only the
-    socket payloads carry it: the replay collector shapes its own payloads, so `wi` never reaches a replay file.
+    The opening events: for a turn, the draw or the turn event to the awaited seat; for a call prompt, each prompt to an
+    awaited seat; for a round advance, the round end. A game over opens no wait. Only the socket payloads carry it: the
+    replay collector shapes its own payloads, so `wi` never reaches a replay file.
     """
     if _opens_wait(event, awaiting):
         payload[WAIT_ID_KEY] = awaiting.wait_id
@@ -155,15 +154,12 @@ def stamp_wait_id(payload: dict[str, Any], event: ServiceEvent, awaiting: Awaiti
 
 def _opens_wait(event: ServiceEvent, awaiting: Awaiting) -> bool:
     data = event.data
+    target = event.target
+    to_awaited_seat = isinstance(target, SeatTarget) and target.seat in awaiting.seats
     if awaiting.kind == WaitKind.TURN:
-        if isinstance(data, DrawEvent):
-            return data.seat in awaiting.seats
-
-        is_pon_or_chi = isinstance(data, MeldEvent) and data.meld_type in _TURN_OPENING_MELDS
-        return is_pon_or_chi and data.caller_seat in awaiting.seats
+        return isinstance(data, DrawEvent | TurnEvent) and to_awaited_seat
 
     if awaiting.kind == WaitKind.CALL:
-        target = event.target
-        return isinstance(data, CallPromptEvent) and isinstance(target, SeatTarget) and target.seat in awaiting.seats
+        return isinstance(data, CallPromptEvent) and to_awaited_seat
 
     return awaiting.kind == WaitKind.ROUND_ADVANCE and isinstance(data, RoundEndEvent)

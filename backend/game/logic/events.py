@@ -72,6 +72,7 @@ class EventType(StrEnum):
     ROUND_STARTED = "round_started"
     GAME_END = "game_end"
     FURITEN = "furiten"
+    TURN = "turn"
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +100,16 @@ class DrawEvent(GameEvent):
     seat: int
     tile_id: int
     available_actions: list[AvailableActionItem] = Field(default_factory=list)
+
+
+class TurnEvent(GameEvent):
+    """
+    Event sent to a player whose turn opens without a draw (right after their own pon or chi): only a discard is legal,
+    of any tile in hand but the tile types kuikae forbids.
+    """
+
+    type: Literal[EventType.TURN] = EventType.TURN
+    kuikae_tiles: list[int] = Field(serialization_alias="kt")
 
 
 class DiscardEvent(GameEvent):
@@ -248,6 +259,7 @@ Event = (
     | RoundStartedEvent
     | GameEndedEvent
     | FuritenEvent
+    | TurnEvent
 )
 
 
