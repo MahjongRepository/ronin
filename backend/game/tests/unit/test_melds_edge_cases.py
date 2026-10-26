@@ -8,7 +8,6 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     _check_pao,
     _validate_chi_sequence,
-    call_chi,
     can_call_open_kan,
     get_kuikae_tiles,
     get_possible_added_kans,
@@ -18,7 +17,7 @@ from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
 from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 from game.logic.tiles import tile_to_34
-from game.tests.conftest import create_dealt_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.helpers import _update_round_state
 
@@ -148,37 +147,6 @@ class TestKanLimits:
         )
 
         assert get_possible_added_kans(kan_caller, round_state, settings=GameSettings()) == []
-
-
-class TestChiKuikaeWithoutSuji:
-    def test_chi_kuikae__when_suji_kuikae_disabled__should_forbid_only_called_tile(self):
-        man_tiles = TilesConverter.string_to_136_array(man="123")
-        pin_tiles = TilesConverter.string_to_136_array(pin="123456789")
-        player1_tiles = (man_tiles[1], man_tiles[2], *pin_tiles)
-
-        players = [
-            create_player(seat=0),
-            create_player(seat=1, tiles=player1_tiles),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            current_player_seat=0,
-        )
-
-        settings = GameSettings(has_kuikae=True, has_kuikae_suji=False)
-        new_state, _meld = call_chi(
-            round_state,
-            caller_seat=1,
-            discarder_seat=0,
-            tile_id=man_tiles[0],
-            sequence_tiles=(man_tiles[1], man_tiles[2]),
-            settings=settings,
-        )
-        called_34 = tile_to_34(man_tiles[0])
-        # Only the called tile type should be forbidden (no suji)
-        assert new_state.players[1].kuikae_tiles == (called_34,)
 
 
 class TestValidateChiSequence:

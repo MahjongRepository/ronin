@@ -16,7 +16,7 @@ from game.server.app import create_app
 from game.server.router import MessageRouter
 from game.tests.helpers.auth import TEST_TICKET_SECRET
 from game.tests.helpers.session import make_session_manager
-from game.tests.helpers.wall import URA_OFFSET, make_wall
+from game.tests.helpers.wall import FIRST_DORA_POSITION, URA_OFFSET, make_wall
 from game.tests.mocks import MockConnection, MockGameService
 
 if TYPE_CHECKING:
@@ -121,6 +121,7 @@ def create_dealt_game_state(
     *,
     draws: Sequence[int] = (),
     rinshan_draws: Sequence[int] = (),
+    dora_indicator: int | None = None,
     current_player_seat: int = 0,
     all_discards: Sequence[int] | None = None,
     settings: GameSettings | None = None,
@@ -130,9 +131,10 @@ def create_dealt_game_state(
     """
     Build a running round from staged players, dealing every tile they do not own to the walls.
 
-    The draws lead the live wall in order and the rinshan_draws lead the dead wall's replacement draws; the dead wall
-    takes the last free tiles and the live wall the rest. all_discards defaults to the players' discards in seat order.
-    Raises when the staged tiles overlap, so the state owns each of the 136 tiles exactly once.
+    The draws lead the live wall in order and the rinshan_draws lead the dead wall's replacement draws; dora_indicator,
+    when given, is the revealed indicator. The dead wall takes the last free tiles and the live wall the rest.
+    all_discards defaults to the players' discards in seat order. Raises when the staged tiles overlap, so the state
+    owns each of the 136 tiles exactly once.
     """
     if len(rinshan_draws) > len(_RINSHAN_SLOTS):
         raise ValueError(f"the dead wall holds {len(_RINSHAN_SLOTS)} rinshan draws, got {len(rinshan_draws)}")
@@ -142,18 +144,21 @@ def create_dealt_game_state(
         for player in players
         for tile in (*player.tiles, *(t for m in player.melds for t in m.tiles), *(d.tile_id for d in player.discards))
     }
+    fixed_by_slot = dict(zip(_RINSHAN_SLOTS[: len(rinshan_draws)], rinshan_draws, strict=True))
+    if dora_indicator is not None:
+        fixed_by_slot[FIRST_DORA_POSITION] = dora_indicator
+
     free = [
-        tile for tile in range(NUM_TILES) if tile not in in_play and tile not in draws and tile not in rinshan_draws
+        tile
+        for tile in range(NUM_TILES)
+        if tile not in in_play and tile not in draws and tile not in fixed_by_slot.values()
     ]
     if all_discards is None:
         all_discards = [d.tile_id for player in players for d in player.discards]
 
-    live_size = len(free) - DEAD_WALL_SIZE + len(rinshan_draws)
+    live_size = len(free) - DEAD_WALL_SIZE + len(fixed_by_slot)
     dead_free = iter(free[live_size:])
-    rinshan_by_slot = dict(zip(_RINSHAN_SLOTS[: len(rinshan_draws)], rinshan_draws, strict=True))
-    dead_wall = [
-        rinshan_by_slot[slot] if slot in rinshan_by_slot else next(dead_free) for slot in range(DEAD_WALL_SIZE)
-    ]
+    dead_wall = [fixed_by_slot[slot] if slot in fixed_by_slot else next(dead_free) for slot in range(DEAD_WALL_SIZE)]
     round_state = create_round_state(
         players=players,
         wall=(*draws, *free[:live_size]),

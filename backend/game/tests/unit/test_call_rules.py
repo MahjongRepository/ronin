@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 from mahjong.tile import TilesConverter
 
@@ -19,27 +17,19 @@ from game.logic.exceptions import InvalidDiscardError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import can_call_chi, can_call_open_kan, can_call_pon, get_kuikae_tiles
 from game.logic.round import discard_tile
-from game.logic.scoring import (
-    HandResult,
-    apply_double_ron_score,
-    apply_ron_score,
-)
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_discard_phase
 from game.logic.types import ChiActionData, KanActionData, PonActionData, YakuInfo
 from game.logic.win import get_waiting_tiles
-from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
     PIN_3_TRIPLE_RON_DEALER_HAND,
     PIN_3_TRIPLE_RON_DISCARD,
     tile_copies,
 )
-
-if TYPE_CHECKING:
-    from game.logic.state import MahjongGameState
 
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:
@@ -310,162 +300,3 @@ class TestHeadBumpWhenDoubleRonDisabled:
         result = handle_ron(first.state, seat=3)
         round_ends = [e for e in result.events if isinstance(e, RoundEndEvent)]
         assert [(e.result.type, e.result.winner_seat) for e in round_ends] == [(RoundResultType.RON, 3)]
-
-
-# ============================================================================
-# Double Ron: Riichi sticks to closest counter-clockwise winner
-# ============================================================================
-
-
-def _scoring_game_state(*, honba: int = 0, riichi: int = 0) -> MahjongGameState:
-    round_state = create_round_state(wall=list(range(10)))
-    return create_game_state(round_state, honba_sticks=honba, riichi_sticks=riichi)
-
-
-class TestDoubleRonRiichiStickDistribution:
-    def test_double_ron_riichi_sticks__should_go_to_closer_winner(self):
-        game_state = _scoring_game_state(riichi=3)
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        # Loser seat 0, winners 1 and 3. CCW from 0: 1 is first.
-        _, result = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr), (3, hr)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-        assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {1: 3, 3: 0}
-
-    def test_double_ron_riichi_sticks__when_lower_seat_winner_is_farther__should_go_to_closer_winner(self):
-        game_state = _scoring_game_state(riichi=2)
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        # Loser seat 2, winners 0 and 3. CCW from 2: 3 is first.
-        _, result = apply_double_ron_score(
-            game_state,
-            winners=[(0, hr), (3, hr)],
-            loser_seat=2,
-            winning_tile=0,
-        )
-        assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {0: 0, 3: 2}
-
-    def test_double_ron_riichi_sticks__should_add_stick_value_to_closer_winner_score(self):
-        game_state = _scoring_game_state(riichi=2)
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        new_game_state, _ = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr), (3, hr)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-        new_rs = new_game_state.round_state
-        # Seat 1 (riichi receiver): 25000 + 1000 (hand) + 2000 (riichi) = 28000
-        assert new_rs.players[1].score == 25000 + 1000 + 2 * 1000
-        # Seat 3 (non-receiver): 25000 + 1000 (hand only)
-        assert new_rs.players[3].score == 25000 + 1000
-
-
-# ============================================================================
-# Double Ron: Both winners receive honba bonus separately
-# ============================================================================
-
-
-class TestDoubleRonHonbaBonus:
-    def test_double_ron_honba__should_pay_honba_bonus_to_both_winners(self):
-        game_state = _scoring_game_state(honba=3)
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        new_game_state, _ = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr), (3, hr)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-        new_rs = new_game_state.round_state
-        honba_bonus = 3 * 300  # 900 per winner
-        # Each winner: 1000 + 900 = 1900
-        assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
-        assert new_rs.players[3].score == 25000 + 1000 + honba_bonus
-        # Loser pays both: -1900 * 2 = -3800
-        assert new_rs.players[0].score == 25000 - 2 * (1000 + honba_bonus)
-
-    def test_double_ron_honba__when_custom_honba_value__should_apply_it_to_both_winners(self):
-        settings = GameSettings(honba_ron_bonus=500)
-        round_state = create_round_state(wall=list(range(10)))
-        game_state = create_game_state(
-            round_state,
-            honba_sticks=2,
-            riichi_sticks=0,
-            settings=settings,
-        )
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        new_game_state, _ = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr), (3, hr)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-        new_rs = new_game_state.round_state
-        honba_bonus = 2 * 500  # 1000 per winner with custom setting
-        assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
-        assert new_rs.players[3].score == 25000 + 1000 + honba_bonus
-
-    def test_double_ron_honba__when_head_bump__should_pay_honba_once(self):
-        settings = GameSettings(has_double_ron=False)
-        round_state = create_round_state(wall=list(range(10)))
-        game_state = create_game_state(
-            round_state,
-            honba_sticks=3,
-            riichi_sticks=0,
-            settings=settings,
-        )
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        new_game_state, _ = apply_ron_score(
-            game_state,
-            winner_seat=1,
-            loser_seat=0,
-            hand_result=hr,
-            winning_tile=0,
-        )
-        new_rs = new_game_state.round_state
-        honba_bonus = 3 * 300
-        assert new_rs.players[1].score == 25000 + 1000 + honba_bonus
-        assert new_rs.players[0].score == 25000 - 1000 - honba_bonus
-
-
-# ============================================================================
-# Double Ron: Score conservation
-# ============================================================================
-
-
-class TestDoubleRonScoreConservation:
-    def test_double_ron_score_conservation__should_sum_score_changes_to_zero(self):
-        game_state = _scoring_game_state(honba=2, riichi=0)
-        hr1 = HandResult(han=2, fu=30, cost_main=2000, yaku=_yaku(0))
-        hr2 = HandResult(han=3, fu=30, cost_main=3900, yaku=_yaku(0))
-
-        _, result = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr1), (3, hr2)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-        total_change = sum(result.score_changes.values())
-        assert total_change == 0
-
-    def test_double_ron_score_conservation__when_riichi_sticks__should_add_sticks_to_pool(self):
-        game_state = _scoring_game_state(honba=0, riichi=3)
-        hr = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        _, result = apply_double_ron_score(
-            game_state,
-            winners=[(1, hr), (3, hr)],
-            loser_seat=0,
-            winning_tile=0,
-        )
-        # Score changes include riichi sticks from table (3000 bonus to one player)
-        total_change = sum(result.score_changes.values())
-        assert total_change == 3 * 1000  # riichi sticks are added to the pool

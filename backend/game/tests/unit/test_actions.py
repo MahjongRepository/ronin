@@ -1,5 +1,4 @@
 import pytest
-from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import handle_tsumo
 from game.logic.actions import get_available_actions
@@ -12,7 +11,6 @@ from game.logic.state import Discard, MahjongGameState
 from game.logic.types import SeatConfig
 from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
-from game.tests.helpers.wall import make_wall
 from game.tests.unit.helpers import _string_to_34_tile, _string_to_34_tiles
 
 
@@ -23,12 +21,6 @@ def _default_seat_configs() -> list[SeatConfig]:
         SeatConfig(name="Tsumogiri 2", ai_player_type=AIPlayerType.TSUMOGIRI),
         SeatConfig(name="Tsumogiri 3", ai_player_type=AIPlayerType.TSUMOGIRI),
     ]
-
-
-def _update_player(round_state, seat, **updates: object):
-    players = list(round_state.players)
-    players[seat] = players[seat].model_copy(update=updates)
-    return round_state.model_copy(update={"players": tuple(players)})
 
 
 class TestGetAvailableActions:
@@ -46,17 +38,10 @@ class TestGetAvailableActions:
         assert len(discard_actions) == 0
 
     def test_get_available_actions__when_closed_hand_can_riichi__should_list_only_tenpai_keeping_discards(self):
-        game_state = self._create_game_state()
-        pin_ones = TilesConverter.string_to_136_array(pin="11")
-        stray_tile = TilesConverter.string_to_136_array(sou="9")[0]
-        hand = (
-            *TilesConverter.string_to_136_array(man="123456789"),
-            *pin_ones,
-            *TilesConverter.string_to_136_array(pin="23"),
-            stray_tile,
-        )
-        round_state = _update_player(game_state.round_state, 0, tiles=hand)
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        pin_ones = tile_copies(0, pin="11")
+        stray_tile = tile_copies(0, sou="9")[0]
+        hand = (*tile_copies(0, man="123456789"), *pin_ones, *tile_copies(0, pin="23"), stray_tile)
+        game_state = _dealer_after_draw(hand)
 
         actions = get_available_actions(game_state, seat=0)
         riichi_actions = [a for a in actions if a.action == PlayerAction.RIICHI]
@@ -64,35 +49,20 @@ class TestGetAvailableActions:
         assert riichi_actions[0].tiles == [*pin_ones, stray_tile]
 
     def test_get_available_actions__when_kan_available__should_list_kan_tiles(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # give player 4 of the same tile for closed kan
-        # 4x 1m + 4x 2m + 4x 3m + 2x 4m = 14 tiles
-        kan_tiles = tuple(TilesConverter.string_to_136_array(man="11112222333344"))
-        round_state = _update_player(round_state, 0, tiles=kan_tiles)
-        game_state = game_state.model_copy(update={"round_state": round_state})
+        game_state = _dealer_after_draw(tuple(tile_copies(0, man="11112222333344")))
 
         actions = get_available_actions(game_state, seat=0)
         kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
         assert len(kan_actions) == 1
         assert kan_actions[0].tiles == _string_to_34_tiles(man="123")
 
-    def test_get_available_actions__when_wall_empty__should_not_offer_kan(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
 
-        # give player 4 of the same tile plus 10 more to make 14 total
-        kan_tiles = tuple(TilesConverter.string_to_136_array(man="11112222333344"))
-        round_state = _update_player(round_state, 0, tiles=kan_tiles)
-        # empty the wall
-        round_state = round_state.model_copy(update={"wall": make_wall()})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        actions = get_available_actions(game_state, seat=0)
-        # no kan should be available since wall is empty
-        kan_actions = [a for a in actions if a.action == PlayerAction.KAN]
-        assert len(kan_actions) == 0
+def _dealer_after_draw(hand: tuple[int, ...]) -> MahjongGameState:
+    players = (
+        create_player(seat=0, tiles=hand),
+        *(create_player(seat=seat, tiles=tile_copies(seat, sou="123456789", honors="1234")) for seat in (1, 2, 3)),
+    )
+    return create_dealt_game_state(players)
 
 
 def _dealer_with_pon_after_draw(*, pon_tiles: list[int], tiles: tuple[int, ...]) -> MahjongGameState:

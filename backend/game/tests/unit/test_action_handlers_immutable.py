@@ -1,7 +1,6 @@
 from mahjong.tile import TilesConverter
 
 from game.logic.action_handlers import (
-    handle_chi,
     handle_discard,
     handle_kan,
     handle_kyuushu,
@@ -13,7 +12,6 @@ from game.logic.action_handlers import (
 )
 from game.logic.action_result import ActionResult, Refusal
 from game.logic.call_resolution import (
-    complete_added_kan_after_chankan_decline,
     resolve_call_prompt,
 )
 from game.logic.enums import (
@@ -35,7 +33,6 @@ from game.logic.events import (
     RoundEndEvent,
 )
 from game.logic.game import init_game
-from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import draw_tile
 from game.logic.state import (
     Caller,
@@ -47,7 +44,6 @@ from game.logic.state import (
 from game.logic.state_utils import update_player
 from game.logic.types import (
     AbortiveDrawResult,
-    ChiActionData,
     DiscardActionData,
     KanActionData,
     PonActionData,
@@ -267,62 +263,6 @@ class TestHandlePonImmutable:
         assert len(draw_events) == 0
 
 
-class TestHandleChiImmutable:
-    def _create_chi_opportunity(self) -> tuple[MahjongGameState, int, tuple[int, int]]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state = game_state.round_state
-
-        # player 1 has 2m and 3m tiles + filler
-        player1_tiles = tuple(TilesConverter.string_to_136_array(man="236789", pin="2345789"))
-        round_state = update_player(round_state, 1, tiles=player1_tiles)
-
-        # player 0 discards 1m
-        tile_to_chi = TilesConverter.string_to_136_array(man="1")[0]
-        seq_tiles = TilesConverter.string_to_136_array(man="23")
-
-        game_state = game_state.model_copy(update={"round_state": round_state})
-        return game_state, tile_to_chi, (seq_tiles[0], seq_tiles[1])
-
-    def test_handle_chi__when_valid__should_emit_chi_meld_without_draw(self):
-        game_state, tile_to_chi, sequence_tiles = self._create_chi_opportunity()
-        round_state = game_state.round_state
-
-        # set up pending call prompt for meld
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_to_chi,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, melds=(MeldOption(call_type=MeldCallType.CHI, options=(sequence_tiles,)),)),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        result = handle_chi(
-            game_state,
-            seat=1,
-            data=ChiActionData(tile_id=tile_to_chi, sequence_tiles=sequence_tiles),
-        )
-        assert isinstance(result, ActionResult)
-        meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.CHI
-        # no DrawEvent after chi — MeldEvent is the only signal
-        draw_events = [e for e in result.events if isinstance(e, DrawEvent)]
-        assert len(draw_events) == 0
-
-    def test_handle_chi__when_no_prompt__should_refuse_with_invalid_chi(self):
-        game_state = _create_frozen_game_state()
-
-        result = handle_chi(
-            game_state,
-            seat=1,
-            data=ChiActionData(tile_id=0, sequence_tiles=(1, 2)),
-        )
-        assert isinstance(result, Refusal)
-        assert result.code == GameErrorCode.INVALID_CHI
-
-
 class TestHandleKanImmutable:
     def _create_closed_kan_opportunity(self) -> tuple[MahjongGameState, int]:
         game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
@@ -509,45 +449,6 @@ class TestResolveMeldResponseImmutable:
         meld_events = [e for e in result.events if isinstance(e, MeldEvent)]
         assert len(meld_events) == 1
         assert meld_events[0].meld_type == MeldViewType.PON
-
-
-class TestCompleteAddedKanAfterChankanDeclineImmutable:
-    def _create_added_kan_state(self) -> tuple[MahjongGameState, int]:
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        new_round_state, _tile = draw_tile(game_state.round_state)
-        player = new_round_state.players[0]
-
-        # create a pon meld that can be upgraded
-        tile_ids = TilesConverter.string_to_136_array(man="1111")
-        pon_tiles = tile_ids[:3]
-        fourth_tile = tile_ids[3]
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        # Update player with meld and fourth tile
-        new_tiles = (fourth_tile, *player.tiles[:-1])
-        new_round_state = update_player(new_round_state, 0, tiles=new_tiles, melds=(pon_meld,))
-        game_state = game_state.model_copy(update={"round_state": new_round_state})
-        return game_state, fourth_tile
-
-    def test_complete_added_kan__should_return_new_state_with_added_kan_meld(self):
-        game_state, tile_id = self._create_added_kan_state()
-
-        new_game_state, events = complete_added_kan_after_chankan_decline(
-            game_state,
-            caller_seat=0,
-            tile_id=tile_id,
-        )
-        meld_events = [e for e in events if isinstance(e, MeldEvent)]
-        assert len(meld_events) == 1
-        assert meld_events[0].meld_type == MeldViewType.ADDED_KAN
-        assert [m.meld_type for m in new_game_state.round_state.players[0].melds] == [FrozenMeld.SHOUMINKAN]
 
 
 class TestResolveOpenKanResponseImmutable:

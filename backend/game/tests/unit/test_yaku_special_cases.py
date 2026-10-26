@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from mahjong.hand_calculating.yaku_list import AkaDora, Haitei, Houtei, Ittsu, Rinshan, Tsumo
-from mahjong.tile import TilesConverter
+import pytest
+from mahjong.hand_calculating.yaku_list import AkaDora, DaburuRiichi, Haitei, Houtei, Ittsu, Riichi, Rinshan, Tsumo
+from mahjong.hand_calculating.yaku_list.yakuman import Chiihou, Ryuuiisou, SuuankouTanki, Tenhou
 
 from game.logic.action_handlers import handle_discard, handle_kan, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult, Refusal
@@ -12,169 +13,49 @@ from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import check_nagashi_mangan, process_exhaustive_draw
 from game.logic.runtime import GameRuntime
 from game.logic.scoring import (
-    ScoringContext,
     apply_nagashi_mangan_score,
-    calculate_hand_value,
 )
 from game.logic.settings import GameSettings
 from game.logic.state import Caller, Discard, MahjongGameState, MahjongPlayer
 from game.logic.tiles import tile_to_34
 from game.logic.turn import process_draw_phase
 from game.logic.types import DiscardActionData, KanActionData, RonResult, TsumoResult
-from game.logic.win import is_chiihou
 from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
 from game.tests.unit.helpers import _update_round_state
 
-# --- Tenhou (Blessing of Heaven) ---
+_WINNING_DEALT_HAND = tuple(tile_copies(0, man="123456789", pin="12355"))
+_OTHER_HANDS = {seat: tuple(tile_copies(seat, sou="123456789", honors="1234")) for seat in (1, 2, 3)}
 
 
-class TestTenhouScoring:
-    def test_tenhou__when_dealer_tsumo_on_first_draw__should_score_yakuman(self):
-        # 1-9m 1-5p pinfu hand for the dealer
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(seat=0, tiles=tiles)
+class TestTenhouAndChiihou:
+    def test_tenhou__when_dealer_tsumo_on_dealt_hand__should_score_tenhou_not_chiihou(self):
         players = (
-            player,
-            *(create_player(seat=i) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(),
-            wall=list(range(70)),
+            create_player(seat=0, tiles=_WINNING_DEALT_HAND),
+            *(create_player(seat=seat, tiles=_OTHER_HANDS[seat]) for seat in (1, 2, 3)),
         )
 
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # yaku_id 115 = tenhou
-        assert any(y.yaku_id == 115 for y in result.yaku)
-        assert result.han >= 13
+        assert _yaku_ids(handle_tsumo(create_dealt_game_state(players), seat=0)) == [Tenhou.yaku_id]
 
-    def test_tenhou__when_non_dealer__should_not_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(seat=1, tiles=tiles)
+    def test_chiihou__when_non_dealer_tsumo_on_first_draw_after_dealer_discard__should_score_chiihou_not_tenhou(self):
+        dealer_discard = tile_copies(0, honors="5")[0]
+        waiting_on_three_pin = tile_copies(0, man="123456789", pin="1255")
+        drawn_three_pin = tile_copies(0, pin="3")[0]
         players = (
-            create_player(seat=0),
-            player,
-            *(create_player(seat=i) for i in range(2, 4)),
+            create_player(seat=0, tiles=(*tile_copies(0, sou="123456789", honors="1234"), dealer_discard)),
+            create_player(seat=1, tiles=waiting_on_three_pin),
+            *(create_player(seat=seat, tiles=_OTHER_HANDS[seat]) for seat in (2, 3)),
         )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=1,
-            all_discards=(),
-            wall=list(range(70)),
-        )
+        game_state = create_dealt_game_state(players, draws=(drawn_three_pin,))
 
-        ctx = ScoringContext(
-            player=round_state.players[1],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # tenhou should not be in yaku list
-        assert not any(y.yaku_id == 115 for y in result.yaku)
+        discarded = handle_discard(game_state, seat=0, data=DiscardActionData(tile_id=dealer_discard))
+        assert isinstance(discarded, ActionResult)
+        assert discarded.state.round_state.pending_call_prompt is None
+        drawn_game, _events = process_draw_phase(discarded.state)
+        assert drawn_game.round_state.all_discards == (dealer_discard,)
+        assert drawn_game.round_state.players[1].tiles[-1] == drawn_three_pin
 
-
-# --- Chiihou (Blessing of Earth) ---
-
-
-class TestChiihouBugFix:
-    def test_chiihou__when_dealer_discard_in_all_discards__should_still_detect(self):
-        player = create_player(seat=1, tiles=[])
-        players = (
-            create_player(seat=0, discards=(Discard(tile_id=0),)),
-            player,
-            *(create_player(seat=i) for i in range(2, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=1,
-            all_discards=(0,),
-        )
-        # player has no discards (first draw), even though all_discards is non-empty
-        assert is_chiihou(round_state.players[1], round_state) is True
-
-    def test_chiihou__when_player_has_discarded__should_not_detect(self):
-        player = create_player(seat=1, discards=(Discard(tile_id=5),))
-        players = (
-            create_player(seat=0),
-            player,
-            *(create_player(seat=i) for i in range(2, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=1,
-        )
-        assert is_chiihou(round_state.players[1], round_state) is False
-
-
-class TestChiihouScoring:
-    def test_chiihou__when_non_dealer_tsumo_on_first_draw__should_score_yakuman(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(seat=1, tiles=tiles)
-        players = (
-            create_player(seat=0, discards=(Discard(tile_id=0),)),
-            player,
-            *(create_player(seat=i) for i in range(2, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=1,
-            all_discards=(0,),
-            wall=list(range(70)),
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[1],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # yaku_id 116 = chiihou
-        assert any(y.yaku_id == 116 for y in result.yaku)
-        assert result.han >= 13
-
-    def test_chiihou__when_dealer__should_not_award_yaku(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(seat=0, tiles=tiles)
-        players = (
-            player,
-            *(create_player(seat=i) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(),
-            wall=list(range(70)),
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # chiihou should not appear (tenhou would instead)
-        assert not any(y.yaku_id == 116 for y in result.yaku)
+        assert _yaku_ids(handle_tsumo(drawn_game, seat=1)) == [Chiihou.yaku_id]
 
 
 _ITTSU_EAST_TANKI = tuple(tile_copies(0, man="123456789", pin="444", honors="1"))
@@ -275,192 +156,108 @@ class TestRinshanKaihou:
         )
 
 
-# --- Ryuuiisou (All Green) ---
+_FIRST_DISCARDS = {seat: Discard(tile_id=tile_copies(seat, honors="1")[0]) for seat in range(4)}
+_MAN_PIN_HANDS = {seat: tuple(tile_copies(seat, man="123456789", pin="1234")) for seat in (1, 2, 3)}
+
+
+def _dealer_tsumo_yaku(dealer: MahjongPlayer, *, seat_3_discards: tuple[Discard, ...] = ()) -> list[int]:
+    players = (
+        dealer,
+        *(
+            create_player(
+                seat=seat,
+                tiles=_MAN_PIN_HANDS[seat],
+                discards=(_FIRST_DISCARDS[seat], *(seat_3_discards if seat == 3 else ())),
+            )
+            for seat in (1, 2, 3)
+        ),
+    )
+    return _yaku_ids(handle_tsumo(create_dealt_game_state(players), seat=0))
+
+
+_HATSU = tile_copies(0, honors="666")
+_HATSU_PON = FrozenMeld(
+    meld_type=FrozenMeld.PON, tiles=tuple(_HATSU), opened=True, called_tile=_HATSU[0], who=0, from_who=3
+)
 
 
 class TestRyuuiisou:
-    def test_ryuuiisou__when_hand_has_hatsu__should_score_yakuman(self):
-        # 222s 333s 444s 666z + 66s pair = 14 tiles, all green
-        tiles = TilesConverter.string_to_136_array(sou="22233344466", honors="666")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            discards=(Discard(tile_id=0),),
-        )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(70)),
-        )
+    @pytest.mark.parametrize(
+        ("tiles", "melds", "expected"),
+        [
+            pytest.param(
+                (*tile_copies(0, sou="2223334446", honors="666"), *tile_copies(1, sou="6")),
+                (),
+                [Ryuuiisou.yaku_id, SuuankouTanki.yaku_id],
+                id="closed_with_hatsu",
+            ),
+            pytest.param(
+                tuple(tile_copies(0, sou="22233344466688")),
+                (),
+                [Ryuuiisou.yaku_id, SuuankouTanki.yaku_id],
+                id="closed_without_hatsu",
+            ),
+            pytest.param(
+                tuple(tile_copies(0, sou="22233344488")),
+                (_HATSU_PON,),
+                [Ryuuiisou.yaku_id],
+                id="open_hatsu_pon",
+            ),
+        ],
+    )
+    def test_ryuuiisou__when_all_green_hand_wins_by_tsumo__should_score_yakuman(self, tiles, melds, expected):
+        dealer = create_player(seat=0, tiles=tiles, melds=melds, discards=(_FIRST_DISCARDS[0],))
+        seat_3_discards = (Discard(tile_id=_HATSU[0]),) if melds else ()
 
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        assert any(y.yaku_id == 105 for y in result.yaku)
-        assert result.han >= 13
-
-    def test_ryuuiisou__when_hand_lacks_hatsu__should_score_yakuman(self):
-        # 222s 333s 444s 666s + 88s pair = 14 tiles, all green, no hatsu
-        tiles = TilesConverter.string_to_136_array(sou="22233344466688")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            discards=(Discard(tile_id=0),),
-        )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(70)),
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # ryuuiisou without hatsu
-        assert any(y.yaku_id == 105 for y in result.yaku)
-        assert result.han >= 13
-
-    def test_ryuuiisou__when_hand_is_open__should_score_yakuman(self):
-        # open pon of hatsu (666z) + closed 222s 333s 444s + 88s pair = 14 tiles
-        hatsu_tiles = TilesConverter.string_to_136_array(honors="666")
-        closed_tiles = TilesConverter.string_to_136_array(sou="22233344488")
-        all_tiles = tuple(closed_tiles) + tuple(hatsu_tiles)
-        # win tile is the second 8-sou (completing the pair), from closed portion
-        win_tile = closed_tiles[-1]
-
-        pon = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(hatsu_tiles),
-            opened=True,
-            called_tile=hatsu_tiles[0],
-            who=0,
-            from_who=1,
-        )
-        player = create_player(
-            seat=0,
-            tiles=all_tiles,
-            melds=(pon,),
-            discards=(Discard(tile_id=0),),
-        )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(70)),
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, win_tile)
-        assert result.error is None
-        assert any(y.yaku_id == 105 for y in result.yaku)
-
-
-# --- Double Riichi ---
+        assert _dealer_tsumo_yaku(dealer, seat_3_discards=seat_3_discards) == sorted(expected)
 
 
 class TestDoubleRiichiScoring:
-    def test_double_riichi__when_declared_on_first_turn__should_score_2_han(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
+    @pytest.mark.parametrize(
+        ("riichi_discard_index", "is_daburi", "expected_riichi_yaku"),
+        [
+            pytest.param(0, True, (DaburuRiichi.yaku_id, 2), id="first_discard"),
+            pytest.param(1, False, (Riichi.yaku_id, 1), id="later_discard"),
+        ],
+    )
+    def test_double_riichi__when_riichi_dealer_tsumo__should_score_the_riichi_its_discard_made(
+        self, riichi_discard_index, is_daburi, expected_riichi_yaku
+    ):
+        dealer_discards = [Discard(tile_id=t) for t in tile_copies(0, honors="12")]
+        dealer_discards[riichi_discard_index] = dealer_discards[riichi_discard_index].model_copy(
+            update={"is_riichi_discard": True}
+        )
+        dealer = create_player(
             seat=0,
-            tiles=tiles,
+            tiles=_WINNING_DEALT_HAND,
+            discards=tuple(dealer_discards),
             is_riichi=True,
-            is_daburi=True,
-            discards=(Discard(tile_id=0, is_riichi_discard=True),),
+            is_daburi=is_daburi,
+            score=24000,
         )
         players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3),
-            wall=list(range(70)),
-        )
-
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # yaku_id 8 = daburu riichi (double riichi)
-        assert any(y.yaku_id == 8 for y in result.yaku)
-        # double riichi gives 2 han
-        daburi_yaku = next(y for y in result.yaku if y.yaku_id == 8)
-        assert daburi_yaku.han == 2
-
-    def test_double_riichi__when_regular_riichi__should_not_score_double(self):
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        player = create_player(
-            seat=0,
-            tiles=tiles,
-            is_riichi=True,
-            is_daburi=False,
-            discards=(
-                Discard(tile_id=0),
-                Discard(tile_id=4, is_riichi_discard=True),
+            dealer,
+            *(
+                create_player(
+                    seat=seat,
+                    tiles=_MAN_PIN_HANDS[seat],
+                    discards=tuple(Discard(tile_id=t) for t in tile_copies(seat, honors="12")),
+                )
+                for seat in (1, 2, 3)
             ),
         )
-        players = (
-            player,
-            *(create_player(seat=i, discards=(Discard(tile_id=i),)) for i in range(1, 4)),
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=0,
-            current_player_seat=0,
-            all_discards=(0, 1, 2, 3, 4),
-            wall=list(range(70)),
-        )
+        tsumo = handle_tsumo(create_dealt_game_state(players, riichi_sticks=1), seat=0)
+        assert isinstance(tsumo, ActionResult)
+        round_end = tsumo.events[-1]
+        assert isinstance(round_end, RoundEndEvent)
+        assert isinstance(round_end.result, TsumoResult)
 
-        ctx = ScoringContext(
-            player=round_state.players[0],
-            round_state=round_state,
-            settings=GameSettings(),
-            is_tsumo=True,
-        )
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # regular riichi (id=1), NOT double riichi (id=8)
-        assert any(y.yaku_id == 1 for y in result.yaku)
-        assert not any(y.yaku_id == 8 for y in result.yaku)
+        riichi_yaku = [
+            (y.yaku_id, y.han)
+            for y in round_end.result.hand_result.yaku
+            if y.yaku_id in (Riichi.yaku_id, DaburuRiichi.yaku_id)
+        ]
+        assert riichi_yaku == [expected_riichi_yaku]
 
 
 # --- Nagashi Mangan ---

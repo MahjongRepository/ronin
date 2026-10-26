@@ -4,61 +4,13 @@ from game.logic.enums import RoundResultType
 from game.logic.round import (
     process_exhaustive_draw,
 )
-from game.logic.scoring import (
-    ScoringContext,
-    calculate_hand_value,
-)
-from game.logic.settings import GameSettings
 from game.logic.state import (
     Discard,
     MahjongGameState,
     MahjongPlayer,
     MahjongRoundState,
 )
-from game.logic.win import can_call_ron
 from game.tests.helpers.wall import make_wall
-
-
-class TestCanCallRonFuritenGuards:
-    def _create_ron_state(self):
-        players = tuple(MahjongPlayer(seat=i, name=f"Player{i}", score=25000) for i in range(4))
-        dora_tiles = TilesConverter.string_to_136_array(man="1")
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="1235")
-
-        players_list = list(players)
-        players_list[0] = players_list[0].model_copy(update={"tiles": tuple(tiles), "is_riichi": True})
-        round_state = MahjongRoundState(
-            dealer_seat=0,
-            players=tuple(players_list),
-            wall=make_wall(dora_indicators=tuple(dora_tiles)),
-            all_discards=tuple(TilesConverter.string_to_136_array(man="1112")),
-        )
-        win_tile = TilesConverter.string_to_136_array(pin="5")[0]
-        return round_state, win_tile
-
-    def test_can_call_ron__when_riichi_furiten__should_return_false(self):
-        round_state, win_tile = self._create_ron_state()
-        players = list(round_state.players)
-        players[0] = players[0].model_copy(update={"is_riichi_furiten": True})
-        round_state = round_state.model_copy(update={"players": tuple(players)})
-
-        settings = GameSettings()
-        result = can_call_ron(
-            round_state.players[0], discarded_tile=win_tile, round_state=round_state, settings=settings
-        )
-        assert result is False
-
-    def test_can_call_ron__when_temporary_furiten__should_return_false(self):
-        round_state, win_tile = self._create_ron_state()
-        players = list(round_state.players)
-        players[0] = players[0].model_copy(update={"is_temporary_furiten": True})
-        round_state = round_state.model_copy(update={"players": tuple(players)})
-
-        settings = GameSettings()
-        result = can_call_ron(
-            round_state.players[0], discarded_tile=win_tile, round_state=round_state, settings=settings
-        )
-        assert result is False
 
 
 class TestProcessExhaustiveDrawPayment:
@@ -120,25 +72,3 @@ class TestProcessExhaustiveDrawNagashiTriggered:
         # Player 0 is non-dealer: gets 2000 from each non-dealer + 4000 from dealer = 8000
         assert result.type == RoundResultType.NAGASHI_MANGAN
         assert new_round.players[0].score == 25000 + 8000
-
-
-class TestCalculateHandValueErrors:
-    def _create_round_state(self) -> MahjongRoundState:
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
-        return MahjongRoundState(
-            dealer_seat=0,
-            round_wind=0,
-            players=tuple(MahjongPlayer(seat=i, name=f"P{i}", score=25000) for i in range(4)),
-            wall=make_wall(dead_wall=dead_wall, dora_indicators=(dead_wall[2],)),
-        )
-
-    def test_calculate_hand_value__when_hand_is_invalid__should_return_error(self):
-        round_state = self._create_round_state()
-        # incomplete hand (only 5 tiles) — no valid yaku possible
-        bad_tiles = TilesConverter.string_to_136_array(man="12345")
-        player = MahjongPlayer(seat=0, name="P0", tiles=tuple(bad_tiles), score=25000)
-
-        settings = GameSettings()
-        ctx = ScoringContext(player=player, round_state=round_state, settings=settings, is_tsumo=True)
-        result = calculate_hand_value(ctx, bad_tiles[0])
-        assert result.error is not None

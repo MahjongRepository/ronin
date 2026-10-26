@@ -101,7 +101,7 @@ def _call_kan(game_state: MahjongGameState, *, seat: int, tile_id: int, kan_type
     return result
 
 
-def _open_kan_on_seat_3_discard(settings: GameSettings) -> tuple[MahjongGameState, MahjongGameState]:
+def _open_kan_on_seat_3_discard(settings: GameSettings) -> tuple[MahjongGameState, ActionResult]:
     seat_0 = create_player(seat=0, tiles=(*_ONE_MAN[:3], *_KAN_SEAT_REST))
     seat_3 = create_player(seat=3, tiles=(_ONE_MAN[3], *_FILLER[3]))
     game_state = _kan_game(seat_0, seat_3=seat_3, current_player_seat=3, settings=settings)
@@ -110,7 +110,16 @@ def _open_kan_on_seat_3_discard(settings: GameSettings) -> tuple[MahjongGameStat
 
     kan = _call_kan(prompted, seat=0, tile_id=_ONE_MAN[3], kan_type=KanType.OPEN)
     assert kan.state.round_state.players[0].melds[0].type == FrozenMeld.KAN
-    return game_state, kan.state
+    return game_state, kan
+
+
+def _assert_kan_dora(before_kan: MahjongGameState, kan: ActionResult, *, revealed: int, pending: int) -> None:
+    dora_before = len(before_kan.round_state.wall.dora_indicators)
+    wall = kan.state.round_state.wall
+    assert (len(wall.dora_indicators) - dora_before, wall.pending_dora_count) == (revealed, pending)
+    assert [e.tile_id for e in kan.events if isinstance(e, DoraRevealedEvent)] == list(
+        wall.dora_indicators[dora_before:]
+    )
 
 
 def _chi_by_seat_holding_quad_and_upgradable_pon() -> MahjongGameState:
@@ -354,7 +363,16 @@ class TestFourKansAbortTiming:
 
         _assert_four_kans_abort(handle_pass(discard.state, seat=0))
 
-    def test_four_kans_abort__when_chankan_on_fourth_kan_is_declined__should_draw_replacement_then_abort(self):
+    @pytest.mark.parametrize(
+        ("settings", "revealed"),
+        [
+            pytest.param(GameSettings(), 0, id="kan_dora_deferred_by_default"),
+            pytest.param(GameSettings(kandora_deferred_for_open_kan=False), 1, id="kan_dora_immediate"),
+        ],
+    )
+    def test_four_kans_abort__when_chankan_on_fourth_kan_is_declined__should_draw_replacement_then_abort(
+        self, settings, revealed
+    ):
         kanchan_on_five_man_with_chun = (*tile_copies(1, man="46"), _EIGHT_PIN[1], _EIGHT_PIN[2], *_CHUN_TRIPLET)
         five_man_pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
@@ -370,7 +388,10 @@ class TestFourKansAbortTiming:
             create_player(seat=2, tiles=_SEAT_2_TILES, discards=(Discard(tile_id=_FIVE_MAN[0]),)),
             create_player(seat=3, tiles=(*_SEAT_3_TILES, _FIVE_MAN[3]), melds=(five_man_pon,)),
         )
-        game_state = _game_with_three_kans_on_table(players, current_player_seat=3, all_discards=(_FIVE_MAN[0],))
+        game_state = _game_with_three_kans_on_table(
+            players, current_player_seat=3, all_discards=(_FIVE_MAN[0],), settings=settings
+        )
+        dora_before = len(game_state.round_state.wall.dora_indicators)
 
         chankan_offer = handle_kan(game_state, seat=3, data=KanActionData(tile_id=_FIVE_MAN[3], kan_type=KanType.ADDED))
         assert isinstance(chankan_offer, ActionResult)
@@ -382,7 +403,11 @@ class TestFourKansAbortTiming:
         declined = handle_pass(chankan_offer.state, seat=0)
         assert isinstance(declined, ActionResult)
         assert declined.state.round_state.phase == RoundPhase.PLAYING
-        assert [type(e) for e in declined.events] == [MeldEvent, DrawEvent]
+        assert [type(e) for e in declined.events] == [MeldEvent, *[DoraRevealedEvent] * revealed, DrawEvent]
+        assert [e.tile_id for e in declined.events if isinstance(e, DoraRevealedEvent)] == list(
+            declined.state.round_state.wall.dora_indicators[dora_before:]
+        )
+        assert len(declined.state.round_state.wall.dora_indicators) == dora_before + revealed
         assert check_four_kans(declined.state.round_state, declined.state.settings) is True
 
         _assert_four_kans_abort(_discard(declined.state, seat=3, tile_id=_EIGHT_PIN[0]))
@@ -460,35 +485,38 @@ class TestKanDoraTiming:
     )
     def test_kan_dora__when_closed_kan__should_follow_the_closed_kan_dora_settings(self, settings, revealed, pending):
         game_state = _kan_game(_one_man_quad_after_draw(), settings=settings)
-        dora_before = len(game_state.round_state.wall.dora_indicators)
 
         kan = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[0], kan_type=KanType.CLOSED)
-        wall = kan.state.round_state.wall
-        assert (len(wall.dora_indicators) - dora_before, wall.pending_dora_count) == (revealed, pending)
+        _assert_kan_dora(game_state, kan, revealed=revealed, pending=pending)
 
     @pytest.mark.parametrize(
         ("settings", "revealed", "pending"),
         [
             pytest.param(GameSettings(), 0, 1, id="deferred_by_default"),
             pytest.param(GameSettings(kandora_deferred_for_open_kan=False), 1, 0, id="immediate_when_setting_off"),
+            pytest.param(GameSettings(has_kandora=False), 0, 0, id="none_when_kandora_disabled"),
         ],
     )
     def test_kan_dora__when_open_kan__should_follow_the_open_kan_dora_setting(self, settings, revealed, pending):
-        before_discard, after_kan = _open_kan_on_seat_3_discard(settings)
-        dora_before = len(before_discard.round_state.wall.dora_indicators)
+        before_discard, kan = _open_kan_on_seat_3_discard(settings)
 
-        wall = after_kan.round_state.wall
-        assert (len(wall.dora_indicators) - dora_before, wall.pending_dora_count) == (revealed, pending)
+        _assert_kan_dora(before_discard, kan, revealed=revealed, pending=pending)
 
-    def test_kan_dora__when_added_kan_by_default__should_defer_dora(self):
+    @pytest.mark.parametrize(
+        ("settings", "revealed", "pending"),
+        [
+            pytest.param(GameSettings(), 0, 1, id="deferred_by_default"),
+            pytest.param(GameSettings(kandora_deferred_for_open_kan=False), 1, 0, id="immediate_when_setting_off"),
+            pytest.param(GameSettings(has_kandora=False), 0, 0, id="none_when_kandora_disabled"),
+        ],
+    )
+    def test_kan_dora__when_added_kan__should_follow_the_open_kan_dora_setting(self, settings, revealed, pending):
         seat_0 = create_player(seat=0, tiles=(_ONE_MAN[3], *_KAN_SEAT_REST), melds=(_one_man_pon_from_seat_3(),))
-        game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]))
-        dora_before = len(game_state.round_state.wall.dora_indicators)
+        game_state = _kan_game(seat_0, seat_3=_seat_3_after_discarding(_ONE_MAN[2]), settings=settings)
 
         kan = _call_kan(game_state, seat=0, tile_id=_ONE_MAN[3], kan_type=KanType.ADDED)
-        wall = kan.state.round_state.wall
         assert kan.state.round_state.players[0].melds[0].type == FrozenMeld.SHOUMINKAN
-        assert (len(wall.dora_indicators), wall.pending_dora_count) == (dora_before, 1)
+        _assert_kan_dora(game_state, kan, revealed=revealed, pending=pending)
 
     def test_kan_dora__when_open_kan_replacement_discard_is_ponned__should_reveal_dora_before_the_pon(self):
         nine_pin = tile_copies(0, pin="9999")
@@ -588,8 +616,12 @@ class TestKokushiChankanOnAnkan:
 
         declined = handle_pass(kan.state, seat=1)
         assert isinstance(declined, ActionResult)
+        assert [type(e) for e in declined.events] == [MeldEvent, DoraRevealedEvent, DrawEvent]
         assert [(e.meld_type, e.caller_seat) for e in declined.events if isinstance(e, MeldEvent)] == [
             (MeldViewType.CLOSED_KAN, 0),
+        ]
+        assert [e.tile_id for e in declined.events if isinstance(e, DoraRevealedEvent)] == [
+            declined.state.round_state.wall.dora_indicators[-1]
         ]
         assert [m.type for m in declined.state.round_state.players[0].melds] == [FrozenMeld.KAN]
 

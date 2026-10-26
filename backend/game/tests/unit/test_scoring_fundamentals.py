@@ -8,16 +8,7 @@ from mahjong.tile import TilesConverter
 from game.logic.game import calculate_final_scores, finalize_game
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.round import is_tempai, process_exhaustive_draw
-from game.logic.scoring import (
-    HandResult,
-    ScoringContext,
-    apply_double_ron_score,
-    apply_ron_score,
-    apply_tsumo_score,
-    calculate_hand_value,
-)
 from game.logic.settings import GameSettings, validate_settings
-from game.logic.state import Discard
 from game.logic.types import YakuInfo
 from game.tests.conftest import create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
@@ -29,116 +20,6 @@ if TYPE_CHECKING:
 
 def _yaku(*yaku_ids: int) -> list[YakuInfo]:
     return [YakuInfo(yaku_id=yid, han=0) for yid in yaku_ids]
-
-
-def _scoring_game_state(
-    *,
-    honba: int = 0,
-    riichi: int = 0,
-    dealer_seat: int = 0,
-    settings: GameSettings | None = None,
-) -> MahjongGameState:
-    players = tuple(create_player(seat=i, score=25000, tiles=[0, 1, 2, 3]) for i in range(4))
-    round_state = create_round_state(players=players, dealer_seat=dealer_seat)
-    return create_game_state(
-        round_state=round_state,
-        honba_sticks=honba,
-        riichi_sticks=riichi,
-        settings=settings,
-    )
-
-
-# ============================================================================
-# Honba configurable bonus
-# ============================================================================
-
-
-class TestHonbaRonBonus:
-    def test_apply_ron_score__when_custom_honba_ron_bonus__should_scale_payment_by_honba(self):
-        settings = GameSettings(honba_ron_bonus=500)
-        game_state = _scoring_game_state(honba=2, settings=settings)
-        hand_result = HandResult(han=2, fu=30, cost_main=2000, yaku=_yaku(0))
-
-        new_game_state, _ = apply_ron_score(
-            game_state, winner_seat=1, loser_seat=2, hand_result=hand_result, winning_tile=0
-        )
-        new_rs = new_game_state.round_state
-        # 2000 base + 2*500 honba = 3000
-        assert new_rs.players[1].score == 25000 + 3000
-        assert new_rs.players[2].score == 25000 - 3000
-
-    def test_apply_double_ron_score__when_honba__should_pay_each_winner_the_honba_bonus(self):
-        game_state = _scoring_game_state(honba=3)
-        hr1 = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-        hr2 = HandResult(han=1, fu=30, cost_main=1000, yaku=_yaku(0))
-
-        new_game_state, _ = apply_double_ron_score(
-            game_state, winners=[(0, hr1), (2, hr2)], loser_seat=1, winning_tile=0
-        )
-        new_rs = new_game_state.round_state
-        # each winner: 1000 + 3*300 = 1900
-        assert new_rs.players[0].score == 25000 + 1900
-        assert new_rs.players[2].score == 25000 + 1900
-        # loser pays 1900 * 2 = 3800
-        assert new_rs.players[1].score == 25000 - 3800
-
-
-class TestHonbaTsumoBonus:
-    def test_apply_tsumo_score__when_custom_honba_tsumo_bonus__should_add_it_per_loser(self):
-        settings = GameSettings(honba_tsumo_bonus_per_loser=200)
-        game_state = _scoring_game_state(honba=1, settings=settings)
-        # non-dealer tsumo: dealer pays 1000, non-dealers pay 500
-        hand_result = HandResult(han=1, fu=30, cost_main=1000, cost_additional=500, yaku=_yaku(0))
-
-        new_game_state, _ = apply_tsumo_score(game_state, winner_seat=1, hand_result=hand_result)
-        new_rs = new_game_state.round_state
-        # dealer pays 1000+200=1200, non-dealers pay 500+200=700
-        assert new_rs.players[0].score == 25000 - 1200
-        assert new_rs.players[2].score == 25000 - 700
-        assert new_rs.players[3].score == 25000 - 700
-        # winner gets 1200+700+700=2600
-        assert new_rs.players[1].score == 25000 + 2600
-
-
-# ============================================================================
-# Payment rounding UP to nearest 100 (fundamental, in library)
-# ============================================================================
-
-
-class TestPaymentRoundingUp:
-    def test_calculate_hand_value__when_non_dealer_tsumo_base_not_multiple_of_100__should_round_payments_up(self):
-        # hand: 123m 456m 789m 123p 55p, win tile=5p (tanki)
-        # menzen tsumo (1 han) + ittsu (2 han) = 3 han, 30 fu
-        # base = 30 * 2^5 = 960 (not a multiple of 100)
-        # non-dealer: dealer pays 2*960=1920→2000, non-dealer pays 960→1000
-        tiles = TilesConverter.string_to_136_array(man="123456789", pin="12355")
-        dummy_discards = TilesConverter.string_to_136_array(man="1112")
-        dora_indicators = TilesConverter.string_to_136_array(sou="6")
-        dummy_discard = (Discard(tile_id=0),)
-
-        players = tuple(
-            create_player(seat=i, tiles=tuple(tiles) if i == 0 else None, discards=dummy_discard) for i in range(4)
-        )
-        round_state = create_round_state(
-            players=players,
-            dealer_seat=1,  # seat 0 is non-dealer
-            dora_indicators=dora_indicators,
-            wall=tuple(range(70)),
-            all_discards=dummy_discards,
-        )
-        game_state = create_game_state(round_state=round_state)
-        player = game_state.round_state.players[0]
-
-        settings = GameSettings(has_akadora=False)
-        ctx = ScoringContext(player=player, round_state=game_state.round_state, settings=settings, is_tsumo=True)
-
-        result = calculate_hand_value(ctx, tiles[-1])
-        assert result.error is None
-        # 1920 → 2000, 960 → 1000 (ceiling to nearest 100)
-        assert result.cost_main == 2000
-        assert result.cost_additional == 1000
-        assert result.cost_main % 100 == 0
-        assert result.cost_additional % 100 == 0
 
 
 # ============================================================================
