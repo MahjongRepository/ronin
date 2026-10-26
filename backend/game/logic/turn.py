@@ -13,7 +13,6 @@ from game.logic.abortive import (
 )
 from game.logic.action_result import create_draw_event
 from game.logic.enums import (
-    MELD_CALL_PRIORITY,
     MeldCallType,
     MeldViewType,
     PromptKind,
@@ -189,8 +188,8 @@ def _find_meld_callers(
     """
     Find all players who can call a meld on the discarded tile.
 
-    Returns the meld callers ordered by their best meld (kan > pon > chi), then seat index; each caller's melds are in
-    that priority order too, a chi with its options.
+    Returns the meld callers in seat index order, a caller whose best meld is a chi last; each caller's melds are listed
+    kan, pon, chi, a chi with its options.
 
     No meld calls are allowed (only ron) on a discard that ends the hand unless ronned: the final discard, when the live
     wall is empty, and the fourth kan's replacement discard, when that kan makes a four kans abortive draw.
@@ -220,7 +219,7 @@ def _find_meld_callers(
         if melds:
             callers.append(Caller(seat=seat, melds=tuple(melds)))
 
-    callers.sort(key=lambda c: MELD_CALL_PRIORITY[c.melds[0].call_type])
+    callers.sort(key=lambda c: c.melds[0].call_type == MeldCallType.CHI)
     return callers
 
 

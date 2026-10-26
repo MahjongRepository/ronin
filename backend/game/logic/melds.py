@@ -38,9 +38,6 @@ CHI_HIGHEST_MIN_VALUE = 2  # tile can be highest (e.g., 3 in 123) if value >= 2
 _DRAGON_TILES = frozenset(DRAGONS_34)
 _WIND_TILES = frozenset(WINDS_34)
 
-# pao-eligible meld types (pon, open kan, added kan)
-_PAO_MELD_TYPES = (FrozenMeld.PON, FrozenMeld.KAN, FrozenMeld.SHOUMINKAN)
-
 _KAN_MELD_TYPES = frozenset({FrozenMeld.KAN, FrozenMeld.SHOUMINKAN})
 
 
@@ -455,32 +452,21 @@ def _check_pao(
         if not enabled:
             continue
 
-        count = sum(1 for m in player.melds if tile_to_34(m.tiles[0]) in tile_set and m.type in _PAO_MELD_TYPES)
+        count = sum(1 for m in player.melds if tile_to_34(m.tiles[0]) in tile_set)
         if count + 1 >= threshold:
             return discarder_seat
 
     return None
 
 
-def _validate_kan_preconditions(
-    round_state: MahjongRoundState,
-    settings: GameSettings,
-    *,
-    reject_riichi: bool = False,
-    player: MahjongPlayer | None = None,
-    kan_label: str = "kan",
-) -> None:
+def _validate_kan_preconditions(round_state: MahjongRoundState, settings: GameSettings) -> None:
     """
-    Validate common kan preconditions (defense-in-depth guards).
+    Validate common kan preconditions.
 
     Raises InvalidMeldError if:
-    - reject_riichi is True and the player is in riichi
     - The wall doesn't have enough tiles for a kan replacement draw
     - The maximum kans per round has been reached
     """
-    if reject_riichi and player is not None and player.is_riichi:
-        raise InvalidMeldError(f"cannot call {kan_label} while in riichi")
-
     if tiles_remaining(round_state.wall) < settings.min_wall_for_kan:
         raise InvalidMeldError("not enough tiles in wall for kan")
 
@@ -488,17 +474,11 @@ def _validate_kan_preconditions(
         raise InvalidMeldError("maximum kans per round reached")
 
 
-def _remove_matching_tiles(
-    hand: tuple[int, ...],
-    tile_34: int,
-    count: int,
-    meld_name: str,
-    seat: int,
-) -> tuple[list[int], list[int]]:
+def _remove_matching_tiles(hand: tuple[int, ...], tile_34: int, count: int) -> tuple[list[int], list[int]]:
     """
-    Find and remove up to ``count`` tiles matching ``tile_34`` from hand.
+    Remove the first ``count`` tiles matching ``tile_34`` from hand, which the caller has checked holds them.
 
-    Return ``(removed_tiles, new_hand)``. Raise ``InvalidMeldError`` if fewer than ``count`` matching tiles are found.
+    Return ``(removed_tiles, new_hand)``.
     """
     removed_tiles: list[int] = []
     new_hand: list[int] = []
@@ -507,18 +487,6 @@ def _remove_matching_tiles(
             removed_tiles.append(t)
         else:
             new_hand.append(t)
-
-    if len(removed_tiles) != count:
-        logger.warning(
-            "cannot call meld: insufficient matching tiles",
-            meld_name=meld_name,
-            seat=seat,
-            needed=count,
-            found=len(removed_tiles),
-        )
-        raise InvalidMeldError(
-            f"cannot call {meld_name}: need {count} matching tiles, found {len(removed_tiles)}",
-        )
 
     return removed_tiles, new_hand
 
@@ -572,9 +540,7 @@ def call_pon(
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
 
-    removed_tiles, new_hand = _remove_matching_tiles(
-        hand=caller.tiles, tile_34=tile_34, count=TILES_FOR_PON, meld_name="pon", seat=caller_seat
-    )
+    removed_tiles, new_hand = _remove_matching_tiles(hand=caller.tiles, tile_34=tile_34, count=TILES_FOR_PON)
 
     # create meld with all 3 tiles (2 from hand + called tile)
     meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
@@ -612,27 +578,6 @@ def call_pon(
     return new_state, meld
 
 
-def _validate_chi_sequence(tile_id: int, sequence_tiles: tuple[int, int]) -> None:
-    """
-    Validate that the called tile and sequence tiles form a consecutive run in one suit.
-
-    Raises InvalidMeldError if:
-    - Any tile is an honor tile (chi requires numbered tiles)
-    - Tiles span multiple suits
-    - Tiles do not form three consecutive values
-    """
-    all_34 = sorted(tile_to_34(t) for t in (tile_id, *sequence_tiles))
-    if any(is_honor(t) for t in all_34):
-        raise InvalidMeldError("chi is not allowed with honor tiles")
-
-    suits = {t // TILES_PER_SUIT for t in all_34}
-    if len(suits) != 1:
-        raise InvalidMeldError("chi tiles must be from the same suit")
-
-    if all_34[1] - all_34[0] != 1 or all_34[2] - all_34[1] != 1:
-        raise InvalidMeldError("chi tiles must form a consecutive sequence")
-
-
 def call_chi(  # noqa: PLR0913
     round_state: MahjongRoundState,
     *,
@@ -649,17 +594,7 @@ def call_chi(  # noqa: PLR0913
     flags, current player). Returns (new_round_state, created_meld).
     """
     caller = round_state.players[caller_seat]
-
-    # validate sequence forms a consecutive run in the same suit
-    _validate_chi_sequence(tile_id, sequence_tiles)
-
-    # remove sequence tiles from hand
-    new_hand = list(caller.tiles)
-    for t in sequence_tiles:
-        try:
-            new_hand.remove(t)
-        except ValueError:
-            raise InvalidMeldError(f"chi tile {t} not found in hand") from None
+    new_hand = [t for t in caller.tiles if t not in sequence_tiles]
 
     # create meld with all 3 tiles (2 from hand + called tile)
     meld_tiles = tuple(sorted([sequence_tiles[0], sequence_tiles[1], tile_id]))
@@ -702,22 +637,7 @@ def call_open_kan(
     """
     caller = round_state.players[caller_seat]
     tile_34 = tile_to_34(tile_id)
-
-    _validate_kan_preconditions(
-        round_state,
-        settings,
-        reject_riichi=True,
-        player=caller,
-        kan_label="open kan",
-    )
-
-    removed_tiles, new_hand = _remove_matching_tiles(
-        hand=caller.tiles,
-        tile_34=tile_34,
-        count=TILES_FOR_OPEN_KAN,
-        meld_name="open kan",
-        seat=caller_seat,
-    )
+    removed_tiles, new_hand = _remove_matching_tiles(hand=caller.tiles, tile_34=tile_34, count=TILES_FOR_OPEN_KAN)
 
     # create meld with all 4 tiles (3 from hand + called tile)
     meld_tiles = tuple(sorted([*removed_tiles, tile_id]))
@@ -790,19 +710,13 @@ def call_closed_kan(
     """
     Execute a closed kan (ankan) declaration.
 
-    Player declares kan with 4 tiles from hand. The hand remains closed. Returns (new_round_state, created_meld).
+    Player declares kan with 4 tiles from hand. The hand remains closed. The declaration must already be validated by
+    validate_closed_kan(). Returns (new_round_state, created_meld).
     """
-    validate_closed_kan(round_state, seat=seat, tile_id=tile_id, settings=settings)
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
-    removed_tiles, new_hand = _remove_matching_tiles(
-        hand=player.tiles,
-        tile_34=tile_34,
-        count=TILES_FOR_CLOSED_KAN,
-        meld_name="closed kan",
-        seat=seat,
-    )
+    removed_tiles, new_hand = _remove_matching_tiles(hand=player.tiles, tile_34=tile_34, count=TILES_FOR_CLOSED_KAN)
 
     # create meld with all 4 tiles (closed kan - opened=False)
     meld_tiles = tuple(sorted(removed_tiles))
@@ -835,21 +749,19 @@ def resolve_added_kan_tile(
     """
     Validate and resolve the tile_id for an added kan declaration.
 
-    Checks kan preconditions, verifies a matching pon exists, and resolves the tile_id to the actual in-hand copy. Must
-    be called before chankan checks so that the resolved tile is used consistently for prompts and scoring.
+    Rejects a riichi player, checks kan preconditions, verifies a matching pon exists, and resolves the tile_id to the
+    actual in-hand copy. Must be called before chankan checks so that the resolved tile is used consistently for prompts
+    and scoring.
 
     Returns the resolved tile_id (the actual physical tile in hand).
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
 
-    _validate_kan_preconditions(
-        round_state,
-        settings,
-        reject_riichi=True,
-        player=player,
-        kan_label="added kan",
-    )
+    if player.is_riichi:
+        raise InvalidMeldError("cannot call added kan while in riichi")
+
+    _validate_kan_preconditions(round_state, settings)
 
     # verify a matching pon exists
     has_pon = any(meld.type == FrozenMeld.PON and tile_to_34(meld.tiles[0]) == tile_34 for meld in player.melds)
@@ -881,38 +793,15 @@ def call_added_kan(
     """
     Execute an added kan (shouminkan) declaration.
 
-    Player upgrades an existing pon to a kan by adding the 4th tile. The tile_id should already be resolved via
-    resolve_added_kan_tile(). Returns (new_round_state, upgraded_meld).
+    Player upgrades an existing pon to a kan by adding the 4th tile. The declaration must already be validated, and the
+    tile_id resolved, by resolve_added_kan_tile(). Returns (new_round_state, upgraded_meld).
     """
     player = round_state.players[seat]
     tile_34 = tile_to_34(tile_id)
-
-    _validate_kan_preconditions(
-        round_state,
-        settings,
-        reject_riichi=True,
-        player=player,
-        kan_label="added kan",
+    pon_index = next(
+        i for i, meld in enumerate(player.melds) if meld.type == FrozenMeld.PON and tile_to_34(meld.tiles[0]) == tile_34
     )
-
-    # find the pon meld to upgrade
-    pon_meld: FrozenMeld | None = None
-    pon_index = -1
-    for i, meld in enumerate(player.melds):
-        if meld.type == FrozenMeld.PON:
-            meld_tile_34 = tile_to_34(meld.tiles[0])
-            if meld_tile_34 == tile_34:
-                pon_meld = meld
-                pon_index = i
-                break
-
-    if pon_meld is None:
-        logger.warning("cannot call added kan: no pon of tile type", seat=seat, tile_34=tile_34)
-        raise InvalidMeldError(f"cannot call added kan: no pon of tile type {tile_34}")
-
-    if tile_id not in player.tiles:
-        logger.warning("cannot call added kan: tile not in hand", seat=seat, tile_id=tile_id)
-        raise InvalidMeldError(f"cannot call added kan: tile {tile_id} not in hand")
+    pon_meld = player.melds[pon_index]
 
     # remove the 4th tile from hand
     new_hand = list(player.tiles)

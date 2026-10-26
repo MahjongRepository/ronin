@@ -26,7 +26,7 @@ from game.logic.state_utils import (
     update_game_with_round,
     update_player,
 )
-from game.logic.tiles import TILES_PER_SUIT, is_honor, tile_to_34
+from game.logic.tiles import tile_to_34
 from game.logic.turn import (
     process_discard_phase,
     process_meld_call,
@@ -96,7 +96,6 @@ def _validate_chi_sequence(
     player: MahjongPlayer,
     prompt: PendingCallPrompt,
     seat: int,
-    tile_id: int,
     sequence_tiles: tuple[int, int],
 ) -> None:
     """
@@ -104,8 +103,8 @@ def _validate_chi_sequence(
 
     Raises InvalidGameActionError if:
     - Either tile is not in the player's hand
-    - The 3 tiles don't form a valid chi sequence (consecutive in same suit)
-    - The sequence_tiles don't match, by tile type, one of the seat's chi options in the prompt
+    - The sequence_tiles don't match, by tile type, one of the seat's chi options in the prompt (each option is a run
+      with the prompt's tile)
 
     The seat's chi meld is the one checked, also when the seat is offered pon too (pon sorts first); it exists because
     _validate_call_prompt ran upstream.
@@ -122,17 +121,6 @@ def _validate_chi_sequence(
 
         hand_list.remove(t)
 
-    # The 3 tiles must form a valid sequence (consecutive values in same suit, not honor)
-    all_34 = sorted(tile_to_34(t) for t in (*sequence_tiles, tile_id))
-    is_consecutive = all_34[1] == all_34[0] + 1 and all_34[2] == all_34[0] + 2
-    is_same_suit = all_34[0] // TILES_PER_SUIT == all_34[2] // TILES_PER_SUIT
-    if is_honor(all_34[0]) or not is_consecutive or not is_same_suit:
-        raise InvalidGameActionError(
-            action="call_chi",
-            seat=seat,
-            reason="tiles do not form a valid chi sequence",
-        )
-
     chi_meld = next(m for m in prompt.caller(seat).melds if m.call_type == MeldCallType.CHI)
     submitted_34 = tuple(sorted(tile_to_34(t) for t in sequence_tiles))
     options = chi_meld.options or ()
@@ -141,28 +129,6 @@ def _validate_chi_sequence(
             action="call_chi",
             seat=seat,
             reason="sequence tiles not among available options",
-        )
-
-
-def _validate_matching_tile_count(
-    player: MahjongPlayer,
-    tile_id: int,
-    seat: int,
-    min_count: int,
-    action_name: str,
-) -> None:
-    """
-    Validate that the player has enough matching tiles for a meld call.
-
-    Raises InvalidGameActionError if the player has fewer than min_count matching tiles.
-    """
-    tile_34 = tile_to_34(tile_id)
-    matching = sum(1 for t in player.tiles if tile_to_34(t) == tile_34)
-    if matching < min_count:
-        raise InvalidGameActionError(
-            action=action_name,
-            seat=seat,
-            reason=f"not enough matching tiles for {action_name} (need {min_count}, have {matching})",
         )
 
 
@@ -342,9 +308,8 @@ def handle_pon(
     Record pon intent on the pending call prompt. Execute the pon only during resolution when all callers respond.
     Returns ActionResult with events and new state.
     """
-    round_state = game_state.round_state
     result = _validate_call_prompt(
-        round_state,
+        game_state.round_state,
         seat=seat,
         action=GameAction.CALL_PON,
         tile_id=data.tile_id,
@@ -353,13 +318,7 @@ def handle_pon(
     if isinstance(result, Refusal):
         return result
 
-    prompt = result
-
-    # validate matching tiles exist
-    player = round_state.players[seat]
-    _validate_matching_tile_count(player, tile_id=prompt.tile_id, seat=seat, min_count=2, action_name="call_pon")
-
-    return _record_call_response(game_state, prompt, CallResponse(seat=seat, action=GameAction.CALL_PON))
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=GameAction.CALL_PON))
 
 
 def handle_chi(
@@ -389,7 +348,7 @@ def handle_chi(
 
     # validate sequence_tiles before recording response
     player = round_state.players[seat]
-    _validate_chi_sequence(player, prompt, seat=seat, tile_id=data.tile_id, sequence_tiles=data.sequence_tiles)
+    _validate_chi_sequence(player, prompt, seat=seat, sequence_tiles=data.sequence_tiles)
 
     response = CallResponse(seat=seat, action=GameAction.CALL_CHI, sequence_tiles=data.sequence_tiles)
     return _record_call_response(game_state, prompt, response)
@@ -406,9 +365,8 @@ def _handle_open_kan_call_response(
     Record intent and trigger resolution when all callers have responded. Returns ActionResult with events and new
     state.
     """
-    round_state = game_state.round_state
     result = _validate_call_prompt(
-        round_state,
+        game_state.round_state,
         seat=seat,
         action=GameAction.CALL_KAN,
         tile_id=submitted_tile_id,
@@ -417,13 +375,7 @@ def _handle_open_kan_call_response(
     if isinstance(result, Refusal):
         return result
 
-    prompt = result
-
-    # validate open kan: tile count
-    player = round_state.players[seat]
-    _validate_matching_tile_count(player, tile_id=prompt.tile_id, seat=seat, min_count=3, action_name="call_kan")
-
-    return _record_call_response(game_state, prompt, CallResponse(seat=seat, action=GameAction.CALL_KAN))
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=GameAction.CALL_KAN))
 
 
 def _handle_self_kan(
