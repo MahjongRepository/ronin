@@ -67,12 +67,10 @@ function forCallTurn(kuikaeTypes) {
     return { ...emptyOffer(), kuikae: (kuikaeTypes || []).map(tiles.typeToStr) };
 }
 
+/** A call prompt's offer: ron on a ron or chankan prompt, plus the melds it lists, a ron prompt's included. */
 function forPrompt(prompt, shadow) {
     const offer = emptyOffer();
-    if (prompt.clt != wire.CLT.MELD) {
-        offer.ron = true;
-        return offer;
-    }
+    offer.ron = prompt.clt != wire.CLT.MELD;
     const ti = prompt.ti;
     const meld = (meldType, ids) => mianzi.mianziStr({
         meldType, tileIds: ids.concat([ti]), calledTileId: ti,

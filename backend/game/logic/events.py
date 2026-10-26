@@ -299,19 +299,23 @@ def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]
     """
     Build the prompt's per-seat call prompt events: one per caller, in prompt order, each addressed to its seat.
 
-    On a discard prompt a ron caller gets a RON event and a meld caller a MELD event listing its melds; on a chankan
-    prompt every caller gets a CHANKAN event.
+    On a discard prompt a ron caller gets a RON event and a meld-only caller a MELD event; on a chankan prompt every
+    caller gets a CHANKAN event. The event's callers list the seat's melds, the ones a ron caller may make instead of
+    the ron included, or only the seat when it has none.
     """
     events: list[CallPromptEvent] = []
     for caller in prompt.callers:
-        callers: list[int | MeldCaller] = [caller.seat]
         if prompt.kind == PromptKind.CHANKAN:
             call_type = CallType.CHANKAN
         elif caller.can_ron:
             call_type = CallType.RON
         else:
             call_type = CallType.MELD
-            callers = [MeldCaller(seat=caller.seat, call_type=m.call_type, options=m.options) for m in caller.melds]
+
+        melds: list[int | MeldCaller] = [
+            MeldCaller(seat=caller.seat, call_type=m.call_type, options=m.options) for m in caller.melds
+        ]
+        callers = melds or [caller.seat]
 
         events.append(
             CallPromptEvent(

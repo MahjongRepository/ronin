@@ -17,6 +17,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 ### Calls & Turn Order
 
 - Call precedence: Ron > Pon/Kan > Chi; among same-type calls, closer counter-clockwise to discarder wins (for chankan, to the kan caller)
+- A player who can both ron and call a meld (chi, pon or kan) on the same discard is offered all of them and may choose either. Calling the meld instead declines the ron, with the same temporary furiten as passing; any other player's ron still takes precedence over the meld.
 - Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chi, pon, or kan — only ron is allowed.
 - Tsumo wins on a self-drawn tile, including a kan replacement draw and the dealer's initial hand. Claiming a discard for chi or pon does not provide a tsumo opportunity.
 
@@ -37,7 +38,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 - Furiten prohibits ron, including chankan, on every winning tile. It does not prohibit an otherwise legal tsumo.
 - Furiten scope: Based on the player's full discard history — all tiles the player has discarded this hand, regardless of whether another player subsequently claimed them. Tiles in own kans do NOT create furiten.
 - Discard furiten: Permanent while wait includes a previously discarded tile
-- Temporary furiten: Triggered when a player passes on a winning tile (declines Ron on another player's discard). Resets on player's next discard.
+- Temporary furiten: Triggered when a player passes on a winning tile (declines Ron on another player's discard, by passing or by calling a meld on it instead). Resets on player's next discard.
 - Riichi furiten: Permanent for the rest of the hand (never clears)
 - Furiten riichi declaration: Allowed (player may declare riichi while in furiten; can only win by tsumo)
 

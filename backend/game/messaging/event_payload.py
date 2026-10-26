@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from game.logic.enums import RoundResultType, WaitKind, WireCallType
+from game.logic.enums import RoundResultType, WaitKind
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
@@ -97,15 +97,16 @@ def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """
     Shape a CallPromptEvent payload for the wire.
 
-    Replace the callers list (clr) with the recipient's seat (cs); a meld prompt also lists the recipient's call choices
-    (ac), without the seat.
+    Replace the callers list (clr) with the recipient's seat (cs); a prompt whose seat can meld, a ron prompt included,
+    also lists the recipient's meld choices (ac), without the seat.
     """
     callers = payload.pop("clr")
-    if payload["clt"] != WireCallType.MELD:
-        payload["cs"] = callers[0]
+    first_caller = callers[0]
+    if isinstance(first_caller, int):
+        payload["cs"] = first_caller
         return payload
 
-    payload["cs"] = callers[0]["s"]
+    payload["cs"] = first_caller["s"]
     available_calls: list[dict[str, Any]] = []
     for caller in callers:
         call: dict[str, Any] = {"clt": caller["clt"]}

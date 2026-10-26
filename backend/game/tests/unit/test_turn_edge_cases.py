@@ -14,7 +14,7 @@ from game.logic.invariants import verify_tile_ownership
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import HandResult, ScoringContext, calculate_hand_value_with_tiles
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, CallResponse, Discard, MahjongGameState, PendingCallPrompt
+from game.logic.state import Caller, CallResponse, Discard, MahjongGameState, MeldOption, PendingCallPrompt
 from game.logic.tiles import NUM_TILES
 from game.logic.turn import (
     _maybe_emit_dora_event,
@@ -32,6 +32,7 @@ from game.tests.helpers.hands import (
     PIN_3_TRIPLE_RON_CALLER_HANDS,
     PIN_3_TRIPLE_RON_DEALER_HAND,
     PIN_3_TRIPLE_RON_DISCARD,
+    tile_copies,
 )
 
 
@@ -264,7 +265,8 @@ class TestFindRonCallers:
         new_game, _events = process_discard_phase(game_state, discard_tile)
         new_round = new_game.round_state
         assert new_round.pending_call_prompt is not None
-        assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True),)
+        chi = MeldOption(call_type=MeldCallType.CHI, options=(tuple(TilesConverter.string_to_136_array(pin="12")),))
+        assert new_round.pending_call_prompt.callers == (Caller(seat=1, can_ron=True, melds=(chi,)),)
 
     def test_find_ron_callers__when_multiple_callers__should_sort_by_distance(self):
         hand_tiles = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1255"))
@@ -506,7 +508,12 @@ class TestAbortiveDrawIntegration:
         prompted_game, events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
         prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
-        assert prompt.callers == tuple(Caller(seat=seat, can_ron=True) for seat in (1, 2, 3))
+        chi = MeldOption(call_type=MeldCallType.CHI, options=(tuple(tile_copies(0, pin="12")),))
+        assert prompt.callers == (
+            Caller(seat=1, can_ron=True, melds=(chi,)),
+            Caller(seat=2, can_ron=True),
+            Caller(seat=3, can_ron=True),
+        )
         assert not [e for e in events if isinstance(e, RoundEndEvent)]
 
         result = _respond_to_call_prompt(

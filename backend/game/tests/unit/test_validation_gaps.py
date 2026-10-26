@@ -274,7 +274,7 @@ class TestResponseActionMatchesPrompt:
 
     def test_response_action__when_meld_caller_calls_ron__should_raise(self):
         game_state = self._create_meld_prompt_state()
-        with pytest.raises(InvalidGameActionError, match="cannot call ron on a discard prompt"):
+        with pytest.raises(InvalidGameActionError, match="call_ron does not match available call types: call_chi"):
             handle_ron(game_state, seat=1)
 
     def test_response_action__when_pon_caller_sends_chi__should_raise(self):

@@ -239,6 +239,29 @@ describe("the ronin table (Translate and Reply)", () => {
         ]);
     });
 
+    it.each([
+        ["pon", 18, { clt: 0 }, "peng", "m505-", { a: 4 }],
+        ["chi", 8, { clt: 1, opt: [[0, 4]] }, "chi", "m123-", { a: 5, sequence_tiles: [0, 4] }],
+    ])(
+        "offers a ron prompt's %s beside its ron and sends it when the player takes it instead",
+        (_, tile, call, kind, meld, action) => {
+            const table = startTable();
+            table.receive(draw(0, 120, { wi: 1 }));
+            table.decide({ dapai: "z4_" });
+            table.receive(discard(0, 120));
+            table.receive(discard(1, 124));
+            table.receive(discard(2, 128));
+            table.receive(discard(3, tile));
+
+            table.receive({ t: 3, clt: 0, ti: tile, frs: 3, cs: 0, ac: [call], wi: 2 });
+            expect(table.player.offer.ron).toBe(true);
+            expect(table.player.offer[kind]).toEqual([meld]);
+            table.decide({ fulou: meld });
+
+            expect(table.sent.at(-1)).toEqual({ t: 3, ti: tile, ...action, wi: 2 });
+        },
+    );
+
     it("drops a call prompt left unanswered when the seat's own draw follows it, so it sends no pass under the draw's wait id", () => {
         const table = startTable();
         table.receive(draw(0, 120, { wi: 1 }));

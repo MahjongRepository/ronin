@@ -507,24 +507,6 @@ class TestHandleKanChankanOpportunity:
 
 
 class TestDiscardPromptValidation:
-    def test_discard_prompt__when_ron_caller_sends_meld_action__should_reject(self):
-        game_state = _create_frozen_game_state()
-        round_state = game_state.round_state
-        tile_id = round_state.players[0].tiles[0]
-
-        prompt = PendingCallPrompt(
-            kind=PromptKind.DISCARD,
-            tile_id=tile_id,
-            from_seat=0,
-            pending_seats=frozenset({1}),
-            callers=(Caller(seat=1, can_ron=True),),
-        )
-        round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        with pytest.raises(InvalidGameActionError, match="only ron is valid"):
-            handle_pon(game_state, seat=1, data=PonActionData(tile_id=tile_id))
-
     def test_discard_prompt__when_meld_caller_sends_wrong_action__should_reject(self):
         game_state = _create_frozen_game_state()
         round_state = game_state.round_state

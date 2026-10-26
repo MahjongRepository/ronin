@@ -46,8 +46,10 @@ The rules engine. `docs/game-rules.md` is the ruleset it implements (fixed mecha
 
 A discard, or a kan someone can rob, opens one `PendingCallPrompt` (`state.py`) that `call_resolution.py` resolves
 once every eligible seat has answered. The rules the two share: a seat eligible for both ron and a meld is offered
-ron only; the prompt's caller order is both the order clients get their prompts and the ron ranking; resolution picks
-ron > pon/kan > chi > pass; dora reveal and riichi finalization after a discard wait until no ron is taken.
+both, in one ron prompt that lists its melds, and a meld it makes instead declines the ron (the furiten of a pass,
+applied where the response is recorded); the prompt's caller order is both the order clients get their prompts and the
+ron ranking; resolution picks ron > pon/kan > chi > pass; dora reveal and riichi finalization after a discard wait until
+no ron is taken.
 
 ## Errors
 
