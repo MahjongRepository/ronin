@@ -1,6 +1,7 @@
 "use strict";
 
 import $ from 'jquery';
+import { finishLoading } from './loading.js';
 
 import Shadow from './ronin/shadow.js';
 import Translate from './ronin/translate.js';
@@ -45,7 +46,10 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
     const translate = new Translate(player, shadow);
     const session   = new RoninSession({
         wsUrl, gameId, gameTicket: ticket,
-        onEvent:        msg => translate.handle(msg),
+        onEvent:        msg => {
+            translate.handle(msg);
+            if (msg.t == wire.E.GAME_STARTED) finishLoading();
+        },
         onSessionError: (code, message) => toast('エラー: ' + message),
         onPlayerStatus: (name, connected) => {
             const seat = shadow.names.indexOf(name);
@@ -54,7 +58,11 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
                 player._view.players(shadow.playersConnected);
             }
         },
-        onReconnected:  (msg) => { toast('再接続しました'); translate.reconnect(msg); },
+        onReconnected:  (msg) => {
+            translate.reconnect(msg);
+            finishLoading();
+            toast('再接続しました');
+        },
     });
     const reply = new Reply(shadow, obj => session.send(obj), () => session.goLobby());
 

@@ -22,6 +22,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   holds the board markup the majiang-ui classes bind to by class name, plus `#loaddata`: the tile
   images and sounds that `Majiang.UI.pai` and `Majiang.UI.audio` clone from. A route that needs
   neither may replace the body; one that draws tiles keeps `#loaddata`.
+  The initial loading screen and its critical styles live inline in the HTML so they appear before
+  JavaScript or the board styles arrive. Tile routes decode their images before rendering; the live
+  game dismisses the screen after its start event or reconnect snapshot has drawn the table.
 * Vite builds with base `/game-assets/`; the lobby answers the game pages with `dist/index.html` and
   serves `dist/` under `/game-assets/`, or proxies both to this app's Vite dev server under
   `make run-local-server` (`frontend/AGENTS.md`, Tooling).
@@ -92,6 +95,7 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   when the pacing changes.
 * **Replay:** the page fetches `/api/replays/{game_id}` and shows its raw text; there is no viewer.
 * **Storybook:** renders majiang-ui's own components (tiles, hands, melds, rivers and the board)
+  and a persistent loading preview cloned from the startup screen's HTML, using its shared styles,
   from fixed sample states in `storybook.js` and `storybook/`; the board pages reuse the page's
   `#board` markup and fit it below their header with the same `Majiang.UI.Util.scale`. The
   in-round and round-end pages feed their states the way the ronin layer does (`RoninPlayer` with server-style offers, `translate.js`'s round-end shapes), so they
