@@ -37,7 +37,6 @@ from game.logic.melds import (
     call_chi,
     call_closed_kan,
     call_open_kan,
-    validate_closed_kan,
 )
 from game.logic.round import draw_tile
 from game.logic.runtime import GameRuntime
@@ -339,96 +338,6 @@ class TestOpenKanEarlyValidation:
 
         result = handle_kan(game_state, seat=1, data=data)
         assert result == Refusal(code=GameErrorCode.INVALID_KAN, message="tile_id mismatch")
-
-
-class TestClosedKanRiichiWaitPreservation:
-    def test_closed_kan_riichi__when_drawn_tile_not_kan_tile__should_raise(self):
-        tiles_1m = TilesConverter.string_to_136_array(man="1111")
-        tiles_rest = TilesConverter.string_to_136_array(pin="234", sou="56789")
-        all_tiles = tuple(tiles_1m + tiles_rest)
-
-        players = [
-            create_player(seat=0, tiles=all_tiles, is_riichi=True),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="drawn tile must be the kan tile"):
-            call_closed_kan(round_state, seat=0, tile_id=tiles_1m[0], settings=settings)
-
-    def test_closed_kan_riichi__when_waits_change__should_raise(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        man_rest = TilesConverter.string_to_136_array(man="2345678999")
-        all_tiles = tuple(list(man_1m[:3]) + list(man_rest) + [man_1m[3]])
-
-        players = [
-            create_player(seat=0, tiles=all_tiles, is_riichi=True),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-        settings = GameSettings()
-
-        with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
-            call_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=settings)
-
-
-class TestValidateClosedKanRiichi:
-    def test_validate_closed_kan_riichi__when_drawn_tile_not_kan_tile__should_reject(self):
-        tiles_1m = TilesConverter.string_to_136_array(man="1111")
-        tiles_rest = TilesConverter.string_to_136_array(pin="234", sou="56789")
-        all_tiles = tuple(tiles_1m + tiles_rest)
-
-        players = [
-            create_player(seat=0, tiles=all_tiles, is_riichi=True),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-
-        with pytest.raises(InvalidMeldError, match="drawn tile must be the kan tile"):
-            validate_closed_kan(round_state, seat=0, tile_id=tiles_1m[0], settings=GameSettings())
-
-    def test_validate_closed_kan_riichi__when_waits_change__should_reject(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        man_rest = TilesConverter.string_to_136_array(man="2345678999")
-        all_tiles = tuple(list(man_1m[:3]) + list(man_rest) + [man_1m[3]])
-
-        players = [
-            create_player(seat=0, tiles=all_tiles, is_riichi=True),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
-        )
-
-        with pytest.raises(InvalidMeldError, match="must not change waiting tiles"):
-            validate_closed_kan(round_state, seat=0, tile_id=man_1m[0], settings=GameSettings())
 
 
 class TestAddedKanRiichiRejection:

@@ -6,7 +6,6 @@ from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.melds import (
     _check_pao,
-    _kan_preserves_waits_for_riichi,
     _validate_chi_sequence,
     call_chi,
     call_open_kan,
@@ -226,72 +225,6 @@ class TestKanLimits:
 
         settings = GameSettings()
         result = get_possible_added_kans(player2, round_state, settings=settings)
-        assert result == []
-
-
-class TestRiichiKanWaitPreservation:
-    def test_riichi_kan__when_kan_keeps_waits__should_allow_it(self):
-        tiles = TilesConverter.string_to_136_array(man="1111", pin="234567", sou="8955")
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-        # Check if kan on 1m preserves waits
-        tile_34_1m = tile_to_34(tiles[0])  # 1m
-
-        result = _kan_preserves_waits_for_riichi(player, tile_34_1m)
-        assert result is True
-
-    def test_riichi_kan__when_kan_changes_waits__should_reject_it(self):
-        # Create a hand where kan changes waits
-        # If we kan 1111m or 9999m, waits change
-        tiles = TilesConverter.string_to_136_array(man="11112345678999")
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-        # Check if kan on 1m changes waits
-        tile_34_1m = tile_to_34(tiles[0])  # 1m
-
-        result = _kan_preserves_waits_for_riichi(player, tile_34_1m)
-        # This should be rejected because kan changes the hand structure
-        assert result is False
-
-    def test_riichi_kan__when_kan_tile_is_also_a_wait__should_reject_it(self):
-        tiles = TilesConverter.string_to_136_array(man="11234", sou="567", pin="789999")
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-        # 9p in 34-format = 17
-        nine_pin_tiles = TilesConverter.string_to_136_array(pin="9")
-        tile_34_9p = tile_to_34(nine_pin_tiles[0])
-
-        result = _kan_preserves_waits_for_riichi(player, tile_34_9p)
-        assert result is False
-
-    def test_get_possible_closed_kans__when_riichi_kan_keeps_waits__should_include_it(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin = TilesConverter.string_to_136_array(pin="234567")
-        sou = TilesConverter.string_to_136_array(sou="8955")
-        # place 4th 1m last as drawn tile
-        tiles = list(man_1m[:3]) + list(pin) + list(sou) + [man_1m[3]]
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
-        players = [player] + [create_player(seat=i) for i in range(1, 4)]
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
-        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
-
-        result = get_possible_closed_kans(player, round_state, settings=GameSettings())
-        tile_34_1m = tile_to_34(man_1m[0])
-        assert tile_34_1m in result
-
-    def test_get_possible_closed_kans__when_riichi_and_drawn_tile_is_not_kan_tile__should_return_empty(self):
-        man_1m = TilesConverter.string_to_136_array(man="1111")
-        pin = TilesConverter.string_to_136_array(pin="234567")
-        sou = TilesConverter.string_to_136_array(sou="8955")
-        # drawn tile (last) is 5s, NOT 1m
-        tiles = list(man_1m) + list(pin) + list(sou)
-        player = create_player(seat=0, tiles=tiles, is_riichi=True)
-
-        players = [player] + [create_player(seat=i) for i in range(1, 4)]
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(pin="11112222333344"))
-        round_state = create_round_state(players=players, wall=wall, dead_wall=dead_wall)
-
-        result = get_possible_closed_kans(player, round_state, settings=GameSettings())
         assert result == []
 
 

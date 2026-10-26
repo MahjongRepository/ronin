@@ -1,9 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import check_four_kans
 from game.logic.action_handlers import _handle_self_kan, handle_discard, handle_kan, handle_pass, handle_ron
 from game.logic.action_result import ActionResult, Refusal
+from game.logic.actions import get_available_actions
 from game.logic.ai_player_controller import AIPlayerController
 from game.logic.call_resolution import resolve_call_prompt
 from game.logic.enums import (
@@ -45,12 +50,16 @@ from game.logic.turn import _process_added_kan_call, _process_closed_kan_call
 from game.logic.types import DiscardActionData, KanActionData
 from game.logic.wall import DEAD_WALL_SIZE, DeadWall, TileStack, Wall
 from game.logic.win import (
+    get_waiting_tiles,
     is_chankan_possible,
     is_kokushi_chankan_possible,
     is_kokushi_tenpai,
 )
 from game.tests.conftest import create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _DEFAULT_DEAD_WALL = tuple(TilesConverter.string_to_136_array(sou="11112222333355"))
 _DEFAULT_WALL = tuple(TilesConverter.string_to_136_array(man="1111222233334444"))
@@ -842,53 +851,143 @@ class TestHandleSelfKanAfterMeld:
             _handle_self_kan(game_state, seat=0, data=data)
 
 
+def _riichi_seat_after_draw(waiting_hand: Sequence[int], drawn_tile: int) -> GameRuntime:
+    players = (
+        create_player(
+            seat=0,
+            tiles=(*waiting_hand, drawn_tile),
+            discards=(Discard(tile_id=tile_copies(0, honors="1")[0], is_riichi_discard=True),),
+            is_riichi=True,
+        ),
+        create_player(
+            seat=1,
+            tiles=tile_copies(1, pin="123456789", honors="1567"),
+            discards=(Discard(tile_id=tile_copies(0, honors="2")[0]),),
+        ),
+        create_player(
+            seat=2,
+            tiles=tile_copies(2, pin="123456789", honors="1567"),
+            discards=(Discard(tile_id=tile_copies(0, honors="3")[0]),),
+        ),
+        create_player(
+            seat=3,
+            tiles=tile_copies(3, pin="123456789", honors="1567"),
+            discards=(Discard(tile_id=tile_copies(0, honors="4")[0]),),
+        ),
+    )
+    all_discards = tuple(player.discards[0].tile_id for player in players)
+    dealt = {tile for player in players for tile in player.tiles} | set(all_discards)
+    undealt = [tile for tile in range(NUM_TILES) if tile not in dealt]
+    round_state = create_round_state(
+        players=players,
+        wall=undealt[:-DEAD_WALL_SIZE],
+        dead_wall=undealt[-DEAD_WALL_SIZE:],
+        phase=RoundPhase.PLAYING,
+        all_discards=all_discards,
+    )
+    return GameRuntime(game_id="game1", state=create_game_state(round_state), ai=AIPlayerController({}))
+
+
+def _declare_closed_kan(runtime: GameRuntime, tile_id: int) -> None:
+    MahjongGameService().handle_action(
+        runtime,
+        seat=0,
+        action=GameAction.CALL_KAN,
+        data={"tile_id": tile_id, "kan_type": KanType.CLOSED},
+    )
+
+
+def _offered_closed_kans(runtime: GameRuntime) -> list[int] | None:
+    offered = [item for item in get_available_actions(runtime.state, seat=0) if item.action == PlayerAction.KAN]
+    return offered[0].tiles if offered else None
+
+
+def _waits(player: MahjongPlayer, waiting_hand: Sequence[int]) -> set[int]:
+    return get_waiting_tiles(player.model_copy(update={"tiles": tuple(waiting_hand)}))
+
+
 class TestRiichiClosedKanValidation:
     def test_closed_kan__when_riichi_seat_holds_three_copies_of_drawn_tile__should_kick_seat(self):
         drawn_one_man = tile_copies(2, man="1")[0]
-        players = (
-            create_player(
-                seat=0,
-                tiles=(*tile_copies(0, man="11", pin="123456789", sou="12"), drawn_one_man),
-                discards=(Discard(tile_id=tile_copies(0, honors="1")[0], is_riichi_discard=True),),
-                is_riichi=True,
-            ),
-            create_player(
-                seat=1,
-                tiles=tile_copies(1, pin="123456789", sou="3456"),
-                discards=(Discard(tile_id=tile_copies(0, honors="2")[0]),),
-            ),
-            create_player(
-                seat=2,
-                tiles=tile_copies(2, pin="123456789", sou="3456"),
-                discards=(Discard(tile_id=tile_copies(0, honors="3")[0]),),
-            ),
-            create_player(
-                seat=3,
-                tiles=tile_copies(3, pin="123456789", sou="3456"),
-                discards=(Discard(tile_id=tile_copies(0, honors="4")[0]),),
-            ),
-        )
-        all_discards = tuple(player.discards[0].tile_id for player in players)
-        dealt = {tile for player in players for tile in player.tiles} | set(all_discards)
-        undealt = [tile for tile in range(NUM_TILES) if tile not in dealt]
-        round_state = create_round_state(
-            players=players,
-            wall=undealt[:-DEAD_WALL_SIZE],
-            dead_wall=undealt[-DEAD_WALL_SIZE:],
-            phase=RoundPhase.PLAYING,
-            all_discards=all_discards,
-        )
-        game_state = create_game_state(round_state)
-        runtime = GameRuntime(game_id="game1", state=game_state, ai=AIPlayerController({}))
+        runtime = _riichi_seat_after_draw(tile_copies(0, man="11", pin="123456789", sou="12"), drawn_one_man)
+        game_state = runtime.state
 
         with pytest.raises(InvalidGameActionError, match="closed kan requires 4 tiles"):
-            MahjongGameService().handle_action(
-                runtime,
-                seat=0,
-                action=GameAction.CALL_KAN,
-                data={"tile_id": drawn_one_man, "kan_type": KanType.CLOSED},
-            )
+            _declare_closed_kan(runtime, drawn_one_man)
         assert runtime.state is game_state
+
+    def test_closed_kan__when_riichi_seat_quads_a_tile_held_before_the_draw__should_kick_seat(self):
+        waiting_hand = tile_copies(0, man="111123", pin="456789", sou="5")
+        runtime = _riichi_seat_after_draw(waiting_hand, tile_copies(0, sou="9")[0])
+        game_state = runtime.state
+
+        assert _offered_closed_kans(runtime) is None
+        with pytest.raises(InvalidGameActionError, match="drawn tile must be the kan tile"):
+            _declare_closed_kan(runtime, waiting_hand[0])
+        assert runtime.state is game_state
+
+    @pytest.mark.parametrize(
+        ("waiting_hand", "drawn_tile", "waits_before", "waits_after"),
+        [
+            pytest.param(
+                tile_copies(0, man="6888999", pin="123", sou="456"),
+                tile_copies(3, man="8")[0],
+                {tile_to_34(t) for t in tile_copies(0, man="67")},
+                {tile_to_34(t) for t in tile_copies(0, man="6")},
+                id="narrows_waits",
+            ),
+            pytest.param(
+                tile_copies(0, man="1113444556779"),
+                tile_copies(3, man="4")[0],
+                {tile_to_34(t) for t in tile_copies(0, man="8")},
+                set(),
+                id="breaks_tenpai",
+            ),
+            pytest.param(
+                tile_copies(0, man="1112344", pin="123", sou="456"),
+                tile_copies(3, man="1")[0],
+                {tile_to_34(t) for t in tile_copies(0, man="14")},
+                {tile_to_34(t) for t in tile_copies(0, man="4")},
+                id="kan_tile_is_a_wait",
+            ),
+        ],
+    )
+    def test_closed_kan__when_riichi_kan_changes_the_waits__should_not_offer_it_and_kick_seat(
+        self, waiting_hand, drawn_tile, waits_before, waits_after
+    ):
+        runtime = _riichi_seat_after_draw(waiting_hand, drawn_tile)
+        game_state = runtime.state
+        player = game_state.round_state.players[0]
+        kan_tile_34 = tile_to_34(drawn_tile)
+        hand_without_quad = [t for t in waiting_hand if tile_to_34(t) != kan_tile_34]
+        quad = FrozenMeld(
+            meld_type=FrozenMeld.KAN,
+            tiles=tuple(t for t in player.tiles if tile_to_34(t) == kan_tile_34),
+            opened=False,
+            who=0,
+        )
+        assert _waits(player, waiting_hand) == waits_before
+        assert _waits(player.model_copy(update={"melds": (quad,)}), hand_without_quad) == waits_after
+
+        assert _offered_closed_kans(runtime) is None
+        with pytest.raises(InvalidGameActionError, match="must not change waiting tiles"):
+            _declare_closed_kan(runtime, drawn_tile)
+        assert runtime.state is game_state
+
+    def test_closed_kan__when_riichi_kan_keeps_the_waits_but_loses_ippeikou__should_declare_it(self):
+        waiting_hand = tile_copies(0, man="111222333", pin="456", sou="5")
+        drawn_one_man = tile_copies(3, man="1")[0]
+        five_sou_wait = {tile_to_34(tile_copies(0, sou="5")[0])}
+        runtime = _riichi_seat_after_draw(waiting_hand, drawn_one_man)
+        assert _waits(runtime.state.round_state.players[0], waiting_hand) == five_sou_wait
+
+        assert _offered_closed_kans(runtime) == [tile_to_34(drawn_one_man)]
+        _declare_closed_kan(runtime, drawn_one_man)
+        player = runtime.state.round_state.players[0]
+        assert [(meld.type, meld.opened, tile_to_34(meld.tiles[0])) for meld in player.melds] == [
+            (FrozenMeld.KAN, False, tile_to_34(drawn_one_man))
+        ]
+        assert _waits(player, player.tiles[:-1]) == five_sou_wait
 
 
 # ---------------------------------------------------------------------------
