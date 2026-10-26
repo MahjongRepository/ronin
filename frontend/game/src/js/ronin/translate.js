@@ -823,7 +823,8 @@ class Translate {
             P._model.shoupai[l]._zimo = null;
             if (holdsDraw(seat)) this.feedModel({ zimo: { l, p: '_' } });
         }
-        if (msg.rk) this.feedKan(msg.rk);
+        const result = msg[wire.ROUND_RESULT];
+        if (result && result.rk) this.feedKan(result.rk);
         /* the replay ends on the last seat replayed, but a call on the pending discard marks its discarder's river */
         P._model.lunban = s.l(msg.cp);
 

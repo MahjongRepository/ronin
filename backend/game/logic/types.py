@@ -432,6 +432,12 @@ class RoundHistoryEntry(BaseModel):
     score_changes: WireScoreMap = Field(serialization_alias="sch")
 
 
+# discriminated union for all round results
+RoundResult = (
+    TsumoResult | RonResult | DoubleRonResult | ExhaustiveDrawResult | AbortiveDrawResult | NagashiManganResult
+)
+
+
 class ReconnectionSnapshot(BaseModel):
     """
     Full game state snapshot sent to a reconnecting player.
@@ -439,8 +445,10 @@ class ReconnectionSnapshot(BaseModel):
     is_furiten is the furiten last reported to the reconnecting seat (FuritenTracker): the furiten event goes only to
     its seat and is not sent again, so the snapshot restores it. round_history lists every finished round in play order,
     the current one included once it has ended, so a reconnected client's standings cover the rounds it never saw.
-    robbed_kan is the kan the current round's result robbed, through its round-advance wait: a robbed kan is in no meld
-    list, so without it the reconnected table would not show it.
+    result is the round's result through its round-advance wait, None while the round is in play. During that wait
+    the snapshot shows the round that ended: its dealer, wind, round number and honba with its tiles, beside the scores
+    and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed kan is the one record
+    of it for the reconnected table.
     """
 
     game_id: str = Field(serialization_alias="gid")
@@ -460,10 +468,4 @@ class ReconnectionSnapshot(BaseModel):
     player_states: list[PlayerReconnectState] = Field(serialization_alias="pst")
     is_furiten: bool = Field(serialization_alias="f")
     round_history: list[RoundHistoryEntry] = Field(serialization_alias="rh")
-    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
-
-
-# discriminated union for all round results
-RoundResult = (
-    TsumoResult | RonResult | DoubleRonResult | ExhaustiveDrawResult | AbortiveDrawResult | NagashiManganResult
-)
+    result: RoundResult | None = Field(default=None, serialization_alias="re")

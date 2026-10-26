@@ -21,11 +21,13 @@ from game.wire.events import EVENT_TYPE_INT
 
 if TYPE_CHECKING:
     from game.logic.service import Awaiting
+    from game.logic.types import ReconnectionSnapshot, RoundResult
     from game.messaging.types import TimerSettings
 
 WAIT_ID_KEY = "wi"
 VIEWER_SEAT_KEY = "s"
 TIMER_SETTINGS_KEY = "tm"
+ROUND_RESULT_KEY = "re"
 
 
 def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
@@ -62,7 +64,10 @@ def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
             ),
         }
 
-    payload = {
+    if isinstance(event.data, RoundEndEvent):
+        return {"t": EVENT_TYPE_INT[event.event], **round_result_payload(event.data.result)}
+
+    return {
         "t": EVENT_TYPE_INT[event.event],
         **event.data.model_dump(
             exclude={"type", "target"},
@@ -70,10 +75,6 @@ def service_event_payload(event: ServiceEvent) -> dict[str, Any]:
             exclude_none=True,
         ),
     }
-    if isinstance(event.data, RoundEndEvent):
-        _flatten_round_end(payload)
-
-    return payload
 
 
 _ROUND_RESULT_TYPE_TO_WIRE: dict[str, int] = {
@@ -81,16 +82,26 @@ _ROUND_RESULT_TYPE_TO_WIRE: dict[str, int] = {
 }
 
 
-def _flatten_round_end(payload: dict[str, Any]) -> None:
+def round_result_payload(result: RoundResult) -> dict[str, Any]:
     """
-    Flatten the nested result dict into the top-level round_end payload.
+    Return a round result's wire fields: its type as the integer `rt`, then the result's own fields.
 
-    Convert {"t": 4, "result": {"type": "tsumo", ...}} into    {"t": 4, "rt": 0, ...}.
+    The round end carries them at its top level, the reconnect snapshot under `re`.
     """
-    result = payload.pop("result")
-    result_type = result.pop("type")
-    payload["rt"] = _ROUND_RESULT_TYPE_TO_WIRE[result_type]
-    payload.update(result)
+    fields = result.model_dump(by_alias=True, exclude_none=True)
+    result_type = fields.pop("type")
+    return {"rt": _ROUND_RESULT_TYPE_TO_WIRE[result_type], **fields}
+
+
+def reconnection_payload(snapshot: ReconnectionSnapshot) -> dict[str, Any]:
+    """
+    Return the wire-format dict of a reconnect snapshot, its round result (`re`) shaped as a round end's.
+    """
+    payload = snapshot.model_dump(by_alias=True, exclude_none=True, exclude={"result"})
+    if snapshot.result is not None:
+        payload[ROUND_RESULT_KEY] = round_result_payload(snapshot.result)
+
+    return payload
 
 
 def shape_call_prompt_payload(payload: dict[str, Any]) -> dict[str, Any]:

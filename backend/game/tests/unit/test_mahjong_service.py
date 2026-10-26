@@ -397,6 +397,33 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
             },
         ]
 
+    def test_build_reconnection_snapshot__when_round_advance_pending__should_show_the_ended_round_with_its_result(
+        self, service
+    ):
+        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
+        alice = _find_player(runtime.state.round_state, "Alice")
+        first_dealer = runtime.state.round_state.dealer_seat
+        tenpai_seat = (first_dealer + 1) % 4
+        tenpai_hand = TilesConverter.string_to_136_array(man="123456789", pin="11", sou="45")
+        _update_player(runtime, seat=tenpai_seat, tiles=tuple(tenpai_hand))
+        _update_round_state(runtime, wall=make_wall())
+        service._process_action_result_internal(runtime, ActionResult([], state=runtime.state, needs_post_discard=True))
+        assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
+        assert (runtime.state.round_state.dealer_seat, runtime.state.round_number, runtime.state.honba_sticks) == (
+            tenpai_seat,
+            1,
+            1,
+        )
+
+        snapshot = service.build_reconnection_snapshot(runtime, alice.seat)
+        payload = snapshot.model_dump(by_alias=True, exclude_none=True)
+        assert (payload["dl"], payload["w"], payload["n"], payload["h"]) == (first_dealer, 0, 0, 0)
+        assert isinstance(snapshot.result, ExhaustiveDrawResult)
+        assert snapshot.result.tempai_seats == [tenpai_seat]
+        assert {ps["s"]: ps["sc"] for ps in payload["pst"]} == {
+            seat: 280 if seat == tenpai_seat else 240 for seat in range(4)
+        }
+
     def test_build_reconnection_snapshot__when_round_advance_follows_a_robbed_kan__should_name_the_robbed_kan(
         self, service
     ):
@@ -420,7 +447,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert service.get_awaiting(runtime).kind == WaitKind.ROUND_ADVANCE
 
         payload = service.build_reconnection_snapshot(runtime, 2).model_dump(by_alias=True, exclude_none=True)
-        assert payload["rk"] == {"s": 0, "ti": man_1[3], "kty": "closed"}
+        assert payload["re"]["rk"] == {"s": 0, "ti": man_1[3], "kty": "closed"}
 
 
 class TestMahjongGameServiceBuildTurnEventForSeat:
