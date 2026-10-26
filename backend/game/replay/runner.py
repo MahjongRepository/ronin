@@ -127,55 +127,42 @@ def _execute_replay(
     )
 
     steps: list[ReplayStep] = []
-    step_count = 0
     for index, input_event in enumerate(replay.events):
-        _check_step_limit(step_count, opts.max_steps)
+        _check_step_limit(len(steps), opts.max_steps)
         if runtime.state.game_phase == GamePhase.FINISHED:
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
-                    f"Input remains after game end at step {step_count}: {input_event}",
+                    f"Input remains after game end at step {len(steps)}: {input_event}",
                 )
 
             break
 
-        step_count = _maybe_confirm_round(ctx, seating=seating, steps=steps, step_count=step_count)
+        _maybe_confirm_round(ctx, seating=seating, steps=steps)
 
         if opts.auto_pass_calls:
-            step_count = _handle_auto_pass_for_input(
-                ctx,
-                index=index,
-                seating=seating,
-                steps=steps,
-                step_count=step_count,
-            )
+            _handle_auto_pass_for_input(ctx, index=index, seating=seating, steps=steps)
 
         # Auto-pass resolution may end the round (e.g. exhaustive draw after
         # the last call prompt resolves). Re-check for round advance.
-        step_count = _maybe_confirm_round(ctx, seating=seating, steps=steps, step_count=step_count)
+        _maybe_confirm_round(ctx, seating=seating, steps=steps)
 
         # Re-check game phase: auto-pass or round confirmation may have ended the game
         if runtime.state.game_phase == GamePhase.FINISHED:
             if opts.strict:
                 raise ReplayInputAfterGameEndError(
-                    f"Input remains after game end at step {step_count}: {input_event}",
+                    f"Input remains after game end at step {len(steps)}: {input_event}",
                 )
 
             break
 
-        step_count = _process_input_event(
-            ctx,
-            input_event=input_event,
-            seat=seat_by_player[input_event.player_name],
-            steps=steps,
-            step_count=step_count,
-        )
+        _run_step(ctx, steps=steps, seat=seat_by_player[input_event.player_name], input_event=input_event)
 
     # Handle any trailing call prompt after all input events are consumed
     if opts.auto_pass_calls:
-        step_count = _inject_pass_calls(ctx, seating=seating, steps=steps, step_count=step_count)
+        _inject_pass_calls(ctx, seating=seating, steps=steps)
 
     # Handle any trailing round advance after all input events are consumed
-    step_count = _maybe_confirm_round(ctx, seating=seating, steps=steps, step_count=step_count)
+    _maybe_confirm_round(ctx, seating=seating, steps=steps)
 
     return ReplayTrace(
         seed=replay.seed,
@@ -225,21 +212,23 @@ def _check_step_limit(step_count: int, max_steps: int) -> None:
         raise ReplayStepLimitError(f"Replay exceeded {max_steps} steps")
 
 
-def _process_input_event(
+def _run_step(
     ctx: _ReplayRunContext,
-    input_event: ReplayInputEvent,
-    seat: int,
+    *,
     steps: list[ReplayStep],
-    step_count: int,
-) -> int:
+    seat: int,
+    input_event: ReplayInputEvent,
+    synthetic: bool = False,
+) -> None:
     """
-    Process one player input event and append to steps.
+    Run one input or synthetic action through the service and append its step.
 
-    A rule judgment comes back as the ErrorEvent the live server sends; structural input (InvalidGameActionError) or a
-    server fault raises and fails the replay.
+    The step limit is checked first. In strict mode a rule judgment (the ErrorEvent the live server sends) fails the
+    replay at this step; structural input (InvalidGameActionError) or a server fault raises in either mode.
     """
+    _check_step_limit(len(steps), ctx.opts.max_steps)
+
     state_before = ctx.runtime.state
-
     events = ctx.service.handle_action(
         ctx.runtime,
         seat=seat,
@@ -250,77 +239,35 @@ def _process_input_event(
     if ctx.opts.strict:
         errors = [e for e in events if e.event == EventType.ERROR]
         if errors:
-            raise ReplayError(step_index=step_count, event=input_event, errors=errors)
+            raise ReplayError(step_index=len(steps), event=input_event, errors=errors)
 
     steps.append(
         ReplayStep(
             input_event=input_event,
+            synthetic=synthetic,
             emitted_events=tuple(events),
             state_before=state_before,
             state_after=ctx.runtime.state,
         ),
     )
-    return step_count + 1
 
 
-def _maybe_confirm_round(
-    ctx: _ReplayRunContext,
-    seating: _ReplaySeating,
-    steps: list[ReplayStep],
-    step_count: int,
-) -> int:
+def _maybe_confirm_round(ctx: _ReplayRunContext, *, seating: _ReplaySeating, steps: list[ReplayStep]) -> None:
     """
     Inject round confirmations if a round advance is pending.
     """
     if ctx.opts.auto_confirm_rounds and ctx.service.get_awaiting(ctx.runtime).kind == WaitKind.ROUND_ADVANCE:
-        step_count = _inject_round_confirmations(ctx, seating=seating, steps=steps, step_count=step_count)
-        _check_step_limit(step_count, ctx.opts.max_steps)
-
-    return step_count
+        _inject_round_confirmations(ctx, seating=seating, steps=steps)
+        _check_step_limit(len(steps), ctx.opts.max_steps)
 
 
-def _inject_round_confirmations(
-    ctx: _ReplayRunContext,
-    seating: _ReplaySeating,
-    steps: list[ReplayStep],
-    step_count: int,
-) -> int:
+def _inject_round_confirmations(ctx: _ReplayRunContext, *, seating: _ReplaySeating, steps: list[ReplayStep]) -> None:
     """
     Inject synthetic CONFIRM_ROUND steps for all pending players, in seat order.
     """
     for seat in sorted(ctx.service.get_awaiting(ctx.runtime).seats):
-        _check_step_limit(step_count, ctx.opts.max_steps)
-        player_name = seating.player_by_seat[seat]
-
-        synthetic_before = ctx.runtime.state
-        confirm_events = ctx.service.handle_action(
-            ctx.runtime, seat=seat, action=GameAction.CONFIRM_ROUND, data={}
-        ).events
-
-        if ctx.opts.strict:
-            errors = [e for e in confirm_events if e.event == EventType.ERROR]
-            if errors:
-                synthetic_event = ReplayInputEvent(
-                    player_name=player_name,
-                    action=GameAction.CONFIRM_ROUND,
-                )
-                raise ReplayError(step_index=step_count, event=synthetic_event, errors=errors)
-
-        steps.append(
-            ReplayStep(
-                input_event=ReplayInputEvent(
-                    player_name=player_name,
-                    action=GameAction.CONFIRM_ROUND,
-                ),
-                synthetic=True,
-                emitted_events=tuple(confirm_events),
-                state_before=synthetic_before,
-                state_after=ctx.runtime.state,
-            ),
-        )
-        step_count += 1
-
-    return step_count
+        confirm = ReplayInputEvent(player_name=seating.player_by_seat[seat], action=GameAction.CONFIRM_ROUND)
+        _run_step(ctx, steps=steps, seat=seat, input_event=confirm, synthetic=True)
 
 
 def _handle_auto_pass_for_input(
@@ -329,8 +276,7 @@ def _handle_auto_pass_for_input(
     index: int,
     seating: _ReplaySeating,
     steps: list[ReplayStep],
-    step_count: int,
-) -> int:
+) -> None:
     """
     Handle auto-pass logic before processing the input event at index.
 
@@ -344,14 +290,15 @@ def _handle_auto_pass_for_input(
     """
     prompt = ctx.runtime.state.round_state.pending_call_prompt
     if prompt is None:
-        return step_count
+        return
 
     events = ctx.events
     input_event = events[index]
     input_seat = seating.seat_by_player[input_event.player_name]
     is_call_response = input_event.action in _CALL_RESPONSE_ACTIONS and input_seat in prompt.pending_seats
     if not is_call_response:
-        return _inject_pass_calls(ctx, seating=seating, steps=steps, step_count=step_count)
+        _inject_pass_calls(ctx, seating=seating, steps=steps)
+        return
 
     responding_seats = {input_seat}
     if input_event.action == GameAction.CALL_RON:
@@ -362,13 +309,7 @@ def _handle_auto_pass_for_input(
 
             responding_seats.add(seating.seat_by_player[later_event.player_name])
 
-    return _inject_pass_calls(
-        ctx,
-        seating=seating,
-        steps=steps,
-        step_count=step_count,
-        exclude_seats=frozenset(responding_seats),
-    )
+    _inject_pass_calls(ctx, seating=seating, steps=steps, exclude_seats=frozenset(responding_seats))
 
 
 def _inject_pass_calls(
@@ -376,9 +317,8 @@ def _inject_pass_calls(
     *,
     seating: _ReplaySeating,
     steps: list[ReplayStep],
-    step_count: int,
     exclude_seats: frozenset[int] = frozenset(),
-) -> int:
+) -> None:
     """
     Inject synthetic PASS steps for pending call prompt seats.
 
@@ -388,7 +328,7 @@ def _inject_pass_calls(
     """
     prompt = ctx.runtime.state.round_state.pending_call_prompt
     if prompt is None:
-        return step_count
+        return
 
     seats_to_pass = sorted(prompt.pending_seats - exclude_seats)
     for seat in seats_to_pass:
@@ -396,33 +336,5 @@ def _inject_pass_calls(
         if ctx.runtime.state.round_state.pending_call_prompt is None:
             break
 
-        _check_step_limit(step_count, ctx.opts.max_steps)
-        player_name = seating.player_by_seat[seat]
-
-        synthetic_before = ctx.runtime.state
-        pass_events = ctx.service.handle_action(ctx.runtime, seat=seat, action=GameAction.PASS, data={}).events
-
-        if ctx.opts.strict:
-            errors = [e for e in pass_events if e.event == EventType.ERROR]
-            if errors:
-                synthetic_event = ReplayInputEvent(
-                    player_name=player_name,
-                    action=GameAction.PASS,
-                )
-                raise ReplayError(step_index=step_count, event=synthetic_event, errors=errors)
-
-        steps.append(
-            ReplayStep(
-                input_event=ReplayInputEvent(
-                    player_name=player_name,
-                    action=GameAction.PASS,
-                ),
-                synthetic=True,
-                emitted_events=tuple(pass_events),
-                state_before=synthetic_before,
-                state_after=ctx.runtime.state,
-            ),
-        )
-        step_count += 1
-
-    return step_count
+        pass_event = ReplayInputEvent(player_name=seating.player_by_seat[seat], action=GameAction.PASS)
+        _run_step(ctx, steps=steps, seat=seat, input_event=pass_event, synthetic=True)
