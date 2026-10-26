@@ -26,7 +26,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 - Riichi stick value: 1,000 points per stick
 - Minimum points for declaration: 1,000
-- Riichi bet on interrupted declaration: Not paid (void if discard is ron'd)
+- Riichi bet on interrupted declaration: Not paid (void if the discard is ronned, draws a triple ron, or ends the hand in four winds)
 - Riichi discard claimed for a meld: Riichi stands. Ippatsu is lost.
 - Riichi at exactly 1,000 points: Allowed (player goes to 0 points; game continues unless another player wins and triggers tobi)
 - Minimum wall tiles for declaration: 4
@@ -173,10 +173,10 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 ### Abortive Draws
 
 - Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chi, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
-- Four Winds: All four players discard the same wind on first turn
+- Four Winds: All four players discard the same wind on first turn. A riichi declared on the fourth wind discard is not established: the hand ends before the bet is taken, so no stick is deposited.
 - Four Riichi: After fourth riichi succeeds (if no one wins on the discard). A ron on the declaration discard stands, and the fourth riichi stick is not deposited.
 - Four Kans: Four kans declared by two or more players. The fourth kan completes as usual: its declarer draws the replacement tile and may win by rinshan kaihou, or discards. If that discard is ronned, the ron stands; otherwise the hand ends in an abortive draw once the discard passes (it cannot be called for a meld, and any deferred kan dora is revealed first). A fourth kan that is robbed (an added kan by chankan, or a closed kan by kokushi musou) never completes, so the ron stands. If the replacement discard also declares the fourth riichi, the abort is reported as Four Riichi. One player holding all four kans plays on, and no fifth kan can be declared.
-- Triple Ron: Three opponents declare Ron on the same discard or on the same added-kan tile (chankan); no score changes. Being able to ron is not enough: each eligible player is offered the call, and if one of them passes, the other two win by double ron (or head bump when double ron is disabled).
+- Triple Ron: Three opponents declare Ron on the same discard or rob the same kan (an added kan, or a closed kan robbed by kokushi musou); no score changes. A riichi declared on that discard is void, and no stick is deposited. Being able to ron is not enough: each eligible player is offered the call, and if one of them passes, the other two win by double ron (or head bump when double ron is disabled).
 
 ### Yakuman Options
 

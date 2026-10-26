@@ -460,7 +460,7 @@ def _fourth_riichi_discard_with_ron_caller() -> ActionResult:
 
 
 class TestAbortiveDrawIntegration:
-    def test_abortive_draw__when_four_same_winds_discarded__should_abort_four_winds(self):
+    def test_four_winds__when_fourth_same_wind_discard_declares_riichi__should_abort_without_the_bet(self):
         east = tuple(tile_copies(copy, honors="1")[0] for copy in range(4))
         players = (
             *(
@@ -475,16 +475,22 @@ class TestAbortiveDrawIntegration:
         )
         game_state = create_dealt_game_state(players, current_player_seat=3)
 
-        _new_game, events = process_discard_phase(game_state, east[3])
+        new_game, events = process_discard_phase(game_state, east[3], is_riichi=True)
+        assert [e.is_riichi for e in events if isinstance(e, DiscardEvent)] == [True]
         round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
         assert len(round_end_events) == 1
         assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_WINDS
+        assert not [e for e in events if isinstance(e, RiichiDeclaredEvent)]
+        assert new_game.riichi_sticks == game_state.riichi_sticks
+        assert [p.score for p in new_game.round_state.players] == [p.score for p in game_state.round_state.players]
+        assert not new_game.round_state.players[3].is_riichi
 
-    def test_triple_ron__when_three_ron_callers_declare__should_abort_without_score_changes(self):
+    def test_triple_ron__when_three_ron_callers_declare_on_a_riichi_discard__should_abort_without_the_bet(self):
         game_state = _create_pin_3_discard_with_three_ron_callers()
 
-        prompted_game, events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD)
+        prompted_game, events = process_discard_phase(game_state, PIN_3_TRIPLE_RON_DISCARD, is_riichi=True)
+        assert [e.is_riichi for e in events if isinstance(e, DiscardEvent)] == [True]
         prompt = prompted_game.round_state.pending_call_prompt
         assert prompt is not None
         chi = MeldOption(call_type=MeldCallType.CHI, options=(tuple(tile_copies(0, pin="12")),))
@@ -505,6 +511,9 @@ class TestAbortiveDrawIntegration:
         assert round_end_events[0].result.score_changes == {0: 0, 1: 0, 2: 0, 3: 0}
         assert result.state.round_state.phase == RoundPhase.FINISHED
         assert result.state.riichi_sticks == 1
+        assert not [e for e in result.events if isinstance(e, RiichiDeclaredEvent)]
+        assert [p.score for p in result.state.round_state.players] == [p.score for p in game_state.round_state.players]
+        assert not result.state.round_state.players[0].is_riichi
 
     def test_triple_ron__when_one_of_three_ron_callers_passes__should_resolve_double_ron(self):
         game_state = _create_pin_3_discard_with_three_ron_callers()
