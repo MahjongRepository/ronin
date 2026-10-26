@@ -66,6 +66,9 @@ interleave.
   abandoned game's are discarded, and a failure to save a completed game's replay turns its end
   into a failure. A reconnect re-sends the turn's opening event (its draw or `turn` event)
   directly, outside the replay path, so a draw is not recorded twice.
+* **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
+  it, often another seat's action, so a fired timer binds its game and its own seat, and the
+  finalizer its game with no seat; a new background task rebinds its context the same way.
 * **A graceful stop is a disconnect.** The manager has no drain of its own: a graceful stop ends
   games only through the normal leave of each closed socket, and `shutdown()` ends no game. A
   separate shutdown classification would need a drain signal ahead of the socket closes, which

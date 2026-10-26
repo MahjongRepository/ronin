@@ -256,6 +256,7 @@ class SessionManager:
         """
         Bind the joining connection, replacing a stale one, and start the game once every participant is connected.
         """
+        structlog.contextvars.bind_contextvars(game_id=game.game_id)
         stale = participant.connection
         if stale is not None:
             logger.info(
@@ -295,6 +296,7 @@ class SessionManager:
         """
         await asyncio.sleep(game.timer_config.pending_game_timeout_seconds)
 
+        structlog.contextvars.bind_contextvars(game_id=game.game_id)
         game.pending_timeout = None
         try:
             if not game.connected():
@@ -353,6 +355,7 @@ class SessionManager:
         """
         await asyncio.sleep(game.timer_config.game_start_pause_seconds)
 
+        structlog.contextvars.bind_contextvars(game_id=game.game_id)
         game.start_pause = None
         try:
             self._deal_first_round(game, events=events, awaiting=awaiting)
@@ -473,7 +476,7 @@ class SessionManager:
             return
 
         seat = self._seat_of(participant)
-        structlog.contextvars.bind_contextvars(seat=seat)
+        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=seat)
         if game.awaiting is None or wait_id != game.awaiting.wait_id:
             self._send_stale_action(connection, seat=seat, action=action, wait_id=wait_id)
             return
@@ -537,6 +540,7 @@ class SessionManager:
 
         game = participant.game
         seat = self._seat_of(participant)
+        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=seat)
         runtime = self._runtime_of(game)
         self._game_service.restore_human_player(runtime, seat)
         snapshot = self._game_service.build_reconnection_snapshot(runtime, seat)
@@ -554,8 +558,6 @@ class SessionManager:
             exclude=connection,
         )
         self._send_turn_state_on_reconnect(participant, connection, awaiting=awaiting)
-
-        structlog.contextvars.bind_contextvars(seat=seat)
         logger.info("player reconnected")
 
     def _reconnecting_participant(
@@ -820,9 +822,11 @@ class SessionManager:
         Run a fired timer's default action; any unexpected error ends the game through fail_game.
 
         It needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer, and a
-        cancel after its sleep ended still stops it before this runs.
+        cancel after its sleep ended still stops it before this runs. It logs as the timer's own seat: the timer task
+        copied the log context of whatever armed it, often another seat's action.
         """
         game = participant.game
+        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=participant.seat)
         try:
             seat = self._seat_of(participant)
             update = self._game_service.handle_timeout(self._runtime_of(game), seat=seat, timeout_type=timeout_type)
@@ -891,9 +895,12 @@ class SessionManager:
 
         Each step is its own error boundary: an unexpected failure is logged and the steps after it, down to the last
         close, still run. Any error saving a completed game's replay, storage errors included, turns its end into a
-        failure. A game with no start record (it never started) records no finish.
+        failure. A game with no start record (it never started) records no finish. It logs as its game alone, never as
+        the seat whose action or timeout claimed the end.
         """
         game_id = game.game_id
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(game_id=game_id)
         end_reason = ending.reason
         if ending.replay_lines is not None:
             try:

@@ -1,3 +1,6 @@
+import logging
+
+from game.logic.enums import GameAction
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
@@ -17,7 +20,16 @@ from game.tests.mocks import (
 )
 from shared.dal.models import GameEndReason
 
-from .helpers import ENGINE_SEED, create_started_game, game_of, runtime_of, wait_for_background_tasks
+from .helpers import (
+    ENGINE_SEED,
+    arrange_final_discard,
+    create_started_game,
+    current_wait_id,
+    game_of,
+    participant_of,
+    runtime_of,
+    wait_for_background_tasks,
+)
 
 
 def _make_game_end_event() -> ServiceEvent:
@@ -77,15 +89,23 @@ class TestSessionReplay:
         assert list(storage.saved) == ["game1"]
 
     async def test_replay_save__when_storage_fails_after_a_completion__should_record_an_error_end_and_close_with_1011(
-        self,
+        self, seeded_engine, caplog
     ):
         game_repo = FakeGameRepository()
-        manager = make_session_manager(repository=game_repo, storage=FailingReplayStorage())
+        manager = make_session_manager(seeded_engine, repository=game_repo, storage=FailingReplayStorage())
         conns = create_started_game(manager)
-        game = game_of(manager)
+        alice_seat = participant_of(manager, conns[0]).seat
+        arrange_final_discard(runtime_of(manager), seat=alice_seat)
+        drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
 
-        manager._broadcast_events(game, [_make_game_end_event()], MOCK_GAME_OVER)
-        await wait_for_background_tasks(manager)
+        with caplog.at_level(logging.ERROR):
+            manager.handle_game_action(
+                conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
+            )
+            await wait_for_background_tasks(manager)
+        assert [(r.msg["event"], r.msg["game_id"], "seat" in r.msg) for r in caplog.records] == [
+            ("failed to save the replay of a finished game", "game1", False)
+        ]
         assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
         assert [m.get("code") for m in conns[0].sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")

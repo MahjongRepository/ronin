@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 from dataclasses import replace
 from functools import partial
@@ -291,6 +292,25 @@ class TestTimerCallbackLifecycle:
         assert timer.task is not None
         assert timer.task is not fired
         assert not timer.task.done()
+
+        await manager.shutdown()
+
+    async def test_turn_timeout__when_armed_by_another_seats_discard__should_log_as_its_own_seat(
+        self, seeded_engine, held_sleep, caplog
+    ):
+        manager = make_session_manager(seeded_engine)
+        create_started_game(manager, player_names=["Alice", "Bob"])
+        game = game_of(manager)
+        [discarder_seat] = game.awaiting.seats
+        _discard_the_drawn_tile(manager, game.at_seat(discarder_seat))
+        [timed_out_seat] = game.awaiting.seats
+        assert (game.awaiting.kind, timed_out_seat != discarder_seat) == (WaitKind.TURN, True)
+
+        await asyncio.sleep(0)
+        with caplog.at_level(logging.INFO):
+            await held_sleep.release_all()
+        auto_discards = [r.msg for r in caplog.records if r.msg["event"] == "turn timeout, auto-discarding"]
+        assert [(log["game_id"], log["seat"]) for log in auto_discards] == [("game1", timed_out_seat)]
 
         await manager.shutdown()
 
