@@ -4,6 +4,7 @@ import asyncio
 import logging
 import sqlite3
 import sys
+import threading
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -150,34 +151,41 @@ class TestWorker:
             ("database write dropped: the database is not open", "finish_game", "g1"),
         ]
 
-    async def test_database_close__when_writes_outlast_the_drain_timeout__should_log_every_unfinished_game(
+    async def test_database_close__when_writes_outlast_the_drain_timeout__should_log_every_unfinished_game_once(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ):
         db_path = tmp_path / "test.db"
         with pytest.raises(ValueError, match="outlast the busy timeout"):
             Database(db_path, busy_timeout_ms=50, drain_timeout_seconds=0.05)
-        db = Database(db_path, busy_timeout_ms=50, drain_timeout_seconds=0.12)
+        db = Database(db_path, busy_timeout_ms=1, drain_timeout_seconds=0.05)
         await db.open()
-        other_server = sqlite3.connect(db_path, autocommit=True)
+        first_write_started = threading.Event()
+        released = threading.Event()
 
-        other_server.execute("BEGIN IMMEDIATE")
+        def wait_then_fail(_conn: sqlite3.Connection) -> None:
+            first_write_started.set()
+            released.wait(timeout=5)
+            raise RuntimeError("failed after shutdown gave up on it")
+
         for game_id in ("g1", "g2", "g3", "g4"):
-            db.post_write(
-                lambda conn, game_id=game_id: _insert_marker(conn, game_id), operation="create_game", game_id=game_id
-            )
+            db.post_write(wait_then_fail, operation="create_game", game_id=game_id)
+
+        assert await asyncio.to_thread(first_write_started.wait, 5)
         with caplog.at_level(logging.ERROR):
             await db.close()
-            logged = [(r.msg["event"], r.msg.get("game_id"), str(r.msg.get("exc_info"))) for r in caplog.records]
-        other_server.execute("COMMIT")
+            released.set()
+            assert db._thread is not None
+            db._thread.join(timeout=5)
 
-        assert ("database worker did not drain before shutdown", None, "None") in logged
-        assert {game_id for _, game_id, _ in logged if game_id is not None} == {"g1", "g2", "g3", "g4"}
-        assert (
-            "database write failed",
-            "g4",
-            "dropped unrun: the database worker did not drain before shutdown",
-        ) in logged
-        other_server.close()
+        assert not db._thread.is_alive()
+        dropped_unrun = "dropped unrun: the database worker did not drain before shutdown"
+        assert [(r.msg["event"], r.msg.get("game_id"), str(r.msg.get("exc_info"))) for r in caplog.records] == [
+            ("database worker did not drain before shutdown", None, "None"),
+            ("database write failed", "g2", dropped_unrun),
+            ("database write failed", "g3", dropped_unrun),
+            ("database write failed", "g4", dropped_unrun),
+            ("database write failed", "g1", "still running at shutdown: it may or may not have landed"),
+        ]
 
     async def test_database_open__when_cancelled__should_stop_its_worker(self, tmp_path: Path):
         db = Database(tmp_path / "test.db")
