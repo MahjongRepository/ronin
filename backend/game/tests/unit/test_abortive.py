@@ -5,7 +5,6 @@ from game.logic.abortive import (
     AbortiveDrawType,
     call_kyuushu_kyuuhai,
     can_call_kyuushu_kyuuhai,
-    check_four_kans,
     check_four_riichi,
     check_four_winds,
 )
@@ -226,81 +225,6 @@ class TestCheckFourRiichi:
 
         result = check_four_riichi(round_state)
         assert result is False
-
-
-class TestCheckFourKans:
-    def _create_round_state(
-        self,
-        player0_melds: tuple[FrozenMeld, ...] = (),
-        player1_melds: tuple[FrozenMeld, ...] = (),
-        player2_melds: tuple[FrozenMeld, ...] = (),
-        player3_melds: tuple[FrozenMeld, ...] = (),
-    ) -> MahjongRoundState:
-        players = (
-            MahjongPlayer(seat=0, name="Player1", melds=player0_melds, score=25000),
-            MahjongPlayer(seat=1, name="AI1", melds=player1_melds, score=25000),
-            MahjongPlayer(seat=2, name="AI2", melds=player2_melds, score=25000),
-            MahjongPlayer(seat=3, name="AI3", melds=player3_melds, score=25000),
-        )
-        return MahjongRoundState(wall=make_wall(), players=players)
-
-    def _create_kan_meld(self, tiles: list[int], meld_type: str = FrozenMeld.KAN) -> FrozenMeld:
-        return FrozenMeld(meld_type=meld_type, tiles=tuple(tiles), opened=True)
-
-    def test_check_four_kans__when_four_kans_by_multiple_players__should_abort(self):
-        round_state = self._create_round_state(
-            player0_melds=(
-                self._create_kan_meld(TilesConverter.string_to_136_array(man="1111")),
-                self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),
-            ),
-            player1_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
-            player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),),
-        )
-        settings = GameSettings()
-
-        result = check_four_kans(round_state, settings)
-        assert result is True
-
-    def test_check_four_kans__when_four_kans_by_one_player__should_not_abort(self):
-        round_state = self._create_round_state(
-            player0_melds=(
-                self._create_kan_meld(TilesConverter.string_to_136_array(man="1111")),
-                self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),
-                self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),
-                self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111")),
-            ),
-        )
-        settings = GameSettings()
-
-        result = check_four_kans(round_state, settings)
-        assert result is False
-
-    def test_check_four_kans__when_three_kans__should_not_abort(self):
-        round_state = self._create_round_state(
-            player0_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(man="1111")),),
-            player1_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111")),),
-            player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111")),),
-        )
-        settings = GameSettings()
-
-        result = check_four_kans(round_state, settings)
-        assert result is False
-
-    def test_check_four_kans__when_one_is_shouminkan__should_count_it(self):
-        round_state = self._create_round_state(
-            player0_melds=(
-                self._create_kan_meld(TilesConverter.string_to_136_array(man="1111"), FrozenMeld.SHOUMINKAN),
-                self._create_kan_meld(TilesConverter.string_to_136_array(pin="1111"), FrozenMeld.KAN),
-            ),
-            player1_melds=(
-                self._create_kan_meld(TilesConverter.string_to_136_array(sou="1111"), FrozenMeld.SHOUMINKAN),
-            ),
-            player2_melds=(self._create_kan_meld(TilesConverter.string_to_136_array(honors="1111"), FrozenMeld.KAN),),
-        )
-        settings = GameSettings()
-
-        result = check_four_kans(round_state, settings)
-        assert result is True
 
 
 class TestCheckFourWinds:

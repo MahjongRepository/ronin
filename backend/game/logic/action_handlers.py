@@ -65,15 +65,17 @@ def _create_rule_refusal(error: GameRuleError) -> Refusal:
 
 def _validate_call_prompt(
     round_state: MahjongRoundState,
+    *,
     seat: int,
-    tile_id: int,
+    action: GameAction,
+    tile_id: int | None,
     error_code: GameErrorCode,
 ) -> PendingCallPrompt | Refusal:
     """
-    Validate the pending call prompt for a meld call (pon, chi, etc.).
+    Validate a call response (ron, pon, chi or open kan) against the pending call prompt, before any call's own checks.
 
-    Check that a pending call prompt exists, that the seat is among the pending callers, and that the tile_id matches
-    the prompt's tile_id.
+    Refuse when no prompt waits on the seat or the tile_id is not the prompt's (a ron sends none); raise
+    InvalidGameActionError when the prompt did not offer the seat this call. A pass needs neither check.
 
     Return the validated PendingCallPrompt on success, or a Refusal on failure.
     """
@@ -82,10 +84,11 @@ def _validate_call_prompt(
         logger.warning("invalid call: no pending call prompt", seat=seat)
         return Refusal(code=error_code, message="no pending call prompt")
 
-    if prompt.tile_id != tile_id:
+    if tile_id is not None and prompt.tile_id != tile_id:
         logger.warning("invalid call: tile_id mismatch", seat=seat, expected=prompt.tile_id, got=tile_id)
         return Refusal(code=error_code, message="tile_id mismatch")
 
+    _validate_caller_action_matches_prompt(prompt, seat=seat, action=action)
     return prompt
 
 
@@ -105,7 +108,7 @@ def _validate_chi_sequence(
     - The sequence_tiles don't match, by tile type, one of the seat's chi options in the prompt
 
     The seat's chi meld is the one checked, also when the seat is offered pon too (pon sorts first); it exists because
-    _validate_caller_action_matches_prompt ran upstream.
+    _validate_call_prompt ran upstream.
     """
     # Both tiles must be in the player's hand
     hand_list = list(player.tiles)
@@ -314,15 +317,17 @@ def handle_ron(
     Record ron intent on the pending call prompt. Execute during resolution (supports double ron). Returns ActionResult
     with events and new state.
     """
-    prompt = game_state.round_state.pending_call_prompt
-    if prompt is None or seat not in prompt.pending_seats:
-        logger.warning("invalid ron: no pending call prompt", seat=seat)
-        return Refusal(code=GameErrorCode.INVALID_RON, message="no pending call prompt")
+    result = _validate_call_prompt(
+        game_state.round_state,
+        seat=seat,
+        action=GameAction.CALL_RON,
+        tile_id=None,
+        error_code=GameErrorCode.INVALID_RON,
+    )
+    if isinstance(result, Refusal):
+        return result
 
-    # validate ron is allowed on this prompt type
-    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_RON)
-
-    return _record_call_response(game_state, prompt, CallResponse(seat=seat, action=GameAction.CALL_RON))
+    return _record_call_response(game_state, result, CallResponse(seat=seat, action=GameAction.CALL_RON))
 
 
 def handle_pon(
@@ -338,14 +343,17 @@ def handle_pon(
     Returns ActionResult with events and new state.
     """
     round_state = game_state.round_state
-    result = _validate_call_prompt(round_state, seat=seat, tile_id=data.tile_id, error_code=GameErrorCode.INVALID_PON)
+    result = _validate_call_prompt(
+        round_state,
+        seat=seat,
+        action=GameAction.CALL_PON,
+        tile_id=data.tile_id,
+        error_code=GameErrorCode.INVALID_PON,
+    )
     if isinstance(result, Refusal):
         return result
 
     prompt = result
-
-    # validate caller action matches prompt
-    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_PON)
 
     # validate matching tiles exist
     player = round_state.players[seat]
@@ -367,14 +375,17 @@ def handle_chi(
     Returns ActionResult with events and new state.
     """
     round_state = game_state.round_state
-    result = _validate_call_prompt(round_state, seat=seat, tile_id=data.tile_id, error_code=GameErrorCode.INVALID_CHI)
+    result = _validate_call_prompt(
+        round_state,
+        seat=seat,
+        action=GameAction.CALL_CHI,
+        tile_id=data.tile_id,
+        error_code=GameErrorCode.INVALID_CHI,
+    )
     if isinstance(result, Refusal):
         return result
 
     prompt = result
-
-    # validate caller action matches prompt
-    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_CHI)
 
     # validate sequence_tiles before recording response
     player = round_state.players[seat]
@@ -397,15 +408,16 @@ def _handle_open_kan_call_response(
     """
     round_state = game_state.round_state
     result = _validate_call_prompt(
-        round_state, seat=seat, tile_id=submitted_tile_id, error_code=GameErrorCode.INVALID_KAN
+        round_state,
+        seat=seat,
+        action=GameAction.CALL_KAN,
+        tile_id=submitted_tile_id,
+        error_code=GameErrorCode.INVALID_KAN,
     )
     if isinstance(result, Refusal):
         return result
 
     prompt = result
-
-    # validate caller action matches prompt
-    _validate_caller_action_matches_prompt(prompt, seat=seat, action=GameAction.CALL_KAN)
 
     # validate open kan: tile count
     player = round_state.players[seat]

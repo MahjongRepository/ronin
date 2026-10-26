@@ -49,6 +49,7 @@ from game.logic.state import (
 )
 from game.logic.state_utils import update_player
 from game.logic.tiles import tile_to_34
+from game.logic.turn import process_discard_phase
 from game.logic.types import (
     ChiActionData,
     DiscardActionData,
@@ -57,7 +58,8 @@ from game.logic.types import (
     RiichiActionData,
     SeatConfig,
 )
-from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
 from game.tests.unit.helpers import _find_player, _update_player
 
 
@@ -237,55 +239,55 @@ class TestPonEarlyValidation:
         assert isinstance(result, ActionResult)
 
 
+_THREE_PIN = tile_copies(3, pin="3")[0]
+_ONE_TWO_PIN = tuple(tile_copies(0, pin="12"))
+
+
 class TestResponseActionMatchesPrompt:
-    def _create_meld_prompt_state(self, *, caller_type=MeldCallType.CHI):
-        tile_id = 0
-        players = [
-            create_player(seat=0, tiles=(tile_id, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64)),
-            create_player(seat=1, tiles=(4, 8, 12, 16, 68, 72, 76, 80, 84, 88, 92, 96, 100)),
-            create_player(seat=2, tiles=(101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113)),
-            create_player(seat=3, tiles=(114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126)),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(127, 136)),
-            dead_wall=tuple(range(50, 64)),
-            current_player_seat=0,
-            phase=RoundPhase.PLAYING,
-            pending_call_prompt=PendingCallPrompt(
-                kind=PromptKind.DISCARD,
-                tile_id=tile_id,
-                from_seat=0,
-                pending_seats=frozenset({1}),
-                callers=(
-                    Caller(
-                        seat=1,
-                        melds=(
-                            MeldOption(
-                                call_type=caller_type, options=((4, 8),) if caller_type == MeldCallType.CHI else None
-                            ),
-                        ),
-                    ),
-                ),
+    @pytest.mark.parametrize(
+        ("submit", "offered"),
+        [
+            pytest.param(
+                lambda gs: handle_pon(gs, seat=1, data=PonActionData(tile_id=_THREE_PIN)), "call_ron", id="pon"
             ),
+            pytest.param(
+                lambda gs: handle_chi(gs, seat=2, data=ChiActionData(tile_id=_THREE_PIN, sequence_tiles=_ONE_TWO_PIN)),
+                "call_pon",
+                id="chi",
+            ),
+            pytest.param(
+                lambda gs: handle_kan(gs, seat=2, data=KanActionData(tile_id=_THREE_PIN, kan_type=KanType.OPEN)),
+                "call_pon",
+                id="open_kan",
+            ),
+            pytest.param(lambda gs: handle_ron(gs, seat=2), "call_pon", id="ron"),
+        ],
+    )
+    def test_response_action__when_seat_sends_a_call_it_was_not_offered__should_raise(self, submit, offered):
+        riichi_penchan_on_three_pin = create_player(
+            seat=1,
+            tiles=tile_copies(0, man="123456789", pin="1255"),
+            discards=(Discard(tile_id=tile_copies(0, honors="7")[0], is_riichi_discard=True),),
+            is_riichi=True,
         )
-        return create_game_state(round_state)
+        players = (
+            create_player(seat=0, tiles=(*tile_copies(0, sou="123456789", honors="1122"), _THREE_PIN)),
+            riichi_penchan_on_three_pin,
+            create_player(
+                seat=2, tiles=(*tile_copies(1, pin="33"), *tile_copies(1, man="1357", sou="13579", honors="34"))
+            ),
+            create_player(seat=3, tiles=(*tile_copies(2, sou="123456789"), *tile_copies(2, honors="1234"))),
+        )
+        prompted, _events = process_discard_phase(create_dealt_game_state(players), _THREE_PIN)
+        prompt = prompted.round_state.pending_call_prompt
+        assert prompt is not None
+        assert prompt.callers == (
+            Caller(seat=1, can_ron=True),
+            Caller(seat=2, melds=(MeldOption(call_type=MeldCallType.PON),)),
+        )
 
-    def test_response_action__when_meld_caller_calls_ron__should_raise(self):
-        game_state = self._create_meld_prompt_state()
-        with pytest.raises(InvalidGameActionError, match="call_ron does not match available call types: call_chi"):
-            handle_ron(game_state, seat=1)
-
-    def test_response_action__when_pon_caller_sends_chi__should_raise(self):
-        game_state = self._create_meld_prompt_state(caller_type=MeldCallType.PON)
-        # seat 1 is pon caller but sends chi
-        with pytest.raises(InvalidGameActionError, match="does not match available call type"):
-            handle_chi(game_state, seat=1, data=ChiActionData(tile_id=0, sequence_tiles=(4, 8)))
-
-    def test_response_action__when_chi_caller_sends_pon__should_raise(self):
-        game_state = self._create_meld_prompt_state(caller_type=MeldCallType.CHI)
-        with pytest.raises(InvalidGameActionError, match="does not match available call type"):
-            handle_pon(game_state, seat=1, data=PonActionData(tile_id=0))
+        with pytest.raises(InvalidGameActionError, match=f"does not match available call types: {offered}$"):
+            submit(prompted)
 
 
 class TestOpenKanEarlyValidation:
@@ -342,30 +344,26 @@ class TestOpenKanEarlyValidation:
 
 class TestAddedKanRiichiRejection:
     def test_added_kan__when_player_in_riichi__should_raise(self):
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=(0, 1, 2),
-            opened=True,
-            who=0,
+        drawn_one_man = tile_copies(3, man="1")[0]
+        riichi_seat = create_player(
+            seat=0,
+            tiles=(*tile_copies(0, man="111", pin="456789", sou="2345"), drawn_one_man),
+            discards=(Discard(tile_id=tile_copies(0, honors="1")[0], is_riichi_discard=True),),
+            is_riichi=True,
         )
-        tile_4th = 3  # 4th copy of 1m
-        seat0_tiles = (tile_4th, 8, 12, 16, 20, 24, 28, 32, 36, 40)
-        players = [
-            create_player(seat=0, tiles=seat0_tiles, melds=(pon_meld,), is_riichi=True),
-            create_player(seat=1),
-            create_player(seat=2),
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(
-            players=players,
-            wall=tuple(range(80, 100)),
-            dead_wall=tuple(range(50, 64)),
-            phase=RoundPhase.PLAYING,
+        players = (
+            riichi_seat,
+            *(
+                create_player(
+                    seat=seat, tiles=(*tile_copies(seat, pin="123456789"), *tile_copies(seat - 1, honors="2345"))
+                )
+                for seat in range(1, 4)
+            ),
         )
-        settings = GameSettings()
+        round_state = create_dealt_game_state(players).round_state
 
         with pytest.raises(InvalidMeldError, match="cannot call added kan while in riichi"):
-            call_added_kan(round_state, seat=0, tile_id=tile_4th, settings=settings)
+            call_added_kan(round_state, seat=0, tile_id=drawn_one_man, settings=GameSettings())
 
 
 class TestKanExecutionGuards:

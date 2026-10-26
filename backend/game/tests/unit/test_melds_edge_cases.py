@@ -1,6 +1,7 @@
 import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.ai_player_controller import AIPlayerController
 from game.logic.enums import MeldCallType
 from game.logic.exceptions import InvalidMeldError
 from game.logic.meld_wrapper import FrozenMeld
@@ -15,9 +16,13 @@ from game.logic.melds import (
     get_possible_added_kans,
     get_possible_closed_kans,
 )
+from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
+from game.logic.state import Discard, MahjongPlayer, MahjongRoundState
 from game.logic.tiles import tile_to_34
-from game.tests.conftest import create_player, create_round_state
+from game.tests.conftest import create_dealt_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
+from game.tests.unit.helpers import _update_round_state
 
 
 class TestKuikaeEdgeCases:
@@ -51,181 +56,100 @@ class TestKuikaeEdgeCases:
         assert 0 in forbidden_234  # 1m (suji tile)
 
 
+_FIVE_PIN = tuple(tile_copies(copy, pin="5")[0] for copy in range(4))
+
+
+def _round_after_seat_0_declared_four_kans(
+    seat_2: MahjongPlayer,
+    *,
+    current_player_seat: int,
+    seat_1_discards: tuple[Discard, ...] = (),
+) -> MahjongRoundState:
+    seat_0_kans = tuple(
+        FrozenMeld(
+            meld_type=FrozenMeld.KAN, tiles=tuple(tile_copies(0, man=str(number) * 4)), opened=False, who=0, from_who=0
+        )
+        for number in range(1, 5)
+    )
+    players = (
+        create_player(seat=0, tiles=tile_copies(0, honors="7"), melds=seat_0_kans),
+        create_player(
+            seat=1,
+            tiles=tile_copies(0, sou="123456789", honors="1234"),
+            discards=seat_1_discards,
+        ),
+        seat_2,
+        create_player(seat=3, tiles=tile_copies(1, sou="123456789", honors="1234")),
+    )
+    return create_dealt_game_state(players, current_player_seat=current_player_seat).round_state
+
+
 class TestKanLimits:
     def test_can_call_open_kan__when_wall_below_min_for_kan__should_return_false(self):
-        pin_5p = TilesConverter.string_to_136_array(pin="555")
-        discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
-        player = create_player(seat=1, tiles=pin_5p)
-        round_state = create_round_state(
-            players=[create_player(seat=0), player, create_player(seat=2), create_player(seat=3)],
-            wall=(1,),  # only 1 tile; min_wall_for_kan defaults to 2
+        kan_caller = create_player(seat=1, tiles=(*_FIVE_PIN[1:], *tile_copies(0, man="123456789", honors="1")))
+        players = (
+            create_player(
+                seat=0,
+                tiles=tile_copies(0, sou="123456789", honors="2345"),
+                discards=(Discard(tile_id=_FIVE_PIN[0]),),
+            ),
+            kan_caller,
+            create_player(seat=2, tiles=tile_copies(1, sou="123456789", honors="1234")),
+            create_player(seat=3, tiles=tile_copies(2, sou="123456789", honors="1234")),
         )
+        runtime = GameRuntime(game_id="game", state=create_dealt_game_state(players), ai=AIPlayerController({}))
+        settings = runtime.state.settings
+        wall = runtime.state.round_state.wall
+        short_live_tiles = wall.live_tiles[: settings.min_wall_for_kan - 1]
+        round_state = _update_round_state(runtime, wall=wall.model_copy(update={"live_tiles": short_live_tiles}))
+
         assert (
-            can_call_open_kan(player, discarded_tile=discarded_tile, round_state=round_state, settings=GameSettings())
+            can_call_open_kan(kan_caller, discarded_tile=_FIVE_PIN[0], round_state=round_state, settings=settings)
             is False
         )
 
     def test_can_call_open_kan__when_four_kans_already_made__should_return_false(self):
-        # Create players with 4 total kans
-        man_1234 = TilesConverter.string_to_136_array(man="1111222233334444")
-
-        # Player 0 has 2 kans
-        player0_melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[0:4]),
-                opened=True,
-                who=0,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[4:8]),
-                opened=False,
-                who=0,
-            ),
+        kan_caller = create_player(
+            seat=2,
+            tiles=(*_FIVE_PIN[1:], *tile_copies(0, pin="1234"), *tile_copies(2, sou="123456")),
+        )
+        round_state = _round_after_seat_0_declared_four_kans(
+            kan_caller, current_player_seat=1, seat_1_discards=(Discard(tile_id=_FIVE_PIN[0]),)
         )
 
-        # Player 1 has 2 kans
-        player1_melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[8:12]),
-                opened=True,
-                who=1,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.SHOUMINKAN,
-                tiles=tuple(man_1234[12:16]),
-                opened=True,
-                who=1,
-            ),
+        assert (
+            can_call_open_kan(kan_caller, discarded_tile=_FIVE_PIN[0], round_state=round_state, settings=GameSettings())
+            is False
         )
-
-        # Player 2 has 3 matching tiles for a potential 5th kan
-        pin_5p = TilesConverter.string_to_136_array(pin="555")
-        player2 = create_player(seat=2, tiles=pin_5p)
-
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        players = [
-            create_player(seat=0, melds=player0_melds),
-            create_player(seat=1, melds=player1_melds),
-            player2,
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(players=players, wall=wall)
-        discarded_tile = TilesConverter.string_to_136_array(pin="5")[0]
-
-        settings = GameSettings()
-        result = can_call_open_kan(player2, discarded_tile=discarded_tile, round_state=round_state, settings=settings)
-        assert result is False
 
     def test_get_possible_closed_kans__when_four_kans_already_made__should_return_empty(self):
-        # Create players with 4 total kans
-        man_1234 = TilesConverter.string_to_136_array(man="1111222233334444")
-
-        player0_melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[0:4]),
-                opened=True,
-                who=0,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[4:8]),
-                opened=False,
-                who=0,
-            ),
+        kan_caller = create_player(
+            seat=2,
+            tiles=(*_FIVE_PIN, *tile_copies(0, pin="12346789"), *tile_copies(2, sou="12")),
         )
+        round_state = _round_after_seat_0_declared_four_kans(kan_caller, current_player_seat=2)
 
-        player1_melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[8:12]),
-                opened=True,
-                who=1,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[12:16]),
-                opened=True,
-                who=1,
-            ),
-        )
-
-        # Player 2 has 4 matching tiles
-        pin_5p = TilesConverter.string_to_136_array(pin="5555")
-        player2 = create_player(seat=2, tiles=pin_5p)
-
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        players = [
-            create_player(seat=0, melds=player0_melds),
-            create_player(seat=1, melds=player1_melds),
-            player2,
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(players=players, wall=wall)
-
-        settings = GameSettings()
-        result = get_possible_closed_kans(player2, round_state, settings=settings)
-        assert result == []
+        assert get_possible_closed_kans(kan_caller, round_state, settings=GameSettings()) == []
 
     def test_get_possible_added_kans__when_four_kans_already_made__should_return_empty(self):
-        # Create players with 4 total kans
-        man_1234 = TilesConverter.string_to_136_array(man="1111222233334444")
-
-        player0_melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[0:4]),
-                opened=True,
-                who=0,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[4:8]),
-                opened=False,
-                who=0,
-            ),
-        )
-
-        player1_melds = (
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[8:12]),
-                opened=True,
-                who=1,
-            ),
-            FrozenMeld(
-                meld_type=FrozenMeld.KAN,
-                tiles=tuple(man_1234[12:16]),
-                opened=True,
-                who=1,
-            ),
-        )
-
-        # Player 2 has a pon and the 4th tile
-        pin_5p = TilesConverter.string_to_136_array(pin="5555")
-        pon_meld = FrozenMeld(
+        five_pin_pon = FrozenMeld(
             meld_type=FrozenMeld.PON,
-            tiles=tuple(pin_5p[0:3]),
+            tiles=_FIVE_PIN[:3],
             opened=True,
+            called_tile=_FIVE_PIN[0],
             who=2,
+            from_who=1,
         )
-        player2 = create_player(seat=2, tiles=[pin_5p[3]], melds=[pon_meld])
+        kan_caller = create_player(
+            seat=2,
+            tiles=(_FIVE_PIN[3], *tile_copies(0, pin="12346789"), *tile_copies(2, sou="12")),
+            melds=(five_pin_pon,),
+        )
+        round_state = _round_after_seat_0_declared_four_kans(
+            kan_caller, current_player_seat=2, seat_1_discards=(Discard(tile_id=_FIVE_PIN[0]),)
+        )
 
-        wall = tuple(TilesConverter.string_to_136_array(sou="123456"))
-        players = [
-            create_player(seat=0, melds=player0_melds),
-            create_player(seat=1, melds=player1_melds),
-            player2,
-            create_player(seat=3),
-        ]
-        round_state = create_round_state(players=players, wall=wall)
-
-        settings = GameSettings()
-        result = get_possible_added_kans(player2, round_state, settings=settings)
-        assert result == []
+        assert get_possible_added_kans(kan_caller, round_state, settings=GameSettings()) == []
 
 
 class TestPaoLiability:

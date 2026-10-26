@@ -33,6 +33,7 @@ NUM_TILES = 136  # Total tiles in 136-format (4 copies of 34 tile types)
 NUM_TILE_TYPES = 34  # Unique tile types in 34-format
 TILES_PER_SUIT = 9  # Tiles per numbered suit (1-9 of man, pin, sou)
 
+WAITING_HAND_REMAINDER = 1
 DRAWN_HAND_REMAINDER = 2
 
 
