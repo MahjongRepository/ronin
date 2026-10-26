@@ -67,7 +67,11 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   one. Discards are the one fixed rule the client applies: any tile in hand, in riichi only the
   drawn one. The turn after the seat's own pon or chi opens with the server's `turn` event, not with
   the meld, and its kuikae types are the tiles it blocks. A call prompt, a chankan prompt included (it precedes
-  its kan's meld event), reopens the decision on the discard the model already played.
+  its kan's meld event), reopens the decision on the discard the model already played, after
+  showing that kan as declared. A robbed kan never gets a meld event: the round end that robs it
+  names it (`rk`), and a seat not offered the chankan sees it declared there, before the win's call,
+  as does the reconnect snapshot during the round advance. A kan is played into the model once:
+  the meld event or round end after a chankan prompt that showed it only updates the shadow.
   Furiten is the server's too: the board shows フリテン above the seat's nameplate from the `furiten` event and
   the reconnect snapshot, and a new deal hides it.
 * **Wait ids:** every action echoes the wait id of the last server message that carried one (a
@@ -78,8 +82,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Reconnect:** the `game_reconnected` snapshot rebuilds the table and opens no decision; on the
   seat's turn the server re-sends the event that opened it: the `turn` event after its own pon or
   chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds only reopens
-  the turn. The round's number within its wind comes from the first dealer, which the snapshot
-  gives only as the dealer dice. The final standings' ledger (the shadow's round logs) is seeded
+  the turn. Other seats' face-down hands are rebuilt to the snapshot's tile counts, a 3n+2 one
+  holding its turn's draw, since their draws are not replayed. The round's number within its wind
+  comes from the first dealer, which the snapshot gives only as the dealer dice. The final standings' ledger (the shadow's round logs) is seeded
   from the snapshot's round history, as reduced round logs holding only what the standings read.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
   `backend/game/wire/`; change both in the same change. The client sends no heartbeat: liveness is

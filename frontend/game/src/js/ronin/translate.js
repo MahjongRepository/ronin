@@ -51,6 +51,18 @@ const KIND_OF_MELD = {
     [wire.MELD.ADDED_KAN]:  'gang',
 };
 
+/**
+ * The tiles the reconnect replay takes from a face-down hand for each meld: an added kan replays as its pon, then its
+ * fourth tile.
+ */
+const REPLAYED_FROM_HAND = {
+    [wire.MELD.CHI]:        2,
+    [wire.MELD.PON]:        2,
+    [wire.MELD.OPEN_KAN]:   3,
+    [wire.MELD.CLOSED_KAN]: 4,
+    [wire.MELD.ADDED_KAN]:  3,
+};
+
 const SAY_OF_MELD = {
     [wire.MELD.CHI]: 'chi',
     [wire.MELD.PON]: 'peng',
@@ -378,8 +390,12 @@ class Translate {
         const str = mianzi.mianziStr(meld, ponMeld);
         meld.str = str;
 
+        const declared = s.declaredKan != null && meld.callerSeat == s.declaredKan.s
+            && meld.tileIds.includes(s.declaredKan.ti);
+        s.declaredKan = null;
+
         const kind = KIND_OF_MELD[meld.meldType];
-        if (kind == 'gang' && ! mine) this.feedHiddenDraw(meld.callerSeat);
+        if (kind == 'gang' && ! mine && ! declared) this.feedHiddenDraw(meld.callerSeat);
 
         if (mine) {
             const fromHand = meld.meldType == wire.MELD.CLOSED_KAN
@@ -393,6 +409,7 @@ class Translate {
         }
         if (ponMeld) s.melds[meld.callerSeat].splice(s.melds[meld.callerSeat].indexOf(ponMeld), 1);
         s.noteMeld(meld.callerSeat, meld);
+        if (declared) return this.syncWall();
 
         const l = s.l(meld.callerSeat);
         const m = { [kind]: { m: str, l } };
@@ -411,11 +428,17 @@ class Translate {
         this.retry();
     }
 
+    /**
+     * A chankan prompt first shows the kan it offers to rob as declared, with no prompt open: the declarer's hidden
+     * draw would answer an open one with a pass.
+     */
     callPrompt(msg) {
         const s = this.shadow;
+        const chankan = msg.clt == wire.CLT.CHANKAN;
+        s.prompt = null;
+        if (chankan) this.declareKan(this.chankanKan(msg));
         s.prompt = msg;
         const offer = Offer.forPrompt(msg, s);
-        const chankan = msg.clt == wire.CLT.CHANKAN;
         const dapai = s.lastDapai;
         this.player.countdown(this.clock.startCallDecision());
         this.retry = () => {
@@ -511,6 +534,47 @@ class Translate {
         this.player._model._lizhi = false;
     }
 
+    /**
+     * The mianzi of a kan open to chankan, in the shape of a round end's rk ({s, ti, kty}): an added kan extends its
+     * declarer's pon by the kan tile; a closed kan, which only kokushi musou robs, holds every copy of the tile's type.
+     */
+    kanStr(kan) {
+        const t34 = Math.floor(kan.ti / 4);
+        if (kan.kty == wire.KAN.CLOSED) {
+            return mianzi.mianziStr({ meldType: wire.MELD.CLOSED_KAN, tileIds: [0, 1, 2, 3].map(c => t34 * 4 + c) });
+        }
+        const pon = this.shadow.findPon(kan.s, t34);
+        return mianzi.mianziStr({ ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([kan.ti]) }, pon);
+    }
+
+    /** The kan a chankan prompt offers to rob: an added kan when its declarer holds a pon of the tile, else a closed one. */
+    chankanKan(prompt) {
+        const pon = this.shadow.findPon(prompt.frs, Math.floor(prompt.ti / 4));
+        return { s: prompt.frs, ti: prompt.ti, kty: pon ? wire.KAN.ADDED : wire.KAN.CLOSED };
+    }
+
+    /**
+     * Play a kan open to chankan as declared. A robbed kan never completes, so no meld event shows it: its chankan
+     * prompt, its round end or the reconnect snapshot does. It draws no replacement tile, so the shadow counts no kan.
+     */
+    feedKan(kan) {
+        const m = { gang: { m: this.kanStr(kan), l: this.shadow.l(kan.s) } };
+        this.feedModel(m);
+        this.shadow.logMessage(m);
+    }
+
+    /**
+     * Show a kan open to chankan as declared, with the declarer's hidden draw and its call, once: at the chankan
+     * prompt of a seat offered to rob it, else at the round end that robs it. A declined kan's meld event then plays
+     * only into the shadow.
+     */
+    declareKan(kan) {
+        this.feedHiddenDraw(kan.s);
+        this.feedKan(kan);
+        this.shadow.declaredKan = kan;
+        if (this.player._view) this.player._view.say('gang', this.shadow.l(kan.s));
+    }
+
     roundEnd(msg) {
         const s = this.shadow;
         const P = this.player;
@@ -519,6 +583,8 @@ class Translate {
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
+        const kanFirst = msg.rk != null && s.declaredKan == null;
+        if (kanFirst) this.declareKan(msg.rk);
 
         let results;
         switch (msg.rt) {
@@ -559,8 +625,12 @@ class Translate {
         const callers = msg.rt == wire.RT.ABORTIVE ? (msg.rcl || []).map(seat => s.l(seat)) : winners;
         if (! callers.length) return this.showResults(results);
         const call = msg.rt == wire.RT.TSUMO ? 'zimo' : 'rong';
-        if (P._view) for (const l of callers) P._view.say(call, l);
-        this.winCallTimer = setTimeout(() => this.showResults(results), WIN_CALL_MS);
+        const callOut = () => {
+            if (P._view) for (const l of callers) P._view.say(call, l);
+            this.winCallTimer = setTimeout(() => this.showResults(results), WIN_CALL_MS);
+        };
+        if (! kanFirst) return callOut();
+        this.winCallTimer = setTimeout(callOut, WIN_CALL_MS);
     }
 
     /**
@@ -655,11 +725,7 @@ class Translate {
         }
         for (let seat = 0; seat < 4; seat++) {
             for (const meld of meldsBySeat[seat]) {
-                const ponMeld = meld.meldType == wire.MELD.ADDED_KAN
-                    ? meldsBySeat[seat].find(x => x.meldType == wire.MELD.PON
-                        && Math.floor(x.tileIds[0] / 4) == Math.floor(meld.tileIds[0] / 4))
-                    : null;
-                meld.str = mianzi.mianziStr(meld, ponMeld);
+                meld.str = mianzi.mianziStr(meld);
                 s.melds[seat].push(meld);
             }
         }
@@ -695,16 +761,14 @@ class Translate {
             s.logMessage(m);
         }
 
-        /* other seats' draws are not replayed: pad their hands by discards, meld tiles from hand, and their turn's draw */
+        /* other seats' draws are not replayed: pad each hand so the replay leaves it its tile count, a held draw apart */
+        const holdsDraw = seat => pst[seat] && pst[seat].tc % 3 == 2;
         for (let seat = 0; seat < 4; seat++) {
-            if (seat == s.mySeat) continue;
-            const contrib = (meld) => meld.meldType == wire.MELD.CHI
-                || meld.meldType == wire.MELD.PON ? 2
-                : meld.meldType == wire.MELD.OPEN_KAN ? 3
-                : meld.meldType == wire.MELD.CLOSED_KAN ? 4 : 1;
-            const meldContrib = meldsBySeat[seat].reduce((a, m) => a + contrib(m), 0);
-            const pad = (discards[seat] || []).length + meldContrib + (msg.cp == seat ? 1 : 0);
-            P._model.shoupai[s.l(seat)]._bingpai._ += pad;
+            if (seat == s.mySeat || ! pst[seat]) continue;
+            const replayed = (discards[seat] || []).length
+                + meldsBySeat[seat].reduce((n, meld) => n + REPLAYED_FROM_HAND[meld.meldType], 0);
+            const closed = pst[seat].tc - (holdsDraw(seat) ? 1 : 0);
+            P._model.shoupai[s.l(seat)]._bingpai._ += closed + replayed - 13;
         }
         for (let seat = 0; seat < 4; seat++) {
             const mine = seat == s.mySeat;
@@ -729,10 +793,11 @@ class Translate {
                         if (meld.calledTileId == d.ti && ! meld._claimed) {
                             meld._claimed = true;
                             const cl = s.l(c);
-                            const mm = { fulou: { m: meld.str, l: cl } };
+                            const called = meld.meldType == wire.MELD.ADDED_KAN ? meld.str.slice(0, 5) : meld.str;
+                            const mm = { fulou: { m: called, l: cl } };
                             s.logMessage(mm);
                             if (c == s.mySeat) {
-                                P._model.he[l].fulou(meld.str);
+                                P._model.he[l].fulou(called);
                                 continue;
                             }
                             if (mine) P._model.lunban = l;   /* so board.fulou marks my river */
@@ -743,19 +808,24 @@ class Translate {
             }
         }
 
-        /* after the discard replay, so an added kan finds its pon */
+        /* after the discard replay, so an added kan finds the pon it was replayed as */
         for (let seat = 0; seat < 4; seat++) {
             if (seat == s.mySeat) continue;
+            const l = s.l(seat);
             for (const meld of meldsBySeat[seat]) {
-                if (meld._claimed) continue;
                 if (meld.meldType != wire.MELD.CLOSED_KAN
                     && meld.meldType != wire.MELD.ADDED_KAN) continue;
-                const l = s.l(seat);
                 const m = { gang: { m: meld.str, l } };
                 this.feed(m, 'gang');
                 s.logMessage(m);
             }
+            /* the replay is not in play order, so a meld may be left as the hand's last take */
+            P._model.shoupai[l]._zimo = null;
+            if (holdsDraw(seat)) this.feedModel({ zimo: { l, p: '_' } });
         }
+        if (msg.rk) this.feedKan(msg.rk);
+        /* the replay ends on the last seat replayed, but a call on the pending discard marks its discarder's river */
+        P._model.lunban = s.l(msg.cp);
 
         /* the snapshot scores already hold the riichi deposits */
         P._model._lizhi = false;

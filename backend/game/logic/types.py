@@ -392,6 +392,9 @@ class DiscardInfo(BaseModel):
 class PlayerReconnectState(BaseModel):
     """
     Per-player visible state in a reconnection snapshot.
+
+    tile_count is the number of tiles in the player's closed hand (3n+2 while it holds its turn's draw), which other
+    seats see face down but whose draws the snapshot does not replay.
     """
 
     seat: int = Field(serialization_alias="s")
@@ -399,6 +402,7 @@ class PlayerReconnectState(BaseModel):
     discards: list[DiscardInfo] = Field(serialization_alias="dsc")
     melds: list[int] = Field(serialization_alias="ml")
     is_riichi: bool = Field(serialization_alias="ri")
+    tile_count: int = Field(serialization_alias="tc")
 
 
 class RoundHistoryEntry(BaseModel):
@@ -429,6 +433,8 @@ class ReconnectionSnapshot(BaseModel):
     is_furiten is the furiten last reported to the reconnecting seat (FuritenTracker): the furiten event goes only to
     its seat and is not sent again, so the snapshot restores it. round_history lists every finished round in play order,
     the current one included once it has ended, so a reconnected client's standings cover the rounds it never saw.
+    robbed_kan is the kan the current round's result robbed, through its round-advance wait: a robbed kan is in no meld
+    list, so without it the reconnected table would not show it.
     """
 
     game_id: str = Field(serialization_alias="gid")
@@ -448,6 +454,7 @@ class ReconnectionSnapshot(BaseModel):
     player_states: list[PlayerReconnectState] = Field(serialization_alias="pst")
     is_furiten: bool = Field(serialization_alias="f")
     round_history: list[RoundHistoryEntry] = Field(serialization_alias="rh")
+    robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
 
 
 # discriminated union for all round results
