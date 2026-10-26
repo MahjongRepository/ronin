@@ -18,6 +18,21 @@ interface ActionCallbacks {
 
 type MessageHandlerMap = Record<string, (msg: Record<string, unknown>) => void>;
 
+const START_FAILURE_TEXT: Readonly<Record<string, string>> = {
+    game_server_error: "The game server could not create the game. Try starting again.",
+    game_server_full: "The game server is full. Try again in a few minutes.",
+    game_server_unavailable: "The game server could not be reached. Try starting again.",
+    internal_error: "Something went wrong starting the game. Try again.",
+    player_in_game: "A player in this room is already in a game.",
+};
+
+function describeRoomError(code: unknown): string {
+    if (typeof code === "string" && Object.hasOwn(START_FAILURE_TEXT, code)) {
+        return START_FAILURE_TEXT[code];
+    }
+    return describeOccupancyError(code) ?? `Error: ${String(code)}`;
+}
+
 function updateFromServerState(
     state: RoomState,
     message: Record<string, unknown>,
@@ -98,11 +113,7 @@ function buildMessageHandlers(state: RoomState, updateUI: UpdateUICallbacks): Me
 
     return {
         chat: (msg) => appendChat(msg.player_name as string, msg.text as string),
-        error: (msg) =>
-            appendChat(
-                LOG_TYPE_SYSTEM,
-                describeOccupancyError(msg.message) ?? `Error: ${String(msg.message)}`,
-            ),
+        error: (msg) => appendChat(LOG_TYPE_SYSTEM, describeRoomError(msg.message)),
         game_starting: onGameStarting,
         owner_changed: onOwnerChanged,
         player_joined: onPlayerJoined,

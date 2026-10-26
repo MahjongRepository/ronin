@@ -12,6 +12,7 @@ from lobby.websocket_utils import check_origin
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
 if TYPE_CHECKING:
+    import httpx
     from starlette.websockets import WebSocket
 
     from lobby.matchmaking.manager import MatchmakingManager
@@ -31,6 +32,7 @@ class _MatchmakingContext:
 
     __slots__ = (
         "auth_settings",
+        "game_server",
         "matchmaking_manager",
         "occupancy",
         "settings",
@@ -39,6 +41,7 @@ class _MatchmakingContext:
     def __init__(self, websocket: WebSocket) -> None:
         self.settings: LobbyServerSettings = websocket.app.state.settings
         self.auth_settings: AuthSettings = websocket.app.state.auth_settings
+        self.game_server: httpx.AsyncClient = websocket.app.state.game_server
         self.matchmaking_manager: MatchmakingManager = websocket.app.state.matchmaking_manager
         self.occupancy: Occupancy = websocket.app.state.occupancy
 
@@ -160,6 +163,7 @@ async def _handle_match(matched: list[LobbyPlayer], ctx: _MatchmakingContext) ->
             settings=ctx.settings,
             ticket_secret=ctx.auth_settings.game_ticket_secret,
             occupancy=ctx.occupancy,
+            game_server=ctx.game_server,
         )
     except GameStartError:
         for player in matched:

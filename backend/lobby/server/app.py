@@ -22,7 +22,7 @@ from lobby.auth.policy import (
     public_route,
     validate_route_auth_policy,
 )
-from lobby.game_transition import is_user_playing
+from lobby.game_transition import create_game_server_client, is_user_playing
 from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
@@ -103,13 +103,16 @@ def create_app(
     settings: LobbyServerSettings | None = None,
     auth_settings: AuthSettings | None = None,  # required in production (via get_app)
     is_playing: Callable[[str], Awaitable[bool]] | None = None,
+    game_server_transport: httpx.AsyncBaseTransport | None = None,
     game_client_dev_transport: httpx.AsyncBaseTransport | None = None,
 ) -> Starlette:
     """
     Build the lobby app.
 
-    ``is_playing`` replaces the game-server lookup of a user already playing, and ``game_client_dev_transport`` the
-    network under the game client's dev-server proxy (tests only).
+    ``is_playing`` replaces the game-server lookup of a user already playing, ``game_server_transport`` the network
+    under the game server client, and ``game_client_dev_transport`` the network under the game client's dev-server proxy
+    (tests only). The game server client is closed in the lifespan, but works without it, so a test that drives a
+    handler directly can still start games.
     """
     if settings is None:  # pragma: no cover (entrypoint)
         settings = LobbyServerSettings()
@@ -121,8 +124,9 @@ def create_app(
     assets_dir = Path(settings.assets_dir).resolve()
     game_client = _create_game_client(settings, dev_transport=game_client_dev_transport)
 
+    game_server = create_game_server_client(settings.game_server_url, transport=game_server_transport)
     if is_playing is None:
-        is_playing = functools.partial(is_user_playing, game_server_url=settings.game_server_url)
+        is_playing = functools.partial(is_user_playing, game_server=game_server)
 
     room_manager, matchmaking_manager, occupancy = _create_seating(is_playing=is_playing)
 
@@ -213,6 +217,7 @@ def create_app(
         finally:
             await room_manager.stop_reaper()
             await session_store.stop_cleanup()
+            await game_server.aclose()
             await db.close()
 
     app = Starlette(routes=routes, lifespan=lifespan)
@@ -231,6 +236,7 @@ def create_app(
     _attach_state(
         app,
         settings=settings,
+        game_server=game_server,
         auth_settings=auth_settings,
         game_repo=game_repo,
         auth_service=auth_service,
@@ -247,6 +253,7 @@ def _attach_state(  # noqa: PLR0913
     app: Starlette,
     *,
     settings: LobbyServerSettings,
+    game_server: httpx.AsyncClient,
     auth_settings: AuthSettings,
     game_repo: SqliteGameRepository,
     auth_service: AuthService,
@@ -256,6 +263,7 @@ def _attach_state(  # noqa: PLR0913
 ) -> None:
     app.state.game_repo = game_repo
     app.state.settings = settings
+    app.state.game_server = game_server
     app.state.auth_settings = auth_settings
 
     templates = create_templates()
