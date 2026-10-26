@@ -29,6 +29,12 @@ from game.replay.runner import (
     ReplayOptions,
     run_replay,
 )
+from game.tests.helpers.hands import (
+    PIN_3_TRIPLE_RON_CALLER_HANDS,
+    PIN_3_TRIPLE_RON_DEALER_HAND,
+    PIN_3_TRIPLE_RON_DISCARD,
+)
+from game.tests.helpers.wall import make_start_wall
 
 if TYPE_CHECKING:
     from game.logic.runtime import GameRuntime
@@ -370,10 +376,6 @@ def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise_befor
             return _round_advance_awaiting([0, 1]) if self._advance_pending else STUB_AWAITING
 
     name, tile = _probe_current_player_discard()
-    # First discard (step 0->1) triggers round advance; 2 synthetic confirms follow
-    # (step 1->2, 2->3). With max_steps=3, the post-injection check catches
-    # step_count=3 >= max_steps=3 after confirmations complete, before the
-    # second discard is processed.
     replay = _build_replay(
         actions=(
             (name, GameAction.DISCARD, {"tile_id": tile}),
@@ -383,6 +385,35 @@ def test_step_limit__when_synthetic_confirms_reach_max_steps__should_raise_befor
 
     with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
         run_replay(replay, ReplayOptions(max_steps=3, strict=False), service_factory=RoundAdvanceService)
+
+
+def test_step_limit__when_synthetic_passes_reach_max_steps__should_raise_before_the_ron_input():
+    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    dealer, ron_caller, first_passer, second_passer = (p.name for p in probe_state.round_state.players)
+    replay = ReplayInput(
+        seed=SEED,
+        player_names=PLAYER_NAMES,
+        settings=GameSettings(),
+        wall=make_start_wall(
+            (PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
+            draws=(PIN_3_TRIPLE_RON_DISCARD,),
+        ),
+        events=(
+            ReplayInputEvent(player_name=dealer, action=GameAction.DISCARD, data={"tile_id": PIN_3_TRIPLE_RON_DISCARD}),
+            ReplayInputEvent(player_name=ron_caller, action=GameAction.CALL_RON),
+        ),
+    )
+
+    with pytest.raises(ReplayStepLimitError, match="exceeded 3 steps"):
+        run_replay(replay, ReplayOptions(auto_confirm_rounds=False, max_steps=3))
+
+    trace = run_replay(replay, ReplayOptions(auto_confirm_rounds=False, max_steps=4))
+    assert [(s.input_event.player_name, s.input_event.action) for s in trace.steps] == [
+        (dealer, GameAction.DISCARD),
+        (first_passer, GameAction.PASS),
+        (second_passer, GameAction.PASS),
+        (ron_caller, GameAction.CALL_RON),
+    ]
 
 
 def test_auto_confirm_rounds__when_input_has_confirm_round__should_raise_load_error():
