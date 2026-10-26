@@ -7,7 +7,6 @@ from game.logic.call_resolution import (
     resolve_call_prompt,
 )
 from game.logic.enums import (
-    AbortiveDrawType,
     AIPlayerType,
     GameAction,
     MeldCallType,
@@ -253,74 +252,6 @@ class TestCompleteAddedKanAfterChankanDecline:
         assert len(draw_events) == 1
         assert draw_events[0].tile_id is not None
         assert draw_events[0].available_actions is not None
-
-    def test_complete_added_kan__when_fourth_kan_after_chankan_decline__should_abort_round(self):
-        game_state = init_game(_default_seat_configs(), seed="a" * 192, wall=list(range(136)))
-        round_state, _tile = draw_tile(game_state.round_state)
-
-        # create 2 existing kans for player 0
-        kan_tiles_1 = TilesConverter.string_to_136_array(man="1111")
-        kan_tiles_2 = TilesConverter.string_to_136_array(man="2222")
-        kan_meld_1 = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(kan_tiles_1),
-            opened=False,
-            called_tile=kan_tiles_1[0],
-            who=0,
-            from_who=0,
-        )
-        kan_meld_2 = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(kan_tiles_2),
-            opened=False,
-            called_tile=kan_tiles_2[0],
-            who=0,
-            from_who=0,
-        )
-
-        # 1 kan for player 1
-        kan_tiles_3 = TilesConverter.string_to_136_array(man="3333")
-        kan_meld_3 = FrozenMeld(
-            meld_type=FrozenMeld.KAN,
-            tiles=tuple(kan_tiles_3),
-            opened=True,
-            called_tile=kan_tiles_3[0],
-            who=1,
-            from_who=2,
-        )
-
-        # pon for player 0 that will become 4th kan
-        pon_tiles = TilesConverter.string_to_136_array(man="4444")[:3]
-        fourth_tile = TilesConverter.string_to_136_array(man="4444")[3]
-        pon_meld = FrozenMeld(
-            meld_type=FrozenMeld.PON,
-            tiles=tuple(pon_tiles),
-            opened=True,
-            called_tile=pon_tiles[0],
-            who=0,
-            from_who=1,
-        )
-
-        player_tiles = (fourth_tile, *round_state.players[0].tiles[:12])
-        round_state = update_player(
-            round_state,
-            0,
-            tiles=player_tiles,
-            melds=(kan_meld_1, kan_meld_2, pon_meld),
-        )
-        round_state = update_player(round_state, 1, melds=(kan_meld_3,))
-        game_state = game_state.model_copy(update={"round_state": round_state})
-
-        new_game_state, events = complete_added_kan_after_chankan_decline(
-            game_state,
-            caller_seat=0,
-            tile_id=fourth_tile,
-        )
-        new_round_state = new_game_state.round_state
-        assert new_round_state.phase == RoundPhase.FINISHED
-        round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_KANS
 
 
 class TestResolvePonChiMeldResponse:

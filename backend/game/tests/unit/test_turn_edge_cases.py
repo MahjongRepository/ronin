@@ -4,11 +4,19 @@ import pytest
 from mahjong.tile import TilesConverter
 
 from game.logic.abortive import AbortiveDrawType
-from game.logic.action_handlers import handle_discard, handle_pass, handle_ron, handle_tsumo
+from game.logic.action_handlers import handle_discard, handle_pass, handle_riichi, handle_ron, handle_tsumo
 from game.logic.action_result import ActionResult
 from game.logic.actions import get_available_actions
 from game.logic.enums import CallType, GameAction, MeldCallType, PlayerAction, PromptKind, RoundPhase, RoundResultType
-from game.logic.events import CallPromptEvent, DrawEvent, FuritenEvent, RoundEndEvent, SeatTarget
+from game.logic.events import (
+    CallPromptEvent,
+    DiscardEvent,
+    DrawEvent,
+    FuritenEvent,
+    RiichiDeclaredEvent,
+    RoundEndEvent,
+    SeatTarget,
+)
 from game.logic.exceptions import InvalidRiichiError, ScoringError
 from game.logic.furiten_tracker import FuritenTracker
 from game.logic.invariants import verify_tile_ownership
@@ -26,7 +34,7 @@ from game.logic.turn import (
     process_ron_call,
     process_tsumo_call,
 )
-from game.logic.types import DiscardActionData, MeldCallInput, RonCallInput
+from game.logic.types import DiscardActionData, MeldCallInput, RiichiActionData, RonCallInput
 from game.logic.wall import DEAD_WALL_SIZE
 from game.logic.win import get_waiting_tiles
 from game.tests.conftest import create_game_state, create_player, create_round_state
@@ -543,6 +551,67 @@ class TestChiSequenceTilesValidation:
             process_meld_call(game_state, meld_input=meld_input)
 
 
+_FIVE_SOU = tile_copies(0, sou="5")[0]
+_EIGHT_SOU = tile_copies(1, sou="8")[0]
+
+
+def _declare_fourth_riichi(riichi_discard: int) -> ActionResult:
+    kanchan_on_five_sou = tile_copies(0, man="123456789", pin="11", sou="46")
+    players = (
+        create_player(
+            seat=0,
+            tiles=(*tile_copies(2, man="123456789"), *tile_copies(0, honors="3344"), riichi_discard),
+            discards=(Discard(tile_id=tile_copies(1, honors="5")[0]),),
+        ),
+        create_player(
+            seat=1,
+            tiles=kanchan_on_five_sou,
+            discards=(Discard(tile_id=tile_copies(0, honors="7")[0], is_riichi_discard=True),),
+            is_riichi=True,
+            score=24000,
+        ),
+        create_player(
+            seat=2,
+            tiles=tile_copies(0, pin="234567", sou="789", honors="1122"),
+            discards=(Discard(tile_id=tile_copies(0, honors="6")[0], is_riichi_discard=True),),
+            is_riichi=True,
+            score=24000,
+        ),
+        create_player(
+            seat=3,
+            tiles=tile_copies(1, man="123456789", pin="99", sou="13"),
+            discards=(Discard(tile_id=tile_copies(0, honors="5")[0], is_riichi_discard=True),),
+            is_riichi=True,
+            score=24000,
+        ),
+    )
+    all_discards = tuple(player.discards[0].tile_id for player in players)
+    dealt = {tile for player in players for tile in player.tiles} | set(all_discards)
+    undealt = [tile for tile in range(NUM_TILES) if tile not in dealt]
+    round_state = create_round_state(
+        players=players,
+        wall=undealt[:-DEAD_WALL_SIZE],
+        dead_wall=undealt[-DEAD_WALL_SIZE:],
+        phase=RoundPhase.PLAYING,
+        all_discards=all_discards,
+    )
+    game_state = create_game_state(round_state, riichi_sticks=3)
+    verify_tile_ownership(game_state)
+    assert get_waiting_tiles(players[1]) == {tile_to_34(_FIVE_SOU)}
+
+    result = handle_riichi(game_state, seat=0, data=RiichiActionData(tile_id=riichi_discard))
+    assert isinstance(result, ActionResult)
+    return result
+
+
+def _fourth_riichi_discard_with_ron_caller() -> ActionResult:
+    result = _declare_fourth_riichi(_FIVE_SOU)
+    prompt = result.state.round_state.pending_call_prompt
+    assert prompt is not None
+    assert prompt.callers == (Caller(seat=1, can_ron=True),)
+    return result
+
+
 class TestAbortiveDrawIntegration:
     def test_abortive_draw__when_four_same_winds_discarded__should_abort_four_winds(self):
         east_winds = tuple(TilesConverter.string_to_136_array(honors="1111"))
@@ -613,37 +682,40 @@ class TestAbortiveDrawIntegration:
         assert [winner.winner_seat for winner in double_ron.winners] == [1, 3]
         assert double_ron.loser_seat == 0
 
-    def test_abortive_draw__when_four_players_riichi__should_abort_four_riichi(self):
-        hand_tiles_0 = tuple(TilesConverter.string_to_136_array(man="123456789", pin="1113", sou="5"))
-        discard_tile = TilesConverter.string_to_136_array(sou="5")[0]
-        players = (
-            create_player(seat=0, tiles=hand_tiles_0),
-            create_player(seat=1, is_riichi=True),
-            create_player(seat=2, is_riichi=True),
-            create_player(seat=3, is_riichi=True),
-        )
+    def test_four_riichi_abort__when_fourth_riichi_discard_is_ronned__should_score_the_ron_without_its_stick(self):
+        discard = _fourth_riichi_discard_with_ron_caller()
 
-        wall = tuple(TilesConverter.string_to_136_array(man="5555"))
-        dead_wall = tuple(TilesConverter.string_to_136_array(sou="11112222333366"))
-        round_state = create_round_state(
-            players=players,
-            wall=wall,
-            dead_wall=dead_wall,
-            dora_indicators=(dead_wall[2],),
-            phase=RoundPhase.PLAYING,
-            current_player_seat=0,
-        )
-        game_state = create_game_state(round_state)
+        ron = handle_ron(discard.state, seat=1)
+        assert isinstance(ron, ActionResult)
+        round_ends = [e for e in ron.events if isinstance(e, RoundEndEvent)]
+        assert len(round_ends) == 1
+        assert round_ends[0].result.type == RoundResultType.RON
+        assert round_ends[0].result.winner_seat == 1
+        assert round_ends[0].result.riichi_sticks_collected == 3
+        assert ron.state.round_state.players[0].is_riichi is False
 
-        _new_game, events = process_discard_phase(
-            game_state,
-            discard_tile,
-            is_riichi=True,
-        )
-        round_end_events = [e for e in events if isinstance(e, RoundEndEvent)]
-        assert len(round_end_events) == 1
-        assert round_end_events[0].result.type == RoundResultType.ABORTIVE_DRAW
-        assert round_end_events[0].result.reason == AbortiveDrawType.FOUR_RIICHI
+    def test_four_riichi_abort__when_ron_caller_passes_fourth_riichi_discard__should_abort(self):
+        discard = _fourth_riichi_discard_with_ron_caller()
+
+        passed = handle_pass(discard.state, seat=1)
+        assert isinstance(passed, ActionResult)
+        assert passed.state.round_state.players[0].is_riichi is True
+        assert [e for e in passed.events if isinstance(e, RiichiDeclaredEvent)] == [RiichiDeclaredEvent(seat=0)]
+        round_ends = [e for e in passed.events if isinstance(e, RoundEndEvent)]
+        assert len(round_ends) == 1
+        assert round_ends[0].result.type == RoundResultType.ABORTIVE_DRAW
+        assert round_ends[0].result.reason == AbortiveDrawType.FOUR_RIICHI
+
+    def test_four_riichi_abort__when_nobody_can_call_fourth_riichi_discard__should_abort_at_once(self):
+        unclaimed = _declare_fourth_riichi(_EIGHT_SOU)
+
+        assert unclaimed.state.round_state.pending_call_prompt is None
+        assert unclaimed.state.round_state.players[0].is_riichi is True
+        assert [type(e) for e in unclaimed.events] == [DiscardEvent, RiichiDeclaredEvent, RoundEndEvent]
+        round_end = unclaimed.events[-1]
+        assert isinstance(round_end, RoundEndEvent)
+        assert round_end.result.type == RoundResultType.ABORTIVE_DRAW
+        assert round_end.result.reason == AbortiveDrawType.FOUR_RIICHI
 
 
 class TestDoubleRonScenario:
