@@ -66,3 +66,7 @@ interleave.
   abandoned game's are discarded, and a failure to save a completed game's replay turns its end
   into a failure. A reconnect re-sends the turn's opening event (its draw or `turn` event)
   directly, outside the replay path, so a draw is not recorded twice.
+* **A graceful stop is a disconnect.** The manager has no drain of its own: a graceful stop ends
+  games only through the normal leave of each closed socket, and `shutdown()` ends no game. A
+  separate shutdown classification would need a drain signal ahead of the socket closes, which
+  uvicorn does not give. The sequence is in `docs/architecture.md`.

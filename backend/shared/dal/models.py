@@ -19,7 +19,11 @@ class PlayedGameStanding(BaseModel, frozen=True):
 
 class GameEndReason(StrEnum):
     """
-    Why a played game ended: played to the end, left by its last human, or failed on a server error.
+    Why a played game ended: played to the end, abandoned, or failed on a server error.
+
+    ABANDONED means no human connection remains, not that a player is at fault: the last connected human left a game
+    still playing (a reload in a solo game, or a graceful stop closing the sockets), or the pending timeout found nobody
+    connected (that game never started, so it records no finish).
     """
 
     COMPLETED = "completed"
