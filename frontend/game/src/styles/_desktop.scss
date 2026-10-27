@@ -340,19 +340,6 @@
             margin-top: 120px;
         }
     }
-
-    .suspend,
-    .tenhou-dialog {
-        width: 800px;
-        height: 680px;
-    }
-
-    .tenhou-dialog {
-        form {
-            width: 480px;
-            margin: 100px auto;
-        }
-    }
 }
 
 #board {
@@ -368,32 +355,6 @@
 
     .download {
         transform: translate(10px, 10px);
-    }
-}
-
-body.analyzer {
-    #board {
-        > .analyzer {
-            display: none;
-            position: absolute;
-            transform: translate(50px, 160px);
-            width: 700px;
-            height: 400px;
-            background: rgb(0 0 0 / 40%);
-            text-shadow: 2px 2px 4px black;
-
-            &.active {
-                display: block;
-            }
-
-            .selected {
-                background: rgb(144 144 144 / 60%);
-            }
-
-            img {
-                opacity: 0.8;
-            }
-        }
     }
 }
 

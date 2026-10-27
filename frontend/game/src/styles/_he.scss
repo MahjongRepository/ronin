@@ -1,13 +1,9 @@
 @use "sass:math";
 @use "pai";
 
-@mixin size($width, $dapai-height, $mode: block) {
+@mixin size($width, $dapai-height) {
     $lizhi-width: pai.width($dapai-height) * 6;
     $row-height: $dapai-height * 3;
-
-    @if $mode == line {
-        $row-height: $dapai-height;
-    }
 
     width: $width;
 
@@ -15,12 +11,7 @@
         line-height: 0;
         width: $lizhi-width;
         height: math.div($dapai-height * 2, 7);
-
-        @if $mode == line {
-            text-align: left;
-        } @else {
-            text-align: center;
-        }
+        text-align: center;
 
         .chouma {
             width: $lizhi-width * 0.6;
@@ -49,12 +40,7 @@
         }
 
         .break {
-            @if $mode == line {
-                display: inline-block;
-            } @else {
-                display: block;
-            }
-
+            display: block;
             width: pai.width($dapai-height) * 0.1;
         }
     }

@@ -94,14 +94,14 @@ export default class HuleDialog {
                   :                      '';
             text += hule.defen + '点';
             let r_defen = this._r_defen.clone();
-            $('.defen', r_defen).text(text).removeClass('no-hule');
+            $('.defen', r_defen).text(text);
             hupai.append(r_defen);
         }
         else {
             let r_hupai = this._r_hupai.clone();
             hupai.append(hide(r_hupai));
             let r_defen = this._r_defen.clone();
-            $('.defen', r_defen).text('役なし').addClass('no-hule');
+            $('.defen', r_defen).text('役なし');
             hupai.append(r_defen);
         }
 
