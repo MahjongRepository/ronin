@@ -10,7 +10,7 @@ import TurnClock from './clock.js';
 import Autoplay from './autoplay.js';
 import rules from './rules.js';
 import { GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, kanMianzi,
-         pingjuMessage, roundResults, seatL, tenpaiByL, WIN_CALL_MS } from './results.js';
+         pingjuMessage, roundInWind, roundResults, seatL, seatOfL, tenpaiByL, WIN_CALL_MS } from './results.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -55,7 +55,7 @@ const AUTO_RON_MS = 1000;
  */
 function ledgerRound(entry, qijia) {
     const l = seat => seatL(seat, entry.dl);
-    const log = [{ qipai: { zhuangfeng: entry.w, jushu: (entry.dl - qijia + 4) % 4, changbang: entry.h } }];
+    const log = [{ qipai: { zhuangfeng: entry.w, jushu: roundInWind(entry.dl, qijia), changbang: entry.h } }];
     for (const seat of entry.rs) {
         log.push({ dapai: { l: l(seat), p: '_*' } }, { zimo: { l: (l(seat) + 1) % 4, p: '_' } });
     }
@@ -221,7 +221,7 @@ class Translate {
         s.mySeat = msg.s;
         s.dealer = msg.dl;
         s.round  = { w: msg.w, n: msg.n };
-        s.roundInWind = (msg.dl - s.qijia + 4) % 4;
+        s.roundInWind = roundInWind(msg.dl, s.qijia);
         s.honba  = msg.h;
         s.riichiSticks = msg.r;
         s.hand   = (msg.mt || []).slice().sort((a, b) => a - b);
@@ -239,7 +239,7 @@ class Translate {
         const defen = [];
         const shoupai = [];
         for (let l = 0; l < 4; l++) {
-            const seat = (msg.dl + l) % 4;
+            const seat = seatOfL(l, msg.dl);
             defen[l] = s.scores[seat];
             shoupai[l] = seat == s.mySeat ? tiles.handStr(s.hand) : '_'.repeat(13);
         }
@@ -642,7 +642,7 @@ class Translate {
         s.dealer = msg.dl;
         s.qijia = firstDealerFromDice(msg.dd);
         s.round = { w: msg.w, n: msg.n };
-        s.roundInWind = (msg.dl - s.qijia + 4) % 4;
+        s.roundInWind = roundInWind(msg.dl, s.qijia);
         s.honba = msg.h;
         s.riichiSticks = msg.r;
         s.waitId = msg[wire.WAIT_ID];
@@ -698,7 +698,7 @@ class Translate {
         const defen = [];
         const shoupai = [];
         for (let l = 0; l < 4; l++) {
-            const seat = (msg.dl + l) % 4;
+            const seat = seatOfL(l, msg.dl);
             defen[l] = s.scores[seat] - settled[l];
             shoupai[l] = seat == s.mySeat ? myHandStr : '_'.repeat(13);
         }

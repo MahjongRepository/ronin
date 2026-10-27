@@ -127,7 +127,7 @@ def _parse_event_lines(content: str) -> list[dict[str, Any]]:
         try:
             event = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise ReplayLoadError(f"Malformed JSON: {exc}") from exc
+            raise ReplayLoadError(f"Malformed JSON: line {line_number}: {exc.msg}") from exc
 
         if not isinstance(event, dict):
             raise ReplayLoadError(f"Malformed JSON: line {line_number} is not an object, got {type(event).__name__}")

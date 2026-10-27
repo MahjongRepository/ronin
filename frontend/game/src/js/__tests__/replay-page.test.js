@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
 import PAGE from "../../../index.html?raw";
+import { GAME_PREF_KEY } from "../game-prefs.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/controls.js";
 import { showReplay } from "../replay/page.js";
+import { withUnplayableDraw } from "./replay-edits.js";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
@@ -69,6 +71,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    localStorage.clear();
     $(window).off();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -114,7 +117,7 @@ describe("showReplay", () => {
 
     it("explains a replay it cannot load and links back, offering a retry after a failed load", async () => {
         stubFetch(new Response("", { status: 404 }));
-        await showReplay("g-1", Promise.resolve());
+        await showReplay("g-1", Promise.reject(new Error("tile decode failed")));
 
         expect(problem()).toEqual({ text: "Replay not found", links: ["/history", "/"], board: 0 });
 
@@ -145,13 +148,46 @@ describe("showReplay", () => {
         expect(problem().text).toMatch(/before its first deal/);
     });
 
-    it("calls a replay it cannot draw damaged rather than failing the page", async () => {
+    it("says a replay it cannot draw couldn't be shown, offering a retry, rather than calling it damaged", async () => {
         $("#loaddata").empty();
+        const observe = vi.spyOn(ResizeObserver.prototype, "observe");
 
         await open(FULL_GAME);
 
-        expect(problem().text).toBe("This replay file is damaged");
+        expect(problem()).toMatchObject({
+            text: "Couldn't show the replay",
+            links: [window.location.href, "/history", "/"],
+        });
         expect(console.error).toHaveBeenCalled();
+        expect(observe).not.toHaveBeenCalled();
+    });
+
+    it("calls a replay damaged once a later position cannot be played, and logs why", async () => {
+        await open(withUnplayableDraw(FULL_GAME));
+
+        while (problem().text === "" && !$(".replay-next").prop("disabled")) {
+            $(".replay-next").trigger("click");
+        }
+
+        expect(problem().text).toBe("This replay file is damaged");
+        const logged = console.error.mock.calls.flat();
+        const unplayable = logged.find((value) => value?.name === "UnplayableReplayError");
+        expect(logged).toContain(unplayable.cause);
+    });
+
+    it("switches the sound shared with the live game from its gear, whose menu Escape closes, without the sound key", async () => {
+        localStorage.setItem(GAME_PREF_KEY, JSON.stringify({ sound_on: true }));
+        await open(FULL_GAME);
+
+        window.dispatchEvent(new KeyboardEvent("keyup", { key: "a" }));
+        expect(JSON.parse(localStorage.getItem(GAME_PREF_KEY))).toEqual({ sound_on: true });
+
+        $(".controller .settings-toggle").trigger("click");
+        $(".controller .sound").trigger("click");
+        expect(JSON.parse(localStorage.getItem(GAME_PREF_KEY))).toEqual({ sound_on: false });
+        expect($(".controller .sound").attr("title")).toBe("音声");
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        expect($(".controller .settings-menu").hasClass("hide")).toBe(true);
     });
 
     it("says a truncated game ended early at its last position, keeping the keyboard focus in the strip", async () => {

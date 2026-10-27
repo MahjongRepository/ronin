@@ -15,6 +15,16 @@ function seatL(seat, dealer) {
     return (seat - dealer + 4) % 4;
 }
 
+/** The seat at majiang's seat order place l, which counts from the round's dealer. */
+function seatOfL(l, dealer) {
+    return (dealer + l) % 4;
+}
+
+/** The round's number within its wind, from 0: how far the dealer sits from the game's first dealer (qijia). */
+function roundInWind(dealer, qijia) {
+    return seatL(dealer, qijia);
+}
+
 /** A hand as majiang's shoupai string: its closed tiles, the drawn or winning tile among them last, then its melds. */
 function fullHandStr(closedIds, meldStrs, winTileId) {
     let s = tiles.handStr((closedIds || []).filter(id => id != winTileId));
@@ -75,14 +85,14 @@ function pingjuMessage({ name, shoupai = [null, null, null, null], fenpei, tenpa
 function fenpeiByL(sch, dealer) {
     const out = [];
     for (let l = 0; l < 4; l++) {
-        out[l] = ((sch || {})[(dealer + l) % 4] || 0) * wire.SCORE_DIV;
+        out[l] = ((sch || {})[seatOfL(l, dealer)] || 0) * wire.SCORE_DIV;
     }
     return out;
 }
 
 /** The tenpai seats of a draw as majiang's per-seat tenpai flags, in seat order from the round's dealer. */
 function tenpaiByL(tenpaiSeats, dealer) {
-    return [0, 1, 2, 3].map(l => tenpaiSeats.includes((dealer + l) % 4));
+    return [0, 1, 2, 3].map(l => tenpaiSeats.includes(seatOfL(l, dealer)));
 }
 
 /**
@@ -232,6 +242,6 @@ function roundResults(roundEnd, facts) {
 
 export {
     ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL,
-    fullHandStr, huleMessage, jiejuStandings, kanMianzi, pingjuMessage, revealedHands, roundResults, seatL, tenpaiByL,
-    WIN_CALL_MS, winHule,
+    fullHandStr, huleMessage, jiejuStandings, kanMianzi, pingjuMessage, revealedHands, roundInWind, roundResults, seatL,
+    seatOfL, tenpaiByL, WIN_CALL_MS, winHule,
 };

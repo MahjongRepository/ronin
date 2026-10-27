@@ -177,7 +177,46 @@ class StagedWall:
         return make_start_wall(self.hands, draws=[tile for _, tile in self.draws], rinshan=self.rinshan, ura=self.ura)
 
 
-class StagedGame:
+class _ScriptedGame:
+    """
+    A game of four players a script plays through the game service: every action must be accepted, and every event is
+    recorded, a call at a time as the session would, with each seat's latest draw kept for the script.
+    """
+
+    def __init__(self, game_id: str, *, seed: str, settings: GameSettings, wall: tuple[int, ...] | None = None) -> None:
+        self._game_id = game_id
+        self._recorder = ReplayRecorder(seed=seed, settings=settings)
+        self._service = MahjongGameService()
+        start = self._service.start_game(
+            game_id, list(PLAYERS), seed=seed, settings=settings, wall=None if wall is None else list(wall)
+        )
+        self._runtime = start.runtime
+        self._draws: dict[int, DrawEvent] = {}
+        self._record(start.events)
+
+    def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
+        events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
+        errors = [event for event in events if isinstance(event, ErrorEvent)]
+        if errors:
+            raise ScenarioError(f"{self._game_id}: seat {seat} {action.value} refused: {errors[0].message}")
+
+        self._draws.pop(seat, None)
+        self._record(events)
+
+    def _record(self, events: Sequence[GameEvent]) -> None:
+        self._recorder.record(events)
+        for event in events:
+            if isinstance(event, DrawEvent):
+                self._check_draw(event)
+                self._draws[event.seat] = event
+
+    def _check_draw(self, draw: DrawEvent) -> None:
+        """
+        Check a draw before the script sees it; any draw goes by default.
+        """
+
+
+class StagedGame(_ScriptedGame):
     """
     A game of four players dealt from a staged wall and played seat by seat.
 
@@ -187,19 +226,15 @@ class StagedGame:
     """
 
     def __init__(self, game_id: str, staged: StagedWall, *, settings: GameSettings | None = None) -> None:
-        self._game_id = game_id
-        self._settings = settings if settings is not None else GameSettings()
         self._staged_draws = tuple(staged.draws)
         self._next_staged_draw = 0
         self._wall = staged.tiles()
-        self._recorder = ReplayRecorder(seed=STAGED_SEED, settings=self._settings)
-        self._service = MahjongGameService()
-        start = self._service.start_game(
-            game_id, list(PLAYERS), seed=STAGED_SEED, settings=self._settings, wall=list(self._wall)
+        super().__init__(
+            game_id,
+            seed=STAGED_SEED,
+            settings=settings if settings is not None else GameSettings(),
+            wall=self._wall,
         )
-        self._runtime = start.runtime
-        self._draws: dict[int, DrawEvent] = {}
-        self._record(start.events)
 
     def discard(self, seat: int, tile_id: int) -> None:
         self.act(seat, GameAction.DISCARD, tile_id=tile_id)
@@ -317,23 +352,7 @@ class StagedGame:
 
             self.pass_(seat)
 
-    def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
-        events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
-        errors = [event for event in events if isinstance(event, ErrorEvent)]
-        if errors:
-            raise ScenarioError(f"{self._game_id}: seat {seat} {action.value} refused: {errors[0].message}")
-
-        self._draws.pop(seat, None)
-        self._record(events)
-
-    def _record(self, events: Sequence[GameEvent]) -> None:
-        self._recorder.record(events)
-        for event in events:
-            if isinstance(event, DrawEvent):
-                self._check_staged_draw(event)
-                self._draws[event.seat] = event
-
-    def _check_staged_draw(self, draw: DrawEvent) -> None:
+    def _check_draw(self, draw: DrawEvent) -> None:
         """
         Check a draw of a staged tile against the seat the scenario staged it for; other draws are rinshan or filler.
         """
@@ -352,7 +371,7 @@ class StagedGame:
         self._next_staged_draw += 1
 
 
-class EagerGame:
+class EagerGame(_ScriptedGame):
     """
     A game of four players dealt from its seed and played to its end by a fixed policy: a seat wins whenever it is
     offered a tsumo or a ron, passes every other call, and otherwise discards the tile that leaves its hand closest to
@@ -362,14 +381,7 @@ class EagerGame:
     """
 
     def __init__(self, game_id: str, seed: str) -> None:
-        self._game_id = game_id
-        settings = GameSettings()
-        self._recorder = ReplayRecorder(seed=seed, settings=settings)
-        self._service = MahjongGameService()
-        start = self._service.start_game(game_id, list(PLAYERS), seed=seed, settings=settings)
-        self._runtime = start.runtime
-        self._draws: dict[int, DrawEvent] = {}
-        self._record(start.events)
+        super().__init__(game_id, seed=seed, settings=GameSettings())
 
     def replay(self, outcome: Outcome) -> Recording:
         """
@@ -415,15 +427,3 @@ class EagerGame:
             return calculate_shanten(hand_to_34_array(rest)), tile_id != drawn_tile, -tile_id
 
         return min(hand, key=rank)
-
-    def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
-        events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
-        errors = [event for event in events if isinstance(event, ErrorEvent)]
-        if errors:
-            raise ScenarioError(f"{self._game_id}: seat {seat} {action.value} refused: {errors[0].message}")
-
-        self._record(events)
-
-    def _record(self, events: Sequence[GameEvent]) -> None:
-        self._recorder.record(events)
-        self._draws.update((event.seat, event) for event in events if isinstance(event, DrawEvent))

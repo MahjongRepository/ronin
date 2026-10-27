@@ -5,6 +5,7 @@ import { parseReplay } from "../replay/load.js";
 import { MalformedReplayError, POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
 import wire from "../ronin/wire.js";
+import { firstLineOf } from "./replay-edits.js";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import CHANKAN_CLOSED_KOKUSHI from "./fixtures/replays/chankan_closed_kokushi.txt?raw";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
@@ -335,6 +336,18 @@ describe("toReplay round ends", () => {
         expect(pingju.shoupai.map((hand) => hand !== null)).toEqual([false, true, true, false]);
         expect(pingju.tenpai).toEqual([false, true, true, false]);
         expect(round.outcome).toMatchObject({ kind: OUTCOME.EXHAUSTIVE, tenpai: [1, 2] });
+    });
+
+    it("calls a round end without score changes damaged, naming its line", () => {
+        const lines = EXHAUSTIVE_TENPAI.split("\n");
+        const index = firstLineOf(lines, wire.E.ROUND_END);
+        const roundEnd = JSON.parse(lines[index]);
+        delete roundEnd.sch;
+        lines[index] = JSON.stringify(roundEnd);
+
+        expect(() => convert(lines.join("\n"))).toThrow(
+            expect.objectContaining({ name: MalformedReplayError.name, line: index + 1 }),
+        );
     });
 
     it("names the nagashi mangan player and opens the tenpai hands", () => {

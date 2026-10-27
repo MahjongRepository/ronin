@@ -293,7 +293,7 @@ def test_load_replay__when_first_event_is_not_game_started__should_raise():
 @pytest.mark.parametrize(
     ("content", "message"),
     [
-        (VERSION_TAG_LINE + "\n{invalid json}", "Malformed JSON: Expecting"),
+        (VERSION_TAG_LINE + "\n\n{invalid json}", "Malformed JSON: line 3: Expecting"),
         (f"\n\n[1]\n{GAME_STARTED_LINE}", "Malformed JSON: line 3 is not an object, got list"),
         (_build_event_log("3"), "Malformed JSON: line 3 is not an object, got int"),
     ],

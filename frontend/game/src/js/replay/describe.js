@@ -1,11 +1,10 @@
+import { jushu_name as jushuName } from "../../vendor/majiang-ui/board.js";
 import { DIR } from "../ronin/mianzi.js";
-import { ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME } from "../ronin/results.js";
-import { POSITION, kindOf, seatOfL } from "./paipu.js";
+import { ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME, seatOfL } from "../ronin/results.js";
+import { POSITION, kindOf } from "./paipu.js";
 
 const SEATS = 4;
 
-const WIND_NAMES = Object.freeze(["東", "南", "西", "北"]);
-const ROUND_NUMERALS = Object.freeze(["一", "二", "三", "四"]);
 const SUIT_NAMES = Object.freeze({ m: "萬", p: "筒", s: "索" });
 const HONOR_NAMES = Object.freeze(["", "東", "南", "西", "北", "白", "發", "中"]);
 
@@ -29,7 +28,7 @@ function ja(text) {
 /** A round as the board names it: 東四局 1本場. */
 export function roundName(round) {
     const { zhuangfeng, jushu } = round.log[0].qipai;
-    return `${WIND_NAMES[zhuangfeng]}${ROUND_NUMERALS[jushu]}局 ${round.honba}本場`;
+    return `${jushuName(zhuangfeng, jushu)} ${round.honba}本場`;
 }
 
 /** A paipu tile in the board's Japanese: 5萬, 赤5筒, 中. */
