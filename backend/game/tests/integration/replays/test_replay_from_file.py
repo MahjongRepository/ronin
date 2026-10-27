@@ -61,9 +61,8 @@ def test_replay_fixture__when_loaded_replayed_and_exported__should_reproduce_its
     recorded_lines = [json.loads(line) for line in fixture.read_text().splitlines()[1:]]
 
     trace = run_replay(load_replay_from_file(fixture))
-    replayed_events = [*trace.startup_events, *(e for step in trace.steps for e in step.emitted_events)]
     replayed_round_ends = [
-        json.loads(json.dumps(game_event_payload(e))) for e in replayed_events if isinstance(e, RoundEndEvent)
+        json.loads(json.dumps(game_event_payload(e))) for e in trace.events if isinstance(e, RoundEndEvent)
     ]
     assert replayed_round_ends == [line for line in recorded_lines if line["t"] == WireEventType.ROUND_END]
 

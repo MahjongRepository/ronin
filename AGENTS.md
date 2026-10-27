@@ -48,6 +48,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   game server under py-spy and logging at production's INFO level, then its GIL-holding samples by
   layer and function, plus its CPU-seconds per game. It points at where real games spend the
   server's time; `make profile` measures engine changes.
+* `make generate-replay-fixtures` — regenerate the game client's replay test fixtures by playing
+  the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
+  (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final
   `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.

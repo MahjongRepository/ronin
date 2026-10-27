@@ -190,3 +190,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 
 Vitest with happy-dom. New tests go in `src/js/__tests__/`. The `describe` block names the subject
 (the module or function under test) and the `it` title says what it pins.
+
+The replay files under `src/js/__tests__/fixtures/replays/`, for the replay converter's tests, are
+generated, never edited by hand: `make generate-replay-fixtures` records each from a game the engine
+plays (`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
+records now. A new replay case is a new scenario there.

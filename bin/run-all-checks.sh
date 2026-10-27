@@ -28,6 +28,7 @@ run_check "Format" "make format"
 run_check "Lint" "make lint"
 run_check "Typecheck" "make typecheck"
 run_check "Test" "make test"
+run_check "Replay fixtures" "make replay-fixtures-check"
 
 # --- Frontend Checks ---
 run_check "Frontend format" "make format-frontend"

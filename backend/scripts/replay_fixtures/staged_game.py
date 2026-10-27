@@ -1,0 +1,282 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from game.logic.enums import GameAction, KanType, PlayerAction, WaitKind
+from game.logic.events import DrawEvent, ErrorEvent
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.rng import RNG_VERSION
+from game.logic.settings import GameSettings
+from game.replay import run_replay
+from game.replay.loader import load_replay_from_string
+from game.session.replay_collector import ReplayCollector, ReplayRecord
+from game.tests.helpers.wall import make_start_wall
+from game.tests.mocks.replay_storage import FakeReplayStorage
+from game.wire.replay_format import REPLAY_VERSION
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from game.logic.events import GameEvent
+    from game.logic.state import MahjongGameState
+    from game.replay.models import ReplayTrace
+    from game.wire.enums import WireEventType
+
+STAGED_SEED = "5" * 192
+PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
+CALL_RESPONSES = frozenset({GameAction.CALL_PON, GameAction.CALL_CHI, GameAction.CALL_RON})
+
+
+class ScenarioError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Recording:
+    """
+    A fixture's replay lines, where each engine call's lines end, and the staged wall its first round was dealt from.
+
+    call_ends are line counts: the replay as the server would have saved it after each call is that many lines. wall is
+    None for a game dealt from its seed.
+    """
+
+    lines: tuple[str, ...]
+    call_ends: tuple[int, ...]
+    wall: tuple[int, ...] | None = None
+
+    @property
+    def text(self) -> str:
+        return "\n".join([json.dumps({"version": REPLAY_VERSION}), *self.lines]) + "\n"
+
+    def run(self) -> ReplayTrace:
+        """
+        Load the replay and run it through the replay runner on the same wall.
+        """
+        return run_replay(load_replay_from_string(self.text).model_copy(update={"wall": self.wall}))
+
+
+class ReplayRecorder:
+    """
+    Record a game's events into replay lines one engine call at a time, as the session does.
+    """
+
+    def __init__(self, *, seed: str, settings: GameSettings) -> None:
+        self._record = ReplayRecord(seed=seed, rng_version=RNG_VERSION, settings=settings)
+        self._collector = ReplayCollector(FakeReplayStorage())
+        self._call_ends: list[int] = []
+
+    def record(self, events: Sequence[GameEvent]) -> None:
+        self._collector.collect_events(self._record, list(events))
+        self._call_ends.append(len(self._record.lines))
+
+    def recording(self, wall: tuple[int, ...] | None = None) -> Recording:
+        return Recording(lines=tuple(self._record.lines), call_ends=tuple(self._call_ends), wall=wall)
+
+
+def require_reproduces(recording: Recording, final_state: MahjongGameState, *, name: str) -> None:
+    """
+    Raise ScenarioError unless the replay runner, given the recording, ends in the game's final state.
+    """
+    if recording.run().final_state != final_state:
+        raise ScenarioError(f"{name}: the replay does not reproduce the game")
+
+
+def cut_after(recording: Recording, *, event_type: WireEventType, occurrence: int) -> Recording:
+    """
+    Cut a replay after the engine call that holds its line of the event type at that occurrence.
+
+    occurrence counts the event type's lines from zero, or from the end when negative. The cut falls between calls,
+    since the server records a call's lines together and saves a replay only between calls; the cut replay must still
+    load and run.
+    """
+    matches = [index for index, line in enumerate(recording.lines) if json.loads(line)["t"] == event_type]
+    end = next(call_end for call_end in recording.call_ends if call_end > matches[occurrence])
+    cut = Recording(
+        lines=recording.lines[:end],
+        call_ends=tuple(call_end for call_end in recording.call_ends if call_end <= end),
+        wall=recording.wall,
+    )
+    cut.run()
+    return cut
+
+
+@dataclass(frozen=True)
+class StagedWall:
+    """
+    The first round's wall of a staged game, with the first dealer at seat 0.
+
+    hands are by seat; draws are the live wall's first draws as (seat, tile) pairs, each checked against the seat that
+    draws it, and later live draws take the tiles nobody placed, in ascending id order; rinshan are the kan replacement
+    tiles in draw order and ura the ura dora indicators in reveal order. Only the first round is staged: a later round
+    is dealt from the recorded seed, which does not reproduce the first round's wall.
+    """
+
+    hands: Sequence[Sequence[int]]
+    draws: Sequence[tuple[int, int]] = ()
+    rinshan: Sequence[int] = ()
+    ura: Sequence[int] = ()
+
+    def tiles(self) -> tuple[int, ...]:
+        return make_start_wall(self.hands, draws=[tile for _, tile in self.draws], rinshan=self.rinshan, ura=self.ura)
+
+
+class StagedGame:
+    """
+    A game of four players dealt from a staged wall and played seat by seat.
+
+    The game records every event the engine emits, a call at a time as the session would, and hands out the replay once
+    it reproduces the game. Like the replay runner, an action that is not an answer to a pending call prompt first
+    passes every seat the prompt waits on, but never a seat offered ron: a scenario declines a ron with pass_.
+    """
+
+    def __init__(self, game_id: str, staged: StagedWall, *, settings: GameSettings | None = None) -> None:
+        self._game_id = game_id
+        self._settings = settings if settings is not None else GameSettings()
+        self._staged_draws = tuple(staged.draws)
+        self._next_staged_draw = 0
+        self._wall = staged.tiles()
+        self._recorder = ReplayRecorder(seed=STAGED_SEED, settings=self._settings)
+        self._service = MahjongGameService()
+        start = self._service.start_game(
+            game_id, list(PLAYERS), seed=STAGED_SEED, settings=self._settings, wall=list(self._wall)
+        )
+        self._runtime = start.runtime
+        self._draws: dict[int, DrawEvent] = {}
+        self._record(start.events)
+
+    def discard(self, seat: int, tile_id: int) -> None:
+        self.act(seat, GameAction.DISCARD, tile_id=tile_id)
+
+    def tsumogiri(self, seat: int) -> None:
+        self.discard(seat, self._draw(seat).tile_id)
+
+    def riichi(self, seat: int, tile_id: int | None = None) -> None:
+        """
+        Declare riichi with a discard of tile_id, or of the drawn tile when tile_id is None.
+        """
+        discard = tile_id if tile_id is not None else self._draw(seat).tile_id
+        self.act(seat, GameAction.DECLARE_RIICHI, tile_id=discard)
+
+    def pon(self, seat: int, tile_id: int) -> None:
+        self.act(seat, GameAction.CALL_PON, tile_id=tile_id)
+
+    def kan(self, seat: int, tile_id: int, kan_type: KanType) -> None:
+        self.act(seat, GameAction.CALL_KAN, tile_id=tile_id, kan_type=kan_type)
+
+    def tsumo(self, seat: int) -> None:
+        self.act(seat, GameAction.DECLARE_TSUMO)
+
+    def pass_(self, seat: int) -> None:
+        """
+        Decline the pending call prompt for the seat, a ron included.
+        """
+        self._run(seat, GameAction.PASS, {})
+
+    def tsumogiri_until(self, seat: int | None = None) -> None:
+        """
+        Discard each drawn tile and pass every call prompt until it is the seat's turn, or the round ends when seat is
+        None.
+
+        A turn that offers a tsumo raises: discarding the winning tile is a decision the scenario makes itself.
+        """
+        while True:
+            self._pass_calls()
+            awaiting = self._service.get_awaiting(self._runtime)
+            if awaiting.kind != WaitKind.TURN:
+                if seat is None:
+                    return
+
+                raise ScenarioError(f"{self._game_id}: the round ended before seat {seat}'s turn")
+
+            (current,) = awaiting.seats
+            if current == seat:
+                return
+
+            offers = {item.action for item in self._draw(current).available_actions}
+            if PlayerAction.TSUMO in offers:
+                raise ScenarioError(f"{self._game_id}: seat {current} was offered tsumo while discarding draws")
+
+            self.tsumogiri(current)
+
+    def confirm_round(self) -> None:
+        """
+        Confirm the round end for every seat, which deals the next round.
+        """
+        for seat in sorted(self._service.get_awaiting(self._runtime).seats):
+            self._run(seat, GameAction.CONFIRM_ROUND, {})
+
+    def act(self, seat: int, action: GameAction, **data: object) -> None:
+        is_call_response = action in CALL_RESPONSES or data.get("kan_type") == KanType.OPEN
+        self._pass_calls(exclude=frozenset({seat}) if is_call_response else frozenset())
+        self._run(seat, action, data)
+
+    def replay(self) -> Recording:
+        """
+        Return the recorded replay after checking that the replay runner, given the same wall, reproduces the game.
+
+        The runner ends by passing a pending call prompt and confirming a pending round end, so the game does the same
+        before the two final states are compared.
+        """
+        if self._next_staged_draw != len(self._staged_draws):
+            raise ScenarioError(f"{self._game_id}: draw {self._next_staged_draw} and later were staged but not drawn")
+
+        recording = self._recorder.recording(wall=self._wall)
+        self._pass_calls()
+        if self._service.get_awaiting(self._runtime).kind == WaitKind.ROUND_ADVANCE:
+            self.confirm_round()
+
+        require_reproduces(recording, self._runtime.state, name=self._game_id)
+        return recording
+
+    def _draw(self, seat: int) -> DrawEvent:
+        if seat not in self._draws:
+            raise ScenarioError(f"{self._game_id}: seat {seat} has no drawn tile")
+
+        return self._draws[seat]
+
+    def _pass_calls(self, exclude: frozenset[int] = frozenset()) -> None:
+        prompt = self._runtime.state.round_state.pending_call_prompt
+        if prompt is None:
+            return
+
+        for seat in sorted(prompt.pending_seats - exclude):
+            if prompt.caller(seat).can_ron:
+                raise ScenarioError(f"{self._game_id}: seat {seat} was offered ron; pass_ it or call it")
+
+            self.pass_(seat)
+
+    def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
+        events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
+        errors = [event for event in events if isinstance(event, ErrorEvent)]
+        if errors:
+            raise ScenarioError(f"{self._game_id}: seat {seat} {action.value} refused: {errors[0].message}")
+
+        self._draws.pop(seat, None)
+        self._record(events)
+
+    def _record(self, events: Sequence[GameEvent]) -> None:
+        self._recorder.record(events)
+        for event in events:
+            if isinstance(event, DrawEvent):
+                self._check_staged_draw(event)
+                self._draws[event.seat] = event
+
+    def _check_staged_draw(self, draw: DrawEvent) -> None:
+        """
+        Check a draw of a staged tile against the seat the scenario staged it for; other draws are rinshan or filler.
+        """
+        staged = [index for index, (_, tile_id) in enumerate(self._staged_draws) if tile_id == draw.tile_id]
+        if not staged:
+            return
+
+        (index,) = staged
+        seat = self._staged_draws[index][0]
+        if index != self._next_staged_draw or draw.seat != seat:
+            raise ScenarioError(
+                f"{self._game_id}: seat {draw.seat} drew staged draw {index} (staged for seat {seat}) as draw "
+                f"{self._next_staged_draw}"
+            )
+
+        self._next_staged_draw += 1
