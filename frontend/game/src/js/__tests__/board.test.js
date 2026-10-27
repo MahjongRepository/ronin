@@ -1,5 +1,5 @@
 import $ from "jquery";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
 import Majiang from "../../vendor/majiang-core/index.js";
@@ -16,7 +16,7 @@ function silentAudio() {
     return { play() {}, currentTime: 0 };
 }
 
-function drawBoard() {
+function drawBoard({ shoupai = ["m123456789p1234", "", "", ""], openHands = false } = {}) {
     document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
     const model = new Majiang.Board({ title: "", player: [...PLAYERS], qijia: 0 });
     model.qipai({
@@ -26,9 +26,10 @@ function drawBoard() {
         lizhibang: 0,
         defen: [32000, 18000, 25000, 25000],
         baopai: "m1",
-        shoupai: ["m123456789p1234", "", "", ""],
+        shoupai,
     });
     const board = new Board($("#board .board"), renderTile, silentAudio, model);
+    board.open_shoupai = openHands;
     board.redraw();
     return { board, model };
 }
@@ -37,7 +38,15 @@ function plate(seat) {
     return $(`#board .board > .player.${seat}`);
 }
 
+function handTiles(seat) {
+    return $(`#board .board .shoupai.${seat} .bingpai .pai`)
+        .map((i, tile) => $(tile).attr("data-pai"))
+        .get()
+        .join("");
+}
+
 afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = "";
 });
 
@@ -81,5 +90,44 @@ describe("Majiang.UI.Board nameplates", () => {
         board.players([true, true, true, true]);
         expect(plate("shangjia").hasClass("disconnect")).toBe(false);
         expect(plate("shangjia").find(".badge.offline")).toHaveLength(0);
+    });
+});
+
+describe("Majiang.UI.Board hands", () => {
+    const HANDS = ["m123456789p1234", "s1112345678999", "z11122233344m1", "p1122334455667"];
+
+    it("show only the viewpoint's hand face up in the live game", () => {
+        drawBoard({ shoupai: HANDS });
+
+        expect(handTiles("main")).toBe("p1p1p2p2p3p3p4p4p5p5p6p6p7");
+        expect(handTiles("xiajia")).toBe("_".repeat(13));
+    });
+
+    it("show every hand face up when all hands are open, through a draw's reveal of noten hands", () => {
+        vi.useFakeTimers();
+        const { board, model } = drawBoard({ shoupai: HANDS, openHands: true });
+        const faceUp = {
+            xiajia: handTiles("xiajia"),
+            duimian: handTiles("duimian"),
+            shangjia: handTiles("shangjia"),
+            main: handTiles("main"),
+        };
+        expect(faceUp.xiajia).toBe("m1m2m3m4m5m6m7m8m9p1p2p3p4");
+        expect(faceUp.duimian).toBe("s1s1s1s2s3s4s5s6s7s8s9s9s9");
+
+        model.lunban = 0;
+        board.update();
+        board.update({
+            pingju: {
+                name: "荒牌平局",
+                shoupai: ["", "", "", ""],
+                fenpei: [0, 0, 0, 0],
+                tenpai: [false, false, false, false],
+                players: [],
+            },
+        });
+        vi.runAllTimers();
+
+        for (const [seat, tiles] of Object.entries(faceUp)) expect(handTiles(seat)).toBe(tiles);
     });
 });

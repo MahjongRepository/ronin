@@ -126,6 +126,9 @@ export default class Board {
 
         this.viewpoint = 0;
         this.sound_on  = true
+        /* Every hand face up, through a draw's reveal too: the replay
+         * viewer's; the live game shows only the viewpoint's. */
+        this.open_shoupai = false;
 
         this._timeout_id;
 
@@ -172,7 +175,7 @@ export default class Board {
             this._view.shoupai[l]
                     = new Shoupai(show($(`.shoupai.${c}`, this._root)),
                                     this._pai, this._model.shoupai[l])
-                        .redraw(open).adjust();
+                        .redraw(open || this.open_shoupai).adjust();
 
             this._view.he[l]
                     = new He(show($(`.he.${c}`, this._root)),
@@ -296,7 +299,7 @@ export default class Board {
         this._timeout_id = setTimeout(()=>{
             for (let l = 0; l < 4; l++) {
                 let open = this._model.player_id[l] == this.viewpoint
-                            || pingju.shoupai[l];
+                            || pingju.shoupai[l] || this.open_shoupai;
                 this._view.shoupai[l].redraw(open);
             }
             this._view.dialog.pingju(pingju);
