@@ -33,7 +33,7 @@ describe("Majiang.UI.GameCtl", () => {
         const root = renderController();
         const view = { sound_on: true };
 
-        new GameCtl(root, PREF_KEY, null, view);
+        new GameCtl(root, PREF_KEY, view);
         const sound = root.find(".sound");
         expect(sound.attr("aria-checked")).toBe("false");
         expect(sound.find(".state").text()).toBe("OFF");
@@ -49,7 +49,7 @@ describe("Majiang.UI.GameCtl", () => {
 
     it("opens the menu from the gear and closes it on Escape, returning focus to the gear, without passing the Escape on to a prompt", () => {
         const root = renderController();
-        new GameCtl(root, PREF_KEY, null);
+        new GameCtl(root, PREF_KEY);
         const toggle = root.find(".settings-toggle");
         const menu = root.find(".settings-menu");
         let promptEscapes = 0;
@@ -70,7 +70,7 @@ describe("Majiang.UI.GameCtl", () => {
 
     it("keeps its clicks from the board and closes on a click outside", () => {
         const root = renderController();
-        new GameCtl(root, PREF_KEY, null);
+        new GameCtl(root, PREF_KEY);
         let boardClicks = 0;
         root.on("click", () => boardClicks++);
         const menu = root.find(".settings-menu");

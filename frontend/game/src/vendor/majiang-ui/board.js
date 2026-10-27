@@ -127,9 +127,7 @@ export default class Board {
 
         this.viewpoint = 0;
         this.sound_on  = true
-        this.open_shoupai;
         this.dummy_name = null;
-        this.no_player_name;
 
         this._timeout_id;
 
@@ -168,22 +166,17 @@ export default class Board {
             let id   = this._model.player_id[l];
             let c    = class_name[(id + 4 - this.viewpoint) % 4];
 
-            if (this.no_player_name) {
-                hide($(`> .player.${c}`, this._root));
-            }
-            else {
-                let name = (this.dummy_name == null)
-                                ? this._model.player[id].replace(/\n.*$/,'')
-                                : dummy_name[(4 + id - this.dummy_name) % 4];
-                show(nameplate($(`> .player.${c}`, this._root), l, name,
-                               this._model.defen[id], this._connected[id]));
-            }
+            let name = (this.dummy_name == null)
+                            ? this._model.player[id].replace(/\n.*$/,'')
+                            : dummy_name[(4 + id - this.dummy_name) % 4];
+            show(nameplate($(`> .player.${c}`, this._root), l, name,
+                           this._model.defen[id], this._connected[id]));
 
             let open = this._model.player_id[l] == this.viewpoint;
             this._view.shoupai[l]
                     = new Shoupai(show($(`.shoupai.${c}`, this._root)),
                                     this._pai, this._model.shoupai[l])
-                        .redraw(open || this.open_shoupai).adjust();
+                        .redraw(open).adjust();
 
             this._view.he[l]
                     = new He(show($(`.he.${c}`, this._root)),
@@ -325,7 +318,6 @@ export default class Board {
 
     kaiju(viewpoint) {
         if (viewpoint != null) this.viewpoint = viewpoint;
-        if (this.no_player_name) return;
         hide($('> *', this._root));
         let [title, ...sub] = this._model.title.split('\n');
         $('.title', this._view.kaiju).empty().append(

@@ -5,17 +5,12 @@
 
 import $ from 'jquery';
 
-import fadein from './fadein.js';
-const { hide, show } = fadein;
-
 export default class GameCtl {
 
-    constructor(root, storage, game, ...view) {
+    constructor(root, storage, ...view) {
         this._node = {
             controller: $('.controller', root),
-            download:   $('.download', root),
         };
-        this._game = game;
         this._view = view;
 
         this._storage = storage;
@@ -24,7 +19,6 @@ export default class GameCtl {
                         : { sound_on: true };
         delete this._pref.speed;
 
-        if (game) game._view.no_player_name = true;
         this.redraw();
     }
 
@@ -81,32 +75,5 @@ export default class GameCtl {
         this._node.controller.off('.controler');
         $(document).off('.controler');
         $(window).off('.controler');
-    }
-
-    stop() {
-        this._game.stop();
-        let blob  = new Blob([ JSON.stringify(this._game._paipu) ],
-                             { type: 'application/json' });
-        $('a', this._node.download)
-            .attr('href', URL.createObjectURL(blob))
-            .attr('download', '牌譜.json');
-        show(this._node.download);
-        this.stoped = true;
-    }
-
-    start() {
-        this.stoped = false;
-        hide(this._node.download);
-        this._game.start();
-    }
-
-    shoupai() {
-        const game = this._game;
-        if (game._status == 'hule')   return true;
-        if (game._status == 'pingju') return true;
-        if (game._status == 'jieju')  return true;
-        game._view.open_shoupai = ! game._view.open_shoupai;
-        game._view.redraw();
-        return false;
     }
 }

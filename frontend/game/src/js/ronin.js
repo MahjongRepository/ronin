@@ -35,10 +35,8 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
 
     const player = new RoninPlayer($('#board'), pai, audio);
     player.view  = new Majiang.UI.Board($('#board .board'), pai, audio, player.model);
-    player._view.no_player_name = false;
 
-    const gameCtl = new Majiang.UI.GameCtl($('#board'), 'Majiang.pref',
-                                            null, player, player._view);
+    new Majiang.UI.GameCtl($('#board'), 'Majiang.pref', player, player._view);
 
     scale($('#board'), $('#space'));
     $(window).on('resize', ()=>scale($('#board'), $('#space')));
