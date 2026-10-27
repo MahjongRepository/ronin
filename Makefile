@@ -61,3 +61,6 @@ generate-replays:
 
 profile:
 	$(BE_RUN) python bin/profile_replay.py
+
+run-games:
+	@bash ./bin/run-bots-games.sh $(GAMES)
