@@ -111,6 +111,9 @@ const wire = {
     SEAT_SPACE:    544,   /* 4 × 136 */
     DISCARD_FLAGS: 4,     /* bit 0 = tsumogiri, bit 1 = riichi */
     SCORE_DIV:     100,   /* wire scores are divided by 100 */
+
+    /* a replay file's first line: { version }; mirrors backend/game/wire/replay_format.py */
+    REPLAY_VERSION: '0.3-dev',
 };
 
 export default wire;
