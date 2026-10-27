@@ -172,10 +172,16 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   the board, from the recorded first dealer's seat, with every hand open. The viewer's only state is
   the majiang-core model: a seek rebuilds the round from its deal, and every move (the page's
   controls, the result dialog's 次へ) goes through the viewer, never to the model or the board
-  directly. A double ron's wins are each a page of its result: Next shows the next win's dialog as
-  次へ does, and leaves the result only after the last. Its controls sit in a strip outside `#board` (under it, or beside it on a short landscape
+  directly. A seek draws the table as stepping there does: the board redraws at the turn in play
+  and plays that turn's messages since, so the last discard keeps its mark and a riichi stick
+  shows only once the next turn deposits it. A double ron's wins are each a page of its result: Next shows the next win's dialog as
+  次へ does, and leaves the result only after the last. Its controls (`controls.js`) sit in a strip outside `#board` (under it, or beside it on a short landscape
   screen), and the table is fitted to the stage with `fitToStage` whenever the layout resizes it, so
-  they never cover the table. A replay that cannot be shown replaces the board with a message and
+  they never cover the table. On an upright phone the width-bound table leaves height over, which
+  the strip takes rather than the felt: its info in the middle, its buttons at the bottom. Back and
+  Next repeat while held and stop at a result. The all-last flag (オーラス) marks the fourth round of
+  the game type's last scheduled wind or of its sudden-death extension, read from the recorded game
+  type, never from what was played after it, so a truncated game's last round is not flagged. A replay that cannot be shown replaces the board with a message and
   links back.
   `src/js/replay/` converts replay files into paipu with `src/js/ronin/`'s pure helpers, never the
   live shadow; `src/js/ronin/` never imports `src/js/replay/`. The live client and the converter build

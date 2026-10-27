@@ -81,6 +81,16 @@ describe("toReplay", () => {
         expect(rounds[1].log[0].qipai.jushu).toBe(1);
     });
 
+    it("flags all last: the fourth round of the game's last wind and of its sudden-death extension", () => {
+        const flagged = (text) =>
+            convert(text)
+                .rounds.map((round, index) => (round.final ? index : null))
+                .filter((index) => index !== null);
+
+        expect(flagged(FULL_GAME)).toEqual([7, 11]);
+        expect(flagged(FULL_GAME.replace('"gt": 0', '"gt": 1'))).toEqual([3, 7]);
+    });
+
     it("deals all four hands with red fives", () => {
         const { shoupai } = firstRound(RIICHI).log[0].qipai;
 

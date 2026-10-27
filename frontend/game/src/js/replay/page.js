@@ -3,16 +3,11 @@ import $ from "jquery";
 import { GAME_PREF_KEY } from "../game-prefs.js";
 import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
-import { MalformedReplayError, POSITION, toReplay } from "./paipu.js";
+import { ReplayControls } from "./controls.js";
+import { MalformedReplayError, toReplay } from "./paipu.js";
 import { ReplayViewer } from "./viewer.js";
 
 const PAGE_TITLE = "Replay · Ronin";
-
-const WIND_NAMES = ["東", "南", "西", "北"];
-const ROUND_NUMERALS = ["一", "二", "三", "四"];
-
-const ENDED_EARLY = "The game ended here: the server stopped it";
-const FINAL_STANDINGS = "Final standings";
 
 const ERROR_TEXT = Object.freeze({
     [REPLAY_ERROR.NOT_FOUND]: "Replay not found",
@@ -72,59 +67,6 @@ async function readReplay(gameId) {
     return replay;
 }
 
-function roundName(round) {
-    const { zhuangfeng, jushu } = round.log[0].qipai;
-    return `${WIND_NAMES[zhuangfeng]}${ROUND_NUMERALS[jushu]}局 ${round.honba}本場`;
-}
-
-/** Where the position stands in its round, counted from 1 at the deal; the standings are not a step of the round. */
-function stepText(round, state) {
-    if (state.kind === POSITION.SUMMARY) {
-        return FINAL_STANDINGS;
-    }
-    const steps = round.positions.filter((position) => position.kind !== POSITION.SUMMARY);
-    return `${state.step + 1}\u00a0/\u00a0${steps.length}`;
-}
-
-function arrowButton(className, text, arrow, arrowFirst) {
-    const glyph = $('<span aria-hidden="true">').text(arrow);
-    const button = $(`<button type="button" class="${className}">`);
-    return arrowFirst ? button.append(glyph, ` ${text}`) : button.append(`${text} `, glyph);
-}
-
-function renderControls() {
-    return $('<nav class="replay-controls" aria-label="Replay" lang="en">').append(
-        arrowButton("replay-back", "Back", "◀", true),
-        $('<p class="replay-position" aria-live="polite">').append(
-            $('<span class="replay-where">').append(
-                $('<span class="replay-round">'),
-                $('<span class="replay-step">'),
-            ),
-            $('<span class="replay-ended">'),
-        ),
-        arrowButton("replay-next", "Next", "▶", false),
-    );
-}
-
-/** Enable or disable a button, handing its focus to the other one first so the keyboard keeps a place in the strip. */
-function setEnabled(button, enabled, other) {
-    if (!enabled && document.activeElement === button[0]) {
-        other.trigger("focus");
-    }
-    button.prop("disabled", !enabled);
-}
-
-function showControls(controls, replay, state) {
-    const back = $(".replay-back", controls);
-    const next = $(".replay-next", controls);
-    setEnabled(back, state.canBack, next);
-    setEnabled(next, state.canNext, back);
-    const round = replay.rounds[state.round];
-    $(".replay-round", controls).text(roundName(round));
-    $(".replay-step", controls).text(stepText(round, state));
-    $(".replay-ended", controls).text(state.endedEarly ? ENDED_EARLY : "");
-}
-
 /** Refit the table whenever the page's layout resizes the stage, the first layout included. */
 function fitTableToStage(stage) {
     const fit = () => Majiang.UI.Util.fitToStage(stage);
@@ -152,24 +94,23 @@ function buildBoard(replay, stage) {
 function startViewer(replay) {
     const stage = $("#board");
     const { model, view, root } = buildBoard(replay, stage);
-    const controls = renderControls();
+    const controls = new ReplayControls(replay);
     $("#space").remove();
-    $("body").addClass("replay").append(controls);
+    $("body").addClass("replay").append(controls.element);
     const viewer = new ReplayViewer({
         replay,
         view,
         model,
         root,
-        onChange: (state) => showControls(controls, replay, state),
+        onChange: (state) => controls.show(state),
     });
-    $(".replay-back", controls).on("click", () => viewer.back());
-    $(".replay-next", controls).on("click", () => viewer.next());
+    controls.bind(viewer);
     viewer.start();
     fitTableToStage(stage);
 }
 
 /**
- * Show a game's replay on the board at its deal, with Back and Next, or say why it cannot be shown. The replay loads
+ * Show a game's replay on the board at its deal, with its control strip, or say why it cannot be shown. The replay loads
  * while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it.
  */
 export async function showReplay(gameId, tilesLoaded) {

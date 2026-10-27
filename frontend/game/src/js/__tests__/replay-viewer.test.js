@@ -14,10 +14,12 @@ import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?ra
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
 import EXHAUSTIVE_TENPAI from "./fixtures/replays/exhaustive_tenpai.txt?raw";
+import FOUR_KANS from "./fixtures/replays/four_kans.txt?raw";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import KANS from "./fixtures/replays/kans.txt?raw";
 import PAO from "./fixtures/replays/pao.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
+import RON_RIICHI_DISCARD from "./fixtures/replays/ron_riichi_discard.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
 import TRUNCATED_MID_ROUND from "./fixtures/replays/truncated_mid_round.txt?raw";
 
@@ -75,6 +77,22 @@ function handTiles(selector) {
     return tileLists(selector).map((list) => list.toSorted().join(""));
 }
 
+/** Each river's riichi stick, and where its last-discard mark and sideways tile sit (-1: none). */
+function riverMarks() {
+    return $("#board .board > .he")
+        .map((i, he) => {
+            const tiles = $(".dapai .pai", he);
+            return [
+                [
+                    !$(".chouma", he).hasClass("hide"),
+                    tiles.index($(".pai.dapai", he)),
+                    tiles.index($(".lizhi .pai", he)),
+                ],
+            ];
+        })
+        .get();
+}
+
 function shown(selector) {
     return !$(selector).hasClass("hide");
 }
@@ -93,6 +111,7 @@ function settledTable(model) {
         plates: texts("#board .board > .player"),
         handTiles: handTiles("#board .board > .shoupai"),
         riverTiles: tiles("#board .board > .he"),
+        riverMarks: riverMarks(),
         dialog: shown("#board .hule-dialog") && [
             $("#board .hule-dialog").text(),
             ...tiles("#board .hule-dialog .shoupai, #board .hule-dialog .shan"),
@@ -172,6 +191,7 @@ describe("ReplayViewer", () => {
     it.each([
         ["riichi.txt", RIICHI, WHOLE_GAME],
         ["kans.txt", KANS, WHOLE_GAME],
+        ["four_kans.txt", FOUR_KANS, WHOLE_GAME],
         ["chankan_added.txt", CHANKAN_ADDED, WHOLE_GAME],
         ["double_ron_head_bump.txt", DOUBLE_RON_HEAD_BUMP, WHOLE_GAME],
         ["exhaustive_tenpai.txt", EXHAUSTIVE_TENPAI, WHOLE_GAME],
@@ -334,11 +354,16 @@ describe("ReplayViewer", () => {
 
     it("sounds callouts stepping forward but not seeking", () => {
         const played = [];
+        const ron = openViewer(RON_RIICHI_DISCARD, { audio: recordingAudio(played) });
+        const ronResult = resultStep(ron.replay, 0);
+        ron.viewer.seek(0, ronResult - 1);
+        ron.viewer.seek(0, ronResult);
         const { viewer, replay } = openViewer(PAO, { audio: recordingAudio(played) });
         const steps = replay.rounds[0].positions;
         const pon = steps.findLastIndex((position) => position.say[0]?.name === "peng");
         const result = resultStep(replay, 0);
 
+        viewer.seek(0, pon - 1);
         viewer.seek(0, pon);
         viewer.seek(0, result);
         vi.runAllTimers();

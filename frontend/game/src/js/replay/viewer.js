@@ -3,13 +3,12 @@ import $ from "jquery";
 import fadein from "../../vendor/majiang-ui/fadein.js";
 import { WIN_CALL_MS } from "../ronin/results.js";
 import { HISTORY_URL } from "../routes.js";
-import { POSITION } from "./paipu.js";
+import { POSITION, kindOf } from "./paipu.js";
 
 const SEATS = 4;
 
-function kindOf(message) {
-    return Object.keys(message)[0];
-}
+/** The messages that open a turn: the view redraws the previous turn's river when one plays. */
+const TURN_STARTS = new Set(["zimo", "gangzimo", "fulou", "gang"]);
 
 function isIndex(index, length) {
     return Number.isInteger(index) && index >= 0 && index < length;
@@ -112,6 +111,9 @@ export class ReplayViewer {
             openHands: this.view.open_shoupai,
             canBack: this.canBack,
             canNext: this.canNext,
+            canNextRound: this.round + 1 < this.replay.rounds.length,
+            atEnd: !this.canNext,
+            tilesLeft: this.model.shan.paishu,
         };
     }
 
@@ -187,9 +189,10 @@ export class ReplayViewer {
         this.seek(0, 0);
     }
 
+    /** To the game's end: its last position with every win of its result shown. */
     last() {
         const round = this.replay.rounds.length - 1;
-        this.seek(round, this.lastStepOf(round));
+        this.showAllWins(round, this.lastStepOf(round));
     }
 
     /** Put seat at the bottom of the table, keeping the position. */
@@ -303,17 +306,30 @@ export class ReplayViewer {
         this.notifyChange();
     }
 
+    /**
+     * Rebuild the table as stepping forward left it. The model replays the round up to the turn in play, and the view
+     * draws that, then plays the turn's own messages since (a discard, a dora reveal) as stepping does: the last discard
+     * keeps its mark, and a riichi discard shows no stick before the next turn deposits it. The standings show the
+     * whole round drawn at once, since no turn is in play.
+     */
     rebuild() {
-        const { log } = this.currentRound();
         const position = this.currentPosition();
-        this.model.qipai(log[0].qipai);
-        for (const message of log.slice(1, position.end)) {
-            playIntoModel(this.model, message);
-        }
+        const messages = this.currentRound().log.slice(1, position.end);
+        const result = position.kind === POSITION.RESULT ? messages.pop() : null;
+        const turn =
+            position.kind === POSITION.SUMMARY
+                ? messages.length
+                : messages.findLastIndex((message) => TURN_STARTS.has(kindOf(message))) + 1;
+        this.model.qipai(this.currentRound().log[0].qipai);
+        messages.slice(0, turn).forEach((message) => playIntoModel(this.model, message));
         this.view.redraw();
+        for (const message of messages.slice(turn)) {
+            playIntoModel(this.model, message);
+            this.view.update(message, true);
+        }
         switch (position.kind) {
             case POSITION.RESULT:
-                return this.showWin(position);
+                return this.showWin(result);
             case POSITION.SUMMARY:
                 return this.showStandings();
             default:
@@ -322,10 +338,11 @@ export class ReplayViewer {
     }
 
     /** The result's win after `pagedWins` further ones, which the table shows as stepping forward left it. */
-    showWin(position) {
+    showWin(firstWin) {
+        playIntoModel(this.model, firstWin);
         const shown = this.furtherWins().slice(0, this.pagedWins);
         shown.forEach((win) => playIntoModel(this.model, win));
-        this.view.update(shown.at(-1) ?? this.currentRound().log[position.end - 1], true);
+        this.view.update(shown.at(-1) ?? firstWin, true);
     }
 
     playForward() {

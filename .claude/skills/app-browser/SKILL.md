@@ -65,8 +65,11 @@ select by element id, class or `snapshot -i` refs.
   waiting state.
 - **History and replay:** `/history` lists recent games; each card's `.games-card-link` ("View
   replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
-  the board at its first deal, with `.replay-back` / `.replay-next` and the position label
-  `.replay-position` (`.replay-round`, `.replay-step`, `.replay-ended`) in the strip below it (beside it at `max-height: 450px` landscape); a replay
+  the board at its first deal, with `.replay-back` / `.replay-next`, the jumps `.replay-first`,
+  `.replay-prev-round`, `.replay-next-round`, `.replay-last`, and the info `.replay-position`
+  (`.replay-action`, `.replay-round`, `.replay-step`, `.replay-wall-low`, `.replay-ended`) in the
+  strip below it (beside it at `max-height: 450px` landscape). `.replay-next-round` is the quick way
+  to a later round; holding Back or Next (`agent-browser mouse down left`) repeats them. A replay
   it cannot show gets a `.replay-problem` message instead. To show a particular case, gzip a
   fixture from `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id
   of your own (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards.
