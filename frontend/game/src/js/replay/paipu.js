@@ -1,6 +1,14 @@
 import * as immef from "../ronin/immef.js";
 import * as mianzi from "../ronin/mianzi.js";
-import { fullHandStr, jiejuStandings, kanMianzi, roundResults, seatL } from "../ronin/results.js";
+import {
+    fullHandStr,
+    jiejuStandings,
+    kanMianzi,
+    roundInWind,
+    roundResults,
+    seatL,
+    seatOfL,
+} from "../ronin/results.js";
 import * as tiles from "../ronin/tiles.js";
 import wire from "../ronin/wire.js";
 import { roundOutcome } from "./round-end.js";
@@ -24,11 +32,6 @@ export const POSITION = Object.freeze({
 /** A paipu message's kind: zimo, dapai, fulou, hule, … */
 export function kindOf(message) {
     return Object.keys(message)[0];
-}
-
-/** The seat of a paipu seat index `l`, counted from the round's dealer. */
-export function seatOfL(l, dealer) {
-    return (dealer + l) % SEATS;
 }
 
 /** A replay line the converter cannot read; `line` is its 1-based line in the replay file. */
@@ -60,22 +63,24 @@ const LAST_WINDS = Object.freeze({
  * game's last round is not flagged by accident.
  */
 function isFinalRound(gameType, roundStart, qijia) {
-    const number = (roundStart.dl - qijia + SEATS) % SEATS;
-    return number === SEATS - 1 && LAST_WINDS[gameType].includes(roundStart.w);
+    return (
+        roundInWind(roundStart.dl, qijia) === SEATS - 1 &&
+        LAST_WINDS[gameType].includes(roundStart.w)
+    );
 }
 
 function dealMessage(roundStart, qijia) {
     const defen = [];
     const shoupai = [];
     for (let l = 0; l < SEATS; l++) {
-        const player = dealtPlayer(roundStart, (roundStart.dl + l) % SEATS);
+        const player = dealtPlayer(roundStart, seatOfL(l, roundStart.dl));
         defen[l] = player.sc * wire.SCORE_DIV;
         shoupai[l] = tiles.handStr(player.tl);
     }
     return {
         qipai: {
             zhuangfeng: roundStart.w,
-            jushu: (roundStart.dl - qijia + SEATS) % SEATS,
+            jushu: roundInWind(roundStart.dl, qijia),
             changbang: roundStart.h,
             lizhibang: roundStart.r,
             defen,

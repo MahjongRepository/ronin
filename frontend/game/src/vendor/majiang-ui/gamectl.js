@@ -65,6 +65,12 @@ export default class GameCtl {
             this.menu(false);
             if (focused) toggle.trigger('focus');
         });
+        this.set_sound_key();
+    }
+
+    /* [a] toggles the sound: the live game's key. The replay page leaves it
+     * out, for keys of its own. */
+    set_sound_key() {
         $(window).on('keyup.controler', (ev)=>{
             if (ev.key == 'a') this.sound(! this._pref.sound_on);
         });

@@ -5,7 +5,7 @@ import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
 import { MalformedReplayError, toReplay } from "./paipu.js";
-import { ReplayViewer } from "./viewer.js";
+import { ReplayViewer, UnplayableReplayError } from "./viewer.js";
 
 const PAGE_TITLE = "Replay · Ronin";
 
@@ -17,6 +17,7 @@ const ERROR_TEXT = Object.freeze({
 });
 
 const NO_ROUNDS = "This game ended before its first deal: there is nothing to replay";
+const CANNOT_SHOW = "Couldn't show the replay";
 
 function errorText({ kind, line }) {
     return line === undefined ? ERROR_TEXT[kind] : `${ERROR_TEXT[kind]} (line ${line})`;
@@ -39,6 +40,16 @@ function showProblem(text, { retry = false } = {}) {
 function showDamaged(line, ...logged) {
     console.error("[ronin] replay cannot be shown:", ...logged);
     showProblem(errorText({ kind: REPLAY_ERROR.MALFORMED, line }));
+}
+
+/** A replay the model cannot play is damaged; any other failure to show one is the page's own, which a reload may fix. */
+function showViewerFailure(error) {
+    if (error instanceof UnplayableReplayError) {
+        showDamaged(undefined, error, error.cause);
+        return;
+    }
+    console.error("[ronin] replay cannot be shown:", error);
+    showProblem(CANNOT_SHOW, { retry: true });
 }
 
 /** The converted replay, or null once its problem is shown. */
@@ -73,6 +84,14 @@ function fitTableToStage(stage) {
     new ResizeObserver(fit).observe(stage[0]);
 }
 
+/**
+ * The settings gear with its sound switch, whose setting the live game shares, and Escape closing its menu. The live
+ * game's sound key stays off: the replay's keys are its own.
+ */
+class ReplaySettings extends Majiang.UI.GameCtl {
+    set_sound_key() {}
+}
+
 /** The board drawing the replay: every hand open, from the recorded first dealer's seat, with the sound setting. */
 function buildBoard(replay, stage) {
     const pai = Majiang.UI.pai($("#loaddata"));
@@ -86,7 +105,8 @@ function buildBoard(replay, stage) {
     const view = new Majiang.UI.Board(root, pai, audio, model);
     view.viewpoint = replay.qijia;
     view.open_shoupai = true;
-    new Majiang.UI.GameCtl(stage, GAME_PREF_KEY, view);
+    new ReplaySettings(stage, GAME_PREF_KEY, view);
+    $(".controller .sound", stage).attr("title", "音声");
     $(".autoplay, .player-button, .timer", stage).remove();
     return { model, view, root };
 }
@@ -103,18 +123,24 @@ function startViewer(replay) {
         model,
         root,
         onChange: (state) => controls.show(state),
+        onError: showViewerFailure,
     });
     controls.bind(viewer);
     viewer.start();
+    if (viewer.failed) {
+        return;
+    }
     fitTableToStage(stage);
 }
 
 /**
  * Show a game's replay on the board at its deal, with its control strip, or say why it cannot be shown. The replay loads
- * while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it.
+ * while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it, so a failed decode is the board's
+ * failure alone, never an unhandled rejection on a page that shows a problem instead.
  */
 export async function showReplay(gameId, tilesLoaded) {
     document.title = PAGE_TITLE;
+    tilesLoaded.catch(() => {});
     const replay = await readReplay(gameId);
     if (replay === null) {
         return;
@@ -123,6 +149,6 @@ export async function showReplay(gameId, tilesLoaded) {
     try {
         startViewer(replay);
     } catch (error) {
-        showDamaged(undefined, error);
+        showViewerFailure(error);
     }
 }

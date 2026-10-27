@@ -9,6 +9,7 @@ import { parseReplay } from "../replay/load.js";
 import { POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
 import { ReplayViewer } from "../replay/viewer.js";
+import { withUnplayableDraw } from "./replay-edits.js";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?raw";
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
@@ -304,29 +305,68 @@ describe("ReplayViewer", () => {
         expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND + 1, step: 0 });
     });
 
-    it("pages a double ron afresh after any move", () => {
+    it("keeps a double ron's page when the hands close or the table turns", () => {
         const { viewer, replay } = openViewer(DOUBLE_RON_ON_HONBA);
-        viewer.seek(DOUBLE_RON_ROUND, resultStep(replay, DOUBLE_RON_ROUND));
+        const step = resultStep(replay, DOUBLE_RON_ROUND);
+        viewer.seek(DOUBLE_RON_ROUND, step);
         vi.runAllTimers();
         pressDialogNext();
+
         viewer.setOpenHands(false);
         vi.runAllTimers();
-        expect(viewer.state.openHands).toBe(false);
+        expect(viewer.state).toMatchObject({ step, page: 1, openHands: false });
         expect(tiles("#board .board > .shoupai.duimian")[0]).toMatch(/^_+$/);
-        expect(dialogFigures()).toEqual(DOUBLE_RON_FIRST_WIN);
-        pressDialogNext();
         expect(dialogFigures()).toEqual(DOUBLE_RON_SECOND_WIN);
+        viewer.setViewpoint(1);
+        vi.runAllTimers();
+        expect(viewer.state).toMatchObject({ step, page: 1, seat: 1 });
 
         pressDialogNext();
-        while (viewer.state.kind !== POSITION.RESULT) {
+        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND + 1, step: 0 });
+    });
+
+    it("opens a double ron's win at once on Next while it is on its way, skipping none", () => {
+        const { viewer, replay } = openViewer(DOUBLE_RON_ON_HONBA);
+        const step = resultStep(replay, DOUBLE_RON_ROUND);
+        viewer.seek(DOUBLE_RON_ROUND, step - 1);
+
+        viewer.next();
+        viewer.next();
+        expect(viewer.state).toMatchObject({ step, page: 0 });
+        expect(shown("#board .hule-dialog")).toBe(true);
+        expect(dialogFigures()).toEqual(DOUBLE_RON_FIRST_WIN);
+
+        viewer.next();
+        vi.advanceTimersByTime(BOARD_HULE_MS);
+        viewer.next();
+        expect(viewer.state).toMatchObject({ step, page: 1 });
+        expect(shown("#board .hule-dialog")).toBe(true);
+        expect(dialogFigures()).toEqual(DOUBLE_RON_SECOND_WIN);
+
+        viewer.next();
+        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND + 1, step: 0 });
+    });
+
+    it("keeps the cursor on the last position it played when the next one cannot be played, and stops", () => {
+        const { viewer } = openViewer(withUnplayableDraw(FULL_GAME));
+        const errors = [];
+        viewer.onError = (error) => errors.push(error);
+
+        let before;
+        while (errors.length === 0 && viewer.canNext) {
+            before = viewer.state;
             viewer.next();
         }
-        vi.runAllTimers();
-        expect(() => pressDialogNext()).not.toThrow();
+
+        expect(errors.map((error) => error.name)).toEqual(["UnplayableReplayError"]);
         expect(viewer.state).toMatchObject({
-            round: DOUBLE_RON_ROUND + 1,
-            step: resultStep(replay, DOUBLE_RON_ROUND + 1),
+            round: before.round,
+            step: before.step,
+            canBack: false,
+            canNext: false,
         });
+        viewer.back();
+        expect(viewer.state.step).toBe(before.step);
     });
 
     it("opens no stale result after moving while it is about to open", () => {

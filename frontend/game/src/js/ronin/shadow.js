@@ -1,6 +1,7 @@
 "use strict";
 
 import * as mianzi from './mianzi.js';
+import { seatL } from './results.js';
 
 const WALL_START = 70;   /* 136 - 13*4 - 14 */
 
@@ -58,7 +59,7 @@ class Shadow {
     }
 
     l(seat) {
-        return (seat - this.dealer + 4) % 4;
+        return seatL(seat, this.dealer);
     }
 
     /* live wall = 70 - non-rinshan draws - kans + reconnect offset */

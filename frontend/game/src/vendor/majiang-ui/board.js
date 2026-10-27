@@ -18,6 +18,11 @@ const class_name = ['main','xiajia','duimian','shangjia'];
 const feng_hanzi = ['東','南','西','北'];
 const shu_hanzi  = ['一','二','三','四'];
 
+/* A round's name as the board shows it (東一局): the replay strip's too. */
+export function jushu_name(zhuangfeng, jushu) {
+    return feng_hanzi[zhuangfeng] + shu_hanzi[jushu] + '局';
+}
+
 const say_text   = { chi:   'チー',
                      peng:  'ポン',
                      gang:  'カン',
@@ -79,9 +84,8 @@ class Score {
 
         show(this._view.root);
 
-        let jushu = feng_hanzi[this._model.zhuangfeng]
-                  + shu_hanzi[this._model.jushu] + '局';
-        this._view.jushu.text(jushu);
+        this._view.jushu.text(jushu_name(this._model.zhuangfeng,
+                                         this._model.jushu));
         this._view.changbang.text(this._model.changbang);
         this._view.lizhibang.text(this._model.lizhibang);
 
@@ -137,6 +141,7 @@ export default class Board {
         this.open_shoupai = false;
 
         this._timeout_id;
+        this._open_hule = null;
 
         this.set_audio(audio);
 
@@ -160,6 +165,7 @@ export default class Board {
     redraw() {
 
         this._timeout_id = clearTimeout(this._timeout_id);
+        this._open_hule = null;
         hide(this._view.summary);
         hide(this._view.kaiju);
         hide(this._view.furiten);
@@ -288,12 +294,23 @@ export default class Board {
 
         this.clear_bubbles();
 
-        this._timeout_id = setTimeout(()=>{
+        const open_hule = ()=>{
+            if (this._open_hule == open_hule) this._open_hule = null;
             this._view.shoupai[hule.l].redraw(true);
             this._view.dialog.hule(hule);
             if (this.sound_on && ! silent && hule.damanguan)
                                                     this._audio.gong.play();
-        }, 400);
+        };
+        this._open_hule = open_hule;
+        this._timeout_id = setTimeout(open_hule, 400);
+    }
+
+    /* Open a win's dialog still waiting out its delay at once: the replay
+     * viewer's Next while a double ron's win is on its way. */
+    open_hule() {
+        if (! this._open_hule) return;
+        this._timeout_id = clearTimeout(this._timeout_id);
+        this._open_hule();
     }
 
     pingju(pingju) {
@@ -309,6 +326,7 @@ export default class Board {
             this._view.shoupai[this._lunban].redraw().adjust();
         }
 
+        this._open_hule = null;
         this._timeout_id = setTimeout(()=>{
             for (let l = 0; l < 4; l++) {
                 let open = this._model.player_id[l] == this.viewpoint
@@ -345,6 +363,7 @@ export default class Board {
 
     summary(paipu) {
         this._timeout_id = clearTimeout(this._timeout_id);
+        this._open_hule = null;
         this._view.dialog.hide();
         this._view.summary.scrollTop(0);
         if (paipu) fadeIn(summary(this._view.summary, paipu, this.viewpoint));
