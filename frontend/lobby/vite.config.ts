@@ -1,4 +1,5 @@
 import { resolve } from "path";
+
 import { deprecations } from "sass";
 import { defineConfig } from "vite";
 
