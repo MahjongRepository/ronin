@@ -31,5 +31,11 @@
             { "exceptions": ["t", "a", "s", "d", "m", "p", "f", "w", "n", "h", "r", "z", "i"] }
         ]
     },
+    "overrides": [
+        {
+            "files": ["vite.config.ts", "vitest.config.ts"],
+            "rules": { "import/no-nodejs-modules": "off" }
+        }
+    ],
     "ignorePatterns": ["public/**"]
 }

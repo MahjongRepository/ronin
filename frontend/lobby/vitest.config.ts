@@ -9,12 +9,12 @@ export default defineConfig({
         },
     },
     test: {
-        include: ["src/**/*.test.ts"],
-        environment: "happy-dom",
         coverage: {
-            provider: "v8",
-            include: ["src/**/*.ts"],
             exclude: ["src/**/*.test.ts"],
+            include: ["src/**/*.ts"],
+            provider: "v8",
         },
+        environment: "happy-dom",
+        include: ["src/**/*.test.ts"],
     },
 });
