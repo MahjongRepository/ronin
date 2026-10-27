@@ -13,7 +13,7 @@ MAX_RETRIES=10
 
 # Kill any already-running servers on our ports
 for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_VITE_PORT; do
-    pids=$(lsof -ti :"$port" 2>/dev/null || true)
+    pids=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true)
     if [ -n "$pids" ]; then
         echo "Killing existing processes on port $port..."
         echo "$pids" | xargs kill -9 2>/dev/null || true
