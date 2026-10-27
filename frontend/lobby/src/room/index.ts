@@ -1,46 +1,81 @@
 import { LobbySocket } from "@/lobby-socket";
-import { buildActionCallbacks, buildMessageHandlers, handleMessage } from "@/room/handlers";
-import { createRoomState } from "@/room/state";
+import { bindToPageLifetime } from "@/page-lifetime";
 import {
-    renderRoomUI,
-    updateActionButton,
-    updateChatPanel,
-    updatePlayerList,
-    updateStatusDisplay,
-} from "@/room/ui";
+    buildActionCallbacks,
+    buildMessageHandlers,
+    describeRoomError,
+    handleMessage,
+    handleStatusChange,
+    joinRoom,
+    leaveOnPageHide,
+    rejoinOnPageShow,
+} from "@/room/handlers";
+import { PAGE_ERROR, createRoomState } from "@/room/state";
+import { type RoomPage, renderRoom } from "@/room/ui";
 
 interface RoomConfig {
+    chatMaxLength: number;
     roomId: string;
     wsUrl: string;
 }
 
-export function initRoomPage(config: RoomConfig): void {
-    const container = document.getElementById("room-app");
-    if (!container) {
-        return;
+function readRoomConfig(container: HTMLElement): RoomConfig | null {
+    const { chatMaxLength, roomId, wsUrl } = container.dataset;
+    const maxLength = Number(chatMaxLength);
+    if (!roomId || !wsUrl || !Number.isInteger(maxLength) || maxLength <= 0) {
+        return null;
     }
+    return { chatMaxLength: maxLength, roomId, wsUrl };
+}
 
+function renderSetupFailure(container: HTMLElement): void {
     const state = createRoomState();
-    const actions = buildActionCallbacks(state);
-    const updateUI = {
-        updateActionButton: () => updateActionButton(state, actions),
-        updateChatPanel: () => updateChatPanel(state),
-        updatePlayerList: () => updatePlayerList(state),
-        updateStatusDisplay: () => updateStatusDisplay(state),
-    };
-    const handlers = buildMessageHandlers(state, updateUI, () =>
-        state.socket?.connect(config.wsUrl),
-    );
+    const code = PAGE_ERROR.PAGE_SETUP_FAILED;
+    state.pageError = { code, text: describeRoomError(code) };
+    renderRoom({
+        actions: buildActionCallbacks(state),
+        chatMaxLength: 0,
+        container,
+        roomId: container.dataset.roomId ?? "",
+        state,
+    });
+}
 
-    renderRoomUI(container, config.roomId, actions);
+function openRoomPage(container: HTMLElement, config: RoomConfig): void {
+    const state = createRoomState();
+    const page: RoomPage = {
+        actions: buildActionCallbacks(state),
+        chatMaxLength: config.chatMaxLength,
+        container,
+        roomId: config.roomId,
+        state,
+    };
+    function render(): void {
+        renderRoom(page);
+    }
+    function rejoin(): void {
+        joinRoom(state, render, config.wsUrl);
+    }
+    const handlers = buildMessageHandlers(state, render, rejoin);
 
     state.socket = new LobbySocket(
         (message) => handleMessage(handlers, message),
-        (status) => {
-            state.connectionStatus = status;
-            updateStatusDisplay(state);
-        },
+        (status) => handleStatusChange(state, status, render),
     );
 
-    state.socket.connect(config.wsUrl);
+    bindToPageLifetime({
+        release: () => leaveOnPageHide(state),
+        restore: () => rejoinOnPageShow(state, rejoin),
+    });
+
+    rejoin();
+}
+
+export function initRoomPage(container: HTMLElement): void {
+    const config = readRoomConfig(container);
+    if (!config) {
+        renderSetupFailure(container);
+        return;
+    }
+    openRoomPage(container, config);
 }
