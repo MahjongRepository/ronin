@@ -571,6 +571,49 @@ body.board
             .state
                 margin-left: auto
                 font-weight: bold
+    .autoplay
+        position: absolute
+        z-index: 2
+        display: flex
+        flex-direction: column
+        align-items: start
+        gap: 4px
+        button
+            display: flex
+            align-items: center
+            gap: 0.4em
+            margin: 0
+            padding: 4px 8px 4px 6px
+            border: none
+            border-radius: 6px
+            background: transparent
+            color: white
+            font-family: menu-font
+            font-size: 16px
+            white-space: nowrap
+            cursor: pointer
+            opacity: 0.6
+            &::before
+                content: ""
+                flex: none
+                box-sizing: border-box
+                width: 1em
+                height: 1em
+                border: solid 2px currentColor
+                border-radius: 3px
+            &:hover
+                opacity: 1
+                background: rgba(255, 255, 255, 0.15)
+            &:focus-visible
+                opacity: 1
+                outline: solid 2px #fc6
+                outline-offset: 2px
+            &[aria-checked="true"]
+                opacity: 1
+                color: #fc6
+                &::before
+                    background: currentColor
+                    box-shadow: inset 0 0 0 2px #154
     .download
         position: absolute
         z-index: 1

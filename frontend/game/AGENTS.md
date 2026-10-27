@@ -35,9 +35,12 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   stage filling the window below whatever sits above it; inside it, the table (`#board > .board`,
   a fixed 800px layout) is scaled up or down by `Majiang.UI.Util.scale` to fit, centred, except
   on an upright touch screen, where it rests on the stage's bottom edge for hand reach. The
-  settings gear is a HUD pinned to the stage's top-right corner, outside the table: the right
-  player's melds reach that corner of the table, so when the side felt is too narrow for the gear
-  the fitter either narrows the table or leaves a strip above it, whichever keeps it larger. The
+  settings gear is a HUD pinned to the stage's top-right corner and the auto switches one pinned
+  to its bottom-left, beside the hand: the gear stays off the table, whose top-right corner holds
+  melds, while the switches may also cover the table's felt left of the left player's hand, whose
+  box runs the table's whole height. When there is too little room for them the fitter either
+  narrows the table or leaves a strip above it for the gear and one below it for the switches,
+  whichever keeps it larger. The
   result and standings dialogs dim the whole stage through one layer on the table that reaches
   past its edges, so the table does not clip its overflow.
 
@@ -127,6 +130,15 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   to its buttons, a ready round result continues, and the seat's own turn discards its drawn tile
   on a right-click only. A left click on the board answers nothing, so the second click of a
   double-click, or a tap on the felt, never passes a ron that arrived in between.
+* **Auto switches** (`src/js/ronin/autoplay.js`): 自動和了, ツモ切り and 鳴きなし answer the seat's
+  decisions for it, on the client alone, through the same answer path as a click. 自動和了 declares
+  any tsumo or ron the server offers (a chankan included), a ron a second after its prompt with
+  the buttons hidden (at once when less of the prompt's time is left), dropped if the server ends
+  the prompt first and shown again if the switch is turned off meanwhile; ツモ切り discards the drawn tile only when
+  its turn offers nothing else (no tsumo, riichi, kan or kyuushu); 鳴きなし passes a call prompt
+  that offers no ron. A switch answers decisions opened after it is turned on, never the one already
+  showing, and never a refused answer's retry. They last until the round ends: its round end clears
+  them, and so does a reconnect into another round or a round result.
 * **Screen countdowns:** the screens the server moves on from by itself count down to it: the game
   start screen its start pause (`gp`) until the deal, and a round result the round advance timeout
   (`ra`) on its 次へ button. A round end shows each result its share of the server's timeout,

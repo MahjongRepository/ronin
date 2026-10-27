@@ -9,6 +9,7 @@ import RoninPlayer from "../ronin/player.js";
 import Reply from "../ronin/reply.js";
 import Shadow from "../ronin/shadow.js";
 import Translate from "../ronin/translate.js";
+import Autoplay from "../ronin/autoplay.js";
 import { NO_OFFER } from "../ronin/offer.js";
 import Board from "../../vendor/majiang-ui/board.js";
 import PAGE from "../../../index.html?raw";
@@ -69,9 +70,15 @@ class TablePlayer extends Majiang.Player {
 const BASE_HAND = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112];
 const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5, ra: 5, gp: 3 };
 
-function startTable(myTiles = BASE_HAND, round = {}, game = {}, player = new TablePlayer()) {
+function startTable(
+    myTiles = BASE_HAND,
+    round = {},
+    game = {},
+    player = new TablePlayer(),
+    autoplay = undefined,
+) {
     const shadow = new Shadow();
-    const translate = new Translate(player, shadow);
+    const translate = new Translate(player, shadow, autoplay);
     const sent = [];
     const reply = new Reply(
         shadow,
@@ -182,10 +189,16 @@ function startTableOnPage() {
     const player = new RoninPlayer($("#board"), renderTile, silent);
     player.view = new Board($("#board .board"), renderTile, silent, player.model);
     return {
-        table: startTable(BASE_HAND, {}, {}, player),
+        table: startTable(BASE_HAND, {}, {}, player, new Autoplay($("#board .autoplay"))),
         hand: $("#board .shoupai.main .bingpai"),
     };
 }
+
+const flipSwitch = (name) => $(`#board .autoplay .${name}`).trigger("click");
+const switchesOn = () =>
+    $("#board .autoplay [aria-checked=true]")
+        .map((_, button) => button.className)
+        .get();
 
 const shownOf = (table, name) => table.player.shown.filter((shown) => shown.name === name);
 
@@ -598,6 +611,169 @@ describe("the ronin table (Translate and Reply)", () => {
 
         expect(buttons()).toHaveLength(0);
         expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
+    });
+
+    it("passes a call prompt without ron on 鳴きなし and leaves one with ron to the player, also once 自動和了 is turned on during it", () => {
+        const { table } = startTableOnPage();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+
+        flipSwitch("no-call");
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+        table.receive(draw(0, 121, { wi: 3 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 121));
+        table.receive(discard(1, 19));
+        table.receive({ t: 3, clt: 0, ti: 19, frs: 1, cs: 0, ac: [{ clt: 0 }], wi: 4 });
+        flipSwitch("win");
+        vi.advanceTimersByTime(1000);
+        table.decide({});
+
+        expect(table.sent).toEqual([
+            { t: 3, a: 0, ti: 120, wi: 1 },
+            { t: 3, a: 8, wi: 2 },
+            { t: 3, a: 0, ti: 121, wi: 3 },
+            { t: 3, a: 8, wi: 4 },
+        ]);
+    });
+
+    it("holds a 自動和了 ron a second with the buttons hidden, showing the prompt again instead if the switch is turned off meanwhile", () => {
+        const { table } = startTableOnPage();
+        const shownButtons = () => $("#board .player-button .button").not(".hide").length;
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+
+        flipSwitch("win");
+        table.receive({ t: 3, clt: 0, ti: 18, frs: 3, cs: 0, wi: 2 });
+        vi.advanceTimersByTime(500);
+        expect(shownButtons()).toBe(0);
+        flipSwitch("win");
+        vi.advanceTimersByTime(500);
+        expect(shownButtons()).toBe(2);
+        table.decide({});
+        table.receive(draw(0, 121, { wi: 3 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 121));
+        flipSwitch("win");
+        table.receive(discard(1, 19));
+        table.receive({ t: 3, clt: 0, ti: 19, frs: 1, cs: 0, wi: 4 });
+        vi.advanceTimersByTime(999);
+        expect(table.sent).toHaveLength(3);
+        vi.advanceTimersByTime(1);
+
+        expect(table.sent.slice(1)).toEqual([
+            { t: 3, a: 8, wi: 2 },
+            { t: 3, a: 0, ti: 121, wi: 3 },
+            { t: 3, a: 3, wi: 4 },
+        ]);
+    });
+
+    it("drops a held 自動和了 ron when the server ends its prompt first, never sending it under the next wait", () => {
+        const { table } = startTableOnPage();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+
+        flipSwitch("win");
+        table.receive(discard(3, 18));
+        table.receive({ t: 3, clt: 0, ti: 18, frs: 3, cs: 0, wi: 2 });
+        vi.advanceTimersByTime(500);
+        table.receive(draw(0, 121, { wi: 3 }));
+        vi.advanceTimersByTime(1000);
+
+        expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
+    });
+
+    it("calls a 自動和了 ron at once on a prompt re-sent with less than its hold left, before the prompt's countdown closes it", () => {
+        const { table } = startTableOnPage();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+
+        flipSwitch("win");
+        table.receive({ t: 3, clt: 0, ti: 18, frs: 3, cs: 0, wi: 2, el: 4.5 });
+
+        expect(table.sent.at(-1)).toEqual({ t: 3, a: 3, wi: 2 });
+    });
+
+    it("leaves the turn after its own pon to the player on ツモ切り after a reconnect, discarding no tile as drawn", () => {
+        const { table } = startTableOnPage();
+        flipSwitch("tsumogiri");
+        table.translate.reconnect(
+            snapshot({
+                cp: 0,
+                tr: 66,
+                mt: [0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112],
+                pst: [0, 1, 2, 3].map((s) => ({
+                    s,
+                    sc: 250,
+                    dsc: [[{ ti: 120 }], [{ ti: 124 }], [{ ti: 128 }], [{ ti: 18 }]][s],
+                    ml: s === 0 ? [16844] : [],
+                    ri: false,
+                    tc: s === 0 ? 11 : 13,
+                })),
+            }),
+        );
+
+        table.receive({ t: 12, kt: [4], wi: 8 });
+
+        expect(table.sent).toEqual([]);
+    });
+
+    it("discards a drawn tile on ツモ切り only when its turn offers nothing else, once in riichi, and declares tsumo on 自動和了", () => {
+        const { table } = startTableOnPage();
+        const othersDiscard = (...tiles) =>
+            tiles.forEach((tile, i) => table.receive(discard(i + 1, tile)));
+
+        flipSwitch("tsumogiri");
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.receive(discard(0, 120));
+        othersDiscard(124, 128, 132);
+        table.receive(draw(0, 121, { wi: 2, aa: [{ a: 1, tl: [121] }] }));
+        expect(table.sent).toHaveLength(1);
+        table.decide({ dapai: "z4_*" });
+        table.receive(riichiDiscard(0, 121));
+        othersDiscard(125, 129, 133);
+        table.receive(draw(0, 122, { wi: 3 }));
+        table.receive(discard(0, 122));
+        othersDiscard(126, 130, 134);
+        flipSwitch("win");
+        table.receive(draw(0, 123, { wi: 4, aa: [{ a: 2 }] }));
+
+        expect(table.sent).toEqual([
+            { t: 3, a: 0, ti: 120, wi: 1 },
+            { t: 3, a: 1, ti: 121, wi: 2 },
+            { t: 3, a: 0, ti: 122, wi: 3 },
+            { t: 3, a: 2, wi: 4 },
+        ]);
+    });
+
+    it("keeps the auto switches through a reconnect within the round and clears them at the round end or a reconnect into another round", () => {
+        const { table } = startTableOnPage();
+        flipSwitch("win");
+        flipSwitch("no-call");
+
+        table.translate.reconnect(snapshot({ cp: 0, tr: 70 }));
+        expect(switchesOn()).toEqual(["win", "no-call"]);
+        table.receive({ t: 4, rt: 3, ts: [], ns: [0, 1, 2, 3], th: [], scs: {}, sch: {} });
+        expect(switchesOn()).toEqual([]);
+        flipSwitch("tsumogiri");
+        table.translate.reconnect(snapshot({ cp: 0, tr: 70, n: 1, dl: 1 }));
+
+        expect(switchesOn()).toEqual([]);
     });
 
     it("drops the tile the server discards for the seat, not a tile clicked after the server's timeout", () => {
