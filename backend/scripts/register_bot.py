@@ -9,11 +9,10 @@ from shared.db import Database, SqlitePlayerRepository
 
 
 async def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <bot_name>")
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <bot_name>...")
         sys.exit(1)
 
-    bot_name = sys.argv[1]
     auth_settings = AuthSettings()
 
     db = Database(auth_settings.database_path)
@@ -26,16 +25,17 @@ async def main() -> None:
             AuthSessionStore(),
             password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds),
         )
-        player, raw_api_key = await auth_service.register_bot(bot_name)
+        for bot_name in sys.argv[1:]:
+            player, raw_api_key = await auth_service.register_bot(bot_name)
+            print(f"Bot registered: {player.username} (id: {player.user_id})")
+            print(f"API key: {raw_api_key}")
     except AuthError as e:
         print(f"Error: {e}")
         sys.exit(1)
     finally:
         await db.close()
 
-    print(f"Bot registered: {player.username} (id: {player.user_id})")
-    print(f"API key: {raw_api_key}")
-    print("Save this key securely - it cannot be retrieved again.")
+    print("Save these keys securely - they cannot be retrieved again.")
 
 
 if __name__ == "__main__":

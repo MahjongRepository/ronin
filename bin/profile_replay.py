@@ -5,12 +5,22 @@ import cProfile
 import logging
 import pstats
 import statistics
+import subprocess
 import sys
 import time
 from pathlib import Path
 
+import game
 from game.replay import load_replay_from_file, run_replay
 from game.replay.models import ReplayInput, ReplayTrace
+from sampled_profile import (
+    PY_SPY,
+    SAMPLE_RATE,
+    ProfileKey,
+    format_func,
+    print_sampled_profile,
+    py_spy_output_problem,
+)
 from shared.logging import setup_logging
 
 DEFAULT_REPLAY = (
@@ -25,10 +35,11 @@ DEFAULT_REPLAY = (
     / "full_game.txt"
 )
 PROFILE_DIR = Path(__file__).resolve().parent.parent / "backend" / "profiles"
+LOOP_DONE = "replay loop finished:"
 
 
-def profile_replay(replay_path: Path, iterations: int) -> None:
-    """Profile a replay file with cProfile and timed iterations."""
+def profile_replay(replay_path: Path, iterations: int, sample_loops: int) -> None:
+    """Profile a replay file with timed iterations, cProfile and a py-spy sampled profile."""
     replay = load_replay_from_file(replay_path)
     print(f"Loaded replay: {replay_path.name}")
     print(f"  Seed: {replay.seed[:16]}...")
@@ -62,6 +73,64 @@ def profile_replay(replay_path: Path, iterations: int) -> None:
     _print_performance_stats(replay, trace, elapsed_times, profile_file)
     _print_top_functions(profiler)
 
+    if sample_loops > 0:
+        sample_file = PROFILE_DIR / f"replay_{timestamp}.samples.txt"
+        _record_samples(replay_path=replay_path, loops=sample_loops, output=sample_file)
+        print_sampled_profile(sample_file, sample_rate=SAMPLE_RATE, root=run_replay_loop.__name__, by_layer=False)
+
+
+def run_replay_loop(replay_path: Path, loops: int) -> None:
+    """Run a replay repeatedly with nothing else in the process, for py-spy to sample."""
+    replay = load_replay_from_file(replay_path)
+    setup_logging(level=logging.CRITICAL)
+    for _ in range(loops):
+        run_replay(replay)
+
+    print(f"{LOOP_DONE} {loops}")
+
+
+def _record_samples(replay_path: Path, loops: int, output: Path) -> None:
+    """Record a py-spy profile of a child process running the replay loop.
+
+    py-spy launches the child itself because this host's ptrace_scope of 1 blocks attaching to
+    a process it did not start. Blocking mode at 100 Hz: --nonblocking drops most samples of a
+    CPU-bound loop as torn stacks, and blocking at 250 Hz often falls behind and stalls the child,
+    which skews the shares. py-spy can exit with "No child process" after writing a complete
+    profile when the child exits mid-sample; that exit is accepted only when the child printed that
+    it finished every loop and py-spy reported a valid summary.
+    """
+    command = [
+        "uvx",
+        PY_SPY,
+        "record",
+        "--function",
+        "--rate",
+        str(SAMPLE_RATE),
+        "--format",
+        "raw",
+        "--output",
+        str(output),
+        "--",
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--replay",
+        str(replay_path),
+        "--loop",
+        str(loops),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    output_text = result.stdout + result.stderr
+    loops_finished = f"{LOOP_DONE} {loops}" in result.stdout
+    known_exit = result.returncode == 0 or (result.returncode == 1 and "No child process" in output_text)
+    if not loops_finished or not known_exit or not output.exists():
+        print(f"py-spy run failed ({result.returncode}):\n{output_text}", file=sys.stderr)
+        sys.exit(1)
+
+    problem = py_spy_output_problem(output_text)
+    if problem is not None:
+        print(f"py-spy profile is invalid, {problem}:\n{output_text}", file=sys.stderr)
+        sys.exit(1)
+
 
 def _print_performance_stats(
     replay: ReplayInput,
@@ -76,16 +145,19 @@ def _print_performance_stats(
     print("=" * 60)
     print("PERFORMANCE")
     print("=" * 60)
+    print(f"Engine: {Path(game.__file__).parent}")
     print(f"Replay events: {len(replay.events)}")
     print(f"Trace steps: {num_steps}")
     print(f"Iterations: {len(elapsed_times)}")
-    print(f"Median time: {median_time:.3f}s")
-    print(f"Min time: {min(elapsed_times):.3f}s")
-    print(f"Max time: {max(elapsed_times):.3f}s")
+    print(f"Median time: {median_time * 1000:.1f}ms")
+    print(f"Min time: {min(elapsed_times) * 1000:.1f}ms")
+    print(f"Max time: {max(elapsed_times) * 1000:.1f}ms")
     print(f"Throughput: {num_steps / median_time:.0f} steps/sec (based on median)")
 
     if len(elapsed_times) > 1:
-        print(f"All runs: {', '.join(f'{t:.3f}s' for t in elapsed_times)}")
+        stdev = statistics.stdev(elapsed_times)
+        print(f"Stdev: {stdev * 1000:.1f}ms ({100 * stdev / median_time:.1f}% of median)")
+        print(f"All runs: {', '.join(f'{t * 1000:.1f}' for t in elapsed_times)} ms")
 
     print(f"Profile saved to: {profile_file}")
     print()
@@ -98,24 +170,11 @@ def _is_engine_code(filename: str) -> bool:
     return "game/replay/" not in filename and "game/tests/" not in filename
 
 
-def _short_path(filename: str) -> str:
-    """Strip absolute prefix, return relative game/ path."""
-    if "game/" in filename:
-        return "game/" + filename.split("game/", 1)[1]
-    return filename
-
-
-def _format_func(key: tuple[str, int, str]) -> str:
-    """Format a pstats function key as short_path:lineno(name)."""
-    filename, lineno, func_name = key
-    return f"{_short_path(filename)}:{lineno}({func_name})"
-
-
 def _collect_engine_entries(
     stats: pstats.Stats,
     sort_key: str = "cumulative",
     limit: int = 30,
-) -> list[tuple[tuple[str, int, str], int, int, float, float]]:
+) -> list[tuple[ProfileKey, int, int, float, float]]:
     """Collect engine-only profile entries sorted by the given key."""
     stats.sort_stats(sort_key)
     entries = []
@@ -131,7 +190,7 @@ def _collect_engine_entries(
 
 
 def _print_entries_table(
-    entries: list[tuple[tuple[str, int, str], int, int, float, float]],
+    entries: list[tuple[ProfileKey, int, int, float, float]],
 ) -> None:
     """Print a formatted table of profile entries."""
     print(f"{'ncalls':>9}  {'tottime':>8}  {'percall':>8}  {'cumtime':>8}  {'percall':>8}  filename:lineno(function)")
@@ -139,7 +198,7 @@ def _print_entries_table(
         calls = str(nc) if cc == nc else f"{nc}/{cc}"
         tt_pc = tt / nc if nc else 0
         ct_pc = ct / cc if cc else 0
-        print(f"{calls:>9}  {tt:>8.3f}  {tt_pc:>8.3f}  {ct:>8.3f}  {ct_pc:>8.3f}  {_format_func(key)}")
+        print(f"{calls:>9}  {tt:>8.3f}  {tt_pc:>8.3f}  {ct:>8.3f}  {ct_pc:>8.3f}  {format_func(key)}")
 
 
 def _print_top_functions(profiler: cProfile.Profile, limit: int = 30) -> None:
@@ -190,7 +249,7 @@ def load_profile(profile_path: Path | None, limit: int) -> None:
     print("CALLERS for top 10 functions")
     print("=" * 60)
     for key, _, nc, _, ct in cum_entries[:10]:
-        print(f"\n{_format_func(key)}  (cumtime={ct:.3f}s, ncalls={nc})")
+        print(f"\n{format_func(key)}  (cumtime={ct:.3f}s, ncalls={nc})")
         callers = stats.stats[key][4]
         if not callers:
             print("  (no callers recorded)")
@@ -204,7 +263,7 @@ def load_profile(profile_path: Path | None, limit: int) -> None:
         caller_list.sort(key=lambda c: c[3], reverse=True)
         for caller_key, c_nc, c_tt, c_ct in caller_list[:5]:
             tag = " *" if caller_key in top_keys else ""
-            print(f"  <- {_format_func(caller_key)}  ncalls={c_nc}  tottime={c_tt:.3f}s  cumtime={c_ct:.3f}s{tag}")
+            print(f"  <- {format_func(caller_key)}  ncalls={c_nc}  tottime={c_tt:.3f}s  cumtime={c_ct:.3f}s{tag}")
     print()
 
 
@@ -220,9 +279,16 @@ def main() -> None:
         "-n",
         "--iterations",
         type=int,
-        default=3,
-        help="number of timed iterations (default: 3)",
+        default=20,
+        help="number of timed iterations (default: 20)",
     )
+    parser.add_argument(
+        "--sample-loops",
+        type=int,
+        default=200,
+        help="replay runs for the py-spy sampled profile, 0 to skip it (default: 200)",
+    )
+    parser.add_argument("--loop", type=int, help=argparse.SUPPRESS)
     parser.add_argument(
         "--load",
         nargs="?",
@@ -247,11 +313,19 @@ def main() -> None:
         print(f"Replay file not found: {args.replay}", file=sys.stderr)
         sys.exit(1)
 
+    if args.loop is not None:
+        run_replay_loop(replay_path=args.replay, loops=args.loop)
+        return
+
     if args.iterations < 1:
         print("Iterations must be at least 1", file=sys.stderr)
         sys.exit(1)
 
-    profile_replay(args.replay, args.iterations)
+    if args.sample_loops < 0:
+        print("Sample loops must be 0 or more", file=sys.stderr)
+        sys.exit(1)
+
+    profile_replay(replay_path=args.replay, iterations=args.iterations, sample_loops=args.sample_loops)
 
 
 if __name__ == "__main__":
