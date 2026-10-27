@@ -290,9 +290,16 @@ def test_load_replay__when_first_event_is_not_game_started__should_raise():
         load_replay_from_string(content)
 
 
-def test_load_replay__when_json_is_malformed__should_raise():
-    content = VERSION_TAG_LINE + "\n{invalid json}"
-    with pytest.raises(ReplayLoadError, match="Malformed JSON"):
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (VERSION_TAG_LINE + "\n{invalid json}", "Malformed JSON: Expecting"),
+        (f"\n\n[1]\n{GAME_STARTED_LINE}", "Malformed JSON: line 3 is not an object, got list"),
+        (_build_event_log("3"), "Malformed JSON: line 3 is not an object, got int"),
+    ],
+)
+def test_load_replay__when_line_is_malformed_or_not_an_object__should_raise(content: str, message: str):
+    with pytest.raises(ReplayLoadError, match=message):
         load_replay_from_string(content)
 
 

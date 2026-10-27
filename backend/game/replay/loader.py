@@ -115,19 +115,36 @@ def _parse_game_settings(first: dict[str, Any]) -> GameSettings:
     return settings
 
 
+def _parse_event_lines(content: str) -> list[dict[str, Any]]:
+    """
+    Decode each non-blank line as a JSON object, naming the physical line of the first one that is not.
+    """
+    events: list[dict[str, Any]] = []
+    for line_number, line in enumerate(content.split("\n"), start=1):
+        if not line.strip():
+            continue
+
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ReplayLoadError(f"Malformed JSON: {exc}") from exc
+
+        if not isinstance(event, dict):
+            raise ReplayLoadError(f"Malformed JSON: line {line_number} is not an object, got {type(event).__name__}")
+
+        events.append(event)
+
+    return events
+
+
 def load_replay_from_string(content: str) -> ReplayInput:
     """
     Parse newline-delimited JSON objects into ReplayInput.
     """
-    content = content.strip()
-    if not content:
+    if not content.strip():
         raise ReplayLoadError("Empty replay content")
 
-    try:
-        events = [json.loads(line) for line in content.split("\n") if line]
-    except json.JSONDecodeError as exc:
-        raise ReplayLoadError(f"Malformed JSON: {exc}") from exc
-
+    events = _parse_event_lines(content)
     if len(events) > _MAX_REPLAY_EVENTS:
         raise ReplayLoadError(f"Replay exceeds maximum event count ({_MAX_REPLAY_EVENTS})")
 
