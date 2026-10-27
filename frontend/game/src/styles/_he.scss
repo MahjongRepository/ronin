@@ -1,0 +1,61 @@
+@use "sass:math";
+@use "pai";
+
+@mixin size($width, $dapai-height, $mode: block) {
+    $lizhi-width: pai.width($dapai-height) * 6;
+    $row-height: $dapai-height * 3;
+
+    @if $mode == line {
+        $row-height: $dapai-height;
+    }
+
+    width: $width;
+
+    div.lizhi {
+        line-height: 0;
+        width: $lizhi-width;
+        height: math.div($dapai-height * 2, 7);
+
+        @if $mode == line {
+            text-align: left;
+        } @else {
+            text-align: center;
+        }
+
+        .chouma {
+            width: $lizhi-width * 0.6;
+        }
+    }
+
+    .dapai {
+        line-height: 0;
+        height: $row-height;
+
+        @include pai.size($dapai-height);
+
+        .pai.dapai {
+            transform: translate(math.div($row-height, 28), math.div($row-height, 56));
+        }
+
+        .lizhi {
+            width: $dapai-height;
+            display: inline-block;
+            text-align: left;
+            transform: rotate(270deg);
+
+            .pai.dapai {
+                transform: translate(math.div(-$row-height, 56), math.div($row-height, 28));
+            }
+        }
+
+        .break {
+            @if $mode == line {
+                display: inline-block;
+            } @else {
+                display: block;
+            }
+
+            width: pai.width($dapai-height) * 0.1;
+        }
+    }
+}

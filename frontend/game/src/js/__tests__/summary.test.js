@@ -45,12 +45,12 @@ describe("summary", () => {
             0,
         );
 
-        expect(rowTexts(root, ".r_rank")).toEqual(["|1位|2位|3位|4位"]);
-        expect(rowTexts(root, ".r_diff")).toEqual([
+        expect(rowTexts(root, ".r-rank")).toEqual(["|1位|2位|3位|4位"]);
+        expect(rowTexts(root, ".r-diff")).toEqual([
             "東一局|0本場|ロン|+9,000|-1,000リ|-8,000|",
             "東二局|0本場|流局|+1,500|+500リ|-1,500|-1,500",
         ]);
-        expect(rowTexts(root, ".r_gongtuo")).toEqual(["残り供託|+1,000|||"]);
+        expect(rowTexts(root, ".r-gongtuo")).toEqual(["残り供託|+1,000|||"]);
     });
 
     it("marks a draw that moved no points with each seat's tenpai, or ±0 when the draw does not judge tenpai", () => {
@@ -74,10 +74,10 @@ describe("summary", () => {
             0,
         );
 
-        expect(rowTexts(root, ".r_diff")).toEqual([
+        expect(rowTexts(root, ".r-diff")).toEqual([
             "東一局|0本場|流局|テンパイ|テンパイ|テンパイ|テンパイ",
             "東一局|0本場|流局|±0|±0|±0|±0",
         ]);
-        expect(root.find(".r_gongtuo")).toHaveLength(0);
+        expect(root.find(".r-gongtuo")).toHaveLength(0);
     });
 });

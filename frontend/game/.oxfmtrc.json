@@ -9,7 +9,6 @@
         "*.md",
         "index.html",
         "public/**",
-        "src/css/**",
         "src/js/majiang.js",
         "src/js/ronin.js",
         "src/js/ronin/**",

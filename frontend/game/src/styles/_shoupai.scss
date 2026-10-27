@@ -1,0 +1,64 @@
+@use "pai";
+
+@mixin size($width, $height, $bingpai-height, $fulou-height) {
+    display: table;
+    width: $width;
+    height: $height;
+
+    .bingpai {
+        line-height: 1;
+
+        @if $height < $bingpai-height + pai.width($fulou-height) * 2 {
+            margin-top: $height - $bingpai-height;
+            float: left;
+        } @else {
+            margin-top: 0;
+            float: none;
+        }
+
+        @include pai.size($bingpai-height);
+
+        .pai[role="button"] {
+            cursor: pointer;
+        }
+
+        .zimo {
+            margin-left: pai.width($bingpai-height) * 0.1;
+        }
+    }
+
+    .fulou {
+        line-height: 1;
+        transform-origin: 100% 100%;
+
+        @if $height < $bingpai-height + pai.width($fulou-height) * 2 {
+            margin-top: $height - $fulou-height;
+            float: right;
+        } @else {
+            margin-top: $height - $bingpai-height - $fulou-height;
+            float: none;
+        }
+
+        .mianzi {
+            margin-left: pai.width($bingpai-height) * 0.1;
+            float: right;
+
+            @include mianzi-size($fulou-height);
+        }
+    }
+}
+
+@mixin mianzi-size($height) {
+    display: inline-block;
+
+    @include pai.size($height);
+
+    .rotate {
+        display: inline-block;
+        white-space: nowrap;
+        text-align: left;
+        width: $height;
+        transform-origin: 0% 0%;
+        transform: rotate(270deg) translate(-$height, 0);
+    }
+}

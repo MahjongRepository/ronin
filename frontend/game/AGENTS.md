@@ -30,8 +30,13 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   `make run-local-server` (`frontend/AGENTS.md`, Tooling).
 * Static assets live in `public/` and are referenced by absolute path (`/img/…`, `/audio/…`), which
   Vite prefixes with the base in dev and build alike. A relative path skips the base and breaks.
-* Styles are upstream's Stylus sheets: `index.styl` for the board, `pages.styl` for the replay,
-  storybook and missing-session pages, both imported by the entry. `#board` is a full-bleed felt
+* Styles are SCSS in `src/styles/`: the board, its 800×680
+  desktop layout and its 800×450 tablet layout (only inside the `height <= 450px` media query), then
+  the replay, storybook and missing-session pages. The tile, hand and river boxes are sized by the
+  mixins of `_pai`, `_shoupai` and `_he`, named after upstream's classes. No hand's tiles touch the
+  board's border: on desktop each hand sits 4px in from its own table edge and its melds end 6px
+  short of the next edge; on the tablet layout the bottom and top hands sit 4px in and the side
+  hands' melds end 8px short of the edge. `#board` is a full-bleed felt
   stage filling the window below whatever sits above it; inside it, the table (`#board > .board`,
   a fixed 800px layout) is scaled up or down by `Majiang.UI.Util.scale` to fit, centred, except
   on an upright touch screen, where it rests on the stage's bottom edge for hand reach. The
@@ -166,9 +171,15 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 
 ## Conventions
 
-* Upstream code (`src/vendor/`, `majiang.js`, `ronin.js`, `src/js/ronin/`, the Stylus sheets,
-  `index.html`) keeps its own style: oxfmt ignores it (`.oxfmtrc.json`) and ESLint relaxes the rules
-  it trips (`eslint.config.js`). Code written for ronin is formatted by oxfmt and linted in full.
+* Upstream code (`src/vendor/`, `majiang.js`, `ronin.js`, `src/js/ronin/`, `index.html`) keeps
+  its own style: oxfmt ignores it (`.oxfmtrc.json`) and ESLint relaxes the rules it trips
+  (`eslint.config.js`). Code written for ronin is formatted by oxfmt and linted in full.
+* Styles: `styles/game-app.scss` is the one entry stylesheet; partials load with `@use`, never
+  `@import`. Use the colour and font variables of `styles/_theme.scss` rather than literals; only
+  colour keywords and translucent `rgb(… / alpha)` overlays stay inline. Divide with `math.div`, never `/`.
+  Class names are kebab-case (BEM `__`/`--` allowed), as the lobby's: a class the JavaScript or
+  `index.html` sets is renamed there too. Stylelint runs the lobby's config plus one exception,
+  `-webkit-text-size-adjust`, which iOS Safari still needs.
 * ES modules only (`"type": "module"`), `src/vendor/` included.
 * The app is plain JavaScript, so `bun run typecheck` is a no-op.
 
