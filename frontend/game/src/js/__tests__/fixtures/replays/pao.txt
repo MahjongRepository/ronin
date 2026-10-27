@@ -1,0 +1,28 @@
+{"version": "0.3-dev"}
+{"t": 8, "gid": "pao", "gt": 0, "p": [{"s": 0, "nm": "Diana", "ai": 0}, {"s": 1, "nm": "Alice", "ai": 0}, {"s": 2, "nm": "Charlie", "ai": 0}, {"s": 3, "nm": "Bob", "ai": 0}], "dl": 0, "dd": [[1, 1], [1, 1]], "sd": "555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555", "rv": "shake256-v1", "gs": {"game_type": "hanchan", "starting_score": 25000, "target_score": 30000, "winning_score_threshold": 30000, "uma": [20, 10, -10, -20], "goshashonyu_threshold": 500, "tobi_enabled": true, "tobi_threshold": 0, "has_akadora": true, "has_kuitan": true, "has_ippatsu": true, "has_uradora": true, "has_double_yakuman": true, "has_kazoe_yakuman": true, "has_kiriage_mangan": true, "has_nagashi_mangan": true, "renhou_value": "mangan", "fu_for_open_pinfu": true, "fu_for_pinfu_tsumo": false, "has_daisharin": false, "has_daisharin_other_suits": false, "has_daichisei": false, "limit_to_sextuple_yakuman": true, "has_omote_dora": true, "has_kandora": true, "has_kan_uradora": true, "kandora_immediate_for_closed_kan": true, "kandora_deferred_for_open_kan": true, "has_kuikae": true, "has_kuikae_suji": true, "min_wall_for_kan": 2, "max_kans_per_round": 4, "has_suukaikan": true, "has_suufon_renda": true, "has_suucha_riichi": true, "has_kyuushu_kyuuhai": true, "has_triple_ron_abort": true, "kyuushu_min_types": 9, "min_players_for_kan_abort": 2, "four_winds_discard_count": 4, "has_double_ron": true, "double_ron_count": 2, "has_agariyame": false, "tie_break_by_seat_order": true, "leftover_riichi_bets": "winner", "enchousen": "sudden_death", "riichi_cost": 1000, "min_wall_for_riichi": 4, "riichi_stick_value": 1000, "honba_tsumo_bonus_per_loser": 100, "honba_ron_bonus": 300, "noten_penalty_total": 3000, "renchan_on_abortive_draw": true, "renchan_on_dealer_tenpai_draw": true, "renchan_on_dealer_win": true, "nagashi_mangan_dealer_payment": 4000, "nagashi_mangan_non_dealer_payment": 2000, "has_daisangen_pao": true, "has_daisuushii_pao": true}}
+{"t": 9, "w": 0, "n": 0, "dl": 0, "cp": 0, "di": [106], "h": 0, "r": 0, "p": [{"s": 0, "sc": 250, "tl": [6, 18, 30, 42, 54, 66, 78, 90, 102, 110, 114, 126, 134]}, {"s": 1, "sc": 250, "tl": [0, 4, 8, 12, 68, 72, 104, 124, 125, 128, 129, 132, 133]}, {"s": 2, "sc": 250, "tl": [5, 17, 29, 41, 53, 65, 77, 89, 101, 109, 113, 117, 130]}, {"s": 3, "sc": 250, "tl": [7, 19, 31, 43, 55, 67, 79, 91, 103, 107, 111, 115, 119]}], "dc": [1, 1]}
+{"t": 1, "d": 37}
+{"t": 2, "d": 126}
+{"t": 0, "m": 20733}
+{"t": 2, "d": 204}
+{"t": 1, "d": 310}
+{"t": 2, "d": 402}
+{"t": 0, "m": 20869}
+{"t": 2, "d": 208}
+{"t": 1, "d": 311}
+{"t": 2, "d": 855}
+{"t": 1, "d": 441}
+{"t": 2, "d": 985}
+{"t": 1, "d": 34}
+{"t": 2, "d": 134}
+{"t": 0, "m": 21021}
+{"t": 2, "d": 240}
+{"t": 1, "d": 307}
+{"t": 2, "d": 851}
+{"t": 1, "d": 452}
+{"t": 2, "d": 996}
+{"t": 1, "d": 45}
+{"t": 2, "d": 589}
+{"t": 1, "d": 149}
+{"t": 4, "rt": 0, "ws": 1, "hr": {"han": 13, "fu": 40, "yk": [{"yi": 103, "han": 13}], "pt": 320}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "sch": {"0": -320, "1": 320, "2": 0, "3": 0}, "rc": 0, "ct": [0, 4, 8, 12], "ml": [20733, 20869, 21021], "wt": 13, "ps": 0}
+{"t": 10, "ws": 1, "st": [{"s": 1, "sc": 570, "fs": 67}, {"s": 2, "sc": 250, "fs": 5}, {"s": 3, "sc": 250, "fs": -15}, {"s": 0, "sc": -70, "fs": -57}], "lb": 0, "nr": 1}

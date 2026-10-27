@@ -4,16 +4,26 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from game.logic.enums import KanType
+from game.logic.enums import AbortiveDrawType, KanType
+from game.logic.settings import NUM_PLAYERS, GameSettings
+from game.logic.tiles import NUM_TILES, is_terminal_or_honor, tile_to_34
 from game.replay import load_replay_from_file, run_replay
 from game.replay.runner import ReplayOptions
-from game.tests.helpers.hands import tile_copies
-from game.wire.enums import WireEventType
+from game.tests.helpers.hands import (
+    PIN_3_TRIPLE_RON_CALLER_HANDS,
+    PIN_3_TRIPLE_RON_DEALER_HAND,
+    PIN_3_TRIPLE_RON_DISCARD,
+    tile_copies,
+)
+from game.tests.helpers.wall import DEAD_WALL_START, FIRST_DRAW_POSITION
+from game.wire.enums import WireEventType, WireRoundResultType
 from scripts.replay_fixtures.staged_game import (
+    Outcome,
     ReplayRecorder,
     StagedGame,
     StagedWall,
     cut_after,
+    require_outcome,
     require_reproduces,
 )
 
@@ -26,6 +36,7 @@ BACKEND_FULL_GAME = (
     Path(__file__).resolve().parents[2] / "game" / "tests" / "integration" / "replays" / "fixtures" / "full_round"
 ) / "full_game.txt"
 BACKEND_FULL_GAME_ID = "fixture-fg"
+GAME_ENDS = (WireEventType.GAME_END, {})
 
 
 def tile(copy: int, **suit: str) -> int:
@@ -83,7 +94,7 @@ def riichi() -> Recording:
     game.tsumogiri(1)
     game.tsumogiri_until(1)
     game.tsumo(1)
-    return game.replay()
+    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ud": [tile(1, pin="8")]}))
 
 
 @cache
@@ -131,7 +142,7 @@ def kans() -> Recording:
     game.tsumogiri_until(3)
     game.kan(3, closed_kan_tile, KanType.CLOSED)
     game.tsumo(3)
-    return game.replay()
+    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 3}))
 
 
 @cache
@@ -147,8 +158,387 @@ def full_game() -> Recording:
         recorder.record(step.emitted_events)
 
     recording = recorder.recording()
+    require_outcome(recording, Outcome({"rt": WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS), name="full_game")
     require_reproduces(recording, trace.final_state, name="full_game")
     return recording
+
+
+def ron_riichi_discard() -> Recording:
+    """
+    Ron a riichi declaration's discard by a riichi player: the discarder's stick is never deposited, ura dora show.
+    """
+    riichi_discard = tile(1, pin="4")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="1", pin="1569", sou="1589", honors="1234"),
+            tile_copies(0, man="123456789", pin="23", sou="11"),
+            (*tile_copies(0, sou="234567", pin="789"), *tile_copies(1, man="5567")),
+            tile_copies(3, man="1", pin="1569", sou="1589", honors="1234"),
+        ),
+        draws=((0, tile(0, honors="5")), (1, tile(0, honors="6")), (2, riichi_discard)),
+    )
+    game = StagedGame("ron-riichi-discard", staged)
+    game.tsumogiri(0)
+    game.riichi(1)
+    game.riichi(2)
+    game.ron(1)
+    return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 1, "ls": 2, "rc": 1}))
+
+
+def double_ron() -> Recording:
+    """
+    Ron the dealer's discard by two riichi players; the one nearer the discarder takes both riichi sticks.
+    """
+    winning_tile = tile(2, pin="4")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="178", pin="129", sou="159", honors="1234"),
+            tile_copies(0, man="123456789", pin="23", sou="11"),
+            tile_copies(1, man="23499", pin="56", sou="456678"),
+            tile_copies(3, man="178", pin="129", sou="159", honors="1234"),
+        ),
+        draws=(
+            (0, tile(0, honors="5")),
+            (1, tile(0, honors="6")),
+            (2, tile(0, honors="7")),
+            (3, tile(1, honors="5")),
+            (0, winning_tile),
+        ),
+    )
+    game = StagedGame("double-ron", staged)
+    game.tsumogiri(0)
+    game.riichi(1)
+    game.riichi(2)
+    game.tsumogiri(3)
+    game.tsumogiri(0)
+    game.ron(1, 2)
+    return game.replay(
+        Outcome({"rt": WireRoundResultType.DOUBLE_RON, "ls": 0, "wn": [{"ws": 1, "rc": 2}, {"ws": 2, "rc": 0}]})
+    )
+
+
+def _pin_3_multi_ron(game_id: str, settings: GameSettings, *, callers: tuple[int, ...], outcome: Outcome) -> Recording:
+    """
+    Discard the dealer's 3p into three hands waiting on it; the callers declare ron and every other seat passes.
+    """
+    staged = StagedWall(
+        hands=(PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
+        draws=((0, PIN_3_TRIPLE_RON_DISCARD),),
+    )
+    game = StagedGame(game_id, staged, settings=settings)
+    game.discard(0, PIN_3_TRIPLE_RON_DISCARD)
+    for seat in (1, 2, 3):
+        if seat not in callers:
+            game.pass_(seat)
+
+    game.ron(*callers)
+    return game.replay(outcome)
+
+
+def triple_ron() -> Recording:
+    """
+    Ron one discard by three callers, which aborts the round with no score change.
+    """
+    return _pin_3_multi_ron(
+        "triple-ron",
+        GameSettings(),
+        callers=(1, 2, 3),
+        outcome=Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.TRIPLE_RON, "rcl": [1, 2, 3]}),
+    )
+
+
+def double_ron_head_bump() -> Recording:
+    """
+    Ron one discard by three callers with the triple ron abort off: the two nearest win and the third is head-bumped.
+
+    The dealer pays both wins and drops below zero, so the fixture ends the game.
+    """
+    return _pin_3_multi_ron(
+        "double-ron-head-bump",
+        GameSettings(has_triple_ron_abort=False),
+        callers=(1, 2, 3),
+        outcome=Outcome(
+            {"rt": WireRoundResultType.DOUBLE_RON, "wn": [{"ws": 1}, {"ws": 2}], "hbs": [3]}, then=GAME_ENDS
+        ),
+    )
+
+
+def head_bump() -> Recording:
+    """
+    Ron one discard by two callers with double ron off: the nearer one wins and the other is head-bumped.
+    """
+    return _pin_3_multi_ron(
+        "head-bump",
+        GameSettings(has_double_ron=False),
+        callers=(1, 2),
+        outcome=Outcome({"rt": WireRoundResultType.RON, "ws": 1, "hbs": [2]}),
+    )
+
+
+def chankan_added() -> Recording:
+    """
+    Raise a pon of 6p to an added kan that a hand waiting on 6p robs.
+    """
+    ponned_tile = tile(2, pin="6")
+    added_kan_tile = tile(3, pin="6")
+    staged = StagedWall(
+        hands=(
+            (*tile_copies(2, man="258", pin="17", sou="369", honors="1234"), ponned_tile),
+            (*tile_copies(0, pin="66"), *tile_copies(1, man="147", pin="19", sou="258", honors="123")),
+            tile_copies(0, man="123456789", pin="45", sou="19"),
+            tile_copies(3, man="258", pin="17", sou="369", honors="12345"),
+        ),
+        draws=(
+            (0, tile(0, honors="7")),
+            (2, tile(1, sou="1")),
+            (3, tile(1, honors="7")),
+            (0, tile(2, honors="7")),
+            (1, added_kan_tile),
+        ),
+    )
+    game = StagedGame("chankan-added", staged)
+    game.discard(0, ponned_tile)
+    game.pon(1, ponned_tile)
+    game.discard(1, tile(1, honors="1"))
+    game.discard(2, tile(0, sou="9"))
+    game.tsumogiri(3)
+    game.tsumogiri(0)
+    game.kan(1, added_kan_tile, KanType.ADDED)
+    game.ron(2)
+    return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
+
+
+def chankan_closed_kokushi() -> Recording:
+    """
+    Declare a closed kan of 9m that a kokushi musou hand waiting on 9m robs.
+
+    The kan's declarer pays the yakuman and drops below zero, so the fixture ends the game.
+    """
+    closed_kan_tile = tile(3, man="9")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="357", pin="357", sou="35789", honors="12"),
+            (*tile_copies(0, man="999"), *tile_copies(1, man="246", pin="2468", sou="246")),
+            tile_copies(0, man="11", pin="19", sou="19", honors="1234567"),
+            tile_copies(3, man="357", pin="357", sou="35789", honors="12"),
+        ),
+        draws=(
+            (0, tile(1, honors="3")),
+            (1, tile(1, honors="4")),
+            (2, tile(1, honors="5")),
+            (3, tile(1, honors="6")),
+            (0, tile(1, honors="7")),
+            (1, closed_kan_tile),
+        ),
+    )
+    game = StagedGame("chankan-closed-kokushi", staged)
+    game.tsumogiri_until(1)
+    game.tsumogiri(1)
+    game.tsumogiri_until(1)
+    game.kan(1, closed_kan_tile, KanType.CLOSED)
+    game.ron(2)
+    return game.replay(
+        Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.CLOSED}}, then=GAME_ENDS)
+    )
+
+
+def pao() -> Recording:
+    """
+    Pon all three dragons, the last from the dealer, who becomes liable for the daisangen tsumo that follows.
+
+    The dealer pays the whole yakuman and drops below zero, so the fixture ends the game.
+    """
+    first_dragon = tile(2, honors="5")
+    second_dragon = tile(2, honors="6")
+    liable_dragon = tile(2, honors="7")
+    staged = StagedWall(
+        hands=(
+            (*tile_copies(2, man="258", pin="258", sou="258", honors="12"), first_dragon, liable_dragon),
+            tile_copies(0, honors="556677", man="1234", pin="9", sou="19"),
+            (*tile_copies(1, man="258", pin="258", sou="258", honors="123"), second_dragon),
+            (*tile_copies(3, man="258", pin="258", sou="258", honors="123"), tile(3, sou="9")),
+        ),
+        draws=(
+            (0, tile(1, pin="1")),
+            (2, tile(2, pin="1")),
+            (2, tile(3, pin="1")),
+            (3, tile(1, man="9")),
+            (0, tile(2, man="9")),
+            (2, tile(3, man="9")),
+            (3, tile(0, pin="3")),
+            (0, tile(1, pin="3")),
+            (1, tile(1, man="4")),
+        ),
+    )
+    game = StagedGame("pao", staged)
+    game.discard(0, first_dragon)
+    game.pon(1, first_dragon)
+    game.discard(1, tile(0, pin="9"))
+    game.discard(2, second_dragon)
+    game.pon(1, second_dragon)
+    game.discard(1, tile(0, sou="1"))
+    game.tsumogiri_until(0)
+    game.discard(0, liable_dragon)
+    game.pon(1, liable_dragon)
+    game.discard(1, tile(0, sou="9"))
+    game.tsumogiri_until(1)
+    game.tsumo(1)
+    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ps": 0}, then=GAME_ENDS))
+
+
+def exhaustive_tenpai() -> Recording:
+    """
+    Play a round out to an exhaustive draw with two tenpai hands, one in riichi, then deal the next round.
+
+    Both tenpai hands wait on a tile whose other copies sit in a noten hand, so no discard of the wall can be won; the
+    riichi stick and the honba carry into the second round's deal.
+    """
+    staged = StagedWall(
+        hands=(
+            (*tile_copies(0, honors="777"), *tile_copies(0, man="147", pin="147", sou="258", honors="1")),
+            (*tile_copies(1, pin="123456789", sou="111"), tile(3, honors="7")),
+            (*tile_copies(2, man="234567", sou="345678"), tile(3, honors="6")),
+            (*tile_copies(0, honors="666"), *tile_copies(3, man="258", pin="258", sou="369", honors="2")),
+        ),
+    )
+    game = StagedGame("exhaustive-tenpai", staged)
+    game.tsumogiri(0)
+    game.riichi(1)
+    game.tsumogiri_until()
+    game.confirm_round()
+    return game.replay(
+        Outcome(
+            {"rt": WireRoundResultType.EXHAUSTIVE_DRAW, "ts": [1, 2], "ns": [0, 3]},
+            then=(WireEventType.ROUND_STARTED, {"dl": 1, "h": 1, "r": 1}),
+        )
+    )
+
+
+def nagashi() -> Recording:
+    """
+    Play a round out with every draw of seat 1 a terminal or honor, so its discards make a nagashi mangan.
+
+    The four hands never change, since each seat discards what it draws: three are noten and seat 3 waits on a tile
+    whose other copies sit in the dealer's hand, so no draw or discard can be won.
+    """
+    hands = (
+        (*tile_copies(0, honors="555"), *tile_copies(0, man="258", pin="258", sou="258", honors="1")),
+        tile_copies(1, man="23468", pin="2468", sou="2468"),
+        tile_copies(2, man="2468", pin="2468", sou="2468", honors="2"),
+        (*tile_copies(3, man="234567", sou="234567"), tile(3, honors="5")),
+    )
+    nagashi_seat = 1
+    live_wall_draws = DEAD_WALL_START - FIRST_DRAW_POSITION
+    draw_seats = [index % NUM_PLAYERS for index in range(live_wall_draws)]
+    dealt = {tile_id for hand in hands for tile_id in hand}
+    undealt = [tile_id for tile_id in range(NUM_TILES) if tile_id not in dealt]
+    terminals_and_honors = [tile_id for tile_id in undealt if is_terminal_or_honor(tile_to_34(tile_id))]
+    qualifying = terminals_and_honors[: draw_seats.count(nagashi_seat)]
+    qualifying_draws = iter(qualifying)
+    other_draws = iter(tile_id for tile_id in undealt if tile_id not in qualifying)
+    draws = [(seat, next(qualifying_draws) if seat == nagashi_seat else next(other_draws)) for seat in draw_seats]
+    game = StagedGame("nagashi", StagedWall(hands=hands, draws=draws))
+    game.tsumogiri_until()
+    return game.replay(Outcome({"rt": WireRoundResultType.NAGASHI_MANGAN, "qs": [nagashi_seat]}))
+
+
+def kyuushu() -> Recording:
+    """
+    Abort the round by kyuushu kyuuhai on seat 1's first draw, with eleven terminal and honor types.
+    """
+    staged = StagedWall(
+        hands=(
+            (*tile_copies(1, man="258", pin="258", sou="258", honors="567"), tile(1, man="4")),
+            tile_copies(0, man="19234", pin="19", sou="19", honors="1234"),
+            (*tile_copies(2, man="258", pin="258", sou="258", honors="567"), tile(2, man="4")),
+            (*tile_copies(3, man="258", pin="258", sou="258", honors="567"), tile(3, man="4")),
+        ),
+        draws=((0, tile(0, honors="6")), (1, tile(0, honors="5"))),
+    )
+    game = StagedGame("kyuushu", staged)
+    game.tsumogiri(0)
+    game.kyuushu(1)
+    return game.replay(
+        Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.NINE_TERMINALS, "s": 1})
+    )
+
+
+def four_winds_riichi() -> Recording:
+    """
+    Discard East from every seat on the first go-around, the last one declaring double riichi, which is never paid.
+    """
+    winds = tile_copies(0, honors="1111")
+    staged = StagedWall(
+        hands=(
+            *(
+                (winds[seat], *tile_copies(seat + 1, man="258", pin="169", sou="258", honors="567"))
+                for seat in range(3)
+            ),
+            (*tile_copies(0, man="123456789", pin="223"), winds[3]),
+        ),
+        draws=(
+            (0, tile(0, honors="2")),
+            (1, tile(1, honors="2")),
+            (2, tile(2, honors="2")),
+            (3, tile(0, pin="4")),
+        ),
+    )
+    game = StagedGame("four-winds-riichi", staged)
+    for seat in range(3):
+        game.discard(seat, winds[seat])
+
+    game.riichi(3, winds[3])
+    return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_WINDS}))
+
+
+def four_riichi() -> Recording:
+    """
+    Declare riichi from all four seats on their first discards.
+    """
+    staged = StagedWall(
+        hands=(
+            tile_copies(0, man="123456789", pin="23", honors="55"),
+            tile_copies(1, man="123456789", sou="23", honors="66"),
+            tile_copies(2, pin="123456789", sou="67", honors="77"),
+            (*tile_copies(3, sou="123456789", pin="67"), *tile_copies(2, honors="55")),
+        ),
+        draws=tuple((seat, tile(0, honors=str(seat + 1))) for seat in range(NUM_PLAYERS)),
+    )
+    game = StagedGame("four-riichi", staged)
+    for seat in range(NUM_PLAYERS):
+        game.riichi(seat)
+
+    return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_RIICHI}))
+
+
+def four_kans() -> Recording:
+    """
+    Declare two closed kans from the dealer, then a closed kan and an open kan from seat 1.
+
+    The open kan is the fourth by two players: its replacement discard passes, its deferred dora is revealed and the
+    round aborts.
+    """
+    open_kan_tile = tile(3, pin="7")
+    staged = StagedWall(
+        hands=(
+            (*tile_copies(0, man="11112222"), *tile_copies(0, pin="19", sou="19", honors="1")),
+            (*tile_copies(0, pin="3333777"), *tile_copies(1, sou="2468", honors="23")),
+            tile_copies(2, man="369", pin="258", sou="369", honors="4567"),
+            tile_copies(3, man="369", pin="258", sou="369", honors="4567"),
+        ),
+        draws=((0, tile(0, honors="2")), (1, tile(2, honors="3")), (2, open_kan_tile)),
+        rinshan=(tile(0, man="8"), tile(1, man="8"), tile(0, pin="6"), tile(0, pin="4")),
+    )
+    game = StagedGame("four-kans", staged)
+    game.kan(0, tile(0, man="1"), KanType.CLOSED)
+    game.kan(0, tile(0, man="2"), KanType.CLOSED)
+    game.tsumogiri(0)
+    game.kan(1, tile(0, pin="3"), KanType.CLOSED)
+    game.tsumogiri(1)
+    game.tsumogiri(2)
+    game.kan(1, open_kan_tile, KanType.OPEN)
+    game.tsumogiri(1)
+    return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_KANS}))
 
 
 def truncated_mid_round() -> Recording:
@@ -168,4 +558,18 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "full_game.txt": full_game,
     "truncated_mid_round.txt": truncated_mid_round,
     "truncated_after_round.txt": truncated_after_round,
+    "ron_riichi_discard.txt": ron_riichi_discard,
+    "double_ron.txt": double_ron,
+    "double_ron_head_bump.txt": double_ron_head_bump,
+    "head_bump.txt": head_bump,
+    "chankan_added.txt": chankan_added,
+    "chankan_closed_kokushi.txt": chankan_closed_kokushi,
+    "triple_ron.txt": triple_ron,
+    "pao.txt": pao,
+    "exhaustive_tenpai.txt": exhaustive_tenpai,
+    "nagashi.txt": nagashi,
+    "kyuushu.txt": kyuushu,
+    "four_winds_riichi.txt": four_winds_riichi,
+    "four_riichi.txt": four_riichi,
+    "four_kans.txt": four_kans,
 }

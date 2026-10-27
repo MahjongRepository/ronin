@@ -14,15 +14,15 @@ from game.replay.loader import load_replay_from_string
 from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
+from game.wire.enums import WireEventType
 from game.wire.replay_format import REPLAY_VERSION
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from game.logic.events import GameEvent
     from game.logic.state import MahjongGameState
     from game.replay.models import ReplayTrace
-    from game.wire.enums import WireEventType
 
 STAGED_SEED = "5" * 192
 PLAYERS = ("Alice", "Bob", "Charlie", "Diana")
@@ -81,6 +81,59 @@ def require_reproduces(recording: Recording, final_state: MahjongGameState, *, n
     """
     if recording.run().final_state != final_state:
         raise ScenarioError(f"{name}: the replay does not reproduce the game")
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """
+    How a scenario's replay must end: the fields its last round end holds, and the line right after it.
+
+    Fields match as a subset, nested mappings too, and a list matches item by item at its own length. then is the event
+    type and fields of the line after the round end, or None when the round end is the replay's last line.
+    """
+
+    round_end: Mapping[str, object]
+    then: tuple[WireEventType, Mapping[str, object]] | None = None
+
+
+def _holds(actual: object, expected: object) -> bool:
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and all(
+            key in actual and _holds(actual[key], value) for key, value in expected.items()
+        )
+
+    if isinstance(expected, list):
+        return (
+            isinstance(actual, list)
+            and len(actual) == len(expected)
+            and all(_holds(item, expected_item) for item, expected_item in zip(actual, expected, strict=True))
+        )
+
+    return actual == expected
+
+
+def require_outcome(recording: Recording, outcome: Outcome, *, name: str) -> None:
+    """
+    Raise ScenarioError unless the replay's last round end, and the line after it, are the outcome's.
+    """
+    lines = [json.loads(line) for line in recording.lines]
+    round_ends = [index for index, line in enumerate(lines) if line["t"] == WireEventType.ROUND_END]
+    if not round_ends:
+        raise ScenarioError(f"{name}: the replay has no round end")
+
+    round_end, *after = lines[round_ends[-1] :]
+    if not _holds(round_end, dict(outcome.round_end)):
+        raise ScenarioError(f"{name}: the last round end {round_end} does not hold {dict(outcome.round_end)}")
+
+    if outcome.then is None:
+        if after:
+            raise ScenarioError(f"{name}: the replay goes on after its last round end with {after[0]}")
+
+        return
+
+    event_type, fields = outcome.then
+    if not after or after[0]["t"] != event_type or not _holds(after[0], dict(fields)):
+        raise ScenarioError(f"{name}: the line after the last round end is not a {event_type.name} with {fields}")
 
 
 def cut_after(recording: Recording, *, event_type: WireEventType, occurrence: int) -> Recording:
@@ -168,6 +221,19 @@ class StagedGame:
     def tsumo(self, seat: int) -> None:
         self.act(seat, GameAction.DECLARE_TSUMO)
 
+    def ron(self, *seats: int) -> None:
+        """
+        Declare ron for each seat, in order, on the pending discard or kan, after passing every other seat it waits on.
+
+        A seat that is not declaring but was offered ron raises: decline it with pass_ first.
+        """
+        self._pass_calls(exclude=frozenset(seats))
+        for seat in seats:
+            self._run(seat, GameAction.CALL_RON, {})
+
+    def kyuushu(self, seat: int) -> None:
+        self.act(seat, GameAction.CALL_KYUUSHU)
+
     def pass_(self, seat: int) -> None:
         """
         Decline the pending call prompt for the seat, a ron included.
@@ -212,9 +278,10 @@ class StagedGame:
         self._pass_calls(exclude=frozenset({seat}) if is_call_response else frozenset())
         self._run(seat, action, data)
 
-    def replay(self) -> Recording:
+    def replay(self, outcome: Outcome) -> Recording:
         """
-        Return the recorded replay after checking that the replay runner, given the same wall, reproduces the game.
+        Return the recorded replay after checking that it ends in the outcome and that the replay runner, given the same
+        wall, reproduces the game.
 
         The runner ends by passing a pending call prompt and confirming a pending round end, so the game does the same
         before the two final states are compared.
@@ -223,6 +290,7 @@ class StagedGame:
             raise ScenarioError(f"{self._game_id}: draw {self._next_staged_draw} and later were staged but not drawn")
 
         recording = self._recorder.recording(wall=self._wall)
+        require_outcome(recording, outcome, name=self._game_id)
         self._pass_calls()
         if self._service.get_awaiting(self._runtime).kind == WaitKind.ROUND_ADVANCE:
             self.confirm_round()
