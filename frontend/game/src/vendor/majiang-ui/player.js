@@ -75,7 +75,7 @@ export default class Player extends Majiang.Player {
     set_default(action, escape = true) {
         this.clear_default();
         this._node.root.on('mouseup.default', (ev)=>{
-            if (ev.button != 2 || $(ev.target).closest('.controller').length) return;
+            if (ev.button != 2 || $(ev.target).closest('.controller, .autoplay').length) return;
             action();
             return false;
         });

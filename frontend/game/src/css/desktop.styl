@@ -205,6 +205,9 @@
     .controller
         top: 8px
         right: 8px
+    .autoplay
+        bottom: 8px
+        left: 8px
     .download
         transform: translate(10px, 10px)
 
@@ -243,3 +246,12 @@ body.analyzer
                 img
                     width: 40px
                     height: 40px
+
+@media screen and (max-width: 800px) and (min-height: 451px) and (pointer: coarse) and (orientation: portrait)
+    #board
+        .autoplay
+            flex-direction: row
+            gap: 8px
+            button
+                padding: 12px 16px 12px 12px
+                font-size: 32px

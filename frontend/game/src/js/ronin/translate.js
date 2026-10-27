@@ -7,6 +7,7 @@ import * as mianzi from './mianzi.js';
 import * as Offer from './offer.js';
 import Shadow from './shadow.js';
 import TurnClock from './clock.js';
+import Autoplay from './autoplay.js';
 import rules from './rules.js';
 import * as yaku  from './yaku.js';
 
@@ -70,6 +71,9 @@ const SAY_OF_MELD = {
 
 /** How long a win's ロン or ツモ shows before its result, which fades every call out: the minimum upstream's Game paced it with. */
 const WIN_CALL_MS = 500;
+
+/** How long 自動和了 holds a ron before it calls it, so the discard shows first. */
+const AUTO_RON_MS = 1000;
 
 /**
  * A win as majiang-ui's hule message. Its defen is the hand's value alone (the server's hr.pt), which the dialog
@@ -160,12 +164,14 @@ function jiejuStandings({ ws, st, lb }) {
 
 class Translate {
 
-    constructor(player, shadow) {
+    constructor(player, shadow, autoplay = new Autoplay()) {
         this.player = player;
         this.shadow = shadow;
+        this.autoplay = autoplay;
         this.onDecision  = () => {};
         this.onGameError = () => {};
         this.retry = null;
+        this.open = null;
         this.roundDialogOpen = false;
         this.pendingJieju = null;
         this.winCallTimer = null;
@@ -242,6 +248,39 @@ class Translate {
         this.player.clear_handler();
         this.shadow.prompt = null;
         this.retry = null;
+        this.open = null;
+    }
+
+    /**
+     * Mark a decision open before it is shown, under its wait, until the seat or the server ends it, so the auto
+     * switches answer it only while it still is: one majiang-ui answers as it shows it (a drawn tile in riichi) is not
+     * answered twice. Only a draw names its drawn tile: the turn after a pon or chi has none, though a reconnect's hand
+     * cannot tell the two apart.
+     */
+    openDecision(turn, offer, drawn = null) {
+        this.open = { turn, offer, drawn, waitId: this.shadow.waitId };
+    }
+
+    /**
+     * Answer the decision just shown from the auto switches, as the player would; a refused answer's retry is not. A
+     * ron waits AUTO_RON_MS with the prompt's buttons hidden, unless less of its time is left: dropped if the server
+     * ends the prompt first, and shown again if 自動和了 is turned off meanwhile.
+     */
+    autoAnswer() {
+        const open = this.open;
+        if (! open) return;
+        const reply = open.turn
+            ? this.autoplay.turnReply(open.offer, open.drawn)
+            : this.autoplay.promptReply(open.offer);
+        if (! reply) return;
+        const [left] = this.clock.remaining() || [0];
+        if (open.turn || ! reply.hule || left * 1000 <= AUTO_RON_MS) return this.player.callback(reply);
+        this.player.clear_handler();
+        setTimeout(() => {
+            if (this.open !== open || this.shadow.waitId != open.waitId) return;
+            if (! this.autoplay.win) return this.retry();
+            this.player.callback(reply);
+        }, AUTO_RON_MS);
     }
 
     gameStarted(msg) {
@@ -287,6 +326,7 @@ class Translate {
         s.dora   = (msg.di || []).map(tiles.tileToStr);
         s.startRound();
         this.retry = null;
+        this.open = null;
         this.roundDialogOpen = false;
         clearTimeout(this.winCallTimer);
         this.player.clearScreenCountdown();
@@ -343,7 +383,9 @@ class Translate {
         if (s.hand.indexOf(tileId) >= 0) {
             const offer = Offer.forTurn(msg.aa, s);
             this.retry = () => this.present('zimo', offer, P => P.action_zimo(zimo, false));
+            this.openDecision(true, offer, zimo.p);
             this.retry();
+            this.autoAnswer();
             return;
         }
 
@@ -352,9 +394,11 @@ class Translate {
         const offer = Offer.forTurn(msg.aa, s);
         const rinshan = s.noteDraw(seat);
         const m = rinshan ? { gangzimo: zimo } : { zimo };
+        this.openDecision(true, offer, zimo.p);
         this.feedDraw(m, 'zimo', offer);
         s.logMessage(m);
         this.retry = () => this.present('zimo', offer, P => P.action_zimo(zimo, rinshan));
+        this.autoAnswer();
     }
 
     /** Feed another seat's draw, which the server never sends, before the model sees that seat act. */
@@ -384,6 +428,7 @@ class Translate {
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
+        this.open = null;
 
         if (seat == s.mySeat) {
             const idx = s.hand.indexOf(tileId);
@@ -412,6 +457,7 @@ class Translate {
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
+        this.open = null;
 
         const ponMeld = meld.meldType == wire.MELD.ADDED_KAN
             ? s.findPon(meld.callerSeat, Math.floor(meld.tileIds[0] / 4))
@@ -454,7 +500,9 @@ class Translate {
         const offer = Offer.forCallTurn(msg.kt);
         this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED], msg[wire.TURN_BANK]));
         this.retry = () => this.present('fulou', offer, P => P.show_button(() => P.select_dapai()));
+        this.openDecision(true, offer);
         this.retry();
+        this.autoAnswer();
     }
 
     /**
@@ -476,8 +524,10 @@ class Translate {
             this.present(chankan ? 'chankan' : 'dapai', offer,
                          P => chankan ? P.action_chankan() : P.action_dapai(dapai));
         };
+        this.openDecision(false, offer);
         this.retry();
         this.countDecision(left);
+        this.autoAnswer();
     }
 
     /** Open a decision on the model's current state, with the server's offer as its buttons. */
@@ -495,6 +545,7 @@ class Translate {
      * after other seats pass on robbing it, so the clock holds at the answer instead of waiting for it.
      */
     answer(kind, reply) {
+        this.open = null;
         if (kind == 'zimo' && reply.gang) this.clock.pause();
         this.onDecision(kind, reply);
     }
@@ -614,6 +665,8 @@ class Translate {
         P.clear_handler();
         s.prompt = null;
         this.retry = null;
+        this.open = null;
+        this.autoplay.reset();
         const kanFirst = msg.rk != null && s.declaredKan == null;
         if (kanFirst) this.declareKan(msg.rk);
 
@@ -731,10 +784,13 @@ class Translate {
         this.player.action(msg, reply => callback(reply || {}));
     }
 
+    /** A reconnect within the round keeps the auto switches; one past its end, or into a round result, clears them. */
     reconnect(msg) {
         const s = this.shadow;
         const P = this.player;
 
+        const sameRound = s.round != null && s.round.w == msg.w && s.round.n == msg.n && s.honba == msg.h;
+        if (! sameRound || msg[wire.ROUND_RESULT]) this.autoplay.reset();
         s.gameId = msg.gid;
         s.mySeat = msg.s;
         s.dealer = msg.dl;
@@ -747,6 +803,7 @@ class Translate {
         this.clock.configure(msg[wire.TIMER_SETTINGS]);
         this.readPlayers(msg.p);
         this.retry = null;
+        this.open = null;
         this.roundDialogOpen = false;
         clearTimeout(this.winCallTimer);
         this.player.clearScreenCountdown();

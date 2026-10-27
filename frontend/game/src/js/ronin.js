@@ -5,6 +5,7 @@ import { finishLoading } from './loading.js';
 
 import Shadow from './ronin/shadow.js';
 import Translate from './ronin/translate.js';
+import Autoplay from './ronin/autoplay.js';
 import Reply from './ronin/reply.js';
 import RoninPlayer from './ronin/player.js';
 import RoninSession from './ronin/session.js';
@@ -43,7 +44,7 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
     $(window).on('resize', ()=>scale($('#board'), $('#space')));
 
     const shadow    = new Shadow();
-    const translate = new Translate(player, shadow);
+    const translate = new Translate(player, shadow, new Autoplay($('#board .autoplay')));
     const session   = new RoninSession({
         wsUrl, gameId, gameTicket: ticket,
         onEvent:        msg => {

@@ -9,17 +9,35 @@ const TABLE_HEIGHT = 680;
 const INSET = 8;
 const GEAR = 40;
 const CLEARANCE = INSET + GEAR + INSET;
+const SWITCHES_HEIGHT = 32;
+const SWITCHES_CLEARANCE = INSET + SWITCHES_HEIGHT + INSET;
 
-function renderStage(top, viewportWidth) {
+function renderStage(
+    top,
+    viewportWidth,
+    { switches = false, switchesWidth = GEAR, height = 0 } = {},
+) {
     const stage = $(
         '<div id="board"><div class="board"></div><div class="controller"></div></div>',
     ).appendTo(document.body);
-    stage[0].getBoundingClientRect = () => ({ top, right: viewportWidth });
+    stage[0].getBoundingClientRect = () => ({
+        top,
+        left: 0,
+        right: viewportWidth,
+        bottom: top + height,
+    });
     stage.find(".controller")[0].getBoundingClientRect = () => ({
         left: viewportWidth - INSET - GEAR,
         right: viewportWidth - INSET,
         bottom: top + INSET + GEAR,
     });
+    if (switches) {
+        $('<div class="autoplay">').appendTo(stage)[0].getBoundingClientRect = () => ({
+            left: INSET,
+            right: INSET + switchesWidth,
+            top: top + height - INSET - SWITCHES_HEIGHT,
+        });
+    }
     const table = stage.find(".board")[0];
     vi.spyOn(table, "offsetWidth", "get").mockReturnValue(TABLE_WIDTH);
     vi.spyOn(table, "offsetHeight", "get").mockReturnValue(TABLE_HEIGHT);
@@ -31,7 +49,7 @@ function placedTable(stage) {
         .find(".board")[0]
         .style.transform.match(/translate\(([\d.]+)px, ([\d.]+)px\) scale\(([\d.]+)\)/)
         .map(Number);
-    return { top: y, right: x + TABLE_WIDTH * scale, scale };
+    return { top: y, right: x + TABLE_WIDTH * scale, bottom: y + TABLE_HEIGHT * scale, scale };
 }
 
 function setViewport(width, height) {
@@ -89,5 +107,53 @@ describe("Majiang.UI.Util.scale", () => {
         const table = placedTable(stage);
         expect(table.right).toBeLessThanOrEqual(800 - CLEARANCE + 1e-9);
         expect(table.scale).toBeCloseTo((800 - 2 * CLEARANCE) / 800);
+    });
+
+    it("keeps a strip below the table for the corner switches beside the gear's above it, resting it on them on an upright touch screen", () => {
+        const stage = renderStage(0, 800, { switches: true, height: 760 });
+        setViewport(800, 760);
+        const touchPortrait = vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false });
+
+        Util.scale(stage);
+        const centred = placedTable(stage);
+        expect(centred.top).toBeGreaterThanOrEqual(CLEARANCE);
+        expect(centred.bottom).toBeLessThanOrEqual(760 - SWITCHES_CLEARANCE + 1e-9);
+        expect(centred.scale).toBeCloseTo((760 - CLEARANCE - SWITCHES_CLEARANCE) / 680);
+
+        touchPortrait.mockReturnValue({ matches: true });
+        stage[0].getBoundingClientRect = () => ({ top: 0, left: 0, right: 800, bottom: 2000 });
+        stage.find(".autoplay")[0].getBoundingClientRect = () => ({
+            left: INSET,
+            right: INSET + GEAR,
+            top: 2000 - INSET - SWITCHES_HEIGHT,
+        });
+        setViewport(800, 2000);
+        Util.scale(stage);
+        expect(placedTable(stage).bottom).toBeCloseTo(2000 - SWITCHES_CLEARANCE);
+    });
+
+    it("lets the corner switches cover the table's felt left of the left player's hand, narrowing it only past that", () => {
+        const handMargin = 40;
+        const renderLandscape = (switchesWidth) => {
+            const stage = renderStage(0, 1000, { switches: true, switchesWidth, height: 680 });
+            const table = stage.find(".board");
+            table[0].getBoundingClientRect = () => ({ left: 0, width: TABLE_WIDTH });
+            $('<div class="shoupai shangjia">').appendTo(table)[0].getBoundingClientRect = () => ({
+                left: handMargin,
+            });
+            return stage;
+        };
+        setViewport(1000, 680);
+
+        const fitting = renderLandscape(110);
+        Util.scale(fitting);
+        expect(placedTable(fitting).scale).toBe(1);
+
+        document.body.innerHTML = "";
+        const wider = renderLandscape(140);
+        Util.scale(wider);
+        const table = placedTable(wider);
+        const handLeft = table.right - (TABLE_WIDTH - handMargin) * table.scale;
+        expect(handLeft).toBeCloseTo(INSET + 140 + INSET);
     });
 });
