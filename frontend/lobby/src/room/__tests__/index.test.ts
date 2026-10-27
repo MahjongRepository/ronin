@@ -39,7 +39,7 @@ const { initRoomPage } = await import("@/room");
 const WS_URL = "ws://lobby/ws/rooms/room-1";
 
 function renderPage(
-    attributes = `data-room-id="room-1" data-ws-url="${WS_URL}" data-chat-max-length="1000"`,
+    attributes = `data-room-name="Jade Crane" data-ws-url="${WS_URL}" data-chat-max-length="1000"`,
 ): HTMLElement {
     document.body.innerHTML = `<div id="room-app" ${attributes}></div>`;
     const container = document.getElementById("room-app");
@@ -92,7 +92,7 @@ afterEach(() => {
 
 describe("initRoomPage", () => {
     test("shows a reload alert instead of a blank page when the page lacks its settings", () => {
-        const container = renderPage(`data-room-id="room-1" data-ws-url="${WS_URL}"`);
+        const container = renderPage(`data-room-name="Jade Crane" data-ws-url="${WS_URL}"`);
 
         expect(alertText(container)).toContain("This table could not be loaded.");
         expect(container.querySelector(".lobby-alert a")?.textContent).toBe("Reload");

@@ -34,12 +34,13 @@ async def lobby_page(request: Request) -> Response:
     GET / - render the lobby page with the locally managed rooms, the user's own seat, and an optional notice.
     """
     room_manager: LobbyRoomManager = request.app.state.room_manager
+    my_room_id = room_manager.find_user_room(request.user.user_id)
     return render_page(
         request,
         template_name="lobby.html",
         context={
             "rooms": room_manager.get_rooms_info(),
-            "my_room_id": room_manager.find_user_room(request.user.user_id),
+            "my_room": room_manager.get_room(my_room_id) if my_room_id else None,
             "username": request.user.username,
             "error": _LOBBY_NOTICES.get(request.query_params.get("notice", "")),
         },
@@ -107,7 +108,7 @@ async def room_page(request: Request) -> Response:
         request,
         template_name="room.html",
         context={
-            "room_id": room_id,
+            "room_name": room.name,
             "ws_url": ws_url,
             "chat_max_length": CHAT_MAX_LENGTH,
             "username": request.user.username,

@@ -51,10 +51,11 @@ class LobbyRoom:
 
     ``seats`` is the one record of who is in the room: 4 fixed slots, each a seated member or None (a bot), so leaving
     seat 2 hands that exact seat back to a bot without shifting anyone. The owner is derived, never stored: the earliest
-    arrival still seated.
+    arrival still seated. ``name`` is the label players see; ``room_id`` stays the identifier in URLs and logs.
     """
 
     room_id: str
+    name: str
     transitioning: bool = False
     min_human_players: int = 1
     created_at: float = field(default_factory=time.monotonic)

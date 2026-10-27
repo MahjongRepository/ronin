@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from lobby.rooms.models import LobbyRoom
+from lobby.rooms.names import pick_room_name
 from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
@@ -57,11 +58,12 @@ class LobbyRoomManager:
 
     def create_room(self, room_id: str, *, min_human_players: int = 1) -> LobbyRoom:
         """
-        Create a new room with 4 bot seats.
+        Create a new room with 4 bot seats, named apart from every open room.
         """
-        room = LobbyRoom(room_id=room_id, min_human_players=min_human_players)
+        name = pick_room_name({room.name for room in self._rooms.values()})
+        room = LobbyRoom(room_id=room_id, name=name, min_human_players=min_human_players)
         self._rooms[room_id] = room
-        logger.info("room created", room_id=room_id, min_human_players=min_human_players)
+        logger.info("room created", room_id=room_id, room_name=name, min_human_players=min_human_players)
         return room
 
     def join_room(self, *, room_id: str, player: LobbyPlayer) -> RoomJoin | str:
@@ -202,6 +204,7 @@ class LobbyRoomManager:
         return [
             {
                 "room_id": room.room_id,
+                "name": room.name,
                 "player_count": room.player_count,
                 "num_ai_players": room.num_ai_players,
                 "players": [p.model_dump() for p in room.get_player_info()],

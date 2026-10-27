@@ -5,10 +5,10 @@
 <div class="lobby-alert warning" role="alert"><p>{{ error }}</p></div>
 {% endif %}
 
-{% if my_room_id %}
-<p class="lobby-seated-hint">You're seated at table <code class="lobby-room-id">{{ my_room_id[:8] }}</code>. <a href="/rooms/{{ my_room_id }}">Back to your table</a></p>
+{% if my_room %}
+<p class="lobby-seated-hint">You're seated at <strong class="lobby-table-name">{{ my_room.name }}</strong>. <a href="/rooms/{{ my_room.room_id }}">Back to your table</a></p>
 {% endif %}
-<div class="lobby-actions{{ ' lobby-actions--seated' if my_room_id else '' }}">
+<div class="lobby-actions{{ ' lobby-actions--seated' if my_room else '' }}">
     <form method="POST" action="/rooms/new" class="lobby-action-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="lobby-action-tile lobby-create-btn">
@@ -46,10 +46,10 @@
     <div class="lobby-grid">
         {% for room in rooms %}
         {% set humans = room.players|rejectattr("is_bot")|list %}
-        {% set is_mine = room.room_id == my_room_id %}
+        {% set is_mine = my_room is not none and room.room_id == my_room.room_id %}
         <article class="lobby-room-card{{ ' lobby-room-card--mine' if is_mine else '' }}" style="--card-index: {{ loop.index0 }}">
             <div class="lobby-room-header">
-                <code class="lobby-room-id" title="{{ room.room_id }}">{{ room.room_id[:8] }}</code>
+                <span class="lobby-table-name">{{ room.name }}</span>
                 <span class="lobby-room-count">{{ room.player_count }}/4</span>
             </div>
             <div class="lobby-table-vis" aria-hidden="true">

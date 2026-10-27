@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Table · Ronin Mahjong{% endblock %}
+{% block title %}{{ room_name }} · Ronin Mahjong{% endblock %}
 
 {% block content %}
 <div id="room-app"
-     data-room-id="{{ room_id }}"
+     data-room-name="{{ room_name }}"
      data-ws-url="{{ ws_url }}"
      data-chat-max-length="{{ chat_max_length }}">
 </div>

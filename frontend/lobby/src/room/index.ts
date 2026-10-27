@@ -15,17 +15,17 @@ import { type RoomPage, renderRoom } from "@/room/ui";
 
 interface RoomConfig {
     chatMaxLength: number;
-    roomId: string;
+    roomName: string;
     wsUrl: string;
 }
 
 function readRoomConfig(container: HTMLElement): RoomConfig | null {
-    const { chatMaxLength, roomId, wsUrl } = container.dataset;
+    const { chatMaxLength, roomName, wsUrl } = container.dataset;
     const maxLength = Number(chatMaxLength);
-    if (!roomId || !wsUrl || !Number.isInteger(maxLength) || maxLength <= 0) {
+    if (!roomName || !wsUrl || !Number.isInteger(maxLength) || maxLength <= 0) {
         return null;
     }
-    return { chatMaxLength: maxLength, roomId, wsUrl };
+    return { chatMaxLength: maxLength, roomName, wsUrl };
 }
 
 function renderSetupFailure(container: HTMLElement): void {
@@ -36,7 +36,7 @@ function renderSetupFailure(container: HTMLElement): void {
         actions: buildActionCallbacks(state),
         chatMaxLength: 0,
         container,
-        roomId: container.dataset.roomId ?? "",
+        roomName: container.dataset.roomName || "Table",
         state,
     });
 }
@@ -47,7 +47,7 @@ function openRoomPage(container: HTMLElement, config: RoomConfig): void {
         actions: buildActionCallbacks(state),
         chatMaxLength: config.chatMaxLength,
         container,
-        roomId: config.roomId,
+        roomName: config.roomName,
         state,
     };
     function render(): void {

@@ -5,6 +5,8 @@ A room is a pre-game table of 4 fixed seats: `models.py` holds the room and its 
 `messages.py` the client → server message models. Server → client messages are plain dicts built in
 `websocket.py`; they are the wire reference.
 
+* Players see a room by its name, a random word pair picked apart from every open room's; the room
+  id stays the identifier in URLs, sockets and logs, and pages never show it.
 * A new room seats a tsumogiri bot in every seat; a joining human takes the first bot seat and a
   leaver hands that exact seat back to a bot, so seat positions never shift. Every `players` array
   the server sends lists all 4 seats in seat order, and a bot seat is always ready.

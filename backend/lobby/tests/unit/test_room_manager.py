@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from lobby.rooms import names
 from lobby.rooms.manager import LobbyRoomManager
 from lobby.tests.conftest import make_player
 
@@ -36,6 +37,17 @@ class TestCreateRoom:
         assert mgr.get_room("room-1") is room
         assert _seated_connections(room) == [None, None, None, None]
         assert room.num_ai_players == 4
+
+    def test_room_manager_create_room__when_names_run_out__should_repeat_only_after_using_each(self, monkeypatch):
+        pool = tuple(f"Name {i}" for i in range(8))
+        monkeypatch.setattr(names, "ROOM_NAMES", pool)
+        mgr = LobbyRoomManager()
+
+        rooms = [mgr.create_room(f"room-{i}") for i in range(len(pool))]
+        assert {room.name for room in rooms} == set(pool)
+
+        overflow = mgr.create_room("room-overflow")
+        assert overflow.name in pool
 
 
 class TestJoinRoom:

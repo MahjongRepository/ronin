@@ -5,7 +5,7 @@ import { buildActionCallbacks, buildMessageHandlers, handleMessage } from "@/roo
 import { type RoomState, createRoomState } from "@/room/state";
 import { renderRoom } from "@/room/ui";
 
-const ROOM_ID = "fffd4cff-38e7-4aa9-858a-6e8e9890772b";
+const ROOM_NAME = "Jade Crane";
 
 function seatedState(): RoomState {
     const state = createRoomState();
@@ -26,7 +26,7 @@ function mount(state: RoomState): HTMLElement {
         actions: buildActionCallbacks(state),
         chatMaxLength: 1000,
         container,
-        roomId: ROOM_ID,
+        roomName: ROOM_NAME,
         state,
     });
     return container;
@@ -53,6 +53,7 @@ describe("renderRoom", () => {
     test("shows connecting and a disabled composer before the socket opens", () => {
         const container = mount(createRoomState());
 
+        expect(container.querySelector(".room-header h2")?.textContent).toBe(ROOM_NAME);
         expect(container.querySelector(".connection-status")?.textContent).toBe("Connecting…");
         expect(container.querySelector(".lobby-alert")).toBeNull();
         expect(chatInput(container).disabled).toBe(true);

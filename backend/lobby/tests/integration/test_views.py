@@ -91,22 +91,23 @@ class TestLobbyViews:
 
     def test_lobby_page__when_room_has_player__should_list_it_with_join(self, client):
         room_manager = client.app.state.room_manager
-        room_manager.create_room("abc12345-long-id")
+        room = room_manager.create_room("abc12345-long-id")
         room_manager.join_room(
             room_id="abc12345-long-id", player=make_player(connection_id="conn-1", user_id="user-1", username="Alice")
         )
 
         response = client.get("/")
-        assert "abc12345" in response.text
+        assert room.name in response.text
         assert "1/4" in response.text
         assert "Join" in response.text
 
     def test_lobby_page__when_user_is_seated__should_link_back_to_their_table_instead_of_join(self, client):
-        client.app.state.room_manager.create_room("my-room-id")
+        room = client.app.state.room_manager.create_room("my-room-id")
         with client.websocket_connect("/ws/rooms/my-room-id") as ws:
             ws.receive_json()
             response = client.get("/")
 
+        assert response.text.count(room.name) == 2
         assert 'href="/rooms/my-room-id"' in response.text
         assert 'action="/rooms/my-room-id/join"' not in response.text
 
@@ -119,7 +120,7 @@ class TestLobbyViews:
 
     def test_lobby_page__when_room_full__should_mark_it_full(self, client):
         room_manager = client.app.state.room_manager
-        room_manager.create_room("full-room")
+        room = room_manager.create_room("full-room")
         for i in range(4):
             room_manager.join_room(
                 room_id="full-room",
@@ -127,7 +128,7 @@ class TestLobbyViews:
             )
 
         response = client.get("/")
-        assert "full-roo" in response.text
+        assert room.name in response.text
         assert "Full" in response.text
 
     def test_static_css_route__should_serve_stylesheet(self, client):
@@ -196,12 +197,13 @@ class TestLobbyViews:
 
     def test_room_page__when_room_exists__should_render_room_template(self, client):
         room_manager = client.app.state.room_manager
-        room_manager.create_room("test-room-42")
+        room = room_manager.create_room("test-room-42")
 
         response = client.get("/rooms/test-room-42")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert 'data-room-id="test-room-42"' in response.text
+        assert f'data-room-name="{room.name}"' in response.text
+        assert f"<title>{room.name} · Ronin Mahjong</title>" in response.text
         assert 'data-chat-max-length="1000"' in response.text
 
     def test_room_page__when_first_visit__should_set_csrf_cookie(self, client):

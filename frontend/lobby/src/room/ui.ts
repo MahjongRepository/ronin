@@ -18,7 +18,6 @@ import {
     isSeated,
 } from "@/room/state";
 
-const SHORT_ROOM_ID_LENGTH = 8;
 const IME_PROCESS_KEY_CODE = 229;
 const OPEN_SEAT = "Open seat";
 const CONNECTION_LOST_TEXT = "The connection to the table was lost. Reload the page to rejoin.";
@@ -34,7 +33,7 @@ interface RoomPage {
     actions: ActionCallbacks;
     chatMaxLength: number;
     container: HTMLElement;
-    roomId: string;
+    roomName: string;
     state: RoomState;
 }
 
@@ -267,13 +266,13 @@ function panelsTemplate(page: RoomPage): TemplateResult {
 
 function headerTemplate(
     state: RoomState,
-    roomId: string,
+    roomName: string,
     actions: ActionCallbacks,
 ): TemplateResult {
     const status = state.connectionStatus;
     return html`
         <header class="room-header">
-            <h2 title=${roomId}>Table <code class="lobby-room-id">${roomId.slice(0, SHORT_ROOM_ID_LENGTH)}</code></h2>
+            <h2>${roomName}</h2>
             <div class="room-header-actions">
                 ${
                     state.pageError
@@ -300,11 +299,11 @@ function scrollChatToLatest(container: HTMLElement, count: number): void {
 }
 
 function renderRoom(page: RoomPage): void {
-    const { actions, container, roomId, state } = page;
+    const { actions, container, roomName, state } = page;
     render(
         html`
             <div class="room">
-                ${headerTemplate(state, roomId, actions)}
+                ${headerTemplate(state, roomName, actions)}
                 ${noticeTemplate(state)}
                 ${state.pageError ? nothing : panelsTemplate(page)}
             </div>

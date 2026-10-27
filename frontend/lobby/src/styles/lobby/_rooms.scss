@@ -214,15 +214,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
 }
 
-.lobby-room-id {
-    font-size: 0.8rem;
-    font-weight: 500;
+.lobby-table-name {
+    font-family: var(--ronin-font-display);
+    font-weight: 600;
     color: var(--pico-color);
-    background: var(--ronin-surface-elevated);
-    padding: 0.15rem 0.45rem;
-    border-radius: var(--ronin-radius-sm);
+}
+
+.lobby-room-header .lobby-table-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .lobby-room-count {
