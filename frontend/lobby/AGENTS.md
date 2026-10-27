@@ -5,6 +5,14 @@ templates in `backend/lobby/views/templates/` are the pages, and `src/index.ts` 
 and starts whatever the page holds (the room, the matchmaking queue, the history copy-link buttons).
 `lobby-socket.ts` is the JSON lobby WebSocket; it neither reconnects nor watches for a silent server.
 
+A page that holds a lobby socket binds it to `page-lifetime.ts`: it closes the socket and cancels
+any pending rejoin on `pagehide`, and rejoins from scratch on a `pageshow` that restores it from
+the back-forward cache, unless the page has already ended (refused, taken over). Chromium keeps a
+cached page's socket open and answers the server's pings for it, so without this a user who
+navigates away keeps their queue entry or seat. A page leaves for the game, and the room's Leave
+table for the lobby, with `location.replace`, so Back never restores a page whose rejoin would only
+hand the user the same game or seat again.
+
 ## Build
 
 Vite builds one entry, `src/index.ts`, with a manifest; the lobby backend serves `dist/` under
@@ -14,8 +22,9 @@ from this app's Vite dev server under `make run-local-server` (`backend/lobby/AG
 ## Handoff
 
 When a game starts, the room and matchmaking pages store the game socket URL and ticket for the game
-client (`session/`) and navigate to `game_client_url`/`<game_id>`. The storage key and shape are
-the handoff contract in `docs/architecture.md`; change them only together with the game client.
+client and navigate to `game_client_url`/`<game_id>`, both through `session/`; a `game_starting`
+without a `game_id` ends the page with a way to rejoin instead. The storage key and shape are the
+handoff contract in `docs/architecture.md`; change them only together with the game client.
 
 A join refused as `already_in_game` can instead be answered with `game_starting` for the game the
 user already plays, as the join's first and only message, so each page handles `game_starting`
@@ -35,7 +44,9 @@ it exists; a seated player refused the same way mid-start just waits for `game_s
   permission from its messages, don't keep a local copy.
 * Styles: Pico CSS v2 (`styles/_pico.scss`) styles semantic HTML; add classes only for
   project-specific components. Use the `--ronin-*` tokens from `styles/_theme.scss` rather than
-  literal colors and fonts. `styles/lobby-app.scss` is the one entry stylesheet.
+  literal colors and fonts. `styles/lobby-app.scss` is the one entry stylesheet. Block text
+  inherits `color`, so set it on the wrapper; focus comes from the one shared outline in
+  `_theme.scss`, so components add no focus rings of their own.
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
 

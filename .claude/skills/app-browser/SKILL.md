@@ -53,15 +53,17 @@ Take ids from the UI, never invent them. Templates in `backend/lobby/views/templ
 lobby pages; the game client routes are in `frontend/game/src/js/routes.js`. There are no test ids:
 select by element id, class or `snapshot -i` refs.
 
-- **Room:** click `.lobby-create-btn` (New Table) on `/`. A new room seats `dev` as host with three
+- **Room:** click `.lobby-create-btn` (Custom table) on `/`. A new room seats `dev` as host with three
   tsumogiri bots.
-- **Live game:** "Start Game" in the room lands on `/play/<game_id>`. `dev` then counts as playing
+- **Live game:** "Start game" in the room lands on `/play/<game_id>`. `dev` then counts as playing
   until that game ends, so `/matchmaking` answers "already playing" and room joins are refused;
   that is the occupancy rule, not a bug.
 - **Matchmaking:** `/matchmaking` queues for a 4-human match; one browser user only shows the
   waiting state.
-- **History and replay:** `/history` lists recent games; click a card (`main article`, its
-  `data-replay-url` holds `/play/history/<game_id>`). Step a replay with its `<` / `>` buttons.
+- **History and replay:** `/history` lists recent games; each card's `.games-card-link` ("View
+  replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the raw
+  replay log as text (or "Replay not found" when its file is missing); there is no step-through
+  viewer.
 - **Storybooks:** `/storybook` (lobby styles, dev only) and `/play/storybook` plus the pages its
   header links to (game components; a board page with several states takes `?state=<key>` from its
   variant links). At `max-height: 450px` (a viewport 450px tall or less) the header is one
@@ -93,7 +95,16 @@ Playwright script in the scratchpad (WebKit is already installed under `~/.cache
 import sys
 from playwright.sync_api import sync_playwright
 
-SETTLED = "document.getAnimations().every(a => a.playState !== 'running' || a.effect.getTiming().iterations === Infinity)"
+SETTLED = "() => document.getAnimations().every(a => a.playState !== 'running' || a.effect.getTiming().iterations === Infinity)"
+
+
+def wait_settled(page, timeout_ms=5000):
+    for _ in range(timeout_ms // 100):
+        if page.evaluate(SETTLED):
+            return
+        page.wait_for_timeout(100)
+    raise TimeoutError("lobby animations still running")
+
 
 with sync_playwright() as p:
     device = dict(p.devices["iPhone 13"])
@@ -106,13 +117,15 @@ with sync_playwright() as p:
     page.click("button[type=submit]")
     page.wait_for_url("http://localhost:8710/")
     page.goto("http://localhost:8710/history")
-    page.wait_for_function(SETTLED)
+    wait_settled(page)
     page.evaluate("document.activeElement?.blur()")
     page.screenshot(path=f"{sys.argv[1]}/phone-history.png")
     browser.close()
 ```
 
-Run it outside the backend project, pinned to the version whose browsers are installed:
+Settle with `page.evaluate` polling, not `page.wait_for_function(<string>)`: the lobby CSP has no
+`unsafe-eval`, which a string predicate needs in WebKit. Run it outside the backend project, pinned
+to the version whose browsers are installed:
 `uv run --no-project --with playwright==1.63.0 python $S/phone.py $T`. Never `full_page=True`:
 to show a whole page, set the viewport height to `document.documentElement.scrollHeight` and take a
 normal screenshot. Delete the script once done.

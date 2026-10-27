@@ -1,5 +1,11 @@
+export type SocketStatus = "connected" | "disconnected" | "error";
 export type MessageHandler = (message: Record<string, unknown>) => void;
-export type StatusHandler = (status: "connected" | "disconnected" | "error") => void;
+export type StatusHandler = (status: SocketStatus) => void;
+
+export function readString(message: Record<string, unknown>, key: string): string | null {
+    const value = message[key];
+    return typeof value === "string" && value !== "" ? value : null;
+}
 
 export class LobbySocket {
     private ws: WebSocket | null = null;
@@ -15,6 +21,7 @@ export class LobbySocket {
         this.disconnectExisting();
         const ws = new WebSocket(url);
         this.ws = ws;
+        let failed = false;
 
         ws.onopen = () => {
             if (this.ws !== ws) {
@@ -42,21 +49,26 @@ export class LobbySocket {
                 return;
             }
             this.ws = null;
-            this.onStatusChange("disconnected");
+            if (!failed) {
+                this.onStatusChange("disconnected");
+            }
         };
 
         ws.onerror = () => {
             if (this.ws !== ws) {
                 return;
             }
+            failed = true;
             this.onStatusChange("error");
         };
     }
 
-    send(message: Record<string, unknown>): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(message));
+    send(message: Record<string, unknown>): boolean {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            return false;
         }
+        this.ws.send(JSON.stringify(message));
+        return true;
     }
 
     disconnect(): void {
