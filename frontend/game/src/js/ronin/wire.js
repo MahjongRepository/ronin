@@ -92,6 +92,9 @@ const wire = {
     /* a wait's opening event re-sent after a reconnect: el = the seconds its server timer has run */
     WAIT_ELAPSED: 'el',
 
+    /* a turn's opening draw or turn event: bk = the seat's bank as its server timer starts the turn */
+    TURN_BANK: 'bk',
+
     /* game_started, game_reconnected: tm = { tb, bk, rb, mb, md } */
     TIMER_SETTINGS: 'tm',
 

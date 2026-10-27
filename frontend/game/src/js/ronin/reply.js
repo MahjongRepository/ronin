@@ -57,7 +57,9 @@ class Reply {
 
     act(data) {
         this.shadow.prompt = null;
-        this.send({ t: wire.T.GAME_ACTION, ...data, [wire.WAIT_ID]: this.shadow.waitId });
+        if (! this.send({ t: wire.T.GAME_ACTION, ...data, [wire.WAIT_ID]: this.shadow.waitId })) {
+            console.warn('[ronin] answer not sent, the socket is down:', data);
+        }
     }
 }
 

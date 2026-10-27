@@ -54,7 +54,7 @@ def _arm_double_ron_round_advance(manager: SessionManager, participant: Particip
         round_number=0,
         results_shown=2,
     )
-    manager._start_wait_timers(participant.game, previous=awaiting, awaiting=awaiting)
+    manager._start_wait_timers(participant.game, awaiting=awaiting)
 
 
 class TestWaitTimerArming:
@@ -151,7 +151,7 @@ class TestWaitTimers:
 
         await manager.shutdown()
 
-    async def test_round_bonus__when_rounds_start_and_end__should_add_it_once_per_round_from_the_first(
+    async def test_round_bonus__when_rounds_start_and_end__should_add_it_once_per_round_before_its_first_draw(
         self, seeded_engine
     ):
         manager = make_session_manager(seeded_engine)
@@ -170,10 +170,13 @@ class TestWaitTimers:
         assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_ADVANCE
         assert timer._bank_seconds == first_round_bank
 
+        conns[0]._outbox.clear()
         manager.handle_game_action(conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager))
         second_round = manager.get_game("game1").awaiting
         assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
         assert timer._bank_seconds == first_round_bank + config.round_bonus_seconds
+        opening_draw = next(m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW])
+        assert opening_draw["bk"] == first_round_bank + config.round_bonus_seconds
 
         if second_round.kind == WaitKind.CALL:
             manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=second_round.wait_id)

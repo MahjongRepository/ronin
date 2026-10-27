@@ -58,6 +58,10 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
                 player._view.players(shadow.playersConnected);
             }
         },
+        onDisconnected: () => {
+            translate.disconnected();
+            toast('接続が切れました。再接続しています…');
+        },
         onReconnected:  (msg) => {
             translate.reconnect(msg);
             finishLoading();

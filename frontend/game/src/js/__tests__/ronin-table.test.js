@@ -339,7 +339,7 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.sent.at(-1)).toEqual({ t: 3, a: 5, ti: 8, sequence_tiles: [0, 4], wi: 2 });
     });
 
-    it("counts the seat's turns down from the game's timer settings, with the bank they drain topped up each round", () => {
+    it("counts the seat's turns down from the game's timer settings, with the bank they drain topped up each round, until a draw names the server's bank", () => {
         vi.useFakeTimers();
         const table = startTable();
 
@@ -372,12 +372,15 @@ describe("the ronin table (Translate and Reply)", () => {
             dc: [1, 1],
         });
         table.receive(draw(0, 120, { wi: 4 }));
+        table.receive(discard(0, 120));
+        table.receive(draw(0, 124, { wi: 5, bk: 12 }));
 
         expect(table.player.countdowns).toEqual([
             [5, 30],
             [5, 0],
             [5, 27],
             [5, 32],
+            [5, 12],
         ]);
     });
 
@@ -556,6 +559,45 @@ describe("the ronin table (Translate and Reply)", () => {
         ]);
         table.decide({ hule: "-" });
         expect(table.sent.at(-1)).toEqual({ t: 3, a: 3, wi: 4 });
+    });
+
+    it("closes a call prompt whose countdown runs out, or that arrives with its time already run, sending nothing", () => {
+        const { table } = startTableOnPage();
+        const shownButtons = () => $("#board .player-button .button").not(".hide").length;
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+        expect(shownButtons()).toBe(2);
+        vi.advanceTimersByTime(5000);
+        expect(shownButtons()).toBe(0);
+
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 3, el: 5 });
+        expect(shownButtons()).toBe(0);
+        expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
+    });
+
+    it("closes an open call prompt when the socket drops, sending nothing for it", () => {
+        const { table } = startTableOnPage();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 18));
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 3, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+        const buttons = () => $("#board .player-button .button").not(".hide");
+        expect(buttons()).toHaveLength(2);
+
+        table.translate.disconnected();
+        $("#board").trigger($.Event("mouseup", { button: 2 }));
+
+        expect(buttons()).toHaveLength(0);
+        expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
     });
 
     it("drops the tile the server discards for the seat, not a tile clicked after the server's timeout", () => {
