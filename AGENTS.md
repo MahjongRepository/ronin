@@ -36,12 +36,18 @@ The `Makefile` lists the targets; the non-obvious ones:
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
-* `make run-games [GAMES=n]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`, default
-  `~/work/mahjong-bot`) on fresh servers, stopping at the first game that is not completed, whose
-  replay does not reproduce it (`bin/verify_games.py`), or after which any log (server stderr and
-  bot console included) holds a warning or an abnormal event such as a timeout auto-action or a bot
-  replaced by AI. It forces debug console logging, so these gates cannot be configured away. It
+* `make run-games [GAMES=n] [TABLES=t]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
+  default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, stopping at the first batch
+  with a game that is not completed, whose replay does not reproduce it (`bin/verify_games.py`), or
+  after which any log (server stderr and bot console included) holds a warning or an abnormal event
+  such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
+  gates cannot be configured away. Each run registers its own bot accounts in a throwaway database
+  (`backend/data/bot-games/`), four per table, because an account plays one game at a time. It
   **wipes** `backend/logs` and the replay dirs first and kills whatever holds `:8710`/`:8711`.
+* `make profile-games [GAMES=n] [TABLES=t]` — the same run (default 48 games, 12 tables) with the
+  game server under py-spy and logging at production's INFO level, then its GIL-holding samples by
+  layer and function, plus its CPU-seconds per game. It points at where real games spend the
+  server's time; `make profile` measures engine changes.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final
   `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.

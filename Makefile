@@ -6,7 +6,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
 FRONTEND_APPS := lobby game
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile profile-games
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -63,4 +63,7 @@ profile:
 	$(BE_RUN) python bin/profile_replay.py
 
 run-games:
-	@bash ./bin/run-bots-games.sh $(GAMES)
+	@TABLES=$(TABLES) bash ./bin/run-bots-games.sh $(GAMES)
+
+profile-games:
+	@PROFILE=1 TABLES=$(or $(TABLES),12) bash ./bin/run-bots-games.sh $(or $(GAMES),48)
