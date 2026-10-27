@@ -12,6 +12,7 @@ function seatL(seat, dealer) {
     return (seat - dealer + 4) % 4;
 }
 
+/** A hand as majiang's shoupai string: its closed tiles, the drawn or winning tile among them last, then its melds. */
 function fullHandStr(closedIds, meldStrs, winTileId) {
     let s = tiles.handStr((closedIds || []).filter(id => id != winTileId));
     if (winTileId != null) s += tiles.tileToStr(winTileId);
@@ -25,6 +26,15 @@ const ABORTIVE_NAMES = {
     triple_ron:     '三家和了',
     four_kans:      '四開槓',
     four_winds:     '四風連打',
+};
+
+/** The name the live client shows for an abortive draw it has no name for. */
+const GENERIC_ABORTIVE_NAME = '途中流局';
+
+/** The names of the two draws that end a round with its wall: an exhaustive draw and a nagashi mangan. */
+const DRAW_NAMES = {
+    EXHAUSTIVE: '荒牌平局',
+    NAGASHI:    '流し満貫',
 };
 
 /**
@@ -110,6 +120,7 @@ function kanMianzi(kan, findPon) {
         return mianzi.mianziStr({ meldType: wire.MELD.CLOSED_KAN, tileIds: [0, 1, 2, 3].map(c => t34 * 4 + c) });
     }
     const pon = findPon(kan.s, t34);
+    if (! pon) throw new Error('robbed added kan without its pon');
     return mianzi.mianziStr({ ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([kan.ti]) }, pon);
 }
 
@@ -131,7 +142,93 @@ function jiejuStandings({ ws, st, lb }) {
     return { defen, point, rank, gongtuo };
 }
 
+/** A round end the builders cannot read: an unknown result type, or an abortive draw with no name. */
+class UnknownRoundResultError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'UnknownRoundResultError';
+    }
+}
+
+/**
+ * A round won by each of winners in recorded order (a double ron's, counter-clockwise from the discarder): one hule
+ * message per winner, each called out. riichi says, by seat, who stands in riichi.
+ */
+function winResults({ roundEnd, winners, loserSeat, dealer, riichi }) {
+    const results = winners.map(winner =>
+        winHule({ winner, winTile: roundEnd.wt, loserSeat, dealer, riichi: !! riichi[winner.ws] }));
+    const name = loserSeat == null ? mianzi.CALLOUT.TSUMO : mianzi.CALLOUT.RON;
+    return { results, callouts: results.map(m => ({ name, l: m.hule.l })) };
+}
+
+function exhaustiveResults(roundEnd, dealer) {
+    return { results: [pingjuMessage({
+        name:    DRAW_NAMES.EXHAUSTIVE,
+        shoupai: revealedHands(roundEnd.th, dealer),
+        fenpei:  fenpeiByL(roundEnd.sch, dealer),
+        tenpai:  tenpaiByL(roundEnd.ts || [], dealer),
+    })], callouts: [] };
+}
+
+function nagashiResults(roundEnd, dealer) {
+    return { results: [pingjuMessage({
+        name:    DRAW_NAMES.NAGASHI,
+        shoupai: revealedHands(roundEnd.th, dealer),
+        fenpei:  fenpeiByL(roundEnd.sch, dealer),
+        tenpai:  tenpaiByL(roundEnd.ts || [], dealer),
+        players: (roundEnd.qs || []).map(seat => seatL(seat, dealer)),
+    })], callouts: [] };
+}
+
+/**
+ * An abortive draw named name. A kyuushu declarer (s) is the draw's player, its hand shown when handOf(seat) gives it
+ * as a shoupai string; a triple ron's callers (rcl) call ron, though nobody wins.
+ */
+function abortiveResults(roundEnd, { dealer, handOf = () => null }, name) {
+    const declarers = roundEnd.s == null ? [] : [roundEnd.s];
+    const shoupai = [null, null, null, null];
+    for (const seat of declarers) shoupai[seatL(seat, dealer)] = handOf(seat);
+    return {
+        results: [pingjuMessage({
+            name,
+            shoupai,
+            fenpei:  fenpeiByL(roundEnd.sch, dealer),
+            players: declarers.map(seat => seatL(seat, dealer)),
+        })],
+        callouts: (roundEnd.rcl || []).map(seat => ({ name: mianzi.CALLOUT.RON, l: seatL(seat, dealer) })),
+    };
+}
+
+/**
+ * A round end as the result messages that show it (a hule per winner in recorded order, or one pingju) and the
+ * callouts that announce them, given the round facts it omits: its dealer, who stands in riichi (by seat) and,
+ * optionally, handOf(seat), a kyuushu declarer's hand right after its draw as a shoupai string, which reveals it.
+ * Throws an UnknownRoundResultError for a result type or abortive draw it does not know.
+ */
+function roundResults(roundEnd, facts) {
+    const { dealer, riichi } = facts;
+    switch (roundEnd.rt) {
+    case wire.RT.TSUMO:
+        return winResults({ roundEnd, winners: [roundEnd], loserSeat: null, dealer, riichi });
+    case wire.RT.RON:
+        return winResults({ roundEnd, winners: [roundEnd], loserSeat: roundEnd.ls, dealer, riichi });
+    case wire.RT.DOUBLE_RON:
+        return winResults({ roundEnd, winners: roundEnd.wn, loserSeat: roundEnd.ls, dealer, riichi });
+    case wire.RT.EXHAUSTIVE:
+        return exhaustiveResults(roundEnd, dealer);
+    case wire.RT.NAGASHI:
+        return nagashiResults(roundEnd, dealer);
+    case wire.RT.ABORTIVE: {
+        const name = ABORTIVE_NAMES[roundEnd.rn];
+        if (! name) throw new UnknownRoundResultError('unknown abortive draw ' + roundEnd.rn);
+        return abortiveResults(roundEnd, facts, name);
+    }
+    }
+    throw new UnknownRoundResultError('unknown round result type ' + roundEnd.rt);
+}
+
 export {
-    ABORTIVE_NAMES, fenpeiByL, huleMessage, jiejuStandings, kanMianzi, pingjuMessage, revealedHands, seatL, tenpaiByL,
+    ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL,
+    fullHandStr, huleMessage, jiejuStandings, kanMianzi, pingjuMessage, revealedHands, roundResults, seatL, tenpaiByL,
     winHule,
 };

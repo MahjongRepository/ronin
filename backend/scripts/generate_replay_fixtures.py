@@ -12,10 +12,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = REPO_ROOT / "frontend" / "game" / "src" / "js" / "__tests__" / "fixtures" / "replays"
 DESCRIPTION = """
 Generate the replay files the game client's tests read, by playing the scenarios of scripts.replay_fixtures through
-the real engine: games dealt from a staged wall and played seat by seat, a recorded backend replay run again, and cuts
-of those. Each replay must reproduce its game through the replay runner before it is written. With --check nothing is
-written: the run fails, naming each fixture, when a committed fixture differs from what the engine records now, is
-missing, or has no scenario.
+the real engine: games dealt from a staged wall and played seat by seat, a game dealt from its seed and played by a
+fixed policy, a recorded backend replay run again, and cuts of those. Each replay must reproduce its game through the
+replay runner before it is written. With --check nothing is written: the run fails, naming each fixture, when a
+committed fixture differs from what the engine records now, is missing, or has no scenario.
 """
 
 

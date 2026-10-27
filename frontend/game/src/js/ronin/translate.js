@@ -9,8 +9,8 @@ import Shadow from './shadow.js';
 import TurnClock from './clock.js';
 import Autoplay from './autoplay.js';
 import rules from './rules.js';
-import { ABORTIVE_NAMES, fenpeiByL, jiejuStandings, kanMianzi, pingjuMessage, revealedHands as revealedHandsByL, seatL,
-         tenpaiByL, winHule } from './results.js';
+import { GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, kanMianzi,
+         pingjuMessage, roundResults, seatL, tenpaiByL } from './results.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -351,7 +351,7 @@ class Translate {
         this.feed(m, 'dapai');
         s.logMessage(m);
         this.syncWall();
-        if (isRiichi && P._view) P._view.say('lizhi', l);
+        if (isRiichi && P._view) P._view.say(mianzi.CALLOUT.RIICHI, l);
     }
 
     meld(msg) {
@@ -483,16 +483,19 @@ class Translate {
     }
 
     /**
-     * The hule message of one winner: a tsumo or ron round end itself, or one entry of a double ron's winners, whose
-     * own score changes (sch) hold only what that win moved.
+     * A round end's result messages and callouts. The live game never stops on a round end it cannot read: an
+     * abortive draw with no name shows as a generic one, and any other unknown result is skipped with a warning.
      */
-    buildHule(winner, winTile, loserSeat) {
-        const s = this.shadow;
-        return winHule({ winner, winTile, loserSeat, dealer: s.dealer, riichi: s.riichi[winner.ws] });
-    }
-
-    revealedHands(tenpaiHands) {
-        return revealedHandsByL(tenpaiHands, this.shadow.dealer);
+    resultsOf(msg) {
+        const facts = { dealer: this.shadow.dealer, riichi: this.shadow.riichi };
+        try {
+            return roundResults(msg, facts);
+        }
+        catch (e) {
+            if (! (e instanceof UnknownRoundResultError)) throw e;
+            console.warn('[ronin]', e.message);
+            return msg.rt == wire.RT.ABORTIVE ? abortiveResults(msg, facts, GENERIC_ABORTIVE_NAME) : null;
+        }
     }
 
     /**
@@ -528,7 +531,7 @@ class Translate {
         this.feedHiddenDraw(kan.s);
         this.feedKan(kan);
         this.shadow.declaredKan = kan;
-        if (this.player._view) this.player._view.say('gang', this.shadow.l(kan.s));
+        if (this.player._view) this.player._view.say(mianzi.CALLOUT.KAN, this.shadow.l(kan.s));
     }
 
     roundEnd(msg) {
@@ -544,34 +547,9 @@ class Translate {
         const kanFirst = msg.rk != null && s.declaredKan == null;
         if (kanFirst) this.declareKan(msg.rk);
 
-        let results;
-        switch (msg.rt) {
-        case wire.RT.TSUMO:
-            results = [this.buildHule(msg, msg.wt, null)];
-            break;
-        case wire.RT.RON:
-            results = [this.buildHule(msg, msg.wt, msg.ls)];
-            break;
-        case wire.RT.DOUBLE_RON:
-            results = msg.wn.map(w => this.buildHule(w, msg.wt, msg.ls));
-            break;
-        case wire.RT.EXHAUSTIVE:
-            results = [pingjuMessage({ name: '荒牌平局', shoupai: this.revealedHands(msg.th),
-                                       fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer) })];
-            break;
-        case wire.RT.ABORTIVE:
-            results = [pingjuMessage({ name: ABORTIVE_NAMES[msg.rn] || '途中流局', fenpei: this.fenpei(msg.sch),
-                                       players: msg.s == null ? [] : [s.l(msg.s)] })];
-            break;
-        case wire.RT.NAGASHI:
-            results = [pingjuMessage({ name: '流し満貫', shoupai: this.revealedHands(msg.th),
-                                       fenpei: this.fenpei(msg.sch), tenpai: tenpaiByL(msg.ts || [], s.dealer),
-                                       players: (msg.qs || []).map(seat => s.l(seat)) })];
-            break;
-        default:
-            console.warn('[ronin] unknown round result rt =', msg.rt);
-            return;
-        }
+        const built = this.resultsOf(msg);
+        if (! built) return;
+        const { results, callouts } = built;
         s.roundAdvance = msg[wire.WAIT_ID] != null;
         this.resultsOpenedAt = this.clock.now() - (msg[wire.WAIT_ELAPSED] || 0) * 1000;
         this.roundDialogOpen = true;
@@ -579,12 +557,9 @@ class Translate {
         s.closeRound();
         this.syncWall();
 
-        const winners = results.filter(m => m.hule).map(m => m.hule.l);
-        const callers = msg.rt == wire.RT.ABORTIVE ? (msg.rcl || []).map(seat => s.l(seat)) : winners;
-        if (! callers.length) return this.showResults(results);
-        const call = msg.rt == wire.RT.TSUMO ? 'zimo' : 'rong';
+        if (! callouts.length) return this.showResults(results);
         const callOut = () => {
-            if (P._view) for (const l of callers) P._view.say(call, l);
+            if (P._view) for (const { name, l } of callouts) P._view.say(name, l);
             this.winCallTimer = setTimeout(() => this.showResults(results), WIN_CALL_MS);
         };
         if (! kanFirst) return callOut();

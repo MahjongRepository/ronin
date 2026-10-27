@@ -1,17 +1,23 @@
 import * as immef from "../ronin/immef.js";
 import * as mianzi from "../ronin/mianzi.js";
-import { seatL } from "../ronin/results.js";
+import { fullHandStr, jiejuStandings, kanMianzi, roundResults, seatL } from "../ronin/results.js";
 import * as tiles from "../ronin/tiles.js";
 import wire from "../ronin/wire.js";
+import { roundOutcome } from "./round-end.js";
 
 const SEATS = 4;
 
-/** What a position of a round shows: its last visible record, or only silent records at a truncated end. */
+/**
+ * What a position of a round shows: its last visible record, the round's result, the game's final standings after
+ * the last round, or only silent records at a truncated end.
+ */
 export const POSITION = Object.freeze({
     DEAL: "deal",
     DRAW: "draw",
     DISCARD: "discard",
     CALL: "call",
+    RESULT: "result",
+    SUMMARY: "summary",
     SILENT: "silent",
 });
 
@@ -24,15 +30,19 @@ export class MalformedReplayError extends Error {
     }
 }
 
+function dealtPlayer(roundStart, seat) {
+    const player = roundStart.p.find((p) => p.s === seat);
+    if (player === undefined) {
+        throw new Error(`round_started has no player in seat ${seat}`);
+    }
+    return player;
+}
+
 function dealMessage(roundStart, qijia) {
     const defen = [];
     const shoupai = [];
     for (let l = 0; l < SEATS; l++) {
-        const seat = (roundStart.dl + l) % SEATS;
-        const player = roundStart.p.find((p) => p.s === seat);
-        if (player === undefined) {
-            throw new Error(`round_started has no player in seat ${seat}`);
-        }
+        const player = dealtPlayer(roundStart, (roundStart.dl + l) % SEATS);
         defen[l] = player.sc * wire.SCORE_DIV;
         shoupai[l] = tiles.handStr(player.tl);
     }
@@ -57,14 +67,101 @@ function notesField(notes) {
     return notes.length > 0 ? { notes } : {};
 }
 
+/** The tiles a meld takes from its caller's hand: all but the called tile, an added kan's fourth tile alone. */
+function tilesFromHand(meld, pon) {
+    switch (meld.meldType) {
+        case wire.MELD.CLOSED_KAN:
+            return meld.tileIds;
+        case wire.MELD.ADDED_KAN:
+            return meld.tileIds.filter((id) => !pon.tileIds.includes(id));
+        default:
+            return meld.tileIds.filter((id) => id !== meld.calledTileId);
+    }
+}
+
+/**
+ * What a round's records say of one seat that its round end omits: its concealed tiles, its latest draw, its melds
+ * and whether it stands in riichi. The latest draw is read only right after it, when the seat declares kyuushu.
+ */
+class SeatState {
+    constructor(dealtTileIds) {
+        this.hand = [...dealtTileIds];
+        this.lastDraw = null;
+        this.melds = [];
+        this.riichi = false;
+    }
+
+    draw(tileId) {
+        this.hand.push(tileId);
+        this.lastDraw = tileId;
+    }
+
+    discard(tileId) {
+        this.removeFromHand([tileId]);
+    }
+
+    /** Lay a meld down; an added kan replaces the pon it extends, which it returns. */
+    meld(meld) {
+        const pon = meld.meldType === wire.MELD.ADDED_KAN ? this.takePon(meld) : null;
+        this.melds.push(meld);
+        this.removeFromHand(tilesFromHand(meld, pon));
+        return pon;
+    }
+
+    declareRiichi() {
+        this.riichi = true;
+    }
+
+    ponIndex(tile34) {
+        return this.melds.findIndex((meld) => mianzi.isPonOf(meld, tile34));
+    }
+
+    findPon(tile34) {
+        const index = this.ponIndex(tile34);
+        return index < 0 ? undefined : this.melds[index];
+    }
+
+    takePon(kan) {
+        const index = this.ponIndex(Math.floor(kan.tileIds[0] / 4));
+        if (index < 0) {
+            throw new Error("added kan without its pon");
+        }
+        return this.melds.splice(index, 1)[0];
+    }
+
+    removeFromHand(tileIds) {
+        for (const tileId of tileIds) {
+            const index = this.hand.indexOf(tileId);
+            if (index < 0) {
+                throw new Error(`hand does not hold tile ${tileId}`);
+            }
+            this.hand.splice(index, 1);
+        }
+    }
+
+    /** The concealed hand right after the seat's latest draw as a shoupai string, that tile last. */
+    handAfterDraw() {
+        return fullHandStr(this.hand, [], this.lastDraw);
+    }
+}
+
 /**
  * One round's paipu log and its positions. A position is a run of silent records (they add to the log, or not at
- * all, but show nothing of their own) closed by the next visible one; `end` is the log index it reaches, and
- * `notes`, present only when one of its silent records left one, what those records say about it.
+ * all, but show nothing of their own) closed by the next visible one. It holds the messages log[start, end) and,
+ * present only when one of its silent records left one, `notes` on what those records say about it. A result position
+ * also has `wins`, its hule messages, and `headBumpedSeats`, the ron callers a nearer winner head-bumped; its range
+ * holds only its first win. A double ron's further wins sit at log[end, end + wins - 1), in no position's range: the
+ * viewer applies them as the result's dialog pages through them, or before it leaves the position, and the position
+ * after it starts past them.
  */
 class RoundBuilder {
     constructor(roundStart, qijia) {
         this.dealer = roundStart.dl;
+        this.seats = Array.from(
+            { length: SEATS },
+            (_, seat) => new SeatState(dealtPlayer(roundStart, seat).tl),
+        );
+        this.outcome = null;
         this.summary = {
             wind: roundStart.w,
             dealer: roundStart.dl,
@@ -73,8 +170,8 @@ class RoundBuilder {
         };
         this.log = [dealMessage(roundStart, qijia)];
         this.positions = [];
+        this.nextStart = 0;
         this.pendingSilent = [];
-        this.melds = Array.from({ length: SEATS }, () => []);
         this.kanSeat = null;
         this.addPosition(POSITION.DEAL);
     }
@@ -89,9 +186,11 @@ class RoundBuilder {
         return notes;
     }
 
-    addPosition(kind, say = []) {
+    addPosition(kind, say = [], fields = {}) {
         const notes = this.takePendingNotes();
-        this.positions.push({ end: this.log.length, kind, say, ...notesField(notes) });
+        const position = { start: this.nextStart, end: this.log.length, kind, say, ...fields };
+        this.positions.push({ ...position, ...notesField(notes) });
+        this.nextStart = this.log.length;
     }
 
     addSilent(message, note = null) {
@@ -112,6 +211,7 @@ class RoundBuilder {
         const draw = { l: this.l(seat), p: tiles.tileToStr(tileId) };
         const rinshan = this.kanSeat === seat;
         this.kanSeat = null;
+        this.seats[seat].draw(tileId);
         this.addVisible(POSITION.DRAW, rinshan ? { gangzimo: draw } : { zimo: draw });
     }
 
@@ -119,15 +219,14 @@ class RoundBuilder {
         const discard = immef.decodeDiscard(packed);
         const l = this.l(discard.seat);
         this.kanSeat = null;
-        const say = discard.isRiichi ? [{ name: "lizhi", l }] : [];
+        this.seats[discard.seat].discard(discard.tileId);
+        const say = discard.isRiichi ? [{ name: mianzi.CALLOUT.RIICHI, l }] : [];
         this.addVisible(POSITION.DISCARD, { dapai: { l, p: discardTile(discard) } }, say);
     }
 
     meld(compact) {
         const meld = immef.decodeMeldCompact(compact);
-        const seatMelds = this.melds[meld.callerSeat];
-        const pon = meld.meldType === wire.MELD.ADDED_KAN ? this.takePon(seatMelds, meld) : null;
-        seatMelds.push(meld);
+        const pon = this.seats[meld.callerSeat].meld(meld);
         this.kanSeat = mianzi.KAN_TYPES.has(meld.meldType) ? meld.callerSeat : null;
         const l = this.l(meld.callerSeat);
         const message = {
@@ -136,29 +235,44 @@ class RoundBuilder {
         this.addVisible(POSITION.CALL, message, [{ name: mianzi.SAY_OF_MELD[meld.meldType], l }]);
     }
 
-    takePon(seatMelds, kan) {
-        const tile34 = Math.floor(kan.tileIds[0] / 4);
-        const index = seatMelds.findIndex((meld) => mianzi.isPonOf(meld, tile34));
-        if (index < 0) {
-            throw new Error("added kan without its pon");
-        }
-        return seatMelds.splice(index, 1)[0];
-    }
-
     revealDora(tileId) {
         this.addSilent({ kaigang: { baopai: tiles.tileToStr(tileId) } });
     }
 
-    declareRiichi() {
+    declareRiichi(seat) {
+        this.seats[seat].declareRiichi();
         this.addSilent(null);
     }
 
-    /** A round end closes the round; its silent records join the round's last position. */
-    closeAtRoundEnd() {
-        const last = this.positions.pop();
-        const notes = [...(last.notes ?? []), ...this.takePendingNotes()];
-        this.positions.push({ ...last, end: this.log.length, ...notesField(notes) });
+    /**
+     * A round end closes the round with its result position, which takes in the silent records before it. A robbed
+     * kan, which no meld record shows, is first its own position, declared as a call.
+     */
+    closeAtRoundEnd(roundEnd) {
+        if (roundEnd.rk != null) {
+            this.declareRobbedKan(roundEnd.rk);
+        }
+        const { results, callouts } = roundResults(roundEnd, {
+            dealer: this.dealer,
+            riichi: this.seats.map((seat) => seat.riichi),
+            handOf: (seat) => this.seats[seat].handAfterDraw(),
+        });
+        const [first, ...further] = results;
+        this.log.push(first);
+        this.addPosition(POSITION.RESULT, callouts, {
+            wins: results.filter((message) => "hule" in message).length,
+            headBumpedSeats: roundEnd.hbs ?? [],
+        });
+        this.log.push(...further);
+        this.nextStart = this.log.length;
+        this.outcome = roundOutcome(roundEnd, results);
         return this.build();
+    }
+
+    declareRobbedKan(kan) {
+        const m = kanMianzi(kan, (seat, tile34) => this.seats[seat].findPon(tile34));
+        const l = this.l(kan.s);
+        this.addVisible(POSITION.CALL, { gang: { l, m } }, [{ name: mianzi.CALLOUT.KAN, l }]);
     }
 
     /** A truncated round ends where the replay does; silent records with nothing after them are its last position. */
@@ -170,7 +284,7 @@ class RoundBuilder {
     }
 
     build() {
-        return { ...this.summary, log: this.log, positions: this.positions, outcome: null };
+        return { ...this.summary, log: this.log, positions: this.positions, outcome: this.outcome };
     }
 }
 
@@ -186,6 +300,7 @@ class ReplayBuilder {
         this.gameType = gameStarted.gt;
         this.rounds = [];
         this.round = null;
+        this.standings = null;
     }
 
     currentRound() {
@@ -208,11 +323,11 @@ class ReplayBuilder {
             case wire.E.DORA_REVEALED:
                 return this.currentRound().revealDora(line.ti);
             case wire.E.RIICHI_DECL:
-                return this.currentRound().declareRiichi();
+                return this.currentRound().declareRiichi(line.s);
             case wire.E.ROUND_END:
-                return this.closeRound();
+                return this.closeRound(line);
             case wire.E.GAME_END:
-                return;
+                return this.endGame(line);
             default:
                 throw new Error(`unknown record type ${line.t}`);
         }
@@ -225,9 +340,21 @@ class ReplayBuilder {
         this.round = new RoundBuilder(roundStart, this.qijia);
     }
 
-    closeRound() {
-        this.rounds.push(this.currentRound().closeAtRoundEnd());
+    closeRound(roundEnd) {
+        this.rounds.push(this.currentRound().closeAtRoundEnd(roundEnd));
         this.round = null;
+    }
+
+    /** The final standings, shown as one more position of the last round, after its result. */
+    endGame(gameEnd) {
+        const last = this.rounds.at(-1);
+        if (this.round !== null || last === undefined) {
+            throw new Error("game ended outside a round end");
+        }
+        const end = last.log.length;
+        const summary = { start: end, end, kind: POSITION.SUMMARY, say: [] };
+        this.rounds[this.rounds.length - 1] = { ...last, positions: [...last.positions, summary] };
+        this.standings = jiejuStandings(gameEnd);
     }
 
     build() {
@@ -240,7 +367,7 @@ class ReplayBuilder {
             qijia: this.qijia,
             gameType: this.gameType,
             rounds: this.rounds,
-            standings: null,
+            standings: this.standings,
         };
     }
 }
