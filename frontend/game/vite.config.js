@@ -7,6 +7,7 @@ const port = parseInt(process.env.GAME_VITE_PORT || "5174", 10);
 
 export default defineConfig({
     base: "/game-assets/",
+    appType: "mpa",
     build: {
         outDir: "dist",
         emptyOutDir: true,
