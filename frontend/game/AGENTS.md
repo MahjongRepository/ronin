@@ -91,8 +91,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Wait ids:** every action echoes the wait id of the last server message that carried one (a
   draw, the `turn` event after the seat's own pon or chi, a call prompt, a round end, the
   reconnect snapshot). A round end without one is the game's last: nothing is confirmed, and the
-  final standings wait until the player dismisses that result. A refused action reopens its
-  decision; a stale one does not.
+  final standings follow once that result is dismissed, by the player or its countdown. A refused
+  action reopens its decision; a stale one does not.
 * **Reconnect:** the `game_reconnected` snapshot rebuilds the table and opens no decision; when the
   game awaits the seat the server re-sends the event that opened the wait: the `turn` event after
   its own pon or chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds
@@ -147,9 +147,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   measured from the round end (backdated by the snapshot's `el` after a takeover): every result but
   the last dismisses itself at its share, and the last stops at 0 and sends nothing, leaving the
   confirmation to the server's timeout and the next deal. The game's last round end opens no wait
-  and counts nothing down. Only 次へ dismisses a result (`RoninPlayer.action_hule`), or Escape and a
-  right-click once its dialog is ready, not a click elsewhere on the dialog: a stray discard click as
-  it opens, or a tap to scroll it, would skip it.
+  and no deal follows it, so its results count down the same shares and its last dismisses itself
+  too, into the final standings. Of the player's inputs, only 次へ dismisses a result
+  (`RoninPlayer.action_hule`), or Escape and a right-click once its dialog is ready, not a click
+  elsewhere on the dialog: a stray discard click as it opens, or a tap to scroll it, would skip it.
 * **Silence watchdog:** since the client sends nothing on its own, a socket whose peer vanished (a
   FIN lost while the device slept) never fires `onclose`. `RoninSession` treats a server silent
   longer than any legitimate wait as a drop and reconnects, measured on the wall clock so the first

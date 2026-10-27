@@ -700,7 +700,7 @@ class Translate {
             return;
         }
         s.roundAdvance = msg[wire.WAIT_ID] != null;
-        this.resultsOpenedAt = s.roundAdvance ? this.clock.now() - (msg[wire.WAIT_ELAPSED] || 0) * 1000 : null;
+        this.resultsOpenedAt = this.clock.now() - (msg[wire.WAIT_ELAPSED] || 0) * 1000;
         this.roundDialogOpen = true;
         for (const m of results) s.logMessage(m);
         s.closeRound();
@@ -736,15 +736,16 @@ class Translate {
     }
 
     /**
-     * Count a result of a round advance down to the server's timeout, which gives the round end its timeout once per
-     * result: each result but the last dismisses itself at its share, and the last stops at 0 until the server
-     * confirms the seat and deals the next round. The game's last round end opens no wait and counts nothing.
+     * Count a result down to its share of the round end's time, one round advance timeout (ra) per result, as the
+     * server waits a round advance: each result but the last dismisses itself at its share. The last of a round
+     * advance stops at 0 until the server confirms the seat and deals the next round; the last of the game's last
+     * round end, which opens no wait and is followed by no deal, dismisses itself too, so the final standings show.
      */
     countResultDown(index, more) {
-        if (this.resultsOpenedAt == null) return;
         const deadline = this.resultsOpenedAt + (index + 1) * this.clock.settings.ra * 1000;
         const seconds = (deadline - this.clock.now()) / 1000;
-        this.player.screenCountdown('result', seconds, more ? () => this.player.callback() : undefined);
+        const dismisses = more || ! this.shadow.roundAdvance;
+        this.player.screenCountdown('result', seconds, dismisses ? () => this.player.callback() : undefined);
     }
 
     gameEnd(msg) {
