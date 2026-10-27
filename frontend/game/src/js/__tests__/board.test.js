@@ -131,3 +131,29 @@ describe("Majiang.UI.Board hands", () => {
         for (const [seat, tiles] of Object.entries(faceUp)) expect(handTiles(seat)).toBe(tiles);
     });
 });
+
+describe("Majiang.UI.Board rivers", () => {
+    function endOnRiichiDiscard(name) {
+        vi.useFakeTimers();
+        const { board, model } = drawBoard();
+        const dapai = { l: 0, p: "p4*" };
+        model.dapai(dapai);
+        board.update({ dapai });
+        const pingju = { name, shoupai: ["", "", "", ""], fenpei: [0, 0, 0, 0] };
+        model.pingju(pingju);
+        board.update({ pingju });
+        const river = $("#board .board > .he.xiajia");
+        return {
+            stick: !river.find(".chouma").hasClass("hide"),
+            sideways: river.find(".lizhi .pai").length,
+        };
+    }
+
+    it("lay a riichi discard voided by four winds sideways with no stick", () => {
+        expect(endOnRiichiDiscard("四風連打")).toEqual({ stick: false, sideways: 1 });
+    });
+
+    it("show the stick of a riichi discard deposited by an exhaustive draw", () => {
+        expect(endOnRiichiDiscard("荒牌平局")).toEqual({ stick: true, sideways: 1 });
+    });
+});

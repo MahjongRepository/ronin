@@ -19,17 +19,20 @@ export default class He {
         this._node.chouma.addClass('hide');
     }
 
-    redraw() {
+    /* deposited: whether the riichi stick is down. The riichi discard lies
+     * sideways regardless; a riichi voided before its deposit gets no stick. */
+    redraw(deposited = true) {
 
         this._node.root.attr('aria-label', '捨て牌');
         this._node.chouma.attr('aria-label', 'リーチ');
         this._node.dapai.empty();
         let lizhi = false;
+        let declared = false;
         let i = 0;
         for (let p of this._he._pai) {
             if (p.match(/\*/)) {
                 lizhi = true;
-                this._node.chouma.removeClass('hide');
+                declared = true;
             }
             if (p.match(/[\+\=\-]/)) continue;
 
@@ -49,6 +52,7 @@ export default class He {
                 this._node.dapai.append($('<span class="break">'));
             }
         }
+        this._node.chouma.toggleClass('hide', ! (declared && deposited));
         return this;
     }
 
