@@ -35,7 +35,7 @@ function nameplate(plate, l, name, defen, connected) {
     plate.toggleClass('zhuangjia', l == 0)
          .empty()
          .append($('<span class="feng">').text(feng_hanzi[l]),
-                 $('<span class="name">').text(name),
+                 $('<span class="name">').text(name).attr('title', name),
                  $('<span class="info">').append(
                     $('<span class="defen">').text(format_defen(defen)),
                     l == 0 ? $('<span class="badge dealer">').text('親')

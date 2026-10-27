@@ -232,6 +232,7 @@ body.board {
         .name {
             overflow: hidden;
             text-overflow: ellipsis;
+            font-size: 0.9em;
             line-height: 1.15;
         }
 
@@ -548,6 +549,15 @@ body.board {
 
                     .row-player {
                         border-bottom: solid 2px;
+
+                        .player {
+                            width: 114px;
+                            max-width: 114px;
+                            font-size: 0.75em;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
                     }
 
                     .row-diff {
