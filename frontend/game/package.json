@@ -8,7 +8,7 @@
         "dev": "vite",
         "build": "vite build",
         "typecheck": "echo 'plain JavaScript app: nothing to typecheck'",
-        "lint": "eslint --max-warnings 0 . && stylelint 'src/**/*.scss' && sass --fatal-deprecation slash-div --no-source-map --style=compressed src/styles/game-app.scss:/dev/null",
+        "lint": "eslint --max-warnings 0 . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --no-source-map --style=compressed src/styles/game-app.scss:/dev/null",
         "lint:fix": "eslint --fix . && stylelint --fix 'src/**/*.scss'",
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
