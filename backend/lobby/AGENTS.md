@@ -95,6 +95,11 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 * Humans register and log in with username and password and get a session cookie. Every session is
   a human's; bots have none.
+* A guest is a session without an account: a fresh user id, a generated `Nanashi-NNNN` name and no
+  `players` row, gone at logout or expiry. Several places still treat the name as identity (the game
+  server rejects a table with duplicate names), so the name is unique among live sessions; the
+  hyphen keeps it out of the account namespace. Accepted limit: a guest who logs out or expires
+  while still seated frees the name, and a new guest drawing it at that table breaks the game start.
 * Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored.
   They send it as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
   `Origin`; from the handshake on, a bot runs the human code path.
@@ -119,6 +124,8 @@ Mandatory for all lobby code; review must catch violations.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off.
+* A redirect to a client-supplied target (the login `next`) follows only a same-site path: no
+  scheme, no host, no `//` or backslash, nothing unprintable; anything else goes to the lobby.
 * Credentials never travel in a URL: uvicorn and Traefik log every path with its query string. A
   response carrying a credential (a game ticket) is `Cache-Control: no-store`.
 * The internal API secret is sent only to the game server, as a bearer header; no page or browser

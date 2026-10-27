@@ -39,8 +39,8 @@
                 </form>
             </li>
             {% else %}
-            <li><a href="/login" class="lobby-nav-link"{% if current_path == "/login" %} aria-current="page"{% endif %}>Log in</a></li>
-            <li><a href="/register" role="button" class="outline lobby-small-btn"{% if current_path == "/register" %} aria-current="page"{% endif %}>Register</a></li>
+            <li><a href="/login{{ next_query }}" class="lobby-nav-link"{% if current_path == "/login" %} aria-current="page"{% endif %}>Log in</a></li>
+            <li><a href="/register{{ next_query }}" role="button" class="outline lobby-small-btn"{% if current_path == "/register" %} aria-current="page"{% endif %}>Register</a></li>
             {% endif %}
         </ul>
     </nav>

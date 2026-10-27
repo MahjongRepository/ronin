@@ -87,6 +87,11 @@ flowchart TD
 ```
 
 * Sessions are **in-memory** on the lobby with a 24h TTL: a restart logs everyone out.
+* The login redirect's `next` (only for a GET: another method's target cannot be reopened) rides
+  through the login, register and guest forms, and each of them returns there after creating the
+  session.
+* A **guest** (`POST /guest`) gets a session like any other, with a fresh user id and a generated
+  `Nanashi-NNNN` name, but no `players` row: nothing past the session reads that table.
 * Every HTTP route carries exactly one policy decorator; WebSocket handlers authenticate inside
   (`Origin` check, then `websocket.user`).
 * **Game tickets** are HMAC-SHA256 tokens `{user_id, username, room_id=game_id, expires_at}`

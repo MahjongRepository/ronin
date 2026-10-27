@@ -24,8 +24,13 @@ AUTH_POLICY_ATTR = "__auth_policy__"
 
 def _login_redirect(request: Request) -> RedirectResponse:
     """
-    Build a relative redirect to the login page preserving the original path.
+    Build a relative redirect to the login page, preserving the original path when a GET can return to it.
+
+    Any other method's target cannot be reopened by the redirect after login, so it gets the plain login page.
     """
+    if request.method != "GET":
+        return RedirectResponse(url="/login", status_code=303)
+
     next_path = request.url.path
     if request.url.query:
         next_path = f"{next_path}?{request.url.query}"

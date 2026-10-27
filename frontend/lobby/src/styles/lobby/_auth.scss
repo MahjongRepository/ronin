@@ -47,6 +47,28 @@
     }
 }
 
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block: 1.25rem;
+    color: var(--ronin-text-muted);
+
+    &::before,
+    &::after {
+        content: "";
+        flex: 1;
+        border-top: 1px solid var(--ronin-border);
+    }
+}
+
+.auth-note {
+    text-align: center;
+    text-wrap: balance;
+    line-height: 1.4;
+    color: var(--ronin-text-secondary);
+}
+
 .auth-link {
     text-align: center;
     margin-top: 1.25rem;

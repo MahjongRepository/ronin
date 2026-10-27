@@ -9,6 +9,8 @@ from uuid import uuid4
 from shared.dal.models import AccountType, Player
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from shared.auth.models import AuthSession
     from shared.auth.password import PasswordHasher
     from shared.auth.session_store import AuthSessionStore
@@ -20,6 +22,9 @@ USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 72  # bcrypt truncates at 72 bytes
+
+GUEST_NAME_PREFIX = "Nanashi-"
+GUEST_NAMES = tuple(f"{GUEST_NAME_PREFIX}{n}" for n in range(1000, 10000))
 
 
 class AuthError(Exception):
@@ -101,6 +106,16 @@ class AuthService:
 
         return self._session_store.create_session(user_id=player.user_id, username=player.username)
 
+    def login_as_guest(self) -> AuthSession:
+        """
+        Create a session for a one-time guest: a fresh user id, a generated name and no account.
+
+        Picking the name and creating the session stay in one synchronous step, so two concurrent guest logins cannot
+        take the same name.
+        """
+        name = _pick_guest_name(self._session_store.get_active_usernames())
+        return self._session_store.create_session(user_id=str(uuid4()), username=name)
+
     def validate_session(self, session_id: str | None) -> AuthSession | None:
         """
         Return the session if valid and not expired, otherwise None.
@@ -153,6 +168,17 @@ def _validate_username(username: str) -> None:
 
     if not USERNAME_PATTERN.match(username):
         raise AuthError("Username must contain only letters, numbers, and underscores")
+
+
+def _pick_guest_name(taken: Collection[str]) -> str:
+    """
+    Pick a random guest name that no live session holds.
+
+    Unlike a room name, a repeat is harmful: `POST /games` rejects a table with duplicate player names, so with every
+    name held this raises instead of reusing one.
+    """
+    free = [name for name in GUEST_NAMES if name not in taken]
+    return secrets.choice(free)
 
 
 def _validate_password(password: str) -> None:

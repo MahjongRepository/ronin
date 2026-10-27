@@ -15,6 +15,7 @@
 
     <form method="POST" action="/login">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
         <label for="username">Username
             <input type="text" id="username" name="username" value="{{ form_username or '' }}" required minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" autocomplete="username" autocapitalize="none" spellcheck="false"{% if not error %} autofocus{% endif %}>
         </label>
@@ -23,6 +24,13 @@
         </label>
         <button type="submit">Log in</button>
     </form>
-    <p class="auth-link"><small>Don't have an account? <a href="/register">Register</a></small></p>
+    <p class="auth-divider">or</p>
+    <form method="POST" action="/guest">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
+        <button type="submit" class="outline" aria-describedby="guest-note">Play as guest</button>
+        <p class="auth-note" id="guest-note"><small>Get a random name. Nothing is saved to an account.</small></p>
+    </form>
+    <p class="auth-link"><small>Don't have an account? <a href="/register{{ next_query }}">Register</a></small></p>
 </article>
 {% endblock %}

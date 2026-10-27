@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -10,7 +11,7 @@ from starlette.routing import Route
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.conftest import make_player, open_client
 from lobby.tests.integration.conftest import register_with_csrf
-from shared.dal.models import PlayedGame, PlayedGameStanding
+from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 _GAME_CLIENT_INDEX = '<div id="app"></div><script type="module" src="/game-assets/assets/index-abc123.js"></script>'
 
@@ -366,6 +367,34 @@ class TestHistoryPage:
         assert "40,000" in response.text
         assert "25,000" in response.text
         assert 'class="games-card-link" href="/play/history/abcd1234-test-game"' in response.text
+
+    def test_history_page__when_another_user_held_the_viewers_name__should_mark_only_the_viewers_standing(self, client):
+        viewer = client.app.state.auth_service.validate_session(client.cookies["session_id"])
+        now = datetime.now(UTC)
+        game = PlayedGame(
+            game_id="name-reuse-game",
+            started_at=now - timedelta(minutes=30),
+            ended_at=now,
+            end_reason=GameEndReason.COMPLETED,
+            game_type="hanchan",
+            num_rounds_played=6,
+            standings=[
+                PlayedGameStanding(name=viewer.username, seat=0, user_id="earlier-holder", score=41000, final_score=51),
+                PlayedGameStanding(name=viewer.username, seat=1, user_id=viewer.user_id, score=27000, final_score=7),
+                PlayedGameStanding(name="Tsumogiri 1", seat=2, score=19000, final_score=-21),
+                PlayedGameStanding(name="Tsumogiri 2", seat=3, score=13000, final_score=-37),
+            ],
+        )
+        client.app.state.game_repo.create_game(game)
+
+        response = client.get("/history")
+        assert response.status_code == 200
+        standings = re.split(r'<div class="games-standing(?=[ "])', response.text)[1:]
+        assert len(standings) == 4
+        marked = [standing for standing in standings if "games-standing--me" in standing]
+        assert len(marked) == 1
+        assert "27,000" in marked[0]
+        assert response.text.count('class="games-you"') == 1
 
     def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
         with open_client(app) as c:

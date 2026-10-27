@@ -31,6 +31,7 @@ _app = Starlette(routes=[Route("/login", _login_page, name="login_page")])
 def _make_request(
     *,
     authenticated: bool,
+    method: str = "GET",
     path: str = "/some-page",
     query_string: bytes = b"",
     account_type: AccountType = AccountType.HUMAN,
@@ -38,7 +39,7 @@ def _make_request(
     scopes = ["authenticated"] if authenticated else []
     scope = {
         "type": "http",
-        "method": "GET",
+        "method": method,
         "path": path,
         "query_string": query_string,
         "headers": [],
@@ -81,6 +82,14 @@ class TestProtectedHtml:
         assert parsed.path == "/login"
         query = parse_qs(parsed.query)
         assert "/page?tab=settings" in query["next"]
+
+    async def test_protected_html__when_unauthenticated_post__should_redirect_to_login_without_next(self):
+        wrapped = protected_html(_dummy_handler)
+        request = _make_request(authenticated=False, method="POST", path="/rooms/r1/join")
+
+        result = await wrapped(request)
+        assert isinstance(result, RedirectResponse)
+        assert result.headers["location"] == "/login"
 
     async def test_protected_html__when_authenticated__should_call_handler(self):
         wrapped = protected_html(_dummy_handler)

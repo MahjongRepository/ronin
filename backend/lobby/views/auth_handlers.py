@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 from starlette.responses import RedirectResponse, Response
 
@@ -36,11 +37,29 @@ _ACCOUNT_RULES = {
 }
 
 
-def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSettings) -> Response:
+def _parse_next_path(value: object) -> str | None:
     """
-    Redirect to the lobby and set the session cookie.
+    Return ``value`` when it is a path on this site, otherwise None.
+
+    Browsers read ``//host`` and ``/\\host`` as another host and drop tabs and newlines inside a URL, so a path with a
+    backslash or a control character is refused too.
     """
-    response = RedirectResponse("/", status_code=303)
+    if not isinstance(value, str) or not value.startswith("/") or value.startswith("//"):
+        return None
+
+    if "\\" in value or not value.isprintable():
+        return None
+
+    return value
+
+
+def _redirect_with_session_cookie(
+    *, session: AuthSession, auth_settings: AuthSettings, next_path: str | None
+) -> Response:
+    """
+    Redirect to ``next_path`` (the lobby when there is none) and set the session cookie.
+    """
+    response = RedirectResponse(next_path or "/", status_code=303)
     response.set_cookie(
         key="session_id",
         value=session.session_id,
@@ -62,16 +81,20 @@ def _render_auth_form(
     invalid_field: str | None = None,
 ) -> Response:
     """
-    Render the login or register form, keeping the submitted username (never a password).
+    Render the login or register form, keeping the submitted username (never a password) and the page to return to.
 
-    The username goes under ``form_username``: ``username`` is the logged-in user the navigation shows.
+    The username goes under ``form_username``: ``username`` is the logged-in user the navigation shows. The return page
+    comes from the submitted form, or from the ``next`` query parameter the login redirect adds.
     """
     submitted = form.get("username", "") if form is not None else ""
+    next_path = _parse_next_path(form.get("next") if form is not None else request.query_params.get("next"))
     context: dict[str, object] = {
         **_ACCOUNT_RULES,
         "error": error,
         "invalid_field": invalid_field,
         "form_username": submitted if isinstance(submitted, str) else "",
+        "next_path": next_path,
+        "next_query": f"?{urlencode({'next': next_path})}" if next_path else "",
     }
     return render_page(request, template_name=template_name, context=context)
 
@@ -109,7 +132,27 @@ async def login(request: Request) -> Response:
     except AuthError as e:
         return _render_auth_form(request, template_name="login.html", form=form, error=str(e))
 
-    return _redirect_with_session_cookie(session, auth_settings)
+    return _redirect_with_session_cookie(
+        session=session, auth_settings=auth_settings, next_path=_parse_next_path(form.get("next"))
+    )
+
+
+async def guest_login(request: Request) -> Response:
+    """POST /guest - start a guest session, set the session cookie, redirect to lobby."""
+    auth_service = request.app.state.auth_service
+    auth_settings = request.app.state.auth_settings
+    form = await request.form()
+
+    if not is_csrf_valid(request, form):
+        return _render_stale_auth_form(request, template_name="login.html", form=form)
+
+    next_path = _parse_next_path(form.get("next"))
+    if request.user.is_authenticated:
+        return RedirectResponse(next_path or "/", status_code=303)
+
+    return _redirect_with_session_cookie(
+        session=auth_service.login_as_guest(), auth_settings=auth_settings, next_path=next_path
+    )
 
 
 async def register_page(request: Request) -> Response:
@@ -144,7 +187,9 @@ async def register(request: Request) -> Response:
     except AuthError as e:
         return _render_auth_form(request, template_name="register.html", form=form, error=str(e))
 
-    return _redirect_with_session_cookie(session, auth_settings)
+    return _redirect_with_session_cookie(
+        session=session, auth_settings=auth_settings, next_path=_parse_next_path(form.get("next"))
+    )
 
 
 async def logout(request: Request) -> Response:

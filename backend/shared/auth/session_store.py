@@ -60,6 +60,13 @@ class AuthSessionStore:
 
         return session
 
+    def get_active_usernames(self) -> set[str]:
+        """
+        Return the usernames of all non-expired sessions.
+        """
+        now = time.time()
+        return {s.username for s in self._sessions.values() if now <= s.expires_at}
+
     def delete_session(self, session_id: str) -> None:
         """
         Remove a session (logout).
