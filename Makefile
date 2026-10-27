@@ -6,7 +6,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
 FRONTEND_APPS := lobby game
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays profile profile-games
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check profile profile-games
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -58,6 +58,12 @@ deadcode:
 
 generate-replays:
 	$(BE_RUN) python -m game.replay.external.tenhou
+
+generate-replay-fixtures:
+	cd backend && uv run python -m scripts.generate_replay_fixtures
+
+replay-fixtures-check:
+	cd backend && uv run python -m scripts.generate_replay_fixtures --check
 
 profile:
 	$(BE_RUN) python bin/profile_replay.py

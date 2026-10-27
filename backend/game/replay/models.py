@@ -94,6 +94,13 @@ class ReplayTrace(BaseModel):
     steps: tuple[ReplayStep, ...]
     final_state: MahjongGameState
 
+    @property
+    def events(self) -> tuple[GameEvent, ...]:
+        """
+        Every event the replay emitted, in order: the startup events, then each step's.
+        """
+        return (*self.startup_events, *(event for step in self.steps for event in step.emitted_events))
+
 
 class ReplayError(Exception):
     """

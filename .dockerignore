@@ -21,6 +21,8 @@ backend/data
 backend/debug.py
 backend/**/tests
 backend/conftest.py
+backend/scripts/replay_fixtures
+backend/scripts/generate_replay_fixtures.py
 backend/config
 **/*.md
 bin

@@ -49,10 +49,9 @@ def read_recorded_outcomes(replay_path: Path) -> list[dict[str, Any]]:
 
 def replay_outcomes(replay_path: Path) -> list[dict[str, Any]]:
     trace = run_replay(load_replay_from_file(replay_path))
-    events = [*trace.startup_events, *(event for step in trace.steps for event in step.emitted_events)]
     return [
         json.loads(json.dumps(game_event_payload(event)))
-        for event in events
+        for event in trace.events
         if isinstance(event, RoundEndEvent | GameEndedEvent)
     ]
 
