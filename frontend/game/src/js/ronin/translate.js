@@ -9,14 +9,8 @@ import Shadow from './shadow.js';
 import TurnClock from './clock.js';
 import Autoplay from './autoplay.js';
 import rules from './rules.js';
-import * as yaku  from './yaku.js';
-
-function fullHandStr(closedIds, meldStrs, winTileId) {
-    let s = tiles.handStr((closedIds || []).filter(id => id != winTileId));
-    if (winTileId != null) s += tiles.tileToStr(winTileId);
-    if (meldStrs && meldStrs.length) s += ',' + meldStrs.join(',');
-    return s;
-}
+import { ABORTIVE_NAMES, fenpeiByL, jiejuStandings, kanMianzi, pingjuMessage, revealedHands as revealedHandsByL, seatL,
+         tenpaiByL, winHule } from './results.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -24,14 +18,6 @@ function firstDealerFromDice(dealerDice) {
     const provisional = (first[0] + first[1] - 1) % 4;
     return (provisional + second[0] + second[1] - 1) % 4;
 }
-
-const ABORTIVE_NAMES = {
-    nine_terminals: '九種九牌',
-    four_riichi:    '四家立直',
-    triple_ron:     '三家和了',
-    four_kans:      '四開槓',
-    four_winds:     '四風連打',
-};
 
 const GAME_TYPE_NAMES = {
     [wire.GAME_TYPE.HANCHAN]:  '半荘戦',
@@ -76,48 +62,6 @@ const WIN_CALL_MS = 500;
 const AUTO_RON_MS = 1000;
 
 /**
- * A win as majiang-ui's hule message. Its defen is the hand's value alone (the server's hr.pt), which the dialog
- * prints and names (満貫, 跳満, …) by; the winner's score change can't stand in for it, since it holds the honba, the
- * riichi sticks and any pao the winner owes another winner. Without ura-dora to show, fubaopai is null: the dialog
- * hides the ura row only for null.
- */
-function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai }) {
-    return {
-        hule: {
-            l,
-            shoupai,
-            baojia,
-            ...yaku.buildHupai(hr),
-            defen:    hr.pt * wire.SCORE_DIV,
-            fenpei,
-            fubaopai: fubaopai && fubaopai.length ? fubaopai : null,
-        },
-    };
-}
-
-/**
- * A draw as majiang-ui's pingju message. tenpai marks each seat's tenpai on a draw that judges it (null otherwise);
- * players names who the draw is about: the seat that declared nine terminals, the seats that made nagashi mangan.
- */
-function pingjuMessage({ name, shoupai = [null, null, null, null], fenpei, tenpai = null, players = [] }) {
-    return { pingju: { name, shoupai, fenpei, tenpai, players } };
-}
-
-/** A wire map of score changes by seat as majiang's fenpei: points in seat order from the round's dealer. */
-function fenpeiByL(sch, dealer) {
-    const out = [];
-    for (let l = 0; l < 4; l++) {
-        out[l] = (sch[(dealer + l) % 4] || 0) * wire.SCORE_DIV;
-    }
-    return out;
-}
-
-/** The tenpai seats of a draw as majiang's per-seat tenpai flags, in seat order from the round's dealer. */
-function tenpaiByL(tenpaiSeats, dealer) {
-    return [0, 1, 2, 3].map(l => tenpaiSeats.includes((dealer + l) % 4));
-}
-
-/**
  * A finished round of the reconnect snapshot's round history (rh) as the round log the final standings read: the deal
  * (wind, round, honba), each riichi that stood as its riichi discard followed by the next draw (the paipu shape the
  * standings take a riichi deposit from), then the result with its score changes. The standings read nothing else of
@@ -126,7 +70,7 @@ function tenpaiByL(tenpaiSeats, dealer) {
  * sum to the same row.
  */
 function ledgerRound(entry, qijia) {
-    const l = seat => (seat - entry.dl + 4) % 4;
+    const l = seat => seatL(seat, entry.dl);
     const log = [{ qipai: { zhuangfeng: entry.w, jushu: (entry.dl - qijia + 4) % 4, changbang: entry.h } }];
     for (const seat of entry.rs) {
         log.push({ dapai: { l: l(seat), p: '_*' } }, { zimo: { l: (l(seat) + 1) % 4, p: '_' } });
@@ -142,24 +86,6 @@ function ledgerRound(entry, qijia) {
         log.push({ hule: { l: l(winner), baojia, fenpei: i == 0 ? fenpei : [0, 0, 0, 0] } });
     });
     return log;
-}
-
-/**
- * The final standings of a game_end message as majiang-ui's jieju fields, by seat: each seat's score, uma-adjusted
- * points and place, and gongtuo, the points the riichi sticks left on the table at the end gave the winner (lb).
- */
-function jiejuStandings({ ws, st, lb }) {
-    const defen   = [0, 0, 0, 0];
-    const point   = [0, 0, 0, 0];
-    const rank    = [0, 0, 0, 0];
-    const gongtuo = [0, 0, 0, 0];
-    st.forEach((p, i) => {
-        defen[p.s] = p.sc * wire.SCORE_DIV;
-        point[p.s] = p.fs;
-        rank[p.s]  = i + 1;
-    });
-    gongtuo[ws] = lb * wire.SCORE_DIV;
-    return { defen, point, rank, gongtuo };
 }
 
 class Translate {
@@ -181,12 +107,6 @@ class Translate {
 
     syncWall() {
         this.player._model.shan.paishu = this.shadow.wallLeft();
-    }
-
-    static scoreMap(map) {
-        const out = {};
-        for (const k of Object.keys(map || {})) out[+k] = map[k];
-        return out;
     }
 
     handle(msg) {
@@ -572,7 +492,7 @@ class Translate {
     }
 
     fenpei(sch) {
-        return fenpeiByL(Translate.scoreMap(sch), this.shadow.dealer);
+        return fenpeiByL(sch, this.shadow.dealer);
     }
 
     /**
@@ -581,25 +501,11 @@ class Translate {
      */
     buildHule(winner, winTile, loserSeat) {
         const s = this.shadow;
-        let shoupai = fullHandStr(winner.ct, mianzi.meldStrsFrom(winner.ml), winTile);
-        if (s.riichi[winner.ws]) shoupai += '*';
-        return huleMessage({
-            l:        s.l(winner.ws),
-            shoupai,
-            baojia:   loserSeat == null ? null : s.l(loserSeat),
-            hr:       winner.hr,
-            fenpei:   this.fenpei(winner.sch),
-            fubaopai: winner.ud && winner.ud.map(tiles.tileToStr),
-        });
+        return winHule({ winner, winTile, loserSeat, dealer: s.dealer, riichi: s.riichi[winner.ws] });
     }
 
     revealedHands(tenpaiHands) {
-        const s = this.shadow;
-        const shoupai = [null, null, null, null];
-        for (const h of tenpaiHands || []) {
-            shoupai[s.l(h.s)] = fullHandStr(h.ct, mianzi.meldStrsFrom(h.ml), null);
-        }
-        return shoupai;
+        return revealedHandsByL(tenpaiHands, this.shadow.dealer);
     }
 
     /**
@@ -617,16 +523,11 @@ class Translate {
     }
 
     /**
-     * The mianzi of a kan open to chankan, in the shape of a round end's rk ({s, ti, kty}): an added kan extends its
-     * declarer's pon by the kan tile; a closed kan, which only kokushi musou robs, holds every copy of the tile's type.
+     * The mianzi of a kan open to chankan: an added kan extends its declarer's pon in the shadow by the kan tile; a
+     * closed kan, which only kokushi musou robs, holds every copy of the tile's type.
      */
     kanStr(kan) {
-        const t34 = Math.floor(kan.ti / 4);
-        if (kan.kty == wire.KAN.CLOSED) {
-            return mianzi.mianziStr({ meldType: wire.MELD.CLOSED_KAN, tileIds: [0, 1, 2, 3].map(c => t34 * 4 + c) });
-        }
-        const pon = this.shadow.findPon(kan.s, t34);
-        return mianzi.mianziStr({ ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([kan.ti]) }, pon);
+        return kanMianzi(kan, (seat, tile34) => this.shadow.findPon(seat, tile34));
     }
 
     /** The kan a chankan prompt offers to rob: an added kan when its declarer holds a pon of the tile, else a closed one. */
@@ -953,5 +854,4 @@ class Translate {
     }
 }
 
-export { ABORTIVE_NAMES, huleMessage, jiejuStandings, pingjuMessage };
 export default Translate;

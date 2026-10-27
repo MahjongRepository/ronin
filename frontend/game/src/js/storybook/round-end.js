@@ -1,7 +1,7 @@
 import $ from "jquery";
 
 import rules from "../ronin/rules.js";
-import { ABORTIVE_NAMES, huleMessage, jiejuStandings, pingjuMessage } from "../ronin/translate.js";
+import { ABORTIVE_NAMES, huleMessage, jiejuStandings, pingjuMessage } from "../ronin/results.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
