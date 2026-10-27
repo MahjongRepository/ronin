@@ -12,6 +12,7 @@ const DIALOG_READY_MS = 800;
 const CHI_OPTIONS = ["m345-", "m45-6", "m5-67"];
 const BUTTONS =
     '<span class="button cansel">×</span><span class="button chi">チー</span><span class="button gang">カン</span>' +
+    '<span class="button lizhi">リーチ</span>' +
     '<span class="button rong">ロン</span><span class="button zimo">ツモ</span><span class="button pingju">流局</span>';
 
 function renderTile(p) {
@@ -47,6 +48,14 @@ function visibleButtons(root) {
 
 function pressKey(key) {
     $(window).trigger($.Event("keyup", { key }));
+}
+
+function pressEscape() {
+    $(window).trigger($.Event("keydown", { key: "Escape" }));
+}
+
+function rightClick(node) {
+    node.trigger($.Event("mouseup", { button: 2 }));
 }
 
 describe("Majiang.UI.Player", () => {
@@ -104,22 +113,27 @@ describe("Majiang.UI.Player", () => {
         expect(visibleButtons(root)).toEqual(["×", "チー", "カン"]);
 
         $(".player-button .chi", root).trigger("click");
-        pressKey("Escape");
+        pressEscape();
         expect(visibleButtons(root)).toEqual(["×", "チー", "カン"]);
 
         vi.advanceTimersByTime(1200);
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
     });
 
-    it("passes a call prompt from ×, never from a click elsewhere on the board", () => {
+    it("passes a call prompt from ×, Escape or a right-click on the board, never from a click elsewhere on it", () => {
         const { player, root } = createPlayer();
         offerCallPrompt(player);
 
         root.trigger("click");
         $(".shoupai.main", root).trigger("click");
         expect(player._callback).not.toHaveBeenCalled();
-        $(".player-button .cansel", root).trigger("click");
+        rightClick(root);
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+
+        offerCallPrompt(player);
+        pressEscape();
+        pressEscape();
+        expect(player._callback).toHaveBeenCalledTimes(2);
     });
 
     it("counts a turn's base time down beside its bank, then the bank alone", () => {
@@ -189,6 +203,71 @@ describe("RoninPlayer", () => {
         expect($(".timer", root).text()).toBe("0");
         $(".shoupai.main .pai", root).trigger("click");
         expect(player._callback).toHaveBeenCalledExactlyOnceWith({ dapai: "m1*" });
+    });
+
+    it("continues a round result on Escape or a right-click only once its dialog is ready, and only once", () => {
+        const { player, root } = createPlayer(RoninPlayer);
+
+        player.action_hule();
+        rightClick(root);
+        expect(player._callback).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(DIALOG_READY_MS);
+        pressEscape();
+        rightClick(root);
+
+        expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+    });
+
+    it("backs out of a riichi discard to the turn's buttons and whole hand, once per back however often it is clicked", () => {
+        const { player, root, selector } = createPlayer(RoninPlayer);
+        player.action({
+            kaiju: { id: 0, rule: RONIN_RULE, title: "", player: ["", "", "", ""], qijia: 0 },
+        });
+        player.action({ qipai: dealDecision("m234567p234s99z11") });
+        const hand = $(".shoupai.main .bingpai", root).append(
+            renderTile("p2"),
+            renderTile("s9"),
+            $('<span class="zimo">').append(renderTile("p5")),
+        );
+        player.offer = { ...NO_OFFER, tsumo: true, riichi: ["p2", "p5_"] };
+        const reply = vi.fn();
+        player.action({ zimo: { l: 0, p: "p5" } }, reply);
+
+        $(".player-button .lizhi", root).trigger("click");
+        hand.find('> .pai[data-pai="s9"]').trigger("click");
+        expect(reply).not.toHaveBeenCalled();
+        pressEscape();
+        expect(visibleButtons(root)).toEqual(["リーチ", "ツモ"]);
+        $(".player-button .lizhi", root).trigger("click");
+        rightClick(root);
+        expect(visibleButtons(root)).toEqual(["リーチ", "ツモ"]);
+
+        $(".player-button .lizhi", root).trigger("click");
+        $(".back", selector).trigger("click").trigger("click");
+        $(".player-button .zimo", root).trigger("click");
+        $(".back", selector).trigger("click");
+
+        expect(reply).toHaveBeenCalledExactlyOnceWith({ hule: "-" });
+        expect(visibleButtons(root)).toEqual([]);
+    });
+
+    it("discards the drawn tile on a right-click on the seat's own turn, never on Escape", () => {
+        const { player, root } = createPlayer(RoninPlayer);
+        player.action({
+            kaiju: { id: 0, rule: RONIN_RULE, title: "", player: ["", "", "", ""], qijia: 0 },
+        });
+        player.action({ qipai: dealDecision("m234567p234s99z11") });
+        $(".shoupai.main .bingpai", root).append(
+            renderTile("s9"),
+            $('<span class="zimo">').append(renderTile("p5")),
+        );
+        const reply = vi.fn();
+        player.action({ zimo: { l: 0, p: "p5" } }, reply);
+
+        pressEscape();
+        expect(reply).not.toHaveBeenCalled();
+        rightClick(root);
+        expect(reply).toHaveBeenCalledExactlyOnceWith({ dapai: "p5_" });
     });
 
     it("lets the turn after a call discard any tile but the kuikae types the server blocks, a red five's included", () => {

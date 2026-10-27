@@ -66,6 +66,7 @@ export default class GameCtl {
         });
         $(window).on('keydown.controler', (ev)=>{
             if (ev.key != 'Escape' || ! this._menu_open) return;
+            ev.stopImmediatePropagation();
             const focused = ctl.has(document.activeElement).length;
             this.menu(false);
             if (focused) toggle.trigger('focus');

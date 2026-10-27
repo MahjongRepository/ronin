@@ -106,14 +106,18 @@ class RoninPlayer extends UI.Player {
     }
 
     /**
-     * Only 次へ dismisses a round result, by click or as the focused button by keyboard: a click elsewhere on the
-     * dialog (a discard click that lands as it opens, a tap to scroll it) would skip a result the round advance
-     * timeout already shows only briefly.
+     * Only 次へ dismisses a round result, by click, as the focused button by keyboard, or by Escape or a right-click
+     * once the dialog is ready: a click elsewhere on the dialog (a discard click that lands as it opens, a tap to
+     * scroll it) would skip a result the round advance timeout already shows only briefly.
      */
     action_hule() {
+        const next = $('.hule-dialog .next', this._node.root);
         $('.hule-dialog', this._node.root).off('click')
                                           .on('click.dialog', '.next', () => this.callback());
-        this.set_dialog_timeout(() => $('.hule-dialog .next', this._node.root).trigger('focus'));
+        this.set_dialog_timeout(() => {
+            next.trigger('focus');
+            this.set_default(() => next.trigger('click'));
+        });
     }
 
     action_chankan() {
