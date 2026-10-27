@@ -47,6 +47,7 @@ describe("Majiang.UI.Board nameplates", () => {
 
         expect(plate("xiajia").find(".feng").text()).toBe("東");
         expect(plate("xiajia").find(".name").text()).toBe("Bot 1");
+        expect(plate("xiajia").find(".name").attr("title")).toBe("Bot 1");
         expect(plate("xiajia").find(".defen").text()).toBe("32,000");
         expect(plate("xiajia").find(".badge").text()).toBe("親");
         expect(plate("main").find(".feng").text()).toBe("北");

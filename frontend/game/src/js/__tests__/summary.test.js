@@ -46,6 +46,8 @@ describe("summary", () => {
         );
 
         expect(rowTexts(root, ".row-rank")).toEqual(["|1位|2位|3位|4位"]);
+        const headers = root.find(".row-player .player").toArray();
+        expect(headers.map((cell) => cell.title)).toEqual(PLAYERS);
         expect(rowTexts(root, ".row-diff")).toEqual([
             "東一局|0本場|ロン|+9,000|-1,000リ|-8,000|",
             "東二局|0本場|流局|+1,500|+500リ|-1,500|-1,500",

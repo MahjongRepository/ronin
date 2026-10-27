@@ -22,7 +22,8 @@ export default function(root, paipu, viewpoint) {
     let player = $('.row-player .player', root);
     for (let i = 0; i < 4; i++) {
         let id = (viewpoint + i) % 4;
-        player.eq(i).text(paipu.player[id].replace(/\n.*$/,''));
+        let name = paipu.player[id].replace(/\n.*$/,'');
+        player.eq(i).text(name).attr('title', name);
     }
 
     let rank = $('.row-rank .rank', root);
