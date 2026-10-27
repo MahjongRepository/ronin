@@ -1,0 +1,71 @@
+@use "theme" as *;
+
+.hide {
+    display: none !important;
+}
+
+.fadeout {
+    opacity: 0 !important;
+}
+
+input,
+textarea {
+    font-size: 100%;
+    font-family: $fixed-font;
+}
+
+button {
+    font-size: 100%;
+}
+
+button,
+input[type="submit"],
+input[type="reset"],
+input[type="button"] {
+    font-family: $menu-font;
+    padding: 1px 1em;
+    border: solid 1px;
+    border-radius: 4px;
+    background: $grey-100;
+    color: black;
+    appearance: none;
+}
+
+input::placeholder {
+    color: $grey-400;
+    opacity: 1;
+}
+
+select {
+    border: solid 1px;
+    border-radius: 4px;
+    font-size: 100%;
+    padding: 1px;
+    background: $grey-100;
+    color: black;
+}
+
+body {
+    -webkit-text-size-adjust: 100%;
+    margin-top: 0;
+}
+
+#loaddata {
+    display: none;
+}
+
+[role="button"] * {
+    pointer-events: none;
+}
+
+@keyframes blink {
+    100% {
+        opacity: 0.7;
+    }
+}
+
+@keyframes blink-text {
+    100% {
+        opacity: 0.2;
+    }
+}

@@ -22,7 +22,7 @@ function diff_text(diff) {
 
 export default function(root, paipu, viewpoint, dummy_name) {
 
-    let player = $('.r_player .player', root);
+    let player = $('.r-player .player', root);
     for (let i = 0; i < 4; i++) {
         let id = (viewpoint + i) % 4;
         let name = (dummy_name) ? dummy_name[id]
@@ -30,14 +30,14 @@ export default function(root, paipu, viewpoint, dummy_name) {
         player.eq(i).text(name);
     }
 
-    let rank = $('.r_rank .rank', root);
+    let rank = $('.r-rank .rank', root);
     for (let i = 0; i < 4; i++) {
         let id = (viewpoint + i) % 4;
         rank.eq(i).text(paipu.rank[id] ? `${paipu.rank[id]}位` : '')
                   .toggleClass('top', paipu.rank[id] == 1);
     }
 
-    let r_diff = $('.r_diff', root).eq(0).clone();
+    let r_diff = $('.r-diff', root).eq(0).clone();
     let body   = $('.body', root).empty();
     for (let log of paipu.log) {
 
@@ -110,7 +110,7 @@ export default function(root, paipu, viewpoint, dummy_name) {
 
     let gongtuo = paipu.gongtuo || [0,0,0,0];
     if (gongtuo.some(d => d)) {
-        let r_gongtuo = $('<tr class="r_gongtuo">')
+        let r_gongtuo = $('<tr class="r-gongtuo">')
                             .append($('<th colspan="3">').text('残り供託'));
         for (let i = 0; i < 4; i++) {
             let id = (viewpoint + i) % 4;
@@ -121,7 +121,7 @@ export default function(root, paipu, viewpoint, dummy_name) {
         body.append(r_gongtuo);
     }
 
-    let defen = $('.r_defen .defen', root);
+    let defen = $('.r-defen .defen', root);
     for (let i = 0; i < 4; i++) {
         defen.eq(i).removeClass('plus minus');
         let id = (viewpoint + i) % 4;
@@ -130,7 +130,7 @@ export default function(root, paipu, viewpoint, dummy_name) {
         if (paipu.defen[id] < 0) defen.eq(i).addClass('minus');
     }
 
-    let point = $('.r_point .point', root);
+    let point = $('.r-point .point', root);
     for (let i = 0; i < 4; i++) {
         point.eq(i).removeClass('plus minus');
         let id = (viewpoint + i) % 4;

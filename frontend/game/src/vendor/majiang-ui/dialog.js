@@ -40,8 +40,8 @@ export default class HuleDialog {
             pingju: $('.pingju', root),
             fenpei: $('.fenpei', root),
         };
-        this._r_hupai = $('.r_hupai', root).eq(0);
-        this._r_defen = $('.r_defen', root).eq(0);
+        this._r_hupai = $('.r-hupai', root).eq(0);
+        this._r_defen = $('.r-defen', root).eq(0);
         this.hide();
 
         this._pai = pai;
@@ -94,14 +94,14 @@ export default class HuleDialog {
                   :                      '';
             text += hule.defen + '点';
             let r_defen = this._r_defen.clone();
-            $('.defen', r_defen).text(text).removeClass('no_hule');
+            $('.defen', r_defen).text(text).removeClass('no-hule');
             hupai.append(r_defen);
         }
         else {
             let r_hupai = this._r_hupai.clone();
             hupai.append(hide(r_hupai));
             let r_defen = this._r_defen.clone();
-            $('.defen', r_defen).text('役なし').addClass('no_hule');
+            $('.defen', r_defen).text('役なし').addClass('no-hule');
             hupai.append(r_defen);
         }
 

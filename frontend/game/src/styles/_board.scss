@@ -1,0 +1,1006 @@
+@use "theme" as *;
+
+body.board {
+    color: white;
+    background: black;
+    font-family: $menu-font;
+    margin: 0;
+
+    > * {
+        width: 800px;
+        margin: 0 auto;
+    }
+
+    #board {
+        display: block;
+        position: relative;
+        width: auto;
+        overflow: hidden;
+        background: $felt;
+    }
+}
+
+#space {
+    display: none;
+}
+
+#board {
+    display: none;
+}
+
+#board > .board {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 800px;
+    user-select: none;
+    touch-action: manipulation;
+    transform-origin: 0 0;
+    background: $felt;
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: -200vmax;
+        z-index: 2;
+        background: rgb(0 0 0 / 50%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease-out;
+    }
+
+    &:has(> :is(.hule-dialog, .summary):not(.hide, .fadeout))::after {
+        opacity: 1;
+    }
+
+    > * {
+        position: absolute;
+        transform-origin: 0% 0%;
+    }
+
+    .score {
+        border-radius: 4px;
+        background: $grey-900;
+        font-family: $defen-font;
+
+        .juchang {
+            float: left;
+
+            .jushu {
+                font-family: $title-font;
+                font-size: 32px;
+                line-height: 1.2;
+            }
+
+            .jicun {
+                line-height: 1.25;
+                white-space: nowrap;
+
+                > span {
+                    display: block;
+                }
+            }
+        }
+
+        .shan {
+            float: right;
+            text-align: right;
+        }
+
+        .defen {
+            clear: both;
+
+            div {
+                position: absolute;
+
+                &.lunban {
+                    color: $highlight;
+                }
+
+                &.main {
+                    text-align: center;
+                }
+
+                &.xiajia {
+                    text-align: right;
+                }
+
+                &.duimian {
+                    text-align: center;
+                }
+
+                &.shangjia {
+                    text-align: left;
+                }
+            }
+        }
+    }
+
+    .timer {
+        color: white;
+        font-size: 20px;
+        font-family: $defen-font;
+        text-align: right;
+        text-shadow: 2px 2px 4px black;
+
+        &.bank {
+            color: $bank-time;
+        }
+    }
+
+    .furiten {
+        padding: 0 0.4em;
+        border-radius: 4px;
+        background: $furiten;
+        color: white;
+        font-family: $menu-font;
+        line-height: 1.5;
+        white-space: nowrap;
+    }
+
+    .player-button {
+        z-index: 1;
+        text-align: right;
+        white-space: nowrap;
+        display: flex;
+        justify-content: end;
+
+        .button {
+            cursor: pointer;
+            display: inline-block;
+            min-width: 0;
+            overflow: hidden;
+            text-align: center;
+            font-family: $menu-font;
+            color: white;
+            background: black;
+            border-radius: 4px;
+
+            &.rong,
+            &.zimo {
+                background: $danger;
+                font-weight: bold;
+            }
+
+            &:focus {
+                outline: none;
+                box-shadow: inset 0 0 0 2px $accent;
+            }
+        }
+    }
+
+    .player-button,
+    .select-mianzi {
+        &::before {
+            content: "";
+            flex: none;
+        }
+    }
+
+    .select-mianzi {
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        line-height: 1;
+        white-space: nowrap;
+
+        .mianzi,
+        .back {
+            flex: none;
+            background: black;
+            border-radius: 4px;
+            cursor: pointer;
+
+            &:focus {
+                outline: none;
+                box-shadow: inset 0 0 0 2px $accent;
+            }
+        }
+
+        .back {
+            line-height: normal;
+            font-family: $menu-font;
+            color: white;
+            text-align: center;
+        }
+    }
+
+    > .player {
+        box-sizing: border-box;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        column-gap: 0.4em;
+        background: rgb(0 0 0 / 55%);
+        border: solid 1px rgb(255 255 255 / 15%);
+        color: $grey-50;
+        font-family: $text-font;
+        white-space: nowrap;
+        overflow: hidden;
+
+        .feng {
+            grid-row: 1 / 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            background: rgb(255 255 255 / 15%);
+            font-family: $title-font;
+            line-height: 1;
+        }
+
+        .name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.15;
+        }
+
+        .info {
+            display: flex;
+            align-items: center;
+            gap: 0.4em;
+            line-height: 1.2;
+        }
+
+        .defen {
+            font-family: $defen-font;
+            color: $grey-200;
+        }
+
+        .badge {
+            padding: 0 0.3em;
+            border-radius: 3px;
+            font-family: $menu-font;
+            line-height: 1.35;
+
+            &.dealer {
+                background: $accent;
+                color: black;
+            }
+
+            &.offline {
+                background: $danger;
+                color: white;
+            }
+        }
+
+        &.disconnect {
+            .name,
+            .defen {
+                color: $grey-400;
+            }
+        }
+
+        &.lunban {
+            border-color: $highlight;
+            background: rgb(0 48 48 / 80%);
+
+            .feng {
+                background: $highlight;
+                color: black;
+            }
+        }
+    }
+
+    .say {
+        font-family: $text-font;
+        color: white;
+        text-shadow:
+            3px 3px 6px $grey-800,
+            -3px 3px 6px $grey-800,
+            -3px -3px 6px $grey-800,
+            3px -3px 6px $grey-800;
+        transition: opacity 0.4s ease-out;
+
+        &.main {
+            text-align: center;
+        }
+
+        &.xiajia {
+            text-align: left;
+        }
+
+        &.duimian {
+            text-align: center;
+        }
+
+        &.shangjia {
+            text-align: right;
+        }
+    }
+
+    .hule-dialog {
+        z-index: 3;
+        display: flex;
+        overflow: auto;
+        align-items: center;
+        transition: opacity 0.2s ease-in;
+
+        &:focus {
+            outline: none;
+        }
+
+        > div {
+            margin: auto 0;
+
+            > div {
+                box-sizing: border-box;
+                width: fit-content;
+                max-width: 100%;
+                background: $dialog-background;
+                border: solid 1px $dialog-border;
+                border-radius: 6px;
+                box-shadow: 0 8px 32px rgb(0 0 0 / 60%);
+                margin: auto;
+
+                > .title {
+                    contain: inline-size;
+                    font-family: $text-font;
+                    text-align: center;
+                    line-height: 1.2;
+                }
+
+                .hule {
+                    .shan {
+                        font-family: $title-font;
+
+                        img {
+                            vertical-align: bottom;
+                        }
+
+                        &.baopai {
+                            float: left;
+                        }
+
+                        &.fubaopai {
+                            float: right;
+                        }
+                    }
+
+                    .shoupai {
+                        clear: both;
+                        margin: 0 auto;
+                    }
+
+                    .hupai {
+                        font-family: $title-font;
+                        line-height: 1;
+
+                        .fanshu {
+                            text-align: right;
+                        }
+
+                        .defen {
+                            text-align: right;
+                        }
+                    }
+
+                    .jicun {
+                        text-align: center;
+                        font-family: $defen-font;
+
+                        > span + span {
+                            margin-left: 1.5em;
+                        }
+                    }
+                }
+
+                .pingju {
+                    text-align: center;
+
+                    .name {
+                        font-family: $title-font;
+                        line-height: 1.2;
+                    }
+
+                    .players {
+                        contain: inline-size;
+                        font-family: $text-font;
+
+                        &:empty {
+                            display: none;
+                        }
+                    }
+                }
+
+                .fenpei {
+                    margin: 0 auto;
+                    border-collapse: collapse;
+                    font-family: $defen-font;
+
+                    td {
+                        padding: 2px 8px;
+                        white-space: nowrap;
+                    }
+
+                    tr.main {
+                        background: rgb(255 255 255 / 10%);
+                        font-weight: bold;
+                    }
+
+                    .feng {
+                        color: $accent;
+                    }
+
+                    .player {
+                        font-family: $text-font;
+                        max-width: 9em;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+
+                    .tenpai {
+                        font-family: $text-font;
+                        color: $accent;
+
+                        &.noten {
+                            color: $grey-400;
+                        }
+                    }
+
+                    .defen,
+                    .diff {
+                        text-align: right;
+                    }
+
+                    .diff {
+                        min-width: 4.5em;
+                    }
+
+                    .plus {
+                        color: $highlight;
+                    }
+
+                    .minus {
+                        color: $loss;
+                    }
+                }
+
+                .next {
+                    display: block;
+                    margin: 0 0 0 auto;
+                    border: solid 1px $accent;
+                    border-radius: 4px;
+                    background: transparent;
+                    color: $accent;
+                    font-family: $menu-font;
+                    cursor: pointer;
+
+                    &:hover,
+                    &:focus-visible {
+                        background: $accent;
+                        color: black;
+                        outline: none;
+                    }
+
+                    .countdown:not(:empty) {
+                        margin-left: 0.5em;
+                        font-family: $defen-font;
+                    }
+                }
+            }
+        }
+    }
+
+    > .summary {
+        z-index: 3;
+        display: flex;
+        overflow: auto;
+        align-items: center;
+        transition: opacity 0.2s ease-out;
+
+        &:focus {
+            outline: none;
+        }
+
+        > div {
+            margin: auto 0;
+
+            > div {
+                box-sizing: border-box;
+                background: $dialog-background;
+                border: solid 1px $dialog-border;
+                border-radius: 6px;
+                box-shadow: 0 8px 32px rgb(0 0 0 / 60%);
+                margin: auto;
+
+                .lizhi {
+                    font-family: $menu-font;
+                    display: inline-block;
+                    width: 1.2em;
+                    margin-left: 0.2em;
+                    font-size: 0.7em;
+                    line-height: 1.4;
+                    vertical-align: middle;
+                    text-align: center;
+                    color: $accent;
+
+                    &:not(:empty) {
+                        border: solid 1px $accent;
+                        border-radius: 3px;
+                    }
+                }
+
+                table {
+                    margin: auto;
+                    font-family: $text-font;
+                    border-collapse: collapse;
+                    line-height: 1.5;
+
+                    .r-rank {
+                        .title {
+                            font-family: $title-font;
+                            text-align: left;
+                            vertical-align: middle;
+                        }
+
+                        .rank {
+                            font-family: $menu-font;
+                            text-align: center;
+                            color: $grey-400;
+
+                            &.top {
+                                color: $accent;
+                                font-weight: bold;
+                            }
+                        }
+                    }
+
+                    .r-player {
+                        border-bottom: solid 2px;
+                    }
+
+                    .r-diff {
+                        .back {
+                            text-align: right;
+                        }
+
+                        .zhuangjia {
+                            background: rgb(128 128 128 / 40%);
+                        }
+
+                        .diff {
+                            font-family: $defen-font;
+
+                            &.even {
+                                font-family: $text-font;
+                                font-size: 0.8em;
+                                color: $grey-400;
+                            }
+                        }
+                    }
+
+                    .r-gongtuo {
+                        border-top: solid 1px $grey-700;
+
+                        th {
+                            text-align: left;
+                        }
+
+                        td {
+                            text-align: right;
+                            padding-right: 1.6em;
+                        }
+
+                        .diff {
+                            font-family: $defen-font;
+                        }
+                    }
+
+                    .label {
+                        font-family: $text-font;
+                        text-align: left;
+                        white-space: nowrap;
+
+                        small {
+                            margin-left: 0.4em;
+                            font-size: 0.65em;
+                            font-weight: normal;
+                            color: $grey-400;
+                        }
+                    }
+
+                    .r-defen {
+                        border-top: solid 2px;
+
+                        .defen {
+                            font-family: $defen-font;
+                            text-align: right;
+                            padding-right: 1.6em;
+                        }
+                    }
+
+                    .r-point {
+                        border-top: solid 1px;
+
+                        .point {
+                            font-family: $defen-font;
+                            text-align: center;
+                        }
+                    }
+
+                    .baojia,
+                    .minus {
+                        color: red;
+                    }
+
+                    .hule,
+                    .plus {
+                        color: $highlight;
+                    }
+
+                    a.download {
+                        opacity: 0.6;
+                        font-family: $menu-font;
+                        font-size: 18px;
+                        text-decoration: none;
+                        color: white;
+
+                        img {
+                            height: 1em;
+                            vertical-align: text-bottom;
+                        }
+                    }
+                }
+
+                .footer {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin: auto;
+                    font-family: $text-font;
+
+                    .legend {
+                        color: $grey-400;
+
+                        .zhuangjia {
+                            display: inline-block;
+                            width: 1em;
+                            height: 1em;
+                            margin-right: 0.3em;
+                            vertical-align: -0.15em;
+                            background: rgb(128 128 128 / 40%);
+                        }
+
+                        .lizhi {
+                            margin: 0 0.3em 0 1.2em;
+                        }
+                    }
+
+                    .exit {
+                        border: solid 1px $accent;
+                        border-radius: 4px;
+                        background: transparent;
+                        color: $accent;
+                        font-family: $menu-font;
+                        cursor: pointer;
+
+                        &:hover,
+                        &:focus-visible {
+                            background: $accent;
+                            color: black;
+                            outline: none;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    > .summary.paipu tbody tr:hover {
+        background: rgb(256 256 256 / 40%);
+        cursor: pointer;
+    }
+
+    .kaiju {
+        &:focus {
+            outline: none;
+        }
+    }
+
+    .kaiju > div {
+        z-index: 1;
+        position: relative;
+        width: 580px;
+        margin: auto;
+        background: $grey-900;
+        border: solid 1px $grey-900;
+        border-radius: 6px;
+
+        .title {
+            margin: 40px 20px;
+            text-align: center;
+            font-family: $title-font;
+            font-size: 32px;
+            line-height: 1;
+
+            .sub {
+                margin-top: 12px;
+                font-family: $text-font;
+                font-size: 18px;
+                color: $grey-400;
+            }
+        }
+
+        .player {
+            margin: 40px 20px;
+            height: 132px;
+            text-align: center;
+            font-family: $text-font;
+            font-size: 24px;
+
+            > div {
+                position: absolute;
+                width: 240px;
+                height: 38px;
+                padding: 0 10px;
+                border-radius: 4px;
+                background: $grey-800;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+
+                &.selectable {
+                    cursor: pointer;
+
+                    &:hover {
+                        background: $grey-400;
+                    }
+                }
+
+                &.main {
+                    transform: translate(140px, 96px);
+                }
+
+                &.xiajia {
+                    transform: translate(280px, 48px);
+                }
+
+                &.duimian {
+                    transform: translate(140px, 0);
+                }
+
+                &.shangjia {
+                    transform: translate(0, 48px);
+                }
+            }
+        }
+
+        .countdown {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            color: $accent;
+            font-family: $defen-font;
+            font-size: 24px;
+        }
+    }
+
+    .suspend {
+        background: rgb(0 0 0 / 50%);
+    }
+}
+
+#board {
+    .controller {
+        position: absolute;
+        z-index: 2;
+
+        button {
+            display: block;
+            margin: 0;
+            border: none;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+
+            &:focus-visible {
+                outline: solid 2px $accent;
+                outline-offset: 2px;
+            }
+        }
+
+        .settings-toggle {
+            width: 40px;
+            height: 40px;
+            padding: 8px;
+            border-radius: 6px;
+            opacity: 0.6;
+
+            &:hover,
+            &:focus-visible,
+            &[aria-expanded="true"] {
+                opacity: 1;
+                background: rgb(255 255 255 / 15%);
+            }
+
+            svg {
+                display: block;
+                pointer-events: none;
+                width: 100%;
+                height: 100%;
+            }
+        }
+
+        .settings-menu {
+            position: absolute;
+            top: 44px;
+            right: 0;
+            padding: 6px;
+            background: black;
+            border: solid 1px $grey-600;
+            border-radius: 6px;
+            font-family: $menu-font;
+            font-size: 16px;
+        }
+
+        .sound {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 140px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font: inherit;
+            white-space: nowrap;
+
+            &:hover {
+                background: rgb(255 255 255 / 15%);
+            }
+
+            img {
+                width: 20px;
+                height: 20px;
+            }
+
+            &[aria-checked="true"] img.off,
+            &[aria-checked="false"] img.on {
+                display: none;
+            }
+
+            .state {
+                margin-left: auto;
+                font-weight: bold;
+            }
+        }
+    }
+
+    .autoplay {
+        position: absolute;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: start;
+        gap: 4px;
+
+        button {
+            display: flex;
+            align-items: center;
+            gap: 0.4em;
+            margin: 0;
+            padding: 4px 8px 4px 6px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: white;
+            font-family: $menu-font;
+            font-size: 16px;
+            white-space: nowrap;
+            cursor: pointer;
+            opacity: 0.6;
+
+            &::before {
+                content: "";
+                flex: none;
+                box-sizing: border-box;
+                width: 1em;
+                height: 1em;
+                border: solid 2px currentcolor;
+                border-radius: 3px;
+            }
+
+            &:hover {
+                opacity: 1;
+                background: rgb(255 255 255 / 15%);
+            }
+
+            &:focus-visible {
+                opacity: 1;
+                outline: solid 2px $accent;
+                outline-offset: 2px;
+            }
+
+            &[aria-checked="true"] {
+                opacity: 1;
+                color: $accent;
+
+                &::before {
+                    background: currentcolor;
+                    box-shadow: inset 0 0 0 2px $felt;
+                }
+            }
+        }
+    }
+
+    .download {
+        position: absolute;
+        z-index: 1;
+
+        a {
+            opacity: 0.7;
+            display: inline-block;
+            color: white;
+            background: black;
+            text-decoration: none;
+            font-size: 18px;
+            font-family: $menu-font;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+
+            img {
+                height: 1.2em;
+                margin-right: 0.5em;
+                vertical-align: middle;
+            }
+
+            &:hover {
+                opacity: 1;
+            }
+        }
+    }
+
+    .tenhou-dialog {
+        position: absolute;
+        z-index: 1;
+        background: rgb(0 0 0 / 50%);
+
+        form {
+            padding: 15px;
+            background: white;
+            border-radius: 4px;
+            font-family: $menu-font;
+            font-size: 14px;
+            color: black;
+
+            li {
+                display: inline-block;
+                margin-right: 0.5em;
+            }
+
+            textarea {
+                box-sizing: border-box;
+                width: 100%;
+                resize: none;
+
+                &.url {
+                    white-space: pre;
+                }
+
+                &.json {
+                    word-break: break-all;
+                }
+            }
+
+            .button {
+                text-align: right;
+            }
+        }
+    }
+}
+
+@media screen and (height <= 680px) {
+    body.board {
+        height: 100dvh;
+
+        #space {
+            display: block;
+            background: $grey-600;
+            height: 100px;
+        }
+
+        #navi {
+            display: none;
+        }
+    }
+}

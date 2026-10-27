@@ -13,8 +13,8 @@ function renderDialog() {
             <div class="shan"><span class="baopai"></span><span class="fubaopai"></span></div>
             <div class="shoupai"><div class="bingpai"></div><div class="fulou"></div></div>
             <table class="hupai">
-                <tr class="r_hupai"><td class="name"></td><td class="fanshu"></td></tr>
-                <tr class="r_defen"><td class="defen"></td></tr>
+                <tr class="r-hupai"><td class="name"></td><td class="fanshu"></td></tr>
+                <tr class="r-defen"><td class="defen"></td></tr>
             </table>
         </div>
         <div class="pingju"><div class="name"></div><div class="players"></div></div>
@@ -114,6 +114,6 @@ describe("Majiang.UI.HuleDialog", () => {
         });
 
         expect(root.find(".title").text()).toBe("Ronin ロン ← Bot 2");
-        expect(root.find(".hupai .r_hupai .fanshu").text()).toBe("ダブル役満");
+        expect(root.find(".hupai .r-hupai .fanshu").text()).toBe("ダブル役満");
     });
 });

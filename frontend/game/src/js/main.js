@@ -1,6 +1,5 @@
 import "./majiang.js";
-import "../css/index.styl";
-import "../css/pages.styl";
+import "../styles/game-app.scss";
 
 import $ from "jquery";
 
