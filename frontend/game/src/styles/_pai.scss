@@ -9,7 +9,11 @@
         display: inline-block;
         height: $height;
         width: width($height);
+    }
+}
 
+@mixin bingpai-states($height) {
+    .pai {
         &:focus {
             transform: translate(0, math.div(-$height, 7));
             outline: none;
@@ -24,7 +28,11 @@
             opacity: 0;
             width: 0;
         }
+    }
+}
 
+@mixin he-states {
+    .pai {
         &.mopai {
             opacity: 0.8;
         }
