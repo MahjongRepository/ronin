@@ -64,9 +64,14 @@ select by element id, class or `snapshot -i` refs.
 - **Matchmaking:** `/matchmaking` queues for a 4-human match; one browser user only shows the
   waiting state.
 - **History and replay:** `/history` lists recent games; each card's `.games-card-link` ("View
-  replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the raw
-  replay log as text (or "Replay not found" when its file is missing); there is no step-through
-  viewer.
+  replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
+  the board at its first deal, with `.replay-back` / `.replay-next` and the position label
+  `.replay-position` (`.replay-round`, `.replay-step`, `.replay-ended`) in the strip below it (beside it at `max-height: 450px` landscape); a replay
+  it cannot show gets a `.replay-problem` message instead. To show a particular case, gzip a
+  fixture from `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id
+  of your own (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards.
+  Clicking `.replay-next` from a script (not a real click) plays sounds without a user gesture, so
+  `agent-browser errors` fills with `NotAllowedError`s; those are the browser's autoplay policy.
 - **Storybooks:** `/storybook` (lobby styles, dev only) and `/play/storybook` plus the pages its
   header links to (game components; a board page with several states takes `?state=<key>` from its
   variant links). At `max-height: 450px` (a viewport 450px tall or less) the header is one

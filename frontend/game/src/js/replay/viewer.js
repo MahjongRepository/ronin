@@ -43,6 +43,11 @@ function playIntoModel(model, message) {
     }
 }
 
+/** How many wins a position holds after its first: a double ron's further wins, none anywhere else. */
+function furtherWinCount(position) {
+    return position.kind === POSITION.RESULT ? Math.max(0, position.wins - 1) : 0;
+}
+
 /** Where the standings' exit leads: back to the lobby page the replay was opened from, else the game history. */
 function exitUrl() {
     const referrer = document.referrer;
@@ -52,12 +57,19 @@ function exitUrl() {
     return HISTORY_URL;
 }
 
+/** The exit's label names where it leads: the game history, or just back to another page. */
+function exitLabel(url) {
+    return new URL(url, window.location.origin).pathname.startsWith(HISTORY_URL)
+        ? "履歴へ戻る"
+        : "戻る";
+}
+
 /**
  * The cursor over a converted replay (`toReplay`): it moves through each round's positions and shows each on a
  * majiang-ui Board view drawing a majiang-core Board model. The model is the only state: a seek rebuilds the round
  * from its deal, silently, and stepping forward plays a position's messages into the model and the view, with sound.
- * A result position's range holds its first win only; the dialog's 次へ pages through a double ron's further wins
- * without moving the cursor, and leaving the result forward plays the ones not yet shown, so no win is played twice.
+ * A result position's range holds its first win only; the dialog's 次へ and Next alike page through a double ron's
+ * further wins without moving the cursor, and leave the result only once its last win is shown; Back pages back.
  *
  * Every move first cancels the viewer's pending timers (a result's dialog after its callouts). Autoplay (B3) belongs
  * here too, as play() and pause() with `playing` in the state, on those same timers, so any manual move pauses it.
@@ -83,6 +95,7 @@ export class ReplayViewer {
             .off(".replay")
             .on("click.replay", ".next", () => this.pageResult());
         $(".summary .exit", this.root)
+            .text(exitLabel(exitUrl()))
             .off(".replay")
             .on("click.replay", () => window.location.assign(exitUrl()));
         this.seek(round, step);
@@ -94,6 +107,7 @@ export class ReplayViewer {
             step: this.step,
             kind: this.currentPosition().kind,
             endedEarly: this.replay.standings === null && this.atLastPosition(),
+            page: this.pagedWins,
             seat: this.view.viewpoint,
             openHands: this.view.open_shoupai,
             canBack: this.canBack,
@@ -107,19 +121,23 @@ export class ReplayViewer {
     }
 
     get canBack() {
-        return this.round > 0 || this.step > 0;
+        return this.round > 0 || this.step > 0 || this.pagedWins > 0;
     }
 
     get canNext() {
-        return !this.atLastPosition();
+        return !this.atLastPosition() || this.hasUnshownWin();
     }
 
+    /** One position forward; on a result with a win not shown yet, that win, as the dialog's 次へ shows it. */
     next() {
         if (!this.canNext) {
             return;
         }
+        if (this.hasUnshownWin()) {
+            this.pageResult();
+            return;
+        }
         this.cancelPending();
-        this.playUnshownWins();
         this.pagedWins = 0;
         if (this.step + 1 < this.currentRound().positions.length) {
             this.step += 1;
@@ -131,12 +149,14 @@ export class ReplayViewer {
         this.notifyChange();
     }
 
-    /** Back one position; from a deal, to the previous round's result. */
+    /** Back one position or one shown win, undoing Next; from a deal, to the previous round's result at its last win. */
     back() {
-        if (this.step > 0) {
-            this.seek(this.round, this.step - 1);
+        if (this.pagedWins > 0) {
+            this.show(this.round, this.step, this.pagedWins - 1);
+        } else if (this.step > 0) {
+            this.showAllWins(this.round, this.step - 1);
         } else if (this.round > 0) {
-            this.seek(this.round - 1, this.lastStepOf(this.round - 1));
+            this.showAllWins(this.round - 1, this.lastStepOf(this.round - 1));
         }
     }
 
@@ -145,12 +165,7 @@ export class ReplayViewer {
         if (!this.hasPosition(round, step)) {
             throw new RangeError(`no replay position at round ${round}, step ${step}`);
         }
-        this.cancelPending();
-        this.round = round;
-        this.step = step;
-        this.pagedWins = 0;
-        this.rebuild();
-        this.notifyChange();
+        this.show(round, step, 0);
     }
 
     nextRound() {
@@ -224,7 +239,23 @@ export class ReplayViewer {
         return this.round === lastRound && this.step === this.lastStepOf(lastRound);
     }
 
+    /** Rebuild the table silently at (round, step), a result showing its win after `pagedWins` further ones. */
+    show(round, step, pagedWins) {
+        this.cancelPending();
+        this.round = round;
+        this.step = step;
+        this.pagedWins = pagedWins;
+        this.rebuild();
+        this.notifyChange();
+    }
+
+    showAllWins(round, step) {
+        this.show(round, step, furtherWinCount(this.replay.rounds[round].positions[step]));
+    }
+
+    /** The dialog's 次へ is hidden where it has nowhere to go: the last win of a truncated replay's last result. */
     notifyChange() {
+        $(".next", this.dialog()).toggleClass("hide", !this.canNext);
         this.onChange(this.state);
     }
 
@@ -249,32 +280,27 @@ export class ReplayViewer {
         return this.currentRound().log.slice(end, end + wins - 1);
     }
 
+    hasUnshownWin() {
+        return this.pagedWins < furtherWinCount(this.currentPosition());
+    }
+
     /**
-     * 次へ on a result: the next win of a double ron, past the last win the next position. The dialog hides until the
-     * next win's opens, so a double click shows each win rather than skipping one.
+     * 次へ on a result, and Next there: the next win of a double ron, past the last win the next position. Both are
+     * ignored while the dialog is hidden (its callouts, or the next win's opening), so a double click shows each win
+     * rather than skipping one.
      */
     pageResult() {
         if (this.dialog().hasClass("hide")) {
             return;
         }
-        const further = this.furtherWins();
-        if (this.pagedWins === further.length) {
+        if (!this.hasUnshownWin()) {
             this.next();
             return;
         }
         fadein.hide(this.dialog());
-        this.play(further[this.pagedWins]);
+        this.play(this.furtherWins()[this.pagedWins]);
         this.pagedWins += 1;
         this.notifyChange();
-    }
-
-    playUnshownWins() {
-        if (this.currentPosition().kind !== POSITION.RESULT) {
-            return;
-        }
-        for (const win of this.furtherWins().slice(this.pagedWins)) {
-            playIntoModel(this.model, win);
-        }
     }
 
     rebuild() {
@@ -287,12 +313,19 @@ export class ReplayViewer {
         this.view.redraw();
         switch (position.kind) {
             case POSITION.RESULT:
-                return this.view.update(log[position.end - 1], true);
+                return this.showWin(position);
             case POSITION.SUMMARY:
                 return this.showStandings();
             default:
                 return this.sayCallouts(position, true);
         }
+    }
+
+    /** The result's win after `pagedWins` further ones, which the table shows as stepping forward left it. */
+    showWin(position) {
+        const shown = this.furtherWins().slice(0, this.pagedWins);
+        shown.forEach((win) => playIntoModel(this.model, win));
+        this.view.update(shown.at(-1) ?? this.currentRound().log[position.end - 1], true);
     }
 
     playForward() {

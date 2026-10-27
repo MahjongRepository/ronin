@@ -21,10 +21,12 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * `index.html` is the one page for every route. It is upstream's `ronin.pug` rendered once, and it
   holds the board markup the majiang-ui classes bind to by class name, plus `#loaddata`: the tile
   images and sounds that `Majiang.UI.pai` and `Majiang.UI.audio` clone from. A route that needs
-  neither may replace the body; one that draws tiles keeps `#loaddata`.
+  neither may replace the body; one that draws tiles (the live game, the replay, the storybook's
+  board pages) keeps `#loaddata`.
   The initial loading screen and its critical styles live inline in the HTML so they appear before
   JavaScript or the board styles arrive. Tile routes decode their images before rendering; the live
-  game dismisses the screen after its start event or reconnect snapshot has drawn the table.
+  game dismisses the screen after its start event or reconnect snapshot has drawn the table, the
+  replay after its first position (or its error) is shown.
 * Vite builds with base `/game-assets/`; the lobby answers the game pages with `dist/index.html` and
   serves `dist/` under `/game-assets/`, or proxies both to this app's Vite dev server under
   `make run-local-server` (`frontend/AGENTS.md`, Tooling). The proxy asks the dev server for every
@@ -164,7 +166,17 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   check after a wake sees the whole gap. The limit is hand-derived from the session `TimerConfig`
   defaults (`backend/game/session/AGENTS.md`, Pacing) plus a margin for late timers; re-derive it
   when the pacing changes.
-* **Replay:** the page fetches `/api/replays/{game_id}` and shows its raw text; there is no viewer.
+* **Replay:** the page (`src/js/replay/page.js`) fetches `/api/replays/{game_id}` and checks its
+  `REPLAY_VERSION` before reading a line, since another version's lines may mean something else; then
+  the converter turns it into each round's paipu and positions, and the viewer steps through those on
+  the board, from the recorded first dealer's seat, with every hand open. The viewer's only state is
+  the majiang-core model: a seek rebuilds the round from its deal, and every move (the page's
+  controls, the result dialog's 次へ) goes through the viewer, never to the model or the board
+  directly. A double ron's wins are each a page of its result: Next shows the next win's dialog as
+  次へ does, and leaves the result only after the last. Its controls sit in a strip outside `#board` (under it, or beside it on a short landscape
+  screen), and the table is fitted to the stage with `fitToStage` whenever the layout resizes it, so
+  they never cover the table. A replay that cannot be shown replaces the board with a message and
+  links back.
   `src/js/replay/` converts replay files into paipu with `src/js/ronin/`'s pure helpers, never the
   live shadow; `src/js/ronin/` never imports `src/js/replay/`. The live client and the converter build
   round results with the same builders (`results.js`).

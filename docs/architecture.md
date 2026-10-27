@@ -387,7 +387,9 @@ honours this contract can replace it.
   of the seat took it over) and 1008 `invalid_game_action` (the seat was kicked). A 1000
   `game_ended` close keeps reconnecting, so a client that missed the game end is refused into the
   lobby.
-* **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required.
+* **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required. The
+  client's replay page renders it on the board and refuses a file whose version line is not the
+  `REPLAY_VERSION` it was built for.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
   WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must

@@ -196,6 +196,11 @@ describe("ReplayViewer", () => {
 
             stepped.slice(0, -1).forEach(({ at }, index) => {
                 const opened = openViewer(text, { at });
+                for (let page = 0; page < at.page; page++) {
+                    settledTable(opened.model);
+                    opened.viewer.next();
+                }
+                settledTable(opened.model);
                 opened.viewer.next();
                 const after = stepped[index + 1];
                 expect(settledTable(opened.model), `next from ${at.round}/${at.step}`).toEqual(
@@ -214,6 +219,7 @@ describe("ReplayViewer", () => {
         expect(viewer.state).toMatchObject({ round: 0, step, kind: POSITION.RESULT });
         vi.runAllTimers();
         expect(shown("#board .hule-dialog")).toBe(true);
+        expect(shown("#board .hule-dialog .next")).toBe(true);
         expect($("#board .score .jushu").text()).toBe("東一局");
     });
 
@@ -237,7 +243,7 @@ describe("ReplayViewer", () => {
         expect(() => viewer.setViewpoint(4)).toThrow(RangeError);
     });
 
-    it("pages a double ron's wins before leaving the result", () => {
+    it("pages a double ron's wins on 次へ and Next before leaving the result", () => {
         const { viewer, replay } = openViewer(DOUBLE_RON_ON_HONBA);
         const step = resultStep(replay, DOUBLE_RON_ROUND);
         const changes = [];
@@ -263,8 +269,19 @@ describe("ReplayViewer", () => {
 
         viewer.back();
         vi.runAllTimers();
-        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND, step });
+        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND, step, page: 1 });
+        expect(dialogFigures()).toEqual(DOUBLE_RON_SECOND_WIN);
+        viewer.back();
+        vi.runAllTimers();
+        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND, step, page: 0 });
         expect(dialogFigures()).toEqual(DOUBLE_RON_FIRST_WIN);
+
+        viewer.next();
+        vi.runAllTimers();
+        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND, step, page: 1 });
+        expect(dialogFigures()).toEqual(DOUBLE_RON_SECOND_WIN);
+        viewer.next();
+        expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND + 1, step: 0 });
     });
 
     it("pages a double ron afresh after any move", () => {
@@ -304,7 +321,7 @@ describe("ReplayViewer", () => {
 
         viewer.seek(DOUBLE_RON_ROUND, step - 1);
         viewer.next();
-        viewer.next();
+        viewer.nextRound();
         vi.runAllTimers();
         expect(shown("#board .hule-dialog")).toBe(false);
 
@@ -338,23 +355,27 @@ describe("ReplayViewer", () => {
     it.each([
         ["truncated_mid_round.txt", TRUNCATED_MID_ROUND],
         ["truncated_after_round.txt", TRUNCATED_AFTER_ROUND],
-    ])("stops at the last recorded position of a truncated game: %s", (_, text) => {
-        const { viewer, replay } = openViewer(text);
+    ])(
+        "stops at the last recorded position of a truncated game, its result offering no 次へ: %s",
+        (_, text) => {
+            const { viewer, replay } = openViewer(text);
 
-        viewer.last();
-        const last = viewer.state;
-        viewer.next();
-        vi.runAllTimers();
+            viewer.last();
+            const last = viewer.state;
+            viewer.next();
+            vi.runAllTimers();
 
-        expect(last).toMatchObject({
-            round: replay.rounds.length - 1,
-            step: replay.rounds.at(-1).positions.length - 1,
-            endedEarly: true,
-            canNext: false,
-        });
-        expect(viewer.state).toEqual(last);
-        expect(shown("#board .summary")).toBe(false);
-    });
+            expect(last).toMatchObject({
+                round: replay.rounds.length - 1,
+                step: replay.rounds.at(-1).positions.length - 1,
+                endedEarly: true,
+                canNext: false,
+            });
+            expect(viewer.state).toEqual(last);
+            expect(shown("#board .summary")).toBe(false);
+            expect(shown("#board .hule-dialog .next")).toBe(false);
+        },
+    );
 
     it("shows the final standings after the last result and leaves them for where the replay was opened", () => {
         const { viewer, replay } = openViewer(FULL_GAME);
@@ -378,6 +399,7 @@ describe("ReplayViewer", () => {
             replay.standings.defen[top].toLocaleString("en-US"),
         );
 
+        expect($("#board .summary .exit").text()).toBe("履歴へ戻る");
         $("#board .summary .exit").trigger("click");
         expect(assign).toHaveBeenLastCalledWith("/history");
         vi.spyOn(document, "referrer", "get").mockReturnValue(
