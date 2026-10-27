@@ -17,7 +17,6 @@ const { hide, show, fadeIn, fadeOut } = fadein;
 const class_name = ['main','xiajia','duimian','shangjia'];
 const feng_hanzi = ['東','南','西','北'];
 const shu_hanzi  = ['一','二','三','四'];
-const dummy_name = ['私','下家','対面','上家'];
 
 const say_text   = { chi:   'チー',
                      peng:  'ポン',
@@ -127,7 +126,6 @@ export default class Board {
 
         this.viewpoint = 0;
         this.sound_on  = true
-        this.dummy_name = null;
 
         this._timeout_id;
 
@@ -166,9 +164,7 @@ export default class Board {
             let id   = this._model.player_id[l];
             let c    = class_name[(id + 4 - this.viewpoint) % 4];
 
-            let name = (this.dummy_name == null)
-                            ? this._model.player[id].replace(/\n.*$/,'')
-                            : dummy_name[(4 + id - this.dummy_name) % 4];
+            let name = this._model.player[id].replace(/\n.*$/,'');
             show(nameplate($(`> .player.${c}`, this._root), l, name,
                            this._model.defen[id], this._connected[id]));
 
@@ -325,9 +321,7 @@ export default class Board {
                 sub.map(line => $('<div class="sub">').text(line)));
         for (let id = 0; id < 4; id++) {
             let c = class_name[(4 - this.viewpoint + id) % 4];
-            let name = (this.dummy_name == null)
-                            ? this._model.player[id].replace(/\n.*$/,'')
-                            : dummy_name[(4 + id - this.dummy_name) % 4];
+            let name = this._model.player[id].replace(/\n.*$/,'');
             $(`.player .${c}`, this._view.kaiju).text(name);
         }
         show(this._view.kaiju);
@@ -337,15 +331,7 @@ export default class Board {
         this._timeout_id = clearTimeout(this._timeout_id);
         this._view.dialog.hide();
         this._view.summary.scrollTop(0);
-        let name;
-        if (this.dummy_name != null) {
-            name = [];
-            for (let id = 0; id < 4; id++) {
-                name[id] = dummy_name[(4 + id - this.dummy_name) % 4];
-            }
-        }
-        if (paipu) fadeIn(summary(this._view.summary, paipu, this.viewpoint,
-                                  name));
+        if (paipu) fadeIn(summary(this._view.summary, paipu, this.viewpoint));
         else       hide(this._view.summary);
     }
 

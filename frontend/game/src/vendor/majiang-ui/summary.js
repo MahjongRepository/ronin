@@ -20,14 +20,12 @@ function diff_text(diff) {
     return diff > 0 ? '+' + score_text(diff) : score_text(diff);
 }
 
-export default function(root, paipu, viewpoint, dummy_name) {
+export default function(root, paipu, viewpoint) {
 
     let player = $('.row-player .player', root);
     for (let i = 0; i < 4; i++) {
         let id = (viewpoint + i) % 4;
-        let name = (dummy_name) ? dummy_name[id]
-                 : paipu.player[id].replace(/\n.*$/,'')
-        player.eq(i).text(name);
+        player.eq(i).text(paipu.player[id].replace(/\n.*$/,''));
     }
 
     let rank = $('.row-rank .rank', root);
