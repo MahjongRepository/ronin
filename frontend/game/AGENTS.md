@@ -122,17 +122,20 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   the wait, goes only to that seat. The countdown starts after the prompt is shown, so one re-sent
   with its time already run closes at once. A dropped socket closes the open decision the same way;
   the reconnect re-sends any wait the server still owes the seat.
-* **Inputs:** a call prompt passes only from its ×: a click elsewhere on the board answers nothing,
-  so the second click of a double-click, or a tap on the felt, never passes a ron that arrived in
-  between.
+* **Inputs:** each decision binds one default action to a right-click on the board and to Escape:
+  a call prompt passes, a choice it opened (a chi, pon or kan variant, a riichi discard) backs out
+  to its buttons, a ready round result continues, and the seat's own turn discards its drawn tile
+  on a right-click only. A left click on the board answers nothing, so the second click of a
+  double-click, or a tap on the felt, never passes a ron that arrived in between.
 * **Screen countdowns:** the screens the server moves on from by itself count down to it: the game
   start screen its start pause (`gp`) until the deal, and a round result the round advance timeout
   (`ra`) on its 次へ button. A round end shows each result its share of the server's timeout,
   measured from the round end (backdated by the snapshot's `el` after a takeover): every result but
   the last dismisses itself at its share, and the last stops at 0 and sends nothing, leaving the
   confirmation to the server's timeout and the next deal. The game's last round end opens no wait
-  and counts nothing down. Only 次へ dismisses a result (`RoninPlayer.action_hule`), not a click
-  elsewhere on the dialog: a stray discard click as it opens, or a tap to scroll it, would skip it.
+  and counts nothing down. Only 次へ dismisses a result (`RoninPlayer.action_hule`), or Escape and a
+  right-click once its dialog is ready, not a click elsewhere on the dialog: a stray discard click as
+  it opens, or a tap to scroll it, would skip it.
 * **Silence watchdog:** since the client sends nothing on its own, a socket whose peer vanished (a
   FIN lost while the device slept) never fires `onclose`. `RoninSession` treats a server silent
   longer than any legitimate wait as a drop and reconnects, measured on the wall clock so the first

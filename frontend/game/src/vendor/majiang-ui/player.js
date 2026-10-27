@@ -31,6 +31,7 @@ export default class Player extends Majiang.Player {
         this.sound_on = true;
         this._audio   = { beep: audio('beep') };
 
+        this._node.root.on('contextmenu.player', ()=>false);
         this.clear_handler();
     }
 
@@ -38,6 +39,7 @@ export default class Player extends Majiang.Player {
         this.clear_button();
         this.clear_mianzi();
         this.clear_dapai();
+        this.clear_default();
         clearTimeout(this._dialog_timeout);
         clearSelector('kaiju');
         clearSelector('dialog');
@@ -67,9 +69,34 @@ export default class Player extends Majiang.Player {
     }
 
     /**
-     * A prompt's buttons beside ×, which skips them and runs callback; a click elsewhere on the board does nothing,
-     * so a stray click never passes a call. On the seat's own turn (skip false) there is no ×: callback opens the
-     * discard at once, a discard declines the buttons, and the arrow keys stay on the hand.
+     * Bind a state's default action to a right-click on the board and, unless escape is false, to Escape. One default
+     * is bound at a time. A held key's repeats are ignored, so holding Escape never runs the next state's default too.
+     */
+    set_default(action, escape = true) {
+        this.clear_default();
+        this._node.root.on('mouseup.default', (ev)=>{
+            if (ev.button != 2 || $(ev.target).closest('.controller').length) return;
+            action();
+            return false;
+        });
+        if (! escape) return;
+        $(window).on('keydown.default', (ev)=>{
+            if (ev.key != 'Escape' || ev.originalEvent?.repeat) return;
+            action();
+            return false;
+        });
+    }
+
+    clear_default() {
+        this._node.root.off('.default');
+        $(window).off('.default');
+    }
+
+    /**
+     * A prompt's buttons beside ×, which skips them and runs callback; a right-click or Escape does the same, but a
+     * click elsewhere on the board does nothing, so a stray click never passes a call. On the seat's own turn (skip
+     * false) there is no ×: callback opens the discard at once, a discard declines the buttons, and the arrow keys
+     * stay on the hand.
      */
     show_button(callback = ()=>{}, skip = true) {
         this.show_timer();
@@ -81,6 +108,7 @@ export default class Player extends Majiang.Player {
             show($('.cansel', this._node.button)
                     .attr('tabindex', 0)
                     .on('click.button', handler));
+            this.set_default(handler);
         }
         else callback();
 
@@ -101,22 +129,36 @@ export default class Player extends Majiang.Player {
         this._buttons = [];
     }
 
-    select_mianzi(mianzi) {
+    /** Return what brings the prompt's buttons back as they are now, once a choice they opened is backed out of. */
+    restore_button() {
         const buttons = this._buttons;
         const callback = this._button_callback;
         const skip = this._button_skip;
         const default_reply = this._default_reply;
+        return ()=>{
+            this.clear_mianzi();
+            this.clear_dapai();
+            this._default_reply = default_reply;
+            for (const [type, cb] of buttons) this.set_button(type, cb);
+            this.show_button(callback, skip);
+        };
+    }
+
+    /** Show 戻る after the selector's choices; it, Escape or a right-click runs restore. */
+    show_back(restore) {
+        const back = $('<span class="back" title="戻る [Esc]" aria-label="戻る">戻る</span>')
+                .on('click.mianzi', ()=>{ restore(); return false; });
+        this._node.mianzi.append(back);
+        clearTimeout(this._mianzi_timeout);
+        show(this._node.mianzi.width($(this._node.dapai).width()));
+        this.set_default(()=>back.trigger('click'));
+    }
+
+    select_mianzi(mianzi) {
+        const restore = this.restore_button();
         this.clear_button();
         this.clear_dapai();
         this._node.mianzi.empty();
-        const back = $('<span class="back" title="戻る [Esc]" aria-label="戻る">戻る</span>')
-                .on('click.mianzi', ()=>{
-                    this.clear_mianzi();
-                    this._default_reply = default_reply;
-                    for (const [type, cb] of buttons) this.set_button(type, cb);
-                    this.show_button(callback, skip);
-                    return false;
-                });
         for (let m of mianzi) {
             let msg = m.match(/\d/g).length == 4 ? {gang: m} : {fulou: m}
             if (! this._default_reply) this._default_reply = msg;
@@ -124,20 +166,26 @@ export default class Player extends Majiang.Player {
                     this._mianzi(m, true)
                         .on('click.mianzi',()=>this.callback(msg)));
         }
-        this._node.mianzi.append(back);
-        clearTimeout(this._mianzi_timeout);
-        show(this._node.mianzi.width($(this._node.dapai).width()));
+        this.show_back(restore);
         setSelector($('.mianzi, .back', this._node.mianzi), 'mianzi',
                     {touch: false});
-        $(window).on('keyup.mianzi', (ev)=>{
-            if (ev.key != 'Escape') return;
-            back.trigger('click');
-            return false;
-        });
         return false;
     }
 
+    /** Offer only the riichi discards, with 戻る back to the turn's buttons and its whole hand. */
+    select_lizhi(lizhi) {
+        const restore = this.restore_button();
+        this.clear_button();
+        this.clear_dapai();
+        this._node.mianzi.empty();
+        this.show_back(restore);
+        this.select_dapai(lizhi);
+        return false;
+    }
+
+    /** Hide the selector after a beat; its choices and 戻る stop answering at once, so a second click does nothing. */
     clear_mianzi() {
+        this._node.mianzi.children().off('.mianzi');
         clearTimeout(this._mianzi_timeout);
         this._mianzi_timeout = setTimeout(()=>hide(this._node.mianzi), 400);
         clearSelector('mianzi');
@@ -165,6 +213,9 @@ export default class Player extends Majiang.Player {
 
         setSelector($('.pai[tabindex]', this._node.dapai),
                     'dapai', {focus: -1});
+
+        const zimo = $('.zimo .pai[tabindex]', this._node.dapai);
+        if (! lizhi && zimo.length) this.set_default(()=>zimo.trigger('click'), false);
     }
 
     clear_dapai() {
@@ -267,10 +318,7 @@ export default class Player extends Majiang.Player {
 
         let lizhi_dapai = this.allow_lizhi(this.shoupai);
         if (lizhi_dapai.length) {
-            this.set_button('lizhi', ()=>{
-                this.clear_handler();
-                this.select_dapai(lizhi_dapai);
-            });
+            this.set_button('lizhi', ()=>this.select_lizhi(lizhi_dapai));
         }
 
         this.show_button(()=>this.select_dapai(), false);

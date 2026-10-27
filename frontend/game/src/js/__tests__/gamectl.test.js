@@ -47,11 +47,13 @@ describe("Majiang.UI.GameCtl", () => {
         expect(JSON.parse(localStorage.getItem(PREF_KEY))).toEqual({ sound_on: true });
     });
 
-    it("opens the menu from the gear and closes it on Escape, returning focus to the gear", () => {
+    it("opens the menu from the gear and closes it on Escape, returning focus to the gear, without passing the Escape on to a prompt", () => {
         const root = renderController();
         new GameCtl(root, PREF_KEY, null);
         const toggle = root.find(".settings-toggle");
         const menu = root.find(".settings-menu");
+        let promptEscapes = 0;
+        $(window).on("keydown", () => promptEscapes++);
 
         toggle.trigger("click");
         expect(menu.hasClass("hide")).toBe(false);
@@ -63,6 +65,7 @@ describe("Majiang.UI.GameCtl", () => {
         expect(menu.hasClass("hide")).toBe(true);
         expect(toggle.attr("aria-expanded")).toBe("false");
         expect(document.activeElement).toBe(toggle[0]);
+        expect(promptEscapes).toBe(0);
     });
 
     it("keeps its clicks from the board and closes on a click outside", () => {
