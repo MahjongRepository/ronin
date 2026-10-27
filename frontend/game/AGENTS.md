@@ -113,7 +113,7 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   reduced round logs holding only what the standings read; that history already holds a round
   that ended, so its replay is logged nowhere.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
-  `backend/game/wire/`; change both in the same change. The client sends no heartbeat: liveness is
+  `backend/game/wire/`, and the replay format's version; change both in the same change. The client sends no heartbeat: liveness is
   the WebSocket protocol ping (`docs/architecture.md`), and the server refuses unknown message types.
 * **Turn countdown:** only the seat's own decisions are counted down, in majiang-ui's timer above
   the right end of the hand: a turn's base time beside its bank (`5+30`), then the bank alone, a
