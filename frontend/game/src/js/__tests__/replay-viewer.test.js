@@ -8,7 +8,13 @@ import PAGE from "../../../index.html?raw";
 import { parseReplay } from "../replay/load.js";
 import { POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
-import { CALLOUT_MS, ReplayViewer } from "../replay/viewer.js";
+import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "../replay/speeds.js";
+import {
+    AUTOPLAY_DEAL_MS,
+    AUTOPLAY_DIALOG_POLL_MS,
+    CALLOUT_MS,
+    ReplayViewer,
+} from "../replay/viewer.js";
 import { withUnplayableDraw } from "./replay-edits.js";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?raw";
@@ -497,5 +503,138 @@ describe("ReplayViewer", () => {
         );
         $("#board .summary .exit").trigger("click");
         expect(assign).toHaveBeenLastCalledWith(`${window.location.origin}/history?page=2`);
+    });
+
+    it("autoplay steps at once on Play, then at the chosen speed, a draw at half of it and a deal for 1.5 s at least", () => {
+        const { viewer, replay } = openViewer(FULL_GAME);
+        const positions = replay.rounds[0].positions;
+        const draw = positions.findIndex(
+            (position, index) =>
+                position.kind === POSITION.DRAW &&
+                position.say.length === 0 &&
+                positions[index + 1].say.length === 0,
+        );
+        viewer.seek(0, draw - 1);
+        viewer.setSpeed(AUTOPLAY_SPEED.SLOW);
+
+        viewer.play();
+        expect(viewer.state).toMatchObject({ step: draw, playing: true });
+        vi.advanceTimersByTime(AUTOPLAY_SPEEDS.slow / 2 - 1);
+        expect(viewer.state.step).toBe(draw);
+        vi.advanceTimersByTime(1);
+        expect(viewer.state.step).toBe(draw + 1);
+        viewer.setSpeed(AUTOPLAY_SPEED.FAST);
+        vi.advanceTimersByTime(AUTOPLAY_SPEEDS.fast);
+        expect(viewer.state.step).toBe(draw + 2);
+
+        viewer.seek(0, resultStep(replay, 0));
+        vi.runAllTimers();
+        viewer.play();
+        expect(viewer.state).toMatchObject({ round: 1, step: 0, playing: true });
+        vi.advanceTimersByTime(AUTOPLAY_DEAL_MS - 1);
+        expect(viewer.state.step).toBe(0);
+        vi.advanceTimersByTime(1);
+        expect(viewer.state.step).toBe(1);
+    });
+
+    it("autoplay holds a position with callouts for as long as they show, at any speed", () => {
+        const { viewer, replay } = openViewer(PAO);
+        const pon = replay.rounds[0].positions.findLastIndex(
+            (position) => position.say[0]?.name === "peng",
+        );
+        viewer.seek(0, pon - 1);
+        viewer.setSpeed(AUTOPLAY_SPEED.FAST);
+
+        viewer.play();
+        vi.advanceTimersByTime(CALLOUT_MS - 1);
+        expect(viewer.state.step).toBe(pon);
+        vi.advanceTimersByTime(1);
+        expect(viewer.state.step).toBe(pon + 1);
+    });
+
+    it("autoplay leaves a result only once its dialog is fully shown, never cutting the win's callouts short", () => {
+        const { viewer, replay } = openViewer(EAGER_GAME);
+        const { round } = acrossTheFirstWin(replay).from;
+        const result = resultStep(replay, round);
+        viewer.seek(round, result - 1);
+        viewer.setSpeed(AUTOPLAY_SPEED.FAST);
+        const dialogShown = () =>
+            shown("#board .hule-dialog") && !$("#board .hule-dialog").hasClass("fadeout");
+
+        viewer.next();
+        viewer.play();
+        vi.advanceTimersByTime(AUTOPLAY_SPEEDS.fast);
+        expect(viewer.state).toMatchObject({ round, step: result, playing: true });
+        expect(dialogShown()).toBe(false);
+        expect($("#board .say").not(".hide, .fadeout").length).toBeGreaterThan(0);
+
+        while (!dialogShown()) {
+            vi.advanceTimersByTime(AUTOPLAY_DIALOG_POLL_MS);
+        }
+        expect(viewer.state).toMatchObject({ round, step: result });
+        vi.advanceTimersByTime(AUTOPLAY_DIALOG_POLL_MS + AUTOPLAY_SPEEDS.fast);
+        expect(viewer.state).toMatchObject({ round: round + 1, step: 0, playing: true });
+    });
+
+    it("autoplay pauses at each win of a double ron, Play paging to the next and 次へ playing on", () => {
+        const { viewer, replay } = openViewer(DOUBLE_RON_ON_HONBA);
+        const step = resultStep(replay, DOUBLE_RON_ROUND);
+        viewer.seek(DOUBLE_RON_ROUND, step - 1);
+
+        viewer.play();
+        vi.runAllTimers();
+        expect(viewer.state).toMatchObject({ step, page: 0, playing: false });
+        expect(dialogFigures()).toEqual(DOUBLE_RON_FIRST_WIN);
+
+        viewer.play();
+        vi.runAllTimers();
+        expect(viewer.state).toMatchObject({ step, page: 1, playing: false });
+        expect(dialogFigures()).toEqual(DOUBLE_RON_SECOND_WIN);
+
+        $("#board .hule-dialog .next").trigger("click");
+        expect(viewer.state).toMatchObject({
+            round: DOUBLE_RON_ROUND + 1,
+            step: 0,
+            playing: true,
+        });
+    });
+
+    it("autoplay plays on through a change of viewpoint or of the hands shown", () => {
+        const { viewer } = openViewer(FULL_GAME, { at: { round: 0, step: 1 } });
+
+        viewer.play();
+        viewer.setViewpoint(2);
+        viewer.setOpenHands(false);
+        expect(viewer.state).toMatchObject({ step: 2, seat: 2, openHands: false, playing: true });
+        vi.advanceTimersByTime(AUTOPLAY_SPEEDS.normal);
+        expect(viewer.state).toMatchObject({ step: 3, playing: true });
+    });
+
+    it("autoplay pauses when the page is hidden", () => {
+        const { viewer } = openViewer(FULL_GAME);
+        viewer.play();
+
+        vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+        document.dispatchEvent(new Event("visibilitychange"));
+        const { step } = viewer.state;
+        vi.runAllTimers();
+
+        expect(viewer.state).toMatchObject({ step, playing: false });
+    });
+
+    it.each([
+        ["full_game.txt", FULL_GAME, POSITION.SUMMARY],
+        ["truncated_mid_round.txt", TRUNCATED_MID_ROUND, POSITION.DRAW],
+    ])("autoplay pauses at the game's end: %s", (_, text, kind) => {
+        const { viewer, replay } = openViewer(text);
+        const round = replay.rounds.length - 1;
+        viewer.seek(round, replay.rounds[round].positions.length - 2);
+        vi.runAllTimers();
+
+        viewer.play();
+        vi.runAllTimers();
+        viewer.play();
+
+        expect(viewer.state).toMatchObject({ kind, canNext: false, playing: false });
     });
 });

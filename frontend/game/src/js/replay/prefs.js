@@ -1,14 +1,17 @@
+import { AUTOPLAY_SPEEDS, DEFAULT_AUTOPLAY_SPEED } from "./speeds.js";
+
 /**
  * The replay viewer's own settings, under a key of their own: `GameCtl` owns the live game's key outright and
  * rewrites it whole on every sound toggle, so nothing replay-specific is ever stored there.
  */
 export const REPLAY_PREFS_KEY = "ronin.replay.prefs";
 
-const DEFAULTS = Object.freeze({ hideHands: false });
+const DEFAULTS = Object.freeze({ hideHands: false, speed: DEFAULT_AUTOPLAY_SPEED });
 
 /** Each setting's check: a stored value that fails it reads as the default. */
 const VALID = Object.freeze({
     hideHands: (value) => typeof value === "boolean",
+    speed: (value) => typeof value === "string" && Object.hasOwn(AUTOPLAY_SPEEDS, value),
 });
 
 function parsePrefs(text) {

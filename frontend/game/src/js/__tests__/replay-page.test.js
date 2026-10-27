@@ -32,6 +32,7 @@ function disabled() {
         first: ".replay-first",
         prevRound: ".replay-prev-round",
         back: ".replay-back",
+        play: ".replay-play",
         next: ".replay-next",
         nextRound: ".replay-next-round",
         last: ".replay-last",
@@ -117,15 +118,22 @@ describe("showReplay", () => {
             first: true,
             prevRound: true,
             back: true,
+            play: false,
             next: false,
             nextRound: false,
             last: false,
         });
         expect($(".replay-action").text()).toBe("Akagi deals");
 
+        $(".replay-play").trigger("click");
+        expect(label().step).toMatch(/^Step 2\u00a0[/]/);
+        expect($(".replay-play").attr("aria-label")).toBe("Pause");
+        expect($(".replay-action").attr("aria-busy")).toBe("true");
         $(".replay-next").trigger("click");
 
-        expect(label().step).toMatch(/^Step 2\u00a0[/]/);
+        expect($(".replay-play").attr("aria-label")).toBe("Play");
+        expect($(".replay-action").attr("aria-busy")).toBeUndefined();
+        expect(label().step).toMatch(/^Step 3\u00a0[/]/);
         expect($(".replay-back").prop("disabled")).toBe(false);
 
         $(".replay-next-round").trigger("click");
@@ -224,13 +232,14 @@ describe("showReplay", () => {
             ended: "The game ended here: the server stopped it",
         });
         expect(label().step).toMatch(/^Step (\d+)\u00a0\/\u00a0\1$/);
-        expect(disabled()).toMatchObject({ next: true, nextRound: true, last: true });
+        expect(disabled()).toMatchObject({ play: true, next: true, nextRound: true, last: true });
         expect(document.activeElement).toBe($(".replay-back")[0]);
     });
 
-    it("remembers the hidden-hands choice across a sound toggle, apart from the sound setting", async () => {
+    it("remembers the hidden-hands choice and the speed across a sound toggle, apart from the sound setting", async () => {
         await open(FULL_GAME);
         $(".replay-hide-hands").prop("checked", true).trigger("change");
+        $(".replay-speed").val("fast").trigger("change");
         $(".controller .settings-toggle").trigger("click");
         $(".controller .sound").trigger("click");
 
@@ -238,9 +247,13 @@ describe("showReplay", () => {
         await open(FULL_GAME);
 
         expect($(".replay-hide-hands").prop("checked")).toBe(true);
+        expect($(".replay-speed").val()).toBe("fast");
         expect(hiddenHands()).toEqual(["xiajia", "duimian", "shangjia"]);
         expect(JSON.parse(localStorage.getItem(GAME_PREF_KEY))).toEqual({ sound_on: false });
-        expect(JSON.parse(localStorage.getItem(REPLAY_PREFS_KEY))).toEqual({ hideHands: true });
+        expect(JSON.parse(localStorage.getItem(REPLAY_PREFS_KEY))).toEqual({
+            hideHands: true,
+            speed: "fast",
+        });
     });
 });
 
@@ -309,7 +322,7 @@ describe("ReplayControls", () => {
 
         expect(seatChoices()).toEqual(["南 Wanjirou", "西 Ojisan", "北 Ichihime", "東 Akagi"]);
         expect($(".replay-seat").val()).toBe("3");
-        expect(toggle.text()).toBe("View: Akagi▾");
+        expect(toggle.text()).toBe("View: Akagi · Normal▾");
 
         toggle.trigger("click");
         expect(optionsOpen()).toBe(true);
@@ -319,7 +332,7 @@ describe("ReplayControls", () => {
         expect(stepNumber()).toBe(5);
         expect($(".replay-action").text()).toBe(action);
         expect(optionsOpen()).toBe(false);
-        expect(toggle.text()).toBe("View: Ichihime▾");
+        expect(toggle.text()).toBe("View: Ichihime · Normal▾");
 
         expect($("#board .board > .player.shangjia").attr("title")).toBe("View from Ojisan");
         $("#board .board > .player.shangjia").trigger("click");
@@ -345,6 +358,12 @@ describe("ReplayControls", () => {
 
         $(".replay-hide-hands").prop("checked", true).trigger("change");
         expect(hiddenHands()).toEqual(["xiajia", "duimian", "shangjia"]);
+        const viewpoint = $("#board .player.main .name").text();
+        clickUntil(".replay-next", () => /: draws/.test($(".replay-action").text()));
+        expect($(".replay-action").text()).toMatch(new RegExp(`^${viewpoint}: draws \\S`));
+        $(".replay-next").trigger("click");
+        clickUntil(".replay-next", () => /: draws/.test($(".replay-action").text()));
+        expect($(".replay-action").text()).toMatch(/^\S+: draws$/);
 
         vi.useFakeTimers();
         $(".replay-last").trigger("click");

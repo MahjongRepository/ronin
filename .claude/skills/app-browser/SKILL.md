@@ -65,19 +65,21 @@ select by element id, class or `snapshot -i` refs.
   waiting state.
 - **History and replay:** `/history` lists recent games; each card's `.games-card-link` ("View
   replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
-  the board at its first deal, with `.replay-back` / `.replay-next`, the jumps `.replay-first`,
-  `.replay-prev-round`, `.replay-next-round`, `.replay-last`, and the info `.replay-position`
-  (`.replay-action`, `.replay-round`, `.replay-step`, `.replay-wall-low`, `.replay-ended`) in the
-  strip below it (beside it at `max-height: 450px` landscape). The options, the viewpoint select
-  `.replay-seat` and the switch `.replay-hide-hands`, show beside the buttons at 1100px wide and
-  over 450px tall, and under the info on an upright phone; elsewhere `.replay-options-toggle`
-  ("View: <name>") shows them in the info's place until the next move. `.replay-next-round` is the quick way
-  to a later round; holding Back or Next (`agent-browser mouse down left`) repeats them. A replay
-  it cannot show gets a `.replay-problem` message instead. To show a particular case, gzip a
-  fixture from `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id
-  of your own (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards.
-  Clicking `.replay-next` from a script (not a real click) plays sounds without a user gesture, so
-  `agent-browser errors` fills with `NotAllowedError`s; those are the browser's autoplay policy.
+  the board at its first deal, with `.replay-back` / `.replay-play` (autoplay) / `.replay-next`, the
+  jumps `.replay-first`, `.replay-prev-round`, `.replay-next-round`, `.replay-last`, and the info
+  `.replay-position` (`.replay-action`, `.replay-round`, `.replay-step`, `.replay-wall-low`,
+  `.replay-ended`) in the strip below it (beside it at `max-height: 450px` landscape). The options,
+  the viewpoint select `.replay-seat`, the autoplay speed `.replay-speed` and the switch
+  `.replay-hide-hands`, show beside the buttons at 1200px wide and over 450px tall, and under the
+  info on an upright phone; elsewhere `.replay-options-toggle` ("View: <name>") shows them in the
+  info's place until the next move. `.replay-next-round` is the quick way to a later round; holding
+  Back or Next (`agent-browser mouse down left`) repeats them. A replay it cannot show gets a
+  `.replay-problem` message instead. To show a particular case, gzip a fixture from
+  `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id of your own
+  (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards. The speed and
+  the hidden-hands choice are stored under `ronin.replay.prefs` in `localStorage`: remove it after a
+  session that changed them. A sound the browser blocks without a user gesture (a scripted click) is
+  skipped, so `agent-browser errors` stays empty; a `NotAllowedError` there is a bug.
 - **Storybooks:** `/storybook` (lobby styles, dev only) and `/play/storybook` plus the pages its
   header links to (game components; a board page with several states takes `?state=<key>` from its
   variant links). At `max-height: 450px` (a viewport 450px tall or less) the header is one

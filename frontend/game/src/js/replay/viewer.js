@@ -4,11 +4,18 @@ import fadein from "../../vendor/majiang-ui/fadein.js";
 import { WIN_CALL_MS } from "../ronin/results.js";
 import { HISTORY_URL } from "../routes.js";
 import { POSITION, kindOf } from "./paipu.js";
+import { AUTOPLAY_SPEEDS, DEFAULT_AUTOPLAY_SPEED } from "./speeds.js";
 
 const SEATS = 4;
 
 /** How long a step's callouts show before they fade: long enough to read, short enough to uncover the rivers under them. */
 export const CALLOUT_MS = 1200;
+
+/** The deal stays up at least this long under autoplay, whatever the speed: a new hand to take in. */
+export const AUTOPLAY_DEAL_MS = 1500;
+
+/** How often autoplay looks whether a result's dialog has opened, since the board opens it on timers of its own. */
+export const AUTOPLAY_DIALOG_POLL_MS = 100;
 
 /** The board's nameplates in turn order from the viewpoint's at the bottom, as majiang-ui places them. */
 const NAMEPLATES = Object.freeze(["main", "xiajia", "duimian", "shangjia"]);
@@ -94,9 +101,13 @@ function exitLabel(url) {
  * A result position's range holds its first win only; the dialog's 次へ and Next alike page through a double ron's
  * further wins without moving the cursor, and leave the result only once its last win is shown; Back pages back.
  *
- * Every move first cancels the viewer's pending timers (a result's dialog after its callouts). Autoplay (B3) belongs
- * here too, as play() and pause() with `playing` in the state, on those same timers, so any manual move pauses it.
- * `onChange` gets the state after every move and every page of a double ron.
+ * Every move first cancels the viewer's pending timers (a result's dialog after its callouts, a callout's fade, autoplay's
+ * next step). Autoplay steps as Next does, on one of those timers: at once on Play, then at the chosen speed, a draw at
+ * half of it, the deal and a position with callouts for at least as long as they need. It pauses at each win's dialog
+ * once the dialog is fully shown, never cutting a win's callouts short, and at the end; Play on a result pages to its
+ * next win or moves on, and so does 次へ where autoplay paused itself. Any other move (Next included) pauses it, as does
+ * hiding the page; a change of viewpoint or of the hands shown redraws the position and plays on. `onChange` gets the
+ * state after every move, every page of a double ron and every start or pause of autoplay.
  *
  * A move plays its target position before the cursor moves there, so the cursor and the board never part. A move that
  * throws (an `UnplayableReplayError` from the model, or the board's own failure) stops the viewer: it goes to
@@ -106,12 +117,18 @@ export class ReplayViewer {
     #pending = new Set();
     #pendingWin = null;
     #failed = false;
+    #playing = false;
+    #leaving = false;
+    #waitedForDialog = false;
+    #pausedAtResult = false;
+    #autoplayTimer = null;
 
     constructor({
         replay,
         view,
         model,
         root,
+        speed = DEFAULT_AUTOPLAY_SPEED,
         onChange = () => {},
         onError = (error) => {
             throw error;
@@ -123,6 +140,7 @@ export class ReplayViewer {
         this.root = root;
         this.onChange = onChange;
         this.onError = onError;
+        this.speed = speed;
         this.round = 0;
         this.step = 0;
         this.pagedWins = 0;
@@ -143,6 +161,13 @@ export class ReplayViewer {
             .text(exitLabel(exitUrl()))
             .off(".replay")
             .on("click.replay", () => window.location.assign(exitUrl()));
+        $(document)
+            .off(".replay-autoplay")
+            .on("visibilitychange.replay-autoplay", () => {
+                if (document.hidden && this.#playing) {
+                    this.pause();
+                }
+            });
         this.seek(round, step);
     }
 
@@ -160,6 +185,8 @@ export class ReplayViewer {
             canNextRound: !this.#failed && this.round + 1 < this.replay.rounds.length,
             atEnd: !this.canNext,
             tilesLeft: this.model.shan.paishu,
+            playing: this.#playing,
+            speed: this.speed,
         };
     }
 
@@ -186,6 +213,7 @@ export class ReplayViewer {
      * double ron's win is still opening, Next opens it at once instead, so a press is never lost and never skips a win.
      */
     next() {
+        this.pause();
         if (!this.canNext) {
             return;
         }
@@ -248,7 +276,7 @@ export class ReplayViewer {
             throw new RangeError(`no seat ${seat}`);
         }
         this.view.viewpoint = seat;
-        this.show(this.round, this.step, this.pagedWins);
+        this.#redraw();
     }
 
     viewFromNameplate(plate) {
@@ -261,7 +289,128 @@ export class ReplayViewer {
     /** Show every hand face up, or only the viewpoint's, keeping the position and a double ron's page. */
     setOpenHands(open) {
         this.view.open_shoupai = open;
-        this.show(this.round, this.step, this.pagedWins);
+        this.#redraw();
+    }
+
+    /** Draw the position shown afresh, a double ron's page kept; autoplay plays on from it. */
+    #redraw() {
+        this.#rebuildAt(this.round, this.step, this.pagedWins);
+        if (this.#playing) {
+            this.#armAutoplay(this.#autoplayDelay());
+        }
+    }
+
+    /** Step forward on its own: once at once, then at the chosen speed, until a result's dialog, the end or a pause. */
+    play() {
+        if (this.#playing || !this.canNext) {
+            return;
+        }
+        this.#playing = true;
+        this.#leaving = true;
+        this.#waitedForDialog = false;
+        this.#pausedAtResult = false;
+        this.notifyChange();
+        this.#stepAutoplay();
+    }
+
+    pause() {
+        this.#pausedAtResult = false;
+        if (!this.#playing) {
+            return;
+        }
+        this.#stopAutoplay();
+        this.notifyChange();
+    }
+
+    /** Autoplay at another speed; playing, its next step waits by the new speed from now. */
+    setSpeed(speed) {
+        if (!Object.hasOwn(AUTOPLAY_SPEEDS, speed)) {
+            throw new RangeError(`no autoplay speed ${speed}`);
+        }
+        this.speed = speed;
+        if (this.#playing) {
+            this.#armAutoplay(this.#autoplayDelay());
+        }
+        this.notifyChange();
+    }
+
+    #armAutoplay(delay) {
+        this.#cancelAutoplay();
+        this.#autoplayTimer = this.#schedule(() => this.#stepAutoplay(), delay);
+    }
+
+    #cancelAutoplay() {
+        clearTimeout(this.#autoplayTimer);
+        this.#pending.delete(this.#autoplayTimer);
+        this.#autoplayTimer = null;
+    }
+
+    #stopAutoplay() {
+        this.#playing = false;
+        this.#cancelAutoplay();
+    }
+
+    #stepAutoplay() {
+        if (this.isAtResult()) {
+            this.#stepAutoplayAtResult();
+        } else {
+            this.#advanceAutoplay();
+        }
+    }
+
+    /**
+     * A result waits until its dialog is fully shown, its callouts never cut short. Reached by autoplay, it pauses there;
+     * where Play was pressed, it is left: at once if its dialog was already up, else after showing it for a step's time.
+     */
+    #stepAutoplayAtResult() {
+        if (!this.isDialogFullyShown()) {
+            this.#waitedForDialog = true;
+            this.#armAutoplay(AUTOPLAY_DIALOG_POLL_MS);
+        } else if (!this.#leaving) {
+            this.#pauseAtResult();
+        } else if (this.#waitedForDialog) {
+            this.#waitedForDialog = false;
+            this.#armAutoplay(AUTOPLAY_SPEEDS[this.speed]);
+        } else {
+            this.#advanceAutoplay();
+        }
+    }
+
+    /** Next's step, never opening a win early: a double ron's next win, else the next position. */
+    #advanceAutoplay() {
+        this.#leaving = false;
+        this.#waitedForDialog = false;
+        this.#move(() => (this.hasUnshownWin() ? this.pageWin() : this.stepForward()));
+        if (!this.#playing) {
+            return;
+        }
+        if (!this.canNext && !this.isAtResult()) {
+            this.pause();
+            return;
+        }
+        this.#armAutoplay(this.#autoplayDelay());
+    }
+
+    #pauseAtResult() {
+        this.#stopAutoplay();
+        this.#pausedAtResult = true;
+        this.notifyChange();
+    }
+
+    /** How long autoplay stays at the position shown: a result until its dialog opens, anything else by the speed. */
+    #autoplayDelay() {
+        const position = this.currentPosition();
+        const delay = AUTOPLAY_SPEEDS[this.speed];
+        if (position.kind === POSITION.RESULT) {
+            return AUTOPLAY_DIALOG_POLL_MS;
+        }
+        if (position.kind === POSITION.DEAL) {
+            return Math.max(delay, AUTOPLAY_DEAL_MS);
+        }
+        if (position.say.length > 0) {
+            return Math.max(delay, CALLOUT_MS);
+        }
+        return position.kind === POSITION.DRAW ? delay / 2 : delay;
     }
 
     cancelPending() {
@@ -278,6 +427,7 @@ export class ReplayViewer {
             this.#move(callback);
         }, delay);
         this.#pending.add(timer);
+        return timer;
     }
 
     /** Run a move unless the viewer has stopped; a move that throws stops it and goes to `onError`. */
@@ -289,6 +439,7 @@ export class ReplayViewer {
             action();
         } catch (error) {
             this.#failed = true;
+            this.#playing = false;
             this.cancelPending();
             this.onError(error);
         }
@@ -321,6 +472,11 @@ export class ReplayViewer {
 
     /** Rebuild the table silently at (round, step), a result showing its win after `pagedWins` further ones. */
     show(round, step, pagedWins) {
+        this.pause();
+        this.#rebuildAt(round, step, pagedWins);
+    }
+
+    #rebuildAt(round, step, pagedWins) {
         this.#move(() => {
             const target = { round, step, pagedWins };
             this.cancelPending();
@@ -369,7 +525,7 @@ export class ReplayViewer {
         return $(".hule-dialog", this.root);
     }
 
-    play(message) {
+    playMessage(message) {
         playIntoModel(this.model, message);
         this.view.update(message);
     }
@@ -391,6 +547,20 @@ export class ReplayViewer {
         return log.slice(end, end + wins - 1);
     }
 
+    isAtResult() {
+        return this.currentPosition().kind === POSITION.RESULT;
+    }
+
+    /** Whether a result's dialog is up and done fading in, so autoplay may stop at it or leave it. */
+    isDialogFullyShown() {
+        const dialog = this.dialog();
+        if (dialog.hasClass("hide") || dialog.hasClass("fadeout")) {
+            return false;
+        }
+        const fading = dialog[0].getAnimations?.() ?? [];
+        return fading.every((animation) => animation.playState !== "running");
+    }
+
     hasUnshownWin() {
         return this.pagedWins < furtherWinCount(this.currentPosition());
     }
@@ -401,14 +571,20 @@ export class ReplayViewer {
     }
 
     /**
-     * 次へ on a result: the next win of a double ron, past the last win the next position. It is ignored while the
-     * dialog is hidden (its callouts, or the next win's opening), so a double click shows each win rather than skipping
-     * one.
+     * 次へ on a result: the next win of a double ron, past the last win the next position; where autoplay paused itself
+     * (or waits on the dialog), it plays on from there. It is ignored while the dialog is hidden (its callouts, or the
+     * next win's opening), so a double click shows each win rather than skipping one.
      */
     pageResult() {
         if (this.dialog().hasClass("hide")) {
             return;
         }
+        if (this.#pausedAtResult || this.#playing) {
+            this.#stopAutoplay();
+            this.play();
+            return;
+        }
+        this.pause();
         if (this.hasUnshownWin()) {
             this.#move(() => this.pageWin());
         } else {
@@ -419,7 +595,7 @@ export class ReplayViewer {
     /** The double ron's next win: the dialog closes, and the win's own opens after the board's delay. */
     pageWin() {
         fadein.hide(this.dialog());
-        this.play(this.furtherWins(this.round, this.step)[this.pagedWins]);
+        this.playMessage(this.furtherWins(this.round, this.step)[this.pagedWins]);
         this.moveTo({ round: this.round, step: this.step, pagedWins: this.pagedWins + 1 });
     }
 
@@ -494,7 +670,7 @@ export class ReplayViewer {
             case POSITION.RESULT:
                 return this.playResult(position, messages);
             default:
-                messages.forEach((message) => this.play(message));
+                messages.forEach((message) => this.playMessage(message));
                 return this.sayCallouts(position, false);
         }
     }
@@ -502,7 +678,7 @@ export class ReplayViewer {
     /** The result's callouts first, as the live game shows them; its dialog opens after them. */
     playResult(position, messages) {
         const result = messages.at(-1);
-        messages.slice(0, -1).forEach((message) => this.play(message));
+        messages.slice(0, -1).forEach((message) => this.playMessage(message));
         playIntoModel(this.model, result);
         if (position.say.length === 0) {
             this.view.update(result);
