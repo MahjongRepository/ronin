@@ -7,16 +7,10 @@ const activeSassDeprecations = Object.values(deprecations).filter((d) => d.statu
 
 export default defineConfig(({ command }) => ({
     base: command === "build" ? "/lobby-assets/" : "/",
-    resolve: {
-        alias: {
-            "@": resolve(__dirname, "src"),
-        },
-    },
-    publicDir: false,
     build: {
+        emptyOutDir: true,
         manifest: true,
         outDir: "dist",
-        emptyOutDir: true,
         rollupOptions: {
             input: {
                 lobby: resolve(__dirname, "src/index.ts"),
@@ -26,16 +20,22 @@ export default defineConfig(({ command }) => ({
     css: {
         preprocessorOptions: {
             scss: {
+                fatalDeprecations: activeSassDeprecations,
                 loadPaths: ["node_modules"],
                 quietDeps: true,
-                fatalDeprecations: activeSassDeprecations,
             },
         },
     },
+    publicDir: false,
+    resolve: {
+        alias: {
+            "@": resolve(__dirname, "src"),
+        },
+    },
     server: {
-        port: parseInt(process.env.VITE_PORT || "5173", 10),
-        origin: `http://localhost:${process.env.VITE_PORT || "5173"}`,
-        strictPort: true,
         cors: true,
+        origin: `http://localhost:${process.env.VITE_PORT || "5173"}`,
+        port: parseInt(process.env.VITE_PORT || "5173", 10),
+        strictPort: true,
     },
 }));
