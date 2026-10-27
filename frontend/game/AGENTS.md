@@ -77,6 +77,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   itself; the UI's decisions are translated back into wire actions. A client-side shadow of the
   seat state supplies what the translation needs and the wire messages omit: physical tile ids,
   other seats' hidden draws and the live wall count.
+  The round-result builders (`results.js`) take the dealer, a winner's riichi and the pon lookup as
+  arguments, not the shadow, so other drivers can share them with the live client.
 * **The server judges every decision.** majiang-core's own rule checks never decide a button or a
   selectable tile: the player (`src/js/ronin/player.js`) offers exactly what the server offered (a
   draw's available actions, riichi's tenpai-keeping discards included, and a call prompt's calls),
@@ -165,7 +167,7 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   and a persistent loading preview cloned from the startup screen's HTML, using its shared styles,
   from fixed sample states in `storybook.js` and `storybook/`; the board pages reuse the page's
   `#board` markup and fit it below their header with the same `Majiang.UI.Util.scale`. The
-  in-round and round-end pages feed their states the way the ronin layer does (`RoninPlayer` with server-style offers, `translate.js`'s round-end shapes), so they
+  in-round and round-end pages feed their states the way the ronin layer does (`RoninPlayer` with server-style offers, `results.js`'s round-end shapes), so they
   show what a player sees; keep them in step when that layer changes.
 * The game UI's text is upstream's Japanese; the pages written for ronin (replay, storybook) are
   English.
