@@ -33,6 +33,7 @@ class TablePlayer extends Majiang.Player {
         this.offer = NO_OFFER;
         this.shown = [];
         this.countdowns = [];
+        this.screenCountdowns = [];
         for (const name of DECISIONS) {
             this[`action_${name}`] = (data) => this.shown.push({ name, data });
         }
@@ -45,6 +46,12 @@ class TablePlayer extends Majiang.Player {
     }
 
     clear_timer() {}
+
+    screenCountdown(screen, seconds) {
+        this.screenCountdowns.push([screen, seconds]);
+    }
+
+    clearScreenCountdown() {}
 
     show_button(callback) {
         callback();
@@ -60,7 +67,7 @@ class TablePlayer extends Majiang.Player {
 }
 
 const BASE_HAND = [16, 17, 0, 4, 9, 36, 40, 44, 72, 76, 80, 108, 112];
-const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5 };
+const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5, ra: 5, gp: 3 };
 
 function startTable(myTiles = BASE_HAND, round = {}, game = {}, player = new TablePlayer()) {
     const shadow = new Shadow();
@@ -679,6 +686,10 @@ describe("the ronin table (Translate and Reply)", () => {
         table.decide({});
 
         expect(table.sent).toEqual([{ t: 3, a: 9, wi: 9 }, "lobby"]);
+        expect(table.player.screenCountdowns).toEqual([
+            ["kaiju", 3],
+            ["result", 4.5],
+        ]);
     });
 
     it("credits the game end's leftover riichi bonus to the winner's gongtuo row", () => {
@@ -760,6 +771,107 @@ describe("the ronin table (Translate and Reply)", () => {
         $(".summary .exit", player._node.root).trigger("click");
 
         expect(table.sent).toEqual(["lobby"]);
+    });
+
+    it("counts the game start pause down on the start screen until the deal", () => {
+        vi.useFakeTimers();
+        document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
+        const silent = () => ({ play() {}, currentTime: 0 });
+        const player = new RoninPlayer($("#board"), () => $("<span>"), silent);
+        player.view = new Board($("#board .board"), () => $("<span>"), silent, player.model);
+        const translate = new Translate(player, new Shadow());
+        const countdown = $("#board .kaiju .countdown");
+
+        translate.handle({
+            t: 8,
+            s: 0,
+            gid: "g",
+            dl: 0,
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            p: [0, 1, 2, 3].map((s) => ({ s, nm: `p${s}`, ai: s !== 0 })),
+            gt: 0,
+            tm: TIMER_SETTINGS,
+        });
+        expect(countdown.text()).toBe("3");
+        vi.advanceTimersByTime(1000);
+        expect(countdown.text()).toBe("2");
+        vi.advanceTimersByTime(5000);
+        expect(countdown.text()).toBe("0");
+
+        translate.handle({
+            t: 9,
+            s: 0,
+            w: 0,
+            n: 0,
+            dl: 0,
+            cp: 0,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
+            dc: [1, 1],
+        });
+        expect(countdown.text()).toBe("");
+    });
+
+    it("counts each result of a double ron down to its share of the round advance timeout, moving on from the first by itself and leaving the last to the server", () => {
+        const { table } = startTableOnPage();
+        const countdown = $("#board .hule-dialog .next .countdown");
+        const title = $("#board .hule-dialog .title");
+
+        table.receive({ ...DOUBLE_RON, wi: 9 });
+        vi.advanceTimersByTime(WIN_CALL_MS + RESULT_SHOWN_MS);
+        expect(countdown.text()).toBe("5");
+        expect(title.text()).toContain("p1");
+
+        vi.advanceTimersByTime(4_000 + RESULT_SHOWN_MS);
+        expect(countdown.text()).toBe("5");
+        expect(title.text()).toContain("p2");
+        expect(table.sent).toEqual([]);
+
+        vi.advanceTimersByTime(5_000);
+        expect(countdown.text()).toBe("0");
+        expect(table.sent).toEqual([]);
+        table.receive({
+            t: 9,
+            s: 0,
+            w: 0,
+            n: 1,
+            dl: 1,
+            cp: 1,
+            di: [132],
+            h: 0,
+            r: 0,
+            mt: BASE_HAND,
+            p: [0, 1, 2, 3].map((s) => ({ s, sc: 250 })),
+            dc: [1, 1],
+        });
+        expect(countdown.text()).toBe("");
+    });
+
+    it("confirms a round result only from its 次へ button, not from a click elsewhere on the dialog", () => {
+        const { table } = startTableOnPage();
+        table.receive(draw(0, 120, { wi: 8 }));
+        table.receive(discard(0, 120));
+
+        table.receive({
+            t: 4,
+            rt: 3,
+            ts: [0],
+            th: [],
+            sch: { 0: 30, 1: -10, 2: -10, 3: -10 },
+            wi: 9,
+        });
+        vi.advanceTimersByTime(DIALOG_READY_MS);
+        $("#board .hule-dialog .fenpei").trigger("click");
+        expect(table.sent).toEqual([]);
+        $("#board .hule-dialog .next").trigger("click");
+
+        expect(table.sent).toEqual([{ t: 3, a: 9, wi: 9 }]);
     });
 
     it("gives a nagashi mangan's result each seat's tenpai and its achievers, in dealer-relative order", () => {
@@ -1103,6 +1215,7 @@ describe("the ronin table (Translate and Reply)", () => {
                 })),
                 re: DOUBLE_RON,
                 oc: true,
+                el: 2,
             }),
         );
         vi.advanceTimersByTime(WIN_CALL_MS);
@@ -1110,6 +1223,10 @@ describe("the ronin table (Translate and Reply)", () => {
         const [, second] = shownOf(table, "hule");
 
         expect(renderedTotals(table, second.data.fenpei)).toEqual([400, 18000, 57600, 25000]);
+        expect(table.player.screenCountdowns.slice(1)).toEqual([
+            ["result", 2.5],
+            ["result", 7.5],
+        ]);
         table.decide({});
         expect(table.sent).toEqual([{ t: 3, a: 9, wi: 7 }]);
     });

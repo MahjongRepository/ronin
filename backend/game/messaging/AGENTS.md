@@ -10,7 +10,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
-  current bank; the client counts its own turns down from them and is never re-synced), and the
+  current bank; the client counts its own turns, the game start pause and the round results down
+  from them and is never re-synced), and the
   first deal follows it only after the session's game start pause; a draw goes only to the drawing
   seat, with its available actions when it has any; no draw follows the seat's own pon or chi: a
   `turn` event to that seat names the tile types kuikae forbids it to discard instead; a discard's
@@ -22,7 +23,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   no meld event: the round end that robs it names it, and so does the snapshot's round result. A
   snapshot taken during a round advance shows the round that ended: its dealer, wind, round number
   and honba with its tiles, the scores and riichi sticks its result left, that result (`re`) in the
-  round end's shape, and whether the seat still owes its confirmation (`oc`). The snapshot gives
+  round end's shape, and whether the seat still owes its confirmation (`oc`), with how long that
+  wait's timer has run (`el`) when it does. The snapshot gives
   each seat's closed-hand size, since a client sees other hands face down and never sees their
   draws.
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and

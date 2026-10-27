@@ -7,6 +7,12 @@ import UI from '../../vendor/majiang-ui/index.js';
 import { BEEP_SECONDS } from '../../vendor/majiang-ui/player.js';
 import { NO_OFFER } from './offer.js';
 
+/** Where each screen the server moves on from by itself shows its countdown: the game start and a round result. */
+const SCREEN_COUNTDOWNS = {
+    kaiju:  '.kaiju .countdown',
+    result: '.hule-dialog .next .countdown',
+};
+
 /**
  * majiang-ui's player whose buttons and selectable tiles offer exactly what the server offers: the server, not the
  * local engine, judges every win, call, kan, riichi, kyuushu and kuikae, and refuses or disconnects on anything else.
@@ -59,6 +65,43 @@ class RoninPlayer extends UI.Player {
         const matches = clicked.length == 1 && clicked.attr('data-pai') == dapai.p.slice(0, 2);
         if (dapai.l == this._menfeng && ! matches) clicked.removeClass('dapai');
         super.dapai(dapai);
+    }
+
+    /**
+     * Count down the seconds left before the server moves on from a screen; at 0 the countdown stops and runs
+     * onExpire, which may open the next screen's countdown.
+     */
+    screenCountdown(screen, seconds, onExpire = () => {}) {
+        this.clearScreenCountdown();
+        const node = $(SCREEN_COUNTDOWNS[screen], this._node.root);
+        const deadline = Date.now() + seconds * 1000;
+        const tick = () => {
+            const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+            node.text(String(left));
+            if (left > 0) return;
+            this._screen_timer_id = clearInterval(this._screen_timer_id);
+            onExpire();
+        };
+        this._screen_countdown = node;
+        this._screen_timer_id = setInterval(tick, 200);
+        tick();
+    }
+
+    clearScreenCountdown() {
+        this._screen_timer_id = clearInterval(this._screen_timer_id);
+        if (this._screen_countdown) this._screen_countdown.text('');
+        this._screen_countdown = null;
+    }
+
+    /**
+     * Only 次へ dismisses a round result, by click or as the focused button by keyboard: a click elsewhere on the
+     * dialog (a discard click that lands as it opens, a tap to scroll it) would skip a result the round advance
+     * timeout already shows only briefly.
+     */
+    action_hule() {
+        $('.hule-dialog', this._node.root).off('click')
+                                          .on('click.dialog', '.next', () => this.callback());
+        this.set_dialog_timeout(() => $('.hule-dialog .next', this._node.root).trigger('focus'));
     }
 
     action_chankan() {

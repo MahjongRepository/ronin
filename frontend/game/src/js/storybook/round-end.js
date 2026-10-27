@@ -440,13 +440,13 @@ function createJieju(gameEnd, log) {
     };
 }
 
-/** Show a round's results the way a player sees them: the first at once, each next one when its dialog is clicked. */
+/** Show a round's results the way a player sees them: the first at once, each next one when its 次へ is clicked. */
 function showResults(board, model, [result, ...rest]) {
     board.update(result);
     if (!rest.length) {
         return;
     }
-    $(".hule-dialog").one("click", () => {
+    $(".hule-dialog .next").one("click", () => {
         playEvent(model, rest[0]);
         showResults(board, model, rest);
     });

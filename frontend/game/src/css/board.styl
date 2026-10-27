@@ -309,6 +309,9 @@ body.board
                         background: #fc6
                         color: black
                         outline: none
+                    .countdown:not(:empty)
+                        margin-left: 0.5em
+                        font-family: defen-font
     > .summary
         z-index: 3
         display: flex
@@ -498,6 +501,13 @@ body.board
                     transform: translate(140px, 0px)
                 &.shangjia
                     transform: translate(0px, 48px)
+        .countdown
+            position: absolute
+            top: 12px
+            right: 16px
+            color: #fc6
+            font-family: defen-font
+            font-size: 24px
     .suspend
         background: rgba(0, 0, 0, 0.5);
 

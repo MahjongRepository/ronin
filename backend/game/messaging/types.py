@@ -118,8 +118,9 @@ class ErrorMessage(BaseModel):
 
 class TimerSettings(BaseModel):
     """
-    A seat's pacing for its own countdown (seconds): the turn base time, the seat's bank, the round bonus and the bank
-    cap it adds up to, and the fixed call decision time.
+    A seat's pacing for its own countdowns (seconds): the turn base time, the seat's bank, the round bonus and the bank
+    cap it adds up to, the fixed call decision time, the round advance timeout per result shown and the game start
+    pause.
     """
 
     base_turn_seconds: float = Field(serialization_alias="tb")
@@ -127,6 +128,8 @@ class TimerSettings(BaseModel):
     round_bonus_seconds: float = Field(serialization_alias="rb")
     max_bank_seconds: float = Field(serialization_alias="mb")
     meld_decision_seconds: float = Field(serialization_alias="md")
+    round_advance_timeout_seconds: float = Field(serialization_alias="ra")
+    game_start_pause_seconds: float = Field(serialization_alias="gp")
 
 
 class PlayerReconnectedMessage(BaseModel):

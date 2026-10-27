@@ -11,7 +11,7 @@ import { STORYBOOK_PAGE, storybookPath } from "../routes.js";
 import { showStorybook } from "../storybook.js";
 
 const PLAYERS = [0, 1, 2, 3].map((s) => ({ s, nm: `Player ${s}`, ai: s !== 0, sc: 250 }));
-const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5 };
+const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5, ra: 5, gp: 3 };
 
 beforeEach(() => {
     const page = new DOMParser().parseFromString(PAGE, "text/html");

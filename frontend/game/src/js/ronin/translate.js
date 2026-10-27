@@ -169,6 +169,7 @@ class Translate {
         this.roundDialogOpen = false;
         this.pendingJieju = null;
         this.winCallTimer = null;
+        this.resultsOpenedAt = null;
         this.clock = new TurnClock();
     }
 
@@ -228,6 +229,7 @@ class Translate {
         this.readPlayers(msg.p);
         s.playersConnected = [true, true, true, true];
         this.feedKaiju();
+        if (this.clock.settings.gp) this.player.screenCountdown('kaiju', this.clock.settings.gp);
     }
 
     readPlayers(players) {
@@ -262,6 +264,7 @@ class Translate {
         this.retry = null;
         this.roundDialogOpen = false;
         clearTimeout(this.winCallTimer);
+        this.player.clearScreenCountdown();
         this.clock.addRoundBonus();
 
         const defen = [];
@@ -291,7 +294,7 @@ class Translate {
     /**
      * The game start sets the model's players and the board's viewpoint, and shows the start screen from the seat the
      * game_started message names. The server holds the first deal back for its game start pause, so the screen stays
-     * up that long before the deal hides it; a reconnect feeds it right before its own deal.
+     * up that long, counting it down, before the deal hides it; a reconnect feeds it right before its own deal.
      */
     feedKaiju() {
         this.feed({ kaiju: this.kaiju() }, 'kaiju');
@@ -618,6 +621,7 @@ class Translate {
             return;
         }
         s.roundAdvance = msg[wire.WAIT_ID] != null;
+        this.resultsOpenedAt = s.roundAdvance ? this.clock.now() - (msg[wire.WAIT_ELAPSED] || 0) * 1000 : null;
         this.roundDialogOpen = true;
         for (const m of results) s.logMessage(m);
         s.closeRound();
@@ -640,14 +644,28 @@ class Translate {
      * order, counter-clockwise from the discarder, so the first is the one that took the riichi sticks. The round is
      * confirmed, and the final standings shown, only once the last is dismissed.
      */
-    showResults([m, ...rest]) {
+    showResults([m, ...rest], index = 0) {
         const kind = m.hule ? 'hule' : 'pingju';
         this.feed(m, kind, Offer.NO_OFFER, reply => {
-            if (rest.length) return this.showResults(rest);
+            this.player.clearScreenCountdown();
+            if (rest.length) return this.showResults(rest, index + 1);
             this.roundDialogOpen = false;
             this.onDecision(kind, reply);
             this.showPendingJieju();
         });
+        this.countResultDown(index, rest.length > 0);
+    }
+
+    /**
+     * Count a result of a round advance down to the server's timeout, which gives the round end its timeout once per
+     * result: each result but the last dismisses itself at its share, and the last stops at 0 until the server
+     * confirms the seat and deals the next round. The game's last round end opens no wait and counts nothing.
+     */
+    countResultDown(index, more) {
+        if (this.resultsOpenedAt == null) return;
+        const deadline = this.resultsOpenedAt + (index + 1) * this.clock.settings.ra * 1000;
+        const seconds = (deadline - this.clock.now()) / 1000;
+        this.player.screenCountdown('result', seconds, more ? () => this.player.callback() : undefined);
     }
 
     gameEnd(msg) {
@@ -705,6 +723,7 @@ class Translate {
         this.retry = null;
         this.roundDialogOpen = false;
         clearTimeout(this.winCallTimer);
+        this.player.clearScreenCountdown();
 
         s.startRound();
         s.scores = [0, 0, 0, 0];
@@ -846,7 +865,7 @@ class Translate {
         this.furiten(msg.f);
 
         P.clear_timer();
-        if (owed) this.roundEnd({ ...result, [wire.WAIT_ID]: msg[wire.WAIT_ID] });
+        if (owed) this.roundEnd({ ...result, [wire.WAIT_ID]: msg[wire.WAIT_ID], [wire.WAIT_ELAPSED]: msg[wire.WAIT_ELAPSED] });
     }
 }
 

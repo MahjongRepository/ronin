@@ -21,7 +21,7 @@ class TimerConfig(BaseModel):
     max_bank_seconds: float = 60
     round_bonus_seconds: float = Field(default=10, ge=0)
     meld_decision_seconds: float = Field(default=5, gt=0)
-    round_advance_timeout_seconds: float = Field(default=15, gt=0)
+    round_advance_timeout_seconds: float = Field(default=5, gt=0)
     pending_game_timeout_seconds: float = Field(default=30, gt=0)
     game_start_pause_seconds: float = Field(default=3, ge=0)
 
