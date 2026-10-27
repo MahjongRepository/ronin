@@ -208,7 +208,9 @@ class TestGameStartPause:
         seats = [participant.seat for participant in game.participants]
         assert [[m["t"] for m in conn.sent_messages] for conn in conns] == [[GAME_STARTED_T], [GAME_STARTED_T]]
         assert [conn.sent_messages[0]["s"] for conn in conns] == seats
-        assert [conn.sent_messages[0]["tm"] for conn in conns] == [{"tb": 5, "bk": 20, "rb": 10, "mb": 60, "md": 5}] * 2
+        assert [conn.sent_messages[0]["tm"] for conn in conns] == [
+            {"tb": 5, "bk": 20, "rb": 10, "mb": 60, "md": 5, "ra": 5, "gp": 0.01}
+        ] * 2
         assert game.awaiting is None
         assert [participant.timer.task for participant in game.participants] == [None, None]
         assert game.start_pause is not None

@@ -547,9 +547,9 @@ class SessionManager:
         another client) has that connection replaced (`_bind`) instead: its seat was never handed over, the others never
         saw it leave, and the wait, its timers and the bank carry on untouched. Either way the new connection gets the
         `game_reconnected` snapshot with the current wait id, the seat's timer settings (its bank as of its last turn)
-        and, during a round advance, whether the seat still owes its confirmation; then the event that opened the wait
-        the game owes the seat, if any (`_send_wait_on_reconnect`). A RECONNECT on a connection the server already
-        evicted is dropped unanswered.
+        and, during a round advance, whether the seat still owes its confirmation, with how long that wait's timer has
+        run when it does; then the event that opened the wait the game owes the seat, if any
+        (`_send_wait_on_reconnect`). A RECONNECT on a connection the server already evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
             return
@@ -575,6 +575,9 @@ class SessionManager:
         payload[WAIT_ID_KEY] = awaiting.wait_id
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
             payload[CONFIRMATION_OWED_KEY] = seat in awaiting.seats
+            elapsed = participant.timer.elapsed_seconds
+            if seat in awaiting.seats and elapsed is not None:
+                payload[WAIT_ELAPSED_KEY] = elapsed
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
         if not taking_over:
@@ -805,6 +808,8 @@ class SessionManager:
             round_bonus_seconds=config.round_bonus_seconds,
             max_bank_seconds=config.max_bank_seconds,
             meld_decision_seconds=config.meld_decision_seconds,
+            round_advance_timeout_seconds=config.round_advance_timeout_seconds,
+            game_start_pause_seconds=config.game_start_pause_seconds,
         )
 
     @staticmethod

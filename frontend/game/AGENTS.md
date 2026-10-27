@@ -117,6 +117,14 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   (and runs on if it is refused). A countdown that runs out stops at 0 and does nothing else: the
   decision stays open until the server's timeout plays the default, never majiang-ui's default
   reply (a riichi discard, say), which could reach the server before its own deadline.
+* **Screen countdowns:** the screens the server moves on from by itself count down to it: the game
+  start screen its start pause (`gp`) until the deal, and a round result the round advance timeout
+  (`ra`) on its 次へ button. A round end shows each result its share of the server's timeout,
+  measured from the round end (backdated by the snapshot's `el` after a takeover): every result but
+  the last dismisses itself at its share, and the last stops at 0 and sends nothing, leaving the
+  confirmation to the server's timeout and the next deal. The game's last round end opens no wait
+  and counts nothing down. Only 次へ dismisses a result (`RoninPlayer.action_hule`), not a click
+  elsewhere on the dialog: a stray discard click as it opens, or a tap to scroll it, would skip it.
 * **Silence watchdog:** since the client sends nothing on its own, a socket whose peer vanished (a
   FIN lost while the device slept) never fires `onclose`. `RoninSession` treats a server silent
   longer than any legitimate wait as a drop and reconnects, measured on the wall clock so the first

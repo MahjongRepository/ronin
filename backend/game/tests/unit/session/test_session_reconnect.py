@@ -239,8 +239,8 @@ class TestReconnectTakeover:
 
         await manager.shutdown()
 
-    async def test_reconnect__when_taken_over_in_the_round_advance__should_say_whether_the_seat_owes_its_confirmation(
-        self, seeded_engine
+    async def test_reconnect__when_taken_over_in_the_round_advance__should_send_the_owed_confirmation_and_its_wait(
+        self, seeded_engine, fake_clock
     ):
         manager = make_session_manager(seeded_engine)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
@@ -255,6 +255,7 @@ class TestReconnectTakeover:
         advance = game_of(manager).awaiting
         assert (advance.kind, advance.seats) == (WaitKind.ROUND_ADVANCE, frozenset({bob.seat}))
         bob_deadline = bob.timer.task
+        fake_clock.advance(4)
 
         owed = {}
         for participant in (alice, bob):
@@ -263,9 +264,9 @@ class TestReconnectTakeover:
             manager.reconnect(new_conn, session_token=participant.ticket)
             [reconnected] = new_conn.sent_messages
             assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
-            owed[participant.name] = reconnected["oc"]
+            owed[participant.name] = (reconnected["oc"], reconnected.get("el"))
 
-        assert owed == {"Alice": False, "Bob": True}
+        assert owed == {"Alice": (False, None), "Bob": (True, 4)}
         assert bob.timer.task is bob_deadline
 
         manager.handle_game_action(bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=advance.wait_id)
