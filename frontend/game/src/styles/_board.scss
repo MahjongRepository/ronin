@@ -527,7 +527,7 @@ body.board {
                     border-collapse: collapse;
                     line-height: 1.5;
 
-                    .r-rank {
+                    .row-rank {
                         .title {
                             font-family: $title-font;
                             text-align: left;
@@ -546,11 +546,11 @@ body.board {
                         }
                     }
 
-                    .r-player {
+                    .row-player {
                         border-bottom: solid 2px;
                     }
 
-                    .r-diff {
+                    .row-diff {
                         .back {
                             text-align: right;
                         }
@@ -570,7 +570,7 @@ body.board {
                         }
                     }
 
-                    .r-gongtuo {
+                    .row-gongtuo {
                         border-top: solid 1px $grey-700;
 
                         th {
@@ -600,7 +600,7 @@ body.board {
                         }
                     }
 
-                    .r-defen {
+                    .row-defen {
                         border-top: solid 2px;
 
                         .defen {
@@ -610,7 +610,7 @@ body.board {
                         }
                     }
 
-                    .r-point {
+                    .row-point {
                         border-top: solid 1px;
 
                         .point {

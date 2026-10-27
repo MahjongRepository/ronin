@@ -1152,7 +1152,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.decide({});
         const root = renderSummary();
         summary(root, table.player.shown.at(-1).data, 0);
-        expect(rowTexts(root, ".r-diff")).toEqual(["東一局|0本場|流局|±0|±0|±0|±0"]);
+        expect(rowTexts(root, ".row-diff")).toEqual(["東一局|0本場|流局|±0|±0|±0|±0"]);
     });
 
     it("drops a win's pending result when the next round starts before it shows", () => {
@@ -1662,16 +1662,16 @@ describe("the ronin table (Translate and Reply)", () => {
 
         const root = renderSummary();
         summary(root, table.player.shown.at(-1).data, 0);
-        expect(rowTexts(root, ".r-diff")).toEqual([
+        expect(rowTexts(root, ".row-diff")).toEqual([
             "東一局|0本場|ロン||+1,000リ|-10,000|+9,000",
             "東二局|0本場|流局|+1,500|-1,500|-1,500|+1,500",
             "東三局|1本場|ツモ|+4,300|-1,100|-2,100|-1,100",
             "東四局|0本場|流局|ノーテン|ノーテン|ノーテン|ノーテン",
         ]);
-        expect(rowTexts(root, ".r-defen")).toEqual(["|30,800|23,400|11,400|34,400"]);
+        expect(rowTexts(root, ".row-defen")).toEqual(["|30,800|23,400|11,400|34,400"]);
         expect(
             root
-                .find(".r-diff")
+                .find(".row-diff")
                 .first()
                 .find(".diff")
                 .map((i, cell) => cell.classList.contains("hule"))
