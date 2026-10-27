@@ -907,6 +907,7 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.player.screenCountdowns).toEqual([
             ["kaiju", 3],
             ["result", 4.5],
+            ["result", 4.5],
         ]);
     });
 
@@ -1069,6 +1070,29 @@ describe("the ronin table (Translate and Reply)", () => {
             dc: [1, 1],
         });
         expect(countdown.text()).toBe("");
+    });
+
+    it("counts the game's last result down like a round advance's and moves on from it by itself to the final standings, confirming nothing", () => {
+        const { table } = startTableOnPage();
+        const countdown = $("#board .hule-dialog .next .countdown");
+        table.receive(draw(0, 120, { wi: 8 }));
+        table.receive(discard(0, 120));
+
+        table.receive({ t: 4, rt: 3, ts: [], th: [], sch: {} });
+        table.receive({
+            t: 10,
+            ws: 0,
+            st: [0, 1, 2, 3].map((s) => ({ s, sc: 250, fs: 0 })),
+            lb: 0,
+        });
+        expect(countdown.text()).toBe("5");
+
+        vi.advanceTimersByTime(4_900);
+        expect($("#board .hule-dialog").hasClass("hide")).toBe(false);
+        vi.advanceTimersByTime(100);
+        expect($("#board .hule-dialog").hasClass("hide")).toBe(true);
+        $("#board .summary .exit").trigger("click");
+        expect(table.sent).toEqual(["lobby"]);
     });
 
     it("confirms a round result only from its 次へ button, not from a click elsewhere on the dialog", () => {
