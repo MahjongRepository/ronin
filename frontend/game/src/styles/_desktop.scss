@@ -1,6 +1,7 @@
 @use "he";
 @use "pai";
 @use "shoupai";
+@use "theme" as *;
 
 #board > .board {
     height: 680px;
@@ -377,7 +378,7 @@
     }
 }
 
-@media screen and (width <= 800px) and (height >= 451px) and (pointer: coarse) and (orientation: portrait) {
+@media #{$portrait-touch} {
     #board {
         .autoplay {
             flex-direction: row;

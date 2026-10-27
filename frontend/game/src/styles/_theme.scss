@@ -20,3 +20,4 @@ $grey-600: #666;
 $grey-700: #555;
 $grey-800: #333;
 $grey-900: #111;
+$portrait-touch: "screen and (width <= 800px) and (height >= 451px) and (pointer: coarse) and (orientation: portrait)";

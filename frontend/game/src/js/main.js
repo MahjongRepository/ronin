@@ -5,7 +5,7 @@ import $ from "jquery";
 
 import { RECOVERY, readGameSession, recoverGameSession } from "./game-session.js";
 import { finishLoading, loadTileImages, showLoadingError } from "./loading.js";
-import { showReplay } from "./replay.js";
+import { showReplay } from "./replay/page.js";
 import startGame from "./ronin.js";
 import { LOBBY_URL, ROUTE, matchRoute } from "./routes.js";
 import { showStorybook } from "./storybook.js";
@@ -58,11 +58,9 @@ async function showGame(gameId) {
     startGame(gameId, session);
 }
 
-function showReplayPage(gameId) {
+async function showReplayPage(gameId) {
+    await showReplay(gameId, loadTileImages());
     finishLoading();
-    const root = $('<main class="replay">');
-    $("body").removeClass("board").addClass("page").empty().append(root);
-    showReplay(root[0], gameId);
 }
 
 async function start() {
@@ -75,7 +73,7 @@ async function start() {
         if (route.name === ROUTE.GAME) {
             await showGame(route.gameId);
         } else if (route.name === ROUTE.REPLAY) {
-            showReplayPage(route.gameId);
+            await showReplayPage(route.gameId);
         } else {
             await loadTileImages();
             showStorybook(route.page);
