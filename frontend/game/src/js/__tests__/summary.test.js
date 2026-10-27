@@ -51,9 +51,10 @@ describe("summary", () => {
             "東二局|0本場|流局|+1,500|+500リ|-1,500|-1,500",
         ]);
         expect(rowTexts(root, ".row-gongtuo")).toEqual(["残り供託|+1,000|||"]);
+        expect(root.find(".legend-lizhi").hasClass("hide")).toBe(false);
     });
 
-    it("marks a draw that moved no points with each seat's tenpai, or ±0 when the draw does not judge tenpai", () => {
+    it("marks a draw that moved no points with each seat's tenpai or ±0, and leaves out the riichi legend when no round shows a riichi", () => {
         const log = [
             round(0, [
                 {
@@ -79,5 +80,6 @@ describe("summary", () => {
             "東一局|0本場|流局|±0|±0|±0|±0",
         ]);
         expect(root.find(".row-gongtuo")).toHaveLength(0);
+        expect(root.find(".legend-lizhi").hasClass("hide")).toBe(true);
     });
 });

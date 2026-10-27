@@ -392,6 +392,49 @@ const GAME_END = Object.freeze({
     lb: 10,
 });
 
+const FOUR_KAN_SAMPLE = WIN_SAMPLES.find((sample) => sample.key === "four-kan");
+
+const BUST_ROUNDS = Object.freeze([
+    { round: [0, 0, 0], hule: { l: 2, baojia: 0, fenpei: [-2000, 0, 2000, 0] } },
+]);
+
+const BUST_FINAL_ROUND = Object.freeze({
+    round: FOUR_KAN_SAMPLE.round,
+    defen: [25000, 27000, 25000, 23000],
+    baopai: FOUR_KAN_SAMPLE.baopai,
+    hand: FOUR_KAN_SAMPLE.hand,
+    events: FOUR_KAN_SAMPLE.events,
+    end: FOUR_KAN_SAMPLE.end,
+});
+
+const BUST_GAME_END = Object.freeze({
+    ws: 2,
+    st: [
+        { s: 2, sc: 590, fs: 69 },
+        { s: 1, sc: 250, fs: 5 },
+        { s: 3, sc: 250, fs: -15 },
+        { s: 0, sc: -90, fs: -59 },
+    ],
+    lb: 0,
+});
+
+const STANDINGS_SAMPLES = Object.freeze([
+    {
+        key: "riichi",
+        title: "Hanchan with riichi deposits",
+        rounds: GAME_ROUNDS,
+        final: FINAL_ROUND,
+        gameEnd: GAME_END,
+    },
+    {
+        key: "no-riichi",
+        title: "Bust after two hands, no riichi",
+        rounds: BUST_ROUNDS,
+        final: BUST_FINAL_ROUND,
+        gameEnd: BUST_GAME_END,
+    },
+]);
+
 function viewpointSeatIndex(jushu) {
     return (VIEWPOINT - QIJIA - jushu + 8) % 4;
 }
@@ -471,8 +514,10 @@ export function showDrawPage(header, pai) {
 }
 
 export function showStandingsPage(header, pai) {
-    const finalLog = sampleLog(FINAL_ROUND);
-    const paipu = createJieju(GAME_END, [...GAME_ROUNDS.map(summaryLog), finalLog]);
+    const sample = currentVariant(STANDINGS_SAMPLES);
+    header.append(renderVariantNav(STANDINGS_SAMPLES, sample));
+    const finalLog = sampleLog(sample.final);
+    const paipu = createJieju(sample.gameEnd, [...sample.rounds.map(summaryLog), finalLog]);
     const model = createRoundModel(finalLog);
     model.jieju(paipu);
     showBoardPage(header, pai, model, { viewpoint: VIEWPOINT }).summary(paipu);
