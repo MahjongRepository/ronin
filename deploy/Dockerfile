@@ -106,7 +106,6 @@ COPY backend/ backend/
 
 COPY --from=lobby-builder /app/frontend/lobby/dist /app/frontend/lobby/dist
 COPY --from=game-builder /app/frontend/game/dist /app/frontend/game/dist
-# Static files served at /static/ (currently empty — logo.svg is content-hashed in dist/assets/)
 COPY frontend/lobby/public /app/frontend/lobby/public
 
 # Create directories for runtime data
