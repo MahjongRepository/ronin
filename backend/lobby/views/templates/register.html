@@ -16,6 +16,7 @@
     {% set confirm_invalid = invalid_field == "confirm_password" %}
     <form method="POST" action="/register">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
         <label for="username">Username
             <input type="text" id="username" name="username" value="{{ form_username or '' }}" required
                 minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" pattern="{{ username_pattern }}"
@@ -33,6 +34,6 @@
         </label>
         <button type="submit">Register</button>
     </form>
-    <p class="auth-link"><small>Already have an account? <a href="/login">Log in</a></small></p>
+    <p class="auth-link"><small>Already have an account? <a href="/login{{ next_query }}">Log in</a></small></p>
 </article>
 {% endblock %}

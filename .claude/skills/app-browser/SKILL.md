@@ -35,12 +35,15 @@ agent-browser set viewport 1280 800
 agent-browser open http://localhost:8710/login
 agent-browser fill "#username" dev
 agent-browser fill "#password" dev-password
-agent-browser click "button[type=submit]"
+agent-browser click 'form[action="/login"] button[type=submit]'
 agent-browser wait 1000 && agent-browser get url
 ```
 
 - Set the viewport first: a new session opens at 1280×577, where the Login button sits on the fold
   and the click silently misses it.
+- To play as a guest instead, open `/login` in a logged-out session and
+  `agent-browser click 'form[action="/guest"] button'`. A logged-in browser keeps its current
+  identity, so each extra guest (a new `Nanashi-NNNN`) needs its own `--session`.
 - Still on `/login` means the user does not exist yet: register it at `/register` the same way
   (`#username`, `#password`, `#confirm_password`), which also logs in.
 - Cookies on `localhost` are shared across ports, so logging in to a second stack (the base
@@ -114,7 +117,7 @@ with sync_playwright() as p:
     page.goto("http://localhost:8710/login")
     page.fill("#username", "dev")
     page.fill("#password", "dev-password")
-    page.click("button[type=submit]")
+    page.click('form[action="/login"] button[type=submit]')
     page.wait_for_url("http://localhost:8710/")
     page.goto("http://localhost:8710/history")
     wait_settled(page)

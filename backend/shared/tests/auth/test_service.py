@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from shared.auth.password import BcryptHasher
-from shared.auth.service import AuthError, AuthService
+from shared.auth.service import GUEST_NAMES, AuthError, AuthService
 from shared.auth.session_store import AuthSessionStore
 from shared.dal.models import AccountType, Player
 from shared.db import Database, SqlitePlayerRepository
@@ -134,6 +134,21 @@ class TestLogin:
 
         with pytest.raises(AuthError, match="Wrong username or password"):
             await auth_service.login("TestBot", "anything1")
+
+
+class TestLoginAsGuest:
+    def test_auth_service_login_as_guest__when_only_free_name_held_by_expired_session__should_take_it(
+        self, auth_service, session_store
+    ):
+        free_name, *held_names = GUEST_NAMES
+        for i, name in enumerate(held_names):
+            session_store.create_session(user_id=f"holder-{i}", username=name)
+
+        session_store.create_session(user_id="holder-expired", username=free_name, ttl_seconds=-1)
+
+        session = auth_service.login_as_guest()
+        assert session.username == free_name
+        assert not session.user_id.startswith("holder-")
 
 
 class TestValidateSession:

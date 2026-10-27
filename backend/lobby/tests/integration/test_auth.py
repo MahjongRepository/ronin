@@ -229,6 +229,33 @@ class TestAuthEndpoints:
         assert response.status_code == 200
         assert "Wrong username or password." in response.text
 
+    def test_guest_login_route__when_posted__should_log_in_under_a_guest_name(self, client):
+        csrf = _get_csrf_token(client, "/login")
+
+        response = client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/"
+        assert "session_id" in response.cookies
+
+        lobby = client.get("/")
+        assert lobby.status_code == 200
+        assert re.search(r"Nanashi-\d{4}", lobby.text)
+        assert "Log out" in lobby.text
+
+    def test_guest_login_route__when_already_logged_in__should_keep_the_current_session(self, client):
+        _register_user(client, username="seateduser")
+        csrf = _get_csrf_token(client, "/login")
+
+        response = client.post("/guest", data={"csrf_token": csrf}, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/"
+        assert "session_id" not in response.cookies
+
+        lobby = client.get("/")
+        assert lobby.status_code == 200
+        assert "seateduser" in lobby.text
+        assert "Nanashi-" not in lobby.text
+
     def test_logout_route__when_posted__should_clear_session_and_redirect_to_login(self, client):
         _register_user(client, username="logoutuser")
         # After register, the CSRF cookie is already set. Read it for the logout POST.
@@ -258,6 +285,59 @@ class TestAuthEndpoints:
         response = client.get("/login")
         assert 'href="/history"' not in response.text
         assert 'href="/register"' in response.text
+
+
+class TestNextRedirect:
+    def test_login_page__when_reached_with_next__should_carry_it_into_both_forms_and_the_register_links(self, client):
+        response = client.get("/login", params={"next": "/rooms/r1?tab=chat"})
+        assert response.status_code == 200
+        assert response.text.count('name="next" value="/rooms/r1?tab=chat"') == 2
+        assert response.text.count('href="/register?next=%2Frooms%2Fr1%3Ftab%3Dchat"') == 2
+
+    def test_register_page__when_reached_with_next__should_carry_it_into_the_form_and_the_login_links(self, client):
+        response = client.get("/register", params={"next": "/rooms/r1"})
+        assert response.status_code == 200
+        assert response.text.count('name="next" value="/rooms/r1"') == 1
+        assert response.text.count('href="/login?next=%2Frooms%2Fr1"') == 2
+
+    @pytest.mark.parametrize(
+        ("route", "form", "register_first"),
+        [
+            pytest.param("/login", {"username": "nextuser", "password": "securepass123"}, True, id="login"),
+            pytest.param(
+                "/register",
+                {"username": "nextuser", "password": "securepass123", "confirm_password": "securepass123"},
+                False,
+                id="register",
+            ),
+            pytest.param("/guest", {}, False, id="guest"),
+        ],
+    )
+    def test_auth_post__when_next_is_a_local_path__should_redirect_there_with_a_session(
+        self, client, route, form, register_first
+    ):
+        if register_first:
+            _register_user(client, username=form["username"])
+
+        csrf = _get_csrf_token(client, "/login")
+
+        response = client.post(
+            route, data={**form, "next": "/rooms/r1?tab=chat", "csrf_token": csrf}, follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/rooms/r1?tab=chat"
+        assert "session_id" in response.cookies
+
+    @pytest.mark.parametrize(
+        "next_path",
+        ["//evil.example", "https://evil.example", "/\\evil.example", "rooms/r1"],
+    )
+    def test_guest_login_route__when_next_leaves_the_site__should_redirect_to_lobby(self, client, next_path):
+        csrf = _get_csrf_token(client, "/login")
+
+        response = client.post("/guest", data={"next": next_path, "csrf_token": csrf}, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/"
 
 
 class TestCreateRoomRedirect:
@@ -526,6 +606,10 @@ class TestAuthPolicyWiring:
 class TestCsrfProtection:
     def test_csrf_protection__when_login_post_has_no_token__should_return_403(self, client):
         response = client.post("/login", data={"username": "a", "password": "b"})
+        assert response.status_code == 403
+
+    def test_csrf_protection__when_guest_post_has_no_token__should_return_403(self, client):
+        response = client.post("/guest", data={})
         assert response.status_code == 403
 
     def test_csrf_protection__when_register_post_has_no_token__should_return_403(self, client):

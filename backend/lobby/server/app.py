@@ -56,6 +56,7 @@ from lobby.views import (
     storybook_page,
 )
 from lobby.views.auth_handlers import (
+    guest_login,
     login,
     login_page,
     logout,
@@ -191,6 +192,7 @@ def create_app(
         Route("/health", public_route(health), methods=["GET"], name="health"),
         Route("/login", public_route(login_page), methods=["GET"], name="login_page"),
         Route("/login", public_route(login), methods=["POST"], name="login"),
+        Route("/guest", public_route(guest_login), methods=["POST"], name="guest_login"),
         Route("/register", public_route(register_page), methods=["GET"], name="register_page"),
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),

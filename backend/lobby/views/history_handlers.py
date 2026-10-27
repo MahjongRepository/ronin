@@ -57,6 +57,7 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
         players = [
             {
                 "name": s.name,
+                "user_id": s.user_id,
                 "score": s.score,
                 "final_score": s.final_score,
                 "is_winner": has_scores and i == 0,
@@ -86,5 +87,7 @@ async def history_page(request: Request) -> Response:
     games = await game_repo.get_recent_completed_games(limit=20)
     display_games = _prepare_history_for_display(games)
     return render_page(
-        request, template_name="history.html", context={"games": display_games, "username": request.user.username}
+        request,
+        template_name="history.html",
+        context={"games": display_games, "username": request.user.username, "user_id": request.user.user_id},
     )

@@ -31,10 +31,11 @@
                     <span>Result</span>
                 </div>
                 {% for player in entry.players %}
-                <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if player.name == username else '' }}">
+                {% set is_viewer = player.user_id == user_id %}
+                <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if is_viewer else '' }}">
                     <span class="games-rank">{{ loop.index }}</span>
                     <span class="games-name">{{ player.name }}</span>
-                    {% if player.name == username %}
+                    {% if is_viewer %}
                     <span class="games-you">You</span>
                     {% endif %}
                     {% if player.score is not none %}
