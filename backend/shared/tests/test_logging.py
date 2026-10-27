@@ -1,6 +1,7 @@
 import json
 import logging
 import logging.handlers
+import warnings
 from enum import Enum
 
 import pytest
@@ -16,6 +17,7 @@ def _cleanup_root_logger():
     for handler in root.handlers[:]:
         handler.close()
         root.removeHandler(handler)
+    logging.captureWarnings(capture=False)
 
 
 class TestSetupLogging:
@@ -28,6 +30,20 @@ class TestSetupLogging:
         assert log_path.name == "app.log"
         content = log_path.read_text()
         assert "hello from test" in content
+
+    def test_setup_logging__when_stdlib_logger_or_warnings_warn__should_write_level_and_logger(self, tmp_path):
+        log_path = setup_logging(log_dir=tmp_path / "game")
+
+        logging.getLogger("websockets.server").warning("stdlib warning")
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            warnings.warn("coroutine was never awaited", RuntimeWarning, stacklevel=1)
+        assert log_path is not None
+        stdlib_line, warning_line, *_ = log_path.read_text().splitlines()
+        assert stdlib_line.split(" ", 1)[1].split() == ["[warning", "]", "stdlib", "warning", "[websockets.server]"]
+        assert "[warning  ]" in warning_line
+        assert warning_line.endswith("RuntimeWarning: coroutine was never awaited")
+        assert log_path.read_text().endswith(" [py.warnings]\n")
 
     def test_setup_logging__when_log_dir_missing__should_create_it(self, tmp_path):
         log_dir = tmp_path / "nested" / "dir"
