@@ -91,13 +91,13 @@ class AuthService:
         """
         player = await self._player_repo.get_by_username(username)
         if player is None:
-            raise AuthError("Invalid credentials")
+            raise AuthError("Wrong username or password.")
 
         if player.account_type == AccountType.BOT:
-            raise AuthError("Invalid credentials")
+            raise AuthError("Wrong username or password.")
 
         if not await self._hasher.verify(password, player.password_hash):
-            raise AuthError("Invalid credentials")
+            raise AuthError("Wrong username or password.")
 
         return self._session_store.create_session(user_id=player.user_id, username=player.username)
 

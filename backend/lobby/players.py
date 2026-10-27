@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from shared.websocket import QueuedWebSocket
 
 
@@ -22,5 +24,5 @@ class LobbyPlayer:
     username: str
     connection: QueuedWebSocket
 
-    def send(self, message: dict) -> None:
+    def send(self, message: Mapping[str, object]) -> None:
         self.connection.send_text(json.dumps(message))

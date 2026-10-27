@@ -1,39 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}Games - Ronin Mahjong{% endblock %}
+{% block title %}History · Ronin Mahjong{% endblock %}
 
 {% block content %}
 <section class="lobby-section">
     <div class="lobby-section-header">
-        <h2>Recent Games</h2>
+        <h2>Recent games</h2>
         <small class="lobby-table-count">{{ games|length }} shown</small>
     </div>
 
     {% if games %}
     <div class="games-list">
         {% for entry in games %}
-        <article class="games-card" style="--card-index: {{ loop.index0 }}" data-replay-url="/play/history/{{ entry.game.game_id }}">
+        {% set replay_url = "/play/history/" ~ entry.game.game_id %}
+        {% set started = entry.game.started_at.strftime('%b %d, %H:%M') ~ " UTC" %}
+        <article class="games-card" style="--card-index: {{ loop.index0 }}">
             <header class="games-card-header">
                 <div class="games-card-label">
-                    {% if entry.game_type_label %}
-                    <span class="games-wind">{{ entry.game_type_label }}</span>
+                    {% if entry.game_type %}
+                    <span class="games-wind" aria-hidden="true">{{ entry.game_type.wind }}</span>
+                    <span class="games-type" id="games-type-{{ loop.index }}">{{ entry.game_type.name }}</span>
                     {% endif %}
                 </div>
-                <time class="games-time" datetime="{{ entry.game.started_at.isoformat() }}">
-                    {{ entry.game.started_at.strftime('%b %d, %H:%M') }} UTC
-                </time>
+                <time class="games-time" id="games-time-{{ loop.index }}" datetime="{{ entry.game.started_at.isoformat() }}">{{ started }}</time>
             </header>
 
             <div class="games-standings">
+                <div class="games-standings-legend" aria-hidden="true">
+                    <span>Points</span>
+                    <span>Result</span>
+                </div>
                 {% for player in entry.players %}
                 <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if player.name == username else '' }}">
                     <span class="games-rank">{{ loop.index }}</span>
                     <span class="games-name">{{ player.name }}</span>
+                    {% if player.name == username %}
+                    <span class="games-you">You</span>
+                    {% endif %}
                     {% if player.score is not none %}
-                    <span class="games-score">{{ player.score }}</span>
+                    <span class="games-score" title="Points">{{ "{:,}".format(player.score) }}</span>
                     {% endif %}
                     {% if player.final_score is not none %}
-                    <span class="games-pts {{ 'games-pts--positive' if player.final_score > 0 else 'games-pts--negative' if player.final_score < 0 else '' }}">
+                    <span class="games-pts {{ 'games-pts--positive' if player.final_score > 0 else 'games-pts--negative' if player.final_score < 0 else '' }}" title="Result">
                         {{ ('+' ~ player.final_score) if player.final_score > 0 else player.final_score }}
                     </span>
                     {% endif %}
@@ -50,27 +58,31 @@
                     <span class="games-meta-tag">{{ entry.game.num_rounds_played }} rounds</span>
                     {% endif %}
                 </div>
-                <button class="games-copy-btn"
-                        data-replay-url="/play/history/{{ entry.game.game_id }}"
-                        title="Copy replay link"
-                        aria-label="Copy replay link"
-                        type="button">
-                    <svg class="games-copy-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
-                        <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M11 1.5H3A1.5 1.5 0 0 0 1.5 3v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                    <svg class="games-check-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
-                        <path d="M2.5 8.5l4 4 7-9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
+                <div class="games-card-actions">
+                    <span class="games-copy-status" role="status"></span>
+                    <button class="games-copy-btn"
+                            data-replay-url="{{ replay_url }}"
+                            title="Copy replay link"
+                            aria-label="Copy replay link"
+                            type="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M11 1.5H3A1.5 1.5 0 0 0 1.5 3v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <a class="games-card-link" href="{{ replay_url }}"
+                       id="games-replay-{{ loop.index }}"
+                       aria-labelledby="games-replay-{{ loop.index }} games-type-{{ loop.index }} games-time-{{ loop.index }}">View replay</a>
+                </div>
             </footer>
         </article>
         {% endfor %}
     </div>
     {% else %}
     <div class="lobby-empty">
-        <p>No games played yet</p>
-        <p><small>Start a game from the lobby to see results here</small></p>
+        <p class="lobby-empty-title">No games played yet</p>
+        <p class="lobby-empty-hint">Finished games and their replays show up here.</p>
+        <a href="/" role="button" class="outline">Back to lobby</a>
     </div>
     {% endif %}
 </section>

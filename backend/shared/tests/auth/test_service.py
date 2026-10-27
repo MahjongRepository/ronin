@@ -115,11 +115,11 @@ class TestLogin:
     async def test_auth_service_login__when_password_wrong__should_raise(self, auth_service):
         await auth_service.register("alice", "password123")
 
-        with pytest.raises(AuthError, match="Invalid credentials"):
+        with pytest.raises(AuthError, match="Wrong username or password"):
             await auth_service.login("alice", "wrongpassword")
 
     async def test_auth_service_login__when_player_unknown__should_raise(self, auth_service):
-        with pytest.raises(AuthError, match="Invalid credentials"):
+        with pytest.raises(AuthError, match="Wrong username or password"):
             await auth_service.login("nobody", "password123")
 
     async def test_auth_service_login__when_account_is_bot__should_raise(self, auth_service, player_repo):
@@ -132,7 +132,7 @@ class TestLogin:
         )
         await player_repo.create_player(bot)
 
-        with pytest.raises(AuthError, match="Invalid credentials"):
+        with pytest.raises(AuthError, match="Wrong username or password"):
             await auth_service.login("TestBot", "anything1")
 
 

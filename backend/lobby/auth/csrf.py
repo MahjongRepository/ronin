@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import secrets
 from typing import TYPE_CHECKING
-
-from starlette.responses import PlainTextResponse
+from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from starlette.datastructures import FormData
@@ -27,6 +26,32 @@ def get_or_create_csrf_token(request: Request) -> tuple[str, bool]:
     return secrets.token_urlsafe(32), True
 
 
+def is_cross_site_post(request: Request) -> bool:
+    """
+    Return whether the browser sent this request without the SameSite=Lax CSRF cookie: a POST from another site.
+
+    Such a request looks like one from a browser that has no cookie yet, so a page answering it must not set a new one:
+    that would overwrite the cookie the browser withheld and stale the forms of the user's other tabs. A browser without
+    ``Sec-Fetch-Site`` is judged by ``Origin``; a malformed or ``null`` one counts as another site.
+    """
+    if request.method in {"GET", "HEAD"}:
+        return False
+
+    fetch_site = request.headers.get("sec-fetch-site")
+    if fetch_site is not None:
+        return fetch_site == "cross-site"
+
+    origin = request.headers.get("origin")
+    if origin is None:
+        return False
+
+    try:
+        parts = urlsplit(origin)
+    except ValueError:
+        return True
+    return (parts.scheme, parts.netloc) != (request.url.scheme, request.url.netloc)
+
+
 def set_csrf_cookie(response: Response, *, token: str, cookie_secure: bool) -> None:
     """
     Set the CSRF token cookie on the response.
@@ -41,23 +66,16 @@ def set_csrf_cookie(response: Response, *, token: str, cookie_secure: bool) -> N
     )
 
 
-def validate_csrf(request: Request, form_data: FormData) -> PlainTextResponse | None:
+def is_csrf_valid(request: Request, form_data: FormData) -> bool:
     """
-    Check that the form CSRF token matches the cookie token.
+    Return whether the form's CSRF token is present and equals the cookie's.
 
-    Returns a 403 response on failure, or None if the token is valid. Bot API routes (JSON + API key) skip this check:
-    they do not authenticate with cookies. The tokens are compared as bytes: ``compare_digest`` raises on a str holding
-    a non-ASCII character, which a crafted form token can carry.
+    The tokens are compared as bytes: ``compare_digest`` raises on a str holding a non-ASCII character, which a
+    crafted form token can carry.
     """
     cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
-    if not cookie_token:
-        return PlainTextResponse("CSRF validation failed", status_code=403)
-
     form_token = form_data.get(CSRF_FORM_FIELD)
-    if not form_token or not isinstance(form_token, str):
-        return PlainTextResponse("CSRF validation failed", status_code=403)
+    if not cookie_token or not form_token or not isinstance(form_token, str):
+        return False
 
-    if not secrets.compare_digest(cookie_token.encode(), form_token.encode()):
-        return PlainTextResponse("CSRF validation failed", status_code=403)
-
-    return None
+    return secrets.compare_digest(cookie_token.encode(), form_token.encode())

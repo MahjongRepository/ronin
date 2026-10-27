@@ -8,7 +8,13 @@ from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from starlette.requests import Request
+    from starlette.responses import Response
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+    type ExceptionHandler = Callable[[Request, Exception], Awaitable[Response]]
 
 _FONTS_FONT_SRC = "font-src 'self' https://fonts.gstatic.com; "
 
@@ -77,30 +83,39 @@ def _build_csp_headers(
     )
 
 
-class SecurityHeadersMiddleware:
+class _SecurityHeaders:
     """
-    Inject standard security headers into every HTTP response.
+    The security headers of a response by its path.
 
     Game paths (/play/*, /game-assets/) get a CSP that allows scripts and external WebSocket. All other paths (lobby,
     rooms, auth) get a CSP that allows scripts and same-origin WebSocket.
     """
 
-    def __init__(self, app: ASGIApp, *, vite_dev_url: str = "") -> None:
-        self.app = app
+    def __init__(self, vite_dev_url: str) -> None:
         self._lobby_headers, self._game_headers = _build_csp_headers(vite_dev_url)
 
-    def _get_csp_headers(self, path: str) -> list[tuple[bytes, bytes]]:
+    def for_path(self, path: str) -> list[tuple[bytes, bytes]]:
         if path.startswith(("/play/", "/game-assets/")):
             return self._game_headers
 
         return self._lobby_headers
+
+
+class SecurityHeadersMiddleware:
+    """
+    Inject standard security headers into every HTTP response.
+    """
+
+    def __init__(self, app: ASGIApp, *, vite_dev_url: str = "") -> None:
+        self.app = app
+        self._headers = _SecurityHeaders(vite_dev_url)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        extra_headers = self._get_csp_headers(scope["path"])
+        extra_headers = self._headers.for_path(scope["path"])
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -111,6 +126,22 @@ class SecurityHeadersMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+def with_security_headers(handler: ExceptionHandler, *, vite_dev_url: str) -> ExceptionHandler:
+    """
+    Wrap the handler of unhandled exceptions so its response carries the security headers too.
+
+    Starlette runs that handler in its outermost middleware, outside ``SecurityHeadersMiddleware``.
+    """
+    headers = _SecurityHeaders(vite_dev_url)
+
+    async def handle_with_headers(request: Request, exc: Exception) -> Response:
+        response = await handler(request, exc)
+        response.raw_headers.extend(headers.for_path(request.url.path))
+        return response
+
+    return handle_with_headers
 
 
 class _RequestBodyTooLargeError(Exception):

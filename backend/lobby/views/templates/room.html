@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 
+{% block title %}Table · Ronin Mahjong{% endblock %}
+
 {% block content %}
 <div id="room-app"
      data-room-id="{{ room_id }}"
-     data-ws-url="{{ ws_url }}">
+     data-ws-url="{{ ws_url }}"
+     data-chat-max-length="{{ chat_max_length }}">
 </div>
 {% endblock %}

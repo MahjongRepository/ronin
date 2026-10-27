@@ -1,19 +1,39 @@
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from starlette.responses import RedirectResponse, Response
 
-from lobby.auth.csrf import validate_csrf
+from lobby.auth.csrf import is_csrf_valid
 from lobby.views.assets import render_page
-from shared.auth.service import AuthError
+from lobby.views.error_pages import validate_csrf
+from shared.auth.service import (
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
+    USERNAME_MAX_LENGTH,
+    USERNAME_MIN_LENGTH,
+    USERNAME_PATTERN,
+    AuthError,
+)
 from shared.auth.session_store import DEFAULT_SESSION_TTL_SECONDS
 
 if TYPE_CHECKING:
+    from starlette.datastructures import FormData
     from starlette.requests import Request
 
     from shared.auth.models import AuthSession
     from shared.auth.settings import AuthSettings
+
+SESSION_EXPIRED_ERROR = "Your session expired. Please try again."
+
+_ACCOUNT_RULES = {
+    "username_min_length": USERNAME_MIN_LENGTH,
+    "username_max_length": USERNAME_MAX_LENGTH,
+    "username_pattern": USERNAME_PATTERN.pattern,
+    "password_min_length": PASSWORD_MIN_LENGTH,
+    "password_max_length": PASSWORD_MAX_LENGTH,
+}
 
 
 def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSettings) -> Response:
@@ -33,9 +53,43 @@ def _redirect_with_session_cookie(session: AuthSession, auth_settings: AuthSetti
     return response
 
 
+def _render_auth_form(
+    request: Request,
+    *,
+    template_name: str,
+    form: FormData | None = None,
+    error: str | None = None,
+    invalid_field: str | None = None,
+) -> Response:
+    """
+    Render the login or register form, keeping the submitted username (never a password).
+
+    The username goes under ``form_username``: ``username`` is the logged-in user the navigation shows.
+    """
+    submitted = form.get("username", "") if form is not None else ""
+    context: dict[str, object] = {
+        **_ACCOUNT_RULES,
+        "error": error,
+        "invalid_field": invalid_field,
+        "form_username": submitted if isinstance(submitted, str) else "",
+    }
+    return render_page(request, template_name=template_name, context=context)
+
+
+def _render_stale_auth_form(request: Request, *, template_name: str, form: FormData) -> Response:
+    """
+    Answer a login or register post whose CSRF check failed with its form again (403), under the cookie's token.
+
+    A browser that has lost its cookie gets a new one with the form, unless the post came from another site.
+    """
+    response = _render_auth_form(request, template_name=template_name, form=form, error=SESSION_EXPIRED_ERROR)
+    response.status_code = HTTPStatus.FORBIDDEN
+    return response
+
+
 async def login_page(request: Request) -> Response:
     """GET /login - render login form with CSRF token."""
-    return render_page(request, template_name="login.html", context={"error": None})
+    return _render_auth_form(request, template_name="login.html")
 
 
 async def login(request: Request) -> Response:
@@ -44,9 +98,8 @@ async def login(request: Request) -> Response:
     auth_settings = request.app.state.auth_settings
     form = await request.form()
 
-    csrf_error = validate_csrf(request, form)
-    if csrf_error:
-        return csrf_error
+    if not is_csrf_valid(request, form):
+        return _render_stale_auth_form(request, template_name="login.html", form=form)
 
     username = form.get("username", "")
     password = form.get("password", "")
@@ -54,14 +107,14 @@ async def login(request: Request) -> Response:
     try:
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
-        return render_page(request, template_name="login.html", context={"error": str(e)})
+        return _render_auth_form(request, template_name="login.html", form=form, error=str(e))
 
     return _redirect_with_session_cookie(session, auth_settings)
 
 
 async def register_page(request: Request) -> Response:
     """GET /register - render registration form with CSRF token."""
-    return render_page(request, template_name="register.html", context={"error": None})
+    return _render_auth_form(request, template_name="register.html")
 
 
 async def register(request: Request) -> Response:
@@ -70,21 +123,26 @@ async def register(request: Request) -> Response:
     auth_settings = request.app.state.auth_settings
     form = await request.form()
 
-    csrf_error = validate_csrf(request, form)
-    if csrf_error:
-        return csrf_error
+    if not is_csrf_valid(request, form):
+        return _render_stale_auth_form(request, template_name="register.html", form=form)
 
     username = form.get("username", "")
     password = form.get("password", "")
     confirm_password = form.get("confirm_password", "")
     if password != confirm_password:
-        return render_page(request, template_name="register.html", context={"error": "Passwords do not match"})
+        return _render_auth_form(
+            request,
+            template_name="register.html",
+            form=form,
+            error="Passwords do not match.",
+            invalid_field="confirm_password",
+        )
 
     try:
         await auth_service.register(str(username), str(password))
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
-        return render_page(request, template_name="register.html", context={"error": str(e)})
+        return _render_auth_form(request, template_name="register.html", form=form, error=str(e))
 
     return _redirect_with_session_cookie(session, auth_settings)
 

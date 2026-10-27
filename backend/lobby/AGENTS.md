@@ -16,6 +16,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   `/game-assets/`, or proxies both to the app's Vite dev server when `game_client_dev_url` is set.
   The proxy exists only for local runs, so the game page keeps the lobby's origin and the
   `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
+* `views/error_pages.py` — every error answer, the failed CSRF check included: a browser (`Accept: text/html`) gets
+  `error.html` through `render_page`, any other client plain text; the 500 handler runs outside the middleware, so
+  `create_app()` wraps it to add the security headers.
 * `rooms/` and `matchmaking/` — managers and WebSocket handlers. Matchmaking is a FIFO queue that
   starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
   The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the
@@ -103,7 +106,7 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 Mandatory for all lobby code; review must catch violations.
 
-* Every HTML form POST validates the CSRF token (`auth/csrf.py`); bot API routes are exempt.
+* Every HTML form POST validates the CSRF token (`validate_csrf`, `views/error_pages.py`); bot API routes are exempt.
 * Every request body is capped by `RequestBodyLimitMiddleware` (`server/middleware.py`), which
   wraps every middleware that can read a body and sits inside the security headers. It counts
   streamed bytes, not `Content-Length`, and answers a JSON 413; a client gone mid-upload ends the

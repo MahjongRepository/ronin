@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 import structlog
 from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -33,6 +34,7 @@ from lobby.server.middleware import (
     RequestBodyLimitMiddleware,
     SecurityHeadersMiddleware,
     SlashNormalizationMiddleware,
+    with_security_headers,
 )
 from lobby.settings import LobbyServerSettings
 from lobby.views import (
@@ -61,6 +63,7 @@ from lobby.views.auth_handlers import (
     register_page,
 )
 from lobby.views.bot_api_handlers import bot_create_room
+from lobby.views.error_pages import http_error_page, server_error_page
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
@@ -236,7 +239,14 @@ def create_app(
             await game_server.aclose()
             await db.close()
 
-    app = Starlette(routes=routes, lifespan=lifespan)
+    app = Starlette(
+        routes=routes,
+        lifespan=lifespan,
+        exception_handlers={
+            HTTPException: http_error_page,
+            Exception: with_security_headers(server_error_page, vite_dev_url=settings.vite_dev_url),
+        },
+    )
     _add_middleware(app, settings=settings, auth_service=auth_service)
 
     app.state.game_client = game_client

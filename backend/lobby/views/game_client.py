@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Protocol
 
 import httpx
 import structlog
-from starlette.responses import FileResponse, PlainTextResponse, Response
+from starlette.exceptions import HTTPException
+from starlette.responses import FileResponse, Response
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -34,7 +35,7 @@ class BuiltGameClient:
     async def serve_page(self) -> Response:
         index = self.directory / "index.html"
         if not index.is_file():
-            return PlainTextResponse("Game client assets not available", status_code=503)
+            raise HTTPException(status_code=503, detail="Game client assets not available")
 
         return FileResponse(index, media_type="text/html")
 
@@ -69,9 +70,9 @@ class DevGameClient:
         ) as client:
             try:
                 upstream = await client.get(path, headers={"accept": accept})
-            except httpx.HTTPError:
+            except httpx.HTTPError as err:
                 logger.exception("game client dev server unreachable", origin=self.origin, path=path)
-                return PlainTextResponse("Game client dev server not reachable", status_code=502)
+                raise HTTPException(status_code=502, detail="Game client dev server not reachable") from err
 
         headers = {name: upstream.headers[name] for name in _FORWARDED_RESPONSE_HEADERS if name in upstream.headers}
         return Response(upstream.content, status_code=upstream.status_code, headers=headers)

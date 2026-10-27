@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from lobby.views.assets import render_page
@@ -14,6 +15,18 @@ if TYPE_CHECKING:
 
 SECONDS_PER_HOUR = 3600
 SECONDS_PER_MINUTE = 60
+
+
+@dataclass(frozen=True)
+class _GameTypeLabel:
+    wind: str
+    name: str
+
+
+_GAME_TYPE_LABELS = {
+    "hanchan": _GameTypeLabel(wind="南", name="Hanchan"),
+    "tonpusen": _GameTypeLabel(wind="東", name="Tonpuu"),
+}
 
 
 def _format_duration(started_at: datetime, ended_at: datetime) -> str:
@@ -60,9 +73,7 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
                 "game": game,
                 "players": players,
                 "duration_label": duration_label,
-                "game_type_label": (
-                    "南" if game.game_type == "hanchan" else "東" if game.game_type == "tonpusen" else ""
-                ),
+                "game_type": _GAME_TYPE_LABELS.get(game.game_type),
             },
         )
 

@@ -102,16 +102,12 @@ class TestMatchmakingWebSocket:
         bob_peer.disconnect()
         await bob_handler
 
-    def test_matchmaking_websocket__when_already_in_room__should_send_error(self, app, client):
+    def test_matchmaking_websocket__when_already_in_room__should_send_error_naming_the_room(self, app, client):
         room = app.state.room_manager.create_room("test-room")
-        # Join the room first
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws_room:
-            ws_room.receive_json()  # room_joined
-            # Now try matchmaking
+            ws_room.receive_json()
             with client.websocket_connect("/ws/matchmaking") as ws_mm:
-                msg = ws_mm.receive_json()
-                assert msg["type"] == "error"
-                assert msg["message"] == "already_in_room"
+                assert ws_mm.receive_json() == {"type": "error", "message": "already_in_room", "room_id": "test-room"}
 
 
 class TestMatchmakingUnauthenticated:

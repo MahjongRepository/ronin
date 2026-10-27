@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Iterable
@@ -12,6 +12,16 @@ ALREADY_IN_QUEUE = "already_in_queue"
 ALREADY_IN_GAME = "already_in_game"
 MATCH_STARTING = "match_starting"
 REPLACED_BY_NEW_CONNECTION = "replaced_by_new_connection"
+
+
+class RejectionMessage(TypedDict):
+    """
+    The error a lobby socket is told before it is closed: the reason, and the user's room for ``already_in_room``.
+    """
+
+    type: Literal["error"]
+    message: str
+    room_id: NotRequired[str]
 
 
 @dataclass(eq=False)
@@ -111,6 +121,20 @@ class Occupancy:
 
     def _was_handed_to_game(self, user_id: str) -> bool:
         return any(admission.handed_to_game for admission in self._admissions.get(user_id, ()))
+
+    def rejection_message(self, user_id: str, reason: str) -> RejectionMessage:
+        """
+        Build the error refusing the user's join for ``reason``.
+
+        An ``already_in_room`` refusal names the room the user is seated in, so the page can link to it. The caller
+        builds it in the step that found the conflict, so that room is still the user's.
+        """
+        message: RejectionMessage = {"type": "error", "message": reason}
+        room_id = self.find_room(user_id) if reason == ALREADY_IN_ROOM else None
+        if room_id is not None:
+            message["room_id"] = room_id
+
+        return message
 
     async def find_game_conflict(self, user_id: str) -> str | None:
         """

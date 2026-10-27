@@ -154,7 +154,7 @@ async def _reject_join(player: LobbyPlayer, ctx: _RoomContext, *, reason: str) -
         return
 
     logger.info("join rejected", room_id=ctx.room_id, username=player.username, reason=reason)
-    player.send({"type": "error", "message": reason})
+    player.send(ctx.occupancy.rejection_message(player.user_id, reason))
     player.connection.close(code=4000, reason=reason)
 
 

@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
+CHAT_MAX_LENGTH = 1000
 _MAX_WS_MESSAGE_SIZE = 4096
 _SPACE_ORD = 0x20
 _DEL_ORD = 0x7F
@@ -17,7 +18,7 @@ class LobbySetReadyMessage(BaseModel):
 
 class LobbyChatMessage(BaseModel):
     type: Literal["chat"]
-    text: str = Field(min_length=1, max_length=1000)
+    text: str = Field(min_length=1, max_length=CHAT_MAX_LENGTH)
 
     @field_validator("text")
     @classmethod

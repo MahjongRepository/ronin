@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} · Ronin Mahjong{% endblock %}
+
+{% block content %}
+<section class="lobby-error-page" aria-labelledby="error-title">
+    <p class="lobby-error-code">{{ status_code }}</p>
+    <h1 id="error-title">{{ title }}</h1>
+    <p class="lobby-muted">{{ message }}</p>
+    <p class="lobby-button-row lobby-button-row--center lobby-error-actions">
+        <a href="{{ action_href }}" role="button">{{ action_label }}</a>
+        {% if action_href != "/" %}<a href="/" role="button" class="outline secondary">Back to lobby</a>{% endif %}
+    </p>
+</section>
+{% endblock %}
