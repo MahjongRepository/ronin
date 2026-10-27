@@ -38,17 +38,11 @@ function leftMargin(table) {
 }
 
 /**
- * Fit the table to the stage beside its corner HUDs, the switches over the felt left of the left player's hand: when
- * the side felt is too narrow for them, the table either narrows to leave it, or keeps a strip above for the gear and
- * one below for the switches, whichever keeps it larger.
+ * Fit the table to a stage box of the given size beside its corner HUDs, the switches over the felt left of the left
+ * player's hand: when the side felt is too narrow for them, the table either narrows to leave it, or keeps a strip
+ * above for the gear and one below for the switches, whichever keeps it larger.
  */
-function scale(board, space = $()) {
-
-    let hidden = space.outerHeight() || 0;
-    let top    = board.offset().top - hidden;
-    let width  = document.documentElement.clientWidth;
-    let height = window.innerHeight - top;
-    board.css('height', height);
+function fitTable(board, width, height) {
 
     let table   = $('> .board', board);
     let tw      = table.outerWidth();
@@ -78,8 +72,33 @@ function scale(board, space = $()) {
     let y      = Math.min(height - below - th * scale,
                           Math.max(above, (height - th * scale) * (thumb ? 1 : 0.5)));
     table.css('transform', `translate(${x}px, ${y}px) scale(${scale})`);
+}
+
+/** Stretch the stage to fill the window below what sits above it, and fit the table to it. */
+function scale(board, space = $()) {
+
+    let hidden = space.outerHeight() || 0;
+    let top    = board.offset().top - hidden;
+    let width  = document.documentElement.clientWidth;
+    let height = window.innerHeight - top;
+    board.css('height', height);
+
+    fitTable(board, width, height);
 
     if (hidden) $(window).scrollTop(hidden);
 }
 
-export default { scale: scale };
+/**
+ * Fit the table to the stage's own box as the page laid it out, leaving its size to the page: a page that lays out
+ * other content beside the stage reserves that content's room. A stage not laid out yet keeps the table as it is.
+ */
+function fitToStage(board) {
+
+    let width  = board[0].clientWidth;
+    let height = board[0].clientHeight;
+    if (! width || ! height) return;
+
+    fitTable(board, width, height);
+}
+
+export default { scale: scale, fitToStage: fitToStage };

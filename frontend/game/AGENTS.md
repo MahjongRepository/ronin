@@ -45,7 +45,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   melds, while the switches may also cover the table's felt left of the left player's hand, whose
   box on the tablet layout runs nearly the table's whole height. When there is too little room for
   them the fitter either narrows the table or leaves a strip above it for the gear and one below it
-  for the switches, whichever keeps it larger. The
+  for the switches, whichever keeps it larger. A page that lays out other content beside `#board`
+  fits the table with `Majiang.UI.Util.fitToStage` instead, which takes `#board`'s own box and
+  leaves its size to the page's layout, so that content's room is reserved rather than overlaid. The
   result and standings dialogs dim the whole stage through one layer on the table that reaches
   past its edges, so the table does not clip its overflow.
 
