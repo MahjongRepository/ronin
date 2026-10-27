@@ -50,6 +50,12 @@ function mark_offline(plate, offline) {
     return plate.toggleClass('disconnect', offline);
 }
 
+/* Whether seat l's riichi stick is down: the model holds the deposit (_lizhi)
+ * until the next turn, and for good once a ron or 四風連打 voids the riichi. */
+function lizhi_deposited(model, l) {
+    return ! (model._lizhi && l == model.lunban);
+}
+
 class Score {
 
     constructor(root, model, board) {
@@ -180,7 +186,7 @@ export default class Board {
             this._view.he[l]
                     = new He(show($(`.he.${c}`, this._root)),
                                     this._pai, this._model.he[l])
-                        .redraw();
+                        .redraw(lizhi_deposited(this._model, l));
 
             this._view.say[l] = hide($(`.say.${c}`, this._root).text(''));
             this._say[l] = null;
@@ -298,7 +304,8 @@ export default class Board {
             duration = 400;
         }
         else {
-            this._view.he[this._lunban].redraw();
+            this._view.he[this._lunban]
+                .redraw(lizhi_deposited(this._model, this._lunban));
             this._view.shoupai[this._lunban].redraw().adjust();
         }
 
