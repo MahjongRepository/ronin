@@ -37,7 +37,7 @@ export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true 
     if (dealt) {
         board.redraw();
     }
-    new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY, null);
+    new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY);
     const layOutPage = () => {
         Majiang.UI.Util.scale($("#board"));
         revealActiveVariant(header);
