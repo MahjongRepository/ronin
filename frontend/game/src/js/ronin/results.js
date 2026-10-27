@@ -7,6 +7,9 @@ import * as tiles from './tiles.js';
 import * as mianzi from './mianzi.js';
 import * as yaku from './yaku.js';
 
+/** How long a win's ロン or ツモ shows before its result, which fades every call out: the minimum upstream's Game paced it with. */
+const WIN_CALL_MS = 500;
+
 /** A seat's place in majiang's seat order, which counts from the round's dealer. */
 function seatL(seat, dealer) {
     return (seat - dealer + 4) % 4;
@@ -230,5 +233,5 @@ function roundResults(roundEnd, facts) {
 export {
     ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL,
     fullHandStr, huleMessage, jiejuStandings, kanMianzi, pingjuMessage, revealedHands, roundResults, seatL, tenpaiByL,
-    winHule,
+    WIN_CALL_MS, winHule,
 };

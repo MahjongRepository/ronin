@@ -1,3 +1,6 @@
+export const LOBBY_URL = "/";
+export const HISTORY_URL = "/history";
+
 export const ROUTE = Object.freeze({
     GAME: "game",
     REPLAY: "replay",

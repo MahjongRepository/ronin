@@ -2,6 +2,7 @@
 
 import * as codec from './codec.js';
 import wire  from './wire.js';
+import { LOBBY_URL } from '../routes.js';
 
 const MAX_RECONNECT_TRIES = 15;
 const SERVER_SILENCE_LIMIT_MS = 90000;
@@ -184,7 +185,7 @@ class RoninSession {
     goLobby() {
         this.close();
         try { sessionStorage.removeItem('game_session:' + this.gameId); } catch (e) {}
-        window.location.href = '/';
+        window.location.href = LOBBY_URL;
     }
 }
 

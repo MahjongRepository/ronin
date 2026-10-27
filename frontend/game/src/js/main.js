@@ -7,10 +7,8 @@ import { RECOVERY, readGameSession, recoverGameSession } from "./game-session.js
 import { finishLoading, loadTileImages, showLoadingError } from "./loading.js";
 import { showReplay } from "./replay.js";
 import startGame from "./ronin.js";
-import { ROUTE, matchRoute } from "./routes.js";
+import { LOBBY_URL, ROUTE, matchRoute } from "./routes.js";
 import { showStorybook } from "./storybook.js";
-
-const LOBBY_URL = "/";
 
 function showSessionProblem(text, ...links) {
     finishLoading();

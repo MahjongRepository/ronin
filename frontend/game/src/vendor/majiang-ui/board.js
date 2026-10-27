@@ -187,6 +187,9 @@ export default class Board {
         }
 
         this._lunban = this._model.lunban;
+        /* A riichi discard drawn here deposits its stick at the next turn,
+         * whose update must then refresh the scores. */
+        this._lizhi = !! this._model._lizhi;
         this._view.score.update();
 
         this._view.dialog
@@ -196,7 +199,9 @@ export default class Board {
         return this;
     }
 
-    update(data = {}) {
+    /* silent plays no sound: the replay viewer's seeks show a position
+     * without its sounds. */
+    update(data = {}, silent = false) {
 
         if (this._lunban >= 0 && this._lunban != this._model.lunban) {
             if (this._say[this._lunban]) {
@@ -230,7 +235,7 @@ export default class Board {
         }
         else if (data.dapai) {
             this._view.shoupai[data.dapai.l].dapai(data.dapai.p);
-            if (this.sound_on) {
+            if (this.sound_on && ! silent) {
                 this._audio.dapai[data.dapai.l].currentTime = 0;
                 this._audio.dapai[data.dapai.l].play();
             }
@@ -251,7 +256,7 @@ export default class Board {
             this._view.shan.redraw();
         }
         else if (data.hule) {
-            this.hule(data.hule);
+            this.hule(data.hule, silent);
         }
         else if (data.pingju) {
             this.pingju(data.pingju);
@@ -273,14 +278,15 @@ export default class Board {
         }
     }
 
-    hule(hule) {
+    hule(hule, silent = false) {
 
         this.clear_bubbles();
 
         this._timeout_id = setTimeout(()=>{
             this._view.shoupai[hule.l].redraw(true);
             this._view.dialog.hule(hule);
-            if (this.sound_on && hule.damanguan) this._audio.gong.play();
+            if (this.sound_on && ! silent && hule.damanguan)
+                                                    this._audio.gong.play();
         }, 400);
     }
 
@@ -306,8 +312,8 @@ export default class Board {
         }, duration);
     }
 
-    say(name, l) {
-        if (this.sound_on) {
+    say(name, l, silent = false) {
+        if (this.sound_on && ! silent) {
             this._audio[name][l].currentTime = 0;
             this._audio[name][l].play();
         }
