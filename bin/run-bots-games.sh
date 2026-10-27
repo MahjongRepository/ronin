@@ -81,7 +81,7 @@ wait_for_exit() {
 free_port() {
     local port="$1"
     local pids
-    pids=$(lsof -ti :"$port" 2>/dev/null || true)
+    pids=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true)
     if [[ -n "$pids" ]]; then
         echo "killing existing processes on port $port..."
         echo "$pids" | xargs kill -9 2>/dev/null || true
@@ -487,7 +487,7 @@ echo ""
 echo "running $MAX_GAMES game(s), up to $TABLES at a time..."
 echo ""
 
-GAME_SERVER_PID=$(lsof -ti :"$GAME_PORT" -sTCP:LISTEN | head -1)
+GAME_SERVER_PID=$(lsof -ti tcp:"$GAME_PORT" -sTCP:LISTEN | head -1)
 TOTAL_START=$(date +%s)
 PLAYED=0
 BATCH=0
