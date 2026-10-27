@@ -38,7 +38,9 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
 * `make run-games [GAMES=n]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`, default
   `~/work/mahjong-bot`) on fresh servers, stopping at the first game that is not completed, whose
-  replay does not reproduce it (`bin/verify_games.py`), or after which any log holds a warning. It
+  replay does not reproduce it (`bin/verify_games.py`), or after which any log (server stderr and
+  bot console included) holds a warning or an abnormal event such as a timeout auto-action or a bot
+  replaced by AI. It forces debug console logging, so these gates cannot be configured away. It
   **wipes** `backend/logs` and the replay dirs first and kills whatever holds `:8710`/`:8711`.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final

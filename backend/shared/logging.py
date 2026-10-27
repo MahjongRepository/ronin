@@ -66,9 +66,18 @@ class LoggingSettings(BaseSettings):
 def _build_stdlib_formatter(*, json_mode: bool, colors: bool = False) -> logging.Formatter:
     """
     Build a stdlib ProcessorFormatter for handler output.
+
+    Records from plain stdlib loggers (asyncio, websockets, py.warnings) pass through the foreign pre-chain, so they
+    carry the same level, logger name and timestamp as structlog records.
     """
+    foreign_pre_chain = [
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+    ]
     if json_mode:
         return structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=foreign_pre_chain,
             processors=[
                 structlog.stdlib.ProcessorFormatter.remove_processors_meta,
                 structlog.processors.format_exc_info,
@@ -77,6 +86,7 @@ def _build_stdlib_formatter(*, json_mode: bool, colors: bool = False) -> logging
         )
 
     return structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=foreign_pre_chain,
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             structlog.processors.format_exc_info,
@@ -94,7 +104,8 @@ def setup_logging(
 
     Level and format come from LoggingSettings (LOG_LEVEL, default INFO; LOG_FORMAT). When log_dir is provided, writes
     to a fixed ``app.log`` file inside that directory using WatchedFileHandler (compatible with logrotate). Returns the
-    log file path if created, None otherwise.
+    log file path if created, None otherwise. warnings.warn() calls go through the py.warnings logger, so they reach the
+    log file instead of bare stderr.
     """
     settings = LoggingSettings()
     json_mode = settings.log_format == "json"
@@ -131,6 +142,7 @@ def setup_logging(
     # httpcore logs raw TCP send/receive details).
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.captureWarnings(capture=True)
 
     stdout_formatter = _build_stdlib_formatter(json_mode=json_mode, colors=sys.stdout.isatty())
 
