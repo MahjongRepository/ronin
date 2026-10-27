@@ -33,19 +33,16 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * Styles are SCSS in `src/styles/`: the board, its 800×680
   desktop layout and its 800×450 tablet layout (only inside the `height <= 450px` media query), then
   the replay, storybook and missing-session pages. The tile, hand and river boxes are sized by the
-  mixins of `_pai`, `_shoupai` and `_he`, named after upstream's classes. No hand's tiles touch the
-  board's border: on desktop each hand sits 4px in from its own table edge and its melds end 6px
-  short of the next edge; on the tablet layout the bottom and top hands sit 4px in and the side
-  hands' melds end 8px short of the edge. `#board` is a full-bleed felt
-  stage filling the window below whatever sits above it; inside it, the table (`#board > .board`,
+  mixins of `_pai`, `_shoupai` and `_he`, named after upstream's classes. `#board` is a full-bleed
+  felt stage filling the window below whatever sits above it; inside it, the table (`#board > .board`,
   a fixed 800px layout) is scaled up or down by `Majiang.UI.Util.scale` to fit, centred, except
   on an upright touch screen, where it rests on the stage's bottom edge for hand reach. The
   settings gear is a HUD pinned to the stage's top-right corner and the auto switches one pinned
   to its bottom-left, beside the hand: the gear stays off the table, whose top-right corner holds
   melds, while the switches may also cover the table's felt left of the left player's hand, whose
-  box runs the table's whole height. When there is too little room for them the fitter either
-  narrows the table or leaves a strip above it for the gear and one below it for the switches,
-  whichever keeps it larger. The
+  box on the tablet layout runs nearly the table's whole height. When there is too little room for
+  them the fitter either narrows the table or leaves a strip above it for the gear and one below it
+  for the switches, whichever keeps it larger. The
   result and standings dialogs dim the whole stage through one layer on the table that reaches
   past its edges, so the table does not clip its overflow.
 
