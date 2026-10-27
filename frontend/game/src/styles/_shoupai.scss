@@ -17,6 +17,7 @@
         }
 
         @include pai.size($bingpai-height);
+        @include pai.bingpai-states($bingpai-height);
 
         .pai[role="button"] {
             cursor: pointer;

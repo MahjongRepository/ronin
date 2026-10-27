@@ -23,6 +23,7 @@
         height: $row-height;
 
         @include pai.size($dapai-height);
+        @include pai.he-states;
 
         .pai.dapai {
             transform: translate(math.div($row-height, 28), math.div($row-height, 56));
