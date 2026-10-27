@@ -8,16 +8,28 @@
     gap: 0.5rem;
     padding: 1.5rem 0;
     border-top: 1px solid var(--ronin-border);
+
+    @media (width <= 576px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+        padding-block: 1rem;
+    }
 }
 
 .footer-meta {
     font-family: var(--ronin-font-mono);
     font-size: 0.7rem;
     color: var(--pico-muted-color);
+
+    @media (width <= 576px) {
+        font-size: 0.75rem;
+    }
 }
 
 .footer-dev-links {
     display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
 
     a {
@@ -30,10 +42,15 @@
             color: var(--pico-primary);
         }
     }
-}
 
-// ─── Error Text (legacy) ────────────────────────────────────
+    @media (width <= 576px), (pointer: coarse) {
+        gap: 0 1.25rem;
 
-.error-text {
-    color: var(--ronin-danger);
+        a {
+            display: inline-flex;
+            align-items: center;
+            min-height: var(--ronin-touch-target);
+            font-size: 0.75rem;
+        }
+    }
 }

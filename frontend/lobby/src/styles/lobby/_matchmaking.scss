@@ -1,70 +1,92 @@
-// Matchmaking waiting page and lobby button
+.matchmaking-app {
+    display: grid;
+    place-items: start center;
+    padding-block: 2rem;
 
-// ─── Lobby Grid Button ─────────────────────────────────────
-
-.lobby-matchmaking-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 200px;
-    background: transparent;
-    border: 2px dashed var(--ronin-border);
-    border-radius: 0.75rem;
-    color: var(--pico-muted-color);
-    cursor: pointer;
-    text-decoration: none;
-    transition:
-        border-color 0.3s ease,
-        color 0.3s ease,
-        background 0.3s ease;
-
-    &:hover {
-        border-color: var(--pico-primary);
-        color: var(--pico-primary);
-        background: color-mix(in srgb, var(--pico-primary) 4%, transparent);
+    @media (width <= 576px) {
+        padding-block: 1rem;
     }
 }
 
-.lobby-matchmaking-icon {
-    font-size: 2.5rem;
-    line-height: 1;
-}
-
-.lobby-matchmaking-label {
-    font-family: var(--ronin-font-display);
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-// ─── Matchmaking Waiting Page ──────────────────────────────
-
-.matchmaking-app {
+.matchmaking-card {
+    width: min(100%, 30rem);
+    padding: 2rem 1.5rem;
     text-align: center;
-    padding: 3rem 2rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-border);
+    border-radius: var(--ronin-radius-lg);
+    animation: card-in 0.4s ease both;
 
     h2 {
         font-size: 1.4rem;
         font-weight: 700;
         letter-spacing: -0.02em;
-        margin-bottom: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .lobby-alert {
+        text-align: left;
+    }
+
+    @media (width <= 576px) {
+        padding: 1.5rem 1rem;
+    }
+}
+
+.matchmaking-seats {
+    --seat-cell: 2rem;
+    --seat-size: 1.25rem;
+
+    margin-bottom: 1.25rem;
+
+    .lobby-seat.waiting {
+        border-style: dashed;
+        animation: seat-waiting 1.6s ease-in-out infinite;
+    }
+
+    .lobby-seat.waiting:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .lobby-seat.waiting:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    .lobby-seat.waiting:nth-child(4) {
+        animation-delay: 0.6s;
+    }
+}
+
+@keyframes seat-waiting {
+    50% {
+        opacity: 0.35;
     }
 }
 
 .matchmaking-status {
-    color: var(--ronin-text-secondary);
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
+    font-family: var(--ronin-font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
 }
 
-.matchmaking-queue-count {
-    font-family: var(--ronin-font-mono);
-    font-size: 0.85rem;
-    color: var(--pico-primary);
+.matchmaking-hint {
+    font-size: 0.875rem;
     margin-bottom: 1.5rem;
+}
 
+.matchmaking-actions {
     &:empty {
         display: none;
+    }
+
+    > a,
+    > button {
+        flex: 1 1 10rem;
+        max-width: 16rem;
+
+        @media (width <= 576px) {
+            max-width: none;
+        }
     }
 }
