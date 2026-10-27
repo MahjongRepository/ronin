@@ -1,14 +1,18 @@
 import $ from "jquery";
 
 import rules from "../ronin/rules.js";
-import { ABORTIVE_NAMES, huleMessage, jiejuStandings, pingjuMessage } from "../ronin/results.js";
+import {
+    ABORTIVE_NAMES,
+    DRAW_NAMES,
+    huleMessage,
+    jiejuStandings,
+    pingjuMessage,
+} from "../ronin/results.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
 const QIJIA = 0;
 const GAME_TITLE = "半荘戦";
-const EXHAUSTIVE_DRAW = "荒牌平局";
-const NAGASHI_MANGAN = "流し満貫";
 const NO_PAYMENTS = Object.freeze([0, 0, 0, 0]);
 
 const YAKU = Object.freeze({
@@ -282,7 +286,7 @@ export const DRAW_SAMPLES = Object.freeze([
             "z3 s1 p1 m9 z5 s9 z6 p9 m1 z4 s2 p7 m4 s7 p6 m6 z1",
             "s4>z1 z7>m1 s8>p3 p1_ m9_ z3_ s1_ z5_ p2_ m3_ z4_ s9_ p6_ m7_ z6_ s5_ m2_",
         ]),
-        end: pingju(EXHAUSTIVE_DRAW, [-1500, 1500, -1500, 1500], {
+        end: pingju(DRAW_NAMES.EXHAUSTIVE, [-1500, 1500, -1500, 1500], {
             shoupai: [null, "m88p234067s567z22", null, "m456p789s23488z77"],
             tenpai: [false, true, false, true],
         }),
@@ -325,7 +329,7 @@ export const DRAW_SAMPLES = Object.freeze([
             "z1 m9 p1 z5 s9 z7 m1 p9 z2 s1 z6 m9 z3 p1 s9 z4 m1",
             "z1 z7 m9 p9 z5 s1 p2 z6 m7 p7 z3 s2 p8_ m3_ z2_ s8_ p4_",
         ]),
-        end: pingju(NAGASHI_MANGAN, [-4000, -2000, 8000, -2000], {
+        end: pingju(DRAW_NAMES.NAGASHI, [-4000, -2000, 8000, -2000], {
             shoupai: [null, null, null, "m34p555s345678z44"],
             tenpai: [false, false, false, true],
             players: [2],
@@ -343,7 +347,7 @@ const GAME_ROUNDS = Object.freeze([
     {
         round: [0, 1, 0],
         riichi: [3],
-        pingju: { name: EXHAUSTIVE_DRAW, fenpei: [1500, -1500, -1500, 1500] },
+        pingju: { name: DRAW_NAMES.EXHAUSTIVE, fenpei: [1500, -1500, -1500, 1500] },
     },
     {
         round: [0, 1, 1],
@@ -357,7 +361,7 @@ const GAME_ROUNDS = Object.freeze([
     {
         round: [1, 0, 1],
         pingju: {
-            name: EXHAUSTIVE_DRAW,
+            name: DRAW_NAMES.EXHAUSTIVE,
             fenpei: NO_PAYMENTS,
             tenpai: [false, false, false, false],
         },

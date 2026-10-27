@@ -1324,6 +1324,32 @@ describe("the ronin table (Translate and Reply)", () => {
         });
     });
 
+    it("shows an abortive draw it has no name for as a generic one, its callouts kept", () => {
+        vi.useFakeTimers();
+        const table = startTable();
+        const say = vi.fn();
+        table.player.view = { kaiju() {}, redraw() {}, update() {}, say };
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+
+        table.receive({
+            t: 4,
+            rt: 4,
+            rn: "five_dragons",
+            rcl: [1, 2],
+            sch: { 0: 0, 1: 0, 2: 0, 3: 0 },
+            wi: 2,
+        });
+        expect(say.mock.calls).toEqual([
+            ["rong", 1],
+            ["rong", 2],
+        ]);
+        vi.advanceTimersByTime(WIN_CALL_MS);
+        expect(shownOf(table, "pingju")[0].data).toMatchObject({ name: "途中流局" });
+    });
+
     it("shows another seat's added kan that a chankan robs and calls it out before the ron, ahead of the win's result", () => {
         vi.useFakeTimers();
         const table = startTable();

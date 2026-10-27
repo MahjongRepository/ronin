@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,8 +19,10 @@ from game.tests.helpers.hands import (
 from game.tests.helpers.wall import DEAD_WALL_START, FIRST_DRAW_POSITION
 from game.wire.enums import WireEventType, WireRoundResultType
 from scripts.replay_fixtures.staged_game import (
+    EagerGame,
     Outcome,
     ReplayRecorder,
+    ScenarioError,
     StagedGame,
     StagedWall,
     cut_after,
@@ -36,6 +39,7 @@ BACKEND_FULL_GAME = (
     Path(__file__).resolve().parents[2] / "game" / "tests" / "integration" / "replays" / "fixtures" / "full_round"
 ) / "full_game.txt"
 BACKEND_FULL_GAME_ID = "fixture-fg"
+EAGER_GAME_SEED = "09" * 96
 GAME_ENDS = (WireEventType.GAME_END, {})
 
 
@@ -541,6 +545,36 @@ def four_kans() -> Recording:
     return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_KANS}))
 
 
+def require_wins_off_seat_zero(recording: Recording, *, name: str) -> None:
+    """
+    Raise ScenarioError unless the replay holds a tsumo and a ron in rounds dealt by a seat other than 0.
+
+    A staged game always deals its first round from seat 0, where a seat and its place counted from the dealer agree.
+    """
+    dealer: int | None = None
+    results: set[int] = set()
+    for line in map(json.loads, recording.lines):
+        if line["t"] == WireEventType.ROUND_STARTED:
+            dealer = line["dl"]
+        elif line["t"] == WireEventType.ROUND_END and dealer != 0:
+            results.add(line["rt"])
+
+    if not {WireRoundResultType.TSUMO, WireRoundResultType.RON} <= results:
+        raise ScenarioError(f"{name}: no tsumo and ron both in rounds dealt by a seat other than 0")
+
+
+def eager_game() -> Recording:
+    """
+    Play a game dealt from its seed to its end, every seat winning whenever it may, with tsumos and rons under dealers
+    other than seat 0.
+    """
+    recording = EagerGame("eager-game", EAGER_GAME_SEED).replay(
+        Outcome({"rt": WireRoundResultType.TSUMO, "ws": 3}, then=GAME_ENDS)
+    )
+    require_wins_off_seat_zero(recording, name="eager_game")
+    return recording
+
+
 def truncated_mid_round() -> Recording:
     """
     Cut kans after the closed kan's call (its meld, dora and replacement draw), before the rinshan kaihou tsumo.
@@ -572,4 +606,5 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "four_winds_riichi.txt": four_winds_riichi,
     "four_riichi.txt": four_riichi,
     "four_kans.txt": four_kans,
+    "eager_game.txt": eager_game,
 }

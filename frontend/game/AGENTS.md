@@ -164,7 +164,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   when the pacing changes.
 * **Replay:** the page fetches `/api/replays/{game_id}` and shows its raw text; there is no viewer.
   `src/js/replay/` converts replay files into paipu with `src/js/ronin/`'s pure helpers, never the
-  live shadow; `src/js/ronin/` never imports `src/js/replay/`.
+  live shadow; `src/js/ronin/` never imports `src/js/replay/`. The live client and the converter build
+  round results with the same builders (`results.js`).
 * **Storybook:** renders majiang-ui's own components (tiles, hands, melds, rivers and the board)
   and a persistent loading preview cloned from the startup screen's HTML, using its shared styles,
   from fixed sample states in `storybook.js` and `storybook/`; the board pages reuse the page's

@@ -9,6 +9,8 @@ from game.logic.events import DrawEvent, ErrorEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import GameSettings
+from game.logic.shanten import calculate_shanten
+from game.logic.tiles import hand_to_34_array
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_string
 from game.session.replay_collector import ReplayCollector, ReplayRecord
@@ -348,3 +350,80 @@ class StagedGame:
             )
 
         self._next_staged_draw += 1
+
+
+class EagerGame:
+    """
+    A game of four players dealt from its seed and played to its end by a fixed policy: a seat wins whenever it is
+    offered a tsumo or a ron, passes every other call, and otherwise discards the tile that leaves its hand closest to
+    ready (its drawn tile on a tie, then the highest tile id).
+
+    The policy makes no call and declares no riichi, so the game holds wins in many rounds under every dealer.
+    """
+
+    def __init__(self, game_id: str, seed: str) -> None:
+        self._game_id = game_id
+        settings = GameSettings()
+        self._recorder = ReplayRecorder(seed=seed, settings=settings)
+        self._service = MahjongGameService()
+        start = self._service.start_game(game_id, list(PLAYERS), seed=seed, settings=settings)
+        self._runtime = start.runtime
+        self._draws: dict[int, DrawEvent] = {}
+        self._record(start.events)
+
+    def replay(self, outcome: Outcome) -> Recording:
+        """
+        Play the game to its end and return the recorded replay, after checking that it ends in the outcome and that the
+        replay runner reproduces the game.
+        """
+        while (awaiting := self._service.get_awaiting(self._runtime)).kind != WaitKind.NONE:
+            self._act(awaiting.kind, awaiting.seats)
+
+        recording = self._recorder.recording()
+        require_outcome(recording, outcome, name=self._game_id)
+        require_reproduces(recording, self._runtime.state, name=self._game_id)
+        return recording
+
+    def _act(self, kind: WaitKind, seats: frozenset[int]) -> None:
+        if kind == WaitKind.ROUND_ADVANCE:
+            for seat in sorted(seats):
+                self._run(seat, GameAction.CONFIRM_ROUND, {})
+
+            return
+
+        if kind == WaitKind.CALL:
+            prompt = self._runtime.state.round_state.pending_call_prompt
+            seat = min(seats)
+            can_ron = prompt is not None and prompt.caller(seat).can_ron
+            self._run(seat, GameAction.CALL_RON if can_ron else GameAction.PASS, {})
+            return
+
+        (seat,) = seats
+        draw = self._draws[seat]
+        if PlayerAction.TSUMO in {item.action for item in draw.available_actions}:
+            self._run(seat, GameAction.DECLARE_TSUMO, {})
+            return
+
+        self._run(seat, GameAction.DISCARD, {"tile_id": self._closest_to_ready_discard(seat, draw.tile_id)})
+
+    def _closest_to_ready_discard(self, seat: int, drawn_tile: int) -> int:
+        hand = self._runtime.state.round_state.players[seat].tiles
+
+        def rank(tile_id: int) -> tuple[int, bool, int]:
+            rest = list(hand)
+            rest.remove(tile_id)
+            return calculate_shanten(hand_to_34_array(rest)), tile_id != drawn_tile, -tile_id
+
+        return min(hand, key=rank)
+
+    def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
+        events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
+        errors = [event for event in events if isinstance(event, ErrorEvent)]
+        if errors:
+            raise ScenarioError(f"{self._game_id}: seat {seat} {action.value} refused: {errors[0].message}")
+
+        self._record(events)
+
+    def _record(self, events: Sequence[GameEvent]) -> None:
+        self._recorder.record(events)
+        self._draws.update((event.seat, event) for event in events if isinstance(event, DrawEvent))

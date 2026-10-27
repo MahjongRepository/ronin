@@ -17,13 +17,23 @@ const KIND_OF_MELD = {
 
 const KAN_TYPES = new Set([wire.MELD.CLOSED_KAN, wire.MELD.OPEN_KAN, wire.MELD.ADDED_KAN]);
 
+/** The callouts majiang-ui's board says: a meld's, a riichi's and a win's. */
+const CALLOUT = {
+    CHI:    'chi',
+    PON:    'peng',
+    KAN:    'gang',
+    RIICHI: 'lizhi',
+    TSUMO:  'zimo',
+    RON:    'rong',
+};
+
 /** The callout majiang-ui says for a meld. */
 const SAY_OF_MELD = {
-    [wire.MELD.CHI]:        'chi',
-    [wire.MELD.PON]:        'peng',
-    [wire.MELD.OPEN_KAN]:   'gang',
-    [wire.MELD.CLOSED_KAN]: 'gang',
-    [wire.MELD.ADDED_KAN]:  'gang',
+    [wire.MELD.CHI]:        CALLOUT.CHI,
+    [wire.MELD.PON]:        CALLOUT.PON,
+    [wire.MELD.OPEN_KAN]:   CALLOUT.KAN,
+    [wire.MELD.CLOSED_KAN]: CALLOUT.KAN,
+    [wire.MELD.ADDED_KAN]:  CALLOUT.KAN,
 };
 
 function dirMark(fromSeat, callerSeat) {
@@ -101,4 +111,4 @@ function meldStrsFrom(ml) {
     return (ml || []).map(m => mianziStr(immef.decodeMeldCompact(m)));
 }
 
-export { KAN_TYPES, KIND_OF_MELD, SAY_OF_MELD, dirMark, isPonOf, ponDigits, kanDigits, mianziStr, meldStrsFrom };
+export { CALLOUT, KAN_TYPES, KIND_OF_MELD, SAY_OF_MELD, dirMark, isPonOf, ponDigits, kanDigits, mianziStr, meldStrsFrom };
