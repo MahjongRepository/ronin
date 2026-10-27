@@ -628,19 +628,6 @@ body.board {
                     .plus {
                         color: $highlight;
                     }
-
-                    a.download {
-                        opacity: 0.6;
-                        font-family: $menu-font;
-                        font-size: 18px;
-                        text-decoration: none;
-                        color: white;
-
-                        img {
-                            height: 1em;
-                            vertical-align: text-bottom;
-                        }
-                    }
                 }
 
                 .footer {
@@ -685,11 +672,6 @@ body.board {
                 }
             }
         }
-    }
-
-    > .summary.paipu tbody tr:hover {
-        background: rgb(256 256 256 / 40%);
-        cursor: pointer;
     }
 
     .kaiju {
@@ -774,10 +756,6 @@ body.board {
             font-family: $defen-font;
             font-size: 24px;
         }
-    }
-
-    .suspend {
-        background: rgb(0 0 0 / 50%);
     }
 }
 
@@ -949,44 +927,6 @@ body.board {
             }
         }
     }
-
-    .tenhou-dialog {
-        position: absolute;
-        z-index: 1;
-        background: rgb(0 0 0 / 50%);
-
-        form {
-            padding: 15px;
-            background: white;
-            border-radius: 4px;
-            font-family: $menu-font;
-            font-size: 14px;
-            color: black;
-
-            li {
-                display: inline-block;
-                margin-right: 0.5em;
-            }
-
-            textarea {
-                box-sizing: border-box;
-                width: 100%;
-                resize: none;
-
-                &.url {
-                    white-space: pre;
-                }
-
-                &.json {
-                    word-break: break-all;
-                }
-            }
-
-            .button {
-                text-align: right;
-            }
-        }
-    }
 }
 
 @media screen and (height <= 680px) {
@@ -997,10 +937,6 @@ body.board {
             display: block;
             background: $grey-600;
             height: 100px;
-        }
-
-        #navi {
-            display: none;
         }
     }
 }
