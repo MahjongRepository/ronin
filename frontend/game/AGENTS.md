@@ -27,7 +27,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   game dismisses the screen after its start event or reconnect snapshot has drawn the table.
 * Vite builds with base `/game-assets/`; the lobby answers the game pages with `dist/index.html` and
   serves `dist/` under `/game-assets/`, or proxies both to this app's Vite dev server under
-  `make run-local-server` (`frontend/AGENTS.md`, Tooling).
+  `make run-local-server` (`frontend/AGENTS.md`, Tooling). The proxy asks the dev server for every
+  game page at the base itself (`/game-assets/`), never at the route, so the dev server runs as
+  `appType: "mpa"`: with no SPA fallback, a missing or misspelled file 404s in dev as it does in
+  the build instead of answering with `index.html`.
 * Static assets live in `public/` and are referenced by absolute path (`/img/…`, `/audio/…`), which
   Vite prefixes with the base in dev and build alike. A relative path skips the base and breaks.
 * Styles are SCSS in `src/styles/`: the board, its 800×680
