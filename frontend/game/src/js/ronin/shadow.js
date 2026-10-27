@@ -1,10 +1,8 @@
 "use strict";
 
-import wire from './wire.js';
+import * as mianzi from './mianzi.js';
 
 const WALL_START = 70;   /* 136 - 13*4 - 14 */
-
-const KAN_TYPES = new Set([wire.MELD.CLOSED_KAN, wire.MELD.OPEN_KAN, wire.MELD.ADDED_KAN]);
 
 class Shadow {
 
@@ -81,15 +79,14 @@ class Shadow {
 
     noteMeld(seat, meld) {
         this.melds[seat].push(meld);
-        if (KAN_TYPES.has(meld.meldType)) {
+        if (mianzi.KAN_TYPES.has(meld.meldType)) {
             this.nKans++;
             this.afterKan[seat] = true;
         }
     }
 
     findPon(seat, tile34) {
-        return this.melds[seat].find(m =>
-            m.meldType == wire.MELD.PON && Math.floor(m.tileIds[0] / 4) == tile34);
+        return this.melds[seat].find(m => mianzi.isPonOf(m, tile34));
     }
 
     startRoundLog(msg) {
@@ -107,7 +104,5 @@ class Shadow {
         }
     }
 }
-
-Shadow.KAN_TYPES = KAN_TYPES;
 
 export default Shadow;

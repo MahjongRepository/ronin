@@ -30,14 +30,6 @@ function gameTitle(gameType, startedAt) {
     return GAME_TYPE_NAMES[gameType] + '\n' + time;
 }
 
-const KIND_OF_MELD = {
-    [wire.MELD.CHI]:        'fulou',
-    [wire.MELD.PON]:        'fulou',
-    [wire.MELD.OPEN_KAN]:   'fulou',
-    [wire.MELD.CLOSED_KAN]: 'gang',
-    [wire.MELD.ADDED_KAN]:  'gang',
-};
-
 /**
  * The tiles the reconnect replay takes from a face-down hand for each meld: an added kan replays as its pon, then its
  * fourth tile.
@@ -48,11 +40,6 @@ const REPLAYED_FROM_HAND = {
     [wire.MELD.OPEN_KAN]:   3,
     [wire.MELD.CLOSED_KAN]: 4,
     [wire.MELD.ADDED_KAN]:  3,
-};
-
-const SAY_OF_MELD = {
-    [wire.MELD.CHI]: 'chi',
-    [wire.MELD.PON]: 'peng',
 };
 
 /** How long a win's ロン or ツモ shows before its result, which fades every call out: the minimum upstream's Game paced it with. */
@@ -389,7 +376,7 @@ class Translate {
             && meld.tileIds.includes(s.declaredKan.ti);
         s.declaredKan = null;
 
-        const kind = KIND_OF_MELD[meld.meldType];
+        const kind = mianzi.KIND_OF_MELD[meld.meldType];
         if (kind == 'gang' && ! mine && ! declared) this.feedHiddenDraw(meld.callerSeat);
 
         if (mine) {
@@ -412,7 +399,7 @@ class Translate {
         s.logMessage(m);
         this.syncWall();
 
-        if (P._view) P._view.say(SAY_OF_MELD[meld.meldType] || 'gang', l);
+        if (P._view) P._view.say(mianzi.SAY_OF_MELD[meld.meldType], l);
     }
 
     /** The seat's own pon or chi opens its turn without a draw: this event follows it with the types kuikae blocks. */
