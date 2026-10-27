@@ -6,8 +6,33 @@ import * as immef from './immef.js';
 
 const DIR = ['_', '+', '=', '-'];
 
+/** The majiang message that plays a meld: a call on a discard is a fulou, a kan from the hand a gang. */
+const KIND_OF_MELD = {
+    [wire.MELD.CHI]:        'fulou',
+    [wire.MELD.PON]:        'fulou',
+    [wire.MELD.OPEN_KAN]:   'fulou',
+    [wire.MELD.CLOSED_KAN]: 'gang',
+    [wire.MELD.ADDED_KAN]:  'gang',
+};
+
+const KAN_TYPES = new Set([wire.MELD.CLOSED_KAN, wire.MELD.OPEN_KAN, wire.MELD.ADDED_KAN]);
+
+/** The callout majiang-ui says for a meld. */
+const SAY_OF_MELD = {
+    [wire.MELD.CHI]:        'chi',
+    [wire.MELD.PON]:        'peng',
+    [wire.MELD.OPEN_KAN]:   'gang',
+    [wire.MELD.CLOSED_KAN]: 'gang',
+    [wire.MELD.ADDED_KAN]:  'gang',
+};
+
 function dirMark(fromSeat, callerSeat) {
     return DIR[(fromSeat - callerSeat + 4) % 4];
+}
+
+/** Whether a decoded meld is a pon of the tile type tile34, the pon an added kan of that type extends. */
+function isPonOf(meld, tile34) {
+    return meld.meldType == wire.MELD.PON && Math.floor(meld.tileIds[0] / 4) == tile34;
 }
 
 function digitOf(id) { return tiles.tileToStr(id)[1]; }
@@ -76,4 +101,4 @@ function meldStrsFrom(ml) {
     return (ml || []).map(m => mianziStr(immef.decodeMeldCompact(m)));
 }
 
-export { dirMark, ponDigits, kanDigits, mianziStr, meldStrsFrom };
+export { KAN_TYPES, KIND_OF_MELD, SAY_OF_MELD, dirMark, isPonOf, ponDigits, kanDigits, mianziStr, meldStrsFrom };
