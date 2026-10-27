@@ -18,6 +18,10 @@ Run a package's scripts from its directory (`cd frontend/game && bunx vitest run
 `make` targets (`install-frontend`, `lint-frontend`, `typecheck-frontend`, `format-frontend`,
 `test-frontend`) loop over both apps.
 
+Before Bun 1.4 (oven-sh/bun#35681), `bun remove` of a package another dependency lists as an
+optional peer (e.g. `stylus` under Vite) leaves it in `bun.lock`: delete its `packages` line by
+hand, then `rm -rf node_modules && bun install`, since `bun install` alone keeps its directories.
+
 Both apps make every deprecation their own installed Sass marks active an error in our stylesheets,
 by the same mechanism: the `lint` script's compile check (`--fatal-deprecation` with the installed
 version) and Vite's dev and build (`fatalDeprecations` in `vite.config`). Dependencies' deprecations
