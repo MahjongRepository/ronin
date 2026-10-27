@@ -3,6 +3,7 @@
 $portrait-stage-height: $table-height + $touch-gear-size + 2 * $hud-inset;
 $short-landscape: "screen and (height <= 450px) and (orientation: landscape)";
 $info-line: 1.35em;
+$options-toggle-width: 136px;
 
 body.board.replay {
     display: flex;
@@ -19,6 +20,52 @@ body.board.replay {
                 0 0 0 3px $accent,
                 0 0 12px 4px $accent;
         }
+
+        > .board > .player:not(.main) {
+            cursor: pointer;
+
+            @media (hover: hover) {
+                &:hover {
+                    border-color: $accent;
+                }
+            }
+        }
+
+        /* Every hand may be open in a replay: callouts sit on the rivers, off the hands and the score panel, until they fade. */
+        > .board .say {
+            &.xiajia,
+            &.shangjia {
+                text-align: center;
+            }
+
+            &.xiajia {
+                transform: translate(536px, 230px);
+            }
+
+            &.shangjia {
+                transform: translate(64px, 350px);
+            }
+
+            @media screen and (height <= 450px) {
+                &.xiajia,
+                &.duimian,
+                &.shangjia {
+                    font-size: 48px;
+                }
+
+                &.xiajia {
+                    transform: translate(497px, 100px);
+                }
+
+                &.duimian {
+                    transform: translate(290px, 60px);
+                }
+
+                &.shangjia {
+                    transform: translate(102px, 270px);
+                }
+            }
+        }
     }
 
     > .replay-controls {
@@ -31,8 +78,9 @@ body.board.replay {
 .replay-controls {
     display: grid;
     grid-template-areas:
-        "info"
-        "buttons";
+        ". info toggle"
+        "buttons buttons buttons";
+    grid-template-columns: $options-toggle-width minmax(0, 1fr) $options-toggle-width;
     justify-items: center;
     gap: 6px;
     padding: 8px 16px;
@@ -125,6 +173,104 @@ body.board.replay {
     }
 }
 
+.replay-controls .replay-options-toggle {
+    display: flex;
+    grid-area: toggle;
+    place-self: center end;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 0 12px;
+    font-size: 14px;
+}
+
+.replay-options-view {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.replay-options-chevron {
+    flex: none;
+}
+
+/*
+ * Where there is no room beside the buttons, the open options take the info's place. Both always hold the cell, the
+ * one not shown hidden, so its height fits either and opening the options never resizes the strip.
+ */
+.replay-options {
+    display: flex;
+    grid-area: info;
+    flex-wrap: wrap;
+    align-items: center;
+    align-self: center;
+    justify-content: center;
+    gap: 0 16px;
+    font-size: 14px;
+    visibility: hidden;
+}
+
+.replay-controls.replay-options-open {
+    > .replay-options {
+        visibility: visible;
+    }
+
+    > .replay-position {
+        visibility: hidden;
+    }
+}
+
+.replay-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.replay-seat,
+.replay-hide-hands {
+    &:focus-visible {
+        outline: solid 2px $accent;
+        outline-offset: 2px;
+    }
+}
+
+/* Drawn by the page, caret included: WebKit's own select ignores the colours and loses its text on the dark strip. */
+.replay-seat {
+    min-width: 0;
+    max-width: 16em;
+    min-height: 36px;
+    padding: 4px 2em 4px 8px;
+    border: solid 1px $accent;
+    border-radius: 6px;
+    background-color: $dialog-background;
+    background-image:
+        linear-gradient(45deg, transparent 50%, $accent 50%),
+        linear-gradient(135deg, $accent 50%, transparent 50%);
+    background-position:
+        right 1em center,
+        right calc(1em - 5px) center;
+    background-repeat: no-repeat;
+    background-size: 5px 5px;
+    color: $grey-50;
+    font: inherit;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    appearance: none;
+}
+
+.replay-hide-hands {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: $accent;
+    cursor: pointer;
+}
+
 /* Three lines of fixed height, each clipped to one line, so no position changes the strip's size. */
 .replay-position {
     box-sizing: border-box;
@@ -180,10 +326,25 @@ body.board.replay {
     }
 }
 
-/* Wide enough for the info beside the button cluster, B3's Play button included: the cluster centred. */
-@media (width >= 1100px) {
+/* The options shown with the info, never in its place: the toggle hidden. */
+@mixin options-beside-info {
+    .replay-controls .replay-options-toggle {
+        display: none;
+    }
+
+    .replay-controls > .replay-options,
+    .replay-controls.replay-options-open > .replay-position {
+        visibility: visible;
+    }
+}
+
+/*
+ * Wide enough for the info and the options beside the button cluster, B3's Play button included: the cluster centred.
+ * A short landscape screen of that width keeps its strip in a column.
+ */
+@media (width >= 1100px) and (height > 450px) {
     .replay-controls {
-        grid-template-areas: "info buttons .";
+        grid-template-areas: "info buttons options";
         grid-template-columns: minmax(16em, 1fr) auto minmax(0, 1fr);
         align-items: center;
         gap: 16px;
@@ -191,6 +352,25 @@ body.board.replay {
 
     .replay-position {
         text-align: left;
+    }
+
+    .replay-controls .replay-options {
+        flex-direction: column;
+        grid-area: options;
+        align-items: flex-end;
+        justify-self: end;
+        max-width: 100%;
+    }
+
+    @include options-beside-info;
+
+    .replay-option {
+        min-height: 30px;
+    }
+
+    .replay-seat {
+        min-height: 30px;
+        padding-block: 2px;
     }
 }
 
@@ -207,13 +387,29 @@ body.board.replay {
     }
 }
 
+/* Too narrow for the toggle beside the info: it takes a row of its own under it. */
 @media (width < 760px) {
+    .replay-controls {
+        grid-template:
+            "info" auto
+            "toggle" auto
+            "buttons" auto
+            / minmax(0, 1fr);
+    }
+
+    .replay-controls .replay-options-toggle {
+        justify-self: center;
+    }
+
     .replay-buttons {
         @include two-rows;
     }
 }
 
-/* An upright phone's width-bound table leaves height over: the strip takes it, its info centred, its buttons below. */
+/*
+ * An upright phone's width-bound table leaves height over: the strip takes it, its info and options centred, its
+ * buttons below.
+ */
 @media #{$portrait-touch} {
     body.board.replay {
         > #board {
@@ -226,7 +422,11 @@ body.board.replay {
     }
 
     .replay-controls {
-        grid-template-rows: 1fr auto;
+        grid-template:
+            "info" 1fr
+            "options" auto
+            "buttons" auto
+            / minmax(0, 1fr);
         gap: 24px;
         padding: 16px 24px 24px;
         background: $felt;
@@ -235,6 +435,37 @@ body.board.replay {
         button {
             background: $dialog-background;
         }
+    }
+
+    @include options-beside-info;
+
+    .replay-controls .replay-options {
+        flex-direction: column;
+        grid-area: options;
+        align-items: stretch;
+        align-self: center;
+        gap: 16px;
+        padding: 16px 24px;
+        border: solid 1px $dialog-border;
+        border-radius: 6px;
+        background: $dialog-background;
+        font-size: 24px;
+    }
+
+    .replay-option {
+        gap: 16px;
+        min-height: 64px;
+    }
+
+    .replay-seat {
+        flex: 1 1 auto;
+        max-width: none;
+        min-height: 64px;
+    }
+
+    .replay-hide-hands {
+        width: 36px;
+        height: 36px;
     }
 
     .replay-buttons {
@@ -292,12 +523,45 @@ body.board.replay {
     }
 
     .replay-controls {
-        grid-template-rows: 1fr auto;
+        grid-template:
+            "info" 1fr
+            "toggle" auto
+            "buttons" auto
+            / minmax(0, 1fr);
         align-content: center;
         gap: 8px;
         padding: 8px;
         border-top: none;
         border-left: solid 1px $dialog-border;
+    }
+
+    .replay-controls .replay-options-toggle {
+        justify-self: stretch;
+    }
+
+    .replay-options {
+        flex-direction: column;
+        align-items: stretch;
+        align-self: stretch;
+        justify-content: center;
+        width: 100%;
+        font-size: 12px;
+    }
+
+    .replay-option {
+        min-height: 36px;
+        white-space: normal;
+    }
+
+    .replay-option-seat {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+    }
+
+    .replay-seat {
+        max-width: none;
+        font-size: 16px;
     }
 
     .replay-buttons {

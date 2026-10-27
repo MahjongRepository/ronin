@@ -1,7 +1,8 @@
 import $ from "jquery";
 
-import { lastAction, roundName } from "./describe.js";
+import { lastAction, roundName, seatName } from "./describe.js";
 import { POSITION } from "./paipu.js";
+import { writeReplayPrefs } from "./prefs.js";
 
 /** Holding Back or Next steps again after this long, then every HOLD_REPEAT_MS: fast to skim, slow enough to follow. */
 export const HOLD_DELAY_MS = 350;
@@ -15,6 +16,9 @@ const FINAL_STANDINGS = "Final standings";
 const FINAL_ROUND = "All last";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+const SEATS = 4;
+const OPTIONS_ID = "replay-options";
 
 /** The jump buttons, each with its icon as polygon point lists and a bar on a 24-unit square. */
 const JUMPS = Object.freeze([
@@ -111,6 +115,32 @@ function infoMarkup() {
     );
 }
 
+/** The secondary choices: the seat at the bottom of the table and whether opponents' hands are hidden. */
+function optionsMarkup() {
+    return $(`<div class="replay-options" id="${OPTIONS_ID}" role="group">`)
+        .attr("aria-label", "Replay options")
+        .append(
+            $('<label class="replay-option replay-option-seat">').append(
+                $("<span>").text("View from"),
+                $('<select class="replay-seat">'),
+            ),
+            $('<label class="replay-option">').append(
+                $('<input type="checkbox" role="switch" class="replay-hide-hands">'),
+                $("<span>").text("Hide opponents' hands"),
+            ),
+        );
+}
+
+/** Opens the options in the info's place where the strip has no room for both; it names the seat viewed from. */
+function optionsToggle() {
+    return $('<button type="button" class="replay-options-toggle" aria-expanded="false">')
+        .attr({ "aria-controls": OPTIONS_ID, title: "Replay options" })
+        .append(
+            $('<span class="replay-options-view">'),
+            $('<span class="replay-options-chevron" aria-hidden="true">').text("▾"),
+        );
+}
+
 /** Where the position stands in its round, counted from 1 at the deal; the standings are not a step of the round. */
 function stepText(round, state) {
     if (state.kind === POSITION.SUMMARY) {
@@ -149,9 +179,10 @@ function setEnabled(button, enabled, neighbours) {
 }
 
 /**
- * The replay's control strip: first, previous round, Back, Next, next round and last, and the position's info (the
- * last action, the round with its all-last flag, the step, a low-wall warning). Back and Next step once per press and
- * repeat while held, stopping at a result or where they can go no further.
+ * The replay's control strip: first, previous round, Back, Next, next round and last, the position's info (the last
+ * action, the round with its all-last flag, the step, a low-wall warning) and the replay options (the viewpoint seat,
+ * hiding opponents' hands), beside the buttons on a wide screen and behind a toggle elsewhere. Back and Next step once
+ * per press and repeat while held, stopping at a result or where they can go no further.
  */
 export class ReplayControls {
     #holdTimer = null;
@@ -166,11 +197,18 @@ export class ReplayControls {
             ...Object.fromEntries(JUMPS.map((jump) => [jump.name, jumpButton(jump)])),
         };
         const { first, prevRound, back, next, nextRound, last } = this.buttons;
+        this.optionsToggle = optionsToggle();
         this.element = $('<nav class="replay-controls" aria-label="Replay" lang="en">').append(
             infoMarkup(),
             $('<div class="replay-buttons">').append(first, prevRound, back, next, nextRound, last),
+            this.optionsToggle,
+            optionsMarkup(),
         );
         this.action = $(".replay-action", this.element);
+        this.seat = $(".replay-seat", this.element);
+        this.hideHands = $(".replay-hide-hands", this.element);
+        this.seatsRound = null;
+        this.shownPosition = null;
     }
 
     /** Drive `viewer` from the buttons. */
@@ -191,6 +229,48 @@ export class ReplayControls {
             }
         });
         this.element.on("contextmenu", "button", (event) => event.preventDefault());
+        this.bindOptions(viewer);
+    }
+
+    /**
+     * The options change the view at the position shown; the hidden-hands choice is remembered for later replays. Where
+     * they open in the info's place, a seat change, Escape or any move closes them, so the info shows again.
+     */
+    bindOptions(viewer) {
+        this.optionsToggle.on("click", () => this.setOptionsOpen(!this.optionsOpen));
+        this.seat.on("change", () => {
+            viewer.setViewpoint(Number(this.seat.val()));
+            this.setOptionsOpen(false);
+        });
+        this.hideHands.on("change", () => {
+            const hidden = this.hideHands.prop("checked");
+            writeReplayPrefs({ hideHands: hidden });
+            viewer.setOpenHands(!hidden);
+        });
+        $(window).on("keydown.replay", (event) => {
+            if (event.key !== "Escape" || !this.optionsOpen) {
+                return;
+            }
+            const focused = $.contains(this.options()[0], document.activeElement);
+            this.setOptionsOpen(false);
+            if (focused) {
+                this.optionsToggle.trigger("focus");
+            }
+        });
+    }
+
+    get optionsOpen() {
+        return this.optionsToggle.attr("aria-expanded") === "true";
+    }
+
+    options() {
+        return $(".replay-options", this.element);
+    }
+
+    setOptionsOpen(open) {
+        this.optionsToggle.attr("aria-expanded", String(open));
+        this.element.toggleClass("replay-options-open", open);
+        $(".replay-options-chevron", this.optionsToggle).text(open ? "▴" : "▾");
     }
 
     /**
@@ -261,6 +341,34 @@ export class ReplayControls {
         setEnabled(nextRound, state.canNextRound, all);
         setEnabled(last, !state.atEnd, all);
         this.showInfo(state);
+        this.showOptions(state);
+    }
+
+    /**
+     * The seats as the shown round names them, the viewpoint's selected, and the hidden-hands switch; a move to another
+     * position closes the options.
+     */
+    showOptions(state) {
+        if (this.seatsRound !== state.round) {
+            const round = this.replay.rounds[state.round];
+            const seats = Array.from({ length: SEATS }, (_, seat) =>
+                $("<option>")
+                    .val(seat)
+                    .text(seatName(round, seat, this.replay.players[seat])),
+            );
+            this.seat.empty().append(seats);
+            this.seatsRound = state.round;
+        }
+        this.seat.val(String(state.seat));
+        this.hideHands.prop("checked", !state.openHands);
+        $(".replay-options-view", this.optionsToggle).text(
+            `View: ${this.replay.players[state.seat]}`,
+        );
+        const position = `${state.round}/${state.step}/${state.page}`;
+        if (position !== this.shownPosition) {
+            this.shownPosition = position;
+            this.setOptionsOpen(false);
+        }
     }
 
     showInfo(state) {

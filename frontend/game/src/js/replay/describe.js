@@ -1,12 +1,19 @@
 import { jushu_name as jushuName } from "../../vendor/majiang-ui/board.js";
 import { DIR } from "../ronin/mianzi.js";
-import { ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME, seatOfL } from "../ronin/results.js";
+import {
+    ABORTIVE_NAMES,
+    DRAW_NAMES,
+    GENERIC_ABORTIVE_NAME,
+    seatL,
+    seatOfL,
+} from "../ronin/results.js";
 import { POSITION, kindOf } from "./paipu.js";
 
 const SEATS = 4;
 
 const SUIT_NAMES = Object.freeze({ m: "萬", p: "筒", s: "索" });
 const HONOR_NAMES = Object.freeze(["", "東", "南", "西", "北", "白", "發", "中"]);
+const WIND_NAMES = Object.freeze(HONOR_NAMES.slice(1, 5));
 
 /** Each draw's name in English, beside the board's Japanese one. */
 const DRAW_TEXT = Object.freeze({
@@ -29,6 +36,11 @@ function ja(text) {
 export function roundName(round) {
     const { zhuangfeng, jushu } = round.log[0].qipai;
     return `${jushuName(zhuangfeng, jushu)} ${round.honba}本場`;
+}
+
+/** A seat as the viewpoint picker names it in a round: its wind there (東 marks the dealer) and its player. */
+export function seatName(round, seat, player) {
+    return `${WIND_NAMES[seatL(seat, round.dealer)]} ${player}`;
 }
 
 /** A paipu tile in the board's Japanese: 5萬, 赤5筒, 中. */

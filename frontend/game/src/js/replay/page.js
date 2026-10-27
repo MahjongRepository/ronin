@@ -5,6 +5,7 @@ import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
 import { MalformedReplayError, toReplay } from "./paipu.js";
+import { readReplayPrefs } from "./prefs.js";
 import { ReplayViewer, UnplayableReplayError } from "./viewer.js";
 
 const PAGE_TITLE = "Replay · Ronin";
@@ -92,7 +93,10 @@ class ReplaySettings extends Majiang.UI.GameCtl {
     set_sound_key() {}
 }
 
-/** The board drawing the replay: every hand open, from the recorded first dealer's seat, with the sound setting. */
+/**
+ * The board drawing the replay from the recorded first dealer's seat, every hand open unless the viewer chose to hide
+ * opponents' hands, with the sound setting.
+ */
 function buildBoard(replay, stage) {
     const pai = Majiang.UI.pai($("#loaddata"));
     const audio = Majiang.UI.audio($("#loaddata"));
@@ -104,7 +108,7 @@ function buildBoard(replay, stage) {
     const root = $("> .board", stage);
     const view = new Majiang.UI.Board(root, pai, audio, model);
     view.viewpoint = replay.qijia;
-    view.open_shoupai = true;
+    view.open_shoupai = !readReplayPrefs().hideHands;
     new ReplaySettings(stage, GAME_PREF_KEY, view);
     $(".controller .sound", stage).attr("title", "音声");
     $(".autoplay, .player-button, .timer", stage).remove();

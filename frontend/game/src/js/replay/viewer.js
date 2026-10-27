@@ -7,6 +7,12 @@ import { POSITION, kindOf } from "./paipu.js";
 
 const SEATS = 4;
 
+/** How long a step's callouts show before they fade: long enough to read, short enough to uncover the rivers under them. */
+export const CALLOUT_MS = 1200;
+
+/** The board's nameplates in turn order from the viewpoint's at the bottom, as majiang-ui places them. */
+const NAMEPLATES = Object.freeze(["main", "xiajia", "duimian", "shangjia"]);
+
 /** The messages that open a turn: the view redraws the previous turn's river when one plays. */
 const TURN_STARTS = new Set(["zimo", "gangzimo", "fulou", "gang"]);
 
@@ -122,11 +128,17 @@ export class ReplayViewer {
         this.pagedWins = 0;
     }
 
-    /** Bind the result dialog's 次へ and the standings' exit, and show the position at (round, step). */
+    /**
+     * Bind the result dialog's 次へ, the standings' exit and the nameplates (a click views the table from that seat), and
+     * show the position at (round, step).
+     */
     start(round = 0, step = 0) {
         this.dialog()
             .off(".replay")
             .on("click.replay", ".next", () => this.pageResult());
+        $("> .player", this.root)
+            .off(".replay")
+            .on("click.replay", (event) => this.viewFromNameplate(event.currentTarget));
         $(".summary .exit", this.root)
             .text(exitLabel(exitUrl()))
             .off(".replay")
@@ -239,6 +251,13 @@ export class ReplayViewer {
         this.show(this.round, this.step, this.pagedWins);
     }
 
+    viewFromNameplate(plate) {
+        const offset = NAMEPLATES.findIndex((name) => plate.classList.contains(name));
+        if (offset > 0) {
+            this.setViewpoint((this.view.viewpoint + offset) % SEATS);
+        }
+    }
+
     /** Show every hand face up, or only the viewpoint's, keeping the position and a double ron's page. */
     setOpenHands(open) {
         this.view.open_shoupai = open;
@@ -322,7 +341,18 @@ export class ReplayViewer {
         this.round = round;
         this.step = step;
         this.pagedWins = pagedWins;
+        this.titleNameplates();
         this.notifyChange();
+    }
+
+    /** The other seats' nameplates say that a click views the table from them. */
+    titleNameplates() {
+        NAMEPLATES.forEach((place, offset) => {
+            const plate = $(`> .player.${place}`, this.root);
+            const name = this.replay.players[(this.view.viewpoint + offset) % SEATS];
+            const title = offset === 0 ? name : `View from ${name}`;
+            plate.add($(".name", plate)).attr("title", title);
+        });
     }
 
     showAllWins(round, step) {
@@ -344,9 +374,13 @@ export class ReplayViewer {
         this.view.update(message);
     }
 
+    /** A step's callouts, faded after a moment so they do not hide the rivers under them for the rest of the turn. */
     sayCallouts(position, silent) {
         for (const { name, l } of position.say) {
             this.view.say(name, l, silent);
+        }
+        if (position.say.length > 0) {
+            this.#schedule(() => this.view.clear_bubbles(), CALLOUT_MS);
         }
     }
 
@@ -432,12 +466,18 @@ export class ReplayViewer {
         }
     }
 
-    /** The result's win after `pagedWins` further ones, which the table shows as stepping forward left it. */
+    /**
+     * The result's win after `pagedWins` further ones, which the table shows as stepping forward left it: the earlier
+     * winners' hands face up too.
+     */
     showWin(firstWin, target) {
-        playIntoModel(this.model, firstWin);
-        const shown = this.furtherWins(target.round, target.step).slice(0, target.pagedWins);
-        shown.forEach((win) => playIntoModel(this.model, win));
-        this.view.update(shown.at(-1) ?? firstWin, true);
+        const wins = [
+            firstWin,
+            ...this.furtherWins(target.round, target.step).slice(0, target.pagedWins),
+        ];
+        wins.forEach((win) => playIntoModel(this.model, win));
+        this.view.update(wins.at(-1), true);
+        wins.slice(0, -1).forEach((win) => this.view.reveal(win.hule.l));
     }
 
     /** Play the position at `target`, the one after the cursor's, into the model and the view, with sound. */
