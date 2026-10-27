@@ -10,7 +10,7 @@
     display: flex;
     align-items: baseline;
     gap: 0.75rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 
     h2 {
         margin-bottom: 0;
@@ -26,70 +26,144 @@
     font-size: 0.75rem;
 }
 
-// ─── Room Grid ──────────────────────────────────────────────
-
+.lobby-actions,
 .lobby-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
     gap: 1rem;
-}
 
-// ─── Create Table Card ──────────────────────────────────────
-
-.lobby-create-form {
-    margin-bottom: 0;
-}
-
-.lobby-create-btn {
-    width: 100%;
-    height: 100%;
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    background: transparent;
-    border: 2px dashed var(--ronin-border);
-    border-radius: 0.75rem;
-    color: var(--pico-muted-color);
-    cursor: pointer;
-    transition:
-        border-color 0.3s ease,
-        color 0.3s ease,
-        background 0.3s ease;
-
-    &:hover {
-        border-color: var(--pico-primary);
-        color: var(--pico-primary);
-        background: color-mix(in srgb, var(--pico-primary) 4%, transparent);
+    @media (width <= 576px) {
+        gap: 0.75rem;
     }
 }
 
-.lobby-create-icon {
-    font-size: 2.5rem;
-    font-weight: 300;
-    line-height: 1;
+.lobby-actions {
+    margin-block: 1rem 2rem;
+
+    @media (width <= 576px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-block: 0.75rem 1.5rem;
+    }
 }
 
-.lobby-create-label {
+.lobby-actions--seated .lobby-action-tile:not(:focus-visible) {
+    opacity: 0.6;
+
+    @media (hover: hover) {
+        &:hover {
+            opacity: 1;
+        }
+    }
+}
+
+.lobby-seated-hint {
+    margin-block: 1rem -0.25rem;
+    font-size: 0.875rem;
+    color: var(--ronin-text-secondary);
+
+    a {
+        white-space: nowrap;
+    }
+}
+
+.lobby-action-form {
+    display: flex;
+    margin-bottom: 0;
+}
+
+.lobby-action-tile {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    width: 100%;
+    min-height: 4.5rem;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    text-decoration: none;
+    background: color-mix(in srgb, var(--pico-primary) 7%, var(--ronin-surface));
+    border: 1px solid color-mix(in srgb, var(--pico-primary) 50%, var(--ronin-border));
+    border-radius: var(--ronin-radius-lg);
+    cursor: pointer;
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease;
+
+    &:active {
+        background: color-mix(in srgb, var(--pico-primary) 14%, var(--ronin-surface));
+    }
+
+    @media (hover: hover) {
+        &:hover {
+            border-color: var(--pico-primary);
+            background: color-mix(in srgb, var(--pico-primary) 11%, var(--ronin-surface));
+        }
+    }
+
+    @media (width <= 576px) {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        min-height: 0;
+        padding: 0.75rem;
+    }
+}
+
+.lobby-action-icon {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    fill: none;
+    stroke: var(--pico-primary);
+    stroke-width: 2;
+    stroke-linecap: round;
+
+    circle {
+        fill: var(--pico-primary);
+        stroke: none;
+    }
+
+    @media (width <= 576px) {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+}
+
+.lobby-action-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.lobby-action-label {
+    color: var(--pico-h3-color);
     font-family: var(--ronin-font-display);
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 600;
+    line-height: 1.25;
+}
+
+.lobby-action-hint {
+    font-family: var(--ronin-font-body);
+    font-size: 0.8rem;
+    font-weight: 400;
+    line-height: 1.3;
+    color: var(--ronin-text-secondary);
 }
 
 // ─── Room Card ──────────────────────────────────────────────
 
 .lobby-room-card {
     position: relative;
-    padding: 1.25rem;
+    padding: 1rem;
     margin-bottom: 0;
-    border-radius: 0.75rem;
+    border-radius: var(--ronin-radius-lg);
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.625rem;
     overflow: hidden;
     transition:
         border-color 0.3s ease,
@@ -110,15 +184,29 @@
         transition: opacity 0.3s ease;
     }
 
-    &:hover {
-        border-color: color-mix(in srgb, var(--pico-primary) 30%, var(--ronin-border));
-        box-shadow:
-            0 4px 24px rgb(0 0 0 / 30%),
-            0 0 0 1px color-mix(in srgb, var(--pico-primary) 8%, transparent);
+    &--mine {
+        border-color: color-mix(in srgb, var(--pico-primary) 45%, var(--ronin-border));
 
         &::before {
             opacity: 1;
         }
+    }
+
+    @media (hover: hover) {
+        &:hover {
+            border-color: color-mix(in srgb, var(--pico-primary) 30%, var(--ronin-border));
+            box-shadow:
+                0 4px 24px rgb(0 0 0 / 30%),
+                0 0 0 1px color-mix(in srgb, var(--pico-primary) 8%, transparent);
+
+            &::before {
+                opacity: 1;
+            }
+        }
+    }
+
+    @media (width <= 576px) {
+        padding: 0.75rem;
     }
 }
 
@@ -134,43 +222,68 @@
     color: var(--pico-color);
     background: var(--ronin-surface-elevated);
     padding: 0.15rem 0.45rem;
-    border-radius: 0.3rem;
+    border-radius: var(--ronin-radius-sm);
 }
 
 .lobby-room-count {
     font-family: var(--ronin-font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--ronin-text-secondary);
+}
+
+.lobby-room-players {
+    display: flex;
+    gap: 0.25em;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--ronin-text-secondary);
+    white-space: nowrap;
+}
+
+.lobby-room-names {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lobby-room-open {
+    flex: none;
+    color: var(--pico-muted-color);
 }
 
 // ─── Table Visualization (Diamond Seat Layout) ──────────────
 
 .lobby-table-vis {
+    --seat-cell: 1.25rem;
+    --seat-size: 0.75rem;
+
     display: grid;
     grid-template:
-        ". a ." 16px
-        "d t b" 16px
-        ". c ." 16px / 16px 28px 16px;
-    gap: 3px;
+        ". a ." var(--seat-cell)
+        "d t b" var(--seat-cell)
+        ". c ." var(--seat-cell) / var(--seat-cell) calc(var(--seat-cell) * 1.75) var(--seat-cell);
+    gap: 0.2rem;
     justify-content: center;
-    padding: 0.5rem 0;
+    padding: 0.25rem 0;
 
     // Center table piece
     &::after {
         content: "";
         grid-area: t;
-        background: var(--ronin-surface-elevated);
-        border: 1px solid var(--ronin-border-subtle);
-        border-radius: 3px;
+        background: var(--ronin-surface-overlay);
+        border: 1px solid var(--ronin-border);
+        border-radius: var(--ronin-radius-sm);
     }
 }
 
 .lobby-seat {
-    width: 10px;
-    height: 10px;
+    width: var(--seat-size);
+    height: var(--seat-size);
     border-radius: 50%;
     place-self: center;
-    border: 1.5px solid var(--ronin-border);
+    border: 1.5px solid var(--ronin-control-border);
     background: transparent;
     transition: all 0.3s ease;
 
@@ -180,10 +293,9 @@
         box-shadow: 0 0 8px color-mix(in srgb, var(--pico-primary) 40%, transparent);
     }
 
-    &.bot {
-        border-style: dashed;
-        border-color: var(--ronin-text-muted);
-        background: transparent;
+    &.open {
+        border-color: transparent;
+        background: color-mix(in srgb, var(--pico-muted-color) 45%, transparent);
     }
 }
 
@@ -204,28 +316,27 @@
     grid-area: d;
 }
 
-// ─── Join Button ────────────────────────────────────────────
-
-.lobby-join-btn {
-    width: 100%;
+.lobby-join-form {
     margin-bottom: 0;
-    font-family: var(--ronin-font-display);
-    font-weight: 600;
-    font-size: 0.85rem;
-    letter-spacing: 0.01em;
 }
 
-// ─── Full Badge ─────────────────────────────────────────────
+.lobby-join-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: var(--ronin-touch-target);
+    margin-bottom: 0;
+    padding-block: 0.5rem;
+    font-size: 0.875rem;
+}
 
 .lobby-full-badge {
-    display: block;
-    text-align: center;
     font-family: var(--ronin-font-mono);
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--pico-muted-color);
-    padding: 0.45rem;
     border: 1px solid var(--ronin-border);
     border-radius: var(--pico-border-radius);
 }
@@ -233,11 +344,25 @@
 // ─── Empty State ────────────────────────────────────────────
 
 .lobby-empty {
-    text-align: center;
-    padding: 3rem 2rem;
+    padding: 1.5rem 0;
     color: var(--pico-muted-color);
 
     p {
+        color: inherit;
         margin-bottom: 0.25rem;
+    }
+
+    .lobby-empty-title {
+        font-family: var(--ronin-font-display);
+        font-weight: 600;
+        color: var(--ronin-text-secondary);
+    }
+
+    .lobby-empty-hint {
+        font-size: 0.875rem;
+    }
+
+    [role="button"] {
+        margin-top: 1rem;
     }
 }

@@ -1,0 +1,27 @@
+.storybook-title {
+    font-size: 1.75rem;
+    margin-block: 1rem 2rem;
+}
+
+.storybook-section {
+    margin-bottom: 3rem;
+}
+
+.storybook-auth-card {
+    margin: 0;
+}
+
+.storybook-caption {
+    margin-block: 1.5rem 0.75rem;
+}
+
+.storybook-specimens {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1rem;
+    align-items: start;
+
+    .matchmaking-card {
+        width: 100%;
+    }
+}

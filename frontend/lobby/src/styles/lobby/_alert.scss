@@ -1,12 +1,70 @@
 // Lobby alert banner
 
 .lobby-alert {
-    background: color-mix(in srgb, var(--ronin-danger) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--ronin-danger) 25%, transparent);
-    border-radius: 0.5rem;
-    padding: 0.75rem 1rem;
-    color: var(--ronin-danger);
-    font-size: 0.875rem;
+    --lobby-alert-tone: var(--ronin-danger);
+
+    position: relative;
+    background: color-mix(in srgb, var(--lobby-alert-tone) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lobby-alert-tone) 35%, transparent);
+    border-radius: var(--ronin-radius-md);
+    padding: 0.75rem 1rem 0.75rem 2.75rem;
+    color: var(--ronin-danger-text);
+    font-size: 0.9375rem;
+    line-height: 1.45;
     margin-bottom: 1.5rem;
     animation: slide-down 0.3s ease;
+
+    &::before {
+        content: "!";
+        content: "!" / "";
+        position: absolute;
+        top: calc(0.75rem + 0.15em);
+        left: 1rem;
+        display: grid;
+        place-items: center;
+        width: 1.15em;
+        height: 1.15em;
+        border: 1.5px solid currentcolor;
+        border-radius: 50%;
+        font-family: var(--ronin-font-display);
+        font-size: 0.875em;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    p {
+        margin-bottom: 0;
+    }
+
+    p + p {
+        margin-top: 0.5rem;
+    }
+
+    a {
+        color: inherit;
+        font-weight: 600;
+        text-decoration-color: color-mix(in srgb, currentcolor 50%, transparent);
+    }
+
+    &.warning {
+        --lobby-alert-tone: var(--ronin-warning);
+
+        color: var(--ronin-warning);
+    }
+}
+
+.lobby-alert-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+
+    @media (pointer: coarse) {
+        row-gap: 0;
+
+        a {
+            display: inline-flex;
+            align-items: center;
+            min-height: var(--ronin-touch-target);
+        }
+    }
 }

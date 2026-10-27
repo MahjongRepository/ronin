@@ -1,0 +1,30 @@
+.lobby-error-page {
+    max-width: 32rem;
+    margin: 3rem auto;
+    text-align: center;
+
+    h1 {
+        font-size: 1.75rem;
+        margin-block: 0 0.5rem;
+    }
+
+    @media (width <= 576px) {
+        margin-top: 1.5rem;
+    }
+}
+
+.lobby-error-code {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    color: var(--pico-primary);
+    margin-bottom: 0.5rem;
+}
+
+.lobby-error-actions {
+    margin-top: 1.75rem;
+
+    [role="button"] {
+        min-width: 10rem;
+    }
+}

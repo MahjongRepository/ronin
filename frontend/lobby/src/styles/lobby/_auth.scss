@@ -1,16 +1,24 @@
 // Auth pages (login / register)
 
 .auth-card {
-    max-width: 400px;
+    max-width: 22rem;
     margin: 2rem auto;
+    padding: 2rem 1.75rem;
+    border: 1px solid var(--ronin-border);
+    border-radius: var(--ronin-radius-lg);
+    box-shadow: none;
+
+    > :last-child {
+        margin-bottom: 0;
+    }
 
     hgroup {
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
 
         h1 {
             font-size: 2rem;
-            font-weight: 800;
+            font-weight: 700;
             letter-spacing: 0.02em;
         }
 
@@ -18,8 +26,37 @@
             color: var(--ronin-text-secondary);
         }
     }
+
+    form > :last-child {
+        margin-bottom: 0;
+    }
+
+    label small {
+        color: var(--pico-muted-color);
+    }
+
+    @media (width <= 576px) {
+        margin-top: 0.5rem;
+        padding: 1rem 0 0;
+        border: none;
+        background: transparent;
+
+        hgroup {
+            margin-bottom: 1.25rem;
+        }
+    }
 }
 
 .auth-link {
     text-align: center;
+    margin-top: 1.25rem;
+    color: var(--ronin-text-secondary);
+
+    @media (width <= 576px), (pointer: coarse) {
+        a {
+            display: inline-block;
+            padding-block: 0.75rem;
+            margin-block: -0.75rem;
+        }
+    }
 }
