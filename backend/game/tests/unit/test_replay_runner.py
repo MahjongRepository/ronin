@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, GamePhase, MeldCallType, PromptKind, WaitKind
+from game.logic.enums import GameAction, GameErrorCode, GamePhase, KanType, MeldCallType, PromptKind, WaitKind
 from game.logic.events import (
     BroadcastTarget,
     ErrorEvent,
@@ -694,6 +694,65 @@ def test_auto_pass_calls__when_a_later_ron_follows_another_input__should_pass_it
     assert [(s.input_event.player_name, s.input_event.action, s.synthetic) for s in trace.steps[:2]] == [
         (later_ron_player, GameAction.PASS, True),
         (ron_player, GameAction.CALL_RON, False),
+    ]
+
+
+@pytest.mark.parametrize("kan_type", [KanType.CLOSED, KanType.ADDED])
+def test_auto_pass_calls__when_prompted_seat_declares_self_kan__should_pass_its_prompt_first(kan_type: KanType):
+    probe_state = MahjongGameService().start_game("probe-seats", list(PLAYER_NAMES), seed=SEED).runtime.state
+    seat_by_name = {p.name: p.seat for p in probe_state.round_state.players}
+    discarder, kan_player = "Alice", "Bob"
+
+    class CallPromptService(_StubService):
+        def start_game(
+            self,
+            game_id: str,
+            player_names: list[str],
+            *,
+            seed: str | None = None,
+            settings: GameSettings | None = None,
+            wall: list[int] | None = None,
+        ) -> GameStart:
+            start = super().start_game(game_id, player_names, seed=seed)
+            prompt = PendingCallPrompt(
+                kind=PromptKind.DISCARD,
+                tile_id=0,
+                from_seat=seat_by_name[discarder],
+                pending_seats=frozenset({seat_by_name[kan_player]}),
+                callers=(_pon_caller(seat_by_name[kan_player]),),
+            )
+            state = start.runtime.state
+            start.runtime.commit(
+                state.model_copy(
+                    update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": prompt})}
+                )
+            )
+            return start
+
+        def handle_action(
+            self,
+            runtime: GameRuntime,
+            *,
+            seat: int,
+            action: GameAction,
+            data: dict[str, Any],
+        ) -> GameUpdate:
+            if action == GameAction.PASS:
+                state = runtime.state
+                runtime.commit(
+                    state.model_copy(
+                        update={"round_state": state.round_state.model_copy(update={"pending_call_prompt": None})}
+                    )
+                )
+
+            return _stub_update([])
+
+    replay = _build_replay(actions=((kan_player, GameAction.CALL_KAN, {"tile_id": 0, "kan_type": kan_type}),))
+
+    trace = run_replay(replay, ReplayOptions(strict=False), service_factory=CallPromptService)
+    assert [(s.input_event.player_name, s.input_event.action, s.synthetic) for s in trace.steps] == [
+        (kan_player, GameAction.PASS, True),
+        (kan_player, GameAction.CALL_KAN, False),
     ]
 
 

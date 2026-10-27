@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from game.logic.enums import GameAction, GamePhase, WaitKind
+from game.logic.enums import GameAction, GamePhase, KanType, WaitKind
 from game.logic.events import EventType
 from game.logic.mahjong_service import MahjongGameService
 from game.replay.loader import ReplayLoadError
@@ -29,7 +29,6 @@ _CALL_RESPONSE_ACTIONS = frozenset(
     {
         GameAction.CALL_PON,
         GameAction.CALL_CHI,
-        GameAction.CALL_KAN,
         GameAction.CALL_RON,
     },
 )
@@ -295,8 +294,7 @@ def _handle_auto_pass_for_input(
     events = ctx.events
     input_event = events[index]
     input_seat = seating.seat_by_player[input_event.player_name]
-    is_call_response = input_event.action in _CALL_RESPONSE_ACTIONS and input_seat in prompt.pending_seats
-    if not is_call_response:
+    if input_seat not in prompt.pending_seats or not _is_call_response(input_event):
         _inject_pass_calls(ctx, seating=seating, steps=steps)
         return
 
@@ -310,6 +308,16 @@ def _handle_auto_pass_for_input(
             responding_seats.add(seating.seat_by_player[later_event.player_name])
 
     _inject_pass_calls(ctx, seating=seating, steps=steps, exclude_seats=frozenset(responding_seats))
+
+
+def _is_call_response(input_event: ReplayInputEvent) -> bool:
+    """
+    Tell whether the input answers a call prompt: a closed or added kan is a turn action that needs a new own turn.
+    """
+    if input_event.action == GameAction.CALL_KAN:
+        return input_event.data.get("kan_type", KanType.OPEN) == KanType.OPEN
+
+    return input_event.action in _CALL_RESPONSE_ACTIONS
 
 
 def _inject_pass_calls(
