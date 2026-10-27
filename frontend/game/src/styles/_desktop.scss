@@ -4,7 +4,7 @@
 @use "theme" as *;
 
 #board > .board {
-    height: 680px;
+    height: $table-height;
 
     .score {
         width: 280px;
@@ -339,8 +339,8 @@
 
 #board {
     .controller {
-        top: 8px;
-        right: 8px;
+        top: $hud-inset;
+        right: $hud-inset;
     }
 
     .autoplay {
@@ -353,8 +353,8 @@
     #board {
         .controller {
             .settings-toggle {
-                width: 80px;
-                height: 80px;
+                width: $touch-gear-size;
+                height: $touch-gear-size;
                 padding: 16px;
             }
 

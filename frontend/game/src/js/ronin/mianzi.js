@@ -111,4 +111,4 @@ function meldStrsFrom(ml) {
     return (ml || []).map(m => mianziStr(immef.decodeMeldCompact(m)));
 }
 
-export { CALLOUT, KAN_TYPES, KIND_OF_MELD, SAY_OF_MELD, dirMark, isPonOf, ponDigits, kanDigits, mianziStr, meldStrsFrom };
+export { CALLOUT, DIR, KAN_TYPES, KIND_OF_MELD, SAY_OF_MELD, dirMark, isPonOf, ponDigits, kanDigits, mianziStr, meldStrsFrom };

@@ -1,0 +1,355 @@
+@use "theme" as *;
+
+$portrait-stage-height: $table-height + $touch-gear-size + 2 * $hud-inset;
+$short-landscape: "screen and (height <= 450px) and (orientation: landscape)";
+$info-line: 1.35em;
+
+body.board.replay {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+
+    > #board {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0;
+
+        .he .dapai .pai.dapai {
+            box-shadow:
+                0 0 0 3px $accent,
+                0 0 12px 4px $accent;
+        }
+    }
+
+    > .replay-controls {
+        flex: none;
+        width: auto;
+        margin: 0;
+    }
+}
+
+.replay-controls {
+    display: grid;
+    grid-template-areas:
+        "info"
+        "buttons";
+    justify-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: $dialog-background;
+    border-top: solid 1px $dialog-border;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-touch-callout: none;
+
+    button {
+        min-height: 44px;
+        border: solid 1px $accent;
+        border-radius: 6px;
+        background: transparent;
+        color: $accent;
+        font-family: $menu-font;
+        cursor: pointer;
+
+        @media (hover: hover) {
+            &:hover:not(:disabled) {
+                background: $accent;
+                color: $felt;
+            }
+        }
+
+        &:focus-visible {
+            outline: solid 2px $accent;
+            outline-offset: 2px;
+        }
+
+        &:disabled {
+            border-color: $grey-600;
+            color: $grey-600;
+            cursor: default;
+        }
+    }
+}
+
+.replay-buttons {
+    display: grid;
+    grid-area: buttons;
+    grid-template-areas: "first prev-round back play next next-round last";
+    gap: 8px;
+    align-items: center;
+
+    .replay-step-button {
+        min-width: 112px;
+        padding: 8px 16px;
+        font-size: 18px;
+    }
+
+    .replay-jump {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 10px;
+        font-size: 14px;
+
+        svg {
+            flex: none;
+            width: 20px;
+            height: 20px;
+            fill: currentcolor;
+        }
+    }
+
+    .replay-first {
+        grid-area: first;
+    }
+
+    .replay-prev-round {
+        grid-area: prev-round;
+    }
+
+    .replay-back {
+        grid-area: back;
+    }
+
+    .replay-next {
+        grid-area: next;
+    }
+
+    .replay-next-round {
+        grid-area: next-round;
+    }
+
+    .replay-last {
+        grid-area: last;
+    }
+}
+
+/* Three lines of fixed height, each clipped to one line, so no position changes the strip's size. */
+.replay-position {
+    box-sizing: border-box;
+    grid-area: info;
+    width: 100%;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+    line-height: $info-line;
+    text-align: center;
+
+    p {
+        height: $info-line;
+        margin: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .replay-action {
+        font-size: 17px;
+    }
+
+    .replay-where,
+    .replay-ended {
+        font-size: 13px;
+    }
+
+    .replay-where {
+        color: $grey-400;
+    }
+
+    .replay-step::before {
+        content: " · ";
+    }
+
+    .badge {
+        margin-left: 0.5em;
+        padding: 0 0.35em;
+        border: solid 1px $accent;
+        border-radius: 3px;
+        color: $accent;
+        font-size: 0.9em;
+    }
+
+    .replay-wall-low {
+        border-color: $loss;
+        color: $loss;
+        font-weight: bold;
+    }
+
+    .replay-ended {
+        color: $accent;
+    }
+}
+
+/* Wide enough for the info beside the button cluster, B3's Play button included: the cluster centred. */
+@media (width >= 1100px) {
+    .replay-controls {
+        grid-template-areas: "info buttons .";
+        grid-template-columns: minmax(16em, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 16px;
+    }
+
+    .replay-position {
+        text-align: left;
+    }
+}
+
+/* Back and Next as the two big buttons, the jumps in a row under them. */
+@mixin two-rows {
+    width: 100%;
+    grid-template-areas:
+        "back back next next"
+        "first prev-round next-round last";
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+
+    .replay-step-button {
+        min-width: 0;
+    }
+}
+
+@media (width < 760px) {
+    .replay-buttons {
+        @include two-rows;
+    }
+}
+
+/* An upright phone's width-bound table leaves height over: the strip takes it, its info centred, its buttons below. */
+@media #{$portrait-touch} {
+    body.board.replay {
+        > #board {
+            flex: 0 1 $portrait-stage-height;
+        }
+
+        > .replay-controls {
+            flex: 1 0 auto;
+        }
+    }
+
+    .replay-controls {
+        grid-template-rows: 1fr auto;
+        gap: 24px;
+        padding: 16px 24px 24px;
+        background: $felt;
+        border-top: none;
+
+        button {
+            background: $dialog-background;
+        }
+    }
+
+    .replay-buttons {
+        @include two-rows;
+
+        gap: 16px;
+
+        .replay-step-button {
+            min-height: 96px;
+            font-size: 34px;
+        }
+
+        .replay-jump {
+            flex-direction: column;
+            min-height: 96px;
+            font-size: 22px;
+
+            .replay-caption {
+                order: 1;
+            }
+
+            svg {
+                width: 36px;
+                height: 36px;
+            }
+        }
+    }
+
+    .replay-position {
+        align-self: center;
+        padding: 16px 24px;
+        border: solid 1px $dialog-border;
+        border-radius: 6px;
+        background: $dialog-background;
+
+        .replay-action {
+            font-size: 32px;
+        }
+
+        .replay-where,
+        .replay-ended {
+            font-size: 24px;
+        }
+    }
+}
+
+/* A short landscape screen keeps the strip in a column of fixed width: its lines may wrap there. */
+@media #{$short-landscape} {
+    body.board.replay {
+        flex-direction: row;
+
+        > .replay-controls {
+            width: 184px;
+        }
+    }
+
+    .replay-controls {
+        grid-template-rows: 1fr auto;
+        align-content: center;
+        gap: 8px;
+        padding: 8px;
+        border-top: none;
+        border-left: solid 1px $dialog-border;
+    }
+
+    .replay-buttons {
+        width: 100%;
+        grid-template:
+            "back back back back" auto
+            "next next next next" auto
+            "first prev-round next-round last" auto
+            / minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 6px;
+
+        .replay-step-button {
+            min-width: 0;
+            padding: 8px;
+        }
+
+        .replay-jump {
+            min-height: 44px;
+            padding: 0;
+        }
+
+        .replay-caption {
+            display: none;
+        }
+    }
+
+    .replay-position {
+        align-self: center;
+
+        p {
+            height: auto;
+            white-space: normal;
+        }
+
+        .replay-action {
+            font-size: 14px;
+        }
+
+        .replay-where,
+        .replay-ended {
+            font-size: 12px;
+        }
+
+        .replay-step,
+        .replay-wall-low {
+            display: block;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        .replay-step::before {
+            content: none;
+        }
+    }
+}

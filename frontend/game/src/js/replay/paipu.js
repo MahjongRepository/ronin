@@ -21,6 +21,16 @@ export const POSITION = Object.freeze({
     SILENT: "silent",
 });
 
+/** A paipu message's kind: zimo, dapai, fulou, hule, … */
+export function kindOf(message) {
+    return Object.keys(message)[0];
+}
+
+/** The seat of a paipu seat index `l`, counted from the round's dealer. */
+export function seatOfL(l, dealer) {
+    return (dealer + l) % SEATS;
+}
+
 /** A replay line the converter cannot read; `line` is its 1-based line in the replay file. */
 export class MalformedReplayError extends Error {
     constructor(line, message, options) {
@@ -36,6 +46,22 @@ function dealtPlayer(roundStart, seat) {
         throw new Error(`round_started has no player in seat ${seat}`);
     }
     return player;
+}
+
+/** The winds whose fourth round is all last (オーラス): the game's last scheduled wind, and its sudden-death extension's. */
+const LAST_WINDS = Object.freeze({
+    [wire.GAME_TYPE.TONPUSEN]: [0, 1],
+    [wire.GAME_TYPE.HANCHAN]: [1, 2],
+});
+
+/**
+ * Whether the round is all last (オーラス) under the recorded game type: the fourth round of the game's last scheduled
+ * wind or of its sudden-death extension. Read from the game type, never from what was played next, so a truncated
+ * game's last round is not flagged by accident.
+ */
+function isFinalRound(gameType, roundStart, qijia) {
+    const number = (roundStart.dl - qijia + SEATS) % SEATS;
+    return number === SEATS - 1 && LAST_WINDS[gameType].includes(roundStart.w);
 }
 
 function dealMessage(roundStart, qijia) {
@@ -155,7 +181,7 @@ class SeatState {
  * after it starts past them.
  */
 class RoundBuilder {
-    constructor(roundStart, qijia) {
+    constructor(roundStart, qijia, gameType) {
         this.dealer = roundStart.dl;
         this.seats = Array.from(
             { length: SEATS },
@@ -167,6 +193,7 @@ class RoundBuilder {
             dealer: roundStart.dl,
             honba: roundStart.h,
             sticks: roundStart.r,
+            final: isFinalRound(gameType, roundStart, qijia),
         };
         this.log = [dealMessage(roundStart, qijia)];
         this.positions = [];
@@ -297,6 +324,9 @@ class ReplayBuilder {
             this.ai[player.s] = Boolean(player.ai);
         }
         this.qijia = gameStarted.dl;
+        if (!Object.hasOwn(LAST_WINDS, gameStarted.gt)) {
+            throw new Error(`unknown game type ${gameStarted.gt}`);
+        }
         this.gameType = gameStarted.gt;
         this.rounds = [];
         this.round = null;
@@ -337,7 +367,7 @@ class ReplayBuilder {
         if (this.round !== null) {
             throw new Error("round started before the previous round ended");
         }
-        this.round = new RoundBuilder(roundStart, this.qijia);
+        this.round = new RoundBuilder(roundStart, this.qijia, this.gameType);
     }
 
     closeRound(roundEnd) {
