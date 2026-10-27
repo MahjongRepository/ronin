@@ -98,14 +98,20 @@ function resultParts(message, nameOf) {
     return [`${nameOf(l)}: ron ${points(defen)} ← ${nameOf(baojia)}`];
 }
 
-function messageParts(message, nameOf) {
+/** A draw names its tile only where the table shows it: the viewpoint's own, or any while every hand is open. */
+function drawParts(body, nameOf, tileShown, from = []) {
+    const tile = tileShown(body.l) ? [" ", tileName(body.p)] : [];
+    return [`${nameOf(body.l)}: draws`, ...tile, ...from];
+}
+
+function messageParts(message, nameOf, tileShown) {
     const kind = kindOf(message);
     const body = message[kind];
     switch (kind) {
         case "zimo":
-            return [`${nameOf(body.l)}: draws `, tileName(body.p)];
+            return drawParts(body, nameOf, tileShown);
         case "gangzimo":
-            return [`${nameOf(body.l)}: draws `, tileName(body.p), " from the dead wall"];
+            return drawParts(body, nameOf, tileShown, [" from the dead wall"]);
         case "dapai":
             return discardParts(body, nameOf);
         case "fulou":
@@ -119,12 +125,14 @@ function messageParts(message, nameOf) {
 /**
  * The last action of the position the viewer `state` stands at, as English strings and `{ ja }` Japanese parts:
  * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result names the win its dialog shows (a double ron's page);
- * the standings, and silent records at a truncated end, name nothing.
+ * the standings, and silent records at a truncated end, name nothing. With opponents' hands hidden, their draws keep
+ * their tiles hidden too.
  */
-export function lastAction(replay, { round: roundIndex, step, page }) {
+export function lastAction(replay, { round: roundIndex, step, page, seat, openHands }) {
     const round = replay.rounds[roundIndex];
     const position = round.positions[step];
     const nameOf = (l) => replay.players[seatOfL(l, round.dealer)];
+    const tileShown = (l) => openHands || seatOfL(l, round.dealer) === seat;
     switch (position.kind) {
         case POSITION.SUMMARY:
         case POSITION.SILENT:
@@ -134,6 +142,6 @@ export function lastAction(replay, { round: roundIndex, step, page }) {
         case POSITION.RESULT:
             return resultParts(round.log[position.end - 1 + page], nameOf);
         default:
-            return messageParts(round.log[position.end - 1], nameOf);
+            return messageParts(round.log[position.end - 1], nameOf, tileShown);
     }
 }

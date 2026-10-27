@@ -1,5 +1,6 @@
 import $ from "jquery";
 
+import { withoutBlockedPlayback } from "../game-audio.js";
 import { GAME_PREF_KEY } from "../game-prefs.js";
 import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
@@ -95,11 +96,11 @@ class ReplaySettings extends Majiang.UI.GameCtl {
 
 /**
  * The board drawing the replay from the recorded first dealer's seat, every hand open unless the viewer chose to hide
- * opponents' hands, with the sound setting.
+ * opponents' hands, with the sound setting; a sound the browser blocks before the first gesture is skipped.
  */
-function buildBoard(replay, stage) {
+function buildBoard(replay, stage, prefs) {
     const pai = Majiang.UI.pai($("#loaddata"));
-    const audio = Majiang.UI.audio($("#loaddata"));
+    const audio = withoutBlockedPlayback(Majiang.UI.audio($("#loaddata")));
     const model = new Majiang.Board({
         title: "",
         player: [...replay.players],
@@ -108,7 +109,7 @@ function buildBoard(replay, stage) {
     const root = $("> .board", stage);
     const view = new Majiang.UI.Board(root, pai, audio, model);
     view.viewpoint = replay.qijia;
-    view.open_shoupai = !readReplayPrefs().hideHands;
+    view.open_shoupai = !prefs.hideHands;
     new ReplaySettings(stage, GAME_PREF_KEY, view);
     $(".controller .sound", stage).attr("title", "音声");
     $(".autoplay, .player-button, .timer", stage).remove();
@@ -117,7 +118,8 @@ function buildBoard(replay, stage) {
 
 function startViewer(replay) {
     const stage = $("#board");
-    const { model, view, root } = buildBoard(replay, stage);
+    const prefs = readReplayPrefs();
+    const { model, view, root } = buildBoard(replay, stage, prefs);
     const controls = new ReplayControls(replay);
     $("#space").remove();
     $("body").addClass("replay").append(controls.element);
@@ -126,6 +128,7 @@ function startViewer(replay) {
         view,
         model,
         root,
+        speed: prefs.speed,
         onChange: (state) => controls.show(state),
         onError: showViewerFailure,
     });

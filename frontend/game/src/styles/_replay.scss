@@ -3,7 +3,8 @@
 $portrait-stage-height: $table-height + $touch-gear-size + 2 * $hud-inset;
 $short-landscape: "screen and (height <= 450px) and (orientation: landscape)";
 $info-line: 1.35em;
-$options-toggle-width: 136px;
+$options-toggle-width: 200px;
+$play-width: 120px;
 
 body.board.replay {
     display: flex;
@@ -160,6 +161,28 @@ body.board.replay {
         grid-area: back;
     }
 
+    /* Wide enough for either face, so swapping Play and Pause never shifts the cluster; filled while autoplay runs. */
+    .replay-play {
+        display: flex;
+        grid-area: play;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-width: $play-width;
+
+        &.replay-playing {
+            background: $accent;
+            color: $felt;
+        }
+
+        svg {
+            flex: none;
+            width: 1em;
+            height: 1em;
+            fill: currentcolor;
+        }
+    }
+
     .replay-next {
         grid-area: next;
     }
@@ -191,8 +214,12 @@ body.board.replay {
     text-overflow: ellipsis;
 }
 
-.replay-options-chevron {
+/* The speed and the chevron stay together, beside the seat or, where the strip is narrow, under it. */
+.replay-options-tail {
+    display: flex;
     flex: none;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 /*
@@ -230,7 +257,7 @@ body.board.replay {
     cursor: pointer;
 }
 
-.replay-seat,
+.replay-select,
 .replay-hide-hands {
     &:focus-visible {
         outline: solid 2px $accent;
@@ -239,7 +266,7 @@ body.board.replay {
 }
 
 /* Drawn by the page, caret included: WebKit's own select ignores the colours and loses its text on the dark strip. */
-.replay-seat {
+.replay-select {
     min-width: 0;
     max-width: 16em;
     min-height: 36px;
@@ -339,10 +366,10 @@ body.board.replay {
 }
 
 /*
- * Wide enough for the info and the options beside the button cluster, B3's Play button included: the cluster centred.
- * A short landscape screen of that width keeps its strip in a column.
+ * Wide enough for the info and the options beside the button cluster, its step buttons a little narrower: the cluster
+ * centred. A short landscape screen of that width keeps its strip in a column.
  */
-@media (width >= 1100px) and (height > 450px) {
+@media (width >= 1200px) and (height > 450px) {
     .replay-controls {
         grid-template-areas: "info buttons options";
         grid-template-columns: minmax(16em, 1fr) auto minmax(0, 1fr);
@@ -364,23 +391,27 @@ body.board.replay {
 
     @include options-beside-info;
 
+    .replay-buttons .replay-step-button:not(.replay-play) {
+        min-width: 100px;
+    }
+
     .replay-option {
         min-height: 30px;
     }
 
-    .replay-seat {
+    .replay-select {
         min-height: 30px;
         padding-block: 2px;
     }
 }
 
-/* Back and Next as the two big buttons, the jumps in a row under them. */
+/* Back, Play and Next as the three big buttons, the four jumps in a row under them. */
 @mixin two-rows {
     width: 100%;
     grid-template-areas:
-        "back back next next"
-        "first prev-round next-round last";
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+        "back back back back play play play play next next next next"
+        "first first first prev-round prev-round prev-round next-round next-round next-round last last last";
+    grid-template-columns: repeat(12, minmax(0, 1fr));
 
     .replay-step-button {
         min-width: 0;
@@ -457,7 +488,7 @@ body.board.replay {
         min-height: 64px;
     }
 
-    .replay-seat {
+    .replay-select {
         flex: 1 1 auto;
         max-width: none;
         min-height: 64px;
@@ -535,8 +566,12 @@ body.board.replay {
         border-left: solid 1px $dialog-border;
     }
 
+    /* Too narrow for the seat and the speed on one line: the speed wraps under the seat rather than cut it. */
     .replay-controls .replay-options-toggle {
+        flex-wrap: wrap;
         justify-self: stretch;
+        row-gap: 0;
+        padding-block: 4px;
     }
 
     .replay-options {
@@ -544,22 +579,24 @@ body.board.replay {
         align-items: stretch;
         align-self: stretch;
         justify-content: center;
+        gap: 4px;
         width: 100%;
         font-size: 12px;
     }
 
     .replay-option {
-        min-height: 36px;
+        min-height: 32px;
         white-space: normal;
     }
 
-    .replay-option-seat {
+    .replay-option-seat,
+    .replay-option-speed {
         flex-direction: column;
         align-items: stretch;
         gap: 2px;
     }
 
-    .replay-seat {
+    .replay-select {
         max-width: none;
         font-size: 16px;
     }
@@ -567,15 +604,16 @@ body.board.replay {
     .replay-buttons {
         width: 100%;
         grid-template:
-            "back back back back" auto
-            "next next next next" auto
+            "back back next next" auto
+            "play play play play" auto
             "first prev-round next-round last" auto
             / minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
         gap: 6px;
 
         .replay-step-button {
             min-width: 0;
-            padding: 8px;
+            padding: 8px 4px;
+            font-size: 16px;
         }
 
         .replay-jump {
@@ -588,8 +626,9 @@ body.board.replay {
         }
     }
 
+    /* Held at the top of its cell, so a line that appears or wraps (a low wall, a long action) never moves the rest. */
     .replay-position {
-        align-self: center;
+        align-self: start;
 
         p {
             height: auto;

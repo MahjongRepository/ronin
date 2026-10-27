@@ -3,6 +3,7 @@
 import $ from 'jquery';
 import { finishLoading } from './loading.js';
 import { GAME_PREF_KEY } from './game-prefs.js';
+import { withoutBlockedPlayback } from './game-audio.js';
 
 import Shadow from './ronin/shadow.js';
 import Translate from './ronin/translate.js';
@@ -13,21 +14,6 @@ import RoninSession from './ronin/session.js';
 import wire from './ronin/wire.js';
 
 const { scale } = Majiang.UI.Util;
-
-/**
- * A sound the browser refuses to autoplay before the page's first user gesture (a page reloaded mid-game) is skipped
- * instead of rejecting unhandled.
- */
-function withoutBlockedPlayback(loadAudio) {
-    return name => {
-        const sound = loadAudio(name);
-        const play = sound.play.bind(sound);
-        sound.play = () => play().catch(error => {
-            if (error.name != 'NotAllowedError') throw error;
-        });
-        return sound;
-    };
-}
 
 export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
 

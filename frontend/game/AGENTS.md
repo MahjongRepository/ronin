@@ -191,11 +191,19 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   screen), and the table is fitted to the stage with `fitToStage` whenever the layout resizes it, so
   they never cover the table. On an upright phone the width-bound table leaves height over, which
   the strip takes rather than the felt: its info in the middle, its buttons at the bottom. Back and
-  Next repeat while held and stop at a result. The all-last flag (オーラス) marks the fourth round of
-  the game type's last scheduled wind or of its sudden-death extension, read from the recorded game
-  type, never from what was played after it, so a truncated game's last round is not flagged. The settings gear keeps
-  the live game's sound switch, its one stored setting and Escape closing its menu, but not the live game's sound key:
-  the replay's keys are its own. A replay that cannot be shown replaces the board with a message and links back.
+  Next repeat while held and stop at a result. Play is the viewer's own autoplay, on its own timers:
+  it steps at once, then as Next does at the stored speed, a draw at half of it, the deal and a
+  position with callouts for as long as they need. It pauses at each win's dialog once the dialog is
+  fully shown, never cutting the win's callouts short, and at the end; Play on a result pages to its
+  next win or moves on, and so does 次へ where autoplay paused itself. Any other move pauses it, as
+  does hiding the page; a change of viewpoint or of the hands shown plays on. The speed is kept with
+  the hidden-hands choice. A sound the browser blocks before the page's first gesture is skipped
+  (`game-audio.js`, shared with the live game), never left an unhandled rejection. The all-last flag
+  (オーラス) marks the fourth round of the game type's last scheduled wind or of its sudden-death
+  extension, read from the recorded game type, never from what was played after it, so a truncated
+  game's last round is not flagged. The settings gear keeps the live game's sound switch, its one
+  stored setting and Escape closing its menu, but not the live game's sound key: the replay's keys
+  are its own. A replay that cannot be shown replaces the board with a message and links back.
   `src/js/replay/` converts replay files into paipu with `src/js/ronin/`'s pure helpers, never the
   live shadow; `src/js/ronin/` never imports `src/js/replay/`. The live client and the converter build
   round results with the same builders (`results.js`).

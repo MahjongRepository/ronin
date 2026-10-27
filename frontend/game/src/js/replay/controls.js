@@ -3,6 +3,7 @@ import $ from "jquery";
 import { lastAction, roundName, seatName } from "./describe.js";
 import { POSITION } from "./paipu.js";
 import { writeReplayPrefs } from "./prefs.js";
+import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "./speeds.js";
 
 /** Holding Back or Next steps again after this long, then every HOLD_REPEAT_MS: fast to skim, slow enough to follow. */
 export const HOLD_DELAY_MS = 350;
@@ -58,6 +59,18 @@ const JUMPS = Object.freeze([
     },
 ]);
 
+/** The Play button's two faces: it starts autoplay, and while autoplay runs it pauses it. */
+const PLAY = Object.freeze({
+    text: "Play",
+    title: "Play (pauses at each result)",
+    icon: { polygons: ["6,4 6,20 20,12"] },
+});
+const PAUSE = Object.freeze({
+    text: "Pause",
+    title: "Pause",
+    icon: { polygons: ["6,5 10,5 10,19 6,19", "14,5 18,5 18,19 14,19"] },
+});
+
 const STEPS = Object.freeze({
     back: { move: (viewer) => viewer.back(), canMove: (state) => state.canBack },
     next: { move: (viewer) => viewer.next(), canMove: (state) => state.canNext },
@@ -101,6 +114,24 @@ function stepButton(name, text, arrow, arrowFirst) {
         .append(arrowFirst ? [glyph, ` ${text}`] : [`${text} `, glyph]);
 }
 
+function playButton() {
+    return $('<button type="button" class="replay-step-button replay-play">');
+}
+
+/** The Play button's face for `playing`: filled, and offering to pause, while autoplay runs. */
+function showPlayFace(button, playing) {
+    const face = playing ? PAUSE : PLAY;
+    button
+        .attr({ "aria-label": face.text, title: face.title })
+        .toggleClass("replay-playing", playing)
+        .empty()
+        .append(icon(face.icon), $("<span>").text(face.text));
+}
+
+function speedName(speed) {
+    return speed[0].toUpperCase() + speed.slice(1);
+}
+
 /** The info: the last action (the one live region) above the round and step, and a line for the early end. */
 function infoMarkup() {
     return $('<div class="replay-position">').append(
@@ -115,14 +146,22 @@ function infoMarkup() {
     );
 }
 
-/** The secondary choices: the seat at the bottom of the table and whether opponents' hands are hidden. */
+/** The secondary choices: the seat at the bottom of the table, autoplay's speed and whether opponents' hands are hidden. */
 function optionsMarkup() {
     return $(`<div class="replay-options" id="${OPTIONS_ID}" role="group">`)
         .attr("aria-label", "Replay options")
         .append(
             $('<label class="replay-option replay-option-seat">').append(
                 $("<span>").text("View from"),
-                $('<select class="replay-seat">'),
+                $('<select class="replay-select replay-seat">'),
+            ),
+            $('<label class="replay-option replay-option-speed">').append(
+                $("<span>").text("Speed"),
+                $('<select class="replay-select replay-speed">').append(
+                    Object.keys(AUTOPLAY_SPEEDS).map((speed) =>
+                        $("<option>").val(speed).text(speedName(speed)),
+                    ),
+                ),
             ),
             $('<label class="replay-option">').append(
                 $('<input type="checkbox" role="switch" class="replay-hide-hands">'),
@@ -131,13 +170,16 @@ function optionsMarkup() {
         );
 }
 
-/** Opens the options in the info's place where the strip has no room for both; it names the seat viewed from. */
+/** Opens the options in the info's place where the strip has no room for both; it names the seat viewed from and the speed. */
 function optionsToggle() {
     return $('<button type="button" class="replay-options-toggle" aria-expanded="false">')
         .attr({ "aria-controls": OPTIONS_ID, title: "Replay options" })
         .append(
             $('<span class="replay-options-view">'),
-            $('<span class="replay-options-chevron" aria-hidden="true">').text("▾"),
+            $('<span class="replay-options-tail">').append(
+                $('<span class="replay-options-speed">'),
+                $('<span class="replay-options-chevron" aria-hidden="true">').text("▾"),
+            ),
         );
 }
 
@@ -179,13 +221,15 @@ function setEnabled(button, enabled, neighbours) {
 }
 
 /**
- * The replay's control strip: first, previous round, Back, Next, next round and last, the position's info (the last
- * action, the round with its all-last flag, the step, a low-wall warning) and the replay options (the viewpoint seat,
- * hiding opponents' hands), beside the buttons on a wide screen and behind a toggle elsewhere. Back and Next step once
- * per press and repeat while held, stopping at a result or where they can go no further.
+ * The replay's control strip: first, previous round, Back, Play, Next, next round and last, the position's info (the
+ * last action, the round with its all-last flag, the step, a low-wall warning) and the replay options (the viewpoint
+ * seat, autoplay's speed, hiding opponents' hands), beside the buttons on a wide screen and behind a toggle elsewhere.
+ * Back and Next step once per press and repeat while held, stopping at a result or where they can go no further; Play
+ * starts and pauses the viewer's autoplay.
  */
 export class ReplayControls {
     #holdTimer = null;
+    #holding = false;
     #pressed = new Set();
 
     constructor(replay) {
@@ -193,20 +237,31 @@ export class ReplayControls {
         this.viewer = null;
         this.buttons = {
             back: stepButton("back", "Back", "◀", true),
+            play: playButton(),
             next: stepButton("next", "Next", "▶", false),
             ...Object.fromEntries(JUMPS.map((jump) => [jump.name, jumpButton(jump)])),
         };
-        const { first, prevRound, back, next, nextRound, last } = this.buttons;
+        const { first, prevRound, back, play, next, nextRound, last } = this.buttons;
         this.optionsToggle = optionsToggle();
         this.element = $('<nav class="replay-controls" aria-label="Replay" lang="en">').append(
             infoMarkup(),
-            $('<div class="replay-buttons">').append(first, prevRound, back, next, nextRound, last),
+            $('<div class="replay-buttons">').append(
+                first,
+                prevRound,
+                back,
+                play,
+                next,
+                nextRound,
+                last,
+            ),
             this.optionsToggle,
             optionsMarkup(),
         );
         this.action = $(".replay-action", this.element);
         this.seat = $(".replay-seat", this.element);
         this.hideHands = $(".replay-hide-hands", this.element);
+        this.speed = $(".replay-speed", this.element);
+        this.shownPlaying = null;
         this.seatsRound = null;
         this.shownPosition = null;
     }
@@ -217,6 +272,9 @@ export class ReplayControls {
         for (const jump of JUMPS) {
             this.buttons[jump.name].on("click", () => jump.move(viewer));
         }
+        this.buttons.play.on("click", () =>
+            viewer.state.playing ? viewer.pause() : viewer.play(),
+        );
         for (const [name, step] of Object.entries(STEPS)) {
             this.bindHold(name, step);
         }
@@ -233,13 +291,20 @@ export class ReplayControls {
     }
 
     /**
-     * The options change the view at the position shown; the hidden-hands choice is remembered for later replays. Where
-     * they open in the info's place, a seat change, Escape or any move closes them, so the info shows again.
+     * The options change the view at the position shown or autoplay's pace; the speed and the hidden-hands choice are
+     * remembered for later replays. Where they open in the info's place, a seat or speed change, Escape or any move but
+     * autoplay's closes them, so the info shows again.
      */
     bindOptions(viewer) {
         this.optionsToggle.on("click", () => this.setOptionsOpen(!this.optionsOpen));
         this.seat.on("change", () => {
             viewer.setViewpoint(Number(this.seat.val()));
+            this.setOptionsOpen(false);
+        });
+        this.speed.on("change", () => {
+            const speed = this.speed.val();
+            writeReplayPrefs({ speed });
+            viewer.setSpeed(speed);
             this.setOptionsOpen(false);
         });
         this.hideHands.on("change", () => {
@@ -306,10 +371,10 @@ export class ReplayControls {
         });
     }
 
-    /** Hold the live region while repeating, so a screen reader announces where the hold ends rather than every step. */
     startHold(step) {
         this.stopHold();
-        this.action.attr("aria-busy", "true");
+        this.#holding = true;
+        this.showBusy(this.viewer.state);
         this.holdStep(step, HOLD_DELAY_MS);
     }
 
@@ -327,26 +392,48 @@ export class ReplayControls {
     stopHold() {
         clearTimeout(this.#holdTimer);
         this.#holdTimer = null;
-        this.action.removeAttr("aria-busy");
+        this.#holding = false;
+        if (this.viewer !== null) {
+            this.showBusy(this.viewer.state);
+        }
+    }
+
+    /**
+     * Hold the live region while Back or Next repeats and while autoplay runs faster than slow, so a screen reader
+     * announces where they stop rather than every step.
+     */
+    showBusy(state) {
+        const busy = this.#holding || (state.playing && state.speed !== AUTOPLAY_SPEED.SLOW);
+        if (busy) {
+            this.action.attr("aria-busy", "true");
+        } else {
+            this.action.removeAttr("aria-busy");
+        }
     }
 
     /** Show the viewer's `state`: the buttons it allows and the position's info. */
     show(state) {
-        const { first, prevRound, back, next, nextRound, last } = this.buttons;
+        const { first, prevRound, back, play, next, nextRound, last } = this.buttons;
         const all = Object.values(this.buttons);
         setEnabled(first, state.canBack, all);
         setEnabled(prevRound, state.canBack, all);
         setEnabled(back, state.canBack, [next, ...all]);
+        setEnabled(play, state.playing || state.canNext, [back, ...all]);
         setEnabled(next, state.canNext, [back, ...all]);
         setEnabled(nextRound, state.canNextRound, all);
         setEnabled(last, !state.atEnd, all);
+        if (this.shownPlaying !== state.playing) {
+            this.shownPlaying = state.playing;
+            showPlayFace(play, state.playing);
+        }
+        this.showBusy(state);
         this.showInfo(state);
         this.showOptions(state);
     }
 
     /**
-     * The seats as the shown round names them, the viewpoint's selected, and the hidden-hands switch; a move to another
-     * position closes the options.
+     * The seats as the shown round names them, the viewpoint's selected, the speed and the hidden-hands switch; a move to
+     * another position closes the options, unless autoplay made it.
      */
     showOptions(state) {
         if (this.seatsRound !== state.round) {
@@ -360,14 +447,18 @@ export class ReplayControls {
             this.seatsRound = state.round;
         }
         this.seat.val(String(state.seat));
+        this.speed.val(state.speed);
         this.hideHands.prop("checked", !state.openHands);
         $(".replay-options-view", this.optionsToggle).text(
             `View: ${this.replay.players[state.seat]}`,
         );
+        $(".replay-options-speed", this.optionsToggle).text(` · ${speedName(state.speed)}`);
         const position = `${state.round}/${state.step}/${state.page}`;
         if (position !== this.shownPosition) {
             this.shownPosition = position;
-            this.setOptionsOpen(false);
+            if (!state.playing) {
+                this.setOptionsOpen(false);
+            }
         }
     }
 
