@@ -663,11 +663,13 @@ class Translate {
 
         const pst = {};
         const discards = {};
+        const riichiPending = {};
         for (const st of msg.pst || []) {
             pst[st.s] = st;
             s.scores[st.s] = st.sc * wire.SCORE_DIV;
-            s.riichi[st.s] = !!st.ri;
             discards[st.s] = st.dsc || [];
+            riichiPending[st.s] = !! discards[st.s].at(-1)?.rd && ! st.ri;
+            s.riichi[st.s] = !! st.ri || riichiPending[st.s];
         }
         const meldsBySeat = {};
         for (let seat = 0; seat < 4; seat++) {
@@ -739,7 +741,7 @@ class Translate {
                     const m = { dapai: { p, l } };
                     this.feed(m, 'dapai');
                     s.logMessage(m);
-                    /* the snapshot scores already hold the riichi deposits */
+                    /* a replayed meld or draw must not deposit it: the end of the replay settles the deposit */
                     if (d.rd) P._model._lizhi = false;
                 }
                 for (let c = 0; c < 4; c++) {
@@ -785,8 +787,9 @@ class Translate {
         /* the replay ends on the last seat replayed, but a call on the pending discard marks its discarder's river */
         P._model.lunban = s.l(msg.cp);
 
-        /* the snapshot scores already hold the riichi deposits */
-        P._model._lizhi = false;
+        /* the scores hold every deposit but a pending riichi's: its discard is in its call window, or a ron,
+           triple ron or four winds voided it; the board keeps its stick off until the next turn deposits it */
+        P._model._lizhi = !! riichiPending[msg.cp];
 
         this.syncWall();
 

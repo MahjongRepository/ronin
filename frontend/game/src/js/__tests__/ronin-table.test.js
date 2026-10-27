@@ -1642,6 +1642,97 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(model.he[1]._pai.at(-1)).toBe("p8-");
     });
 
+    const riichiSnapshot = (river, fields = {}) =>
+        snapshot({
+            cp: 3,
+            tr: 66,
+            pst: [0, 1, 2, 3].map((s) => ({
+                s,
+                sc: 250,
+                dsc: [{ ti: river[s], rd: s === 3 }],
+                ml: [],
+                ri: false,
+                tc: 13,
+            })),
+            ...fields,
+        });
+    const riichiSticksShown = () => $("#board .board > .he .chouma:not(.hide)").length;
+
+    it.each([
+        [
+            "a ron on it voids",
+            {
+                t: 4,
+                rt: 1,
+                ws: 2,
+                ls: 3,
+                wt: 18,
+                hr: { han: 1, fu: 30, yk: [{ yi: 1, han: 1 }], pt: 10 },
+                sch: { 0: 0, 1: 0, 2: 10, 3: -10 },
+                rc: 0,
+                ct: [1, 5, 10, 56, 60, 84, 88, 92, 96, 100, 104, 116, 117],
+                ml: [],
+                wi: 9,
+            },
+            { stick: 0, defen: 25000, lizhibang: 0 },
+        ],
+        [
+            "the next draw deposits",
+            draw(0, 100, { wi: 9 }),
+            { stick: 1, defen: 24000, lizhibang: 1 },
+        ],
+    ])(
+        "shows no stick for a riichi discard still in its call window after a reconnect, until %s it",
+        (_, next, expected) => {
+            const { table } = startTableOnPage();
+            table.translate.reconnect(riichiSnapshot([120, 124, 128, 18]));
+            expect(riichiSticksShown()).toBe(0);
+
+            table.receive(next);
+            const model = table.player.model;
+            expect({
+                stick: riichiSticksShown(),
+                defen: model.defen[3],
+                lizhibang: model.lizhibang,
+            }).toEqual(expected);
+        },
+    );
+
+    it("keeps the seat's hand locked in riichi after a reconnect during its own riichi discard's call window", () => {
+        const table = startTable();
+        table.translate.reconnect(
+            snapshot({
+                cp: 0,
+                tr: 69,
+                pst: [0, 1, 2, 3].map((s) => ({
+                    s,
+                    sc: 250,
+                    dsc: s === 0 ? [{ ti: 120, rd: true }] : [],
+                    ml: [],
+                    ri: false,
+                    tc: 13,
+                })),
+            }),
+        );
+        table.receive(discard(1, 124));
+        table.receive(discard(2, 128));
+        table.receive(discard(3, 132));
+        table.receive(draw(0, 100, { wi: 8 }));
+
+        expect(table.player.get_dapai(table.player.model.shoupai[0])).toEqual(["s8_"]);
+    });
+
+    it("shows no stick for a riichi discard that ended the round in four winds after a reconnect during the round advance", () => {
+        const { table } = startTableOnPage();
+        table.translate.reconnect(
+            riichiSnapshot([120, 121, 122, 123], {
+                re: { rt: 4, rn: "four_winds", sch: { 0: 0, 1: 0, 2: 0, 3: 0 } },
+            }),
+        );
+
+        expect(riichiSticksShown()).toBe(0);
+    });
+
     it("seeds the final standings with the rounds before a reconnect, every double ron winner marked, so each column adds up to its final score", () => {
         const table = startTable(BASE_HAND, {}, { gt: 1 });
         table.translate.reconnect({
