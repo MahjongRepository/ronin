@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="app-version" content="{{ app_version | default('dev') }}">
     <meta name="git-commit" content="{{ git_commit | default('dev') }}">
-    <title>{% block title %}Ronin - Mahjong{% endblock %}</title>
+    <title>{% block title %}Ronin Mahjong{% endblock %}</title>
     <link rel="icon" type="image/png" href="/static/favicon.png">
     <link rel="apple-touch-icon" type="image/png" href="/static/favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,22 +21,28 @@
     {% endblock %}
 </head>
 <body>
-    <nav class="container lobby-nav">
+    {% set current_path = request.url.path if request is defined else "" %}
+    <nav class="container lobby-nav" aria-label="Main">
         <ul>
             <li><a href="/" class="lobby-brand"><span class="lobby-logo" role="img" aria-label="Ronin logo"></span>Ronin</a></li>
-            <li><a href="/history" class="lobby-nav-link">History</a></li>
+            {% if username %}
+            <li><a href="/history" class="lobby-nav-link"{% if current_path == "/history" %} aria-current="page"{% endif %}>History</a></li>
+            {% endif %}
         </ul>
-        {% if username %}
         <ul>
-            <li class="lobby-username">{{ username }}</li>
+            {% if username %}
+            <li class="lobby-username" title="{{ username }}">{{ username }}</li>
             <li>
                 <form method="POST" action="/logout">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="outline contrast lobby-nav-btn">Logout</button>
+                    <button type="submit" class="outline secondary lobby-small-btn">Log out</button>
                 </form>
             </li>
+            {% else %}
+            <li><a href="/login" class="lobby-nav-link"{% if current_path == "/login" %} aria-current="page"{% endif %}>Log in</a></li>
+            <li><a href="/register" role="button" class="outline lobby-small-btn"{% if current_path == "/register" %} aria-current="page"{% endif %}>Register</a></li>
+            {% endif %}
         </ul>
-        {% endif %}
     </nav>
     <main class="container">
         {% block content %}{% endblock %}
@@ -45,9 +51,9 @@
         <div class="footer-content">
             <small class="footer-meta">&copy; {{ current_year }} Ronin &middot; v{{ app_version | default('dev') }}</small>
             {% if dev_mode %}
-            <nav class="footer-dev-links">
-                <a href="/storybook">Lobby Storybook</a>
-                <a href="/play/storybook">Game Storybook</a>
+            <nav class="footer-dev-links" aria-label="Developer">
+                <a href="/storybook">Lobby storybook</a>
+                <a href="/play/storybook">Game storybook</a>
             </nav>
             {% endif %}
         </div>

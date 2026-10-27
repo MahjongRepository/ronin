@@ -1,118 +1,363 @@
 {% extends "base.html" %}
 
-{% block title %}Style Guide - Ronin Mahjong{% endblock %}
+{% block title %}Lobby storybook · Ronin Mahjong{% endblock %}
 
 {% block content %}
-<h1>Style Guide</h1>
+<h1 class="storybook-title">Lobby storybook</h1>
 
-<!-- Typography -->
-<section>
-    <h2>Typography</h2>
-    <h1>Heading 1 - Ronin Mahjong</h1>
-    <h2>Heading 2 - Section Title</h2>
-    <h3>Heading 3 - Subsection</h3>
-    <p>Body text - The quick brown fox jumps over the lazy dog.</p>
-    <p><small>Small/muted text - Used for timestamps and hints.</small></p>
-    <p><code>Monospace text - Used for room IDs and player names.</code></p>
-    <p><a href="#">Accent link - Navigational text</a></p>
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Typography</h2>
+        <small class="lobby-table-count">text roles</small>
+    </div>
+    <p>Body text: the quick brown fox jumps over the lazy dog.</p>
+    <p class="lobby-muted">Muted text (<code>.lobby-muted</code>): hints, counts and empty states.</p>
+    <p><small class="lobby-muted">Small muted text: timestamps and field rules.</small></p>
+    <p>Short id chip: <code class="lobby-room-id" title="fffd4cff-38e7-4aa9-858a-6e8e9890772b">fffd4cff</code></p>
+    <p><a href="#">Link: navigational text</a></p>
 </section>
 
-<!-- Buttons -->
-<section>
-    <h2>Buttons</h2>
-    <div role="group">
-        <button>Primary Button</button>
-        <button class="secondary">Secondary Button</button>
-        <button class="outline">Outline Button</button>
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Buttons</h2>
+        <small class="lobby-table-count">.lobby-button-row</small>
+    </div>
+    <div class="lobby-button-row">
+        <button type="button">Primary</button>
+        <button type="button" class="secondary">Secondary</button>
+        <button type="button" class="outline">Outline</button>
+        <button type="button" class="outline secondary">Outline secondary</button>
+        <button type="button" disabled>Disabled</button>
+        <a href="#" role="button" class="outline">Link as button</a>
+    </div>
+    <p class="lobby-muted storybook-caption">Small buttons (<code>.lobby-small-btn</code>): the nav and the room header.</p>
+    <div class="lobby-button-row">
+        <button type="button" class="outline secondary lobby-small-btn">Log out</button>
+        <a href="#" role="button" class="outline lobby-small-btn">Register</a>
+        <button type="button" class="outline secondary lobby-small-btn">Leave table</button>
     </div>
 </section>
 
-<!-- Form Elements -->
-<section>
-    <h2>Form Elements</h2>
-    <article>
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Alerts</h2>
+        <small class="lobby-table-count">.lobby-alert</small>
+    </div>
+    <div class="lobby-alert" role="alert">
+        <p>Wrong username or password.</p>
+    </div>
+    <div class="lobby-alert warning" role="alert">
+        <p>That table is no longer open: its game started or everyone left.</p>
+    </div>
+    <div class="lobby-alert" role="alert">
+        <p>You are searching for a match. Cancel the search first.</p>
+        <p class="lobby-alert-actions"><a href="#">Go to matchmaking</a><a href="#">Back to lobby</a></p>
+    </div>
+    <div class="lobby-alert warning" role="alert">
+        <p>The connection to the table was lost. Reload the page to rejoin.</p>
+        <p class="lobby-alert-actions"><a href="#">Reload</a><a href="#">Back to lobby</a></p>
+    </div>
+</section>
+
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Form</h2>
+        <small class="lobby-table-count">auth card</small>
+    </div>
+    <article class="auth-card storybook-auth-card">
         <form>
             <label for="sg-username">Username
-                <input type="text" id="sg-username" placeholder="Enter username">
+                <input type="text" id="sg-username" value="dev" aria-describedby="sg-username-help">
+                <small id="sg-username-help">3–30 letters, numbers or underscores.</small>
             </label>
             <label for="sg-password">Password
-                <input type="password" id="sg-password" placeholder="Enter password">
+                <input type="password" id="sg-password" placeholder="Your password">
+            </label>
+            <label for="sg-confirm">Confirm password
+                <input type="password" id="sg-confirm" value="mismatch" aria-invalid="true">
             </label>
             <button type="button">Submit</button>
         </form>
-        <p><small>Helper text with <a href="#">a link</a></small></p>
+        <p class="auth-link"><small>Helper text with <a href="#">a link</a></small></p>
     </article>
 </section>
 
-<!-- Status Messages -->
-<section>
-    <h2>Status Messages</h2>
-    <p class="error-text">This is an error message</p>
-    <div class="lobby-alert" role="alert">This is an alert banner</div>
-    <p>This is an empty state message</p>
-</section>
-
-<!-- Room Cards -->
-<section>
-    <h2>Room Cards</h2>
-    <div class="lobby-grid">
-        <div class="lobby-create-form">
-            <button type="button" class="lobby-create-btn">
-                <span class="lobby-create-icon">+</span>
-                <span class="lobby-create-label">New Table</span>
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Lobby actions</h2>
+        <small class="lobby-table-count">.lobby-action-tile</small>
+    </div>
+    <div class="lobby-actions">
+        <div class="lobby-action-form">
+            <button type="button" class="lobby-action-tile">
+                <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                <span class="lobby-action-text">
+                    <span class="lobby-action-label">Custom table</span>
+                    <span class="lobby-action-hint">Play with friends</span>
+                </span>
             </button>
         </div>
+        <a href="#" class="lobby-action-tile">
+            <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="5" r="2.25"/>
+                <circle cx="19" cy="12" r="2.25"/>
+                <circle cx="12" cy="19" r="2.25"/>
+                <circle cx="5" cy="12" r="2.25"/>
+            </svg>
+            <span class="lobby-action-text">
+                <span class="lobby-action-label">Quick match</span>
+                <span class="lobby-action-hint">Standard rules · unranked</span>
+            </span>
+        </a>
+    </div>
+</section>
 
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Table cards</h2>
+        <small class="lobby-table-count">4 open</small>
+    </div>
+    <div class="lobby-grid">
         <article class="lobby-room-card" style="--card-index: 0">
             <div class="lobby-room-header">
-                <code class="lobby-room-id">room-abc123</code>
+                <code class="lobby-room-id">abc12345</code>
                 <span class="lobby-room-count">1/4</span>
             </div>
-            <div class="lobby-table-vis">
+            <div class="lobby-table-vis" aria-hidden="true">
                 <span class="lobby-seat filled"></span>
-                <span class="lobby-seat"></span>
-                <span class="lobby-seat"></span>
-                <span class="lobby-seat"></span>
+                <span class="lobby-seat open"></span>
+                <span class="lobby-seat open"></span>
+                <span class="lobby-seat open"></span>
             </div>
-            <button type="button" class="outline lobby-join-btn">Join Table</button>
+            <p class="lobby-room-players"><span class="lobby-room-names" title="dev">dev</span><span class="lobby-room-open">· 3 seats open</span></p>
+            <button type="button" class="outline lobby-join-btn">Join table</button>
         </article>
 
         <article class="lobby-room-card" style="--card-index: 1">
             <div class="lobby-room-header">
-                <code class="lobby-room-id">room-def456</code>
-                <span class="lobby-room-count">3/4</span>
+                <code class="lobby-room-id">c0ffee42</code>
+                <span class="lobby-room-count">1/4</span>
             </div>
-            <div class="lobby-table-vis">
+            <div class="lobby-table-vis" aria-hidden="true">
                 <span class="lobby-seat filled"></span>
-                <span class="lobby-seat filled"></span>
-                <span class="lobby-seat"></span>
-                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat open"></span>
+                <span class="lobby-seat open"></span>
+                <span class="lobby-seat open"></span>
             </div>
-            <button type="button" class="outline lobby-join-btn">Join Table</button>
+            <p class="lobby-room-players"><span class="lobby-room-names" title="a_very_long_username_for_tests">a_very_long_username_for_tests</span><span class="lobby-room-open">· 3 seats open</span></p>
+            <button type="button" class="outline lobby-join-btn">Join table</button>
         </article>
 
-        <article class="lobby-room-card" style="--card-index: 2">
+        <article class="lobby-room-card lobby-room-card--mine" style="--card-index: 2">
             <div class="lobby-room-header">
-                <code class="lobby-room-id">room-xyz789</code>
+                <code class="lobby-room-id">def45678</code>
+                <span class="lobby-room-count">3/4</span>
+            </div>
+            <div class="lobby-table-vis" aria-hidden="true">
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat open"></span>
+                <span class="lobby-seat filled"></span>
+            </div>
+            <p class="lobby-room-players"><span class="lobby-room-names" title="dev, dev2, dev3">dev, dev2, dev3</span><span class="lobby-room-open">· 1 seat open</span></p>
+            <a href="#" role="button" class="lobby-join-btn">Back to your table</a>
+        </article>
+
+        <article class="lobby-room-card" style="--card-index: 3">
+            <div class="lobby-room-header">
+                <code class="lobby-room-id">xyz78901</code>
                 <span class="lobby-room-count">4/4</span>
             </div>
-            <div class="lobby-table-vis">
+            <div class="lobby-table-vis" aria-hidden="true">
                 <span class="lobby-seat filled"></span>
                 <span class="lobby-seat filled"></span>
                 <span class="lobby-seat filled"></span>
                 <span class="lobby-seat filled"></span>
             </div>
-            <span class="lobby-full-badge">Full</span>
+            <p class="lobby-room-players"><span class="lobby-room-names" title="dev, dev2, dev3, dev4">dev, dev2, dev3, dev4</span></p>
+            <span class="lobby-join-btn lobby-full-badge">Full</span>
         </article>
     </div>
 </section>
 
-<!-- Empty State -->
-<section>
-    <h2>Empty State</h2>
-    <div class="lobby-empty">
-        <p>No tables yet</p>
-        <p><small>Create one to start playing</small></p>
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Empty state</h2>
+        <small class="lobby-table-count">.lobby-empty</small>
+    </div>
+    <div class="lobby-empty lobby-muted">
+        <p class="lobby-empty-title">No custom tables open</p>
+        <p class="lobby-empty-hint">Host one, or jump into a quick match.</p>
+    </div>
+</section>
+
+{# A static copy of the room page that frontend/lobby/src/room/ui.ts renders. #}
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Table room</h2>
+        <small class="lobby-table-count">.room</small>
+    </div>
+    <div class="room">
+        <header class="room-header">
+            <h2 title="fffd4cff-38e7-4aa9-858a-6e8e9890772b">Table <code class="lobby-room-id">fffd4cff</code></h2>
+            <div class="room-header-actions">
+                <span class="connection-status status-connected" role="status">Connected</span>
+                <button type="button" class="outline secondary lobby-small-btn room-leave-btn">Leave table</button>
+            </div>
+        </header>
+        <div class="room-content">
+            <section class="room-panel room-players-panel" aria-labelledby="sb-players-title">
+                <h3 class="room-panel-title" id="sb-players-title">Players</h3>
+                <div class="room-player-list">
+                    <div class="room-player-item me">
+                        <span class="room-player-status host" role="img" title="Host" aria-label="Host"></span>
+                        <span class="room-player-name">dev</span>
+                        <span class="room-player-badge you">You</span>
+                        <span class="room-player-badge">Host</span>
+                    </div>
+                    <div class="room-player-item">
+                        <span class="room-player-status ready" role="img" title="Ready" aria-label="Ready">✓</span>
+                        <span class="room-player-name">dev2</span>
+                    </div>
+                    <div class="room-player-item">
+                        <span class="room-player-status not-ready" role="img" title="Not ready" aria-label="Not ready">○</span>
+                        <span class="room-player-name">dev3</span>
+                    </div>
+                    <div class="room-player-item open">
+                        <span class="room-player-status open" role="img" title="Open seat" aria-label="Open seat"></span>
+                        <span class="room-player-name">Open seat</span>
+                    </div>
+                </div>
+                <div class="room-action">
+                    <button type="button" class="room-start-btn" disabled aria-describedby="sb-action-hint">Start game</button>
+                    <p class="room-action-hint" id="sb-action-hint">Waiting for dev3 to get ready.</p>
+                </div>
+            </section>
+            <section class="room-panel room-chat-panel" aria-labelledby="sb-chat-title">
+                <h3 class="room-panel-title" id="sb-chat-title">Chat</h3>
+                <div class="room-chat-messages" role="log">
+                    <div class="room-chat-entry system">
+                        <span class="room-chat-time">12:04 PM</span>
+                        <span class="room-chat-text">You joined the table</span>
+                    </div>
+                    <div class="room-chat-entry system">
+                        <span class="room-chat-time">12:04 PM</span>
+                        <span class="room-chat-text">dev2 joined</span>
+                    </div>
+                    <div class="room-chat-entry">
+                        <span class="room-chat-time">12:05 PM</span>
+                        <span class="room-chat-sender">dev2</span>
+                        <span class="room-chat-text">Ready when you are.</span>
+                    </div>
+                </div>
+                <form class="room-chat-input" role="group">
+                    <input type="text" aria-label="Chat message" autocomplete="off" placeholder="Type a message…">
+                    <button type="button" class="outline">Send</button>
+                </form>
+            </section>
+        </div>
+    </div>
+</section>
+
+{# Static copies of the cards that frontend/lobby/src/matchmaking/ui.ts renders. #}
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>Matchmaking</h2>
+        <small class="lobby-table-count">.matchmaking-card</small>
+    </div>
+    <div class="storybook-specimens">
+        <div class="matchmaking-card">
+            <h2>Finding a match</h2>
+            <div class="lobby-table-vis matchmaking-seats" aria-hidden="true">
+                <span class="lobby-seat filled"></span>
+                <span class="lobby-seat waiting"></span>
+                <span class="lobby-seat waiting"></span>
+                <span class="lobby-seat waiting"></span>
+            </div>
+            <p class="matchmaking-status">1 of 4 players found</p>
+            <p class="matchmaking-hint lobby-muted">The game starts as soon as 4 players are waiting.</p>
+            <div class="lobby-button-row lobby-button-row--center matchmaking-actions">
+                <a href="#" role="button" class="secondary outline">Cancel</a>
+            </div>
+        </div>
+        <div class="matchmaking-card">
+            <h2>Matchmaking stopped</h2>
+            <div class="lobby-alert" role="alert">
+                <p>You are already seated at a table. Leave it first.</p>
+            </div>
+            <div class="lobby-button-row lobby-button-row--center matchmaking-actions">
+                <a href="#" role="button">Go to your table</a>
+                <a href="#" role="button" class="secondary outline">Back to lobby</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# A static copy of one card from history.html. #}
+<section class="lobby-section storybook-section">
+    <div class="lobby-section-header">
+        <h2>History card</h2>
+        <small class="lobby-table-count">.games-card</small>
+    </div>
+    <div class="games-list">
+        <article class="games-card">
+            <header class="games-card-header">
+                <div class="games-card-label">
+                    <span class="games-wind" aria-hidden="true">南</span>
+                    <span class="games-type">Hanchan</span>
+                </div>
+                <time class="games-time" datetime="2026-10-24T03:09:00+00:00">Oct 24, 03:09 UTC</time>
+            </header>
+            <div class="games-standings">
+                <div class="games-standings-legend" aria-hidden="true">
+                    <span>Points</span>
+                    <span>Result</span>
+                </div>
+                <div class="games-standing games-standing--winner">
+                    <span class="games-rank">1</span>
+                    <span class="games-name">dev2</span>
+                    <span class="games-score" title="Points">41,200</span>
+                    <span class="games-pts games-pts--positive" title="Result">+51</span>
+                </div>
+                <div class="games-standing games-standing--me">
+                    <span class="games-rank">2</span>
+                    <span class="games-name">dev</span>
+                    <span class="games-you">You</span>
+                    <span class="games-score" title="Points">27,900</span>
+                    <span class="games-pts games-pts--positive" title="Result">+8</span>
+                </div>
+                <div class="games-standing">
+                    <span class="games-rank">3</span>
+                    <span class="games-name">Tsumogiri Bot 1</span>
+                    <span class="games-score" title="Points">19,400</span>
+                    <span class="games-pts games-pts--negative" title="Result">-21</span>
+                </div>
+                <div class="games-standing">
+                    <span class="games-rank">4</span>
+                    <span class="games-name">Tsumogiri Bot 2</span>
+                    <span class="games-score" title="Points">11,500</span>
+                    <span class="games-pts games-pts--negative" title="Result">-38</span>
+                </div>
+            </div>
+            <footer class="games-card-footer">
+                <div class="games-meta">
+                    <span class="games-meta-tag">42m 10s</span>
+                    <span class="games-meta-tag">9 rounds</span>
+                </div>
+                <div class="games-card-actions">
+                    <span class="games-copy-status" role="status"></span>
+                    <button class="games-copy-btn" title="Copy replay link" aria-label="Copy replay link" type="button">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M11 1.5H3A1.5 1.5 0 0 0 1.5 3v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <a class="games-card-link" href="#">View replay</a>
+                </div>
+            </footer>
+        </article>
     </div>
 </section>
 {% endblock %}

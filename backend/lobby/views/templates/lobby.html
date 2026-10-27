@@ -2,56 +2,82 @@
 
 {% block content %}
 {% if error %}
-<div class="lobby-alert" role="alert">{{ error }}</div>
+<div class="lobby-alert warning" role="alert"><p>{{ error }}</p></div>
 {% endif %}
+
+{% if my_room_id %}
+<p class="lobby-seated-hint">You're seated at table <code class="lobby-room-id">{{ my_room_id[:8] }}</code>. <a href="/rooms/{{ my_room_id }}">Back to your table</a></p>
+{% endif %}
+<div class="lobby-actions{{ ' lobby-actions--seated' if my_room_id else '' }}">
+    <form method="POST" action="/rooms/new" class="lobby-action-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="lobby-action-tile lobby-create-btn">
+            <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <span class="lobby-action-text">
+                <span class="lobby-action-label">Custom table</span>
+                <span class="lobby-action-hint">Play with friends</span>
+            </span>
+        </button>
+    </form>
+
+    <a href="/matchmaking" class="lobby-action-tile">
+        <svg class="lobby-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="5" r="2.25"/>
+            <circle cx="19" cy="12" r="2.25"/>
+            <circle cx="12" cy="19" r="2.25"/>
+            <circle cx="5" cy="12" r="2.25"/>
+        </svg>
+        <span class="lobby-action-text">
+            <span class="lobby-action-label">Quick match</span>
+            <span class="lobby-action-hint">Standard rules · unranked</span>
+        </span>
+    </a>
+</div>
 
 <section class="lobby-section">
     <div class="lobby-section-header">
-        <h2>Open Tables</h2>
-        <small class="lobby-table-count">{{ rooms|length }} active</small>
+        <h2>Custom tables</h2>
+        <small class="lobby-table-count">{{ rooms|length }} open</small>
     </div>
 
+    {% if rooms %}
     <div class="lobby-grid">
-        <form method="POST" action="/rooms/new" class="lobby-create-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="lobby-create-btn">
-                <span class="lobby-create-icon">+</span>
-                <span class="lobby-create-label">New Table</span>
-            </button>
-        </form>
-
-        <a href="/matchmaking" class="lobby-matchmaking-btn">
-            <span class="lobby-matchmaking-icon">&#x25C8;</span>
-            <span class="lobby-matchmaking-label">Find Match</span>
-        </a>
-
         {% for room in rooms %}
-        <article class="lobby-room-card" style="--card-index: {{ loop.index0 }}">
+        {% set humans = room.players|rejectattr("is_bot")|list %}
+        {% set is_mine = room.room_id == my_room_id %}
+        <article class="lobby-room-card{{ ' lobby-room-card--mine' if is_mine else '' }}" style="--card-index: {{ loop.index0 }}">
             <div class="lobby-room-header">
-                <code class="lobby-room-id">{{ room.room_id[:8] }}</code>
+                <code class="lobby-room-id" title="{{ room.room_id }}">{{ room.room_id[:8] }}</code>
                 <span class="lobby-room-count">{{ room.player_count }}/4</span>
             </div>
-            <div class="lobby-table-vis">
+            <div class="lobby-table-vis" aria-hidden="true">
                 {% for player in room.players %}
-                <span class="lobby-seat {{ 'bot' if player.is_bot else 'filled' }}"></span>
+                <span class="lobby-seat {{ 'open' if player.is_bot else 'filled' }}"></span>
                 {% endfor %}
             </div>
-            {% if room.player_count < 4 %}
-            <form method="POST" action="/rooms/{{ room.room_id }}/join">
+            <p class="lobby-room-players">
+                {% if humans %}{% set names = humans|map(attribute="name")|join(", ") %}<span class="lobby-room-names" title="{{ names }}">{{ names }}</span>{% else %}<span class="lobby-room-names">Nobody seated yet</span>{% endif %}
+                {% if room.num_ai_players %}<span class="lobby-room-open">· {{ room.num_ai_players }} seat{{ 's' if room.num_ai_players != 1 else '' }} open</span>{% endif %}
+            </p>
+            {% if is_mine %}
+            <a href="/rooms/{{ room.room_id }}" role="button" class="lobby-join-btn">Back to your table</a>
+            {% elif room.player_count < 4 %}
+            <form method="POST" action="/rooms/{{ room.room_id }}/join" class="lobby-join-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="outline lobby-join-btn">Join Table</button>
+                <button type="submit" class="outline lobby-join-btn">Join table</button>
             </form>
             {% else %}
-            <span class="lobby-full-badge">Full</span>
+            <span class="lobby-join-btn lobby-full-badge">Full</span>
             {% endif %}
         </article>
         {% endfor %}
     </div>
-
-    {% if not rooms %}
-    <div class="lobby-empty">
-        <p>No tables yet</p>
-        <p><small>Create one to start playing</small></p>
+    {% else %}
+    <div class="lobby-empty lobby-muted">
+        <p class="lobby-empty-title">No custom tables open</p>
+        <p class="lobby-empty-hint">Host one, or jump into a quick match.</p>
     </div>
     {% endif %}
 </section>

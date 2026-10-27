@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from starlette.websockets import WebSocket
 
     from lobby.matchmaking.manager import MatchmakingManager, QueuePlace
-    from lobby.occupancy import Occupancy
+    from lobby.occupancy import Occupancy, RejectionMessage
     from lobby.players import LobbyPlayer
     from lobby.settings import LobbyServerSettings
     from shared.auth.settings import AuthSettings
@@ -89,7 +89,7 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
 
     if isinstance(joined, str):
         log.info("matchmaking rejected", reason=joined)
-        _send_error_and_close(player, reason=joined)
+        _send_error_and_close(player, ctx.occupancy.rejection_message(player.user_id, joined))
         return False
 
     if isinstance(joined, list):
@@ -99,7 +99,7 @@ async def _try_join_queue(player: LobbyPlayer, ctx: _MatchmakingContext) -> bool
 
     player.send({"type": "queue_joined", "position": joined.position, "queue_size": ctx.matchmaking_manager.queue_size})
     if joined.displaced is not None:
-        _send_error_and_close(joined.displaced, reason=REPLACED_BY_NEW_CONNECTION)
+        _send_error_and_close(joined.displaced, {"type": "error", "message": REPLACED_BY_NEW_CONNECTION})
         log.info("queue entry taken over by a new connection", position=joined.position)
         return True
 
@@ -131,12 +131,12 @@ async def _message_loop(player: LobbyPlayer) -> None:
         await player.connection.receive()
 
 
-def _send_error_and_close(player: LobbyPlayer, *, reason: str) -> None:
+def _send_error_and_close(player: LobbyPlayer, error: RejectionMessage) -> None:
     """
-    Tell the client why matchmaking ended for it and close with 4000.
+    Tell the client why matchmaking ended for it and close with 4000, the reason as the close reason.
     """
-    player.send({"type": "error", "message": reason})
-    player.connection.close(code=4000, reason=reason)
+    player.send(error)
+    player.connection.close(code=4000, reason=error["message"])
 
 
 async def _handle_match(matched: list[LobbyPlayer], ctx: _MatchmakingContext) -> None:
@@ -159,7 +159,7 @@ async def _handle_match(matched: list[LobbyPlayer], ctx: _MatchmakingContext) ->
         )
     except GameStartError:
         for player in matched:
-            _send_error_and_close(player, reason=_MATCH_FAILED)
+            _send_error_and_close(player, {"type": "error", "message": _MATCH_FAILED})
         return
     finally:
         ctx.matchmaking_manager.clear_in_flight({player.user_id for player in matched})

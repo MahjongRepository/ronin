@@ -620,7 +620,7 @@ class TestRoomOccupancy:
         queue_peer.disconnect()
         await queue_handler
 
-    async def test_room_websocket__when_user_is_seated_in_another_room__should_reject_with_already_in_room(self, app):
+    async def test_room_websocket__when_user_is_seated_in_another_room__should_reject_naming_that_room(self, app):
         first_room = app.state.room_manager.create_room("first-room")
         second_room = app.state.room_manager.create_room("second-room")
         seated_peer = AsgiPeer()
@@ -629,7 +629,7 @@ class TestRoomOccupancy:
         )
 
         second_peer = await _join_room_and_leave(app, room_id=second_room.room_id, username="alice")
-        assert second_peer.received_json() == [{"type": "error", "message": "already_in_room"}]
+        assert second_peer.received_json() == [{"type": "error", "message": "already_in_room", "room_id": "first-room"}]
         assert second_peer.close_codes() == [4000]
         assert second_room.is_empty
 

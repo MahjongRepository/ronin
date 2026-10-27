@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import secrets
 import sqlite3
 from contextlib import closing
@@ -130,6 +131,10 @@ class TestAuthEndpoints:
         )
         assert response.status_code == 200
         assert "Passwords do not match" in response.text
+        assert 'value="newuser"' in response.text
+        assert 'value="securepass123"' not in response.text
+        assert response.text.count('aria-invalid="true"') == 1
+        assert re.search(r'id="confirm_password"[^>]*aria-invalid="true"', response.text)
 
     def test_register_route__when_chunked_body_oversized__should_return_413_without_registering(self, client):
         csrf = _get_csrf_token(client, "/register")
@@ -210,7 +215,9 @@ class TestAuthEndpoints:
             data={"username": "loginuser", "password": "wrongpassword", "csrf_token": csrf},
         )
         assert response.status_code == 200
-        assert "Invalid credentials" in response.text
+        assert "Wrong username or password." in response.text
+        assert 'value="loginuser"' in response.text
+        assert "wrongpassword" not in response.text
 
     def test_login_route__when_user_unknown__should_show_error(self, client):
         csrf = _get_csrf_token(client, "/login")
@@ -220,7 +227,7 @@ class TestAuthEndpoints:
             data={"username": "ghost", "password": "securepass123", "csrf_token": csrf},
         )
         assert response.status_code == 200
-        assert "Invalid credentials" in response.text
+        assert "Wrong username or password." in response.text
 
     def test_logout_route__when_posted__should_clear_session_and_redirect_to_login(self, client):
         _register_user(client, username="logoutuser")
@@ -244,7 +251,13 @@ class TestAuthEndpoints:
         response = client.get("/")
         assert response.status_code == 200
         assert "lobbyuser" in response.text
-        assert "Logout" in response.text
+        assert "Log out" in response.text
+        assert 'href="/history"' in response.text
+
+    def test_navigation__when_logged_out__should_offer_log_in_instead_of_history(self, client):
+        response = client.get("/login")
+        assert 'href="/history"' not in response.text
+        assert 'href="/register"' in response.text
 
 
 class TestCreateRoomRedirect:
@@ -294,12 +307,15 @@ class TestJoinRoomRedirect:
         assert response.status_code == 303
         assert response.headers["location"] == "/rooms/test-room-123"
 
-    def test_join_room_route__when_room_missing__should_show_error(self, client):
+    def test_join_room_route__when_room_missing__should_redirect_to_the_lobby_with_a_notice(self, client):
         csrf = client.cookies.get(CSRF_COOKIE_NAME)
 
-        response = client.post("/rooms/no-such-room/join", data={"csrf_token": csrf})
-        assert response.status_code == 200
-        assert "Room not found" in response.text
+        response = client.post("/rooms/no-such-room/join", data={"csrf_token": csrf}, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/?notice=table_gone"
+
+        lobby = client.get(response.headers["location"])
+        assert "That table is no longer open" in lobby.text
 
 
 class TestBotCreateRoom:
@@ -560,10 +576,18 @@ class TestCsrfProtection:
         response = client.get("/login")
         assert 'name="csrf_token"' in response.text
 
-    def test_csrf_protection__when_token_mismatches_cookie__should_return_403(self, client):
+    def test_csrf_protection__when_login_token_stale__should_rerender_the_form_with_a_valid_token(self, client):
+        _register_user(client, username="staleuser")
+        client.cookies.delete("session_id")
         _get_csrf_token(client, "/login")
+
         response = client.post(
             "/login",
-            data={"username": "a", "password": "b", "csrf_token": "forged-token"},
+            data={"username": "staleuser", "password": "securepass123", "csrf_token": "forged-token"},
         )
         assert response.status_code == 403
+        assert "Your session expired" in response.text
+        assert 'value="staleuser"' in response.text
+
+        fresh_token = client.cookies.get(CSRF_COOKIE_NAME)
+        assert f'name="csrf_token" value="{fresh_token}"' in response.text

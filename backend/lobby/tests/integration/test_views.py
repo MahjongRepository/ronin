@@ -87,7 +87,7 @@ class TestLobbyViews:
 
     def test_lobby_page__when_no_rooms__should_show_empty_message(self, client):
         response = client.get("/")
-        assert "No tables yet" in response.text
+        assert "No custom tables open" in response.text
 
     def test_lobby_page__when_room_has_player__should_list_it_with_join(self, client):
         room_manager = client.app.state.room_manager
@@ -100,6 +100,22 @@ class TestLobbyViews:
         assert "abc12345" in response.text
         assert "1/4" in response.text
         assert "Join" in response.text
+
+    def test_lobby_page__when_user_is_seated__should_link_back_to_their_table_instead_of_join(self, client):
+        client.app.state.room_manager.create_room("my-room-id")
+        with client.websocket_connect("/ws/rooms/my-room-id") as ws:
+            ws.receive_json()
+            response = client.get("/")
+
+        assert 'href="/rooms/my-room-id"' in response.text
+        assert 'action="/rooms/my-room-id/join"' not in response.text
+
+    @pytest.mark.parametrize(("notice", "alert_count"), [("table_gone", 1), ("<script>", 0)], ids=["known", "unknown"])
+    def test_lobby_page__when_notice_given__should_alert_only_a_known_one(self, client, notice, alert_count):
+        response = client.get("/", params={"notice": notice})
+        assert response.status_code == 200
+        assert response.text.count('role="alert"') == alert_count
+        assert response.text.count("That table is no longer open") == alert_count
 
     def test_lobby_page__when_room_full__should_mark_it_full(self, client):
         room_manager = client.app.state.room_manager
@@ -133,7 +149,7 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert response.text == _GAME_CLIENT_INDEX
 
-    def test_play_page__when_index_missing__should_return_503(self, make_app, tmp_path):
+    def test_play_page__when_index_missing__should_render_the_503_error_page(self, make_app, tmp_path):
         game_client_dir = tmp_path / "empty-game-dist"
         game_client_dir.mkdir()
 
@@ -141,9 +157,12 @@ class TestLobbyViews:
         with open_client(app) as c:
             register_with_csrf(c, "testuser")
 
-            response = c.get("/play/test-game")
+            response = c.get("/play/test-game", headers={"accept": "text/html"})
             assert response.status_code == 503
+            assert response.headers["content-type"].startswith("text/html")
             assert "Game client assets not available" in response.text
+            assert "Try again in a moment." in response.text
+            assert 'href="/" role="button"' in response.text
 
     def test_game_assets_route__when_asset_requested__should_serve_it(self, client):
         response = client.get("/game-assets/assets/index-abc123.js")
@@ -183,6 +202,7 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert 'data-room-id="test-room-42"' in response.text
+        assert 'data-chat-max-length="1000"' in response.text
 
     def test_room_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.app.state.room_manager.create_room("fresh-room")
@@ -194,10 +214,10 @@ class TestLobbyViews:
 
     @pytest.mark.parametrize(
         ("game_session_status", "location"),
-        [(200, "/play/game%201"), (404, "/"), (500, "/")],
+        [(200, "/play/game%201"), (404, "/?notice=table_gone"), (500, "/?notice=table_gone")],
         ids=["playing", "not_playing", "lookup_failed"],
     )
-    def test_room_page__when_room_not_found__should_redirect_to_the_users_live_game_or_the_lobby(
+    def test_room_page__when_room_not_found__should_redirect_to_the_users_live_game_or_the_lobby_notice(
         self, client, game_server, game_session_status, location
     ):
         game_server.respond = lambda _request: httpx.Response(
@@ -218,10 +238,10 @@ class TestLobbyViews:
         response = client.get("/storybook")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert "Style Guide" in response.text
+        assert "Lobby storybook" in response.text
         assert "Typography" in response.text
         assert "Buttons" in response.text
-        assert "Form Elements" in response.text
+        assert "Table cards" in response.text
 
 
 _DEV_GAME_CLIENT_PAGE = '<script type="module" src="/game-assets/@vite/client"></script>'
@@ -288,14 +308,14 @@ class TestViteDevMode:
         assert response.headers["etag"] == '"v1"'
         assert "x-dev-only" not in response.headers
 
-    def test_game_assets_route__when_dev_server_unreachable__should_return_502(self, make_app):
+    def test_game_assets_route__when_dev_server_unreachable__should_return_a_plain_text_502(self, make_app):
         app = make_app(
             game_client_dev_url="http://localhost:5174",
             game_client_dev_transport=httpx.MockTransport(_refuse_connection),
         )
         with open_client(app) as c:
-            response = c.get("/game-assets/src/index.ts")
-            assert response.status_code == 502
+            response = c.get("/game-assets/src/index.ts", headers={"accept": "*/*"})
+            assert (response.status_code, response.text) == (502, "Game client dev server not reachable")
 
 
 class TestHistoryPage:
@@ -341,8 +361,9 @@ class TestHistoryPage:
         assert "Second" in response.text
         assert "南" in response.text
         assert "games-standing--winner" in response.text
-        assert "40000" in response.text
-        assert "25000" in response.text
+        assert "40,000" in response.text
+        assert "25,000" in response.text
+        assert 'class="games-card-link" href="/play/history/abcd1234-test-game"' in response.text
 
     def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
         with open_client(app) as c:

@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}Login - Ronin Mahjong{% endblock %}
+{% block title %}Log in · Ronin Mahjong{% endblock %}
 
 {% block content %}
 <article class="auth-card">
     <hgroup>
-        <h1>Login</h1>
-        <p>Sign in to play</p>
+        <h1>Log in</h1>
+        <p>Welcome back. Log in to find a table.</p>
     </hgroup>
 
     {% if error %}
-    <div class="lobby-alert" role="alert">{{ error }}</div>
+    <div class="lobby-alert" role="alert" id="form-error"><p>{{ error }}</p></div>
     {% endif %}
 
     <form method="POST" action="/login">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="username">Username
-            <input type="text" id="username" name="username" required minlength="3" maxlength="30" autocomplete="username">
+            <input type="text" id="username" name="username" value="{{ form_username or '' }}" required minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" autocomplete="username" autocapitalize="none" spellcheck="false"{% if not error %} autofocus{% endif %}>
         </label>
         <label for="password">Password
-            <input type="password" id="password" name="password" required minlength="8" autocomplete="current-password">
+            <input type="password" id="password" name="password" required autocomplete="current-password"{% if error %} autofocus aria-describedby="form-error"{% endif %}>
         </label>
-        <button type="submit">Login</button>
+        <button type="submit">Log in</button>
     </form>
     <p class="auth-link"><small>Don't have an account? <a href="/register">Register</a></small></p>
 </article>

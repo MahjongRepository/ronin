@@ -121,22 +121,22 @@ class TestPrepareGamesForDisplay:
         assert entry["players"][0]["score"] == 35000
         assert entry["players"][1]["score"] == 25000
         assert entry["players"][1]["is_winner"] is False
-        assert entry["game_type_label"] == "南"
+        assert (entry["game_type"].wind, entry["game_type"].name) == ("南", "Hanchan")
         assert entry["duration_label"] == "30m 0s"
 
-    def test_prepare_history_for_display__when_tonpusen__should_label_east(self):
+    def test_prepare_history_for_display__when_tonpusen__should_label_east_tonpuu(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="tonpusen")
 
         result = _prepare_history_for_display([game])
-        assert result[0]["game_type_label"] == "東"
+        assert (result[0]["game_type"].wind, result[0]["game_type"].name) == ("東", "Tonpuu")
 
-    def test_prepare_history_for_display__when_game_type_unknown__should_use_empty_label(self):
+    def test_prepare_history_for_display__when_game_type_unknown__should_have_no_label(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="")
 
         result = _prepare_history_for_display([game])
-        assert result[0]["game_type_label"] == ""
+        assert result[0]["game_type"] is None
 
     def test_prepare_history_for_display__when_game_under_a_minute__should_show_seconds(self):
         now = datetime.now(UTC)

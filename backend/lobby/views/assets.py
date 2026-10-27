@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING
 
 from starlette.templating import Jinja2Templates
 
-from lobby.auth.csrf import get_or_create_csrf_token, set_csrf_cookie
+from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, set_csrf_cookie
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from starlette.requests import Request
     from starlette.responses import Response
 
@@ -25,14 +27,25 @@ def create_templates() -> Jinja2Templates:
     return Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-def render_page(request: Request, *, template_name: str, context: dict[str, object]) -> Response:
+def render_page(
+    request: Request,
+    *,
+    template_name: str,
+    context: dict[str, object],
+    status_code: int = 200,
+    headers: Mapping[str, str] | None = None,
+) -> Response:
     """
     Render a lobby page with the CSRF token its forms carry, setting the CSRF cookie when the token is new.
+
+    An existing cookie is never replaced. A POST from another site arrives without it, so its answer sets none either.
     """
     templates: Jinja2Templates = request.app.state.templates
     csrf_token, is_new = get_or_create_csrf_token(request)
-    response = templates.TemplateResponse(request, template_name, {**context, "csrf_token": csrf_token})
-    if is_new:
+    response = templates.TemplateResponse(
+        request, template_name, {**context, "csrf_token": csrf_token}, status_code=status_code, headers=headers
+    )
+    if is_new and not is_cross_site_post(request):
         auth_settings: AuthSettings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
 

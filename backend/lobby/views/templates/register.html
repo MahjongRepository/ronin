@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Register - Ronin Mahjong{% endblock %}
+{% block title %}Register · Ronin Mahjong{% endblock %}
 
 {% block content %}
 <article class="auth-card">
@@ -10,22 +10,29 @@
     </hgroup>
 
     {% if error %}
-    <div class="lobby-alert" role="alert">{{ error }}</div>
+    <div class="lobby-alert" role="alert" id="form-error"><p>{{ error }}</p></div>
     {% endif %}
 
+    {% set confirm_invalid = invalid_field == "confirm_password" %}
     <form method="POST" action="/register">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="username">Username
-            <input type="text" id="username" name="username" required minlength="3" maxlength="30" autocomplete="username">
+            <input type="text" id="username" name="username" value="{{ form_username or '' }}" required
+                minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" pattern="{{ username_pattern }}"
+                autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-help{% if error and not confirm_invalid %} form-error{% endif %}"{% if not confirm_invalid %} autofocus{% endif %}>
+            <small id="username-help">{{ username_min_length }}–{{ username_max_length }} letters, numbers or underscores.</small>
         </label>
         <label for="password">Password
-            <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
+            <input type="password" id="password" name="password" required minlength="{{ password_min_length }}"
+                maxlength="{{ password_max_length }}" autocomplete="new-password" aria-describedby="password-help">
+            <small id="password-help">At least {{ password_min_length }} characters.</small>
         </label>
-        <label for="confirm_password">Confirm Password
-            <input type="password" id="confirm_password" name="confirm_password" required minlength="8" autocomplete="new-password">
+        <label for="confirm_password">Confirm password
+            <input type="password" id="confirm_password" name="confirm_password" required minlength="{{ password_min_length }}"
+                maxlength="{{ password_max_length }}" autocomplete="new-password"{% if confirm_invalid %} aria-invalid="true" aria-describedby="form-error" autofocus{% endif %}>
         </label>
         <button type="submit">Register</button>
     </form>
-    <p class="auth-link"><small>Already have an account? <a href="/login">Login</a></small></p>
+    <p class="auth-link"><small>Already have an account? <a href="/login">Log in</a></small></p>
 </article>
 {% endblock %}

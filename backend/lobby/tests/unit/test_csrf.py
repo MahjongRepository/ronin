@@ -4,13 +4,15 @@ from unittest.mock import MagicMock
 
 import pytest
 from starlette.datastructures import FormData
+from starlette.requests import Request
 
 from lobby.auth.csrf import (
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
     get_or_create_csrf_token,
+    is_cross_site_post,
+    is_csrf_valid,
     set_csrf_cookie,
-    validate_csrf,
 )
 
 
@@ -69,43 +71,71 @@ class TestSetCsrfCookie:
         )
 
 
-class TestValidateCsrf:
-    def test_validate_csrf__when_cookie_missing__should_return_403(self):
+class TestIsCsrfValid:
+    def test_is_csrf_valid__when_cookie_missing__should_reject(self):
         request = _make_request()
-        form = FormData({"csrf_token": "some-token"})
+        form = FormData({CSRF_FORM_FIELD: "some-token"})
 
-        result = validate_csrf(request, form)
-        assert result is not None
-        assert result.status_code == 403
+        assert is_csrf_valid(request, form) is False
 
-    def test_validate_csrf__when_form_field_missing__should_return_403(self):
+    def test_is_csrf_valid__when_form_field_missing__should_reject(self):
         request = _make_request({CSRF_COOKIE_NAME: "token-value"})
         form = FormData({})
 
-        result = validate_csrf(request, form)
-        assert result is not None
-        assert result.status_code == 403
+        assert is_csrf_valid(request, form) is False
 
     @pytest.mark.parametrize("form_token", ["token-b", "tökén-ä"], ids=["ascii", "non_ascii"])
-    def test_validate_csrf__when_tokens_mismatch__should_return_403(self, form_token: str):
+    def test_is_csrf_valid__when_tokens_mismatch__should_reject(self, form_token: str):
         request = _make_request({CSRF_COOKIE_NAME: "token-a"})
         form = FormData({CSRF_FORM_FIELD: form_token})
 
-        result = validate_csrf(request, form)
-        assert result is not None
-        assert result.status_code == 403
+        assert is_csrf_valid(request, form) is False
 
-    def test_validate_csrf__when_tokens_match__should_return_none(self):
+    def test_is_csrf_valid__when_tokens_match__should_accept(self):
         request = _make_request({CSRF_COOKIE_NAME: "matching-token"})
         form = FormData({CSRF_FORM_FIELD: "matching-token"})
 
-        result = validate_csrf(request, form)
-        assert result is None
+        assert is_csrf_valid(request, form) is True
 
-    def test_validate_csrf__when_cookie_empty__should_return_403(self):
+    def test_is_csrf_valid__when_cookie_empty__should_reject(self):
         request = _make_request({CSRF_COOKIE_NAME: ""})
         form = FormData({CSRF_FORM_FIELD: ""})
 
-        result = validate_csrf(request, form)
-        assert result is not None
-        assert result.status_code == 403
+        assert is_csrf_valid(request, form) is False
+
+
+def _make_http_request(method: str, headers: dict[str, str]) -> Request:
+    raw_headers = [(b"host", b"lobby.example")] + [(name.encode(), value.encode()) for name, value in headers.items()]
+    return Request({"type": "http", "method": method, "scheme": "https", "path": "/login", "headers": raw_headers})
+
+
+class TestIsCrossSitePost:
+    @pytest.mark.parametrize(
+        ("method", "headers", "expected"),
+        [
+            ("GET", {"sec-fetch-site": "cross-site"}, False),
+            ("POST", {"sec-fetch-site": "cross-site", "origin": "https://lobby.example"}, True),
+            ("POST", {"sec-fetch-site": "same-site", "origin": "https://evil.example"}, False),
+            ("POST", {"origin": "https://evil.example"}, True),
+            ("POST", {"origin": "null"}, True),
+            ("POST", {"origin": "http://["}, True),
+            ("POST", {"origin": "https://lobby.example"}, False),
+            ("POST", {"origin": "http://lobby.example"}, True),
+            ("POST", {}, False),
+        ],
+        ids=[
+            "get_carries_lax_cookies",
+            "fetch_site_wins_over_origin",
+            "same_site_carries_lax_cookies",
+            "foreign_origin",
+            "null_origin",
+            "malformed_origin",
+            "own_origin",
+            "own_host_other_scheme",
+            "no_hint",
+        ],
+    )
+    def test_is_cross_site_post__when_request_hints_its_site__should_judge_fetch_site_before_origin(
+        self, method, headers, expected
+    ):
+        assert is_cross_site_post(_make_http_request(method, headers)) is expected
