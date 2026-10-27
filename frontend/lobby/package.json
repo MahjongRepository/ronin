@@ -1,32 +1,32 @@
 {
-  "name": "lobby",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "typecheck": "bunx tsc --noEmit",
-    "lint": "oxlint --deny-warnings src && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/lobby-app.scss:/dev/null",
-    "lint:fix": "oxlint --fix src && stylelint --fix 'src/**/*.scss'",
-    "fmt": "oxfmt src",
-    "fmt:check": "oxfmt --check src",
-    "test": "vitest run --coverage",
-    "test:watch": "vitest"
-  },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.18",
-    "happy-dom": "^20.7.0",
-    "oxfmt": "^0.35.0",
-    "oxlint": "^1.50.0",
-    "sass": "^1.97.3",
-    "stylelint": "^17.1.0",
-    "stylelint-config-standard-scss": "^17.0.0",
-    "typescript": "^5.9.3",
-    "vite": "^7",
-    "vitest": "^4.0.18"
-  },
-  "dependencies": {
-    "@picocss/pico": "^2.1.1",
-    "lit-html": "^3.3.2"
-  }
+    "name": "lobby",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "typecheck": "bunx tsc --noEmit",
+        "lint": "oxlint --deny-warnings src && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/lobby-app.scss:/dev/null",
+        "lint:fix": "oxlint --fix src && stylelint --fix 'src/**/*.scss'",
+        "fmt": "oxfmt",
+        "fmt:check": "oxfmt --check",
+        "test": "vitest run --coverage",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "@picocss/pico": "^2.1.1",
+        "lit-html": "^3.3.2"
+    },
+    "devDependencies": {
+        "@vitest/coverage-v8": "^4.0.18",
+        "happy-dom": "^20.7.0",
+        "oxfmt": "^0.35.0",
+        "oxlint": "^1.50.0",
+        "sass": "^1.97.3",
+        "stylelint": "^17.1.0",
+        "stylelint-config-standard-scss": "^17.0.0",
+        "typescript": "^5.9.3",
+        "vite": "^7",
+        "vitest": "^4.0.18"
+    }
 }

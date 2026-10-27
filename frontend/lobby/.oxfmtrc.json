@@ -1,9 +1,10 @@
 {
-  "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "tabWidth": 4,
-  "printWidth": 100,
-  "useTabs": false,
-  "semi": true,
-  "singleQuote": false,
-  "sortImports": {}
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "tabWidth": 4,
+    "printWidth": 100,
+    "useTabs": false,
+    "semi": true,
+    "singleQuote": false,
+    "sortImports": {},
+    "ignorePatterns": ["*.md", "coverage/**", "public/**"]
 }
