@@ -65,7 +65,7 @@ describe("Majiang.UI.GameCtl", () => {
         expect(document.activeElement).toBe(toggle[0]);
     });
 
-    it("keeps its clicks from the board, which passes a call prompt on any click, and closes on a click outside", () => {
+    it("keeps its clicks from the board and closes on a click outside", () => {
         const root = renderController();
         new GameCtl(root, PREF_KEY, null);
         let boardClicks = 0;

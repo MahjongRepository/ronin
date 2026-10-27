@@ -67,8 +67,9 @@ export default class Player extends Majiang.Player {
     }
 
     /**
-     * A prompt's buttons beside ×, which skips them and runs callback. On the seat's own turn (skip false) there is
-     * no ×: callback opens the discard at once, a discard declines the buttons, and the arrow keys stay on the hand.
+     * A prompt's buttons beside ×, which skips them and runs callback; a click elsewhere on the board does nothing,
+     * so a stray click never passes a call. On the seat's own turn (skip false) there is no ×: callback opens the
+     * discard at once, a discard declines the buttons, and the arrow keys stay on the hand.
      */
     show_button(callback = ()=>{}, skip = true) {
         this.show_timer();
@@ -80,7 +81,6 @@ export default class Player extends Majiang.Player {
             show($('.cansel', this._node.button)
                     .attr('tabindex', 0)
                     .on('click.button', handler));
-            this._node.root.on('click.button', handler);
         }
         else callback();
 

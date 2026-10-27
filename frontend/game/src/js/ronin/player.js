@@ -44,15 +44,27 @@ class RoninPlayer extends UI.Player {
 
     get_chi_mianzi() { return this.offer.chi; }
 
-    /** Count a decision down; it beeps through its last five seconds only when it ran longer, so a call prompt stays quiet. */
-    countdown([limit, allowed]) {
+    /**
+     * Count a decision down; it beeps through its last five seconds only when it ran longer, so a call prompt stays
+     * quiet. Running out runs onExpire, unless the decision was answered or cleared first.
+     */
+    countdown([limit, allowed], onExpire = null) {
+        this._on_expire = onExpire;
         this.set_timer(limit, allowed, limit + allowed > BEEP_SECONDS && this._audio.beep);
     }
 
-    /** A countdown that runs out stops at 0 and leaves the decision open: the server plays its default. */
+    /** A countdown that runs out stops at 0 and answers nothing: the server plays its default. */
     timeout() {
         this._timer_id = clearInterval(this._timer_id);
         this._node.timer.text('0');
+        const onExpire = this._on_expire;
+        this._on_expire = null;
+        if (onExpire) onExpire();
+    }
+
+    clear_timer() {
+        this._on_expire = null;
+        super.clear_timer();
     }
 
     /**

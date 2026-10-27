@@ -215,8 +215,33 @@ class Translate {
         if (msg.cd == wire.GAME_ERROR.STALE_ACTION || ! this.retry) return;
         this.clock.resume();
         const left = this.clock.remaining();
-        if (left) this.player.countdown(left);
         this.retry();
+        if (left) this.countDecision(left);
+    }
+
+    /**
+     * Count the open decision down. A call prompt closes when its countdown runs out, sending nothing: the server has
+     * already passed for the seat, and when another seat's draw follows, no message of its own would ever close it.
+     * Counted after the decision is shown, so a prompt that arrives already expired (re-sent late in its window after
+     * a reconnect) closes at once.
+     */
+    countDecision(left) {
+        this.player.countdown(left, this.clock.decision.turn ? null : () => this.closeDecision());
+    }
+
+    /**
+     * Close the open decision when the socket drops: an answer could not be sent, and after the reconnect the server
+     * re-sends any wait it still owes the seat. A round result stays up, as its dismissal sends nothing on its own.
+     */
+    disconnected() {
+        if (this.retry) this.closeDecision();
+    }
+
+    closeDecision() {
+        this.endCountdown();
+        this.player.clear_handler();
+        this.shadow.prompt = null;
+        this.retry = null;
     }
 
     gameStarted(msg) {
@@ -313,7 +338,7 @@ class Translate {
         s.prompt = null;
         const zimo = { p: tiles.tileToStr(tileId), l: s.l(seat) };
         s.drawnTileId = tileId;
-        this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED]));
+        this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED], msg[wire.TURN_BANK]));
 
         if (s.hand.indexOf(tileId) >= 0) {
             const offer = Offer.forTurn(msg.aa, s);
@@ -427,7 +452,7 @@ class Translate {
     /** The seat's own pon or chi opens its turn without a draw: this event follows it with the types kuikae blocks. */
     turn(msg) {
         const offer = Offer.forCallTurn(msg.kt);
-        this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED]));
+        this.player.countdown(this.clock.startTurn(msg[wire.WAIT_ELAPSED], msg[wire.TURN_BANK]));
         this.retry = () => this.present('fulou', offer, P => P.show_button(() => P.select_dapai()));
         this.retry();
     }
@@ -445,13 +470,14 @@ class Translate {
         s.prompt = msg;
         const offer = Offer.forPrompt(msg, s);
         const dapai = { l: s.l(msg.frs), p: tiles.tileToStr(msg.ti) };
-        this.player.countdown(this.clock.startCallDecision(msg[wire.WAIT_ELAPSED]));
+        const left = this.clock.startCallDecision(msg[wire.WAIT_ELAPSED]);
         this.retry = () => {
             s.prompt = msg;
             this.present(chankan ? 'chankan' : 'dapai', offer,
                          P => chankan ? P.action_chankan() : P.action_dapai(dapai));
         };
         this.retry();
+        this.countDecision(left);
     }
 
     /** Open a decision on the model's current state, with the server's offer as its buttons. */

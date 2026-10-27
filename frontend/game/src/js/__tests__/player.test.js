@@ -111,6 +111,17 @@ describe("Majiang.UI.Player", () => {
         expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
     });
 
+    it("passes a call prompt from ×, never from a click elsewhere on the board", () => {
+        const { player, root } = createPlayer();
+        offerCallPrompt(player);
+
+        root.trigger("click");
+        $(".shoupai.main", root).trigger("click");
+        expect(player._callback).not.toHaveBeenCalled();
+        $(".player-button .cansel", root).trigger("click");
+        expect(player._callback).toHaveBeenCalledExactlyOnceWith(undefined);
+    });
+
     it("counts a turn's base time down beside its bank, then the bank alone", () => {
         const { player, root } = createPlayer();
         const timer = $(".timer", root);

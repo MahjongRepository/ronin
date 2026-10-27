@@ -66,8 +66,10 @@ interleave.
   move goes out ahead of it), and a RECONNECT answers retry later until then. The game client's
   silence watchdog limit is derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait
   needs a longer limit. The client also re-implements the turn, call, bank, round advance and game
-  start pause rules from the timer settings it is sent once (`messaging/AGENTS.md`), so a change to
-  how a wait is paced changes its countdown too.
+  start pause rules from the timer settings it is sent once, taking only the bank from each turn's
+  opening message (`messaging/AGENTS.md`), so a change to how a wait is paced changes its countdown
+  too. A new round's bonus goes into the banks before the wait's events go out, so that bank
+  includes it.
 * **Finish records come from the start record.** The start record is captured right after the
   engine starts the game, every seat in seat order with each participant's `user_id` by seat; every
   finish record (completed, abandoned or failed) is built whole from it, never from engine or

@@ -48,15 +48,17 @@ const ROUND_STARTED = { t: 9, s: 0 };
 
 function connectSession() {
     const events = [];
+    const drops = [];
     const session = new RoninSession({
         wsUrl: "ws://game/ws/g",
         gameId: "g",
         gameTicket: "ticket",
         onEvent: (message) => events.push(message),
+        onDisconnected: () => drops.push("drop"),
     });
     session.connect();
     latestSocket().open();
-    return { session, events };
+    return { session, events, drops };
 }
 
 describe("RoninSession", () => {
@@ -140,11 +142,13 @@ describe("RoninSession", () => {
     it.each([
         ["a network drop", 1006],
         ["a game end close whose game end it never got", 1000],
-    ])("resumes the seat after %s", (_, code) => {
-        ({ session } = connectSession());
+    ])("reports %s at once and resumes the seat after it", (_, code) => {
+        let drops;
+        ({ session, drops } = connectSession());
         latestSocket().receive(ROUND_STARTED);
 
         latestSocket().drop(code);
+        expect(drops).toHaveLength(1);
         vi.advanceTimersByTime(1_000);
         latestSocket().open();
 
@@ -152,14 +156,15 @@ describe("RoninSession", () => {
         expect(latestSocket().sent).toEqual([RECONNECT]);
     });
 
-    it("stays closed once the game has ended", () => {
-        let events;
-        ({ session, events } = connectSession());
+    it("stays closed once the game has ended, reporting no drop", () => {
+        let events, drops;
+        ({ session, events, drops } = connectSession());
 
         latestSocket().receive({ t: 10, ws: 0, st: [], lb: 0 });
         latestSocket().drop();
         vi.advanceTimersByTime(60_000);
 
+        expect(drops).toEqual([]);
         expect(events).toHaveLength(1);
         expect(FakeWebSocket.created).toHaveLength(1);
     });

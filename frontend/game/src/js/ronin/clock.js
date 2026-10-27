@@ -8,7 +8,8 @@
  * refused answer keeps it running; an answer whose ending message can lag (a kan, behind other seats' chankan prompt)
  * holds it until then. A wait the server re-sends after a reconnect names how long it has run, and the decision is
  * backdated by that much, so a taken-over turn counts down what is left and charges the bank what the server will.
- * It is never synced otherwise, so it may drift from the server's by network delays.
+ * Each turn's opening message names the server's bank, which replaces the local one, so network delays that skew
+ * one turn's charge never carry into the next.
  */
 class TurnClock {
 
@@ -30,11 +31,12 @@ class TurnClock {
     }
 
     /**
-     * Open a turn that has run for elapsed seconds; return what is left of its [base, bank] seconds, the limit and
-     * allowance of majiang-ui's timer.
+     * Open a turn that has run for elapsed seconds, from the server's bank when its message names one; return what is
+     * left of its [base, bank] seconds, the limit and allowance of majiang-ui's timer.
      */
-    startTurn(elapsed = 0) {
+    startTurn(elapsed = 0, bank = null) {
         this.open(true, elapsed);
+        if (bank != null) this.bank = bank;
         return this.remaining();
     }
 

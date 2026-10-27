@@ -29,11 +29,12 @@ const LOBBY_CODES = new Set([
  * through kick, AI turn and restore, so it cancels any retry. The client sends nothing on its own, so a socket whose
  * peer vanished (a FIN lost while the device slept) never closes by itself: a server silent for longer than any
  * legitimate wait counts as a drop, checked on the wall clock so the first check after a wake sees the whole gap.
+ * A drop that will be retried is reported, so the table closes a decision it could no longer answer.
  */
 class RoninSession {
 
     constructor({ wsUrl, gameId, gameTicket,
-                  onEvent, onSessionError, onPlayerStatus, onReconnected }) {
+                  onEvent, onSessionError, onPlayerStatus, onReconnected, onDisconnected }) {
         this.wsUrl   = wsUrl;
         this.gameId  = gameId;
         this.ticket  = gameTicket;
@@ -41,6 +42,7 @@ class RoninSession {
         this.onSessionError = onSessionError || (() => {});
         this.onPlayerStatus = onPlayerStatus || (() => {});
         this.onReconnected = onReconnected || (() => {});
+        this.onDisconnected = onDisconnected || (() => {});
 
         this.ws = null;
         this.joined = false;
@@ -102,6 +104,7 @@ class RoninSession {
         this.stopWatchdog();
         this.ws = null;
         if (this.manualClose || this.gameEnded) return;
+        this.onDisconnected();
         this.scheduleRetry(() => this.connect());
     }
 

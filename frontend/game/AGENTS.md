@@ -108,15 +108,23 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Turn countdown:** only the seat's own decisions are counted down, in majiang-ui's timer above
   the right end of the hand: a turn's base time beside its bank (`5+30`), then the bank alone, a
   call prompt's fixed time. `TurnClock` (`src/js/ronin/clock.js`) keeps the bank from the timer
-  settings of `game_started` or the reconnect snapshot and mirrors the server's pacing rules,
-  never re-synced: a decision runs from the server message that opens its wait to the one that
-  ends it, because a refused answer leaves the server's timer running. A wait re-sent after a
+  settings of `game_started` or the reconnect snapshot and mirrors the server's pacing rules; each
+  turn's opening draw or `turn` event names the server's bank (`bk`), which replaces the clock's, so
+  one turn's network delays never skew the next. A decision runs from the server message that opens
+  its wait to the one that ends it, because a refused answer leaves the server's timer running. A wait re-sent after a
   reconnect names how long its server timer has run (`el`), and the decision is backdated by that
   much, so a taken-over turn counts down what is left and charges the bank what the server does. An own kan is the
   exception: its meld waits out other seats' chankan prompt, so the clock holds at the answer
-  (and runs on if it is refused). A countdown that runs out stops at 0 and does nothing else: the
-  decision stays open until the server's timeout plays the default, never majiang-ui's default
-  reply (a riichi discard, say), which could reach the server before its own deadline.
+  (and runs on if it is refused). A countdown that runs out stops at 0 and sends nothing, never
+  majiang-ui's default reply (a riichi discard, say), which could reach the server before its own
+  deadline: a turn stays open until the server's timeout plays its discard, and a call prompt
+  closes, since the server has passed for the seat by then and the next seat's draw, which ends
+  the wait, goes only to that seat. The countdown starts after the prompt is shown, so one re-sent
+  with its time already run closes at once. A dropped socket closes the open decision the same way;
+  the reconnect re-sends any wait the server still owes the seat.
+* **Inputs:** a call prompt passes only from its ×: a click elsewhere on the board answers nothing,
+  so the second click of a double-click, or a tap on the felt, never passes a ron that arrived in
+  between.
 * **Screen countdowns:** the screens the server moves on from by itself count down to it: the game
   start screen its start pause (`gp`) until the deal, and a round result the round advance timeout
   (`ra`) on its 次へ button. A round end shows each result its share of the server's timeout,

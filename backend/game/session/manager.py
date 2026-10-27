@@ -18,6 +18,7 @@ from game.logic.events import (
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
     CONFIRMATION_OWED_KEY,
+    TURN_BANK_KEY,
     WAIT_ELAPSED_KEY,
     WAIT_ID_KEY,
     game_event_payload,
@@ -663,7 +664,19 @@ class SessionManager:
             if elapsed is not None:
                 message[WAIT_ELAPSED_KEY] = elapsed
 
-            connection.send_message(stamp_wait_id(message, event, awaiting))
+            message = stamp_wait_id(message, event, awaiting)
+            connection.send_message(self._stamp_turn_bank(message, participant, awaiting))
+
+    @staticmethod
+    def _stamp_turn_bank(message: dict[str, Any], participant: Participant, awaiting: Awaiting) -> dict[str, Any]:
+        """
+        Stamp the message that opens a seat's turn with the bank its timer starts with (`bk`), so the client's countdown
+        never carries an earlier turn's delivery delays into the next.
+        """
+        if awaiting.kind == WaitKind.TURN and WAIT_ID_KEY in message:
+            message[TURN_BANK_KEY] = participant.timer.bank_seconds
+
+        return message
 
     def _follow_engine(
         self,
@@ -677,22 +690,23 @@ class SessionManager:
         Deliver an engine call's events and drive the timers from the wait it reports.
 
         The call's actor is the seat that acted, timed out or was replaced; a game start has none. When the wait id
-        changed, the actor's timer stops (deducting its bank on a turn) and every other timer is cancelled before the
-        events go out, and the new wait's timers start after them. When it did not, only an actor that left the wait (a
-        partial prompt response or confirmation) has its timer stopped; an actor still awaited (an error) keeps it
-        running with nothing deducted.
+        changed, the actor's timer stops (deducting its bank on a turn), every other timer is cancelled and a new
+        round's bonus is added before the events go out, and the new wait's timers start after them. When it did not,
+        only an actor that left the wait (a partial prompt response or confirmation) has its timer stopped; an actor
+        still awaited (an error) keeps it running with nothing deducted.
         """
         previous = game.awaiting
         game.awaiting = awaiting
         new_wait = previous is None or awaiting.wait_id != previous.wait_id
         if new_wait:
             self._end_wait_timers(game, actor=actor)
+            self._add_round_bonus(game, previous=previous, awaiting=awaiting)
         elif actor is not None and actor in previous.seats and actor not in awaiting.seats:
             self._stop_timer_at(game, actor)
 
         self._broadcast_events(game, events, awaiting)
         if new_wait and game.lifecycle is GameLifecycle.PLAYING:
-            self._start_wait_timers(game, previous=previous, awaiting=awaiting)
+            self._start_wait_timers(game, awaiting=awaiting)
 
     @staticmethod
     def _end_wait_timers(game: GameSession, *, actor: int | None) -> None:
@@ -711,17 +725,21 @@ class SessionManager:
         if participant is not None:
             participant.timer.stop()
 
-    def _start_wait_timers(self, game: GameSession, *, previous: Awaiting | None, awaiting: Awaiting) -> None:
+    @staticmethod
+    def _add_round_bonus(game: GameSession, *, previous: Awaiting | None, awaiting: Awaiting) -> None:
         """
-        Start the timers of a new wait for its awaited seats that have a connected participant.
-
-        The first wait of a round adds the round bonus to every connected participant's bank, the first round included.
+        Add the round bonus to every connected participant's bank on the first wait of a round, the first round
+        included: ahead of the wait's events, so a turn's opening message carries the bank its timer starts with.
         """
-        connected = sorted(game.connected(), key=self._seat_of)
         if previous is None or awaiting.round_number != previous.round_number:
-            for participant in connected:
+            for participant in game.connected():
                 participant.timer.add_round_bonus()
 
+    def _start_wait_timers(self, game: GameSession, *, awaiting: Awaiting) -> None:
+        """
+        Start the timers of a new wait for its awaited seats that have a connected participant.
+        """
+        connected = sorted(game.connected(), key=self._seat_of)
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
             for participant in connected:
                 self._start_round_advance_timer(participant, results_shown=awaiting.results_shown)
@@ -787,7 +805,7 @@ class SessionManager:
             elif isinstance(event.target, SeatTarget):
                 participant = game.at_seat(event.target.seat)
                 if participant is not None and participant.connection is not None:
-                    participant.connection.send_message(message)
+                    participant.connection.send_message(self._stamp_turn_bank(message, participant, awaiting))
 
     def _send_to_each_seat(self, game: GameSession, message: dict[str, Any]) -> None:
         """

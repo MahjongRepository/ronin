@@ -30,6 +30,7 @@ TIMER_SETTINGS_KEY = "tm"
 ROUND_RESULT_KEY = "re"
 CONFIRMATION_OWED_KEY = "oc"
 WAIT_ELAPSED_KEY = "el"
+TURN_BANK_KEY = "bk"
 
 
 def game_event_payload(event: GameEvent) -> dict[str, Any]:
