@@ -1,4 +1,7 @@
+import { deprecations } from "sass";
 import { defineConfig } from "vite";
+
+const activeSassDeprecations = Object.values(deprecations).filter((d) => d.status === "active");
 
 const port = parseInt(process.env.GAME_VITE_PORT || "5174", 10);
 
@@ -7,6 +10,13 @@ export default defineConfig({
     build: {
         outDir: "dist",
         emptyOutDir: true,
+    },
+    css: {
+        preprocessorOptions: {
+            scss: {
+                fatalDeprecations: activeSassDeprecations,
+            },
+        },
     },
     server: {
         port,

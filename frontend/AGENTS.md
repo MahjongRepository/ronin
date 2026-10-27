@@ -18,6 +18,12 @@ Run a package's scripts from its directory (`cd frontend/game && bunx vitest run
 `make` targets (`install-frontend`, `lint-frontend`, `typecheck-frontend`, `format-frontend`,
 `test-frontend`) loop over both apps.
 
+Both apps make every deprecation their own installed Sass marks active an error in our stylesheets,
+by the same mechanism: the `lint` script's compile check (`--fatal-deprecation` with the installed
+version) and Vite's dev and build (`fatalDeprecations` in `vite.config`). Dependencies' deprecations
+(Pico's) stay warnings through quiet-deps. A Sass upgrade can therefore fail lint, the build and the
+dev server on a newly deprecated construct; migrate it rather than silencing the deprecation.
+
 `make run-local-server` runs one Vite dev server per app: the lobby's on `VITE_PORT` (5173), whose
 scripts the lobby templates load directly, and the game client's on `GAME_VITE_PORT` (5174), which
 the lobby proxies under `/game-assets/` so the game page stays on the lobby's origin. The game

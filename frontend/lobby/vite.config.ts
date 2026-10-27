@@ -1,5 +1,8 @@
 import { resolve } from "path";
+import { deprecations } from "sass";
 import { defineConfig } from "vite";
+
+const activeSassDeprecations = Object.values(deprecations).filter((d) => d.status === "active");
 
 export default defineConfig(({ command }) => ({
     base: command === "build" ? "/lobby-assets/" : "/",
@@ -24,6 +27,7 @@ export default defineConfig(({ command }) => ({
             scss: {
                 loadPaths: ["node_modules"],
                 quietDeps: true,
+                fatalDeprecations: activeSassDeprecations,
             },
         },
     },
