@@ -40,8 +40,8 @@ export default class HuleDialog {
             pingju: $('.pingju', root),
             fenpei: $('.fenpei', root),
         };
-        this._r_hupai = $('.r-hupai', root).eq(0);
-        this._r_defen = $('.r-defen', root).eq(0);
+        this._r_hupai = $('.row-hupai', root).eq(0);
+        this._r_defen = $('.row-defen', root).eq(0);
         this.hide();
 
         this._pai = pai;
