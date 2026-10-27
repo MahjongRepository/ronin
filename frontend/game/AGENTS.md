@@ -178,8 +178,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   `@import`. Use the colour and font variables of `styles/_theme.scss` rather than literals; only
   colour keywords and translucent `rgb(… / alpha)` overlays stay inline. Divide with `math.div`, never `/`.
   Class names are kebab-case (BEM `__`/`--` allowed), as the lobby's: a class the JavaScript or
-  `index.html` sets is renamed there too. Stylelint runs the lobby's config plus one exception,
-  `-webkit-text-size-adjust`, which iOS Safari still needs.
+  `index.html` sets is renamed there too. Stylelint runs a copy of the lobby's config (keep the two
+  in sync), which lets `-webkit-text-size-adjust` through because iOS Safari still needs it.
 * ES modules only (`"type": "module"`), `src/vendor/` included.
 * The app is plain JavaScript, so `bun run typecheck` is a no-op.
 
