@@ -8,7 +8,7 @@ import PAGE from "../../../index.html?raw";
 import { parseReplay } from "../replay/load.js";
 import { POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
-import { ReplayViewer } from "../replay/viewer.js";
+import { CALLOUT_MS, ReplayViewer } from "../replay/viewer.js";
 import { withUnplayableDraw } from "./replay-edits.js";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?raw";
@@ -415,6 +415,31 @@ describe("ReplayViewer", () => {
         viewer.next();
         vi.runAllTimers();
         expect(played).toEqual(["peng", "zimo", "gong"]);
+    });
+
+    it("fades a position's callouts after a moment, a move in between starting the moment afresh", () => {
+        const { viewer, replay } = openViewer(PAO);
+        const pon = replay.rounds[0].positions.findLastIndex(
+            (position) => position.say[0]?.name === "peng",
+        );
+        const callouts = () =>
+            $("#board .say").filter(
+                (i, say) => !$(say).hasClass("hide") && !$(say).hasClass("fadeout"),
+            ).length;
+
+        viewer.seek(0, pon);
+        vi.advanceTimersByTime(CALLOUT_MS / 2);
+        viewer.seek(0, pon);
+        vi.advanceTimersByTime(CALLOUT_MS / 2);
+        expect(callouts()).toBe(1);
+        vi.advanceTimersByTime(CALLOUT_MS / 2);
+        expect(callouts()).toBe(0);
+
+        viewer.back();
+        viewer.next();
+        expect(callouts()).toBe(1);
+        vi.advanceTimersByTime(CALLOUT_MS);
+        expect(callouts()).toBe(0);
     });
 
     it.each([

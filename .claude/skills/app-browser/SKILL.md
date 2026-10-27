@@ -68,7 +68,10 @@ select by element id, class or `snapshot -i` refs.
   the board at its first deal, with `.replay-back` / `.replay-next`, the jumps `.replay-first`,
   `.replay-prev-round`, `.replay-next-round`, `.replay-last`, and the info `.replay-position`
   (`.replay-action`, `.replay-round`, `.replay-step`, `.replay-wall-low`, `.replay-ended`) in the
-  strip below it (beside it at `max-height: 450px` landscape). `.replay-next-round` is the quick way
+  strip below it (beside it at `max-height: 450px` landscape). The options, the viewpoint select
+  `.replay-seat` and the switch `.replay-hide-hands`, show beside the buttons at 1100px wide and
+  over 450px tall, and under the info on an upright phone; elsewhere `.replay-options-toggle`
+  ("View: <name>") shows them in the info's place until the next move. `.replay-next-round` is the quick way
   to a later round; holding Back or Next (`agent-browser mouse down left`) repeats them. A replay
   it cannot show gets a `.replay-problem` message instead. To show a particular case, gzip a
   fixture from `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id

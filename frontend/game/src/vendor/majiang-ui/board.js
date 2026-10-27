@@ -337,6 +337,12 @@ export default class Board {
         }, duration);
     }
 
+    /* Seat l's hand face up: a double ron's earlier winner, which the replay
+     * viewer's seek to a later win shows without that win's own reveal. */
+    reveal(l) {
+        this._view.shoupai[l].redraw(true);
+    }
+
     say(name, l, silent = false) {
         if (this.sound_on && ! silent) {
             this._audio[name][l].currentTime = 0;

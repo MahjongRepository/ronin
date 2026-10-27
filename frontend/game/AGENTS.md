@@ -116,6 +116,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   standings' ledger (the shadow's round logs) is seeded from the snapshot's round history, as
   reduced round logs holding only what the standings read; that history already holds a round
   that ended, so its replay is logged nowhere.
+  A riichi discard the snapshot shows undeposited (`rd` without `ri`) keeps its stick off the river
+  until the next turn deposits it.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
   `backend/game/wire/`, and the replay format's version; change both in the same change. The client sends no heartbeat: liveness is
   the WebSocket protocol ping (`docs/architecture.md`), and the server refuses unknown message types.
@@ -169,7 +171,14 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Replay:** the page (`src/js/replay/page.js`) fetches `/api/replays/{game_id}` and checks its
   `REPLAY_VERSION` before reading a line, since another version's lines may mean something else; then
   the converter turns it into each round's paipu and positions, and the viewer steps through those on
-  the board, from the recorded first dealer's seat, with every hand open. The viewer's only state is
+  the board, from the recorded first dealer's seat, with every hand open. The strip's options (beside
+  its buttons on a wide screen and an upright phone, elsewhere in the info's place behind a toggle
+  that any move closes) or a click on a nameplate turn the table to another seat, and a switch hides
+  opponents' hands; both redraw the position shown, every winner's hand of a result face up. The
+  hidden-hands choice is the replay's own setting, kept by `replay/prefs.js` under a key of its own,
+  never under `GameCtl`'s, which rewrites its whole key on every sound toggle. Since hands may be
+  open, callouts sit on the rivers, off the hands and the score panel, and fade after a moment, so
+  they never hide the newest discards for long. The viewer's only state is
   the majiang-core model: a seek rebuilds the round from its deal, and every move (the page's
   controls, the result dialog's 次へ) goes through the viewer, never to the model or the board
   directly. A move plays its position before the cursor moves there, so the two never part: a position the model

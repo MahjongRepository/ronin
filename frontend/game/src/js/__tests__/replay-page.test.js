@@ -5,8 +5,10 @@ import "../majiang.js";
 import PAGE from "../../../index.html?raw";
 import { GAME_PREF_KEY } from "../game-prefs.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/controls.js";
+import { REPLAY_PREFS_KEY } from "../replay/prefs.js";
 import { showReplay } from "../replay/page.js";
 import { withUnplayableDraw } from "./replay-edits.js";
+import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
@@ -64,9 +66,28 @@ function clickUntil(selector, done) {
     }
 }
 
-beforeEach(() => {
+/** The board's hands drawn as tile backs, by their place at the table. */
+function hiddenHands() {
+    return ["main", "xiajia", "duimian", "shangjia"].filter(
+        (place) => $(`#board .board > .shoupai.${place} .bingpai .pai[data-pai="_"]`).length > 0,
+    );
+}
+
+function seatChoices() {
+    return $(".replay-seat option")
+        .map((i, option) => $(option).text())
+        .get();
+}
+
+function loadPage() {
+    $(window).off();
+    $(document).off();
     document.body.className = "board";
     document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
+}
+
+beforeEach(() => {
+    loadPage();
     vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -206,6 +227,21 @@ describe("showReplay", () => {
         expect(disabled()).toMatchObject({ next: true, nextRound: true, last: true });
         expect(document.activeElement).toBe($(".replay-back")[0]);
     });
+
+    it("remembers the hidden-hands choice across a sound toggle, apart from the sound setting", async () => {
+        await open(FULL_GAME);
+        $(".replay-hide-hands").prop("checked", true).trigger("change");
+        $(".controller .settings-toggle").trigger("click");
+        $(".controller .sound").trigger("click");
+
+        loadPage();
+        await open(FULL_GAME);
+
+        expect($(".replay-hide-hands").prop("checked")).toBe(true);
+        expect(hiddenHands()).toEqual(["xiajia", "duimian", "shangjia"]);
+        expect(JSON.parse(localStorage.getItem(GAME_PREF_KEY))).toEqual({ sound_on: false });
+        expect(JSON.parse(localStorage.getItem(REPLAY_PREFS_KEY))).toEqual({ hideHands: true });
+    });
 });
 
 describe("ReplayControls", () => {
@@ -262,5 +298,72 @@ describe("ReplayControls", () => {
 
         clickUntil(".replay-next", () => $(".replay-action").text().startsWith("Exhaustive"));
         expect(warning()).toBe("");
+    });
+
+    it("views the table from the picked seat or a nameplate at the same position, closing the options", async () => {
+        await open(FULL_GAME);
+        clickUntil(".replay-next", () => stepNumber() === 5);
+        const action = $(".replay-action").text();
+        const toggle = $(".replay-options-toggle");
+        const optionsOpen = () => toggle.attr("aria-expanded") === "true";
+
+        expect(seatChoices()).toEqual(["南 Wanjirou", "西 Ojisan", "北 Ichihime", "東 Akagi"]);
+        expect($(".replay-seat").val()).toBe("3");
+        expect(toggle.text()).toBe("View: Akagi▾");
+
+        toggle.trigger("click");
+        expect(optionsOpen()).toBe(true);
+        $(".replay-seat").val("2").trigger("change");
+
+        expect($("#board .player.main .name").text()).toBe("Ichihime");
+        expect(stepNumber()).toBe(5);
+        expect($(".replay-action").text()).toBe(action);
+        expect(optionsOpen()).toBe(false);
+        expect(toggle.text()).toBe("View: Ichihime▾");
+
+        expect($("#board .board > .player.shangjia").attr("title")).toBe("View from Ojisan");
+        $("#board .board > .player.shangjia").trigger("click");
+
+        expect($("#board .player.main .name").text()).toBe("Ojisan");
+        expect($(".replay-seat").val()).toBe("1");
+        expect(stepNumber()).toBe(5);
+
+        toggle.trigger("click");
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        expect(optionsOpen()).toBe(false);
+        toggle.trigger("click");
+        $(".replay-next-round").trigger("click");
+        expect(optionsOpen()).toBe(false);
+
+        expect(seatChoices()).toEqual(["東 Wanjirou", "南 Ojisan", "西 Ichihime", "北 Akagi"]);
+        expect($("#board .player.main .name").text()).toBe("Ojisan");
+    });
+
+    it("hides opponents' hands behind tile backs, and a result still reveals every winner's", async () => {
+        await open(RIICHI);
+        expect(hiddenHands()).toEqual([]);
+
+        $(".replay-hide-hands").prop("checked", true).trigger("change");
+        expect(hiddenHands()).toEqual(["xiajia", "duimian", "shangjia"]);
+
+        vi.useFakeTimers();
+        $(".replay-last").trigger("click");
+        vi.runAllTimers();
+
+        expect($(".replay-action").text()).toBe("Alice: tsumo 8,000");
+        expect($("#board .player.xiajia .name").text()).toBe("Alice");
+        expect(hiddenHands()).toEqual(["duimian", "shangjia"]);
+
+        vi.useRealTimers();
+        loadPage();
+        await open(DOUBLE_RON);
+        vi.useFakeTimers();
+        $(".replay-last").trigger("click");
+        vi.runAllTimers();
+
+        expect(
+            ["xiajia", "duimian"].map((place) => $(`#board .player.${place} .name`).text()),
+        ).toEqual(["Alice", "Charlie"]);
+        expect(hiddenHands()).toEqual(["shangjia"]);
     });
 });
