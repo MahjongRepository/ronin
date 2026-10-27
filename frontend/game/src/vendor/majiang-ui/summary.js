@@ -46,7 +46,7 @@ export default function(root, paipu, viewpoint) {
         for (let data of log) {
             if (lunban != null) {
                 if (data.hule)  lunban = null;
-                else if (data.pingju && data.pingju.name.match(/^三家和/))
+                else if (data.pingju && data.pingju.name.match(/^(三家和|四風連打)/))
                                 lunban = null;
                 else            lizhi[lunban] = 1;
             }

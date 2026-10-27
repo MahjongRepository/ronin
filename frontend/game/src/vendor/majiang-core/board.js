@@ -130,7 +130,7 @@ export default class Board {
     }
 
     pingju(pingju) {
-        if (! pingju.name.match(/^三家和/)) this.lizhi();
+        if (! pingju.name.match(/^(三家和|四風連打)/)) this.lizhi();
         for (let l = 0; l < 4; l++) {
             if (pingju.shoupai[l])
                 this.shoupai[l].fromString(pingju.shoupai[l]);
