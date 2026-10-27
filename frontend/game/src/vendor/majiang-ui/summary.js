@@ -7,9 +7,6 @@ import $ from 'jquery';
 
 import Majiang from '../majiang-core/index.js';
 
-import fadein from './fadein.js';
-const { hide, show, fadeIn, fadeOut } = fadein;
-
 const LIZHI_DEPOSIT = 1000;
 
 function score_text(score) {
@@ -37,6 +34,7 @@ export default function(root, paipu, viewpoint) {
 
     let r_diff = $('.row-diff', root).eq(0).clone();
     let body   = $('.body', root).empty();
+    let any_lizhi = false;
     for (let log of paipu.log) {
 
         if (log.length == 0) continue;
@@ -87,7 +85,10 @@ export default function(root, paipu, viewpoint) {
 
             if (last.length == 0) continue;
 
-            if (lizhi[l]) $('.lizhi', r_diff).eq(i).text('リ');
+            if (lizhi[l]) {
+                $('.lizhi', r_diff).eq(i).text('リ');
+                any_lizhi = true;
+            }
 
             for (let data of last) {
                 if (! data.hule) continue;
@@ -118,6 +119,8 @@ export default function(root, paipu, viewpoint) {
         }
         body.append(r_gongtuo);
     }
+
+    $('.legend-lizhi', root).toggleClass('hide', ! any_lizhi);
 
     let defen = $('.row-defen .defen', root);
     for (let i = 0; i < 4; i++) {

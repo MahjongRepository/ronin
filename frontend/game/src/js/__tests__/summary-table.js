@@ -16,7 +16,9 @@ export function renderSummary() {
             <tr class="row-defen"><th colspan="3"></th>${cells("td", "defen")}</tr>
             <tr class="row-point"><th colspan="3"></th>${cells("td", "point")}</tr>
         </tfoot>
-    </table></div>`);
+    </table>
+    <div class="footer"><div class="legend"><span class="zhuangjia"></span>親<span class="legend-lizhi"><span class="lizhi">リ</span>リーチ（供託 -1,000 込み）</span></div></div>
+    </div>`);
 }
 
 /** The text of each row matching selector, its cells joined by "|". */
