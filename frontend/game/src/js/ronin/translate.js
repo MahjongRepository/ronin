@@ -10,7 +10,7 @@ import TurnClock from './clock.js';
 import Autoplay from './autoplay.js';
 import rules from './rules.js';
 import { GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, kanMianzi,
-         pingjuMessage, roundResults, seatL, tenpaiByL } from './results.js';
+         pingjuMessage, roundResults, seatL, tenpaiByL, WIN_CALL_MS } from './results.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -41,9 +41,6 @@ const REPLAYED_FROM_HAND = {
     [wire.MELD.CLOSED_KAN]: 4,
     [wire.MELD.ADDED_KAN]:  3,
 };
-
-/** How long a win's ロン or ツモ shows before its result, which fades every call out: the minimum upstream's Game paced it with. */
-const WIN_CALL_MS = 500;
 
 /** How long 自動和了 holds a ron before it calls it, so the discard shows first. */
 const AUTO_RON_MS = 1000;

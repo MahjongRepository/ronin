@@ -40,6 +40,7 @@ BACKEND_FULL_GAME = (
 ) / "full_game.txt"
 BACKEND_FULL_GAME_ID = "fixture-fg"
 EAGER_GAME_SEED = "09" * 96
+EAGER_DOUBLE_RON_SEED = "033c" * 48
 GAME_ENDS = (WireEventType.GAME_END, {})
 
 
@@ -575,6 +576,31 @@ def eager_game() -> Recording:
     return recording
 
 
+def double_ron_on_honba() -> Recording:
+    """
+    Play eager_game's policy from a seed whose third round, on two honba, ends in a double ron, to the next round's end.
+
+    Each winner takes the two honba's 600 on top of a 1600 hand, so the discarder pays 4400.
+    """
+    game = EagerGame("double-ron-on-honba", EAGER_DOUBLE_RON_SEED).replay(
+        Outcome({"rt": WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS)
+    )
+    double_ron = {
+        "rt": WireRoundResultType.DOUBLE_RON,
+        "ls": 0,
+        "wn": [{"ws": 1, "sch": {"0": -22, "1": 22}}, {"ws": 3, "sch": {"0": -22, "3": 22}}],
+    }
+    require_outcome(
+        cut_after(game, event_type=WireEventType.ROUND_STARTED, occurrence=3),
+        Outcome(double_ron, then=(WireEventType.ROUND_STARTED, {"n": 3, "h": 0})),
+        name="double_ron_on_honba",
+    )
+
+    recording = cut_after(game, event_type=WireEventType.ROUND_END, occurrence=3)
+    require_outcome(recording, Outcome({"rt": WireRoundResultType.TSUMO, "ws": 2}), name="double_ron_on_honba")
+    return recording
+
+
 def truncated_mid_round() -> Recording:
     """
     Cut kans after the closed kan's call (its meld, dora and replacement draw), before the rinshan kaihou tsumo.
@@ -607,4 +633,5 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "four_riichi.txt": four_riichi,
     "four_kans.txt": four_kans,
     "eager_game.txt": eager_game,
+    "double_ron_on_honba.txt": double_ron_on_honba,
 }
