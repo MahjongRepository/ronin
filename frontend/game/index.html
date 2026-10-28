@@ -31,7 +31,7 @@
       .game-loading .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
       .game-loading a:any-link { color: #c9bb92; font-size: 0.8em; text-underline-offset: 4px; }
       @keyframes loading-pulse { 50% { opacity: 0.25; transform: translateY(-4px); } }
-      @media (pointer: coarse) {
+      @media (pointer: coarse) and (height > 450px) {
         #game-loading, .game-loading { font-size: 32px; gap: 32px; }
         .game-loading .loading-mark { width: 72px; height: 96px; font-size: 44px; }
       }

@@ -81,9 +81,33 @@ function addressQuery() {
     return window.location.search;
 }
 
-function open(text) {
+const START = "#game-loading .loading-start";
+
+/** Turns of the microtask queue a load may take to offer its OK; waiting on timers would run earlier tests' leftovers. */
+const LOAD_TURNS = 1000;
+
+/** Start showing `text` as the replay, and wait until the loading screen offers its OK or the page settles without it. */
+async function load(text) {
     stubFetch(new Response(text));
-    return showReplay("g-1", Promise.resolve());
+    let settled = false;
+    const shown = showReplay("g-1", Promise.resolve()).finally(() => {
+        settled = true;
+    });
+    for (let turns = 0; !settled && $(START).length === 0; turns += 1) {
+        if (turns === LOAD_TURNS) {
+            throw new Error(`the loading screen's OK: not offered after ${LOAD_TURNS} turns`);
+        }
+        await Promise.resolve();
+    }
+    return { shown };
+}
+
+/** Show `text` as the replay past its OK, the loading screen then gone as `main.js` removes it. */
+async function open(text) {
+    const { shown } = await load(text);
+    $(START).trigger("click");
+    await shown;
+    finishLoading();
 }
 
 function stepNumber() {
@@ -217,6 +241,36 @@ describe("showReplay", () => {
             round: "東二局 1本場",
             step: expect.stringMatching(/^Step 1\u00a0/),
         });
+    });
+
+    it("holds a loaded replay behind the loading screen's focused OK, ignoring keys and the wheel, unless sound is off", async () => {
+        openAt("?seat=1&round=2&step=5");
+        const { shown } = await load(FULL_GAME);
+
+        expect(document.activeElement).toBe($(START)[0]);
+        expect($("#game-loading [role=status]").text()).toBe("牌譜を読み込みました");
+        press("ArrowRight");
+        $("#board")[0].dispatchEvent(
+            new WheelEvent("wheel", {
+                deltaY: 100,
+                deltaMode: WheelEvent.DOM_DELTA_LINE,
+                bubbles: true,
+            }),
+        );
+        expect($(".replay-controls")).toHaveLength(0);
+        expect(addressQuery()).toBe("?seat=1&round=2&step=5");
+
+        $(START).trigger("click");
+        await shown;
+
+        loadPage();
+        localStorage.setItem(GAME_PREF_KEY, JSON.stringify({ sound_on: false }));
+        await (
+            await load(FULL_GAME)
+        ).shown;
+
+        expect($(START)).toHaveLength(0);
+        expect($(".replay-controls")).toHaveLength(1);
     });
 
     it("explains a replay it cannot load in the loading screen's layout and links back, offering a retry after a failed load", async () => {

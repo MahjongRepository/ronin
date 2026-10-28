@@ -17,6 +17,23 @@ export function showLoadingStatus(text) {
     }
 }
 
+/**
+ * Turn the loading screen into a gate: `text` in its status line and a focused OK button in its dots' place, resolving
+ * once pressed. The press is the page's first user activation, without which the browser refuses its sounds.
+ */
+export function waitForStart(text) {
+    showLoadingStatus(text);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "loading-start";
+    button.textContent = "OK";
+    document.querySelector("#game-loading .loading-dots").replaceWith(button);
+    button.focus();
+    return new Promise((resolve) => {
+        button.addEventListener("click", resolve, { once: true });
+    });
+}
+
 export function showLoadingError() {
     showLoadingStatus("読み込めませんでした。ページを再読み込みしてください。");
     document.querySelector("#game-loading .loading-dots")?.remove();
