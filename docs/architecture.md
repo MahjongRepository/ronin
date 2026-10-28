@@ -410,6 +410,13 @@ honours this contract can replace it.
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
 * **Leaving:** the client returns players to the lobby at `/`.
+* **Language:** the page's language is the `lang` cookie (`ja`, `en` or `ru`; `Path=/`,
+  `Max-Age=31536000`, `SameSite=Lax`, `Secure` over HTTPS, not HttpOnly), which the lobby's
+  `POST /lang` writes; when it is absent or holds anything else, the first supported
+  `navigator.languages` entry by its primary subtag, else `en`. A replacement client honours the
+  cookie, and a language choice it offers writes the same cookie with the same attributes, so the
+  lobby follows it (`docs/i18n.md`). The game server sends codes, never text to show: errors carry
+  a code beside an English diagnostic message the client does not display.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
   WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must
   run without it. A client needing more changes `SecurityHeadersMiddleware` in the lobby.
