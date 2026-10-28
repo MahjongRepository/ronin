@@ -872,9 +872,7 @@ describe("bindWheel", () => {
 
         contentHeight = 102;
         vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
-        expect(wheelOver($(".row-diff", standings)[0], -WHEEL_STEP_PX).defaultPrevented).toBe(
-            true,
-        );
+        expect(wheelOver($(".row-diff", standings)[0], -WHEEL_STEP_PX).defaultPrevented).toBe(true);
         expect(label().action).not.toBe("Final standings");
     });
 });

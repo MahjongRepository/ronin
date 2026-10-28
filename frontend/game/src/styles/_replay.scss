@@ -46,7 +46,10 @@ body.board.replay {
 
             @media (hover: hover) {
                 &:hover > * {
-                    background-image: linear-gradient(rgb(255 204 102 / 12%), rgb(255 204 102 / 12%));
+                    background-image: linear-gradient(
+                        rgb(255 204 102 / 12%),
+                        rgb(255 204 102 / 12%)
+                    );
                 }
             }
         }
