@@ -151,7 +151,7 @@ describe("bindLanguageMenu", () => {
             $("#board .settings-menu .language-option")
                 .map(
                     (i, option) =>
-                        `${option.lang}:${option.textContent}:${option.getAttribute("aria-checked")}`,
+                        `${option.lang}:${option.textContent}:${option.getAttribute("aria-pressed")}`,
                 )
                 .get();
         expect(options()).toEqual(["en:English:false", "ja:日本語:true", "ru:Русский:false"]);

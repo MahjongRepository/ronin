@@ -937,7 +937,7 @@ body.board {
                 background: rgb(255 255 255 / 15%);
             }
 
-            &[aria-checked="true"] {
+            &[aria-pressed="true"] {
                 color: $accent;
 
                 &::before {
