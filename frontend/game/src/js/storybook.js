@@ -89,14 +89,14 @@ function renderNav(currentPage) {
             .toggleClass("active", page === currentPage)
             .text(PAGE_TITLES[page]),
     );
-    return $('<header class="storybook-header">').append(
+    return $('<header class="storybook-header" lang="en">').append(
         $("<h1>").text("Game Storybook"),
         $('<nav class="storybook-nav">').append(links),
     );
 }
 
 function renderSection(title, content) {
-    return $('<section class="storybook-sample">').append($("<h2>").text(title), content);
+    return $('<section class="storybook-sample">').append($('<h2 lang="en">').text(title), content);
 }
 
 function renderTiles(pai) {

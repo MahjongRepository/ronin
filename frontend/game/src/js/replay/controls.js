@@ -1,6 +1,7 @@
 import $ from "jquery";
 
-import { CUT_OFF, actionNodes, lastAction, seatName } from "./describe.js";
+import { t } from "../../i18n/index.js";
+import { actionNodes, cutOffText, lastAction, seatName } from "./describe.js";
 import { ReplayHelp } from "./help.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "./hold.js";
 import { COMMAND, ariaKeys, shownKeys } from "./keys.js";
@@ -14,8 +15,6 @@ import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "./speeds.js";
 /** Fewer tiles left in the wall than this is a low wall, as Tenhou warns of it. */
 const LOW_WALL = 8;
 
-const FINAL_ROUND = "All last";
-
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const OPTIONS_ID = "replay-options";
@@ -26,53 +25,53 @@ const OPTIONS_ID = "replay-options";
  */
 const OPTIONS_BESIDE_INFO_MEDIA = `(width >= 1200px) and (height > 450px), ${UPRIGHT_PHONE_MEDIA}`;
 
-/** The jump buttons, each with its icon as polygon point lists and a bar on a 24-unit square. */
+/** The jump buttons, each with its caption and label keys and its icon as polygon point lists and a bar on a 24-unit square. */
 const JUMPS = Object.freeze([
     {
         name: COMMAND.FIRST,
         className: "first",
-        caption: "Start",
-        label: "Game start",
+        caption: "replay.jump.start_caption",
+        label: "replay.jump.first",
         icon: { polygons: ["19,5 19,19 8,12"], bar: 4 },
         move: (viewer) => viewer.first(),
     },
     {
         name: COMMAND.PREV_ROUND,
         className: "prev-round",
-        caption: "Round",
-        label: "Round start / previous round",
+        caption: "replay.jump.round_caption",
+        label: "replay.jump.prev_round",
         icon: { polygons: ["12,5 12,19 3,12", "21,5 21,19 12,12"] },
         move: (viewer) => viewer.prevRound(),
     },
     {
         name: COMMAND.NEXT_ROUND,
         className: "next-round",
-        caption: "Round",
+        caption: "replay.jump.round_caption",
         captionFirst: true,
-        label: "Next round",
+        label: "replay.jump.next_round",
         icon: { polygons: ["3,5 3,19 12,12", "12,5 12,19 21,12"] },
         move: (viewer) => viewer.nextRound(),
     },
     {
         name: COMMAND.LAST,
         className: "last",
-        caption: "End",
+        caption: "replay.jump.end_caption",
         captionFirst: true,
-        label: "Game end",
+        label: "replay.jump.last",
         icon: { polygons: ["5,5 5,19 16,12"], bar: 17.5 },
         move: (viewer) => viewer.last(),
     },
 ]);
 
-/** The Play button's two faces: it starts autoplay, and while autoplay runs it pauses it. */
+/** The Play button's two faces, by catalog key: it starts autoplay, and while autoplay runs it pauses it. */
 const PLAY = Object.freeze({
-    text: "Play",
-    title: `Play (${shownKeys(COMMAND.PLAY)}), pausing at each result`,
+    text: "replay.play",
+    title: "replay.play_title",
     icon: { polygons: ["6,4 6,20 20,12"] },
 });
 const PAUSE = Object.freeze({
-    text: "Pause",
-    title: `Pause (${shownKeys(COMMAND.PLAY)})`,
+    text: "replay.pause",
+    title: "replay.pause_title",
     icon: { polygons: ["6,5 10,5 10,19 6,19", "14,5 18,5 18,19 14,19"] },
 });
 
@@ -105,24 +104,26 @@ function icon({ polygons, bar }) {
 }
 
 function jumpButton(jump) {
-    const caption = $('<span class="replay-caption" aria-hidden="true">').text(jump.caption);
+    const caption = $('<span class="replay-caption" aria-hidden="true">').text(t(jump.caption));
     const glyph = icon(jump.icon);
+    const label = t(jump.label);
     return $(`<button type="button" class="replay-jump replay-${jump.className}">`)
         .attr({
-            "aria-label": jump.label,
+            "aria-label": label,
             "aria-keyshortcuts": ariaKeys(jump.name),
-            title: `${jump.label} (${shownKeys(jump.name)})`,
+            title: `${label} (${shownKeys(jump.name)})`,
         })
         .append(jump.captionFirst ? [caption, glyph] : [glyph, caption]);
 }
 
-function stepButton(name, text, arrow, arrowFirst) {
+function stepButton(name, key, arrow, arrowFirst) {
+    const text = t(key);
     const glyph = $('<span aria-hidden="true">').text(arrow);
     return $(`<button type="button" class="replay-step-button replay-${name}">`)
         .attr({
             "aria-label": text,
             "aria-keyshortcuts": ariaKeys(name),
-            title: `${text} (${shownKeys(name)}), hold to repeat`,
+            title: t("replay.step_title", { label: text, keys: shownKeys(name) }),
         })
         .append(arrowFirst ? [glyph, ` ${text}`] : [`${text} `, glyph]);
 }
@@ -137,15 +138,16 @@ function playButton() {
 /** The Play button's face for `playing`: filled, and offering to pause, while autoplay runs. */
 function showPlayFace(button, playing) {
     const face = playing ? PAUSE : PLAY;
+    const text = t(face.text);
     button
-        .attr({ "aria-label": face.text, title: face.title })
+        .attr({ "aria-label": text, title: t(face.title, { keys: shownKeys(COMMAND.PLAY) }) })
         .toggleClass("replay-playing", playing)
         .empty()
-        .append(icon(face.icon), $("<span>").text(face.text));
+        .append(icon(face.icon), $("<span>").text(text));
 }
 
 function speedName(speed) {
-    return speed[0].toUpperCase() + speed.slice(1);
+    return t(`replay.speed.${speed}`);
 }
 
 /**
@@ -158,7 +160,7 @@ function infoMarkup(roundsButton, helpButton) {
         $('<p class="replay-where">').append(
             $('<span class="replay-where-text">').append(
                 roundsButton,
-                $('<span class="replay-final badge">').text(FINAL_ROUND),
+                $('<span class="replay-final badge">').text(t("replay.final_round")),
                 $('<span class="replay-step">'),
                 $('<span class="replay-wall-low badge">'),
             ),
@@ -171,14 +173,14 @@ function infoMarkup(roundsButton, helpButton) {
 /** The secondary choices: the seat at the bottom of the table, autoplay's speed and whether opponents' hands are hidden. */
 function optionsMarkup() {
     return $(`<div class="replay-options" id="${OPTIONS_ID}" role="group">`)
-        .attr("aria-label", "Replay options")
+        .attr("aria-label", t("replay.options.label"))
         .append(
             $('<label class="replay-option replay-option-seat">').append(
-                $("<span>").text("View from"),
+                $("<span>").text(t("replay.options.view_from")),
                 $('<select class="replay-select replay-seat">'),
             ),
             $('<label class="replay-option replay-option-speed">').append(
-                $("<span>").text("Speed"),
+                $("<span>").text(t("replay.options.speed")),
                 $('<select class="replay-select replay-speed">').append(
                     Object.keys(AUTOPLAY_SPEEDS).map((speed) =>
                         $("<option>").val(speed).text(speedName(speed)),
@@ -187,7 +189,7 @@ function optionsMarkup() {
             ),
             $('<label class="replay-option">').append(
                 $('<input type="checkbox" role="switch" class="replay-hide-hands">'),
-                $("<span>").text("Hide opponents' hands"),
+                $("<span>").text(t("replay.options.hide_hands")),
             ),
         );
 }
@@ -198,7 +200,7 @@ function optionsMarkup() {
  */
 function optionsToggle() {
     return $('<button type="button" class="replay-options-toggle" aria-expanded="false">')
-        .attr({ "aria-controls": OPTIONS_ID, title: "Replay options" })
+        .attr({ "aria-controls": OPTIONS_ID, title: t("replay.options.label") })
         .append(
             $('<span class="replay-options-head">').append($('<span class="replay-options-view">')),
             $('<span class="replay-options-tail">').append(
@@ -214,13 +216,15 @@ function stepText(round, state) {
         return "";
     }
     const steps = round.positions.filter((position) => position.kind !== POSITION.SUMMARY);
-    return `Step ${state.step + 1}\u00a0/\u00a0${steps.length}`;
+    return t("replay.step", { step: state.step + 1, steps: steps.length });
 }
 
 /** The low-wall warning while the round is in play; a result or the standings show none. */
 function wallWarning(state) {
     const inPlay = state.kind !== POSITION.RESULT && state.kind !== POSITION.SUMMARY;
-    return inPlay && state.tilesLeft < LOW_WALL ? `Wall low: ${state.tilesLeft} left` : "";
+    return inPlay && state.tilesLeft < LOW_WALL
+        ? t("replay.wall_low", { count: state.tilesLeft })
+        : "";
 }
 
 function plainText(parts) {
@@ -290,9 +294,9 @@ export class ReplayControls {
     constructor(replay, { closeSettings }) {
         this.#replay = replay;
         this.#buttons = {
-            [COMMAND.BACK]: stepButton(COMMAND.BACK, "Back", "◀", true),
+            [COMMAND.BACK]: stepButton(COMMAND.BACK, "replay.back", "◀", true),
             [COMMAND.PLAY]: playButton(),
-            [COMMAND.NEXT]: stepButton(COMMAND.NEXT, "Next", "▶", false),
+            [COMMAND.NEXT]: stepButton(COMMAND.NEXT, "replay.next", "▶", false),
             ...Object.fromEntries(JUMPS.map((jump) => [jump.name, jumpButton(jump)])),
         };
         const { first, prevRound, back, play, next, nextRound, last } = this.#buttons;
@@ -308,22 +312,24 @@ export class ReplayControls {
                 this.#rounds.setOpen(false);
             },
         });
-        this.element = $('<nav class="replay-controls" aria-label="Replay" lang="en">').append(
-            infoMarkup(this.#rounds.button, this.#help.button),
-            $('<div class="replay-buttons">').append(
-                first,
-                prevRound,
-                back,
-                play,
-                next,
-                nextRound,
-                last,
-            ),
-            this.#optionsToggle,
-            optionsMarkup(),
-            this.#rounds.element,
-            this.#help.element,
-        );
+        this.element = $('<nav class="replay-controls">')
+            .attr("aria-label", t("replay.nav"))
+            .append(
+                infoMarkup(this.#rounds.button, this.#help.button),
+                $('<div class="replay-buttons">').append(
+                    first,
+                    prevRound,
+                    back,
+                    play,
+                    next,
+                    nextRound,
+                    last,
+                ),
+                this.#optionsToggle,
+                optionsMarkup(),
+                this.#rounds.element,
+                this.#help.element,
+            );
         this.#action = $(".replay-action", this.element);
         this.#seat = $(".replay-seat", this.element);
         this.#hideHands = $(".replay-hide-hands", this.element);
@@ -601,7 +607,7 @@ export class ReplayControls {
         this.#speed.val(state.speed);
         this.#hideHands.prop("checked", !state.openHands);
         $(".replay-options-view", this.#optionsToggle).text(
-            `View: ${this.#replay.players[state.seat]}`,
+            t("replay.options.view", { player: this.#replay.players[state.seat] }),
         );
         $(".replay-options-speed", this.#optionsToggle).text(speedName(state.speed));
         const position = `${state.round}/${state.step}/${state.page}`;
@@ -629,7 +635,7 @@ export class ReplayControls {
         $(".replay-wall-low", info)
             .text(warning)
             .toggleClass("hide", warning === "");
-        $(".replay-ended", info).text(state.endedEarly ? CUT_OFF : "");
+        $(".replay-ended", info).text(state.endedEarly ? cutOffText() : "");
     }
 
     /** Write the action line only when it changes, so its live region announces each action once. */
