@@ -423,6 +423,11 @@
             button {
                 padding: 12px 16px 12px 12px;
                 font-size: 32px;
+
+                &:lang(ru) {
+                    padding-inline: 8px 10px;
+                    font-size: 26px;
+                }
             }
         }
     }

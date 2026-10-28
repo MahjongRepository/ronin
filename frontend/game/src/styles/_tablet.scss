@@ -21,7 +21,7 @@
                     font-size: 30px;
 
                     &:not(:lang(ja)) {
-                        font-size: 20px;
+                        font-size: 17px;
                     }
                 }
 
@@ -29,6 +29,11 @@
                     float: left;
                     padding: 2px 0 0 10px;
                     font-size: 14px;
+
+                    &:not(:lang(ja)) {
+                        padding-left: 6px;
+                        font-size: 12px;
+                    }
                 }
             }
 
