@@ -70,7 +70,7 @@
     "room.seat.open": "空席",
     "room.seat.ready": "準備完了",
     "room.start": "対局開始",
-    "room.status.connected": "接続中",
+    "room.status.connected": "接続済み",
     "room.status.connecting": "接続しています…",
     "room.status.disconnected": "切断",
     "room.status.error": "接続エラー",

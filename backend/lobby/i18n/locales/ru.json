@@ -68,9 +68,9 @@
         "one": "показано: {count}",
         "other": "показано: {count}"
     },
-    "history.view_replay": "Смотреть",
+    "history.view_replay": "Запись",
     "history.you": "Вы",
-    "lobby.action.custom_table": "Свой стол",
+    "lobby.action.custom_table": "Создать стол",
     "lobby.action.custom_table_hint": "Игра с друзьями",
     "lobby.action.quick_match": "Быстрая игра",
     "lobby.action.quick_match_hint": "Стандартные правила · без рейтинга",
@@ -94,7 +94,7 @@
         "one": "открыто: {count}",
         "other": "открыто: {count}"
     },
-    "lobby.tables.title": "Свои столы",
+    "lobby.tables.title": "Пользовательские столы",
     "nav.aria_label": "Основное меню",
     "nav.history": "История",
     "nav.language_menu": "Язык: {language}",
