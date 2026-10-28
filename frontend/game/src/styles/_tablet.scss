@@ -82,9 +82,10 @@
             min-width: 184px + 4 * 82px;
 
             .button {
+                box-sizing: border-box;
                 min-width: 5em;
-                height: 24px;
-                padding: 8px 0;
+                height: 40px;
+                padding: 8px 6px;
                 margin-left: 2px;
                 font-size: 16px;
             }
@@ -97,18 +98,19 @@
             max-width: 572px;
 
             .mianzi {
-                padding: 4px;
-                margin-left: 4px;
+                padding: 3px;
+                margin-left: 2px;
 
                 @include shoupai.mianzi-size(35px);
             }
 
             .back {
                 flex-shrink: 1;
-                min-width: 50px;
+                box-sizing: border-box;
+                min-width: fit-content;
                 width: 5em;
-                height: 24px;
-                padding: 8px 0;
+                height: 40px;
+                padding: 8px 4px;
                 margin-left: 2px;
                 font-size: 16px;
             }
