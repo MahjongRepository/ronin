@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import "../majiang.js";
 import summary from "../../vendor/majiang-ui/summary.js";
 import { renderSummary, rowTexts } from "./summary-table.js";
+import { setLocale } from "../../i18n/index.js";
+
+beforeEach(() => setLocale("ja"));
 
 const PLAYERS = ["Ronin", "Bot 1", "Bot 2", "Bot 3"];
 const NO_PAYMENTS = [0, 0, 0, 0];

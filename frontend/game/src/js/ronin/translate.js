@@ -9,9 +9,11 @@ import Shadow from './shadow.js';
 import TurnClock from './clock.js';
 import Autoplay from './autoplay.js';
 import rules from './rules.js';
-import { GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, kanMianzi,
-         pingjuMessage, roundInWind, roundResults, seatL, seatOfL, tenpaiByL, WIN_CALL_MS } from './results.js';
+import { UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, kanMianzi,
+         roundInWind, roundResults, seatL, seatOfL, tenpaiByL, WIN_CALL_MS } from './results.js';
 import { replayPath } from '../routes.js';
+import { DRAW_CODE } from './draws.js';
+import { locale, t } from '../../i18n/index.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -20,15 +22,15 @@ function firstDealerFromDice(dealerDice) {
     return (provisional + second[0] + second[1] - 1) % 4;
 }
 
-const GAME_TYPE_NAMES = {
-    [wire.GAME_TYPE.HANCHAN]:  '半荘戦',
-    [wire.GAME_TYPE.TONPUSEN]: '東風戦',
+const GAME_TYPE_KEYS = {
+    [wire.GAME_TYPE.HANCHAN]:  'game.type.hanchan',
+    [wire.GAME_TYPE.TONPUSEN]: 'game.type.tonpuu',
 };
 
 /** The game start screen's title: the game's length, then on a second line the local time it started. */
 function gameTitle(gameType, startedAt) {
-    const time = startedAt.toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' });
-    return GAME_TYPE_NAMES[gameType] + '\n' + time;
+    const time = startedAt.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
+    return t(GAME_TYPE_KEYS[gameType]) + '\n' + time;
 }
 
 /**
@@ -63,7 +65,7 @@ function ledgerRound(entry, qijia) {
     const fenpei = fenpeiByL(entry.sch, entry.dl);
     if (! entry.ws.length) {
         const tenpai = entry.ts ? tenpaiByL(entry.ts, entry.dl) : null;
-        log.push(pingjuMessage({ name: '流局', fenpei, tenpai }));
+        log.push({ pingju: { fenpei, tenpai } });
         return log;
     }
     const baojia = entry.ls == null ? null : l(entry.ls);
@@ -492,7 +494,7 @@ class Translate {
         catch (e) {
             if (! (e instanceof UnknownRoundResultError)) throw e;
             console.warn('[ronin]', e.message);
-            return msg.rt == wire.RT.ABORTIVE ? abortiveResults(msg, facts, GENERIC_ABORTIVE_NAME) : null;
+            return msg.rt == wire.RT.ABORTIVE ? abortiveResults(msg, facts, DRAW_CODE.ABORTIVE) : null;
         }
     }
 

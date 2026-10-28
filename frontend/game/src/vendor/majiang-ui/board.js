@@ -14,24 +14,23 @@ import summary    from './summary.js';
 import fadein from './fadein.js';
 const { hide, show, fadeIn, fadeOut } = fadein;
 
+import { applyStaticText, formatNumber, setText } from '../../i18n/index.js';
+import { roundKey } from '../../js/ronin/terms.js';
+import { DRAW_CODE } from '../../js/ronin/draws.js';
+
 const class_name = ['main','xiajia','duimian','shangjia'];
 const feng_hanzi = ['東','南','西','北'];
-const shu_hanzi  = ['一','二','三','四'];
 
-/* A round's name as the board shows it (東一局): the replay strip's too. */
-export function jushu_name(zhuangfeng, jushu) {
-    return feng_hanzi[zhuangfeng] + shu_hanzi[jushu] + '局';
-}
-
-const say_text   = { chi:   'チー',
-                     peng:  'ポン',
-                     gang:  'カン',
-                     lizhi: 'リーチ',
-                     rong:  'ロン',
-                     zimo:  'ツモ'    };
+/* Each call's bubble text, by the call's name. */
+const say_key    = { chi:   'game.call.chi',
+                     peng:  'game.call.pon',
+                     gang:  'game.call.kan',
+                     lizhi: 'game.call.riichi',
+                     rong:  'game.call.ron',
+                     zimo:  'game.call.tsumo'  };
 
 function format_defen(defen) {
-    return ('' + defen).replace(/(\d)(\d{3})$/,'$1,$2');
+    return formatNumber(defen);
 }
 
 /**
@@ -43,10 +42,10 @@ function format_defen(defen) {
 export const SEAT_MARK = Object.freeze({ DISCONNECTED: 'disconnect',
                                          AI: 'ai' });
 
-/* Each mark's hidden text, which a page may also show elsewhere. */
-export const SEAT_MARK_TEXT = Object.freeze({
-                                    [SEAT_MARK.DISCONNECTED]: '切断中',
-                                    [SEAT_MARK.AI]:           'AI plays this seat' });
+/* Each mark's hidden text, by catalog key, which a page may also show. */
+export const SEAT_MARK_KEY = Object.freeze({
+                                    [SEAT_MARK.DISCONNECTED]: 'game.seat.disconnected',
+                                    [SEAT_MARK.AI]:           'game.seat.ai' });
 
 /* A seat's nameplate: its wind, name and score, the dealer's 親, and its
  * mark (SEAT_MARK) or null. */
@@ -57,9 +56,14 @@ function nameplate(plate, l, name, defen, mark) {
                  $('<span class="name">').text(name).attr('title', name),
                  $('<span class="info">').append(
                     $('<span class="defen">').text(format_defen(defen)),
-                    l == 0 ? $('<span class="badge dealer">').text('親')
-                           : null));
+                    l == 0 ? dealer_badge() : null));
     return mark_plate(plate, mark);
+}
+
+function dealer_badge() {
+    const badge = $('<span class="badge dealer">');
+    setText(badge[0], 'game.dealer');
+    return badge;
 }
 
 function mark_plate(plate, mark) {
@@ -67,8 +71,11 @@ function mark_plate(plate, mark) {
     for (const name of Object.values(SEAT_MARK)) {
         plate.toggleClass(name, name == mark);
     }
-    if (mark) plate.append($('<span class="seat-mark">')
-                                    .text(SEAT_MARK_TEXT[mark]));
+    if (mark) {
+        const text = $('<span class="seat-mark">');
+        setText(text[0], SEAT_MARK_KEY[mark]);
+        plate.append(text);
+    }
     return plate;
 }
 
@@ -101,8 +108,8 @@ class Score {
 
         show(this._view.root);
 
-        this._view.jushu.text(jushu_name(this._model.zhuangfeng,
-                                         this._model.jushu));
+        const round = roundKey(this._model.zhuangfeng, this._model.jushu);
+        this._view.jushu.each((i, jushu)=>setText(jushu, round));
         this._view.changbang.text(this._model.changbang);
         this._view.lizhibang.text(this._model.lizhibang);
 
@@ -334,7 +341,7 @@ export default class Board {
 
         this.clear_bubbles();
         let duration = 0;
-        if (pingju.name.match(/^三家和/)) {
+        if (pingju.code == DRAW_CODE.TRIPLE_RON) {
             duration = 400;
         }
         else {
@@ -365,13 +372,15 @@ export default class Board {
             this._audio[name][l].currentTime = 0;
             this._audio[name][l].play();
         }
-        show(this._view.say[l].text(say_text[name]));
+        this._view.say[l].each((i, say)=>setText(say, say_key[name]));
+        show(this._view.say[l]);
         this._say[l] = name;
     }
 
     kaiju(viewpoint) {
         if (viewpoint != null) this.viewpoint = viewpoint;
         hide($('> *', this._root));
+        this._view.kaiju.removeAttr('lang');
         let [title, ...sub] = this._model.title.split('\n');
         $('.title', this._view.kaiju).empty().append(
                 $('<div>').text(title),
@@ -389,6 +398,8 @@ export default class Board {
         this._open_hule = null;
         this._view.dialog.hide();
         this._view.summary.scrollTop(0);
+        this._view.summary.removeAttr('lang');
+        applyStaticText(this._view.summary[0]);
         if (paipu) fadeIn(summary(this._view.summary, paipu, this.viewpoint));
         else       hide(this._view.summary);
     }
@@ -408,6 +419,15 @@ export default class Board {
             let c = class_name[(id + 4 - this.viewpoint) % 4];
             mark_plate($(`> .player.${c}`, this._root), marks[id]);
         }
+    }
+
+    /* A locale switch, in place: every text of the table follows the new
+     * locale, but an open dialog keeps its text, tagged with previous. */
+    relabel(previous) {
+        const open = [$('> .hule-dialog', this._root), this._view.summary,
+                      this._view.kaiju].filter(node => ! node.hasClass('hide'));
+        open.forEach(node => node.attr('lang', previous));
+        applyStaticText(this._root[0], { skip: open.map(node => node[0]) });
     }
 
     /* Whether each player is connected: those who are not marked so. */

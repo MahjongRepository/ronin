@@ -6,6 +6,7 @@ import wire from './wire.js';
 import * as tiles from './tiles.js';
 import * as mianzi from './mianzi.js';
 import * as yaku from './yaku.js';
+import { ABORTIVE_CODES, DRAW_CODE, DRAW_MODEL_NAMES } from './draws.js';
 
 /** How long a win's ロン or ツモ shows before its result, which fades every call out: the minimum upstream's Game paced it with. */
 const WIN_CALL_MS = 500;
@@ -33,23 +34,6 @@ function fullHandStr(closedIds, meldStrs, winTileId) {
     return s;
 }
 
-const ABORTIVE_NAMES = {
-    nine_terminals: '九種九牌',
-    four_riichi:    '四家立直',
-    triple_ron:     '三家和了',
-    four_kans:      '四開槓',
-    four_winds:     '四風連打',
-};
-
-/** The name the live client shows for an abortive draw it has no name for. */
-const GENERIC_ABORTIVE_NAME = '途中流局';
-
-/** The names of the two draws that end a round with its wall: an exhaustive draw and a nagashi mangan. */
-const DRAW_NAMES = {
-    EXHAUSTIVE: '荒牌平局',
-    NAGASHI:    '流し満貫',
-};
-
 /**
  * A win as majiang-ui's hule message. Its defen is the hand's value alone (the server's hr.pt), which the dialog
  * prints and names (満貫, 跳満, …) by; the winner's score change can't stand in for it, since it holds the honba, the
@@ -75,11 +59,12 @@ function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai, pao = null, hea
 }
 
 /**
- * A draw as majiang-ui's pingju message. tenpai marks each seat's tenpai on a draw that judges it (null otherwise);
- * players names who the draw is about: the seat that declared nine terminals, the seats that made nagashi mangan.
+ * A draw as majiang-ui's pingju message: its code (DRAW_CODE), which the display reads, and its Japanese name, which
+ * the model reads. tenpai marks each seat's tenpai on a draw that judges it (null otherwise); players names who the
+ * draw is about: the seat that declared nine terminals, the seats that made nagashi mangan.
  */
-function pingjuMessage({ name, shoupai = [null, null, null, null], fenpei, tenpai = null, players = [] }) {
-    return { pingju: { name, shoupai, fenpei, tenpai, players } };
+function pingjuMessage({ code, shoupai = [null, null, null, null], fenpei, tenpai = null, players = [] }) {
+    return { pingju: { code, name: DRAW_MODEL_NAMES[code], shoupai, fenpei, tenpai, players } };
 }
 
 /**
@@ -192,7 +177,7 @@ function winResults({ roundEnd, winners, loserSeat, dealer, riichi }) {
 
 function exhaustiveResults(roundEnd, dealer) {
     return { results: [pingjuMessage({
-        name:    DRAW_NAMES.EXHAUSTIVE,
+        code:    DRAW_CODE.EXHAUSTIVE,
         shoupai: revealedHands(roundEnd.th, dealer),
         fenpei:  fenpeiByL(roundEnd.sch, dealer),
         tenpai:  tenpaiByL(roundEnd.ts || [], dealer),
@@ -201,7 +186,7 @@ function exhaustiveResults(roundEnd, dealer) {
 
 function nagashiResults(roundEnd, dealer) {
     return { results: [pingjuMessage({
-        name:    DRAW_NAMES.NAGASHI,
+        code:    DRAW_CODE.NAGASHI,
         shoupai: revealedHands(roundEnd.th, dealer),
         fenpei:  fenpeiByL(roundEnd.sch, dealer),
         tenpai:  tenpaiByL(roundEnd.ts || [], dealer),
@@ -210,16 +195,16 @@ function nagashiResults(roundEnd, dealer) {
 }
 
 /**
- * An abortive draw named name. A kyuushu declarer (s) is the draw's player, its hand shown when handOf(seat) gives it
+ * An abortive draw of code (DRAW_CODE). A kyuushu declarer (s) is the draw's player, its hand shown when handOf(seat) gives it
  * as a shoupai string; a triple ron's callers (rcl) call ron, though nobody wins.
  */
-function abortiveResults(roundEnd, { dealer, handOf = () => null }, name) {
+function abortiveResults(roundEnd, { dealer, handOf = () => null }, code) {
     const declarers = roundEnd.s == null ? [] : [roundEnd.s];
     const shoupai = [null, null, null, null];
     for (const seat of declarers) shoupai[seatL(seat, dealer)] = handOf(seat);
     return {
         results: [pingjuMessage({
-            name,
+            code,
             shoupai,
             fenpei:  fenpeiByL(roundEnd.sch, dealer),
             players: declarers.map(seat => seatL(seat, dealer)),
@@ -248,16 +233,17 @@ function roundResults(roundEnd, facts) {
     case wire.RT.NAGASHI:
         return nagashiResults(roundEnd, dealer);
     case wire.RT.ABORTIVE: {
-        const name = ABORTIVE_NAMES[roundEnd.rn];
-        if (! name) throw new UnknownRoundResultError('unknown abortive draw ' + roundEnd.rn);
-        return abortiveResults(roundEnd, facts, name);
+        if (! ABORTIVE_CODES.includes(roundEnd.rn)) {
+            throw new UnknownRoundResultError('unknown abortive draw ' + roundEnd.rn);
+        }
+        return abortiveResults(roundEnd, facts, roundEnd.rn);
     }
     }
     throw new UnknownRoundResultError('unknown round result type ' + roundEnd.rt);
 }
 
 export {
-    ABORTIVE_NAMES, DRAW_NAMES, GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL,
+    UnknownRoundResultError, abortiveResults, fenpeiByL,
     fullHandStr, huleMessage, jiejuStandings, kanMianzi, pingjuMessage, revealedHands, roundInWind, roundResults, seatL,
     seatOfL, tenpaiByL, WIN_CALL_MS, winHule,
 };

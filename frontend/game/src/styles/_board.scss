@@ -355,6 +355,10 @@ body.board {
                         &:empty {
                             display: none;
                         }
+
+                        .note-item + .note-item {
+                            margin-left: 1em;
+                        }
                     }
 
                     .shan {
@@ -576,6 +580,16 @@ body.board {
                     }
 
                     .row-diff {
+                        > th {
+                            padding-right: 0.4em;
+                            white-space: nowrap;
+                        }
+
+                        .changbang {
+                            font-size: 0.8em;
+                            font-weight: normal;
+                        }
+
                         .back {
                             text-align: right;
                         }
@@ -682,6 +696,7 @@ body.board {
 
                     .replay-link,
                     .exit {
+                        white-space: nowrap;
                         border: solid 1px $accent;
                         border-radius: 4px;
                         background: transparent;

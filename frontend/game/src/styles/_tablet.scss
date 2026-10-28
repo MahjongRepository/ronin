@@ -19,6 +19,10 @@
                 .jushu {
                     float: left;
                     font-size: 30px;
+
+                    &:not(:lang(ja)) {
+                        font-size: 22px;
+                    }
                 }
 
                 .jicun {

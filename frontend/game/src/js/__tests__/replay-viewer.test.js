@@ -35,6 +35,9 @@ import RON_RIICHI_DISCARD from "./fixtures/replays/ron_riichi_discard.txt?raw";
 import TRIPLE_RON from "./fixtures/replays/triple_ron.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
 import TRUNCATED_MID_ROUND from "./fixtures/replays/truncated_mid_round.txt?raw";
+import { setLocale } from "../../i18n/index.js";
+
+beforeEach(() => setLocale("en"));
 
 /** The board's own delay before a win's dialog opens, shorter than a result's callouts. */
 const BOARD_HULE_MS = 400;
@@ -299,7 +302,7 @@ describe("ReplayViewer", () => {
         vi.runAllTimers();
         expect(shown("#board .hule-dialog")).toBe(true);
         expect(shown("#board .hule-dialog .next")).toBe(true);
-        expect($("#board .score .jushu").text()).toBe("東一局");
+        expect($("#board .score .jushu").text()).toBe("East 1");
     });
 
     it("jumps between rounds' deals and turns the table, keeping the position", () => {
@@ -553,7 +556,7 @@ describe("ReplayViewer", () => {
         expect(shown("#board .summary")).toBe(true);
         const top = replay.standings.rank.indexOf(1);
         const column = (top - viewer.state.seat + 4) % 4;
-        expect(texts("#board .summary .row-rank .rank")[column]).toBe("1位");
+        expect(texts("#board .summary .row-rank .rank")[column]).toBe("1st");
         expect(texts("#board .summary .row-defen .defen")[column]).toBe(
             replay.standings.defen[top].toLocaleString("en-US"),
         );

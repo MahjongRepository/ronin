@@ -14,6 +14,7 @@ const { setSelector, clearSelector } = selector;
 export const BEEP_SECONDS = 5;
 
 import mianzi from './mianzi.js';
+import { setAttributeText, setText } from '../../i18n/index.js';
 
 export default class Player extends Majiang.Player {
 
@@ -146,8 +147,11 @@ export default class Player extends Majiang.Player {
 
     /** Show 戻る after the selector's choices; it, Escape or a right-click runs restore. */
     show_back(restore) {
-        const back = $('<span class="back" title="戻る [Esc]" aria-label="戻る">戻る</span>')
+        const back = $('<span class="back">')
                 .on('click.mianzi', ()=>{ restore(); return false; });
+        setText(back[0], 'game.button.back');
+        setAttributeText(back[0], 'title', 'game.button.back_title');
+        setAttributeText(back[0], 'aria-label', 'game.button.back');
         this._node.mianzi.append(back);
         clearTimeout(this._mianzi_timeout);
         show(this._node.mianzi.width($(this._node.dapai).width()));

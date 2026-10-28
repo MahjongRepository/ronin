@@ -28,6 +28,9 @@ import TRIPLE_RON from "./fixtures/replays/triple_ron.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
 import TRUNCATED_MID_ROUND from "./fixtures/replays/truncated_mid_round.txt?raw";
 
+/** The server's yaku id of rinshan kaihou. */
+const RINSHAN_KAIHOU = 5;
+
 const FIXTURES = import.meta.glob("./fixtures/replays/*.txt", {
     query: "?raw",
     import: "default",
@@ -373,7 +376,7 @@ describe("toReplay round ends", () => {
             baojia: null,
             shoupai: "m2m3m4m9p0p6p7s6s7s8m9,s1111",
         });
-        expect(rinshan.hupai.map((yaku) => yaku.name)).toContain("嶺上開花");
+        expect(rinshan.hupai.map((yaku) => yaku.yi)).toContain(RINSHAN_KAIHOU);
     });
 
     it("shows a robbed kan as declared before the ron", () => {

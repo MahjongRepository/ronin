@@ -1,12 +1,7 @@
-import { jushu_name as jushuName } from "../../vendor/majiang-ui/board.js";
+import { DRAW_CODE } from "../ronin/draws.js";
 import { DIR } from "../ronin/mianzi.js";
-import {
-    ABORTIVE_NAMES,
-    DRAW_NAMES,
-    GENERIC_ABORTIVE_NAME,
-    seatL,
-    seatOfL,
-} from "../ronin/results.js";
+import { seatL, seatOfL } from "../ronin/results.js";
+import { roundWithHonba } from "../ronin/terms.js";
 import wire from "../ronin/wire.js";
 import { NOTE, POSITION, kindOf } from "./paipu.js";
 import { OUTCOME } from "./round-end.js";
@@ -24,14 +19,14 @@ const FINAL_STANDINGS = "Final standings";
 
 /** Each draw's name in English, beside the board's Japanese one. */
 const DRAW_TEXT = Object.freeze({
-    [DRAW_NAMES.EXHAUSTIVE]: "Exhaustive draw",
-    [DRAW_NAMES.NAGASHI]: "Nagashi mangan",
-    [ABORTIVE_NAMES.nine_terminals]: "Nine terminals",
-    [ABORTIVE_NAMES.four_riichi]: "Four riichi",
-    [ABORTIVE_NAMES.triple_ron]: "Triple ron",
-    [ABORTIVE_NAMES.four_kans]: "Four kans",
-    [ABORTIVE_NAMES.four_winds]: "Four winds",
-    [GENERIC_ABORTIVE_NAME]: "Abortive draw",
+    [DRAW_CODE.EXHAUSTIVE]: "Exhaustive draw",
+    [DRAW_CODE.NAGASHI]: "Nagashi mangan",
+    [DRAW_CODE.NINE_TERMINALS]: "Nine terminals",
+    [DRAW_CODE.FOUR_RIICHI]: "Four riichi",
+    [DRAW_CODE.TRIPLE_RON]: "Triple ron",
+    [DRAW_CODE.FOUR_KANS]: "Four kans",
+    [DRAW_CODE.FOUR_WINDS]: "Four winds",
+    [DRAW_CODE.ABORTIVE]: "Abortive draw",
 });
 
 /** Japanese text in a line of English: the reader marks it `lang="ja"`. */
@@ -39,10 +34,10 @@ function ja(text) {
     return { ja: text };
 }
 
-/** A round as the board names it: 東四局 1本場. */
+/** A round as the board names it, with its honba: 東四局 1本場, East 4, 1 honba. */
 export function roundName(round) {
     const { zhuangfeng, jushu } = round.log[0].qipai;
-    return `${jushuName(zhuangfeng, jushu)} ${round.honba}本場`;
+    return roundWithHonba(zhuangfeng, jushu, round.honba);
 }
 
 /** A seat as the viewpoint picker names it in a round: its wind there (東 marks the dealer) and its player. */
@@ -180,7 +175,7 @@ function drawSeatsText(outcome, nameOfSeat) {
 
 /** A draw by its English name and the seats it names first, its Japanese name after them. */
 function drawParts(outcome, nameOfSeat) {
-    const english = DRAW_TEXT[outcome.name] ?? "Draw";
+    const english = DRAW_TEXT[outcome.code] ?? "Draw";
     return [`${english}${drawSeatsText(outcome, nameOfSeat)} (`, ja(outcome.name), ")"];
 }
 

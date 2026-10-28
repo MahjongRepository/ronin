@@ -6,6 +6,7 @@
 import $ from 'jquery';
 
 import mianzi from './mianzi.js';
+import { setAttributeText } from '../../i18n/index.js';
 
 export default class Shoupai {
 
@@ -26,7 +27,8 @@ export default class Shoupai {
 
         if (open != null) this._open = open;
 
-        this._node.bingpai.attr('aria-label', '手牌');
+        this._node.bingpai.each((i, node)=>
+                setAttributeText(node, 'aria-label', 'game.aria.hand'));
         this._node.bingpai.empty();
         let zimo = this._shoupai._zimo
         for (let s of ['m','p','s','z']) {
