@@ -3,6 +3,7 @@ import $ from "jquery";
 import { CUT_OFF, lastAction, outcomeParts, roundName, seatName } from "./describe.js";
 import { POSITION } from "./paipu.js";
 import { writeReplayPrefs } from "./prefs.js";
+import { SEATS } from "./seats.js";
 import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "./speeds.js";
 
 /** Holding Back or Next steps again after this long, then every HOLD_REPEAT_MS: fast to skim, slow enough to follow. */
@@ -17,7 +18,6 @@ const FINAL_ROUND = "All last";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-const SEATS = 4;
 const OPTIONS_ID = "replay-options";
 const ROUNDS_ID = "replay-rounds";
 const ROUNDS_TITLE_ID = "replay-rounds-title";

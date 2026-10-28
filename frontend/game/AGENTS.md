@@ -171,12 +171,21 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 * **Replay:** the page (`src/js/replay/page.js`) fetches `/api/replays/{game_id}` and checks its
   `REPLAY_VERSION` before reading a line, since another version's lines may mean something else; then
   the converter turns it into each round's paipu and positions, and the viewer steps through those on
-  the board, from the recorded first dealer's seat, with every hand open. The strip's options (beside
-  its buttons on a wide screen and an upright phone, elsewhere in the info's place behind a toggle
-  that any move closes) or a click on a nameplate turn the table to another seat, and a switch hides
-  opponents' hands; both redraw the position shown, every winner's hand of a result face up. The
-  hidden-hands choice is the replay's own setting, kept by `replay/prefs.js` under a key of its own,
-  never under `GameCtl`'s, which rewrites its whole key on every sound toggle. Since hands may be
+  the board, from the recorded first dealer's seat unless the address names another, with every hand
+  open. The page's query names the seat and position (`replay/position-url.js`, contract in
+  `docs/architecture.md`): it is read once and the page opens there paused. A bad seat falls back to
+  the first dealer's, a bad round to round 0's deal (its step dropped), a bad step to its round's
+  deal; the final standings' step equals the strip's step count n. The address bar then follows
+  every move and change of seat by replacing its history entry, at most twice a second (Safari
+  refuses more than 100 history writes in 30 seconds, which a held Next or autoplay would pass). A
+  move still waiting is written once the interval ends or the page is hidden or left, so Back to the
+  page lands on it, but a reload within the interval may land a step or two back. The strip's
+  options (beside its buttons on a wide screen and an upright phone, elsewhere in the info's place
+  behind a toggle that any move closes) or a click on a nameplate turn the table to another seat,
+  and a switch hides opponents' hands; both redraw the position shown, every winner's hand of a
+  result face up. The hidden-hands choice is the replay's own setting, kept by `replay/prefs.js`
+  under a key of its own, never under `GameCtl`'s, which rewrites its whole key on every sound
+  toggle. Since hands may be
   open, callouts sit on the rivers, off the hands and the score panel, and fade after a moment, so
   they never hide the newest discards for long. The viewer's only state is
   the majiang-core model: a seek rebuilds the round from its deal, and every move (the page's

@@ -6,6 +6,7 @@ import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
 import { MalformedReplayError, toReplay } from "./paipu.js";
+import { PositionUrl, readPosition } from "./position-url.js";
 import { readReplayPrefs } from "./prefs.js";
 import { ReplayViewer, UnplayableReplayError } from "./viewer.js";
 
@@ -95,10 +96,10 @@ class ReplaySettings extends Majiang.UI.GameCtl {
 }
 
 /**
- * The board drawing the replay from the recorded first dealer's seat, every hand open unless the viewer chose to hide
- * opponents' hands, with the sound setting; a sound the browser blocks before the first gesture is skipped.
+ * The board drawing the replay from `seat`, every hand open unless the viewer chose to hide opponents' hands, with the
+ * sound setting; a sound the browser blocks before the first gesture is skipped.
  */
-function buildBoard(replay, stage, prefs) {
+function buildBoard(replay, stage, prefs, seat) {
     const pai = Majiang.UI.pai($("#loaddata"));
     const audio = withoutBlockedPlayback(Majiang.UI.audio($("#loaddata")));
     const model = new Majiang.Board({
@@ -108,7 +109,7 @@ function buildBoard(replay, stage, prefs) {
     });
     const root = $("> .board", stage);
     const view = new Majiang.UI.Board(root, pai, audio, model);
-    view.viewpoint = replay.qijia;
+    view.viewpoint = seat;
     view.open_shoupai = !prefs.hideHands;
     new ReplaySettings(stage, GAME_PREF_KEY, view);
     $(".controller .sound", stage).attr("title", "音声");
@@ -116,10 +117,16 @@ function buildBoard(replay, stage, prefs) {
     return { model, view, root };
 }
 
+/**
+ * The viewer at the seat and position the address bar names (by default the recorded first dealer's seat at the first
+ * deal), paused, the address bar then following every move and change of seat.
+ */
 function startViewer(replay) {
     const stage = $("#board");
     const prefs = readReplayPrefs();
-    const { model, view, root } = buildBoard(replay, stage, prefs);
+    const { seat, round, step } = readPosition(window.location.search, replay);
+    const { model, view, root } = buildBoard(replay, stage, prefs, seat);
+    const positionUrl = new PositionUrl();
     const controls = new ReplayControls(replay);
     $("#space").remove();
     $("body").addClass("replay").append(controls.element);
@@ -129,12 +136,15 @@ function startViewer(replay) {
         model,
         root,
         speed: prefs.speed,
-        onChange: (state) => controls.show(state),
+        onChange: (state) => {
+            controls.show(state);
+            positionUrl.show(state);
+        },
         onStandingsJump: () => controls.focusRounds(),
         onError: showViewerFailure,
     });
     controls.bind(viewer);
-    viewer.start();
+    viewer.start(round, step);
     if (viewer.failed) {
         return;
     }
@@ -142,9 +152,9 @@ function startViewer(replay) {
 }
 
 /**
- * Show a game's replay on the board at its deal, with its control strip, or say why it cannot be shown. The replay loads
- * while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it, so a failed decode is the board's
- * failure alone, never an unhandled rejection on a page that shows a problem instead.
+ * Show a game's replay on the board at the position its address names, with its control strip, or say why it cannot be
+ * shown. The replay loads while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it, so a failed
+ * decode is the board's failure alone, never an unhandled rejection on a page that shows a problem instead.
  */
 export async function showReplay(gameId, tilesLoaded) {
     document.title = PAGE_TITLE;

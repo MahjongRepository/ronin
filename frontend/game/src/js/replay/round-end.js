@@ -1,4 +1,5 @@
 import wire from "../ronin/wire.js";
+import { SEATS } from "./seats.js";
 
 /** How a round ended, for the round list and the strip's result line. */
 export const OUTCOME = Object.freeze({
@@ -59,16 +60,16 @@ const OUTCOME_OF_TYPE = {
     }),
 };
 
-const SEATS = [0, 1, 2, 3];
+const SEAT_NUMBERS = Array.from({ length: SEATS }, (_, seat) => seat);
 
 /** Every seat's score change; a round end always records all four, so one missing is a damaged file. */
 function scoreChanges({ sch }) {
-    if (!SEATS.every((seat) => Number.isInteger(sch?.[seat]))) {
+    if (!SEAT_NUMBERS.every((seat) => Number.isInteger(sch?.[seat]))) {
         throw new Error(
             `round end has no score change (sch) for every seat: ${JSON.stringify(sch)}`,
         );
     }
-    return SEATS.map((seat) => sch[seat] * wire.SCORE_DIV);
+    return SEAT_NUMBERS.map((seat) => sch[seat] * wire.SCORE_DIV);
 }
 
 /**

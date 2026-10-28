@@ -4,9 +4,8 @@ import fadein from "../../vendor/majiang-ui/fadein.js";
 import { WIN_CALL_MS } from "../ronin/results.js";
 import { HISTORY_URL } from "../routes.js";
 import { POSITION, kindOf } from "./paipu.js";
+import { SEATS } from "./seats.js";
 import { AUTOPLAY_SPEEDS, DEFAULT_AUTOPLAY_SPEED } from "./speeds.js";
-
-const SEATS = 4;
 
 /** How long a step's callouts show before they fade: long enough to read, short enough to uncover the rivers under them. */
 export const CALLOUT_MS = 1200;
