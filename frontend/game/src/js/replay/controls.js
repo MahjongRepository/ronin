@@ -125,7 +125,11 @@ function stepButton(name, key, arrow, arrowFirst) {
             "aria-keyshortcuts": ariaKeys(name),
             title: t("replay.step_title", { label: text, keys: shownKeys(name) }),
         })
-        .append(arrowFirst ? [glyph, ` ${text}`] : [`${text} `, glyph]);
+        .append(
+            arrowFirst
+                ? [glyph, document.createTextNode(` ${text}`)]
+                : [document.createTextNode(`${text} `), glyph],
+        );
 }
 
 function playButton() {
