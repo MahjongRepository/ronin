@@ -25,10 +25,8 @@ body.board.replay {
         min-height: 0;
         margin: 0;
 
-        .he .dapai .pai.dapai {
-            box-shadow:
-                0 0 0 3px $accent,
-                0 0 12px 4px $accent;
+        .he .dapai .pai.dapai.mopai {
+            opacity: 0.8;
         }
 
         > .board > .player:not(.main) {
