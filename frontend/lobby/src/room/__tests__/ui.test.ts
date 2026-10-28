@@ -47,6 +47,7 @@ function submitChat(container: HTMLElement, text: string): void {
 
 describe("renderRoom", () => {
     afterEach(() => {
+        document.documentElement.lang = "";
         document.body.replaceChildren();
     });
 
@@ -138,7 +139,7 @@ describe("renderRoom", () => {
         expect(plain.defaultPrevented).toBe(false);
     });
 
-    test("explains why the host cannot start yet", () => {
+    test("explains why the host cannot start yet, in the page language with its list format", () => {
         const state = seatedState();
         state.players.push({ is_bot: false, is_owner: false, name: "dev2", ready: false });
 
@@ -149,6 +150,21 @@ describe("renderRoom", () => {
         expect(
             container.querySelector(`#${start?.getAttribute("aria-describedby")}`)?.textContent,
         ).toBe("Waiting for dev2 to get ready.");
+
+        document.documentElement.lang = "ru";
+        state.players.push(
+            ...["Аня", "Nanashi-1234"].map((name) => ({
+                is_bot: false,
+                is_owner: false,
+                name,
+                ready: false,
+            })),
+        );
+        const russian = mount(state);
+
+        expect(russian.querySelector("#room-action-hint")?.textContent).toBe(
+            "Ждём готовности: dev2, Аня и Nanashi-1234.",
+        );
     });
 
     test("marks your own seat and shows the host as the host rather than ready", () => {

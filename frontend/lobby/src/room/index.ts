@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import { LobbySocket } from "@/lobby-socket";
 import { bindToPageLifetime } from "@/page-lifetime";
 import {
@@ -36,7 +37,7 @@ function renderSetupFailure(container: HTMLElement): void {
         actions: buildActionCallbacks(state),
         chatMaxLength: 0,
         container,
-        roomName: container.dataset.roomName || "Table",
+        roomName: container.dataset.roomName || t("room.fallback_name"),
         state,
     });
 }

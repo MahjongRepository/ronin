@@ -1,3 +1,5 @@
+import { type MessageKey, t } from "@/i18n";
+
 const OCCUPANCY = {
     ALREADY_IN_GAME: "already_in_game",
     ALREADY_IN_QUEUE: "already_in_queue",
@@ -8,15 +10,14 @@ const OCCUPANCY = {
 
 type OccupancyCode = (typeof OCCUPANCY)[keyof typeof OCCUPANCY];
 
-type OccupancyText = Readonly<Partial<Record<OccupancyCode, string>>>;
+type OccupancyText = Readonly<Partial<Record<OccupancyCode, MessageKey>>>;
 
-const OCCUPANCY_TEXT: Readonly<Record<OccupancyCode, string>> = {
-    [OCCUPANCY.ALREADY_IN_GAME]: "You are already playing a game. Finish it first.",
-    [OCCUPANCY.ALREADY_IN_QUEUE]: "You are searching for a match. Cancel the search first.",
-    [OCCUPANCY.ALREADY_IN_ROOM]: "You are already seated at a table. Leave it first.",
-    [OCCUPANCY.MATCH_STARTING]: "Your match is starting. Try again in a moment to join its game.",
-    [OCCUPANCY.REPLACED_BY_NEW_CONNECTION]:
-        "This page is open in another tab or window and continues there. You can close this one.",
+const OCCUPANCY_TEXT: Readonly<Record<OccupancyCode, MessageKey>> = {
+    [OCCUPANCY.ALREADY_IN_GAME]: "occupancy.already_in_game",
+    [OCCUPANCY.ALREADY_IN_QUEUE]: "occupancy.already_in_queue",
+    [OCCUPANCY.ALREADY_IN_ROOM]: "occupancy.already_in_room",
+    [OCCUPANCY.MATCH_STARTING]: "occupancy.match_starting",
+    [OCCUPANCY.REPLACED_BY_NEW_CONNECTION]: "occupancy.replaced_by_new_connection",
 };
 
 function isOccupancyCode(code: unknown): code is OccupancyCode {
@@ -27,7 +28,7 @@ function describeOccupancyError(code: unknown, pageText: OccupancyText = {}): st
     if (!isOccupancyCode(code)) {
         return null;
     }
-    return pageText[code] ?? OCCUPANCY_TEXT[code];
+    return t(pageText[code] ?? OCCUPANCY_TEXT[code]);
 }
 
 export { OCCUPANCY, OCCUPANCY_TEXT, describeOccupancyError, isOccupancyCode };

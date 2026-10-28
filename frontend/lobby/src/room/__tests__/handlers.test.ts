@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import { t } from "@/i18n";
+import { OCCUPANCY } from "@/occupancy-errors";
 import {
     JOIN_RETRY_DELAY_MS,
     MAX_JOIN_RETRIES,
+    ROOM_ERROR_CODES,
     buildActionCallbacks,
     buildMessageHandlers,
+    describeRoomError,
     handleMessage,
 } from "@/room/handlers";
 import { createRoomState } from "@/room/state";
@@ -122,5 +126,38 @@ describe("buildActionCallbacks", () => {
         buildActionCallbacks(createRoomState()).handleLeaveRoom();
 
         expect(replace).toHaveBeenCalledWith("/");
+    });
+});
+
+describe("describeRoomError", () => {
+    afterEach(() => {
+        document.documentElement.lang = "";
+        vi.restoreAllMocks();
+    });
+
+    test.each(["en", "ja", "ru"])(
+        "words every room error and occupancy code it handles in %s without the generic fallback",
+        (locale) => {
+            document.documentElement.lang = locale;
+            const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+            const texts = [...ROOM_ERROR_CODES, ...Object.values(OCCUPANCY)].map(describeRoomError);
+
+            expect(texts).not.toContain(t("room.error.unknown"));
+            expect(new Set(texts).size).toBe(texts.length);
+            expect(report).not.toHaveBeenCalled();
+        },
+    );
+
+    test("shows the generic failure for an unknown code and reports the code, never the code itself", () => {
+        const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+        const text = describeRoomError("server_exploded");
+
+        expect(text).toBe("Something went wrong at this table.");
+        expect(report).toHaveBeenCalledWith(
+            "i18n error",
+            expect.objectContaining({ key: "room.error.server_exploded" }),
+        );
     });
 });
