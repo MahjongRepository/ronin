@@ -22,6 +22,7 @@ function silentAudio() {
 /** The live table of index.html in Japanese with a decision of the storybook's `variant` open, as the ronin layer opens it. */
 function openDecision(key, onAnswer = vi.fn()) {
     const page = new DOMParser().parseFromString(PAGE, "text/html");
+    page.head.querySelectorAll("script").forEach((script) => script.remove());
     document.head.innerHTML = page.head.innerHTML;
     document.body.innerHTML = page.body.innerHTML;
     setLocale("ja");
