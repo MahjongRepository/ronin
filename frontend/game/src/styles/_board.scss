@@ -342,6 +342,17 @@ body.board {
                 }
 
                 .hule {
+                    .note {
+                        contain: inline-size;
+                        font-family: $text-font;
+                        text-align: center;
+                        color: $accent;
+
+                        &:empty {
+                            display: none;
+                        }
+                    }
+
                     .shan {
                         font-family: $title-font;
 

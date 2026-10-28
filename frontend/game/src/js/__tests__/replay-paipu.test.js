@@ -18,6 +18,7 @@ import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import KANS from "./fixtures/replays/kans.txt?raw";
 import KYUUSHU from "./fixtures/replays/kyuushu.txt?raw";
 import NAGASHI from "./fixtures/replays/nagashi.txt?raw";
+import PAO from "./fixtures/replays/pao.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import RON_RIICHI_DISCARD from "./fixtures/replays/ron_riichi_discard.txt?raw";
 import TRIPLE_RON from "./fixtures/replays/triple_ron.txt?raw";
@@ -59,6 +60,15 @@ function stepsOf(round) {
 /** The truncated fixture cut before the rinshan draw that follows its closed kan's dora reveal. */
 function endingOnTheDoraReveal(text) {
     return text.trimEnd().split("\n").slice(0, -1).join("\n");
+}
+
+/** The replay with its first round end's ron made liable on its own discarder, who pays the whole ron either way. */
+function withLiableDiscarder(text) {
+    const lines = text.split("\n");
+    const index = firstLineOf(lines, wire.E.ROUND_END);
+    const roundEnd = JSON.parse(lines[index]);
+    lines[index] = JSON.stringify({ ...roundEnd, ps: roundEnd.ls });
+    return lines.join("\n");
 }
 
 /** The position of a round's result, with the messages of its range. */
@@ -225,7 +235,7 @@ const SETTLED_GAMES = [
 ];
 
 describe("toReplay round ends", () => {
-    it("builds wins with their ura dora, discarder and riichi mark", () => {
+    it("builds wins with their ura dora, discarder, riichi mark and liable seat", () => {
         const tsumo = firstRound(RIICHI);
         expect(resultOf(tsumo).messages[0].hule).toMatchObject({
             l: 1,
@@ -250,6 +260,17 @@ describe("toReplay round ends", () => {
         });
         expect(resultOf(ron).say).toEqual([{ name: "rong", l: 1 }]);
         expect(ron.outcome).toMatchObject({ kind: OUTCOME.RON, loser: 2 });
+
+        expect(resultOf(firstRound(PAO)).messages[0].hule).toMatchObject({
+            l: 1,
+            baojia: null,
+            pao: 0,
+            headBumped: [],
+            page: null,
+        });
+        expect(
+            resultOf(firstRound(withLiableDiscarder(RON_RIICHI_DISCARD))).messages[0].hule.pao,
+        ).toBeNull();
     });
 
     it("builds a rinshan kaihou tsumo with the kan among its melds", () => {
@@ -304,8 +325,12 @@ describe("toReplay round ends", () => {
         ]);
         expect(round.outcome.kind).toBe(OUTCOME.DOUBLE_RON);
 
-        const headBumped = resultOf(firstRound(DOUBLE_RON_HEAD_BUMP)).position;
-        expect(headBumped.headBumpedSeats).toEqual([3]);
+        const headBumped = firstRound(DOUBLE_RON_HEAD_BUMP);
+        const wins = headBumped.log.filter((message) => "hule" in message);
+        expect(wins.map(({ hule }) => [hule.l, hule.headBumped, hule.page])).toEqual([
+            [1, [3], { number: 1, count: 2 }],
+            [2, [3], { number: 2, count: 2 }],
+        ]);
     });
 
     it("names each abortive draw and reveals the kyuushu declarer's hand", () => {

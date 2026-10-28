@@ -955,6 +955,8 @@ describe("the ronin table (Translate and Reply)", () => {
             l: 2,
             defen: 32000,
             fenpei: [-16000, -16600, 32600, 0],
+            pao: 1,
+            page: { number: 2, count: 2 },
         });
         expect(table.player.model).toMatchObject({
             changbang: 2,

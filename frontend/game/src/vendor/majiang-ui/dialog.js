@@ -56,10 +56,17 @@ export default class HuleDialog {
         hide(this._node.pingju);
         show(this._node.hule);
 
+        let page = hule.page ? ` (${hule.page.number}/${hule.page.count})` : '';
         this._node.title.text(
-            hule.baojia == null ? `${this.name(hule.l)} ツモ`
-                                : `${this.name(hule.l)} ロン ← ${this.name(hule.baojia)}`);
+            (hule.baojia == null ? `${this.name(hule.l)} ツモ`
+                                 : `${this.name(hule.l)} ロン ← ${this.name(hule.baojia)}`) + page);
         show(this._node.title);
+
+        let notes = [];
+        if (hule.pao != null) notes.push(`責任払い: ${this.name(hule.pao)}`);
+        if (hule.headBumped && hule.headBumped.length)
+            notes.push(`頭ハネ: ${hule.headBumped.map(l => this.name(l)).join('・')} のロン無効`);
+        $('.note', this._node.hule).text(notes.join('　'));
 
         if (hule.fubaopai) show($('.shan.fubaopai', this._node.hule));
         else               hide($('.shan.fubaopai', this._node.hule));

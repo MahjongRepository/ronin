@@ -124,7 +124,14 @@ function ronValue(winner, nameOfSeat) {
     return `${points(winner.points)}${paoText(winner, nameOfSeat)}`;
 }
 
-function winText(outcome, nameOfSeat) {
+/** A double ron's label, with which of its wins the dialog shows when one does: "Double ron 1/2". */
+function doubleRonLabel(outcome, shownWin) {
+    return shownWin === null
+        ? "Double ron"
+        : `Double ron ${shownWin + 1}/${outcome.winners.length}`;
+}
+
+function winText(outcome, nameOfSeat, shownWin) {
     const [winner] = outcome.winners;
     switch (outcome.kind) {
         case OUTCOME.TSUMO:
@@ -139,7 +146,8 @@ function winText(outcome, nameOfSeat) {
                 (each) => `${nameOfSeat(each.seat)} ${ronValue(each, nameOfSeat)}`,
             );
             const honba = outcome.winners.reduce((sum, each) => sum + winPayments(each).honba, 0);
-            return `Double ron from ${nameOfSeat(outcome.loser)}: ${winners.join(", ")}${honbaText(honba)}`;
+            const label = doubleRonLabel(outcome, shownWin);
+            return `${label} from ${nameOfSeat(outcome.loser)}: ${winners.join(", ")}${honbaText(honba)}`;
         }
         default:
             throw new Error(`no win outcome ${outcome.kind}`);
@@ -177,9 +185,10 @@ function drawParts(outcome, nameOfSeat) {
  * (2,000/4,000)", "Tsumo: Bob 12,000 (4,000 all)", "Ron: Charlie from Alice 1,300", "Double ron from Bob: Alice 1,600,
  * Diana 1,600", with "(+300 honba)" when the payers paid honba on top (a double ron's both wins' together); a draw by its English name and the seats it
  * names, then its Japanese name. A pao tsumo shows only its total, "(pao: Diana pays)" in place of the split, since the
- * liable seat pays what the others would. A round the replay cuts off says so.
+ * liable seat pays what the others would. A round the replay cuts off says so. shownWin, the index of the win a result
+ * dialog shows, numbers a double ron's label: "Double ron 1/2 from Bob: …".
  */
-export function outcomeParts(replay, round) {
+export function outcomeParts(replay, round, shownWin = null) {
     const { outcome } = round;
     const nameOfSeat = (seat) => replay.players[seat];
     if (outcome === null) {
@@ -189,7 +198,7 @@ export function outcomeParts(replay, round) {
         case OUTCOME.TSUMO:
         case OUTCOME.RON:
         case OUTCOME.DOUBLE_RON:
-            return [winText(outcome, nameOfSeat)];
+            return [winText(outcome, nameOfSeat, shownWin)];
         case OUTCOME.EXHAUSTIVE:
         case OUTCOME.NAGASHI:
         case OUTCOME.ABORT:
@@ -226,10 +235,10 @@ function messageParts(message, nameOf, tileShown) {
 /**
  * The last action of the position the viewer `state` stands at, as English strings and `{ ja }` Japanese parts:
  * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result tells the round's outcome (every win of a double
- * ron); the standings, and silent records at a truncated end, name nothing. With opponents' hands hidden, their draws
- * keep their tiles hidden too.
+ * ron, numbered by the win the dialog shows: "Double ron 1/2 from …"); the standings, and silent records at a
+ * truncated end, name nothing. With opponents' hands hidden, their draws keep their tiles hidden too.
  */
-export function lastAction(replay, { round: roundIndex, step, seat, openHands }) {
+export function lastAction(replay, { round: roundIndex, step, page = 0, seat, openHands }) {
     const round = replay.rounds[roundIndex];
     const position = round.positions[step];
     const nameOf = (l) => replay.players[seatOfL(l, round.dealer)];
@@ -241,7 +250,7 @@ export function lastAction(replay, { round: roundIndex, step, seat, openHands })
         case POSITION.DEAL:
             return [`${nameOf(0)} deals`];
         case POSITION.RESULT:
-            return outcomeParts(replay, round);
+            return outcomeParts(replay, round, page);
         default:
             return messageParts(round.log[position.end - 1], nameOf, tileShown);
     }

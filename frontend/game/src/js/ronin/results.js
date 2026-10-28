@@ -54,9 +54,10 @@ const DRAW_NAMES = {
  * A win as majiang-ui's hule message. Its defen is the hand's value alone (the server's hr.pt), which the dialog
  * prints and names (満貫, 跳満, …) by; the winner's score change can't stand in for it, since it holds the honba, the
  * riichi sticks and any pao the winner owes another winner. Without ura-dora to show, fubaopai is null: the dialog
- * hides the ura row only for null.
+ * hides the ura row only for null. pao is the liable seat's l (null without one), headBumped the l of each ron caller
+ * a nearer winner head-bumped, and page, for a round with several wins, which of them this is ({ number, count }).
  */
-function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai }) {
+function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai, pao = null, headBumped = [], page = null }) {
     return {
         hule: {
             l,
@@ -66,6 +67,9 @@ function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai }) {
             defen:    hr.pt * wire.SCORE_DIV,
             fenpei,
             fubaopai: fubaopai && fubaopai.length ? fubaopai : null,
+            pao,
+            headBumped,
+            page,
         },
     };
 }
@@ -96,20 +100,25 @@ function tenpaiByL(tenpaiSeats, dealer) {
 }
 
 /**
- * The hule message of one winner (ws, ct, ml, hr, sch, ud): a tsumo or ron round end itself, or one entry of a double
- * ron's winners, whose own score changes (sch) hold only what that win moved. riichi says the winner stood in riichi,
- * which marks the hand; loserSeat is the ron's discarder, null for a tsumo.
+ * The hule message of one winner (ws, ct, ml, hr, sch, ud, ps): a tsumo or ron round end itself, or one entry of a
+ * double ron's winners, whose own score changes (sch) hold only what that win moved. riichi says the winner stood in
+ * riichi, which marks the hand; loserSeat is the ron's discarder, null for a tsumo; headBumpedSeats are the round's
+ * head-bumped ron callers, which the round end names once for all its wins (hbs); page is huleMessage's. A liable
+ * discarder pays the whole ron as any discarder does, so the win names no pao.
  */
-function winHule({ winner, winTile, loserSeat, dealer, riichi }) {
+function winHule({ winner, winTile, loserSeat, dealer, riichi, headBumpedSeats, page }) {
     let shoupai = fullHandStr(winner.ct, mianzi.meldStrsFrom(winner.ml), winTile);
     if (riichi) shoupai += '*';
     return huleMessage({
-        l:        seatL(winner.ws, dealer),
+        l:          seatL(winner.ws, dealer),
         shoupai,
-        baojia:   loserSeat == null ? null : seatL(loserSeat, dealer),
-        hr:       winner.hr,
-        fenpei:   fenpeiByL(winner.sch, dealer),
-        fubaopai: winner.ud && winner.ud.map(tiles.tileToStr),
+        baojia:     loserSeat == null ? null : seatL(loserSeat, dealer),
+        hr:         winner.hr,
+        fenpei:     fenpeiByL(winner.sch, dealer),
+        fubaopai:   winner.ud && winner.ud.map(tiles.tileToStr),
+        pao:        winner.ps == null || winner.ps == loserSeat ? null : seatL(winner.ps, dealer),
+        headBumped: headBumpedSeats.map(seat => seatL(seat, dealer)),
+        page,
     });
 }
 
@@ -165,11 +174,18 @@ class UnknownRoundResultError extends Error {
 
 /**
  * A round won by each of winners in recorded order (a double ron's, counter-clockwise from the discarder): one hule
- * message per winner, each called out. riichi says, by seat, who stands in riichi.
+ * message per winner, each called out and numbered among them. riichi says, by seat, who stands in riichi.
  */
 function winResults({ roundEnd, winners, loserSeat, dealer, riichi }) {
-    const results = winners.map(winner =>
-        winHule({ winner, winTile: roundEnd.wt, loserSeat, dealer, riichi: !! riichi[winner.ws] }));
+    const results = winners.map((winner, i) => winHule({
+        winner,
+        winTile:         roundEnd.wt,
+        loserSeat,
+        dealer,
+        riichi:          !! riichi[winner.ws],
+        headBumpedSeats: roundEnd.hbs || [],
+        page:            winners.length > 1 ? { number: i + 1, count: winners.length } : null,
+    }));
     const name = loserSeat == null ? mianzi.CALLOUT.TSUMO : mianzi.CALLOUT.RON;
     return { results, callouts: results.map(m => ({ name, l: m.hule.l })) };
 }

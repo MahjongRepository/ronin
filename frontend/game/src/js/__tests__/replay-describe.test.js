@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { outcomeParts } from "../replay/describe.js";
+import { lastAction, outcomeParts } from "../replay/describe.js";
 import { parseReplay } from "../replay/load.js";
-import { toReplay } from "../replay/paipu.js";
+import { POSITION, toReplay } from "../replay/paipu.js";
 import wire from "../ronin/wire.js";
 import { firstLineOf } from "./replay-edits.js";
+import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
 import KYUUSHU from "./fixtures/replays/kyuushu.txt?raw";
@@ -68,5 +69,21 @@ describe("outcomeParts", () => {
 
     it("says where the replay cuts a round off", () => {
         expect(outcomes(TRUNCATED_MID_ROUND)).toEqual(["Cut off: the server stopped the game"]);
+    });
+});
+
+describe("lastAction", () => {
+    it("tells which of a double ron's wins the dialog shows", () => {
+        const replay = toReplay(parseReplay(DOUBLE_RON));
+        const step = replay.rounds[0].positions.findIndex(
+            (position) => position.kind === POSITION.RESULT,
+        );
+        const actionOnPage = (page) =>
+            lastAction(replay, { round: 0, step, page, seat: 0, openHands: true }).join("");
+
+        expect([0, 1].map(actionOnPage)).toEqual([
+            "Double ron 1/2 from Diana: Alice 12,000, Charlie 8,000",
+            "Double ron 2/2 from Diana: Alice 12,000, Charlie 8,000",
+        ]);
     });
 });
