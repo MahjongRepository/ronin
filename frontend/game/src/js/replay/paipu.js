@@ -12,8 +12,7 @@ import {
 import * as tiles from "../ronin/tiles.js";
 import wire from "../ronin/wire.js";
 import { roundOutcome } from "./round-end.js";
-
-const SEATS = 4;
+import { SEATS } from "./seats.js";
 
 /**
  * What a position of a round shows: its last visible record, the round's result, the game's final standings after

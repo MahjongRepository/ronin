@@ -389,7 +389,16 @@ honours this contract can replace it.
   lobby.
 * **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required. The
   client's replay page renders it on the board and refuses a file whose version line is not the
-  `REPLAY_VERSION` it was built for.
+  `REPLAY_VERSION` it was built for. The page's query names what it shows,
+  `/play/history/{game_id}?seat=&round=&step=`, all zero-based whole numbers: `seat` the seat at the
+  bottom of the table (default: the recorded first dealer's), `round` the recorded deal (repeats
+  counted), `step` the position in that round (0 its deal; the final standings are the last round's
+  last step, whose `step` equals the strip's step count n in "Step n / n", since the strip counts
+  from 1 and leaves the standings out). A link opens there paused; a double ron opens at its first
+  win. A bad `seat` falls back to the default, a missing or bad `round` to round 0's deal (its
+  `step` ignored), a bad `step` to its round's deal. The page then keeps the query on the position
+  shown with `history.replaceState`, so the address bar is the share link and Back leaves the
+  replay; neither autoplay nor the hidden-hands choice is in it.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
   WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must

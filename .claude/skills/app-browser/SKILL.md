@@ -65,15 +65,16 @@ select by element id, class or `snapshot -i` refs.
   waiting state.
 - **History and replay:** `/history` lists recent games; each card's `.games-card-link` ("View
   replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
-  the board at its first deal, with `.replay-back` / `.replay-play` (autoplay) / `.replay-next`, the
-  jumps `.replay-first`, `.replay-prev-round`, `.replay-next-round`, `.replay-last`, and the info
-  `.replay-position` (`.replay-action`, `.replay-round`, `.replay-step`, `.replay-wall-low`,
-  `.replay-ended`) in the strip below it (beside it at `max-height: 450px` landscape). The options,
-  the viewpoint select `.replay-seat`, the autoplay speed `.replay-speed` and the switch
-  `.replay-hide-hands`, show beside the buttons at 1200px wide and over 450px tall, and under the
-  info on an upright phone; elsewhere `.replay-options-toggle` ("View: <name>") shows them in the
-  info's place until the next move. The round's name `.replay-rounds-toggle` opens the round
-  list `.replay-rounds` (a `.replay-round-entry` per round with its outcome, the one shown
+  the board at its first deal (or at `?seat=&round=&step=`, all zero-based, which the address bar
+  then follows; `docs/architecture.md`, Replays), with `.replay-back` / `.replay-play` (autoplay) /
+  `.replay-next`, the jumps `.replay-first`, `.replay-prev-round`, `.replay-next-round`,
+  `.replay-last`, and the info `.replay-position` (`.replay-action`, `.replay-round`, `.replay-step`,
+  `.replay-wall-low`, `.replay-ended`) in the strip below it (beside it at `max-height: 450px`
+  landscape). The options, the viewpoint select `.replay-seat`, the autoplay speed `.replay-speed`
+  and the switch `.replay-hide-hands`, show beside the buttons at 1200px wide and over 450px tall,
+  and under the info on an upright phone; elsewhere `.replay-options-toggle` ("View: <name>") shows
+  them in the info's place until the next move. The round's name `.replay-rounds-toggle` opens the
+  round list `.replay-rounds` (a `.replay-round-entry` per round with its outcome, the one shown
   `aria-current`); each round of the final standings leads to its deal too.
   `.replay-next-round` is the quick way to a later round; holding
   Back or Next (`agent-browser mouse down left`) repeats them. A replay it cannot show gets a

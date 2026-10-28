@@ -9,8 +9,7 @@ import {
 } from "../ronin/results.js";
 import { POSITION, kindOf } from "./paipu.js";
 import { OUTCOME } from "./round-end.js";
-
-const SEATS = 4;
+import { SEATS } from "./seats.js";
 
 const SUIT_NAMES = Object.freeze({ m: "萬", p: "筒", s: "索" });
 const HONOR_NAMES = Object.freeze(["", "東", "南", "西", "北", "白", "發", "中"]);

@@ -5,6 +5,9 @@ import "../majiang.js";
 import PAGE from "../../../index.html?raw";
 import { GAME_PREF_KEY } from "../game-prefs.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS, ROUNDS_IN_STRIP_MEDIA } from "../replay/controls.js";
+import { parseReplay } from "../replay/load.js";
+import { toReplay } from "../replay/paipu.js";
+import { URL_WRITE_INTERVAL_MS, readPosition } from "../replay/position-url.js";
 import { REPLAY_PREFS_KEY } from "../replay/prefs.js";
 import { showReplay } from "../replay/page.js";
 import { withUnplayableDraw } from "./replay-edits.js";
@@ -53,6 +56,16 @@ function problem() {
     };
 }
 
+const REPLAY_PATH = "/play/history/g-1";
+
+function openAt(search) {
+    window.history.replaceState(null, "", `${REPLAY_PATH}${search}`);
+}
+
+function addressQuery() {
+    return window.location.search;
+}
+
 function open(text) {
     stubFetch(new Response(text));
     return showReplay("g-1", Promise.resolve());
@@ -89,13 +102,14 @@ function loadPage() {
 }
 
 beforeEach(() => {
+    openAt("");
     loadPage();
     vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
     localStorage.clear();
-    $(window).off();
+    $(window).trigger("pagehide").off();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -445,5 +459,75 @@ describe("ReplayControls", () => {
             ["xiajia", "duimian"].map((place) => $(`#board .player.${place} .name`).text()),
         ).toEqual(["Alice", "Charlie"]);
         expect(hiddenHands()).toEqual(["shangjia"]);
+    });
+});
+
+describe("readPosition", () => {
+    const replay = toReplay(parseReplay(FULL_GAME));
+    const dealer = replay.qijia;
+
+    it.each([
+        ["a valid position", "?seat=1&round=2&step=5", { seat: 1, round: 2, step: 5 }],
+        ["a seat off the table", "?seat=4&round=1&step=2", { seat: dealer, round: 1, step: 2 }],
+        ["a repeated seat", "?seat=1&seat=2&round=1&step=2", { seat: dealer, round: 1, step: 2 }],
+        ["no round, ignoring the step", "?step=3", { seat: dealer, round: 0, step: 0 }],
+        ["a round not a whole number", "?round=1.0&step=3", { seat: dealer, round: 0, step: 0 }],
+        ["a round past the game", "?round=99&step=3", { seat: dealer, round: 0, step: 0 }],
+        ["a step past the round", "?round=1&step=999", { seat: dealer, round: 1, step: 0 }],
+    ])("falls back part by part: %s", (_, search, position) => {
+        expect(readPosition(search, replay)).toEqual(position);
+    });
+});
+
+describe("PositionUrl", () => {
+    it("opens paused at the URL's seat and position, the standings at the last round's last step", async () => {
+        openAt("?seat=1&round=2&step=5");
+        await open(FULL_GAME);
+
+        expect($("#board .player.main .name").text()).toBe("Ojisan");
+        expect(label()).toMatchObject({
+            round: "東三局 2本場",
+            step: expect.stringMatching(/^Step 6\u00a0/),
+        });
+        expect($(".replay-play").attr("aria-label")).toBe("Play");
+        expect(addressQuery()).toBe("?seat=1&round=2&step=5");
+
+        const { rounds } = toReplay(parseReplay(FULL_GAME));
+        const lastRound = rounds.length - 1;
+        loadPage();
+        openAt(`?round=${lastRound}&step=${rounds[lastRound].positions.length - 1}`);
+        await open(FULL_GAME);
+
+        expect(label().step).toBe("Final standings");
+    });
+
+    it("writes a bad query's fallback into the address bar, dropping anything else", async () => {
+        openAt("?seat=9&round=1&step=999&x=1");
+        await open(FULL_GAME);
+
+        expect(addressQuery()).toBe("?seat=3&round=1&step=0");
+    });
+
+    it("replaces the URL on each move and seat change, at most once per interval, keeping the position on a seat change", async () => {
+        vi.useFakeTimers();
+        await open(FULL_GAME);
+        const historyLength = window.history.length;
+        expect(addressQuery()).toBe("?seat=3&round=0&step=0");
+
+        $(".replay-next").trigger("click");
+        $(".replay-next").trigger("click");
+        expect(addressQuery()).toBe("?seat=3&round=0&step=0");
+        vi.advanceTimersByTime(URL_WRITE_INTERVAL_MS);
+        expect(addressQuery()).toBe("?seat=3&round=0&step=2");
+
+        vi.advanceTimersByTime(URL_WRITE_INTERVAL_MS);
+        $(".replay-seat").val("1").trigger("change");
+        expect(addressQuery()).toBe("?seat=1&round=0&step=2");
+
+        $(".replay-next-round").trigger("click");
+        vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+        document.dispatchEvent(new Event("visibilitychange"));
+        expect(addressQuery()).toBe("?seat=1&round=1&step=0");
+        expect(window.history.length).toBe(historyLength);
     });
 });
