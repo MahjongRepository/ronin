@@ -74,6 +74,9 @@ APPS = (
         catalog_dir="frontend/game/src/i18n/locales",
         source_roots=("frontend/game/src", "frontend/game/index.html", "frontend/game/public"),
         source_suffixes=frozenset({".js", ".html"}),
+        dynamic_prefixes=("tile.",),
+        identical_keys=frozenset({"game.settings.off", "game.settings.on", "loading.start"}),
+        literals_in_namespaces_are_keys=True,
     ),
 )
 

@@ -2,6 +2,7 @@ import $ from "jquery";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
+import { setLocale } from "../../i18n/index.js";
 import PAGE from "../../../index.html?raw";
 import { finishLoading, loadTileImages, showLoadingError } from "../loading.js";
 import startGame from "../ronin.js";
@@ -14,6 +15,7 @@ const PLAYERS = [0, 1, 2, 3].map((s) => ({ s, nm: `Player ${s}`, ai: s !== 0, sc
 const TIMER_SETTINGS = { tb: 5, bk: 20, rb: 10, mb: 60, md: 5, ra: 5, gp: 3 };
 
 beforeEach(() => {
+    setLocale("ja");
     const page = new DOMParser().parseFromString(PAGE, "text/html");
     document.documentElement.innerHTML = page.documentElement.innerHTML;
     document.documentElement.className = page.documentElement.className;
@@ -54,9 +56,11 @@ describe("loading screen", () => {
     it("hides preload tiles and the unfinished board before external styles arrive", () => {
         expect(getComputedStyle(document.querySelector("#loaddata")).display).toBe("none");
         expect(getComputedStyle(document.querySelector("#board")).visibility).toBe("hidden");
-        expect(document.querySelector("#game-loading [role=status]").textContent).toBe(
-            "読み込み中…",
+        const status = document.querySelector("#game-loading [role=status]");
+        const shown = [...status.children].filter(
+            (line) => getComputedStyle(line).display !== "none",
         );
+        expect(shown.map((line) => [line.lang, line.textContent])).toEqual([["ja", "読み込み中…"]]);
 
         finishLoading();
         expect(document.querySelector("#game-loading")).toBeNull();

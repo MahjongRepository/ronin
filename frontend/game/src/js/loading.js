@@ -1,3 +1,5 @@
+import { t } from "../i18n/index.js";
+
 export async function loadTileImages() {
     await Promise.all(
         [...document.querySelectorAll("#loaddata img")].map((image) => image.decode()),
@@ -26,7 +28,7 @@ export function waitForStart(text) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "loading-start";
-    button.textContent = "OK";
+    button.textContent = t("loading.start");
     document.querySelector("#game-loading .loading-dots").replaceWith(button);
     button.focus();
     return new Promise((resolve) => {
@@ -35,6 +37,6 @@ export function waitForStart(text) {
 }
 
 export function showLoadingError() {
-    showLoadingStatus("読み込めませんでした。ページを再読み込みしてください。");
+    showLoadingStatus(t("loading.error"));
     document.querySelector("#game-loading .loading-dots")?.remove();
 }

@@ -3,6 +3,7 @@ import "../styles/game-app.scss";
 
 import $ from "jquery";
 
+import { applyStaticText } from "../i18n/index.js";
 import { RECOVERY, readGameSession, recoverGameSession } from "./game-session.js";
 import { finishLoading, loadTileImages, showLoadingError } from "./loading.js";
 import { showReplay } from "./replay/page.js";
@@ -64,6 +65,7 @@ async function showReplayPage(gameId) {
 }
 
 async function start() {
+    applyStaticText(document);
     const route = matchRoute(window.location.pathname);
     if (!route) {
         window.location.replace(LOBBY_URL);

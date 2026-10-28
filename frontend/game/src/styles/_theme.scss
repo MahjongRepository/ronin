@@ -1,4 +1,6 @@
-$menu-font: "Verdana", sans-serif;
+$menu-font:
+    "Verdana", system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic",
+    meiryo, "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
 $title-font: $menu-font;
 $defen-font: $menu-font;
 $text-font: $menu-font;
