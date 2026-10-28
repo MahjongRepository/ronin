@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Register · Ronin Mahjong{% endblock %}
+{% block title %}{{ t("page.title.with_page", page=t("auth.register.title")) }}{% endblock %}
 
 {% block content %}
 <article class="auth-card">
     <hgroup>
-        <h1>Register</h1>
-        <p>Create an account</p>
+        <h1>{{ t("auth.register.title") }}</h1>
+        <p>{{ t("auth.register.subtitle") }}</p>
     </hgroup>
 
     {% if error %}
@@ -17,23 +17,24 @@
     <form method="POST" action="/register">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
-        <label for="username">Username
+        <label for="username">{{ t("auth.field.username") }}
             <input type="text" id="username" name="username" value="{{ form_username or '' }}" required
                 minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" pattern="{{ username_pattern }}"
                 autocomplete="username" autocapitalize="none" spellcheck="false" aria-describedby="username-help{% if error and not confirm_invalid %} form-error{% endif %}"{% if not confirm_invalid %} autofocus{% endif %}>
-            <small id="username-help">{{ username_min_length }}–{{ username_max_length }} letters, numbers or underscores.</small>
+            <small id="username-help">{{ t("auth.register.username_help", min=username_min_length, max=username_max_length) }}</small>
         </label>
-        <label for="password">Password
+        <label for="password">{{ t("auth.field.password") }}
             <input type="password" id="password" name="password" required minlength="{{ password_min_length }}"
                 maxlength="{{ password_max_length }}" autocomplete="new-password" aria-describedby="password-help">
-            <small id="password-help">At least {{ password_min_length }} characters.</small>
+            <small id="password-help">{{ t("auth.register.password_help", count=password_min_length) }}</small>
         </label>
-        <label for="confirm_password">Confirm password
+        <label for="confirm_password">{{ t("auth.field.confirm_password") }}
             <input type="password" id="confirm_password" name="confirm_password" required minlength="{{ password_min_length }}"
                 maxlength="{{ password_max_length }}" autocomplete="new-password"{% if confirm_invalid %} aria-invalid="true" aria-describedby="form-error" autofocus{% endif %}>
         </label>
-        <button type="submit">Register</button>
+        <button type="submit">{{ t("auth.register.submit") }}</button>
     </form>
-    <p class="auth-link"><small>Already have an account? <a href="/login{{ next_query }}">Log in</a></small></p>
+    {% set log_in %}<a href="/login{{ next_query }}">{{ t("auth.register.log_in_link") }}</a>{% endset %}
+    <p class="auth-link"><small>{{ t("auth.register.have_account", log_in=log_in) }}</small></p>
 </article>
 {% endblock %}

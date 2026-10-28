@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ title }} · Ronin Mahjong{% endblock %}
+{% block title %}{{ t("page.title.with_page", page=title) }}{% endblock %}
 
 {% block content %}
 <section class="lobby-error-page" aria-labelledby="error-title">
@@ -9,7 +9,7 @@
     <p class="lobby-muted">{{ message }}</p>
     <p class="lobby-button-row lobby-button-row--center lobby-error-actions">
         <a href="{{ action_href }}" role="button">{{ action_label }}</a>
-        {% if action_href != "/" %}<a href="/" role="button" class="outline secondary">Back to lobby</a>{% endif %}
+        {% if action_href != "/" %}<a href="/" role="button" class="outline secondary">{{ t("common.back_to_lobby") }}</a>{% endif %}
     </p>
 </section>
 {% endblock %}

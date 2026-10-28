@@ -32,7 +32,8 @@ class TestErrorPages:
     def test_http_error__when_request_is_refused__should_not_ask_to_try_again(self, client):
         response = client.get("/logout", headers=BROWSER_ACCEPT)
         assert response.status_code == 405
-        assert "Method Not Allowed" in response.text
+        assert "Request refused" in response.text
+        assert "Method Not Allowed" not in response.text
         assert "The server could not accept this request." in response.text
         assert "Try again" not in response.text
 

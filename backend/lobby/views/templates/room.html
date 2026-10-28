@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ room_name }} · Ronin Mahjong{% endblock %}
+{% block title %}{{ t("page.title.with_page", page=room_name) }}{% endblock %}
 
 {% block content %}
 <div id="room-app"

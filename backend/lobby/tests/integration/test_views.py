@@ -163,7 +163,8 @@ class TestLobbyViews:
             response = c.get("/play/test-game", headers={"accept": "text/html"})
             assert response.status_code == 503
             assert response.headers["content-type"].startswith("text/html")
-            assert "Game client assets not available" in response.text
+            assert "Something went wrong" in response.text
+            assert "Game client assets not available" not in response.text
             assert "Try again in a moment." in response.text
             assert 'href="/" role="button"' in response.text
 

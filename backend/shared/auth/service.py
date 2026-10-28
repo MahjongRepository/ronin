@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -27,10 +28,29 @@ GUEST_NAME_PREFIX = "Nanashi-"
 GUEST_NAMES = tuple(f"{GUEST_NAME_PREFIX}{n}" for n in range(1000, 10000))
 
 
+class AuthErrorCode(StrEnum):
+    WRONG_CREDENTIALS = "wrong_credentials"
+    USERNAME_TAKEN = "username_taken"
+    USERNAME_LENGTH = "username_length"
+    USERNAME_PATTERN = "username_pattern"
+    PASSWORD_LENGTH = "password_length"  # noqa: S105 - an error code, not a password
+    PASSWORD_BYTES = "password_bytes"  # noqa: S105 - an error code, not a password
+    HUMAN_ACCOUNT = "human_account"
+    ACCOUNT_NOT_SAVED = "account_not_saved"
+
+
 class AuthError(Exception):
     """
     Authentication or authorization failure.
+
+    ``code`` and ``params`` name the failure for a page to word in its own language; the message stays English for the
+    bot registration script and the logs.
     """
+
+    def __init__(self, code: AuthErrorCode, message: str, **params: str | int) -> None:
+        super().__init__(message)
+        self.code = code
+        self.params = params
 
 
 class AuthService:
@@ -98,13 +118,15 @@ class AuthService:
             return await self.register_bot(bot_name)
 
         if player.account_type != AccountType.BOT:
-            raise AuthError(f"Username '{bot_name}' belongs to a human account")
+            raise AuthError(
+                AuthErrorCode.HUMAN_ACCOUNT, f"Username '{bot_name}' belongs to a human account", username=bot_name
+            )
 
         raw_api_key, api_key_hash = _generate_api_key()
         try:
             await self._player_repo.set_api_key_hash(player.user_id, api_key_hash)
         except ValueError as e:
-            raise AuthError(str(e)) from e
+            raise AuthError(AuthErrorCode.ACCOUNT_NOT_SAVED, str(e)) from e
 
         return player.model_copy(update={"api_key_hash": api_key_hash}), raw_api_key
 
@@ -116,13 +138,13 @@ class AuthService:
         """
         player = await self._player_repo.get_by_username(username)
         if player is None:
-            raise AuthError("Wrong username or password.")
+            raise AuthError(AuthErrorCode.WRONG_CREDENTIALS, "Wrong username or password.")
 
         if player.account_type == AccountType.BOT:
-            raise AuthError("Wrong username or password.")
+            raise AuthError(AuthErrorCode.WRONG_CREDENTIALS, "Wrong username or password.")
 
         if not await self._hasher.verify(password, player.password_hash):
-            raise AuthError("Wrong username or password.")
+            raise AuthError(AuthErrorCode.WRONG_CREDENTIALS, "Wrong username or password.")
 
         return self._session_store.create_session(user_id=player.user_id, username=player.username)
 
@@ -165,7 +187,7 @@ class AuthService:
         Raise AuthError if the username is already taken.
         """
         if await self._player_repo.get_by_username(username) is not None:
-            raise AuthError(f"Username '{username}' is already taken")
+            raise AuthError(AuthErrorCode.USERNAME_TAKEN, f"Username '{username}' is already taken", username=username)
 
     async def _save_player(self, player: Player) -> Player:
         """
@@ -174,7 +196,7 @@ class AuthService:
         try:
             await self._player_repo.create_player(player)
         except ValueError as e:
-            raise AuthError(str(e)) from e
+            raise AuthError(AuthErrorCode.ACCOUNT_NOT_SAVED, str(e)) from e
 
         return player
 
@@ -189,10 +211,15 @@ def _validate_username(username: str) -> None:
     Validate username: 3-30 chars, alphanumeric + underscores.
     """
     if len(username) < USERNAME_MIN_LENGTH or len(username) > USERNAME_MAX_LENGTH:
-        raise AuthError(f"Username must be between {USERNAME_MIN_LENGTH} and {USERNAME_MAX_LENGTH} characters")
+        raise AuthError(
+            AuthErrorCode.USERNAME_LENGTH,
+            f"Username must be between {USERNAME_MIN_LENGTH} and {USERNAME_MAX_LENGTH} characters",
+            min=USERNAME_MIN_LENGTH,
+            max=USERNAME_MAX_LENGTH,
+        )
 
     if not USERNAME_PATTERN.match(username):
-        raise AuthError("Username must contain only letters, numbers, and underscores")
+        raise AuthError(AuthErrorCode.USERNAME_PATTERN, "Username must contain only letters, numbers, and underscores")
 
 
 def _pick_guest_name(taken: Collection[str]) -> str:
@@ -211,7 +238,16 @@ def _validate_password(password: str) -> None:
     Validate password: 8-72 chars, max 72 UTF-8 bytes (bcrypt limit).
     """
     if len(password) < PASSWORD_MIN_LENGTH or len(password) > PASSWORD_MAX_LENGTH:
-        raise AuthError(f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters")
+        raise AuthError(
+            AuthErrorCode.PASSWORD_LENGTH,
+            f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters",
+            min=PASSWORD_MIN_LENGTH,
+            max=PASSWORD_MAX_LENGTH,
+        )
 
     if len(password.encode("utf-8")) > PASSWORD_MAX_LENGTH:
-        raise AuthError(f"Password must not exceed {PASSWORD_MAX_LENGTH} bytes when encoded")
+        raise AuthError(
+            AuthErrorCode.PASSWORD_BYTES,
+            f"Password must not exceed {PASSWORD_MAX_LENGTH} bytes when encoded",
+            max=PASSWORD_MAX_LENGTH,
+        )

@@ -1,13 +1,18 @@
+import functools
 import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from lobby.i18n import Locale, Translator, load_catalogs
 from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
 from lobby.views.history_handlers import _format_duration, _prepare_history_for_display
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
 _VIEWER_USER_ID = "viewer-user-id"
+_TRANSLATOR = Translator(catalogs=load_catalogs(), strict=True)
+
+translate_en = functools.partial(_TRANSLATOR.translate, Locale.EN)
 
 
 class TestLoadViteManifest:
@@ -70,23 +75,27 @@ class TestResolveViteAssetUrls:
 class TestFormatDuration:
     def test_format_duration__when_under_a_minute__should_show_seconds(self):
         now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(seconds=45), now) == "45s"
+        assert _format_duration(now - timedelta(seconds=45), now, translate=translate_en) == "45s"
 
     def test_format_duration__when_zero__should_show_0s(self):
         now = datetime.now(UTC)
-        assert _format_duration(now, now) == "0s"
+        assert _format_duration(now, now, translate=translate_en) == "0s"
 
     def test_format_duration__when_minutes_and_seconds__should_show_both(self):
         now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(minutes=5, seconds=30), now) == "5m 30s"
+        assert _format_duration(now - timedelta(minutes=5, seconds=30), now, translate=translate_en) == "5m 30s"
 
     def test_format_duration__when_exact_minutes__should_show_zero_seconds(self):
         now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(minutes=10), now) == "10m 0s"
+        assert _format_duration(now - timedelta(minutes=10), now, translate=translate_en) == "10m 0s"
 
     def test_format_duration__when_over_an_hour__should_show_hours_and_minutes(self):
         now = datetime.now(UTC)
-        assert _format_duration(now - timedelta(hours=1, minutes=12), now) == "1h 12m"
+        started_at = now - timedelta(hours=1, minutes=12)
+        assert _format_duration(started_at, now, translate=translate_en) == "1h 12m"
+        assert _format_duration(started_at, now, translate=functools.partial(_TRANSLATOR.translate, Locale.RU)) == (
+            "1 ч 12 мин"
+        )
 
 
 def _make_standing(
@@ -116,7 +125,7 @@ class TestPrepareGamesForDisplay:
                 _make_standing(name="Diana", seat=3, score=18000, final_score=-20),
             ],
         )
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
         assert len(result) == 1
         entry = result[0]
         assert entry["players"][0]["is_winner"] is True
@@ -140,7 +149,7 @@ class TestPrepareGamesForDisplay:
             ],
         )
 
-        [entry] = _prepare_history_for_display([game], user_id="onlooker-user-id")
+        [entry] = _prepare_history_for_display([game], user_id="onlooker-user-id", translate=translate_en)
         assert [player["is_viewer"] for player in entry["players"]] == [False, False]
         assert entry["viewer_replay_url"] == "/play/history/game-1"
 
@@ -148,14 +157,14 @@ class TestPrepareGamesForDisplay:
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="tonpusen")
 
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
         assert (result[0]["game_type"].wind, result[0]["game_type"].name) == ("東", "Tonpuu")
 
     def test_prepare_history_for_display__when_game_type_unknown__should_have_no_label(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="")
 
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
         assert result[0]["game_type"] is None
 
     def test_prepare_history_for_display__when_game_under_a_minute__should_show_seconds(self):
@@ -166,12 +175,12 @@ class TestPrepareGamesForDisplay:
             ended_at=now,
             end_reason="completed",
         )
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
         assert result[0]["duration_label"] == "30s"
 
     def test_prepare_history_for_display__when_standings_empty__should_have_no_players(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, standings=[])
 
-        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID, translate=translate_en)
         assert result[0]["players"] == []

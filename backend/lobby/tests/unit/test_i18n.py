@@ -7,6 +7,8 @@ from markupsafe import Markup
 from lobby.i18n import CatalogError, I18nError, Locale, Translator, load_catalogs
 from lobby.i18n.locale import resolve_locale
 from lobby.i18n.translator import plural_category
+from lobby.views.handlers import _LOBBY_NOTICES
+from shared.auth.service import AuthErrorCode
 
 CATALOGS = {
     Locale.EN: {
@@ -117,3 +119,27 @@ def test_load_catalogs__when_a_locale_lacks_an_en_key__should_refuse_to_load(tmp
 
     with pytest.raises(CatalogError, match="keys differ"):
         load_catalogs(tmp_path)
+
+
+_AUTH_ERROR_PARAMS = {
+    AuthErrorCode.WRONG_CREDENTIALS: {},
+    AuthErrorCode.USERNAME_TAKEN: {"username": "dev"},
+    AuthErrorCode.USERNAME_LENGTH: {"min": 3, "max": 30},
+    AuthErrorCode.USERNAME_PATTERN: {},
+    AuthErrorCode.PASSWORD_LENGTH: {"min": 8, "max": 72},
+    AuthErrorCode.PASSWORD_BYTES: {"max": 72},
+    AuthErrorCode.HUMAN_ACCOUNT: {"username": "dev"},
+    AuthErrorCode.ACCOUNT_NOT_SAVED: {},
+}
+
+
+@pytest.mark.parametrize("locale", list(Locale))
+def test_lobby_catalog__when_walking_auth_error_codes_and_notices__should_render_every_one_strictly(locale):
+    translator = Translator(catalogs=load_catalogs(), strict=True)
+
+    auth_errors = [
+        translator.translate(locale, f"auth.error.{code}", **_AUTH_ERROR_PARAMS[code]) for code in AuthErrorCode
+    ]
+    notices = [translator.translate(locale, key) for key in _LOBBY_NOTICES.values()]
+    assert all(auth_errors)
+    assert all(notices)
