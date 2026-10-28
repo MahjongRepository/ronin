@@ -118,10 +118,11 @@ function helpMarkup() {
  * keyboard reaches never opens hidden under it. Closing hands a focus it held back to where it was before.
  */
 export class ReplayHelp {
+    #beforeOpen;
     #focusBefore = null;
 
     constructor({ beforeOpen }) {
-        this.beforeOpen = beforeOpen;
+        this.#beforeOpen = beforeOpen;
         this.button = helpToggle();
         this.element = helpMarkup();
     }
@@ -129,12 +130,14 @@ export class ReplayHelp {
     bind() {
         this.button.on("click", () => this.toggleOpen());
         $(".replay-panel-close", this.element).on("click", () => this.setOpen(false));
-        $(document).on("pointerdown.replay focusin.replay", (event) => {
-            const inside = this.contains(event.target) || this.button[0].contains(event.target);
-            if (this.isOpen && !inside) {
-                this.setOpen(false);
-            }
-        });
+        $(document)
+            .off(".replay-help")
+            .on("pointerdown.replay-help focusin.replay-help", (event) => {
+                const inside = this.contains(event.target) || this.button[0].contains(event.target);
+                if (this.isOpen && !inside) {
+                    this.setOpen(false);
+                }
+            });
     }
 
     get isOpen() {
@@ -154,7 +157,7 @@ export class ReplayHelp {
             return;
         }
         if (open) {
-            this.beforeOpen();
+            this.#beforeOpen();
             this.#focusBefore = document.activeElement;
         }
         const focused = this.contains(document.activeElement);

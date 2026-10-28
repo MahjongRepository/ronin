@@ -1,5 +1,5 @@
 import wire from "../ronin/wire.js";
-import { SEATS } from "./seats.js";
+import { SEATS, isSeat } from "./seats.js";
 
 /** How a round ended, for the round list and the strip's result line. */
 export const OUTCOME = Object.freeze({
@@ -10,10 +10,6 @@ export const OUTCOME = Object.freeze({
     NAGASHI: "nagashi",
     ABORT: "abort",
 });
-
-function isSeat(value) {
-    return Number.isInteger(value) && value >= 0 && value < SEATS;
-}
 
 /** The round end's `field`, which must be a seat: a round end without it is a damaged file. */
 function seatField(record, field) {
@@ -117,11 +113,13 @@ function scoreChanges({ sch }) {
 /**
  * What the round list says of a round end whose result messages are results: who won from whom, for how much and who
  * paid it (and who was liable), or the draw's name and seats (a nine-terminals declarer's among them). Every field read
- * is checked here, so a damaged one fails the conversion at its line rather than the page drawing it.
+ * is checked here, so a damaged one fails the conversion at its line rather than the page drawing it. Every round end
+ * records every seat's score change, which a draw's outcome does not read but its result dialog shows.
  */
 export function roundOutcome(roundEnd, results) {
     if (!Object.hasOwn(OUTCOME_OF_TYPE, roundEnd.rt)) {
         throw new Error(`unknown round end type ${roundEnd.rt}`);
     }
+    scoreChanges(roundEnd);
     return OUTCOME_OF_TYPE[roundEnd.rt](roundEnd, results[0].pingju?.name);
 }

@@ -43,8 +43,10 @@ function format_defen(defen) {
 export const SEAT_MARK = Object.freeze({ DISCONNECTED: 'disconnect',
                                          AI: 'ai' });
 
-const seat_mark_text = { [SEAT_MARK.DISCONNECTED]: '切断中',
-                         [SEAT_MARK.AI]:           'AI plays this seat' };
+/* Each mark's hidden text, which a page may also show elsewhere. */
+export const SEAT_MARK_TEXT = Object.freeze({
+                                    [SEAT_MARK.DISCONNECTED]: '切断中',
+                                    [SEAT_MARK.AI]:           'AI plays this seat' });
 
 /* A seat's nameplate: its wind, name and score, the dealer's 親, and its
  * mark (SEAT_MARK) or null. */
@@ -66,7 +68,7 @@ function mark_plate(plate, mark) {
         plate.toggleClass(name, name == mark);
     }
     if (mark) plate.append($('<span class="seat-mark">')
-                                    .text(seat_mark_text[mark]));
+                                    .text(SEAT_MARK_TEXT[mark]));
     return plate;
 }
 

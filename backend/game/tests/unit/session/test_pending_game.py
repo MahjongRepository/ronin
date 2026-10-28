@@ -18,6 +18,7 @@ from game.session.timer import TimerConfig
 from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection, MockGameService
+from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
 from shared.dal.models import GameEndReason
 
@@ -27,6 +28,8 @@ SHORT_PENDING_TIMEOUT = TimerConfig(pending_game_timeout_seconds=0.01, game_star
 SHORT_START_PAUSE = TimerConfig(game_start_pause_seconds=0.01)
 GAME_STARTED_T = EVENT_TYPE_INT[EventType.GAME_STARTED]
 ROUND_STARTED_T = EVENT_TYPE_INT[EventType.ROUND_STARTED]
+DRAW_T = EVENT_TYPE_INT[EventType.DRAW]
+DISCARD_T = EVENT_TYPE_INT[EventType.DISCARD]
 
 
 def _make_specs(count: int = 1) -> list[PlayerSpec]:
@@ -145,34 +148,37 @@ class TestJoinGame:
 
 
 class TestPendingGameTimeout:
-    async def test_pending_game_timeout__when_a_human_never_connected__should_start_and_let_that_seat_reconnect(
+    async def test_pending_game_timeout__when_dealer_never_connected__should_play_it_by_ai_and_let_it_reconnect(
         self, seeded_engine
     ):
         manager = make_session_manager(seeded_engine, timer_config=SHORT_PENDING_TIMEOUT)
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        assert manager.get_playing_game_id("user-1") == "game1"
-        conn = _join(manager, "ticket-0")
+        assert manager.get_playing_game_id("user-0") == "game1"
+        conn = _join(manager, "ticket-1")
         game = game_of(manager)
         timeout_task = game.pending_timeout
         assert timeout_task is not None
 
         await timeout_task
-        assert manager.get_playing_game_id("user-1") == "game1"
+        assert manager.get_playing_game_id("user-0") == "game1"
         game_started = [m for m in conn.sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.GAME_STARTED]]
         assert len(game_started) == 1
-        connected, absent = game.participants
-        assert absent.seat is not None
+        absent, connected = game.participants
+        assert absent.seat == runtime_of(manager).state.round_state.dealer_seat
         assert absent.seat != connected.seat
         assert not absent.is_connected
         snapshot = seeded_engine.build_reconnection_snapshot(runtime_of(manager), connected.seat)
         assert snapshot.players[absent.seat].is_ai_player is True
+        assert game.awaiting is not None
+        assert game.awaiting.seats == {connected.seat}
         recorded = [json.loads(line) for line in game.replay.lines]
-        assert [line["t"] for line in recorded[:3]] == [GAME_STARTED_T, 101, ROUND_STARTED_T]
+        assert [line["t"] for line in recorded[:5]] == [GAME_STARTED_T, 101, ROUND_STARTED_T, DRAW_T, DISCARD_T]
         assert recorded[1] == {"t": 101, "s": absent.seat, "ai": 1, "r": 1}
+        assert decode_discard(recorded[4]["d"])[0] == absent.seat
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
-        manager.reconnect(reconnecting, session_token="ticket-1")
+        manager.reconnect(reconnecting, session_token="ticket-0")
         reconnected = [m for m in reconnecting.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]
         assert [m["s"] for m in reconnected] == [absent.seat]
 

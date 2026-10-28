@@ -59,18 +59,18 @@ export class PositionUrl {
     #lastWrite = -Infinity;
 
     constructor() {
-        this.bindPageLeave();
+        this.#bindPageLeave();
     }
 
-    bindPageLeave() {
+    #bindPageLeave() {
         $(window)
             .off(".replay-url")
-            .on("pagehide.replay-url", () => this.flush());
+            .on("pagehide.replay-url", () => this.#flush());
         $(document)
             .off(".replay-url")
             .on("visibilitychange.replay-url", () => {
                 if (document.hidden) {
-                    this.flush();
+                    this.#flush();
                 }
             });
     }
@@ -86,13 +86,13 @@ export class PositionUrl {
         }
         const wait = this.#lastWrite + URL_WRITE_INTERVAL_MS - performance.now();
         if (wait <= 0) {
-            this.flush();
+            this.#flush();
             return;
         }
-        this.#timer = setTimeout(() => this.flush(), wait);
+        this.#timer = setTimeout(() => this.#flush(), wait);
     }
 
-    flush() {
+    #flush() {
         clearTimeout(this.#timer);
         this.#timer = null;
         const href = this.#pending;

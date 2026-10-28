@@ -475,8 +475,8 @@ describe("toReplay round ends", () => {
         expect(round.outcome).toMatchObject({ kind: OUTCOME.EXHAUSTIVE, tenpai: [1, 2] });
     });
 
-    it("calls a round end without score changes damaged, naming its line", () => {
-        const lines = RIICHI.split("\n");
+    it("calls a draw's round end without score changes damaged, naming its line", () => {
+        const lines = EXHAUSTIVE_TENPAI.split("\n");
         const index = firstLineOf(lines, wire.E.ROUND_END);
         const roundEnd = JSON.parse(lines[index]);
         delete roundEnd.sch;

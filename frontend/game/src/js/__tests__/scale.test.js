@@ -74,21 +74,6 @@ describe("Majiang.UI.Util.scale", () => {
         expect(stage.find(".board")[0].style.transform).toBe("translate(360px, 0px) scale(1.5)");
     });
 
-    it("fits the table to the stage's own box, not the window, and leaves a stage not laid out yet alone", () => {
-        const stage = renderStage(0, 1000, { height: 340 });
-        setViewport(1920, 1120);
-        vi.spyOn(stage[0], "clientWidth", "get").mockReturnValue(1000);
-        const stageHeight = vi.spyOn(stage[0], "clientHeight", "get").mockReturnValue(340);
-
-        Util.fitToStage(stage);
-        expect(stage[0].style.height).toBe("");
-        expect(stage.find(".board")[0].style.transform).toBe("translate(300px, 0px) scale(0.5)");
-
-        stageHeight.mockReturnValue(0);
-        Util.fitToStage(stage);
-        expect(stage.find(".board")[0].style.transform).toBe("translate(300px, 0px) scale(0.5)");
-    });
-
     it("centres a width-limited table on a desktop, and rests it on the bottom edge on an upright touch screen", () => {
         const stage = renderStage(0, 1000);
         setViewport(1000, 2000);
@@ -170,5 +155,22 @@ describe("Majiang.UI.Util.scale", () => {
         const table = placedTable(wider);
         const handLeft = table.right - (TABLE_WIDTH - handMargin) * table.scale;
         expect(handLeft).toBeCloseTo(INSET + 140 + INSET);
+    });
+});
+
+describe("Majiang.UI.Util.fitToStage", () => {
+    it("fits the table to the stage's own box, not the window, and leaves a stage not laid out yet alone", () => {
+        const stage = renderStage(0, 1000, { height: 340 });
+        setViewport(1920, 1120);
+        vi.spyOn(stage[0], "clientWidth", "get").mockReturnValue(1000);
+        const stageHeight = vi.spyOn(stage[0], "clientHeight", "get").mockReturnValue(340);
+
+        Util.fitToStage(stage);
+        expect(stage[0].style.height).toBe("");
+        expect(stage.find(".board")[0].style.transform).toBe("translate(300px, 0px) scale(0.5)");
+
+        stageHeight.mockReturnValue(0);
+        Util.fitToStage(stage);
+        expect(stage.find(".board")[0].style.transform).toBe("translate(300px, 0px) scale(0.5)");
     });
 });

@@ -242,19 +242,12 @@ const REASON_TEXT = Object.freeze({
     [wire.SEAT_CONTROL_REASON.ABSENT]: "absent",
 });
 
-function reasonText(reason) {
-    if (!Object.hasOwn(REASON_TEXT, reason)) {
-        throw new Error(`no text for AI replacement reason ${reason}`);
-    }
-    return REASON_TEXT[reason];
-}
-
 /** What a note says of the seat it names: "AI plays for Bob (absent)", "AI plays for Diana (left)", "Bob returns". */
 function noteText(note, players) {
     const name = players[note.seat];
     switch (note.kind) {
         case NOTE.AI_REPLACEMENT:
-            return `AI\u00a0plays for ${name} (${reasonText(note.reason)})`;
+            return `AI\u00a0plays for ${name} (${REASON_TEXT[note.reason]})`;
         case NOTE.HUMAN_RETURN:
             return `${name} returns`;
         default:
@@ -296,4 +289,17 @@ export function lastAction(replay, { round: roundIndex, step, page = 0, seat, op
     }
     const joined = notes.map((note) => noteText(note, replay.players)).join(NOTE_SEPARATOR);
     return shown.length === 0 ? [joined] : [...shown, NOTE_SEPARATOR, joined];
+}
+
+/** Parts as DOM nodes: each English string a text node, each Japanese part a `lang="ja"` span. */
+export function actionNodes(parts) {
+    return parts.map((part) => {
+        if (typeof part === "string") {
+            return document.createTextNode(part);
+        }
+        const span = document.createElement("span");
+        span.lang = "ja";
+        span.textContent = part.ja;
+        return span;
+    });
 }

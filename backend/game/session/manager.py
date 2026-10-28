@@ -387,10 +387,14 @@ class SessionManager:
 
         Each absent seat is an AI player's from the deal, so its line is recorded ahead of the deal's events, the moves
         of the AI players seated from the start included; its AI player plays the turn or call the deal leaves it once
-        the deal went out.
+        the deal went out. Some participant is always connected here, since a game left with none is abandoned before
+        its deal: a deal without one raises rather than start an all-AI game.
         """
         runtime = self._runtime_of(game)
         absent = [self._seat_of(participant) for participant in game.participants if not participant.is_connected]
+        if len(absent) == len(game.participants):
+            raise AssertionError("first deal with no connected participant")
+
         for seat in absent:
             self._game_service.replace_with_ai_player(runtime, seat)
             if game.replay is not None:
