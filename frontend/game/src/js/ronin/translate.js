@@ -11,6 +11,7 @@ import Autoplay from './autoplay.js';
 import rules from './rules.js';
 import { GENERIC_ABORTIVE_NAME, UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, kanMianzi,
          pingjuMessage, roundInWind, roundResults, seatL, seatOfL, tenpaiByL, WIN_CALL_MS } from './results.js';
+import { replayPath } from '../routes.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -605,6 +606,7 @@ class Translate {
             qijia:  s.qijia,
             ...jiejuStandings(msg),
             log:    s.rounds.slice(),
+            replayUrl: replayPath(s.gameId, s.mySeat),
         };
         if (! this.roundDialogOpen) this.showPendingJieju();
     }

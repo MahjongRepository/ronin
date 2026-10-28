@@ -654,11 +654,12 @@ body.board {
                 .footer {
                     display: flex;
                     align-items: center;
-                    justify-content: space-between;
+                    gap: 12px;
                     margin: auto;
                     font-family: $text-font;
 
                     .legend {
+                        margin-right: auto;
                         color: $grey-400;
 
                         .zhuangjia {
@@ -675,6 +676,7 @@ body.board {
                         }
                     }
 
+                    .replay-link,
                     .exit {
                         border: solid 1px $accent;
                         border-radius: 4px;
@@ -683,11 +685,27 @@ body.board {
                         font-family: $menu-font;
                         cursor: pointer;
 
+                        &:focus-visible {
+                            outline: 2px solid $accent;
+                            outline-offset: 2px;
+                        }
+                    }
+
+                    .exit:hover,
+                    .exit:focus-visible {
+                        background: $accent;
+                        color: black;
+                    }
+
+                    .replay-link {
+                        border-color: $grey-600;
+                        color: $grey-200;
+                        text-decoration: none;
+
                         &:hover,
                         &:focus-visible {
-                            background: $accent;
-                            color: black;
-                            outline: none;
+                            border-color: $accent;
+                            color: $accent;
                         }
                     }
                 }

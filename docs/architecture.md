@@ -404,7 +404,9 @@ honours this contract can replace it.
   shown with `history.replaceState`, so the address bar is the share link and Back leaves the
   replay; neither autoplay nor the hidden-hands choice is in it. The lobby history page links a
   participant to a replay from their own seat, but its copy-link button copies the link without
-  `seat`, so a shared link imposes no viewpoint.
+  `seat`, so a shared link imposes no viewpoint. The game client's final standings link the player
+  to the replay from their seat too; since the game end reaches the players before the server has
+  saved the replay, the replay page asks again for a few seconds before calling it not found.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
   WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must

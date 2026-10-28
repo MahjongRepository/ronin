@@ -24,7 +24,10 @@ function replaceLine(text, number, line) {
 }
 
 describe("loadReplay", () => {
-    afterEach(() => vi.unstubAllGlobals());
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+    });
 
     it("loads a recorded game's events from game_started on", async () => {
         const fetchMock = stubFetch(new Response(`\n${FULL_GAME}`));
@@ -59,14 +62,43 @@ describe("loadReplay", () => {
         expect(await loadText("\n")).toEqual({ error: { kind: REPLAY_ERROR.MALFORMED } });
     });
 
-    it("tells a missing replay apart from a failed load", async () => {
-        stubFetch(new Response("Not found", { status: 404 }));
-        expect(await loadReplay("g-1")).toEqual({ error: { kind: REPLAY_ERROR.NOT_FOUND } });
-
+    it("fails a load the server refuses or never answers at once, without retrying it", async () => {
         stubFetch(new Response("", { status: 500 }));
         expect(await loadReplay("g-1")).toEqual({ error: { kind: REPLAY_ERROR.FAILED } });
 
         vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
         expect(await loadReplay("g-1")).toEqual({ error: { kind: REPLAY_ERROR.FAILED } });
+    });
+
+    it("retries a missing replay, waiting once, until it is found", async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(new Response("Not found", { status: 404 }))
+            .mockResolvedValueOnce(new Response("Not found", { status: 404 }))
+            .mockResolvedValueOnce(new Response(RIICHI));
+        vi.stubGlobal("fetch", fetchMock);
+        const onWait = vi.fn();
+        const found = loadReplay("g-1", { onWait });
+
+        await vi.advanceTimersByTimeAsync(1_499);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect((await found).lines[0].t).toBe(wire.E.GAME_STARTED);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(onWait).toHaveBeenCalledTimes(1);
+    });
+
+    it("gives up on a replay still missing after its fourth try", async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi.fn(async () => new Response("Not found", { status: 404 }));
+        vi.stubGlobal("fetch", fetchMock);
+        const missing = loadReplay("g-1");
+
+        await vi.advanceTimersByTimeAsync(3_499);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(await missing).toEqual({ error: { kind: REPLAY_ERROR.NOT_FOUND } });
+        expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 });

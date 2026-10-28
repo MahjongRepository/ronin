@@ -197,9 +197,14 @@ describe("showReplay", () => {
     });
 
     it("explains a replay it cannot load and links back, offering a retry after a failed load", async () => {
+        vi.useFakeTimers();
         stubFetch(new Response("", { status: 404 }));
-        await showReplay("g-1", Promise.reject(new Error("tile decode failed")));
+        const shown = showReplay("g-1", Promise.reject(new Error("tile decode failed")));
+        await vi.advanceTimersByTimeAsync(0);
 
+        expect($("#game-loading [role=status]").text()).toBe("牌譜を待っています…");
+        await vi.runAllTimersAsync();
+        await shown;
         expect(problem()).toEqual({ text: "Replay not found", links: ["/history", "/"], board: 0 });
 
         stubFetch(new Response("", { status: 500 }));

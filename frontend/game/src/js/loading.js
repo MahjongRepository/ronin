@@ -9,10 +9,15 @@ export function finishLoading() {
     document.getElementById("game-loading")?.remove();
 }
 
-export function showLoadingError() {
+/** Replace the loading screen's status line with `text`. */
+export function showLoadingStatus(text) {
     const status = document.querySelector("#game-loading [role=status]");
     if (status) {
-        status.textContent = "読み込めませんでした。ページを再読み込みしてください。";
+        status.textContent = text;
     }
+}
+
+export function showLoadingError() {
+    showLoadingStatus("読み込めませんでした。ページを再読み込みしてください。");
     document.querySelector("#game-loading .loading-dots")?.remove();
 }

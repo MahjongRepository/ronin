@@ -14,6 +14,16 @@ const SCREEN_COUNTDOWNS = {
 };
 
 /**
+ * Follow a plain click on the standings' replay link in place of the finished game's page, so Back from the replay
+ * skips that page, which could only send the player to the lobby. A modified or middle click opens the link as usual.
+ */
+function replaceGamePage(event) {
+    if (event.button != 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    window.location.replace(event.currentTarget.href);
+}
+
+/**
  * majiang-ui's player whose buttons and selectable tiles offer exactly what the server offers: the server, not the
  * local engine, judges every win, call, kan, riichi, kyuushu and kuikae, and refuses or disconnects on anything else.
  */
@@ -118,6 +128,11 @@ class RoninPlayer extends UI.Player {
             next.trigger('focus');
             this.set_default(() => next.trigger('click'));
         });
+    }
+
+    action_jieju(jieju) {
+        $('.summary .replay-link', this._node.root).off('.summary').on('click.summary', replaceGamePage);
+        super.action_jieju(jieju);
     }
 
     action_chankan() {

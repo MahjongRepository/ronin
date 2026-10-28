@@ -142,5 +142,8 @@ export default function(root, paipu, viewpoint) {
         if (paipu.point[id] < 0) point.eq(i).addClass('minus');
     }
 
+    $('.footer .replay-link', root).attr('href', paipu.replayUrl ?? null)
+                              .toggleClass('hide', ! paipu.replayUrl);
+
     return root;
 }
