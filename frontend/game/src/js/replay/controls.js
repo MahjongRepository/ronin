@@ -1,6 +1,6 @@
 import $ from "jquery";
 
-import { lastAction, roundName, seatName } from "./describe.js";
+import { CUT_OFF, lastAction, outcomeParts, roundName, seatName } from "./describe.js";
 import { POSITION } from "./paipu.js";
 import { writeReplayPrefs } from "./prefs.js";
 import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "./speeds.js";
@@ -12,7 +12,6 @@ export const HOLD_REPEAT_MS = 120;
 /** Fewer tiles left in the wall than this is a low wall, as Tenhou warns of it. */
 const LOW_WALL = 8;
 
-const ENDED_EARLY = "The game ended here: the server stopped it";
 const FINAL_STANDINGS = "Final standings";
 const FINAL_ROUND = "All last";
 
@@ -20,6 +19,17 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 const SEATS = 4;
 const OPTIONS_ID = "replay-options";
+const ROUNDS_ID = "replay-rounds";
+const ROUNDS_TITLE_ID = "replay-rounds-title";
+
+/**
+ * The layouts whose strip has the room to show the round list in the info's place, where a move closes it so the info
+ * shows again: a short landscape screen and an upright phone (`_replay.scss`'s `$short-landscape` and `_theme.scss`'s
+ * `$portrait-touch`, which the two must match).
+ */
+export const ROUNDS_IN_STRIP_MEDIA =
+    "screen and (height <= 450px) and (orientation: landscape), " +
+    "screen and (width <= 800px) and (height >= 451px) and (pointer: coarse) and (orientation: portrait)";
 
 /** The jump buttons, each with its icon as polygon point lists and a bar on a 24-unit square. */
 const JUMPS = Object.freeze([
@@ -132,12 +142,23 @@ function speedName(speed) {
     return speed[0].toUpperCase() + speed.slice(1);
 }
 
+/** The round's name, which opens the round list: "東一局 0本場 · Rounds ▾". */
+function roundsToggle() {
+    return $('<button type="button" class="replay-rounds-toggle" aria-expanded="false">')
+        .attr({ "aria-controls": ROUNDS_ID, title: "Round list" })
+        .append(
+            $('<span class="replay-round" lang="ja">'),
+            $('<span class="replay-rounds-word">').text(" · Rounds"),
+            $('<span class="replay-rounds-chevron" aria-hidden="true">').text("▾"),
+        );
+}
+
 /** The info: the last action (the one live region) above the round and step, and a line for the early end. */
-function infoMarkup() {
+function infoMarkup(toggle) {
     return $('<div class="replay-position">').append(
         $('<p class="replay-action" aria-live="polite">'),
         $('<p class="replay-where">').append(
-            $('<span class="replay-round" lang="ja">'),
+            toggle,
             $('<span class="replay-final badge">').text(FINAL_ROUND),
             $('<span class="replay-step">'),
             $('<span class="replay-wall-low badge">'),
@@ -167,6 +188,33 @@ function optionsMarkup() {
                 $('<input type="checkbox" role="switch" class="replay-hide-hands">'),
                 $("<span>").text("Hide opponents' hands"),
             ),
+        );
+}
+
+/** Every round of the replay with its outcome, each a button to its deal. */
+function roundsMarkup(replay) {
+    const entries = replay.rounds.map((round, index) =>
+        $("<li>").append(
+            $('<button type="button" class="replay-round-entry">')
+                .attr("data-round", index)
+                .append(
+                    $('<span class="replay-round-name" lang="ja">').text(roundName(round)),
+                    $('<span class="replay-round-outcome">').append(
+                        actionNodes(outcomeParts(replay, round)),
+                    ),
+                ),
+        ),
+    );
+    return $(`<section class="replay-rounds" id="${ROUNDS_ID}">`)
+        .attr("aria-labelledby", ROUNDS_TITLE_ID)
+        .append(
+            $('<div class="replay-rounds-head">').append(
+                $(`<h2 id="${ROUNDS_TITLE_ID}">`).text("Rounds"),
+                $('<button type="button" class="replay-rounds-close">')
+                    .attr({ "aria-label": "Close the round list", title: "Close" })
+                    .append($('<span aria-hidden="true">').text("✕")),
+            ),
+            $('<ol class="replay-round-list">').append(entries),
         );
 }
 
@@ -223,7 +271,8 @@ function setEnabled(button, enabled, neighbours) {
 /**
  * The replay's control strip: first, previous round, Back, Play, Next, next round and last, the position's info (the
  * last action, the round with its all-last flag, the step, a low-wall warning) and the replay options (the viewpoint
- * seat, autoplay's speed, hiding opponents' hands), beside the buttons on a wide screen and behind a toggle elsewhere.
+ * seat, autoplay's speed, hiding opponents' hands), beside the buttons on a wide screen and behind a toggle elsewhere, and
+ * the round list with each round's outcome, opened from the round's name, beside the table or in the info's place.
  * Back and Next step once per press and repeat while held, stopping at a result or where they can go no further; Play
  * starts and pauses the viewer's autoplay.
  */
@@ -243,8 +292,10 @@ export class ReplayControls {
         };
         const { first, prevRound, back, play, next, nextRound, last } = this.buttons;
         this.optionsToggle = optionsToggle();
+        this.roundsToggle = roundsToggle();
+        this.rounds = roundsMarkup(replay);
         this.element = $('<nav class="replay-controls" aria-label="Replay" lang="en">').append(
-            infoMarkup(),
+            infoMarkup(this.roundsToggle),
             $('<div class="replay-buttons">').append(
                 first,
                 prevRound,
@@ -256,6 +307,7 @@ export class ReplayControls {
             ),
             this.optionsToggle,
             optionsMarkup(),
+            this.rounds,
         );
         this.action = $(".replay-action", this.element);
         this.seat = $(".replay-seat", this.element);
@@ -264,6 +316,7 @@ export class ReplayControls {
         this.shownPlaying = null;
         this.seatsRound = null;
         this.shownPosition = null;
+        this.listedRound = null;
     }
 
     /** Drive `viewer` from the buttons. */
@@ -288,6 +341,7 @@ export class ReplayControls {
         });
         this.element.on("contextmenu", "button", (event) => event.preventDefault());
         this.bindOptions(viewer);
+        this.bindRounds(viewer);
     }
 
     /**
@@ -296,7 +350,13 @@ export class ReplayControls {
      * autoplay's closes them, so the info shows again.
      */
     bindOptions(viewer) {
-        this.optionsToggle.on("click", () => this.setOptionsOpen(!this.optionsOpen));
+        this.optionsToggle.on("click", () => {
+            const open = !this.optionsOpen;
+            if (open) {
+                this.setRoundsOpen(false);
+            }
+            this.setOptionsOpen(open);
+        });
         this.seat.on("change", () => {
             viewer.setViewpoint(Number(this.seat.val()));
             this.setOptionsOpen(false);
@@ -322,6 +382,71 @@ export class ReplayControls {
                 this.optionsToggle.trigger("focus");
             }
         });
+    }
+
+    /**
+     * The round's name opens the round list, at the round shown, and Escape closes it; a round picked there is shown from
+     * its deal, a manual move that pauses autoplay. The list and the options never show together, so Escape closes the
+     * one open.
+     */
+    bindRounds(viewer) {
+        this.roundsToggle.on("click", () => {
+            const open = !this.roundsOpen;
+            this.setRoundsOpen(open);
+            if (open) {
+                this.currentEntry().trigger("focus");
+            }
+        });
+        $(".replay-rounds-close", this.rounds).on("click", () => this.setRoundsOpen(false));
+        this.rounds.on("click", ".replay-round-entry", (event) => {
+            viewer.seek(Number(event.currentTarget.dataset.round), 0);
+            if (this.roundsInStrip()) {
+                this.setRoundsOpen(false);
+            }
+        });
+        $(window).on("keydown.replay", (event) => {
+            if (event.key === "Escape" && this.roundsOpen) {
+                this.setRoundsOpen(false);
+            }
+        });
+    }
+
+    get roundsOpen() {
+        return this.roundsToggle.attr("aria-expanded") === "true";
+    }
+
+    currentEntry() {
+        return $('.replay-round-entry[aria-current="true"]', this.rounds);
+    }
+
+    scrollToCurrentEntry(block) {
+        this.currentEntry()[0]?.scrollIntoView?.({ block });
+    }
+
+    /** Open or close the round list; closing it hands the keyboard focus it held back to the round's name. */
+    setRoundsOpen(open) {
+        if (open) {
+            this.setOptionsOpen(false);
+        }
+        const focused = $.contains(this.rounds[0], document.activeElement);
+        this.roundsToggle.attr("aria-expanded", String(open));
+        $(".replay-rounds-chevron", this.roundsToggle).text(open ? "▴" : "▾");
+        this.element.toggleClass("replay-rounds-open", open);
+        if (open) {
+            this.scrollToCurrentEntry("center");
+        } else if (focused) {
+            this.roundsToggle.trigger("focus");
+        }
+    }
+
+    /** Whether the open round list takes the info's place, where a move closes it so the info shows again. */
+    roundsInStrip() {
+        return this.roundsOpen && window.matchMedia(ROUNDS_IN_STRIP_MEDIA).matches;
+    }
+
+    /** Give the keyboard focus to the round's name, as after a jump from the standings, whose button the jump hides. */
+    focusRounds() {
+        this.roundsToggle.trigger("focus");
     }
 
     get optionsOpen() {
@@ -428,12 +553,27 @@ export class ReplayControls {
         }
         this.showBusy(state);
         this.showInfo(state);
+        this.showRounds(state);
         this.showOptions(state);
+    }
+
+    /** The round list marks the round shown, scrolled into view when the round changes. */
+    showRounds(state) {
+        if (this.listedRound === state.round) {
+            return;
+        }
+        this.listedRound = state.round;
+        const entries = $(".replay-round-entry", this.rounds);
+        entries.removeAttr("aria-current");
+        entries.eq(state.round).attr("aria-current", "true");
+        if (this.roundsOpen) {
+            this.scrollToCurrentEntry("nearest");
+        }
     }
 
     /**
      * The seats as the shown round names them, the viewpoint's selected, the speed and the hidden-hands switch; a move to
-     * another position closes the options, unless autoplay made it.
+     * another position closes the options, and a round list in the info's place, unless autoplay made it.
      */
     showOptions(state) {
         if (this.seatsRound !== state.round) {
@@ -458,6 +598,9 @@ export class ReplayControls {
             this.shownPosition = position;
             if (!state.playing) {
                 this.setOptionsOpen(false);
+                if (this.roundsInStrip()) {
+                    this.setRoundsOpen(false);
+                }
             }
         }
     }
@@ -466,14 +609,16 @@ export class ReplayControls {
         const round = this.replay.rounds[state.round];
         const info = this.element;
         this.showAction(lastAction(this.replay, state));
-        $(".replay-round", info).text(roundName(round));
+        const name = roundName(round);
+        $(".replay-round", info).text(name);
+        this.roundsToggle.attr("aria-label", `Round list, ${name}`);
         $(".replay-final", info).toggleClass("hide", !round.final);
         $(".replay-step", info).text(stepText(round, state));
         const warning = wallWarning(state);
         $(".replay-wall-low", info)
             .text(warning)
             .toggleClass("hide", warning === "");
-        $(".replay-ended", info).text(state.endedEarly ? ENDED_EARLY : "");
+        $(".replay-ended", info).text(state.endedEarly ? CUT_OFF : "");
     }
 
     /** Write the action line only when it changes, so its live region announces each action once. */

@@ -236,7 +236,7 @@ describe("toReplay round ends", () => {
         expect(resultOf(tsumo).say).toEqual([{ name: "zimo", l: 1 }]);
         expect(tsumo.outcome).toEqual({
             kind: OUTCOME.TSUMO,
-            winners: [{ seat: 1, points: 8000 }],
+            winners: [{ seat: 1, points: 8000, liable: null, paid: [4000, 0, 2000, 2000] }],
             loser: null,
             scoreChanges: [-4000, 10000, -2000, -2000],
         });

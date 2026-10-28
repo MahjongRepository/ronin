@@ -1,6 +1,6 @@
 import wire from "../ronin/wire.js";
 
-/** How a round ended, for the round list. */
+/** How a round ended, for the round list and the strip's result line. */
 export const OUTCOME = Object.freeze({
     TSUMO: "tsumo",
     RON: "ron",
@@ -10,8 +10,19 @@ export const OUTCOME = Object.freeze({
     ABORT: "abort",
 });
 
+/**
+ * A winner's seat, the hand's points, the seat liable for it (pao) if any, and what each seat paid for this win (by
+ * seat, the honba included), from the win's own score changes: a double ron's wins each carry theirs.
+ */
 function winnerOutcome(winner) {
-    return { seat: winner.ws, points: winner.hr.pt * wire.SCORE_DIV };
+    return {
+        seat: winner.ws,
+        points: winner.hr.pt * wire.SCORE_DIV,
+        liable: winner.ps ?? null,
+        paid: scoreChanges(winner).map((change, seat) =>
+            seat === winner.ws ? 0 : Math.max(0, -change),
+        ),
+    };
 }
 
 const OUTCOME_OF_TYPE = {
@@ -41,7 +52,11 @@ const OUTCOME_OF_TYPE = {
         players: roundEnd.qs,
         tenpai: roundEnd.ts,
     }),
-    [wire.RT.ABORTIVE]: (_roundEnd, name) => ({ kind: OUTCOME.ABORT, name }),
+    [wire.RT.ABORTIVE]: (roundEnd, name) => ({
+        kind: OUTCOME.ABORT,
+        name,
+        declarer: roundEnd.s ?? null,
+    }),
 };
 
 const SEATS = [0, 1, 2, 3];
@@ -57,8 +72,9 @@ function scoreChanges({ sch }) {
 }
 
 /**
- * What the round list says of a round end whose result messages are results: who won from whom and for how much, or
- * the draw's name and seats, and every seat's score change (by seat), which splits a tsumo by payer.
+ * What the round list says of a round end whose result messages are results: who won from whom, for how much and who
+ * paid it (and who was liable), or the draw's name and seats (a nine-terminals declarer's among them), and every seat's
+ * score change (by seat).
  */
 export function roundOutcome(roundEnd, results) {
     const outcome = OUTCOME_OF_TYPE[roundEnd.rt](roundEnd, results[0].pingju?.name);

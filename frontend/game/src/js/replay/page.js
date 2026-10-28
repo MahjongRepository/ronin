@@ -130,6 +130,7 @@ function startViewer(replay) {
         root,
         speed: prefs.speed,
         onChange: (state) => controls.show(state),
+        onStandingsJump: () => controls.focusRounds(),
         onError: showViewerFailure,
     });
     controls.bind(viewer);

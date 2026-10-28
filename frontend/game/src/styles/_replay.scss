@@ -5,6 +5,10 @@ $short-landscape: "screen and (height <= 450px) and (orientation: landscape)";
 $info-line: 1.35em;
 $options-toggle-width: 200px;
 $play-width: 120px;
+$rounds-width: 280px;
+$rounds-width-narrow: 220px;
+$rounds-portrait-height: min(40dvh, 360px);
+$rounds-open: ":has(> .replay-controls.replay-rounds-open)";
 
 body.board.replay {
     display: flex;
@@ -29,6 +33,49 @@ body.board.replay {
                 &:hover {
                     border-color: $accent;
                 }
+            }
+        }
+
+        /* Each round of the final standings leads to its deal: its name is a button, its whole row a click target. */
+        > .board > .summary .body .row-diff {
+            cursor: pointer;
+
+            @media (hover: hover) {
+                &:hover {
+                    background: rgb(255 204 102 / 12%);
+                }
+            }
+        }
+
+        /* On a touch screen each round's row is a finger's height. */
+        @media (pointer: coarse) {
+            > .board > .summary .body .row-diff > * {
+                height: 52px;
+            }
+        }
+
+        .replay-summary-hint {
+            width: 640px;
+            margin: 8px auto 0;
+            color: $grey-400;
+            font-family: $text-font;
+            font-size: 14px;
+        }
+
+        .replay-summary-round {
+            padding: 0 2px;
+            border: none;
+            border-radius: 3px;
+            background: none;
+            color: inherit;
+            font: inherit;
+            text-decoration: underline dotted;
+            text-underline-offset: 3px;
+            cursor: pointer;
+
+            &:focus-visible {
+                outline: solid 2px $accent;
+                outline-offset: 1px;
             }
         }
 
@@ -77,6 +124,7 @@ body.board.replay {
 }
 
 .replay-controls {
+    position: relative;
     display: grid;
     grid-template-areas:
         ". info toggle"
@@ -298,6 +346,140 @@ body.board.replay {
     cursor: pointer;
 }
 
+/*
+ * The round's name opens the round list: "東一局 0本場 · Rounds ▾", as tall as its line and aligned to its top, so
+ * neither its underline nor its hover tint is clipped by the line; its focus ring sits inside it.
+ */
+.replay-controls .replay-rounds-toggle {
+    min-height: 0;
+    padding: 0 4px;
+    border: none;
+    border-radius: 3px;
+    color: inherit;
+    font: inherit;
+    vertical-align: top;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+
+    &:focus-visible {
+        outline-offset: -2px;
+    }
+
+    @media (hover: hover) {
+        &:hover:not(:disabled) {
+            background: rgb(255 204 102 / 15%);
+            color: $grey-50;
+            text-decoration-style: solid;
+        }
+    }
+}
+
+.replay-rounds-chevron {
+    margin-left: 0.3em;
+    color: $accent;
+}
+
+/*
+ * The round list, while shown, takes a column beside the table, which the table's stage leaves free for it, so it never
+ * covers the table. The strip is its containing block: the list stands on the strip and is as tall as the stage.
+ */
+.replay-rounds {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 1px);
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    width: $rounds-width;
+    height: calc(100dvh - 100% - 1px);
+    background: $dialog-background;
+    border-left: solid 1px $dialog-border;
+    font-size: 14px;
+    text-align: left;
+}
+
+.replay-controls.replay-rounds-open > .replay-rounds {
+    display: flex;
+}
+
+body.board.replay#{$rounds-open} > #board {
+    margin-right: $rounds-width;
+}
+
+.replay-rounds-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 4px 4px 12px;
+    border-bottom: solid 1px $dialog-border;
+
+    h2 {
+        margin: 0;
+        font-size: 1.1em;
+    }
+}
+
+.replay-controls .replay-rounds-close {
+    min-width: 44px;
+    border-color: transparent;
+    font-size: 1.1em;
+}
+
+.replay-round-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    list-style: none;
+}
+
+/* Each round's name over its outcome; the round shown is framed, tinted and its name bold, apart from the focus ring. */
+.replay-controls .replay-round-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    padding: 6px 10px;
+    border-color: transparent;
+    color: $grey-50;
+    font-size: 1em;
+    text-align: left;
+
+    &:focus-visible {
+        outline: solid 2px $grey-50;
+        outline-offset: -5px;
+    }
+
+    &[aria-current="true"] {
+        border-color: $accent;
+        background: rgb(255 204 102 / 14%);
+
+        .replay-round-name {
+            color: $accent;
+            font-weight: bold;
+        }
+    }
+}
+
+.replay-round-name {
+    color: $grey-400;
+    font-size: 0.9em;
+}
+
+.replay-round-outcome [lang="ja"] {
+    white-space: nowrap;
+}
+
+@media (hover: hover) {
+    .replay-controls .replay-round-entry:hover:not(:disabled) .replay-round-name {
+        color: inherit;
+    }
+}
+
 /* Three lines of fixed height, each clipped to one line, so no position changes the strip's size. */
 .replay-position {
     box-sizing: border-box;
@@ -335,6 +517,7 @@ body.board.replay {
 
     .badge {
         margin-left: 0.5em;
+        white-space: nowrap;
         padding: 0 0.35em;
         border: solid 1px $accent;
         border-radius: 3px;
@@ -377,8 +560,20 @@ body.board.replay {
         gap: 16px;
     }
 
+    /* The info's column is narrow here: the toggle's tint, underline and chevron say what it opens, its label says it aloud. */
+    .replay-rounds-word {
+        display: none;
+    }
+
+    /* The options column makes the strip taller than the info: a long action wraps into that room. */
     .replay-position {
         text-align: left;
+
+        .replay-action {
+            height: 2 * $info-line;
+            line-height: $info-line;
+            white-space: normal;
+        }
     }
 
     .replay-controls .replay-options {
@@ -402,6 +597,57 @@ body.board.replay {
     .replay-select {
         min-height: 30px;
         padding-block: 2px;
+    }
+}
+
+/* A narrower window gives the round list a narrower column, so the table loses less of its width to it. */
+@media (width < 1000px) {
+    .replay-controls .replay-rounds {
+        width: $rounds-width-narrow;
+    }
+
+    body.board.replay#{$rounds-open} > #board {
+        margin-right: $rounds-width-narrow;
+    }
+}
+
+/* An upright screen's table is bound by its width: the round list takes height from it, under the table, instead. */
+@media (orientation: portrait) and (height > 450px) {
+    .replay-controls .replay-rounds {
+        left: 0;
+        width: auto;
+        height: $rounds-portrait-height;
+        border-top: solid 1px $dialog-border;
+        border-left: none;
+    }
+
+    body.board.replay#{$rounds-open} > #board {
+        margin-right: 0;
+        margin-bottom: $rounds-portrait-height;
+    }
+}
+
+/*
+ * Where the strip has height to spare (an upright phone, a short landscape screen's column), the round list takes the
+ * info's place in it instead, leaving the table as it is.
+ */
+@mixin rounds-in-strip($first-row, $last-row, $covered) {
+    .replay-controls .replay-rounds {
+        inset: 0;
+        grid-row: #{$first-row}-start / #{$last-row}-end;
+        grid-column: 1 / -1;
+        width: auto;
+        height: auto;
+        border: solid 1px $dialog-border;
+        border-radius: 6px;
+    }
+
+    .replay-controls.replay-rounds-open > :is(.replay-position, #{$covered}) {
+        visibility: hidden;
+    }
+
+    body.board.replay#{$rounds-open} > #board {
+        margin: 0;
     }
 }
 
@@ -458,8 +704,8 @@ body.board.replay {
             "options" auto
             "buttons" auto
             / minmax(0, 1fr);
-        gap: 24px;
-        padding: 16px 24px 24px;
+        gap: 12px;
+        padding: 12px 24px 24px;
         background: $felt;
         border-top: none;
 
@@ -475,8 +721,8 @@ body.board.replay {
         grid-area: options;
         align-items: stretch;
         align-self: center;
-        gap: 16px;
-        padding: 16px 24px;
+        gap: 8px;
+        padding: 8px 24px;
         border: solid 1px $dialog-border;
         border-radius: 6px;
         background: $dialog-background;
@@ -525,21 +771,58 @@ body.board.replay {
         }
     }
 
+    /*
+     * A long action wraps to a second line, which the box always keeps, and the round's name is a pill a finger can
+     * hit; the box's padding and the strip's gaps are tighter for them, so the strip keeps its height.
+     */
     .replay-position {
         align-self: center;
-        padding: 16px 24px;
+        padding: 8px 24px;
         border: solid 1px $dialog-border;
         border-radius: 6px;
         background: $dialog-background;
 
         .replay-action {
+            height: 2 * $info-line;
             font-size: 32px;
+            line-height: $info-line;
+            white-space: normal;
         }
 
         .replay-where,
         .replay-ended {
             font-size: 24px;
         }
+
+        .replay-where {
+            height: 64px;
+            line-height: 64px;
+        }
+    }
+
+    .replay-controls .replay-rounds-toggle {
+        min-height: 64px;
+        padding: 0 24px;
+        border: solid 1px $accent;
+        border-radius: 32px;
+        line-height: 62px;
+        vertical-align: middle;
+        text-decoration: none;
+    }
+
+    @include rounds-in-strip(info, options, ".replay-options");
+
+    .replay-rounds {
+        font-size: 22px;
+    }
+
+    .replay-controls .replay-rounds-close {
+        min-width: 64px;
+        min-height: 64px;
+    }
+
+    .replay-controls .replay-round-entry {
+        min-height: 64px;
     }
 }
 
@@ -654,5 +937,29 @@ body.board.replay {
         .replay-step::before {
             content: none;
         }
+    }
+
+    @include rounds-in-strip(info, toggle, ".replay-options-toggle");
+
+    /* A touch target of 24px at least, though the line's text is small. */
+    .replay-controls .replay-rounds-toggle {
+        min-height: 24px;
+    }
+
+    .replay-rounds {
+        font-size: 12px;
+    }
+
+    .replay-rounds-head {
+        padding: 2px 2px 2px 8px;
+    }
+
+    .replay-controls .replay-rounds-close {
+        min-width: 32px;
+        min-height: 32px;
+    }
+
+    .replay-controls .replay-round-entry {
+        padding: 4px 6px;
     }
 }
