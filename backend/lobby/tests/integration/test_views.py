@@ -11,6 +11,7 @@ from starlette.routing import Route
 from lobby.auth.csrf import CSRF_COOKIE_NAME
 from lobby.tests.conftest import make_player, open_client
 from lobby.tests.integration.conftest import register_with_csrf
+from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 _GAME_CLIENT_INDEX = '<div id="app"></div><script type="module" src="/game-assets/assets/index-abc123.js"></script>'
@@ -367,6 +368,24 @@ class TestHistoryPage:
         assert "40,000" in response.text
         assert "25,000" in response.text
         assert 'class="games-card-link" href="/play/history/abcd1234-test-game"' in response.text
+
+    def test_history_page__when_more_games_than_the_limit__should_show_the_most_recent_earliest_first(self, client):
+        now = datetime.now(UTC)
+        game_ids = [f"ordered-game-{index:02}" for index in range(HISTORY_GAMES_LIMIT + 1)]
+        for index, game_id in enumerate(game_ids):
+            client.app.state.game_repo.create_game(
+                PlayedGame(
+                    game_id=game_id,
+                    started_at=now - timedelta(hours=len(game_ids) - index),
+                    end_reason=GameEndReason.COMPLETED,
+                    game_type="hanchan",
+                ),
+            )
+
+        response = client.get("/history")
+        assert response.status_code == 200
+        shown = re.findall(r'class="games-card-link" href="/play/history/(ordered-game-\d+)"', response.text)
+        assert shown == game_ids[1:]
 
     def test_history_page__when_another_user_held_the_viewers_name__should_mark_only_the_viewers_standing(self, client):
         viewer = client.app.state.auth_service.validate_session(client.cookies["session_id"])
