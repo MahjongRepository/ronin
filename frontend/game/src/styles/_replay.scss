@@ -764,10 +764,10 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-@media (width >= 1200px) and (height > 450px) {
+@media (width >= 1280px) and (height > 450px) {
     .replay-controls {
         grid-template-areas: "info buttons options";
-        grid-template-columns: minmax(17em, 1fr) auto minmax(max-content, 1fr);
+        grid-template-columns: minmax(14em, 1fr) auto minmax(max-content, 1fr);
         align-items: center;
         gap: 16px;
     }
@@ -1100,6 +1100,7 @@ body.board.replay#{$rounds-open} > #board {
         justify-content: center;
         gap: 4px;
         width: 100%;
+        min-width: 0;
         font-size: 12px;
     }
 
@@ -1116,6 +1117,7 @@ body.board.replay#{$rounds-open} > #board {
     }
 
     .replay-select {
+        width: 100%;
         max-width: none;
         font-size: 16px;
     }
@@ -1170,16 +1172,22 @@ body.board.replay#{$rounds-open} > #board {
             gap: 4px;
         }
 
-        .replay-step,
-        .replay-wall-low {
-            display: block;
-            width: fit-content;
-            margin: 0 auto;
+        .replay-where-text > * {
+            display: inline-block;
         }
 
         .replay-step::before {
             content: none;
         }
+
+        .replay-step {
+            margin-inline: 0.5em;
+        }
+    }
+
+    /* The column is narrow: the chevron alone marks the round list, so the round's line wraps less. */
+    .replay-rounds-word {
+        display: none;
     }
 
     @include rounds-in-strip(info, toggle, ".replay-options-toggle");

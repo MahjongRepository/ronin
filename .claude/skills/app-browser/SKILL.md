@@ -71,7 +71,7 @@ select by element id, class or `snapshot -i` refs.
   `.replay-last`, and the info `.replay-position` (`.replay-action`, `.replay-round`, `.replay-step`,
   `.replay-wall-low`, `.replay-ended`) in the strip below it (beside it at `max-height: 450px`
   landscape). The options, the viewpoint select `.replay-seat`, the autoplay speed `.replay-speed`
-  and the switch `.replay-hide-hands`, show beside the buttons at 1200px wide and over 450px tall,
+  and the switch `.replay-hide-hands`, show beside the buttons at 1280px wide and over 450px tall,
   and under the info on an upright phone; elsewhere `.replay-options-toggle` ("View: <name>") shows
   them in the info's place until the next move. The round's name `.replay-rounds-toggle` opens the
   round list `.replay-rounds` (a `.replay-round-entry` per round with its outcome, the one shown
