@@ -1,5 +1,6 @@
 import gzip
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, assert_never
 
@@ -10,12 +11,12 @@ from mahjong.hand_calculating.yaku_list import Renhou
 from mahjong.hand_calculating.yaku_list.yakuman import RenhouYakuman
 
 from game.logic.enums import AbortiveDrawType, KanType
-from game.logic.settings import GameSettings, GameType
+from game.logic.settings import NUM_PLAYERS, GameSettings, GameType
 from game.logic.types import WIRE_SCORE_DIVISOR
-from game.wire.compact import decode_discard, decode_draw
+from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.replay_format import decode_replay_settings
-from shared.lib.melds.compact import MeldData, decode_meld_compact
+from shared.lib.melds.compact import MeldData, decode_meld_compact, encode_meld_compact
 
 logger = structlog.get_logger()
 
@@ -52,6 +53,10 @@ TENHOU_GO_LENGTH_BITS = {
     GameType.HANCHAN: TENHOU_GO_HANCHAN,
     GameType.TONPUSEN: 0,
 }
+
+_RESULT_SEAT_KEYS = frozenset({"ws", "ls", "ps", "s"})
+_RESULT_SCORE_MAP_KEYS = frozenset({"scs", "sch"})
+_RESULT_NESTED_LIST_KEYS = frozenset({"wn", "th"})
 
 
 def _to_binary_string(number: int, size: int | None = None) -> str:
@@ -288,15 +293,97 @@ def _tenhou_go_type(settings: GameSettings) -> int:
     return go_type
 
 
-def _recorded_settings(events: list[dict[str, Any]]) -> GameSettings:
+def _game_started_event(events: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    Return the settings the replay's game_started event recorded, raising when the replay has no game_started.
+    Return the replay's game_started event, raising when the replay has none.
     """
     game_started = next((e for e in events if e.get("t") == WireEventType.GAME_STARTED), None)
     if game_started is None:
         raise ValueError("replay has no game_started event")
 
-    return decode_replay_settings(game_started.get("gs"))
+    return game_started
+
+
+@dataclass(frozen=True)
+class _TenhouSeating:
+    """
+    Move a replay's seats to tenhou's, which number the seats from the first dealer counter-clockwise.
+
+    A tenhou log seats its first dealer at 0, so its seat order is the dealer order and the round counter of each INIT
+    seed counts the dealer rotations; readers take both for granted. Ronin's first dealer is any seat.
+    """
+
+    first_dealer: int
+
+    def _tenhou_seat(self, seat: int) -> int:
+        return (seat - self.first_dealer) % NUM_PLAYERS
+
+    def move_seats(self, event: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0911
+        """
+        Return a copy of an event with every seat the export reads from it moved to its tenhou seat.
+
+        A packed draw, discard or meld is re-packed with the moved seat; a line the export does not read is returned as
+        it is. A field the export starts reading joins its event's case here.
+        """
+        match event.get("t"):
+            case WireEventType.GAME_STARTED | WireEventType.ROUND_STARTED:
+                return {**event, "dl": self._tenhou_seat(event["dl"]), "p": self._move_entry_seats(event["p"])}
+            case WireEventType.DRAW:
+                seat, tile = decode_draw(event["d"])
+                return {**event, "d": encode_draw(self._tenhou_seat(seat), tile)}
+            case WireEventType.DISCARD:
+                seat, tile, is_tsumogiri, is_riichi = decode_discard(event["d"])
+                return {
+                    **event,
+                    "d": encode_discard(self._tenhou_seat(seat), tile, is_tsumogiri=is_tsumogiri, is_riichi=is_riichi),
+                }
+            case WireEventType.RIICHI_DECLARED:
+                return {**event, "s": self._tenhou_seat(event["s"])}
+            case WireEventType.MELD:
+                return {**event, "m": self._move_meld_seats(event["m"])}
+            case WireEventType.ROUND_END:
+                return self._move_result_seats(event)
+            case WireEventType.GAME_END:
+                return {**event, "st": self._move_entry_seats(event["st"])}
+            case _:
+                return event
+
+    def _move_entry_seats(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [{**entry, "s": self._tenhou_seat(entry["s"])} for entry in entries]
+
+    def _move_meld_seats(self, compact: int) -> int:
+        meld = decode_meld_compact(compact)
+        from_seat = meld["from_seat"]
+        return encode_meld_compact(
+            {
+                **meld,
+                "caller_seat": self._tenhou_seat(meld["caller_seat"]),
+                "from_seat": None if from_seat is None else self._tenhou_seat(from_seat),
+            },
+        )
+
+    def _move_result_seats(self, fields: dict[str, Any]) -> dict[str, Any]:
+        """
+        Return round result fields with the seats the export reads moved: the result's own and those of its robbed kan,
+        double ron winners and tenpai hands, which name theirs under the same keys.
+        """
+        moved = dict(fields)
+        for key in _RESULT_SEAT_KEYS & fields.keys():
+            moved[key] = self._tenhou_seat(fields[key])
+
+        if "rcl" in fields:
+            moved["rcl"] = [self._tenhou_seat(seat) for seat in fields["rcl"]]
+
+        for key in _RESULT_SCORE_MAP_KEYS & fields.keys():
+            moved[key] = {str(self._tenhou_seat(int(seat))): score for seat, score in fields[key].items()}
+
+        if "rk" in fields:
+            moved["rk"] = self._move_result_seats(fields["rk"])
+
+        for key in _RESULT_NESTED_LIST_KEYS & fields.keys():
+            moved[key] = [self._move_result_seats(entry) for entry in fields[key]]
+
+        return moved
 
 
 def _format_ura_dora_attr(ura_dora_indicators: list[int] | None) -> str:
@@ -340,11 +427,16 @@ class TenhouConverter:
     Convert a Ronin replay event log to tenhou.net XML, the common replay format of other mahjong services.
 
     The tenhou XML replay format belongs to tenhou.net; this converter is not affiliated with tenhou.net.
+
+    Each event is moved to tenhou's seats as the converter takes it, so every seat the handlers read and write is a
+    tenhou seat: the first dealer is seat 0, so the round wind and dealer seat give the INIT round counter.
     """
 
     def __init__(self, events: list[dict[str, Any]]) -> None:
-        self.events = events
-        self.settings = _recorded_settings(events)
+        game_started = _game_started_event(events)
+        self.settings = decode_replay_settings(game_started.get("gs"))
+        seating = _TenhouSeating(first_dealer=game_started["dl"])
+        self.events = [seating.move_seats(event) for event in events]
         self.tags: list[str] = []
 
         # Scores in wire format (hundreds), set from the first round_started event.
@@ -423,7 +515,7 @@ class TenhouConverter:
         self.honba = event["h"]
         self.table_riichi_sticks = event["r"]
         self.dealer = event["dl"]
-        self.dora_indicators = event["di"]
+        self.dora_indicators = list(event["di"])
         self.dice = event["dc"]
 
         self.hands = {}

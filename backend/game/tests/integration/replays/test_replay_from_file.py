@@ -1,4 +1,6 @@
 import json
+import re
+from itertools import accumulate, pairwise
 from pathlib import Path
 
 import pytest
@@ -6,6 +8,7 @@ import pytest
 from game.logic.enums import GameAction
 from game.logic.events import EventType, RoundEndEvent, SeatTarget
 from game.logic.rng import RNG_VERSION
+from game.logic.settings import NUM_PLAYERS
 from game.messaging.event_payload import game_event_payload
 from game.replay import run_replay
 from game.replay.external.tenhou import TenhouConverter
@@ -66,5 +69,9 @@ def test_replay_fixture__when_loaded_replayed_and_exported__should_reproduce_its
     ]
     assert replayed_round_ends == [line for line in recorded_lines if line["t"] == WireEventType.ROUND_END]
 
+    dealers = [line["dl"] for line in recorded_lines if line["t"] == WireEventType.ROUND_STARTED]
+    dealer_rotations = accumulate((dealer != previous for previous, dealer in pairwise(dealers)), initial=0)
     tenhou_xml = TenhouConverter(recorded_lines).convert()
-    assert tenhou_xml.count("<INIT ") == sum(line["t"] == WireEventType.ROUND_STARTED for line in recorded_lines)
+    assert re.findall(r'<INIT seed="(\d+),[^"]*" ten="[^"]*" oya="(\d)"', tenhou_xml) == [
+        (str(rotations), str(rotations % NUM_PLAYERS)) for rotations in dealer_rotations
+    ]
