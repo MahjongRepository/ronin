@@ -473,7 +473,7 @@ describe("ReplayViewer", () => {
         },
     );
 
-    it("shows the final standings after the last result and leaves them for where the replay was opened", () => {
+    it("shows the final standings after the last result and leaves them for where the replay was opened or a round's deal", () => {
         const { viewer, replay } = openViewer(FULL_GAME);
         const round = replay.rounds.length - 1;
         viewer.seek(round, resultStep(replay, round));
@@ -503,6 +503,10 @@ describe("ReplayViewer", () => {
         );
         $("#board .summary .exit").trigger("click");
         expect(assign).toHaveBeenLastCalledWith(`${window.location.origin}/history?page=2`);
+
+        $("#board .summary .body .row-diff").eq(2).find(".replay-summary-round").trigger("click");
+        expect(viewer.state).toMatchObject({ round: 2, step: 0 });
+        expect(shown("#board .summary")).toBe(false);
     });
 
     it("autoplay steps at once on Play, then at the chosen speed, a draw at half of it and a deal for 1.5 s at least", () => {

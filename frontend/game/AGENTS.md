@@ -197,7 +197,13 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   fully shown, never cutting the win's callouts short, and at the end; Play on a result pages to its
   next win or moves on, and so does 次へ where autoplay paused itself. Any other move pauses it, as
   does hiding the page; a change of viewpoint or of the hands shown plays on. The speed is kept with
-  the hidden-hands choice. A sound the browser blocks before the page's first gesture is skipped
+  the hidden-hands choice. The round's name in the strip opens the round list: every round
+  with its outcome, worded by the same helper as the strip's result line (`describe.js`). A round
+  picked there, or in the final standings, is shown from its deal, a manual move. The list is
+  reserved space, never over the table: beside the table on a landscape screen, under it on an
+  upright one, and in the info's place where the strip has the room (an upright phone, a short
+  landscape column), where any move but autoplay's closes it.
+  A sound the browser blocks before the page's first gesture is skipped
   (`game-audio.js`, shared with the live game), never left an unhandled rejection. The all-last flag
   (オーラス) marks the fourth round of the game type's last scheduled wind or of its sudden-death
   extension, read from the recorded game type, never from what was played after it, so a truncated

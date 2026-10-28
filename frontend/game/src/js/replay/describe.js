@@ -8,12 +8,16 @@ import {
     seatOfL,
 } from "../ronin/results.js";
 import { POSITION, kindOf } from "./paipu.js";
+import { OUTCOME } from "./round-end.js";
 
 const SEATS = 4;
 
 const SUIT_NAMES = Object.freeze({ m: "萬", p: "筒", s: "索" });
 const HONOR_NAMES = Object.freeze(["", "東", "南", "西", "北", "白", "發", "中"]);
 const WIND_NAMES = Object.freeze(HONOR_NAMES.slice(1, 5));
+
+/** What the strip and the round list say where the replay stops before the game's end. */
+export const CUT_OFF = "Cut off: the server stopped the game";
 
 /** Each draw's name in English, beside the board's Japanese one. */
 const DRAW_TEXT = Object.freeze({
@@ -86,20 +90,118 @@ function discardParts({ l, p }, nameOf) {
     return [`${nameOf(l)}: ${riichi}${discard} `, tileName(p)];
 }
 
-function resultParts(message, nameOf) {
-    if ("pingju" in message) {
-        const { name } = message.pingju;
-        return [`${DRAW_TEXT[name] ?? "Draw"} (`, ja(name), ")"];
+function honbaText(honba) {
+    return honba > 0 ? ` (+${points(honba)} honba)` : "";
+}
+
+function paoText(winner, nameOfSeat) {
+    return winner.liable === null ? "" : ` (pao: ${nameOfSeat(winner.liable)} pays)`;
+}
+
+/** A win's hand points and the honba its payers paid on top, which is all they paid beyond the hand. */
+function winPayments(winner) {
+    const total = winner.paid.reduce((sum, paid) => sum + paid, 0);
+    return { honba: total - winner.points, payers: winner.paid.filter((paid) => paid > 0) };
+}
+
+/**
+ * What a tsumo's payers paid for the hand, without the honba they shared: "(2,000/4,000)" from the non-dealers and the
+ * dealer, "(4,000 all)" to a dealer.
+ */
+function tsumoSplit(payers, honba) {
+    const shares = new Set(payers.map((paid) => paid - honba / payers.length));
+    const [low, high] = [...shares].sort((a, b) => a - b);
+    return high === undefined ? ` (${points(low)} all)` : ` (${points(low)}/${points(high)})`;
+}
+
+function tsumoText(winner, nameOfSeat) {
+    const { honba, payers } = winPayments(winner);
+    const split = winner.liable === null ? tsumoSplit(payers, honba) : "";
+    const extras = `${split}${honbaText(honba)}${paoText(winner, nameOfSeat)}`;
+    return `Tsumo: ${nameOfSeat(winner.seat)} ${points(winner.points)}${extras}`;
+}
+
+function ronValue(winner, nameOfSeat) {
+    return `${points(winner.points)}${paoText(winner, nameOfSeat)}`;
+}
+
+function winText(outcome, nameOfSeat) {
+    const [winner] = outcome.winners;
+    switch (outcome.kind) {
+        case OUTCOME.TSUMO:
+            return tsumoText(winner, nameOfSeat);
+        case OUTCOME.RON: {
+            const value = ronValue(winner, nameOfSeat);
+            const honba = honbaText(winPayments(winner).honba);
+            return `Ron: ${nameOfSeat(winner.seat)} from ${nameOfSeat(outcome.loser)} ${value}${honba}`;
+        }
+        case OUTCOME.DOUBLE_RON: {
+            const winners = outcome.winners.map(
+                (each) => `${nameOfSeat(each.seat)} ${ronValue(each, nameOfSeat)}`,
+            );
+            const honba = outcome.winners.reduce((sum, each) => sum + winPayments(each).honba, 0);
+            return `Double ron from ${nameOfSeat(outcome.loser)}: ${winners.join(", ")}${honbaText(honba)}`;
+        }
+        default:
+            throw new Error(`no win outcome ${outcome.kind}`);
     }
-    const { l, baojia, defen } = message.hule;
-    if (baojia === null) {
-        return [`${nameOf(l)}: tsumo ${points(defen)}`];
+}
+
+/** Who a draw names: the tenpai seats of an exhaustive draw, the nagashi players, a nine-terminals declarer. */
+function drawSeatsText(outcome, nameOfSeat) {
+    const names = (seats) => seats.map(nameOfSeat).join(", ");
+    switch (outcome.kind) {
+        case OUTCOME.EXHAUSTIVE:
+            if (outcome.tenpai.length === 0) {
+                return ": all noten";
+            }
+            return outcome.tenpai.length === SEATS
+                ? ": all tenpai"
+                : `: tenpai ${names(outcome.tenpai)}`;
+        case OUTCOME.NAGASHI:
+            return `: ${names(outcome.players)}`;
+        case OUTCOME.ABORT:
+            return outcome.declarer === null ? "" : `: ${nameOfSeat(outcome.declarer)}`;
+        default:
+            throw new Error(`no draw outcome ${outcome.kind}`);
     }
-    return [`${nameOf(l)}: ron ${points(defen)} ← ${nameOf(baojia)}`];
+}
+
+/** A draw by its English name and the seats it names first, its Japanese name after them. */
+function drawParts(outcome, nameOfSeat) {
+    const english = DRAW_TEXT[outcome.name] ?? "Draw";
+    return [`${english}${drawSeatsText(outcome, nameOfSeat)} (`, ja(outcome.name), ")"];
+}
+
+/**
+ * How a round ended, as the round list and the strip's result line say it, its key facts first: "Tsumo: Diana 8,000
+ * (2,000/4,000)", "Tsumo: Bob 12,000 (4,000 all)", "Ron: Charlie from Alice 1,300", "Double ron from Bob: Alice 1,600,
+ * Diana 1,600", with "(+300 honba)" when the payers paid honba on top (a double ron's both wins' together); a draw by its English name and the seats it
+ * names, then its Japanese name. A pao tsumo shows only its total, "(pao: Diana pays)" in place of the split, since the
+ * liable seat pays what the others would. A round the replay cuts off says so.
+ */
+export function outcomeParts(replay, round) {
+    const { outcome } = round;
+    const nameOfSeat = (seat) => replay.players[seat];
+    if (outcome === null) {
+        return [CUT_OFF];
+    }
+    switch (outcome.kind) {
+        case OUTCOME.TSUMO:
+        case OUTCOME.RON:
+        case OUTCOME.DOUBLE_RON:
+            return [winText(outcome, nameOfSeat)];
+        case OUTCOME.EXHAUSTIVE:
+        case OUTCOME.NAGASHI:
+        case OUTCOME.ABORT:
+            return drawParts(outcome, nameOfSeat);
+        default:
+            throw new Error(`no outcome ${outcome.kind}`);
+    }
 }
 
 /** A draw names its tile only where the table shows it: the viewpoint's own, or any while every hand is open. */
-function drawParts(body, nameOf, tileShown, from = []) {
+function drawnTileParts(body, nameOf, tileShown, from = []) {
     const tile = tileShown(body.l) ? [" ", tileName(body.p)] : [];
     return [`${nameOf(body.l)}: draws`, ...tile, ...from];
 }
@@ -109,26 +211,26 @@ function messageParts(message, nameOf, tileShown) {
     const body = message[kind];
     switch (kind) {
         case "zimo":
-            return drawParts(body, nameOf, tileShown);
+            return drawnTileParts(body, nameOf, tileShown);
         case "gangzimo":
-            return drawParts(body, nameOf, tileShown, [" from the dead wall"]);
+            return drawnTileParts(body, nameOf, tileShown, [" from the dead wall"]);
         case "dapai":
             return discardParts(body, nameOf);
         case "fulou":
         case "gang":
             return callParts(kind, body, nameOf);
         default:
-            return resultParts(message, nameOf);
+            throw new Error(`no action line for a ${kind} message`);
     }
 }
 
 /**
  * The last action of the position the viewer `state` stands at, as English strings and `{ ja }` Japanese parts:
- * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result names the win its dialog shows (a double ron's page);
- * the standings, and silent records at a truncated end, name nothing. With opponents' hands hidden, their draws keep
- * their tiles hidden too.
+ * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result tells the round's outcome (every win of a double
+ * ron); the standings, and silent records at a truncated end, name nothing. With opponents' hands hidden, their draws
+ * keep their tiles hidden too.
  */
-export function lastAction(replay, { round: roundIndex, step, page, seat, openHands }) {
+export function lastAction(replay, { round: roundIndex, step, seat, openHands }) {
     const round = replay.rounds[roundIndex];
     const position = round.positions[step];
     const nameOf = (l) => replay.players[seatOfL(l, round.dealer)];
@@ -140,7 +242,7 @@ export function lastAction(replay, { round: roundIndex, step, page, seat, openHa
         case POSITION.DEAL:
             return [`${nameOf(0)} deals`];
         case POSITION.RESULT:
-            return resultParts(round.log[position.end - 1 + page], nameOf);
+            return outcomeParts(replay, round);
         default:
             return messageParts(round.log[position.end - 1], nameOf, tileShown);
     }

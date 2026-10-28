@@ -4,11 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../majiang.js";
 import PAGE from "../../../index.html?raw";
 import { GAME_PREF_KEY } from "../game-prefs.js";
-import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/controls.js";
+import { HOLD_DELAY_MS, HOLD_REPEAT_MS, ROUNDS_IN_STRIP_MEDIA } from "../replay/controls.js";
 import { REPLAY_PREFS_KEY } from "../replay/prefs.js";
 import { showReplay } from "../replay/page.js";
 import { withUnplayableDraw } from "./replay-edits.js";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
+import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
@@ -229,7 +230,7 @@ describe("showReplay", () => {
 
         expect(label()).toMatchObject({
             round: "東二局 1本場",
-            ended: "The game ended here: the server stopped it",
+            ended: "Cut off: the server stopped the game",
         });
         expect(label().step).toMatch(/^Step (\d+)\u00a0\/\u00a0\1$/);
         expect(disabled()).toMatchObject({ play: true, next: true, nextRound: true, last: true });
@@ -285,7 +286,7 @@ describe("ReplayControls", () => {
             round: "東二局 1本場",
             step: "Step 142\u00a0/\u00a0142",
         });
-        expect($(".replay-action").text()).toBe("Exhaustive draw (荒牌平局)");
+        expect($(".replay-action").text()).toBe("Exhaustive draw: all noten (荒牌平局)");
         expect(busy()).toBe(false);
     });
 
@@ -352,6 +353,66 @@ describe("ReplayControls", () => {
         expect($("#board .player.main .name").text()).toBe("Ojisan");
     });
 
+    it("jumps from the round list to the picked round's deal, pausing autoplay, and marks the round shown", async () => {
+        await open(EAGER_GAME);
+        const toggle = $(".replay-rounds-toggle");
+        const entries = () => $(".replay-round-entry");
+        const current = () => entries().index($('.replay-round-entry[aria-current="true"]'));
+
+        expect(entries().length).toBe(9);
+        expect(entries().eq(2).text()).toBe(
+            "東二局 1本場Ron: Charlie from Alice 1,300 (+300 honba)",
+        );
+        expect(toggle.attr("aria-label")).toBe("Round list, 東一局 0本場");
+        toggle.trigger("click");
+        expect(toggle.attr("aria-expanded")).toBe("true");
+        expect(toggle.text()).toBe("東一局 0本場 · Rounds▴");
+        expect(document.activeElement).toBe(entries()[0]);
+
+        $(".replay-play").trigger("click");
+        entries().eq(3).trigger("click");
+
+        expect(label()).toMatchObject({
+            round: "東三局 0本場",
+            step: expect.stringMatching(/^Step 1\u00a0/),
+        });
+        expect($(".replay-play").attr("aria-label")).toBe("Play");
+        expect(toggle.attr("aria-expanded")).toBe("true");
+        expect(current()).toBe(3);
+        $(".replay-next-round").trigger("click");
+        expect(current()).toBe(4);
+
+        entries().eq(4).trigger("focus");
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        expect(toggle.attr("aria-expanded")).toBe("false");
+        expect(document.activeElement).toBe(toggle[0]);
+
+        vi.useFakeTimers();
+        $(".replay-last").trigger("click");
+        vi.runAllTimers();
+        $(".summary .replay-summary-round").eq(1).trigger("click");
+        expect(label().round).toBe("東二局 0本場");
+        expect(document.activeElement).toBe(toggle[0]);
+    });
+
+    it("closes the round list on a pick or a move where it takes the info's place", async () => {
+        vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+            matches: query === ROUNDS_IN_STRIP_MEDIA,
+        }));
+        await open(EAGER_GAME);
+        const toggle = $(".replay-rounds-toggle");
+        const isOpen = () => toggle.attr("aria-expanded") === "true";
+
+        toggle.trigger("click");
+        $(".replay-round-entry").eq(2).trigger("click");
+        expect(isOpen()).toBe(false);
+        expect(document.activeElement).toBe(toggle[0]);
+
+        toggle.trigger("click");
+        $(".replay-next").trigger("click");
+        expect(isOpen()).toBe(false);
+    });
+
     it("hides opponents' hands behind tile backs, and a result still reveals every winner's", async () => {
         await open(RIICHI);
         expect(hiddenHands()).toEqual([]);
@@ -369,7 +430,7 @@ describe("ReplayControls", () => {
         $(".replay-last").trigger("click");
         vi.runAllTimers();
 
-        expect($(".replay-action").text()).toBe("Alice: tsumo 8,000");
+        expect($(".replay-action").text()).toBe("Tsumo: Alice 8,000 (2,000/4,000)");
         expect($("#board .player.xiajia .name").text()).toBe("Alice");
         expect(hiddenHands()).toEqual(["duimian", "shangjia"]);
 

@@ -130,6 +130,7 @@ export class ReplayViewer {
         root,
         speed = DEFAULT_AUTOPLAY_SPEED,
         onChange = () => {},
+        onStandingsJump = () => {},
         onError = (error) => {
             throw error;
         },
@@ -139,6 +140,7 @@ export class ReplayViewer {
         this.model = model;
         this.root = root;
         this.onChange = onChange;
+        this.onStandingsJump = onStandingsJump;
         this.onError = onError;
         this.speed = speed;
         this.round = 0;
@@ -147,8 +149,9 @@ export class ReplayViewer {
     }
 
     /**
-     * Bind the result dialog's 次へ, the standings' exit and the nameplates (a click views the table from that seat), and
-     * show the position at (round, step).
+     * Bind the result dialog's 次へ, the standings' exit and rounds (a click shows that round from its deal, then
+     * `onStandingsJump` runs), and the nameplates (a click views the table from that seat), and show the position at
+     * (round, step).
      */
     start(round = 0, step = 0) {
         this.dialog()
@@ -157,6 +160,11 @@ export class ReplayViewer {
         $("> .player", this.root)
             .off(".replay")
             .on("click.replay", (event) => this.viewFromNameplate(event.currentTarget));
+        $(".summary", this.root)
+            .off(".replay")
+            .on("click.replay", ".body .row-diff", (event) =>
+                this.seekFromStandings(event.currentTarget),
+            );
         $(".summary .exit", this.root)
             .text(exitLabel(exitUrl()))
             .off(".replay")
@@ -705,5 +713,37 @@ export class ReplayViewer {
             log: rounds.map((round) => round.log),
             ...standings,
         });
+        this.linkStandingsRounds();
+    }
+
+    /**
+     * Each round's name in the standings is a button to that round's deal, and a click anywhere on its row does the
+     * same; a line under the table says so, a tap on a touch screen.
+     */
+    linkStandingsRounds() {
+        $(".summary .body .row-diff .jushu", this.root).each((_, cell) => {
+            const name = cell.textContent;
+            $(cell)
+                .empty()
+                .append(
+                    $('<button type="button" class="replay-summary-round">')
+                        .attr("title", "Show this round from its deal")
+                        .text(name),
+                );
+        });
+        const table = $(".summary table", this.root);
+        if (table.next(".replay-summary-hint").length === 0) {
+            const verb = window.matchMedia("(pointer: coarse)").matches ? "Tap" : "Click";
+            table.after(
+                $('<p class="replay-summary-hint" lang="en">').text(`${verb} a round to replay it`),
+            );
+        }
+    }
+
+    /** The standings have a row per round, in order: a click on one shows that round from its deal. */
+    seekFromStandings(row) {
+        const index = $(".summary .body .row-diff", this.root).index(row);
+        this.seek(index, 0);
+        this.onStandingsJump();
     }
 }

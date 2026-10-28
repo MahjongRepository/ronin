@@ -72,7 +72,10 @@ select by element id, class or `snapshot -i` refs.
   the viewpoint select `.replay-seat`, the autoplay speed `.replay-speed` and the switch
   `.replay-hide-hands`, show beside the buttons at 1200px wide and over 450px tall, and under the
   info on an upright phone; elsewhere `.replay-options-toggle` ("View: <name>") shows them in the
-  info's place until the next move. `.replay-next-round` is the quick way to a later round; holding
+  info's place until the next move. The round's name `.replay-rounds-toggle` opens the round
+  list `.replay-rounds` (a `.replay-round-entry` per round with its outcome, the one shown
+  `aria-current`); each round of the final standings leads to its deal too.
+  `.replay-next-round` is the quick way to a later round; holding
   Back or Next (`agent-browser mouse down left`) repeats them. A replay it cannot show gets a
   `.replay-problem` message instead. To show a particular case, gzip a fixture from
   `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id of your own
