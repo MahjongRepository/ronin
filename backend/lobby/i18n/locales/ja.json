@@ -77,7 +77,7 @@
     "lobby.tables.empty_hint": "卓を立てるか、クイックマッチに参加できます。",
     "lobby.tables.empty_title": "募集中のカスタム卓はありません",
     "lobby.tables.open_count": {
-        "other": "{count}卓"
+        "other": "募集中 {count}"
     },
     "lobby.tables.title": "カスタム卓",
     "nav.aria_label": "メイン",
