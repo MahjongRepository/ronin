@@ -23,6 +23,7 @@ lint:
 	cd backend && uv run ruff format --check
 	cd backend && uv run ruff check
 	cd backend && uv run lint-imports
+	$(BE_RUN) python bin/check_i18n.py
 
 format:
 	cd backend && (uv run docformatter --in-place $(DOCFORMATTER_PATHS) ; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 3 ])
