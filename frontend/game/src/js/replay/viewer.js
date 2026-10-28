@@ -3,6 +3,7 @@ import $ from "jquery";
 import fadein from "../../vendor/majiang-ui/fadein.js";
 import { WIN_CALL_MS } from "../ronin/results.js";
 import { HISTORY_URL } from "../routes.js";
+import { COARSE_POINTER_MEDIA } from "./media.js";
 import { POSITION, kindOf } from "./paipu.js";
 import { SEATS } from "./seats.js";
 import { AUTOPLAY_SPEEDS, DEFAULT_AUTOPLAY_SPEED } from "./speeds.js";
@@ -558,6 +559,12 @@ export class ReplayViewer {
         return this.currentPosition().kind === POSITION.RESULT;
     }
 
+    /** Whether the position shown is one a held Back or Next, or a scrolled wheel, stops at: a result or the standings. */
+    isAtStop() {
+        const { kind } = this.currentPosition();
+        return kind === POSITION.RESULT || kind === POSITION.SUMMARY;
+    }
+
     /** Whether a result's dialog is up and done fading in, so autoplay may stop at it or leave it. */
     isDialogFullyShown() {
         const dialog = this.dialog();
@@ -613,6 +620,11 @@ export class ReplayViewer {
         if (pendingWin !== null) {
             this.view.update(pendingWin);
         }
+        this.showWinDialogNow();
+    }
+
+    /** The win the board is about to show, in its dialog now rather than after the board's delay and fade-in. */
+    showWinDialogNow() {
         this.view.open_hule();
         fadein.show(this.dialog());
     }
@@ -651,7 +663,8 @@ export class ReplayViewer {
 
     /**
      * The result's win after `pagedWins` further ones, which the table shows as stepping forward left it: the earlier
-     * winners' hands face up too.
+     * winners' hands face up too. A win's dialog opens at once, not after the board's delay, so a Next pressed right
+     * after Back lands on a double ron pages on rather than opening the same win; a draw's still waits for its own timer.
      */
     showWin(firstWin, target) {
         const wins = [
@@ -661,6 +674,9 @@ export class ReplayViewer {
         wins.forEach((win) => playIntoModel(this.model, win));
         this.view.update(wins.at(-1), true);
         wins.slice(0, -1).forEach((win) => this.view.reveal(win.hule.l));
+        if (kindOf(wins.at(-1)) === "hule") {
+            this.showWinDialogNow();
+        }
     }
 
     /** Play the position at `target`, the one after the cursor's, into the model and the view, with sound. */
@@ -732,7 +748,7 @@ export class ReplayViewer {
         });
         const table = $(".summary table", this.root);
         if (table.next(".replay-summary-hint").length === 0) {
-            const verb = window.matchMedia("(pointer: coarse)").matches ? "Tap" : "Click";
+            const verb = window.matchMedia(COARSE_POINTER_MEDIA).matches ? "Tap" : "Click";
             table.after(
                 $('<p class="replay-summary-hint" lang="en">').text(`${verb} a round to replay it`),
             );

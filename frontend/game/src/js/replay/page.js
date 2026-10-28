@@ -5,10 +5,12 @@ import { GAME_PREF_KEY } from "../game-prefs.js";
 import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
+import { bindKeys, unbindKeys } from "./keys.js";
 import { MalformedReplayError, toReplay } from "./paipu.js";
 import { PositionUrl, readPosition } from "./position-url.js";
 import { readReplayPrefs } from "./prefs.js";
 import { ReplayViewer, UnplayableReplayError } from "./viewer.js";
+import { bindWheel } from "./wheel.js";
 
 const PAGE_TITLE = "Replay · Ronin";
 
@@ -45,8 +47,12 @@ function showDamaged(line, ...logged) {
     showProblem(errorText({ kind: REPLAY_ERROR.MALFORMED, line }));
 }
 
-/** A replay the model cannot play is damaged; any other failure to show one is the page's own, which a reload may fix. */
+/**
+ * A replay the model cannot play is damaged; any other failure to show one is the page's own, which a reload may fix.
+ * Either way the replay's keys stop: the page shows the problem instead.
+ */
 function showViewerFailure(error) {
+    unbindKeys();
     if (error instanceof UnplayableReplayError) {
         showDamaged(undefined, error, error.cause);
         return;
@@ -111,10 +117,10 @@ function buildBoard(replay, stage, prefs, seat) {
     const view = new Majiang.UI.Board(root, pai, audio, model);
     view.viewpoint = seat;
     view.open_shoupai = !prefs.hideHands;
-    new ReplaySettings(stage, GAME_PREF_KEY, view);
+    const settings = new ReplaySettings(stage, GAME_PREF_KEY, view);
     $(".controller .sound", stage).attr("title", "音声");
     $(".autoplay, .player-button, .timer", stage).remove();
-    return { model, view, root };
+    return { model, view, root, settings };
 }
 
 /**
@@ -125,9 +131,9 @@ function startViewer(replay) {
     const stage = $("#board");
     const prefs = readReplayPrefs();
     const { seat, round, step } = readPosition(window.location.search, replay);
-    const { model, view, root } = buildBoard(replay, stage, prefs, seat);
+    const { model, view, root, settings } = buildBoard(replay, stage, prefs, seat);
     const positionUrl = new PositionUrl();
-    const controls = new ReplayControls(replay);
+    const controls = new ReplayControls(replay, { closeSettings: () => settings.menu(false) });
     $("#space").remove();
     $("body").addClass("replay").append(controls.element);
     const viewer = new ReplayViewer({
@@ -144,6 +150,8 @@ function startViewer(replay) {
         onError: showViewerFailure,
     });
     controls.bind(viewer);
+    bindKeys(viewer, controls);
+    bindWheel(viewer, stage);
     viewer.start(round, step);
     if (viewer.failed) {
         return;

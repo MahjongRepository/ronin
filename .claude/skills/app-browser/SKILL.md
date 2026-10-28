@@ -77,7 +77,13 @@ select by element id, class or `snapshot -i` refs.
   round list `.replay-rounds` (a `.replay-round-entry` per round with its outcome, the one shown
   `aria-current`); each round of the final standings leads to its deal too.
   `.replay-next-round` is the quick way to a later round; holding
-  Back or Next (`agent-browser mouse down left`) repeats them. A replay it cannot show gets a
+  Back or Next (`agent-browser mouse down left`) repeats them. The keys drive it too
+  (`agent-browser press ArrowRight`, `End`, `Shift+?` for the help `.replay-help`, opened also from
+  `.replay-help-toggle` at the end of the round's line), and so does the wheel over the board:
+  `agent-browser mouse wheel 100` fires at clientX/Y 0,0 whatever `mouse move` set, which still lands
+  on the board's corner; for a wheel at a set position (over the standings, the help), use
+  Playwright's `page.mouse.move(x, y)` then `page.mouse.wheel(0, 100)`.
+  On a phone, tap as *WebKit phone check* says. A replay it cannot show gets a
   `.replay-problem` message instead. To show a particular case, gzip a fixture from
   `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id of your own
   (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards. The speed and
@@ -142,6 +148,11 @@ with sync_playwright() as p:
     page.screenshot(path=f"{sys.argv[1]}/phone-history.png")
     browser.close()
 ```
+
+The game pages draw at `width=800` and the phone scales them down, so `page.tap(selector)` can miss
+an element near the page's edge ("`<html>` intercepts pointer events"). Tap where the element is
+instead: its `getBoundingClientRect()` centre times `visualViewport.scale`, with
+`page.touchscreen.tap(x, y)`.
 
 Settle with `page.evaluate` polling, not `page.wait_for_function(<string>)`: the lobby CSP has no
 `unsafe-eval`, which a string predicate needs in WebKit. Run it outside the backend project, pinned
