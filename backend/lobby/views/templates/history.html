@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}History · Ronin Mahjong{% endblock %}
+{% block title %}{{ t("page.title.with_page", page=t("nav.history")) }}{% endblock %}
 
 {% block content %}
 <section class="lobby-section">
     <div class="lobby-section-header">
-        <h2>Recent games</h2>
-        <small class="lobby-table-count">{{ games|length }} shown</small>
+        <h2>{{ t("history.recent_games") }}</h2>
+        <small class="lobby-table-count">{{ t("history.shown_count", count=games|length) }}</small>
     </div>
 
     {% if games %}
     <div class="games-list">
         {% for entry in games %}
-        {% set started = entry.game.started_at.strftime('%b %d, %H:%M') ~ " UTC" %}
+        {% set started = entry.game.started_at.strftime('%Y-%m-%d %H:%M') ~ " UTC" %}
         <article class="games-card" style="--card-index: {{ loop.index0 }}">
             <header class="games-card-header">
                 <div class="games-card-label">
@@ -26,22 +26,22 @@
 
             <div class="games-standings">
                 <div class="games-standings-legend" aria-hidden="true">
-                    <span>Points</span>
-                    <span>Result</span>
+                    <span>{{ t("history.legend.points") }}</span>
+                    <span>{{ t("history.legend.result") }}</span>
                 </div>
                 {% for player in entry.players %}
                 <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if player.is_viewer else '' }}">
                     <span class="games-rank">{{ loop.index }}</span>
                     <span class="games-name">{{ player.name }}</span>
                     {% if player.is_viewer %}
-                    <span class="games-you">You</span>
+                    <span class="games-you">{{ t("history.you") }}</span>
                     {% endif %}
                     {% if player.score is not none %}
-                    <span class="games-score" title="Points">{{ "{:,}".format(player.score) }}</span>
+                    <span class="games-score" title="{{ t('history.legend.points') }}">{{ format_number(player.score) }}</span>
                     {% endif %}
                     {% if player.final_score is not none %}
-                    <span class="games-pts {{ 'games-pts--positive' if player.final_score > 0 else 'games-pts--negative' if player.final_score < 0 else '' }}" title="Result">
-                        {{ ('+' ~ player.final_score) if player.final_score > 0 else player.final_score }}
+                    <span class="games-pts {{ 'games-pts--positive' if player.final_score > 0 else 'games-pts--negative' if player.final_score < 0 else '' }}" title="{{ t('history.legend.result') }}">
+                        {{ ('+' ~ format_number(player.final_score)) if player.final_score > 0 else format_number(player.final_score) }}
                     </span>
                     {% endif %}
                 </div>
@@ -54,15 +54,15 @@
                     <span class="games-meta-tag">{{ entry.duration_label }}</span>
                     {% endif %}
                     {% if entry.game.num_rounds_played %}
-                    <span class="games-meta-tag">{{ entry.game.num_rounds_played }} rounds</span>
+                    <span class="games-meta-tag">{{ t("history.rounds", count=entry.game.num_rounds_played) }}</span>
                     {% endif %}
                 </div>
                 <div class="games-card-actions">
                     <span class="games-copy-status" role="status"></span>
                     <button class="games-copy-btn"
                             data-replay-url="{{ entry.replay_url }}"
-                            title="Copy replay link"
-                            aria-label="Copy replay link"
+                            title="{{ t('history.copy_link') }}"
+                            aria-label="{{ t('history.copy_link') }}"
                             type="button">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                             <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
@@ -71,7 +71,7 @@
                     </button>
                     <a class="games-card-link" href="{{ entry.viewer_replay_url }}"
                        id="games-replay-{{ loop.index }}"
-                       aria-labelledby="games-replay-{{ loop.index }} games-type-{{ loop.index }} games-time-{{ loop.index }}">View replay</a>
+                       aria-labelledby="games-replay-{{ loop.index }} games-type-{{ loop.index }} games-time-{{ loop.index }}">{{ t("history.view_replay") }}</a>
                 </div>
             </footer>
         </article>
@@ -79,9 +79,9 @@
     </div>
     {% else %}
     <div class="lobby-empty">
-        <p class="lobby-empty-title">No games played yet</p>
-        <p class="lobby-empty-hint">Finished games and their replays show up here.</p>
-        <a href="/" role="button" class="outline">Back to lobby</a>
+        <p class="lobby-empty-title">{{ t("history.empty_title") }}</p>
+        <p class="lobby-empty-hint">{{ t("history.empty_hint") }}</p>
+        <a href="/" role="button" class="outline">{{ t("common.back_to_lobby") }}</a>
     </div>
     {% endif %}
 </section>

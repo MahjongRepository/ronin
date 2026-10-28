@@ -2,6 +2,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from lobby.auth.csrf import CSRF_COOKIE_NAME
+from lobby.tests.integration.conftest import register_with_csrf
 
 BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
 
@@ -85,3 +86,29 @@ def test_page_locale__when_resolved_from_accept_language__should_vary_on_it_and_
     assert {"Accept-Language", "Cookie"} <= set(from_header.headers["vary"].split(", "))
     assert '<html lang="ja"' in from_cookie.text
     assert "Accept-Language" not in from_cookie.headers.get("vary", "")
+
+
+def test_login_page__when_lang_cookie_is_ja__should_render_in_japanese(client):
+    client.cookies.set("lang", "ja")
+
+    response = client.get("/login")
+    assert '<html lang="ja"' in response.text
+    assert "<h1>ログイン</h1>" in response.text
+
+
+def test_register_route__when_username_taken_and_lang_is_ru__should_show_the_russian_error_with_the_name(client):
+    register_with_csrf(client, "taken_name")
+    client.cookies.delete("session_id")
+    client.cookies.set("lang", "ru")
+
+    response = client.post(
+        "/register",
+        data={
+            "username": "taken_name",
+            "password": "securepass123",
+            "confirm_password": "securepass123",
+            "csrf_token": client.cookies.get(CSRF_COOKIE_NAME),
+        },
+    )
+    assert '<html lang="ru"' in response.text
+    assert "Имя «taken_name» уже занято." in response.text

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from starlette.templating import Jinja2Templates
 
 from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, set_csrf_cookie
-from lobby.i18n import resolve_request_locale
+from lobby.i18n import format_number, resolve_request_locale
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -25,7 +25,8 @@ LOBBY_ENTRY = "src/index.ts"
 
 def _i18n_context(request: Request) -> dict[str, object]:
     """
-    Give every template the request's ``locale`` and ``t(key, **params)``, which returns the message as escaped HTML.
+    Give every template the request's ``locale``, ``t(key, **params)``, which returns the message as escaped HTML, and
+    ``format_number(n)`` in the locale's digit grouping.
     """
     translator: Translator = request.app.state.translator
     locale = resolve_request_locale(request).locale
@@ -33,7 +34,18 @@ def _i18n_context(request: Request) -> dict[str, object]:
     def t(key: str, /, **params: object) -> Markup:
         return translator.translate_markup(locale, key, **params)
 
-    return {"locale": locale, "t": t}
+    def format_locale_number(number: int) -> str:
+        return format_number(locale, number)
+
+    return {"locale": locale, "t": t, "format_number": format_locale_number}
+
+
+def translate_for_request(request: Request, key: str, /, **params: object) -> str:
+    """
+    Return the message ``key`` as plain text in the request's locale, for a handler to pass to its template.
+    """
+    translator: Translator = request.app.state.translator
+    return translator.translate(resolve_request_locale(request).locale, key, **params)
 
 
 def create_templates() -> Jinja2Templates:

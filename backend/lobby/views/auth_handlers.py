@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from starlette.responses import RedirectResponse, Response
 
 from lobby.auth.csrf import is_csrf_valid
-from lobby.views.assets import render_page
+from lobby.views.assets import render_page, translate_for_request
 from lobby.views.error_pages import validate_csrf
 from shared.auth.service import (
     PASSWORD_MAX_LENGTH,
@@ -25,8 +25,6 @@ if TYPE_CHECKING:
 
     from shared.auth.models import AuthSession
     from shared.auth.settings import AuthSettings
-
-SESSION_EXPIRED_ERROR = "Your session expired. Please try again."
 
 _ACCOUNT_RULES = {
     "username_min_length": USERNAME_MIN_LENGTH,
@@ -51,6 +49,13 @@ def parse_next_path(value: object) -> str | None:
         return None
 
     return value
+
+
+def describe_auth_error(request: Request, error: AuthError) -> str:
+    """
+    Word an auth failure in the request's locale from its code and params; its English message is for logs and bots.
+    """
+    return translate_for_request(request, f"auth.error.{error.code}", **error.params)
 
 
 def _redirect_with_session_cookie(
@@ -105,7 +110,8 @@ def _render_stale_auth_form(request: Request, *, template_name: str, form: FormD
 
     A browser that has lost its cookie gets a new one with the form, unless the post came from another site.
     """
-    response = _render_auth_form(request, template_name=template_name, form=form, error=SESSION_EXPIRED_ERROR)
+    error = translate_for_request(request, "auth.form.session_expired")
+    response = _render_auth_form(request, template_name=template_name, form=form, error=error)
     response.status_code = HTTPStatus.FORBIDDEN
     return response
 
@@ -130,7 +136,7 @@ async def login(request: Request) -> Response:
     try:
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
-        return _render_auth_form(request, template_name="login.html", form=form, error=str(e))
+        return _render_auth_form(request, template_name="login.html", form=form, error=describe_auth_error(request, e))
 
     return _redirect_with_session_cookie(
         session=session, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
@@ -177,7 +183,7 @@ async def register(request: Request) -> Response:
             request,
             template_name="register.html",
             form=form,
-            error="Passwords do not match.",
+            error=translate_for_request(request, "auth.form.passwords_mismatch"),
             invalid_field="confirm_password",
         )
 
@@ -185,7 +191,9 @@ async def register(request: Request) -> Response:
         await auth_service.register(str(username), str(password))
         session = await auth_service.login(str(username), str(password))
     except AuthError as e:
-        return _render_auth_form(request, template_name="register.html", form=form, error=str(e))
+        return _render_auth_form(
+            request, template_name="register.html", form=form, error=describe_auth_error(request, e)
+        )
 
     return _redirect_with_session_cookie(
         session=session, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))

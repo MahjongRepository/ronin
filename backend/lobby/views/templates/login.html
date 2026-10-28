@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Log in · Ronin Mahjong{% endblock %}
+{% block title %}{{ t("page.title.with_page", page=t("auth.login.title")) }}{% endblock %}
 
 {% block content %}
 <article class="auth-card">
     <hgroup>
-        <h1>Log in</h1>
-        <p>Welcome back. Log in to find a table.</p>
+        <h1>{{ t("auth.login.title") }}</h1>
+        <p>{{ t("auth.login.subtitle") }}</p>
     </hgroup>
 
     {% if error %}
@@ -16,21 +16,22 @@
     <form method="POST" action="/login">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
-        <label for="username">Username
+        <label for="username">{{ t("auth.field.username") }}
             <input type="text" id="username" name="username" value="{{ form_username or '' }}" required minlength="{{ username_min_length }}" maxlength="{{ username_max_length }}" autocomplete="username" autocapitalize="none" spellcheck="false"{% if not error %} autofocus{% endif %}>
         </label>
-        <label for="password">Password
+        <label for="password">{{ t("auth.field.password") }}
             <input type="password" id="password" name="password" required autocomplete="current-password"{% if error %} autofocus aria-describedby="form-error"{% endif %}>
         </label>
-        <button type="submit">Log in</button>
+        <button type="submit">{{ t("auth.login.submit") }}</button>
     </form>
-    <p class="auth-divider">or</p>
+    <p class="auth-divider">{{ t("auth.login.or") }}</p>
     <form method="POST" action="/guest">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
-        <button type="submit" class="outline" aria-describedby="guest-note">Play as guest</button>
-        <p class="auth-note" id="guest-note"><small>Get a random name. Nothing is saved to an account.</small></p>
+        <button type="submit" class="outline" aria-describedby="guest-note">{{ t("auth.login.guest") }}</button>
+        <p class="auth-note" id="guest-note"><small>{{ t("auth.login.guest_note") }}</small></p>
     </form>
-    <p class="auth-link"><small>Don't have an account? <a href="/register{{ next_query }}">Register</a></small></p>
+    {% set register %}<a href="/register{{ next_query }}">{{ t("auth.login.register_link") }}</a>{% endset %}
+    <p class="auth-link"><small>{{ t("auth.login.no_account", register=register) }}</small></p>
 </article>
 {% endblock %}

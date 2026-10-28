@@ -6,7 +6,8 @@
 {% endif %}
 
 {% if my_room %}
-<p class="lobby-seated-hint">You're seated at <strong class="lobby-table-name">{{ my_room.name }}</strong>. <a href="/rooms/{{ my_room.room_id }}">Back to your table</a></p>
+{% set table %}<strong class="lobby-table-name">{{ my_room.name }}</strong>{% endset %}
+<p class="lobby-seated-hint">{{ t("lobby.seated_hint", table=table) }} <a href="/rooms/{{ my_room.room_id }}">{{ t("lobby.back_to_table") }}</a></p>
 {% endif %}
 <div class="lobby-actions{{ ' lobby-actions--seated' if my_room else '' }}">
     <form method="POST" action="/rooms/new" class="lobby-action-form">
@@ -16,8 +17,8 @@
                 <path d="M12 5v14M5 12h14"/>
             </svg>
             <span class="lobby-action-text">
-                <span class="lobby-action-label">Custom table</span>
-                <span class="lobby-action-hint">Play with friends</span>
+                <span class="lobby-action-label">{{ t("lobby.action.custom_table") }}</span>
+                <span class="lobby-action-hint">{{ t("lobby.action.custom_table_hint") }}</span>
             </span>
         </button>
     </form>
@@ -30,16 +31,16 @@
             <circle cx="5" cy="12" r="2.25"/>
         </svg>
         <span class="lobby-action-text">
-            <span class="lobby-action-label">Quick match</span>
-            <span class="lobby-action-hint">Standard rules · unranked</span>
+            <span class="lobby-action-label">{{ t("lobby.action.quick_match") }}</span>
+            <span class="lobby-action-hint">{{ t("lobby.action.quick_match_hint") }}</span>
         </span>
     </a>
 </div>
 
 <section class="lobby-section">
     <div class="lobby-section-header">
-        <h2>Custom tables</h2>
-        <small class="lobby-table-count">{{ rooms|length }} open</small>
+        <h2>{{ t("lobby.tables.title") }}</h2>
+        <small class="lobby-table-count">{{ t("lobby.tables.open_count", count=rooms|length) }}</small>
     </div>
 
     {% if rooms %}
@@ -58,26 +59,26 @@
                 {% endfor %}
             </div>
             <p class="lobby-room-players">
-                {% if humans %}{% set names = humans|map(attribute="name")|join(", ") %}<span class="lobby-room-names" title="{{ names }}">{{ names }}</span>{% else %}<span class="lobby-room-names">Nobody seated yet</span>{% endif %}
-                {% if room.num_ai_players %}<span class="lobby-room-open">· {{ room.num_ai_players }} seat{{ 's' if room.num_ai_players != 1 else '' }} open</span>{% endif %}
+                {% if humans %}{% set names = humans|map(attribute="name")|join(", ") %}<span class="lobby-room-names" title="{{ names }}">{{ names }}</span>{% else %}<span class="lobby-room-names">{{ t("lobby.room.nobody_seated") }}</span>{% endif %}
+                {% if room.num_ai_players %}<span class="lobby-room-open">· {{ t("lobby.room.seats_open", count=room.num_ai_players) }}</span>{% endif %}
             </p>
             {% if is_mine %}
-            <a href="/rooms/{{ room.room_id }}" role="button" class="lobby-join-btn">Back to your table</a>
+            <a href="/rooms/{{ room.room_id }}" role="button" class="lobby-join-btn">{{ t("lobby.back_to_table") }}</a>
             {% elif room.player_count < 4 %}
             <form method="POST" action="/rooms/{{ room.room_id }}/join" class="lobby-join-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="outline lobby-join-btn">Join table</button>
+                <button type="submit" class="outline lobby-join-btn">{{ t("lobby.room.join") }}</button>
             </form>
             {% else %}
-            <span class="lobby-join-btn lobby-full-badge">Full</span>
+            <span class="lobby-join-btn lobby-full-badge">{{ t("lobby.room.full") }}</span>
             {% endif %}
         </article>
         {% endfor %}
     </div>
     {% else %}
     <div class="lobby-empty lobby-muted">
-        <p class="lobby-empty-title">No custom tables open</p>
-        <p class="lobby-empty-hint">Host one, or jump into a quick match.</p>
+        <p class="lobby-empty-title">{{ t("lobby.tables.empty_title") }}</p>
+        <p class="lobby-empty-hint">{{ t("lobby.tables.empty_hint") }}</p>
     </div>
     {% endif %}
 </section>
