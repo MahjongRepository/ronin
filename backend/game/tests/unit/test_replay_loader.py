@@ -21,7 +21,7 @@ from game.replay.loader import (
 from game.wire.compact import encode_discard
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
-from game.wire.replay_format import REPLAY_VERSION, encode_replay_settings
+from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, ReplayTimeoutKind, encode_replay_settings
 from shared.lib.melds import MeldData, encode_meld_compact
 
 # Hex seed that produces identity seat assignment: Alice->0, Bob->1, Charlie->2, Diana->3
@@ -258,6 +258,7 @@ def test_load_replay__when_events_are_not_player_actions__should_skip_them():
         json.dumps({"t": EVENT_TYPE_INT[EventType.DORA_REVEALED], "tile_id": 54}),
         json.dumps({"t": EVENT_TYPE_INT[EventType.RIICHI_DECLARED], "seat": 0}),
         json.dumps({"t": EVENT_TYPE_INT[EventType.GAME_END], "result": {}}),
+        json.dumps({"t": ReplayLineType.TIMEOUT, "s": 0, "k": ReplayTimeoutKind.TURN}),
     )
     replay = load_replay_from_string(content)
     assert len(replay.events) == 0

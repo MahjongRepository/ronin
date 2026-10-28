@@ -275,12 +275,30 @@ class RoundBuilder {
     }
 
     /**
+     * A turn or call timeout shows nothing of its own: it notes the seat that timed out on the next visible position,
+     * which may be another seat's (a call-timeout pass folds into the next draw).
+     */
+    noteTimeout(seat, kind) {
+        if (!Number.isInteger(seat) || seat < 0 || seat >= SEATS) {
+            throw new Error(`timeout of unknown seat ${seat}`);
+        }
+        if (!Object.values(wire.TIMEOUT_KIND).includes(kind)) {
+            throw new Error(`unknown timeout kind ${kind}`);
+        }
+        this.addSilent(null, { seat, timeout: kind });
+    }
+
+    /**
      * A round end closes the round with its result position, which takes in the silent records before it. A robbed
-     * kan, which no meld record shows, is first its own position, declared as a call.
+     * kan, which no meld record shows, is first its own position, declared as a call; the notes pending then (a
+     * chankan prompt's timeouts) came after its declaration, so they stay for the result.
      */
     closeAtRoundEnd(roundEnd) {
         if (roundEnd.rk != null) {
+            const afterDeclaration = this.pendingSilent;
+            this.pendingSilent = [];
             this.declareRobbedKan(roundEnd.rk);
+            this.pendingSilent = afterDeclaration;
         }
         const { results, callouts } = roundResults(roundEnd, {
             dealer: this.dealer,
@@ -356,6 +374,8 @@ class ReplayBuilder {
                 return this.currentRound().revealDora(line.ti);
             case wire.E.RIICHI_DECL:
                 return this.currentRound().declareRiichi(line.s);
+            case wire.REPLAY_LINE.TIMEOUT:
+                return this.currentRound().noteTimeout(line.s, line.k);
             case wire.E.ROUND_END:
                 return this.closeRound(line);
             case wire.E.GAME_END:

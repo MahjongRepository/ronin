@@ -82,6 +82,10 @@ interleave.
   draw, its `turn` event or its call prompt) directly, outside the replay path, so it is not
   recorded twice, and re-arms no timer: only a replaced connection's seat can be awaited, and its
   timer kept running, so the event carries how long it has run for the client's countdown.
+  Beside the events the session writes replay-only annotation lines: a turn or call timeout goes in
+  ahead of the events of the default action it leads to, so a call-timeout pass that emits nothing
+  still leaves its line. A round advance timeout writes none, since a confirmation is no game
+  decision. The replay runner skips them; they only tell a viewer what happened.
 * **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
   it, often another seat's action, so a fired timer binds its game and its own seat, and the
   finalizer its game with no seat; a new background task rebinds its context the same way.

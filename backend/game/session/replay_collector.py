@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from game.logic.enums import TimeoutType
 from game.logic.events import (
     CallPromptEvent,
     DrawEvent,
@@ -15,7 +16,7 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import game_event_payload
-from game.wire.replay_format import REPLAY_VERSION, encode_replay_settings
+from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, ReplayTimeoutKind, encode_replay_settings
 
 if TYPE_CHECKING:
     from game.logic.events import GameEvent
@@ -30,6 +31,8 @@ _SEAT_TARGET_INCLUDED = (DrawEvent,)
 # Event types excluded from replay persistence even if broadcast-targeted.
 # These are internal prompts or error signals, not gameplay state transitions.
 _EXCLUDED_EVENT_TYPES = (CallPromptEvent, ErrorEvent, FuritenEvent)
+
+_RECORDED_TIMEOUT_KINDS = {TimeoutType.TURN: ReplayTimeoutKind.TURN, TimeoutType.MELD: ReplayTimeoutKind.CALL}
 
 
 @dataclass
@@ -55,6 +58,8 @@ class ReplayCollector:
     RoundStartedEvent views are merged into a single record with all players'
     tiles revealed. Other SeatTarget events (prompts, errors, furiten) are
     excluded as internal signals.
+
+    It also writes the replay-only timeout lines the session reports, ahead of the default action's events.
 
     The collector keeps no per-game state: each game holds its own ReplayRecord (on its GameSession) from the start
     until its end detaches the lines, which `save` then persists.
@@ -100,6 +105,19 @@ class ReplayCollector:
         # Flush any remaining round_started events at end of batch
         if pending_round_started:
             buffer.append(self._merge_round_started_payloads(pending_round_started))
+
+    @staticmethod
+    def record_timeout(record: ReplayRecord, *, seat: int, timeout_type: TimeoutType) -> None:
+        """
+        Append the timeout line of a seat's turn or call timeout, to precede the events of its default action.
+
+        A round advance timeout writes nothing: confirming a round end is no game decision.
+        """
+        kind = _RECORDED_TIMEOUT_KINDS.get(timeout_type)
+        if kind is None:
+            return
+
+        record.lines.append(json.dumps({"t": ReplayLineType.TIMEOUT, "s": seat, "k": kind}))
 
     @staticmethod
     def _should_include(event: GameEvent) -> bool:

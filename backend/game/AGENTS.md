@@ -13,7 +13,8 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   reconnects, timers, replay collection, the one end of every game.
 * `messaging/` — outbound: MessagePack encoding, client message models, wire shaping of events.
 * `wire/` — the wire format both the server and the replay tool read: integer codes, the packed
-  draw/discard codec, the replay format version.
+  draw/discard codec, the replay format version and the replay-only line types, whose `t` codes share
+  the events' space without taking one of their values, so a live wire code never changes for them.
 * `logic/` — the rules engine behind the `GameService` protocol: synchronous, seat-keyed, stateless
   across games, ignorant of connections, time and accounts.
 * `replay/` — runs recorded games through the same protocol for tests and profiling, plus the

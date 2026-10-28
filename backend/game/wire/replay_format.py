@@ -1,9 +1,36 @@
 import json
+from enum import IntEnum
 from typing import Any
 
 from game.logic.settings import GameSettings
+from game.wire.enums import WireEventType
 
 REPLAY_VERSION = "0.3-dev"
+
+
+class ReplayLineType(IntEnum):
+    """
+    Integer `t` of a replay-only line: an annotation the session writes beside the recorded events, never sent live.
+
+    Its values share the `t` space with WireEventType and never take one of its values.
+    """
+
+    TIMEOUT = 100
+
+
+class ReplayTimeoutKind(IntEnum):
+    """
+    Integer `k` of a timeout line: the wait the seat let run out.
+    """
+
+    TURN = 0
+    CALL = 1
+
+
+if {int(line_type) for line_type in ReplayLineType} & {int(event_type) for event_type in WireEventType}:
+    raise RuntimeError(  # pragma: no cover (exhaustive)
+        f"ReplayLineType values {list(ReplayLineType)} overlap WireEventType values {list(WireEventType)}",
+    )
 
 
 def encode_replay_settings(settings: GameSettings) -> dict[str, Any]:

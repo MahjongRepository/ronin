@@ -114,6 +114,12 @@ const wire = {
 
     /* a replay file's first line: { version }; mirrors backend/game/wire/replay_format.py */
     REPLAY_VERSION: '0.3-dev',
+
+    /* replay-only lines (replay_format.py), never sent live: t, outside E's values */
+    REPLAY_LINE: { TIMEOUT: 100 },
+
+    /* replay timeout line { t, s, k }: k = the wait the seat let run out */
+    TIMEOUT_KIND: { TURN: 0, CALL: 1 },
 };
 
 export default wire;
