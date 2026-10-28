@@ -104,6 +104,7 @@
     "game.session_error.reconnect_no_session": "再接続できる対局がありません。",
     "game.session_error.reconnect_retry_later": "まだ再接続できません。まもなく再試行します。",
     "game.session_error.unknown": "エラーが発生しました。",
+    "game.settings.language": "言語",
     "game.settings.off": "OFF",
     "game.settings.on": "ON",
     "game.settings.sound": "音声",

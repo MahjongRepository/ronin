@@ -107,6 +107,7 @@
     "game.session_error.reconnect_no_session": "Нет игры для переподключения.",
     "game.session_error.reconnect_retry_later": "Пока не удаётся переподключиться; скоро попробуем снова.",
     "game.session_error.unknown": "Что-то пошло не так.",
+    "game.settings.language": "Язык",
     "game.settings.off": "ВЫКЛ",
     "game.settings.on": "ВКЛ",
     "game.settings.sound": "Звук",

@@ -210,8 +210,29 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   `#board` markup and fit it below their header with the same `Majiang.UI.Util.scale`. The
   in-round and round-end pages feed their states the way the ronin layer does (`RoninPlayer` with server-style offers, `results.js`'s round-end shapes), so they
   show what a player sees; keep them in step when that layer changes.
-* The game UI's text is upstream's Japanese; the pages written for ronin (replay, storybook) are
-  English.
+* **Language** (`src/i18n/`, contract and glossary in `docs/i18n.md`): `public/locale.js`, a classic
+  script ahead of the bundle, resolves the page's language (the lobby's `lang` cookie, then
+  `navigator.languages`, then en) onto `<html lang>`, and the bundle reads it once (`locale()`). The
+  loading screen shows before any module runs, so it carries its lines in every language and CSS
+  picks one by `<html lang>`. The catalogs are `src/i18n/locales/{en,ja,ru}.json`; code holds no
+  literal UI text: `t()`, `tNodes()` for a sentence with an element in a slot (a translated string
+  never goes through jQuery's `.append(string)` or `.html()`, which parse HTML), `formatNumber`,
+  `tileVisible` / `tileSpoken`. A server code (an error, a yaku id, a draw) maps to its key through
+  `tCode`, which shows the family's generic key for an unknown one and reports it. A missing key or
+  param throws under the Vite dev server and Vitest and falls back to English with one
+  `console.error` in production. Storybook sample prose stays English, marked `lang="en"`.
+* **Logic keys, display text:** no logic reads displayed text. A draw carries a stable `code`
+  (`ronin/draws.js`) beside the Japanese `name` majiang-core's model reads (its board matches 三家和
+  on it); a yaku is the server's id; the board, the dialogs, the standings and the replay look their
+  text up by code when they show it, so a result built before a locale switch shows in the new one.
+* **Language switch:** the settings menu's language choice writes the `lang` cookie; the replay and
+  the storybook then reload (their address holds the position), and the live game switches in place
+  (`switchLiveLocale`). Text that must follow a switch carries its key on its element (`data-i18n*`
+  markup, or `setText` / `setAttributeText`) and `applyStaticText` rewrites only those texts and
+  attributes; `Board.relabel` leaves an open result, standings or start dialog in its language,
+  tagged with its `lang`, until it shows again, and every dialog relabels its fixed text whenever it
+  shows. A locale change never calls `Board.redraw()` or rebuilds hand, river, meld or button nodes
+  or their handlers, so the socket, the open decision, selected tiles, countdowns and focus stay.
 
 ## Conventions
 

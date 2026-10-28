@@ -1,5 +1,7 @@
 import $ from "jquery";
 
+import { bindLanguageMenu, reloadInLanguage } from "../language-menu.js";
+
 const VARIANT_PARAM = "state";
 const STORYBOOK_PREF_KEY = "Majiang.pref.storybook";
 
@@ -38,6 +40,7 @@ export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true 
         board.redraw();
     }
     new Majiang.UI.GameCtl($("#board"), STORYBOOK_PREF_KEY);
+    bindLanguageMenu(document.getElementById("board"), reloadInLanguage);
     const layOutPage = () => {
         Majiang.UI.Util.scale($("#board"));
         revealActiveVariant(header);
