@@ -81,12 +81,15 @@ APPS = (
             "game.score.yakuman_",
             "game.session_error.",
             "game.summary.rank_",
+            "replay.speed.",
             "round.",
             "tile.",
             "wind.",
             "yaku.",
         ),
-        identical_keys=frozenset({"game.settings.off", "game.settings.on", "list.separator", "loading.start"}),
+        identical_keys=frozenset(
+            {"game.settings.off", "game.settings.on", "list.separator", "loading.start", "replay.seat_option"}
+        ),
         literals_in_namespaces_are_keys=True,
     ),
 )

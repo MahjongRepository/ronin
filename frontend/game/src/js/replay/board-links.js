@@ -102,7 +102,7 @@ export class BoardLinks {
             const plate = $(`> .player.${place}`, this.root);
             const seat = (viewpoint + offset) % SEATS;
             const name = this.replay.players[seat];
-            const view = offset === 0 ? name : `View from ${name}`;
+            const view = offset === 0 ? name : t("replay.links.view_from", { player: name });
             const title = seatMarks[seat] === SEAT_MARK.AI ? `${view}${aiTitle()}` : view;
             plate.add($(".name", plate)).attr("title", title);
         });
@@ -121,16 +121,16 @@ export class BoardLinks {
                 .empty()
                 .append(
                     $('<button type="button" class="replay-summary-round">')
-                        .attr("title", "Show this round from its deal")
+                        .attr("title", t("replay.links.round_title"))
                         .text(name),
                 );
         });
         const table = $(".summary table", this.root);
         if (table.next(".replay-summary-hint").length === 0) {
-            const verb = window.matchMedia(COARSE_POINTER_MEDIA).matches ? "Tap" : "Click";
-            table.after(
-                $('<p class="replay-summary-hint" lang="en">').text(`${verb} a round to replay it`),
-            );
+            const hint = window.matchMedia(COARSE_POINTER_MEDIA).matches
+                ? "replay.links.hint_tap"
+                : "replay.links.hint_click";
+            table.after($('<p class="replay-summary-hint">').text(t(hint)));
         }
     }
 

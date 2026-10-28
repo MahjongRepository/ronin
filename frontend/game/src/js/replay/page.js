@@ -1,5 +1,6 @@
 import $ from "jquery";
 
+import { t } from "../../i18n/index.js";
 import { withoutBlockedPlayback } from "../game-audio.js";
 import { GAME_PREF_KEY } from "../game-prefs.js";
 import { showLoadingStatus, waitForStart } from "../loading.js";
@@ -14,23 +15,17 @@ import { readReplayPrefs } from "./prefs.js";
 import { ReplayViewer, UnplayableReplayError } from "./viewer.js";
 import { bindWheel } from "./wheel.js";
 
-const PAGE_TITLE = "Replay · Ronin";
-
-const ERROR_TEXT = Object.freeze({
-    [REPLAY_ERROR.NOT_FOUND]: "Replay not found",
-    [REPLAY_ERROR.VERSION]: "This replay was recorded by another version of Ronin",
-    [REPLAY_ERROR.FAILED]: "Couldn't load the replay",
-    [REPLAY_ERROR.MALFORMED]: "This replay file is damaged",
+/** Each way a replay fails to load, by catalog key. */
+const ERROR_KEYS = Object.freeze({
+    [REPLAY_ERROR.NOT_FOUND]: "replay.error.not_found",
+    [REPLAY_ERROR.VERSION]: "replay.error.version",
+    [REPLAY_ERROR.FAILED]: "replay.error.failed",
+    [REPLAY_ERROR.MALFORMED]: "replay.error.malformed",
 });
 
-const WAITING_TEXT = "牌譜を待っています…";
-const READY_TEXT = "牌譜を読み込みました";
-
-const NO_ROUNDS = "This game ended before its first deal: there is nothing to replay";
-const CANNOT_SHOW = "Couldn't show the replay";
-
 function errorText({ kind, line }) {
-    return line === undefined ? ERROR_TEXT[kind] : `${ERROR_TEXT[kind]} (line ${line})`;
+    const error = t(ERROR_KEYS[kind]);
+    return line === undefined ? error : t("replay.error.with_line", { error, line: String(line) });
 }
 
 /**
@@ -41,16 +36,20 @@ function errorText({ kind, line }) {
  */
 function showProblem(text, { retry = false, startOver = null } = {}) {
     const links = $('<p class="replay-problem-links">').append(
-        retry ? $("<a>").attr("href", window.location.href).text("Try again") : null,
-        startOver === null ? null : $("<a>").attr("href", startOver).text("Replay from the start"),
-        $("<a>").attr("href", HISTORY_URL).text("Game history"),
-        $("<a>").attr("href", LOBBY_URL).text("Lobby"),
+        retry
+            ? $("<a>").attr("href", window.location.href).text(t("replay.problem.try_again"))
+            : null,
+        startOver === null
+            ? null
+            : $("<a>").attr("href", startOver).text(t("replay.problem.start_over")),
+        $("<a>").attr("href", HISTORY_URL).text(t("replay.problem.history")),
+        $("<a>").attr("href", LOBBY_URL).text(t("replay.problem.lobby")),
     );
     $("body")
         .removeClass("board")
         .empty()
         .append(
-            $('<main class="game-loading replay-problem" lang="en">').append(
+            $('<main class="game-loading replay-problem">').append(
                 $('<div class="loading-brand">').text("RONIN"),
                 $('<div class="loading-mark" aria-hidden="true">').text("東"),
                 $("<h1>").text(text),
@@ -78,13 +77,16 @@ function showViewerFailure(error, gameId, replay) {
     console.error("[ronin] replay cannot be shown:", error);
     const { seat, round, step } = readPosition(window.location.search, replay);
     const atStart = round === 0 && step === 0;
-    showProblem(CANNOT_SHOW, { retry: true, startOver: atStart ? null : replayPath(gameId, seat) });
+    showProblem(t("replay.error.cannot_show"), {
+        retry: true,
+        startOver: atStart ? null : replayPath(gameId, seat),
+    });
 }
 
 /** The converted replay, or null once its problem is shown. */
 async function readReplay(gameId) {
     const loaded = await loadReplay(gameId, {
-        onWait: () => showLoadingStatus(WAITING_TEXT),
+        onWait: () => showLoadingStatus(t("replay.loading.waiting")),
     });
     if (loaded.error) {
         showProblem(errorText(loaded.error), {
@@ -103,7 +105,7 @@ async function readReplay(gameId) {
         return null;
     }
     if (replay.rounds.length === 0) {
-        showProblem(NO_ROUNDS);
+        showProblem(t("replay.error.no_rounds"));
         return null;
     }
     return replay;
@@ -140,7 +142,9 @@ function buildBoard(replay, stage, prefs, seat) {
     view.viewpoint = seat;
     view.open_shoupai = !prefs.hideHands;
     const settings = new ReplaySettings(stage, GAME_PREF_KEY, view);
-    $(".controller .sound", stage).attr("title", "音声");
+    $(".controller .sound", stage)
+        .removeAttr("data-i18n-title")
+        .attr("title", t("game.settings.sound"));
     $(".autoplay, .player-button, .timer", stage).remove();
     return { model, view, root, settings };
 }
@@ -191,7 +195,7 @@ function startViewer(gameId, replay) {
  * step grants none); the board, its keys and its wheel start only then.
  */
 export async function showReplay(gameId, tilesLoaded) {
-    document.title = PAGE_TITLE;
+    document.title = t("replay.page_title");
     tilesLoaded.catch(() => {});
     const replay = await readReplay(gameId);
     if (replay === null) {
@@ -199,7 +203,7 @@ export async function showReplay(gameId, tilesLoaded) {
     }
     await tilesLoaded;
     if (ReplaySettings.sound_on(GAME_PREF_KEY)) {
-        await waitForStart(READY_TEXT);
+        await waitForStart(t("replay.loading.ready"));
     }
     try {
         startViewer(gameId, replay);

@@ -17,7 +17,7 @@ export function renderVariantNav(variants, current) {
             .toggleClass("active", variant === current)
             .text(variant.title),
     );
-    return $('<nav class="storybook-nav storybook-variants">').append(links);
+    return $('<nav class="storybook-nav storybook-variants" lang="en">').append(links);
 }
 
 /** On a short screen the header is one scrolling row; scroll it so the shown variant is in view. */

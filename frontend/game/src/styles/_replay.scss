@@ -78,7 +78,7 @@ body.board.replay {
             > .board > .summary table {
                 display: grid;
                 flex: 0 1 auto;
-                grid-template-columns: repeat(3, auto) repeat(4, $summary-seat-column);
+                grid-template-columns: repeat(3, auto) repeat(4, minmax(0, $summary-seat-column));
                 min-height: 0;
 
                 :is(thead, tfoot, tr) {
@@ -262,6 +262,7 @@ body.board.replay {
         min-width: 112px;
         padding: 8px 16px;
         font-size: 18px;
+        white-space: nowrap;
     }
 
     .replay-jump {
@@ -761,7 +762,7 @@ body.board.replay#{$rounds-open} > #board {
 @media (width >= 1200px) and (height > 450px) {
     .replay-controls {
         grid-template-areas: "info buttons options";
-        grid-template-columns: minmax(16em, 1fr) auto minmax(0, 1fr);
+        grid-template-columns: minmax(12em, 1fr) auto minmax(max-content, 1fr);
         align-items: center;
         gap: 16px;
     }

@@ -1,5 +1,7 @@
 import $ from "jquery";
 
+import { t } from "../../i18n/index.js";
+
 import { actionNodes, outcomeParts, roundName } from "./describe.js";
 import { isModified } from "./keys.js";
 import { UPRIGHT_PHONE_MEDIA } from "./media.js";
@@ -15,13 +17,13 @@ const ROUNDS_TITLE_ID = "replay-rounds-title";
  */
 export const ROUNDS_IN_STRIP_MEDIA = `screen and (height <= 450px) and (orientation: landscape), ${UPRIGHT_PHONE_MEDIA}`;
 
-/** The round's name, which opens the round list: "東一局 0本場 · Rounds ▾". */
+/** The round's name, which opens the round list: "East 1, 0 honba · Rounds ▾". */
 function roundsToggle() {
     return $('<button type="button" class="replay-rounds-toggle" aria-expanded="false">')
-        .attr({ "aria-controls": ROUNDS_ID, title: "Round list" })
+        .attr({ "aria-controls": ROUNDS_ID, title: t("replay.rounds.toggle_title") })
         .append(
-            $('<span class="replay-round" lang="ja">'),
-            $('<span class="replay-rounds-word">').text(" · Rounds"),
+            $('<span class="replay-round">'),
+            $('<span class="replay-rounds-word">').text(` · ${t("replay.rounds.title")}`),
             $('<span class="replay-rounds-chevron" aria-hidden="true">').text("▾"),
         );
 }
@@ -33,7 +35,7 @@ function roundsMarkup(replay) {
             $('<button type="button" class="replay-round-entry">')
                 .attr("data-round", index)
                 .append(
-                    $('<span class="replay-round-name" lang="ja">').text(roundName(round)),
+                    $('<span class="replay-round-name">').text(roundName(round)),
                     $('<span class="replay-round-outcome">').append(
                         actionNodes(outcomeParts(replay, round)),
                     ),
@@ -43,7 +45,7 @@ function roundsMarkup(replay) {
     return $(`<section class="replay-rounds" id="${ROUNDS_ID}">`)
         .attr("aria-labelledby", ROUNDS_TITLE_ID)
         .append(
-            panelHead(ROUNDS_TITLE_ID, "Rounds", "Close the round list"),
+            panelHead(ROUNDS_TITLE_ID, t("replay.rounds.title"), t("replay.rounds.close")),
             $('<ol class="replay-round-list">').append(entries),
         );
 }
@@ -123,7 +125,7 @@ export class ReplayRounds {
     show(state, round) {
         const name = roundName(round);
         $(".replay-round", this.button).text(name);
-        this.button.attr("aria-label", `Round list, ${name}`);
+        this.button.attr("aria-label", t("replay.rounds.toggle_label", { round: name }));
         if (this.#listedRound === state.round) {
             return;
         }

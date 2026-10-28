@@ -251,7 +251,7 @@ describe("showReplay", () => {
         const { shown } = await load(FULL_GAME);
 
         expect(document.activeElement).toBe($(START)[0]);
-        expect($("#game-loading [role=status]").text()).toBe("牌譜を読み込みました");
+        expect($("#game-loading [role=status]").text()).toBe("Replay loaded");
         press("ArrowRight");
         $("#board")[0].dispatchEvent(
             new WheelEvent("wheel", {
@@ -282,7 +282,7 @@ describe("showReplay", () => {
         const shown = showReplay("g-1", Promise.reject(new Error("tile decode failed")));
         await vi.advanceTimersByTimeAsync(0);
 
-        expect($("#game-loading [role=status]").text()).toBe("牌譜を待っています…");
+        expect($("#game-loading [role=status]").text()).toBe("Waiting for the replay…");
         await vi.runAllTimersAsync();
         await shown;
         expect(problem()).toEqual({ text: "Replay not found", links: ["/history", "/"], board: 0 });
@@ -379,7 +379,7 @@ describe("showReplay", () => {
         $(".controller .settings-toggle").trigger("click");
         $(".controller .sound").trigger("click");
         expect(JSON.parse(localStorage.getItem(GAME_PREF_KEY))).toEqual({ sound_on: false });
-        expect($(".controller .sound").attr("title")).toBe("音声");
+        expect($(".controller .sound").attr("title")).toBe("Sound");
         press("Escape");
         expect($(".controller .settings-menu").hasClass("hide")).toBe(true);
     });
@@ -489,14 +489,14 @@ describe("ReplayControls", () => {
         expect(label().action).toBe("Final standings");
     });
 
-    it("names the last action, its Japanese marked as such", async () => {
+    it("names the last action in the page's language, each tile by its visible name", async () => {
         await open(RIICHI);
 
         clickUntil(".replay-next", () => stepNumber() === 13, "step 13");
-        expect($(".replay-action").text()).toBe("Alice: riichi, tsumogiri 中");
-        expect($('.replay-action [lang="ja"]').text()).toBe("中");
+        expect($(".replay-action").text()).toBe("Alice: riichi, tsumogiri Chun");
+        expect($('.replay-action [lang="ja"]')).toHaveLength(0);
         $(".replay-next").trigger("click");
-        expect($(".replay-action").text()).toBe("Charlie: pon 中 ← Alice");
+        expect($(".replay-action").text()).toBe("Charlie: pon Chun ← Alice");
     });
 
     it("warns of a low wall below 8 tiles while the round is in play", async () => {
@@ -523,7 +523,12 @@ describe("ReplayControls", () => {
         const action = $(".replay-action").text();
         const toggle = $(".replay-options-toggle");
 
-        expect(seatChoices()).toEqual(["南 Wanjirou", "西 Ojisan", "北 Ichihime", "東 Akagi"]);
+        expect(seatChoices()).toEqual([
+            "Wanjirou (South)",
+            "Ojisan (West)",
+            "Ichihime (North)",
+            "Akagi (East)",
+        ]);
         expect($(".replay-seat").val()).toBe("3");
         expect(toggleText()).toEqual(["View: Akagi", "Normal"]);
 
@@ -557,7 +562,12 @@ describe("ReplayControls", () => {
         $(".replay-next-round").trigger("click");
         expect(isExpanded(".replay-options-toggle")).toBe(false);
 
-        expect(seatChoices()).toEqual(["東 Wanjirou", "南 Ojisan", "西 Ichihime", "北 Akagi"]);
+        expect(seatChoices()).toEqual([
+            "Wanjirou (East)",
+            "Ojisan (South)",
+            "Ichihime (West)",
+            "Akagi (North)",
+        ]);
         expect($("#board .player.main .name").text()).toBe("Ojisan");
     });
 
