@@ -26,8 +26,8 @@ async def main() -> None:
             password_hasher=BcryptHasher(rounds=auth_settings.bcrypt_rounds),
         )
         for bot_name in sys.argv[1:]:
-            player, raw_api_key = await auth_service.register_bot(bot_name)
-            print(f"Bot registered: {player.username} (id: {player.user_id})")
+            player, raw_api_key = await auth_service.issue_bot_api_key(bot_name)
+            print(f"Bot key issued: {player.username} (id: {player.user_id})")
             print(f"API key: {raw_api_key}")
     except AuthError as e:
         print(f"Error: {e}")
@@ -35,7 +35,7 @@ async def main() -> None:
     finally:
         await db.close()
 
-    print("Save these keys securely - they cannot be retrieved again.")
+    print("Save these keys securely - they cannot be retrieved again, and each replaces the bot's previous key.")
 
 
 if __name__ == "__main__":

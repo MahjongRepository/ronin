@@ -41,11 +41,12 @@ The `Makefile` lists the targets; the non-obvious ones:
   with a game that is not completed, whose replay does not reproduce it (`bin/verify_games.py`), or
   after which any log (server stderr and bot console included) holds a warning or an abnormal event
   such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
-  gates cannot be configured away. Each run registers its own bot accounts in a throwaway database
-  (`backend/data/bot-games/`), four per table, because an account plays one game at a time, and
-  verifies only the game ids its bots logged, so replays already in the replay dir are kept and
-  never checked. It **wipes** `backend/logs`, the bot's `project/logs` and that database first and
-  kills whatever holds `:8710`/`:8711`.
+  gates cannot be configured away. It plays against the dev database (`AUTH_DATABASE_PATH`), so its
+  games show on the dev lobby's history: it uses four bot accounts per table, because an account
+  plays one game at a time, reusing each by name and issuing it a fresh API key (registering only a
+  missing one), and verifies only the game ids its bots logged, so earlier games and replays are
+  kept and never checked. It **wipes** `backend/logs` and the bot's `project/logs` first and kills
+  whatever holds `:8710`/`:8711`.
 * `make profile-games [GAMES=n] [TABLES=t]` — the same run (default 48 games, 12 tables) with the
   game server under py-spy and logging at production's INFO level, then its GIL-holding samples by
   layer and function, plus its CPU-seconds per game. It points at where real games spend the

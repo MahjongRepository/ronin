@@ -18,6 +18,9 @@ class PlayerRepository(ABC):
     async def create_player(self, player: Player) -> None: ...
 
     @abstractmethod
+    async def set_api_key_hash(self, user_id: str, api_key_hash: str) -> None: ...
+
+    @abstractmethod
     async def get_by_username(self, username: str) -> Player | None: ...
 
     @abstractmethod

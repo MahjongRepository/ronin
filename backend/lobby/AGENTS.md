@@ -100,8 +100,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   server rejects a table with duplicate names), so the name is unique among live sessions; the
   hyphen keeps it out of the account namespace. Accepted limit: a guest who logs out or expires
   while still seated frees the name, and a new guest drawing it at that table breaks the game start.
-* Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored.
-  They send it as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
+* Bots register through `scripts/register_bot.py` and get an API key, printed once and never stored;
+  run for an existing bot, the script rotates its key, which invalidates the old one. Bots send the
+  key as `X-API-Key` on the bot API and the WebSocket handshakes, with the configured
   `Origin`; from the handshake on, a bot runs the human code path.
 * The backend tries the session cookie first and falls back to a BOT account's `X-API-Key`, so a
   valid cookie wins over a key. `bot_only` routes answer JSON errors, never a login redirect.
