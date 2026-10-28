@@ -54,6 +54,7 @@ from lobby.views import (
     resolve_vite_asset_urls,
     room_page,
     storybook_page,
+    tenhou_replay,
 )
 from lobby.views.auth_handlers import (
     guest_login,
@@ -198,6 +199,7 @@ def create_app(
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
+        Route("/api/replays/{game_id}/tenhou.xml", public_route(tenhou_replay), methods=["GET"], name="tenhou_replay"),
         Route("/api/game-session", protected_json(game_session), methods=["GET"], name="game_session"),
     ]
 

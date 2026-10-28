@@ -8,7 +8,7 @@ from game.logic.events import EventType, RoundEndEvent, SeatTarget
 from game.logic.rng import RNG_VERSION
 from game.messaging.event_payload import game_event_payload
 from game.replay import run_replay
-from game.replay.external.tenhou import convert_replay
+from game.replay.external.tenhou import TenhouConverter
 from game.replay.loader import load_replay_from_file
 from game.wire.enums import WireEventType
 
@@ -66,5 +66,5 @@ def test_replay_fixture__when_loaded_replayed_and_exported__should_reproduce_its
     ]
     assert replayed_round_ends == [line for line in recorded_lines if line["t"] == WireEventType.ROUND_END]
 
-    tenhou_xml = convert_replay(fixture)
+    tenhou_xml = TenhouConverter(recorded_lines).convert()
     assert tenhou_xml.count("<INIT ") == sum(line["t"] == WireEventType.ROUND_STARTED for line in recorded_lines)

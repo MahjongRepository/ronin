@@ -1,9 +1,15 @@
+import asyncio
 import gzip
 
+import httpx
 import pytest
 
-from lobby.views.replay_handlers import _load_replay
-from shared.storage import replay_file_path
+from lobby import game_transition
+from shared.storage import read_replay, replay_file_path
+
+
+def _refuse_connection(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("game server down", request=request)
 
 
 def _write_gzip_replay(replay_dir, game_id, content):
@@ -125,7 +131,7 @@ class TestReplayContent:
         response = client.get(f"/api/replays/{game_id}")
         assert response.status_code == 404
 
-    def test_load_replay__when_symlink_escapes_replay_dir__should_return_none(self, setup, tmp_path):
+    def test_read_replay__when_symlink_escapes_replay_dir__should_return_none(self, setup, tmp_path):
         _client, replay_dir = setup
         game_id = "escape_link"
         # Create a file outside the replay dir
@@ -138,8 +144,76 @@ class TestReplayContent:
         target.symlink_to(outside)
 
         # Call the sync helper directly — the symlink resolves outside replay_dir
-        result = _load_replay(str(replay_dir), game_id)
+        result = read_replay(str(replay_dir), game_id)
         assert result is None
+
+    def test_tenhou_replay_route__when_game_server_converts__should_serve_its_xml_as_a_download(
+        self, client, game_server
+    ):
+        asked: list[str] = []
+
+        def convert_for_the_internal_caller(request: httpx.Request) -> httpx.Response:
+            asked.append(request.url.path)
+            if request.headers.get("authorization") != f"Bearer {client.app.state.settings.internal_api_secret}":
+                return httpx.Response(401)
+
+            return httpx.Response(200, content=b'<mjloggm ver="2.3"></mjloggm>')
+
+        game_server.respond = convert_for_the_internal_caller
+
+        response = client.get("/api/replays/game-123/tenhou.xml")
+        assert response.status_code == 200
+        assert response.text == '<mjloggm ver="2.3"></mjloggm>'
+        assert response.headers["content-type"] == "application/xml"
+        assert response.headers["content-disposition"] == 'attachment; filename="game-123.xml"'
+        assert asked == ["/replays/game-123/tenhou"]
+
+    def test_tenhou_replay_route__when_missing_invalid_or_failed__should_tell_them_apart(self, client, game_server):
+        asked: list[str] = []
+
+        def answer(status_code: int):
+            def respond(request: httpx.Request) -> httpx.Response:
+                asked.append(request.url.path)
+                return httpx.Response(status_code)
+
+            return respond
+
+        game_server.respond = answer(404)
+        missing = client.get("/api/replays/game-123/tenhou.xml")
+        assert missing.status_code == 404
+        assert "cache-control" not in missing.headers
+
+        invalid = client.get("/api/replays/game%3Cscript%3E/tenhou.xml")
+        assert invalid.status_code == 404
+        assert asked == ["/replays/game-123/tenhou"]
+
+        game_server.respond = answer(422)
+        unfinished = client.get("/api/replays/game-123/tenhou.xml")
+        assert unfinished.status_code == 422
+        assert "cache-control" not in unfinished.headers
+
+        game_server.respond = answer(500)
+        failed = client.get("/api/replays/game-123/tenhou.xml")
+        assert failed.status_code == 502
+        assert "cache-control" not in failed.headers
+
+        game_server.respond = _refuse_connection
+        unreachable = client.get("/api/replays/game-123/tenhou.xml")
+        assert unreachable.status_code == 502
+
+    def test_tenhou_replay_route__when_game_server_exceeds_the_deadline__should_answer_502(
+        self, client, game_server, monkeypatch
+    ):
+        monkeypatch.setattr(game_transition, "_REPLAY_EXPORT_TIMEOUT_SECONDS", 0.01)
+
+        async def never_answer(_request: httpx.Request) -> httpx.Response:
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+        game_server.respond = never_answer
+
+        response = client.get("/api/replays/game-123/tenhou.xml")
+        assert response.status_code == 502
 
     def test_replay_page_route__should_serve_play_page(self, setup):
         client, _replay_dir = setup

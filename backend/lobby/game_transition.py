@@ -56,6 +56,18 @@ class GameHandoff:
         return {"type": "game_starting", **asdict(self)}
 
 
+class ReplayExportError(Exception):
+    """
+    The game server could not export a replay; ``str()`` is a fixed description without credentials.
+    """
+
+
+class UnfinishedReplayError(ReplayExportError):
+    """
+    The replay is a failed game's, which has no game end and so no Tenhou log.
+    """
+
+
 class _LiveSeat(BaseModel):
     game_id: str = Field(min_length=1)
     game_ticket: str = Field(min_length=1)
@@ -63,6 +75,7 @@ class _LiveSeat(BaseModel):
 
 _PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
 _HANDOFF_LOOKUP_TIMEOUT_SECONDS = 2.0
+_REPLAY_EXPORT_TIMEOUT_SECONDS = 10.0
 _START_REQUEST_TIMEOUT = httpx.Timeout(10.0)
 _KEEPALIVE_EXPIRY_SECONDS = 2.0
 _GAME_SERVER_LIMITS = httpx.Limits(
@@ -239,6 +252,42 @@ async def find_game_handoff(
         raise GameLookupError("malformed answer") from None
 
     return _build_handoff(game_id=seat.game_id, game_ticket=seat.game_ticket, settings=settings)
+
+
+async def fetch_tenhou_replay(
+    game_id: str,
+    *,
+    settings: LobbyServerSettings,
+    game_server: httpx.AsyncClient,
+) -> bytes | None:
+    """
+    Ask the game server to convert a stored replay to tenhou.net XML; None when no such replay is stored.
+
+    The lobby cannot import the converter (it lives with the engine), so the game server converts and answers only the
+    internal API secret. It takes at most ``_REPLAY_EXPORT_TIMEOUT_SECONDS`` in all, so the client's shorter per-request
+    default is turned off. A failed game's replay raises ``UnfinishedReplayError``, any other failure
+    ``ReplayExportError``.
+    """
+    try:
+        async with asyncio.timeout(_REPLAY_EXPORT_TIMEOUT_SECONDS):
+            response = await game_server.get(
+                f"/replays/{quote(game_id, safe='')}/tenhou",
+                headers={"Authorization": f"Bearer {settings.internal_api_secret}"},
+                timeout=None,
+            )
+    except (httpx.HTTPError, TimeoutError) as e:
+        raise ReplayExportError(f"request failed: {type(e).__name__}") from e
+
+    if response.status_code == HTTPStatus.NOT_FOUND:
+        return None
+
+    if response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY:
+        raise UnfinishedReplayError("replay has no game end")
+
+    if response.status_code != HTTPStatus.OK:
+        raise ReplayExportError(f"unexpected status {response.status_code}")
+
+    return response.content
 
 
 async def hand_back_live_game(
