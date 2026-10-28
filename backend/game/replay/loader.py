@@ -16,7 +16,7 @@ from game.replay.models import ReplayInput, ReplayInputEvent
 from game.wire.compact import decode_discard
 from game.wire.enums import WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
-from game.wire.replay_format import REPLAY_VERSION, decode_replay_settings
+from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, decode_replay_settings
 from shared.lib.melds import MeldData, decode_meld_compact
 
 # Minimum number of events: version tag + game_started.
@@ -34,6 +34,7 @@ _NON_ACTION_EVENTS = frozenset(
         EVENT_TYPE_INT[EventType.DORA_REVEALED],
         EVENT_TYPE_INT[EventType.RIICHI_DECLARED],
         EVENT_TYPE_INT[EventType.GAME_END],
+        *ReplayLineType,
     },
 )
 

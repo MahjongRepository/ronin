@@ -119,7 +119,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   A riichi discard the snapshot shows undeposited (`rd` without `ri`) keeps its stick off the river
   until the next turn deposits it.
 * **Protocol:** `src/js/ronin/wire.js` mirrors the wire enums of `backend/game/messaging/` and
-  `backend/game/wire/`, and the replay format's version; change both in the same change. The client sends no heartbeat: liveness is
+  `backend/game/wire/`, and the replay format (its version, replay-only line types and timeout kinds); change both in
+  the same change. The client sends no heartbeat: liveness is
   the WebSocket protocol ping (`docs/architecture.md`), and the server refuses unknown message types.
 * **Turn countdown:** only the seat's own decisions are counted down, in majiang-ui's timer above
   the right end of the hand: a turn's base time beside its bank (`5+30`), then the bank alone, a
@@ -192,6 +193,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   controls, the result dialog's 次へ) goes through the viewer, never to the model or the board
   directly. A move plays its position before the cursor moves there, so the two never part: a position the model
   refuses stops the viewer and shows the replay as damaged, and any other failure to draw it says it couldn't be shown.
+  A replay-only annotation (a turn or call timeout) is a silent note on the next visible position, naming the absolute
+  seat it concerns, never that position's actor; a chankan prompt's timeouts are held for the result, not the robbed
+  kan's declaration. The viewer shows none yet.
   A seek draws the table as stepping there does: the board redraws at the turn in play
   and plays that turn's messages since, so the last discard keeps its mark and a riichi stick
   shows only once the next turn deposits it. A double ron's wins are each a page of its result: Next shows the next win's dialog as
