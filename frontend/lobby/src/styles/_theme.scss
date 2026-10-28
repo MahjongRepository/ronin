@@ -89,6 +89,23 @@
     --ronin-touch-target: 2.75rem;
 }
 
+:root:lang(ja) {
+    --ronin-font-display:
+        system-ui, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic",
+        meiryo, "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
+    --ronin-font-body: var(--ronin-font-display);
+    --ronin-font-mono:
+        "JetBrains Mono", "SF Mono", "Hiragino Sans", "Yu Gothic UI", meiryo, "Noto Sans CJK JP",
+        monospace;
+}
+
+:root:lang(ru) {
+    --ronin-font-display:
+        system-ui, -apple-system, "Segoe UI", roboto, "Noto Sans", "Helvetica Neue", arial,
+        sans-serif;
+    --ronin-font-body: var(--ronin-font-display);
+}
+
 body {
     display: flex;
     flex-direction: column;

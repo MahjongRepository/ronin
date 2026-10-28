@@ -190,6 +190,7 @@ class TestLobbyViews:
         assert "text/html" in response.headers["content-type"]
         assert "matchmaking-app" in response.text
         assert "ws://" in response.text
+        assert 'action="/lang"' not in response.text
 
     def test_matchmaking_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.cookies.delete(CSRF_COOKIE_NAME)
@@ -208,6 +209,7 @@ class TestLobbyViews:
         assert f'data-room-name="{room.name}"' in response.text
         assert f"<title>{room.name} · Ronin Mahjong</title>" in response.text
         assert 'data-chat-max-length="1000"' in response.text
+        assert 'action="/lang"' not in response.text
 
     def test_room_page__when_first_visit__should_set_csrf_cookie(self, client):
         client.app.state.room_manager.create_room("fresh-room")

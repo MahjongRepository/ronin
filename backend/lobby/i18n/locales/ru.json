@@ -97,6 +97,7 @@
     "lobby.tables.title": "Свои столы",
     "nav.aria_label": "Основное меню",
     "nav.history": "История",
+    "nav.language_menu": "Язык: {language}",
     "nav.log_in": "Войти",
     "nav.log_out": "Выйти",
     "nav.logo_label": "Логотип Ronin",

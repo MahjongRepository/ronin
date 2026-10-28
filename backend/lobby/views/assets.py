@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from starlette.templating import Jinja2Templates
 
 from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, set_csrf_cookie
-from lobby.i18n import format_number, resolve_request_locale
+from lobby.i18n import LANGUAGE_NAMES, format_number, resolve_request_locale
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -25,8 +25,9 @@ LOBBY_ENTRY = "src/index.ts"
 
 def _i18n_context(request: Request) -> dict[str, object]:
     """
-    Give every template the request's ``locale``, ``t(key, **params)``, which returns the message as escaped HTML, and
-    ``format_number(n)`` in the locale's digit grouping.
+    Give every template the request's ``locale``, ``t(key, **params)``, which returns the message as escaped HTML,
+    ``format_number(n)`` in the locale's digit grouping, and what the language menu needs: the languages by their native
+    names and the page to return to (path and query).
     """
     translator: Translator = request.app.state.translator
     locale = resolve_request_locale(request).locale
@@ -37,7 +38,14 @@ def _i18n_context(request: Request) -> dict[str, object]:
     def format_locale_number(number: int) -> str:
         return format_number(locale, number)
 
-    return {"locale": locale, "t": t, "format_number": format_locale_number}
+    query = request.url.query
+    return {
+        "locale": locale,
+        "t": t,
+        "format_number": format_locale_number,
+        "language_names": LANGUAGE_NAMES,
+        "current_page": f"{request.url.path}?{query}" if query else request.url.path,
+    }
 
 
 def translate_for_request(request: Request, key: str, /, **params: object) -> str:
