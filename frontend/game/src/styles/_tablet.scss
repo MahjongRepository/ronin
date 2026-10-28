@@ -240,6 +240,12 @@
                     }
 
                     .hule {
+                        .note {
+                            margin-bottom: 0;
+                            font-size: 16px;
+                            line-height: 1.1;
+                        }
+
                         .shan {
                             @include pai.size(24px);
 

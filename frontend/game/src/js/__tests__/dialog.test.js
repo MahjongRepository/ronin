@@ -10,6 +10,7 @@ function renderDialog() {
     return $(`<div class="hule-dialog">
         <div class="title"></div>
         <div class="hule">
+            <div class="note"></div>
             <div class="shan"><span class="baopai"></span><span class="fubaopai"></span></div>
             <div class="shoupai"><div class="bingpai"></div><div class="fulou"></div></div>
             <table class="hupai">
@@ -21,6 +22,18 @@ function renderDialog() {
         <table class="fenpei"></table>
     </div>`);
 }
+
+const DAISANGEN_WIN = Object.freeze({
+    l: 1,
+    baojia: null,
+    shoupai: "m23p55m4,z555+,z666-,z777=",
+    hupai: [{ name: "大三元", fanshu: "*" }],
+    fanshu: 13,
+    fu: 0,
+    damanguan: 1,
+    defen: 32000,
+    fenpei: [-16000, 32000, -8000, -8000],
+});
 
 function renderTile(p) {
     return $('<span class="pai">').attr("data-pai", p);
@@ -115,5 +128,32 @@ describe("Majiang.UI.HuleDialog", () => {
 
         expect(root.find(".title").text()).toBe("Ronin ロン ← Bot 2");
         expect(root.find(".hupai .row-hupai .fanshu").text()).toBe("ダブル役満");
+    });
+
+    it("names the liable player of a pao win, and no one on the next win", () => {
+        const root = renderDialog();
+        const dialog = new HuleDialog(root, renderTile, createModel([25000, 25000, 25000, 25000]));
+
+        dialog.hule({ ...DAISANGEN_WIN, fenpei: [0, 32000, -32000, 0], pao: 2 });
+        expect(root.find(".hule .note").text()).toBe("責任払い: Bot 3");
+
+        dialog.hule(DAISANGEN_WIN);
+        expect(root.find(".hule .note").text()).toBe("");
+    });
+
+    it("numbers a double ron's win in its title and names the head-bumped callers", () => {
+        const root = renderDialog();
+        const model = createModel([25000, 25000, 25000, 25000]);
+
+        new HuleDialog(root, renderTile, model).hule({
+            ...DAISANGEN_WIN,
+            baojia: 0,
+            fenpei: [-32000, 32000, 0, 0],
+            headBumped: [2, 3],
+            page: { number: 1, count: 2 },
+        });
+
+        expect(root.find(".title").text()).toBe("Bot 2 ロン ← Bot 1 (1/2)");
+        expect(root.find(".hule .note").text()).toBe("頭ハネ: Bot 3・Ronin のロン無効");
     });
 });

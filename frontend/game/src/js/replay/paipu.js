@@ -179,10 +179,9 @@ class SeatState {
  * One round's paipu log and its positions. A position is a run of silent records (they add to the log, or not at
  * all, but show nothing of their own) closed by the next visible one. It holds the messages log[start, end) and,
  * present only when one of its silent records left one, `notes` on what those records say about it. A result position
- * also has `wins`, its hule messages, and `headBumpedSeats`, the ron callers a nearer winner head-bumped; its range
- * holds only its first win. A double ron's further wins sit at log[end, end + wins - 1), in no position's range: the
- * viewer applies them as the result's dialog pages through them, or before it leaves the position, and the position
- * after it starts past them.
+ * also has `wins`, the count of its hule messages; its range holds only its first win. A double ron's further wins
+ * sit at log[end, end + wins - 1), in no position's range: the viewer applies them as the result's dialog pages through
+ * them, or before it leaves the position, and the position after it starts past them.
  */
 class RoundBuilder {
     constructor(roundStart, qijia, gameType) {
@@ -292,7 +291,6 @@ class RoundBuilder {
         this.log.push(first);
         this.addPosition(POSITION.RESULT, callouts, {
             wins: results.filter((message) => "hule" in message).length,
-            headBumpedSeats: roundEnd.hbs ?? [],
         });
         this.log.push(...further);
         this.nextStart = this.log.length;
