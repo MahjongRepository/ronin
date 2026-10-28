@@ -227,7 +227,7 @@ function stepText(round, state) {
 function wallWarning(state) {
     const inPlay = state.kind !== POSITION.RESULT && state.kind !== POSITION.SUMMARY;
     return inPlay && state.tilesLeft < LOW_WALL
-        ? t("replay.wall_low", { count: state.tilesLeft })
+        ? t("replay.wall_low", { tiles: state.tilesLeft })
         : "";
 }
 

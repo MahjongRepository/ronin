@@ -239,12 +239,7 @@
     "replay.speed.slow": "Медленно",
     "replay.step": "Шаг {step}/{steps}",
     "replay.step_title": "{label} ({keys}), удерживайте для повтора",
-    "replay.wall_low": {
-        "one": "Мало тайлов: {count}",
-        "few": "Мало тайлов: {count}",
-        "many": "Мало тайлов: {count}",
-        "other": "Мало тайлов: {count}"
-    },
+    "replay.wall_low": "В стене: {tiles}",
     "round.east_1": "Восток 1",
     "round.east_2": "Восток 2",
     "round.east_3": "Восток 3",

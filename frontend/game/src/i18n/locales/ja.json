@@ -236,9 +236,7 @@
     "replay.speed.slow": "遅い",
     "replay.step": "{step} / {steps} 手目",
     "replay.step_title": "{label} ({keys})、長押しで連続",
-    "replay.wall_low": {
-        "other": "残り{count}枚"
-    },
+    "replay.wall_low": "残り{tiles}枚",
     "round.east_1": "東一局",
     "round.east_2": "東二局",
     "round.east_3": "東三局",
