@@ -5,6 +5,7 @@ import { parseReplay } from "../replay/load.js";
 import { POSITION, toReplay } from "../replay/paipu.js";
 import wire from "../ronin/wire.js";
 import { firstLineOf } from "./replay-edits.js";
+import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
@@ -13,14 +14,15 @@ import NAGASHI from "./fixtures/replays/nagashi.txt?raw";
 import PAO from "./fixtures/replays/pao.txt?raw";
 import TRUNCATED_MID_ROUND from "./fixtures/replays/truncated_mid_round.txt?raw";
 
-/** Each round's outcome as the round list writes it, its Japanese parts as plain text. */
+/** Described parts as one string, the Japanese ones as plain text. */
+function plainText(parts) {
+    return parts.map((part) => (typeof part === "string" ? part : part.ja)).join("");
+}
+
+/** Each round's outcome as the round list writes it. */
 function outcomes(text) {
     const replay = toReplay(parseReplay(text));
-    return replay.rounds.map((round) =>
-        outcomeParts(replay, round)
-            .map((part) => (typeof part === "string" ? part : part.ja))
-            .join(""),
-    );
+    return replay.rounds.map((round) => plainText(outcomeParts(replay, round)));
 }
 
 /** The replay with its first round played on two honba: each payer of its tsumo pays 200 more. */
@@ -85,5 +87,22 @@ describe("lastAction", () => {
             "Double ron 1/2 from Diana: Alice 12,000, Charlie 8,000",
             "Double ron 2/2 from Diana: Alice 12,000, Charlie 8,000",
         ]);
+    });
+
+    it("says who controls a seat after the position's action", () => {
+        const actionAt = (round, step) =>
+            plainText(
+                lastAction(toReplay(parseReplay(AI_REPLACEMENTS)), {
+                    round,
+                    step,
+                    seat: 0,
+                    openHands: true,
+                }),
+            );
+
+        expect(actionAt(0, 0)).toBe("Diana deals\u00a0· AI\u00a0plays for Bob (absent)");
+        expect(actionAt(1, 0)).toBe(
+            "Alice deals\u00a0· Bob returns\u00a0· AI\u00a0plays for Diana (left)",
+        );
     });
 });

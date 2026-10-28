@@ -78,18 +78,19 @@ describe("Majiang.UI.Board nameplates", () => {
         expect(plate("duimian").find(".defen").text()).toBe("24,000");
     });
 
-    it("keep a dropped player's 切断中 through a redraw until they reconnect", () => {
+    it("mark a dropped player's seat through a redraw until they reconnect, its meaning in text too", () => {
         const { board } = drawBoard();
 
         board.players([true, true, true, false]);
         board.redraw();
         expect(plate("shangjia").hasClass("disconnect")).toBe(true);
-        expect(plate("shangjia").find(".badge.offline").text()).toBe("切断中");
+        expect(plate("shangjia").find(".seat-mark").text()).toBe("切断中");
         expect(plate("shangjia").find(".name").text()).toBe("Bot 3");
+        expect(plate("shangjia").find(".badge")).toHaveLength(0);
 
         board.players([true, true, true, true]);
         expect(plate("shangjia").hasClass("disconnect")).toBe(false);
-        expect(plate("shangjia").find(".badge.offline")).toHaveLength(0);
+        expect(plate("shangjia").find(".seat-mark")).toHaveLength(0);
     });
 });
 

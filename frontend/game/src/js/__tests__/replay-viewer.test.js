@@ -16,6 +16,7 @@ import {
     ReplayViewer,
 } from "../replay/viewer.js";
 import { withUnplayableDraw } from "./replay-edits.js";
+import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?raw";
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
@@ -127,6 +128,14 @@ function settledTable(model) {
     };
 }
 
+/** The players whose nameplates are marked as an AI player's, each with what the mark says without its colour. */
+function aiPlates() {
+    return $("#board .board > .player.ai")
+        .map((i, plate) => `${$(".name", plate).text()}: ${$(".seat-mark", plate).text()}`)
+        .get()
+        .toSorted();
+}
+
 function resultStep(replay, round) {
     return replay.rounds[round].positions.findIndex(
         (position) => position.kind === POSITION.RESULT,
@@ -202,6 +211,7 @@ describe("ReplayViewer", () => {
         ["chankan_added.txt", CHANKAN_ADDED, WHOLE_GAME],
         ["double_ron_head_bump.txt", DOUBLE_RON_HEAD_BUMP, WHOLE_GAME],
         ["exhaustive_tenpai.txt", EXHAUSTIVE_TENPAI, WHOLE_GAME],
+        ["ai_replacements.txt", AI_REPLACEMENTS, WHOLE_GAME],
         ["eager_game.txt", EAGER_GAME, acrossTheFirstWin],
         ["double_ron_on_honba.txt", DOUBLE_RON_ON_HONBA, acrossTheDoubleRon],
     ])(
@@ -268,6 +278,19 @@ describe("ReplayViewer", () => {
         expect(changes.at(-1)).toMatchObject({ round: 1, step: 3, seat: 2 });
         expect($("#board .board > .player.main .name").text()).toBe(replay.players[2]);
         expect(() => viewer.setViewpoint(4)).toThrow(RangeError);
+    });
+
+    it("marks each seat an AI player holds, from an absent seat's deal until its human returns", () => {
+        const { viewer } = openViewer(AI_REPLACEMENTS);
+        expect(aiPlates()).toEqual(["Bob: AI plays this seat"]);
+
+        viewer.seek(1, 0);
+        viewer.setViewpoint(2);
+        expect(aiPlates()).toEqual(["Charlie: AI plays this seat", "Diana: AI plays this seat"]);
+
+        viewer.next();
+        viewer.next();
+        expect(aiPlates()).toEqual(["Diana: AI plays this seat"]);
     });
 
     it("pages a double ron's wins on 次へ and Next before leaving the result", () => {

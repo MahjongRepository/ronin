@@ -7,7 +7,8 @@ import {
     seatL,
     seatOfL,
 } from "../ronin/results.js";
-import { POSITION, kindOf } from "./paipu.js";
+import wire from "../ronin/wire.js";
+import { NOTE, POSITION, kindOf } from "./paipu.js";
 import { OUTCOME } from "./round-end.js";
 import { SEATS } from "./seats.js";
 
@@ -232,15 +233,29 @@ function messageParts(message, nameOf, tileShown) {
     }
 }
 
-/**
- * The last action of the position the viewer `state` stands at, as English strings and `{ ja }` Japanese parts:
- * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result tells the round's outcome (every win of a double
- * ron, numbered by the win the dialog shows: "Double ron 1/2 from …"); the standings, and silent records at a
- * truncated end, name nothing. With opponents' hands hidden, their draws keep their tiles hidden too.
- */
-export function lastAction(replay, { round: roundIndex, step, page = 0, seat, openHands }) {
-    const round = replay.rounds[roundIndex];
-    const position = round.positions[step];
+/** Between the action and each note: a no-break space before the dot keeps it off the start of a line. */
+const NOTE_SEPARATOR = "\u00a0· ";
+
+/** The notes the action line tells: who controls a seat. */
+const TOLD_NOTES = new Set([NOTE.AI_REPLACEMENT, NOTE.HUMAN_RETURN]);
+
+/** What a note says of the seat it names: "AI plays for Bob (absent)", "AI plays for Diana (left)", "Bob returns". */
+function noteText(note, players) {
+    const name = players[note.seat];
+    switch (note.kind) {
+        case NOTE.AI_REPLACEMENT: {
+            const reason = note.reason === wire.SEAT_CONTROL_REASON.ABSENT ? "absent" : "left";
+            return `AI\u00a0plays for ${name} (${reason})`;
+        }
+        case NOTE.HUMAN_RETURN:
+            return `${name} returns`;
+        default:
+            throw new Error(`no text for a ${note.kind} note`);
+    }
+}
+
+/** What the position itself shows, before its notes. */
+function positionParts(replay, round, position, { page, seat, openHands }) {
     const nameOf = (l) => replay.players[seatOfL(l, round.dealer)];
     const tileShown = (l) => openHands || seatOfL(l, round.dealer) === seat;
     switch (position.kind) {
@@ -254,4 +269,23 @@ export function lastAction(replay, { round: roundIndex, step, page = 0, seat, op
         default:
             return messageParts(round.log[position.end - 1], nameOf, tileShown);
     }
+}
+
+/**
+ * The last action of the position the viewer `state` stands at, as English strings and `{ ja }` Japanese parts:
+ * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result tells the round's outcome (every win of a double
+ * ron, numbered by the win the dialog shows: "Double ron 1/2 from …"); the standings, and silent records at a
+ * truncated end, name nothing. With opponents' hands hidden, their draws keep their tiles hidden too. The position's
+ * notes of who controls a seat follow, each after a " · ": "Alice deals · Bob returns · AI plays for Diana (left)".
+ */
+export function lastAction(replay, { round: roundIndex, step, page = 0, seat, openHands }) {
+    const round = replay.rounds[roundIndex];
+    const position = round.positions[step];
+    const shown = positionParts(replay, round, position, { page, seat, openHands });
+    const notes = (position.notes ?? []).filter((note) => TOLD_NOTES.has(note.kind));
+    if (notes.length === 0) {
+        return shown;
+    }
+    const joined = notes.map((note) => noteText(note, replay.players)).join(NOTE_SEPARATOR);
+    return shown.length === 0 ? [joined] : [...shown, NOTE_SEPARATOR, joined];
 }

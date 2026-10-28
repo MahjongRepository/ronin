@@ -1,5 +1,6 @@
 import $ from "jquery";
 
+import { SEAT_MARK } from "../../vendor/majiang-ui/board.js";
 import fadein from "../../vendor/majiang-ui/fadein.js";
 import { WIN_CALL_MS } from "../ronin/results.js";
 import { HISTORY_URL } from "../routes.js";
@@ -76,6 +77,11 @@ function applyToModel(model, message) {
 /** How many wins a position holds after its first: a double ron's further wins, none anywhere else. */
 function furtherWinCount(position) {
     return position.kind === POSITION.RESULT ? Math.max(0, position.wins - 1) : 0;
+}
+
+/** Each seat's nameplate mark at a position, by absolute seat: AI's while an AI player holds it, else none. */
+function seatMarks(position) {
+    return position.ai.map((ai) => (ai ? SEAT_MARK.AI : null));
 }
 
 /** Where the standings' exit leads: back to the lobby page the replay was opened from, else the game history. */
@@ -500,11 +506,12 @@ export class ReplayViewer {
         this.moveTo(target);
     }
 
-    /** Put the cursor at `target` once its position has played, and say so. */
+    /** Put the cursor at `target` once its position has played, mark the nameplates for it, and say so. */
     moveTo({ round, step, pagedWins }) {
         this.round = round;
         this.step = step;
         this.pagedWins = pagedWins;
+        this.view.mark_seats(seatMarks(this.currentPosition()));
         this.titleNameplates();
         this.notifyChange();
     }

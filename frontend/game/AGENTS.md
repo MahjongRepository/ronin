@@ -206,7 +206,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   round's: a seat absent at the first deal is noted on that deal, an AI player's from it on, though its line follows
   the deal's events; any other line recorded between rounds is noted on the next deal. Every position carries the
   seats AI players control there (`ai`: the game start's, and each AI replacement until its human returns), so a seek
-  needs no history. The viewer shows none yet.
+  needs no history. Every move marks the nameplates from its position alone, through the board's seat marks, which the
+  live game's disconnected seats use too. The strip's action line, the live region, says who controls a seat after
+  the action.
   A seek draws the table as stepping there does: the board redraws at the turn in play
   and plays that turn's messages since, so the last discard keeps its mark and a riichi stick
   shows only once the next turn deposits it. A double ron's wins are each a page of its result: Next shows the next win's dialog as
