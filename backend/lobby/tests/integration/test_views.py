@@ -369,7 +369,7 @@ class TestHistoryPage:
         assert "25,000" in response.text
         assert 'class="games-card-link" href="/play/history/abcd1234-test-game"' in response.text
 
-    def test_history_page__when_more_games_than_the_limit__should_show_the_most_recent_earliest_first(self, client):
+    def test_history_page__when_more_games_than_the_limit__should_show_the_most_recent_newest_first(self, client):
         now = datetime.now(UTC)
         game_ids = [f"ordered-game-{index:02}" for index in range(HISTORY_GAMES_LIMIT + 1)]
         for index, game_id in enumerate(game_ids):
@@ -385,7 +385,7 @@ class TestHistoryPage:
         response = client.get("/history")
         assert response.status_code == 200
         shown = re.findall(r'class="games-card-link" href="/play/history/(ordered-game-\d+)"', response.text)
-        assert shown == game_ids[1:]
+        assert shown == game_ids[:0:-1]
 
     def test_history_page__when_another_user_held_the_viewers_name__should_mark_only_the_viewers_standing(self, client):
         viewer = client.app.state.auth_service.validate_session(client.cookies["session_id"])
