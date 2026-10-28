@@ -25,6 +25,7 @@ from lobby.auth.policy import (
     validate_route_auth_policy,
 )
 from lobby.game_transition import create_game_server_client, is_user_playing
+from lobby.i18n import Translator, load_catalogs
 from lobby.matchmaking.manager import MatchmakingManager
 from lobby.matchmaking.websocket import matchmaking_websocket
 from lobby.occupancy import Occupancy
@@ -66,6 +67,7 @@ from lobby.views.auth_handlers import (
 )
 from lobby.views.bot_api_handlers import bot_create_room
 from lobby.views.error_pages import http_error_page, server_error_page
+from lobby.views.locale_handlers import set_language
 from shared.auth import AuthService, AuthSessionStore
 from shared.auth.password import BcryptHasher
 from shared.auth.settings import AuthSettings
@@ -143,6 +145,7 @@ def create_app(
     static_dir = Path(settings.static_dir).resolve()
     assets_dir = Path(settings.assets_dir).resolve()
     game_client = _create_game_client(settings, dev_transport=game_client_dev_transport)
+    translator = Translator(catalogs=load_catalogs(), strict=APP_VERSION == "dev")
 
     game_server = create_game_server_client(settings.game_server_url, transport=game_server_transport)
     if is_playing is None:
@@ -197,6 +200,7 @@ def create_app(
         Route("/register", public_route(register_page), methods=["GET"], name="register_page"),
         Route("/register", public_route(register), methods=["POST"], name="register"),
         Route("/logout", public_route(logout), methods=["POST"], name="logout"),
+        Route("/lang", public_route(set_language), methods=["POST"], name="set_language"),
         Route("/api/rooms", bot_only(bot_create_room), methods=["POST"], name="bot_create_room"),
         Route("/api/replays/{game_id}", public_route(replay_content), methods=["GET"], name="replay_content"),
         Route("/api/replays/{game_id}/tenhou.xml", public_route(tenhou_replay), methods=["GET"], name="tenhou_replay"),
@@ -254,6 +258,7 @@ def create_app(
     _add_middleware(app, settings=settings, auth_service=auth_service)
 
     app.state.game_client = game_client
+    app.state.translator = translator
     _attach_state(
         app,
         settings=settings,

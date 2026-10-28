@@ -16,6 +16,7 @@ dependencies = [
     "bcrypt==5.0.0",
     "anyio==4.15.1",
     "structlog==26.1.0",
+    "markupsafe==3.0.4",
 ]
 
 [dependency-groups]
@@ -154,7 +155,7 @@ source_modules = ["game.session"]
 forbidden_modules = ["game.replay"]
 
 [[tool.importlinter.contracts]]
-name = "lobby: server -> views -> features -> game start -> occupancy and players -> auth -> settings"
+name = "lobby: server -> views -> features -> game start -> occupancy and players -> auth and i18n -> settings"
 type = "layers"
 layers = [
     "lobby.server",
@@ -162,7 +163,7 @@ layers = [
     "lobby.rooms | lobby.matchmaking",
     "lobby.game_transition | lobby.websocket_utils",
     "lobby.occupancy | lobby.players",
-    "lobby.auth",
+    "lobby.auth | lobby.i18n",
     "lobby.settings",
 ]
 

@@ -7,24 +7,40 @@ from typing import TYPE_CHECKING
 from starlette.templating import Jinja2Templates
 
 from lobby.auth.csrf import get_or_create_csrf_token, is_cross_site_post, set_csrf_cookie
+from lobby.i18n import resolve_request_locale
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from markupsafe import Markup
     from starlette.requests import Request
     from starlette.responses import Response
 
+    from lobby.i18n import Translator
     from shared.auth.settings import AuthSettings
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 LOBBY_ENTRY = "src/index.ts"
 
 
+def _i18n_context(request: Request) -> dict[str, object]:
+    """
+    Give every template the request's ``locale`` and ``t(key, **params)``, which returns the message as escaped HTML.
+    """
+    translator: Translator = request.app.state.translator
+    locale = resolve_request_locale(request).locale
+
+    def t(key: str, /, **params: object) -> Markup:
+        return translator.translate_markup(locale, key, **params)
+
+    return {"locale": locale, "t": t}
+
+
 def create_templates() -> Jinja2Templates:
     """
     Create Jinja2 template engine for lobby HTML templates.
     """
-    return Jinja2Templates(directory=str(TEMPLATES_DIR))
+    return Jinja2Templates(directory=str(TEMPLATES_DIR), context_processors=[_i18n_context])
 
 
 def render_page(
@@ -38,7 +54,8 @@ def render_page(
     """
     Render a lobby page with the CSRF token its forms carry, setting the CSRF cookie when the token is new.
 
-    An existing cookie is never replaced. A POST from another site arrives without it, so its answer sets none either.
+    An existing cookie is never replaced. A POST from another site arrives without it, so its answer sets none either. A
+    page whose locale the browser's preference chose varies with that preference and with the ``lang`` cookie.
     """
     templates: Jinja2Templates = request.app.state.templates
     csrf_token, is_new = get_or_create_csrf_token(request)
@@ -48,6 +65,10 @@ def render_page(
     if is_new and not is_cross_site_post(request):
         auth_settings: AuthSettings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
+
+    if not resolve_request_locale(request).from_cookie:
+        response.headers.add_vary_header("Accept-Language")
+        response.headers.add_vary_header("Cookie")
 
     return response
 

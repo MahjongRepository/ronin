@@ -1,0 +1,87 @@
+import pytest
+from starlette.testclient import TestClient
+
+from lobby.auth.csrf import CSRF_COOKIE_NAME
+
+BROWSER_ACCEPT = {"accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
+
+
+def _csrf_token(client) -> str:
+    client.get("/login")
+    token = client.cookies.get(CSRF_COOKIE_NAME)
+    assert token, "GET /login set no CSRF cookie"
+    return token
+
+
+def _lang_set_cookie(response) -> str | None:
+    headers = [value for value in response.headers.get_list("set-cookie") if value.startswith("lang=")]
+    assert len(headers) <= 1
+    return headers[0] if headers else None
+
+
+class TestSetLanguageRoute:
+    @pytest.mark.parametrize(
+        ("next_path", "location"),
+        [
+            ("/login?next=%2Fhistory", "/login?next=%2Fhistory"),
+            ("//evil.example/x", "/"),
+            ("https://evil.example/", "/"),
+            (None, "/"),
+        ],
+        ids=["safe_path", "protocol_relative", "absolute_url", "absent"],
+    )
+    def test_set_language_route__when_lang_is_supported__should_set_the_cookie_and_return_to_a_safe_page(
+        self, client, next_path, location
+    ):
+        form = {"csrf_token": _csrf_token(client), "lang": "ja"}
+        if next_path is not None:
+            form["next"] = next_path
+
+        response = client.post("/lang", data=form, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == location
+        cookie = _lang_set_cookie(response)
+        assert cookie is not None
+        attributes = {part.strip().split("=")[0].lower() for part in cookie.split(";")}
+        assert cookie.startswith("lang=ja;")
+        assert "Max-Age=31536000" in cookie
+        assert "Path=/" in cookie
+        assert "SameSite=lax" in cookie
+        assert "httponly" not in attributes
+        assert "secure" not in attributes
+
+    def test_set_language_route__when_cookies_are_secure__should_mark_the_cookie_secure(self, make_app, monkeypatch):
+        monkeypatch.setenv("AUTH_COOKIE_SECURE", "true")
+
+        with TestClient(make_app(), base_url="https://testserver") as client:
+            client.get("/login")
+            token = client.cookies.get(CSRF_COOKIE_NAME)
+            response = client.post("/lang", data={"csrf_token": token, "lang": "ru"}, follow_redirects=False)
+        cookie = _lang_set_cookie(response)
+        assert cookie is not None
+        assert "secure" in {part.strip().lower() for part in cookie.split(";")}
+
+    def test_set_language_route__when_csrf_token_is_stale__should_render_the_session_expired_page_without_a_cookie(
+        self, client
+    ):
+        _csrf_token(client)
+
+        response = client.post("/lang", data={"csrf_token": "stale", "lang": "ja"}, follow_redirects=False)
+        assert response.status_code == 403
+        assert "Session expired" in response.text
+        assert _lang_set_cookie(response) is None
+
+    def test_set_language_route__when_lang_is_unsupported__should_answer_400_without_a_cookie(self, client):
+        response = client.post("/lang", data={"csrf_token": _csrf_token(client), "lang": "de"}, headers=BROWSER_ACCEPT)
+        assert response.status_code == 400
+        assert _lang_set_cookie(response) is None
+
+
+def test_page_locale__when_resolved_from_accept_language__should_vary_on_it_and_the_cookie(client):
+    from_header = client.get("/login", headers={"accept-language": "ru-RU,ru;q=0.9"})
+    client.cookies.set("lang", "ja")
+    from_cookie = client.get("/login", headers={"accept-language": "ru-RU,ru;q=0.9"})
+    assert '<html lang="ru"' in from_header.text
+    assert {"Accept-Language", "Cookie"} <= set(from_header.headers["vary"].split(", "))
+    assert '<html lang="ja"' in from_cookie.text
+    assert "Accept-Language" not in from_cookie.headers.get("vary", "")
