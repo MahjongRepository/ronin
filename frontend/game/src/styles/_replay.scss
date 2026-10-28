@@ -459,6 +459,11 @@ body.board.replay {
     }
 }
 
+/* In the all-last round its badge takes the room the toggle's word would, so the step stays in view. */
+.replay-where-text:has(.replay-final:not(.hide)) .replay-rounds-word {
+    display: none;
+}
+
 .replay-rounds-chevron {
     margin-left: 0.3em;
     color: $accent;
@@ -762,7 +767,7 @@ body.board.replay#{$rounds-open} > #board {
 @media (width >= 1200px) and (height > 450px) {
     .replay-controls {
         grid-template-areas: "info buttons options";
-        grid-template-columns: minmax(12em, 1fr) auto minmax(max-content, 1fr);
+        grid-template-columns: minmax(17em, 1fr) auto minmax(max-content, 1fr);
         align-items: center;
         gap: 16px;
     }
@@ -796,8 +801,17 @@ body.board.replay#{$rounds-open} > #board {
 
     @include options-beside-info;
 
-    .replay-buttons .replay-step-button:not(.replay-play) {
-        min-width: 100px;
+    .replay-buttons {
+        gap: 4px;
+
+        .replay-step-button:not(.replay-play) {
+            min-width: 100px;
+            padding-inline: 12px;
+        }
+
+        .replay-jump {
+            padding-inline: 6px;
+        }
     }
 
     .replay-option {
