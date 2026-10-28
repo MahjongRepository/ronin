@@ -12,7 +12,6 @@
     {% if games %}
     <div class="games-list">
         {% for entry in games %}
-        {% set replay_url = "/play/history/" ~ entry.game.game_id %}
         {% set started = entry.game.started_at.strftime('%b %d, %H:%M') ~ " UTC" %}
         <article class="games-card" style="--card-index: {{ loop.index0 }}">
             <header class="games-card-header">
@@ -31,11 +30,10 @@
                     <span>Result</span>
                 </div>
                 {% for player in entry.players %}
-                {% set is_viewer = player.user_id == user_id %}
-                <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if is_viewer else '' }}">
+                <div class="games-standing{{ ' games-standing--winner' if player.is_winner else '' }}{{ ' games-standing--me' if player.is_viewer else '' }}">
                     <span class="games-rank">{{ loop.index }}</span>
                     <span class="games-name">{{ player.name }}</span>
-                    {% if is_viewer %}
+                    {% if player.is_viewer %}
                     <span class="games-you">You</span>
                     {% endif %}
                     {% if player.score is not none %}
@@ -62,7 +60,7 @@
                 <div class="games-card-actions">
                     <span class="games-copy-status" role="status"></span>
                     <button class="games-copy-btn"
-                            data-replay-url="{{ replay_url }}"
+                            data-replay-url="{{ entry.replay_url }}"
                             title="Copy replay link"
                             aria-label="Copy replay link"
                             type="button">
@@ -71,7 +69,7 @@
                             <path d="M11 1.5H3A1.5 1.5 0 0 0 1.5 3v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                         </svg>
                     </button>
-                    <a class="games-card-link" href="{{ replay_url }}"
+                    <a class="games-card-link" href="{{ entry.viewer_replay_url }}"
                        id="games-replay-{{ loop.index }}"
                        aria-labelledby="games-replay-{{ loop.index }} games-type-{{ loop.index }} games-time-{{ loop.index }}">View replay</a>
                 </div>

@@ -47,23 +47,42 @@ def _format_duration(started_at: datetime, ended_at: datetime) -> str:
     return f"{seconds}s"
 
 
-def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
+def _build_replay_url(game_id: str, seat: int | None = None) -> str:
+    """
+    Build the replay page link, opening from `seat` when one is given.
+    """
+    replay_url = f"/play/history/{game_id}"
+    if seat is None:
+        return replay_url
+
+    return f"{replay_url}?seat={seat}"
+
+
+def _prepare_history_for_display(games: list[PlayedGame], user_id: str) -> list[dict]:
     """
     Transform played games into template-friendly view models.
+
+    A game the viewer played links its replay from their seat; the shareable link never carries one.
     """
     result = []
     for game in games:
         has_scores = game.standings and game.standings[0].final_score is not None
-        players = [
-            {
-                "name": s.name,
-                "user_id": s.user_id,
-                "score": s.score,
-                "final_score": s.final_score,
-                "is_winner": has_scores and i == 0,
-            }
-            for i, s in enumerate(game.standings)
-        ]
+        viewer_seat = None
+        players = []
+        for i, s in enumerate(game.standings):
+            is_viewer = s.user_id == user_id
+            if is_viewer:
+                viewer_seat = s.seat
+
+            players.append(
+                {
+                    "name": s.name,
+                    "score": s.score,
+                    "final_score": s.final_score,
+                    "is_winner": has_scores and i == 0,
+                    "is_viewer": is_viewer,
+                },
+            )
 
         duration_label = None
         if game.ended_at:
@@ -75,6 +94,8 @@ def _prepare_history_for_display(games: list[PlayedGame]) -> list[dict]:
                 "players": players,
                 "duration_label": duration_label,
                 "game_type": _GAME_TYPE_LABELS.get(game.game_type),
+                "replay_url": _build_replay_url(game.game_id),
+                "viewer_replay_url": _build_replay_url(game.game_id, viewer_seat),
             },
         )
 
@@ -85,9 +106,9 @@ async def history_page(request: Request) -> Response:
     """GET /history - render the history page with recent played games."""
     game_repo = request.app.state.game_repo
     games = await game_repo.get_recent_completed_games(limit=20)
-    display_games = _prepare_history_for_display(games)
+    display_games = _prepare_history_for_display(games, request.user.user_id)
     return render_page(
         request,
         template_name="history.html",
-        context={"games": display_games, "username": request.user.username, "user_id": request.user.user_id},
+        context={"games": display_games, "username": request.user.username},
     )

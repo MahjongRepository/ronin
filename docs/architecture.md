@@ -398,7 +398,9 @@ honours this contract can replace it.
   win. A bad `seat` falls back to the default, a missing or bad `round` to round 0's deal (its
   `step` ignored), a bad `step` to its round's deal. The page then keeps the query on the position
   shown with `history.replaceState`, so the address bar is the share link and Back leaves the
-  replay; neither autoplay nor the hidden-hands choice is in it.
+  replay; neither autoplay nor the hidden-hands choice is in it. The lobby history page links a
+  participant to a replay from their own seat, but its copy-link button copies the link without
+  `seat`, so a shared link imposes no viewpoint.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
   WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must

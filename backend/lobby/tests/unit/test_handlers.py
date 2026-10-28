@@ -7,6 +7,8 @@ from lobby.views.assets import load_vite_manifest, resolve_vite_asset_urls
 from lobby.views.history_handlers import _format_duration, _prepare_history_for_display
 from shared.dal.models import PlayedGame, PlayedGameStanding
 
+_VIEWER_USER_ID = "viewer-user-id"
+
 
 class TestLoadViteManifest:
     def test_load_vite_manifest__when_manifest_missing__should_return_empty_dict(self, tmp_path):
@@ -92,12 +94,13 @@ def _make_standing(
     seat: int,
     score: int | None = None,
     final_score: int | None = None,
+    user_id: str = "",
 ) -> PlayedGameStanding:
-    return PlayedGameStanding(name=name, seat=seat, user_id="", score=score, final_score=final_score)
+    return PlayedGameStanding(name=name, seat=seat, user_id=user_id, score=score, final_score=final_score)
 
 
 class TestPrepareGamesForDisplay:
-    def test_prepare_history_for_display__when_game_completed__should_mark_winner_and_labels(self):
+    def test_prepare_history_for_display__when_game_completed__should_mark_winner_viewer_and_labels(self):
         now = datetime.now(UTC)
         game = PlayedGame(
             game_id="game-1",
@@ -107,13 +110,13 @@ class TestPrepareGamesForDisplay:
             game_type="hanchan",
             num_rounds_played=8,
             standings=[
-                _make_standing(name="Alice", seat=0, score=35000, final_score=30),
-                _make_standing(name="Bob", seat=1, score=25000, final_score=0),
-                _make_standing(name="Charlie", seat=2, score=22000, final_score=-10),
+                _make_standing(name="Alice", seat=2, score=35000, final_score=30),
+                _make_standing(name="Bob", seat=0, score=25000, final_score=0, user_id=_VIEWER_USER_ID),
+                _make_standing(name="Charlie", seat=1, score=22000, final_score=-10),
                 _make_standing(name="Diana", seat=3, score=18000, final_score=-20),
             ],
         )
-        result = _prepare_history_for_display([game])
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
         assert len(result) == 1
         entry = result[0]
         assert entry["players"][0]["is_winner"] is True
@@ -123,19 +126,26 @@ class TestPrepareGamesForDisplay:
         assert entry["players"][1]["is_winner"] is False
         assert (entry["game_type"].wind, entry["game_type"].name) == ("南", "Hanchan")
         assert entry["duration_label"] == "30m 0s"
+        assert [player["is_viewer"] for player in entry["players"]] == [False, True, False, False]
+        assert entry["viewer_replay_url"] == "/play/history/game-1?seat=0"
+        assert entry["replay_url"] == "/play/history/game-1"
+
+        [onlooker_entry] = _prepare_history_for_display([game], user_id="onlooker-user-id")
+        assert [player["is_viewer"] for player in onlooker_entry["players"]] == [False, False, False, False]
+        assert onlooker_entry["viewer_replay_url"] == "/play/history/game-1"
 
     def test_prepare_history_for_display__when_tonpusen__should_label_east_tonpuu(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="tonpusen")
 
-        result = _prepare_history_for_display([game])
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
         assert (result[0]["game_type"].wind, result[0]["game_type"].name) == ("東", "Tonpuu")
 
     def test_prepare_history_for_display__when_game_type_unknown__should_have_no_label(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, game_type="")
 
-        result = _prepare_history_for_display([game])
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
         assert result[0]["game_type"] is None
 
     def test_prepare_history_for_display__when_game_under_a_minute__should_show_seconds(self):
@@ -146,12 +156,12 @@ class TestPrepareGamesForDisplay:
             ended_at=now,
             end_reason="completed",
         )
-        result = _prepare_history_for_display([game])
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
         assert result[0]["duration_label"] == "30s"
 
     def test_prepare_history_for_display__when_standings_empty__should_have_no_players(self):
         now = datetime.now(UTC)
         game = PlayedGame(game_id="g", started_at=now, standings=[])
 
-        result = _prepare_history_for_display([game])
+        result = _prepare_history_for_display([game], user_id=_VIEWER_USER_ID)
         assert result[0]["players"] == []
