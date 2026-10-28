@@ -11,12 +11,12 @@ Profile the game engine replay runner, pick a single optimization, implement it,
 
 | | `make profile` (replay) | `make profile-games` (bot games) |
 |---|---|---|
-| Covers | The engine only: in one 12-table run, 37% of the game server's GIL-holding samples | The whole game server path in real games |
+| Covers | The engine only: in one 12-table run, 48% of the game server's CPU samples | The whole game server path in real games |
 | Repeatable | Yes: one fixed game, interleaved A/A runs within about 1.5% | No: every bot game differs |
 | Cost | About 25 s | Several minutes, and the `mahjong-bot` repo |
 | Job | Proving an engine change: before/after numbers | Choosing a target: which layer and function the real server spends CPU in |
 
-Bot games cannot prove a gain of a few percent: the games differ and each yields only about 40 samples. The replay cannot see the transport, router, session and messaging layers that hold the rest of the samples; in that 12-table run the uvicorn/websockets transport (41%) was level with the engine. One run is not a stable ranking: re-run before relying on the order of close layers. So use bot games to choose where to look, and the replay to measure engine changes. A target outside `game/logic/` is out of this skill's scope: report it, because the replay cannot measure a change there.
+Bot games cannot prove a gain of a few percent: the games differ and each yields only about 27 samples. The replay cannot see the transport, router, session and messaging layers that hold the rest of the samples; in that 12-table run the server, router, session and uvicorn/websockets layers together (45%) were level with the engine. One run is not a stable ranking: re-run before relying on the order of close layers. So use bot games to choose where to look, and the replay to measure engine changes. A target outside `game/logic/` is out of this skill's scope: report it, because the replay cannot measure a change there.
 
 ## How the measurement works
 
@@ -24,7 +24,7 @@ Bot games cannot prove a gain of a few percent: the games differ and each yields
 
 - **Timing:** 20 runs with no profiler attached, reported as median, stdev and every run. This is the only source of speed numbers. The `Engine:` line shows which checkout the engine was imported from.
 - **cProfile:** one traced run, saved to `backend/profiles/replay_<timestamp>.prof`. It gives exact `ncalls` and callers. Tracing every call slows the replay about 2.2× and inflates call-heavy Python functions relative to everything else. C calls get rows of their own (pydantic-core's `validate_python` is about 5% of the run), but the engine-only tables hide them. Use it for call counts and the call graph, not to rank hotspots.
-- **Sampled profile:** py-spy samples 200 runs at 100 Hz in a child process (about 2,300 samples) and saves `replay_<timestamp>.samples.txt`. Its blocking mode pauses the child for every sample, so it perturbs the run; it distorts call-heavy code far less than tracing, so rank hotspots by its tables, and claim gains only from the unprofiled timing. Without native stacks, time inside C code (pydantic-core, `Counter.update`) is charged to the Python function that called it. Shares cover the samples inside `run_replay_loop`: one replay load, then the loops with their between-call cleanup. Imports are left out. The script fails when py-spy loses samples or falls behind; at higher rates it falls behind on this VM and stalls the child, which skews the shares. Repeated profiles agree within about 1.5 points, so treat closer shares as a tie.
+- **Sampled profile:** 200 runs sampled in-process every 10 ms of CPU time (about 2,300 samples, the same sampler as `make profile-games`), saved as `replay_<timestamp>.samples.txt`. It distorts call-heavy code far less than tracing, so rank hotspots by its tables, and claim gains only from the unprofiled timing. Time inside C code (pydantic-core, `Counter.update`) is charged to the Python function that called it. Shares cover the samples inside `run_replay_loop`, between-call cleanup included; imports are left out. Repeated profiles agree within about 1.5 points, so treat closer shares as a tie.
 
 The timed work is the engine plus the replay harness, which builds a `ReplayStep` per step and keeps the whole trace; `handle_action` is about 92% of the samples.
 
@@ -40,7 +40,7 @@ Run this when the target is not chosen yet, or when the last bot-game profile is
 make profile-games
 ```
 
-It plays 48 bot games, 12 tables at a time (about 2 minutes), with the game server under py-spy and logging at production's INFO level. py-spy runs with `--gil`: it samples only the thread holding the GIL, so idle waits drop out, but the shares are of GIL-holding stack samples, not CPU time. A native call or syscall made with the GIL held counts toward its Python caller (uvloop writes to sockets this way), and work that releases the GIL, such as SQLite, does not count. `--native` and line-level sampling both fail under load on this VM. The run also prints the game server's CPU-seconds per game, read from `/proc`, which is CPU time. It prints the samples by layer, the top functions by self time, and the top project functions by inclusive time, and fails when py-spy loses samples or falls behind. It kills whatever holds `:8710`/`:8711` and wipes `backend/logs`; its games are added to the dev database and replay dir, next to the ones already there.
+It plays 48 bot games, 12 tables at a time (about 2 minutes), with logging at production's INFO level and the game server sampling itself (`bin/profile_game_server.py`): the kernel's CPU-time timer fires every 10 ms of the process's CPU and the main thread records its Python stack, so idle waits drop out and the shares are of CPU time. A native call or syscall counts toward the Python frame running when it returns (uvloop's socket writes land in uvicorn's `send`); CPU burned by the SQLite worker thread lands on whatever the main thread is doing, usually the event loop. Function names are qualified (`SessionManager.handle_game_action`) and line numbers are where each function starts. The run also prints the game server's CPU-seconds per game, read from `/proc`. It prints the samples by layer, the top functions by self time, and the top project functions by inclusive time, and fails when the profile holds no samples. It kills whatever holds `:8710`/`:8711` and wipes `backend/logs`; its games are added to the dev database and replay dir, next to the ones already there.
 
 - The layer table charges each sample to its deepest project or server-library frame, so library code counts toward the layer that called it.
 - Report every layer outside the engine with a large share, with its top functions, as a finding: the replay cannot measure a change there.
@@ -129,11 +129,11 @@ cd backend && uv run pytest game/tests/integration/replays <tests of the changed
 
 ## Step 7: Verify the improvement
 
-Run baseline (A) and candidate (B) in the balanced order A B B A A B, one invocation each. `--sample-loops 0` skips the sampled profile, and `PYTHONPATH` makes the script import the engine from the baseline worktree:
+Run baseline (A) and candidate (B) in the balanced order A B B A A B, one invocation each. `--timing-only` skips the sampled profile, and `PYTHONPATH` makes the script import the engine from the baseline worktree:
 
 ```
-PYTHONPATH=$S/perf-baseline/backend uv run --project backend python bin/profile_replay.py --sample-loops 0
-uv run --project backend python bin/profile_replay.py --sample-loops 0
+PYTHONPATH=$S/perf-baseline/backend uv run --project backend python bin/profile_replay.py --timing-only
+uv run --project backend python bin/profile_replay.py --timing-only
 ```
 
 Check each run's `Engine:` line names the checkout you meant, and record its `Median time`. Compare the median of each side's three medians, and classify the result:

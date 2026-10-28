@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import signal
 import sys
 from pathlib import Path
-
-import pytest
 
 SITE = "/venv/lib/python3.14/site-packages"
 APP = "/repo/backend"
@@ -75,22 +74,22 @@ def test_summarize_samples__when_stack_imports_or_misses_root__should_leave_it_o
     assert summary.excluded == 5
 
 
-@pytest.mark.parametrize(
-    ("output", "problem"),
-    [
-        ("py-spy> Wrote raw flamegraph data to 'x'. Samples: 2180 Errors: 0", None),
-        ("py-spy> Sampling process 100 times a second.", "py-spy printed no sample summary"),
-        ("py-spy> Wrote raw flamegraph data to 'x'. Samples: 0 Errors: 0", "py-spy recorded no samples"),
-        ("py-spy> Wrote raw flamegraph data to 'x'. Samples: 37 Errors: 282", "py-spy lost 282 samples"),
-        (
-            "py-spy> 1.04s behind in sampling, results may be inaccurate.\nSamples: 900 Errors: 0",
-            "py-spy fell behind in sampling",
-        ),
-    ],
-)
-def test_py_spy_output_problem__when_output_varies__should_accept_only_complete_profiles(
-    output: str, problem: str | None
+def test_cpu_sampler__when_samples_are_recorded__should_write_stacks_the_summary_charges_to_the_running_function(
+    tmp_path: Path,
 ):
     sampled_profile = _load_sampled_profile_module()
+    sampler = sampled_profile.CpuSampler()
 
-    assert sampled_profile.py_spy_output_problem(output) == problem
+    def handle_game_action() -> None:
+        sampler.record(signal.SIGPROF, sys._getframe())
+
+    handle_game_action()
+    handle_game_action()
+    sample_file = tmp_path / "samples.txt"
+    sampler.write(sample_file)
+    summary = sampled_profile.summarize_samples(sample_file, root=None)
+
+    assert summary.total == 2
+    assert summary.self_samples == {
+        (__file__, handle_game_action.__code__.co_firstlineno, handle_game_action.__qualname__): 2
+    }

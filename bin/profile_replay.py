@@ -5,7 +5,6 @@ import cProfile
 import logging
 import pstats
 import statistics
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -13,14 +12,7 @@ from pathlib import Path
 import game
 from game.replay import load_replay_from_file, run_replay
 from game.replay.models import ReplayInput, ReplayTrace
-from sampled_profile import (
-    PY_SPY,
-    SAMPLE_RATE,
-    ProfileKey,
-    format_func,
-    print_sampled_profile,
-    py_spy_output_problem,
-)
+from sampled_profile import CpuSampler, ProfileKey, format_func, print_sampled_profile
 from shared.logging import setup_logging
 
 DEFAULT_REPLAY = (
@@ -35,13 +27,15 @@ DEFAULT_REPLAY = (
     / "full_game.txt"
 )
 PROFILE_DIR = Path(__file__).resolve().parent.parent / "backend" / "profiles"
-LOOP_DONE = "replay loop finished:"
+ITERATIONS = 20
+SAMPLE_LOOPS = 200
+TABLE_LIMIT = 30
 
 
-def profile_replay(replay_path: Path, iterations: int, sample_loops: int) -> None:
-    """Profile a replay file with timed iterations, cProfile and a py-spy sampled profile."""
-    replay = load_replay_from_file(replay_path)
-    print(f"Loaded replay: {replay_path.name}")
+def profile_replay(*, sampled: bool) -> None:
+    """Profile the replay fixture with timed iterations, cProfile and, when asked, a sampled profile."""
+    replay = load_replay_from_file(DEFAULT_REPLAY)
+    print(f"Loaded replay: {DEFAULT_REPLAY.name}")
     print(f"  Seed: {replay.seed[:16]}...")
     print(f"  Players: {', '.join(replay.player_names)}")
     print(f"  Events: {len(replay.events)}")
@@ -58,7 +52,7 @@ def profile_replay(replay_path: Path, iterations: int, sample_loops: int) -> Non
 
     # Timed iterations (no profiler overhead)
     elapsed_times = []
-    for _ in range(iterations):
+    for _ in range(ITERATIONS):
         start = time.perf_counter()
         run_replay(replay)
         elapsed_times.append(time.perf_counter() - start)
@@ -73,63 +67,27 @@ def profile_replay(replay_path: Path, iterations: int, sample_loops: int) -> Non
     _print_performance_stats(replay, trace, elapsed_times, profile_file)
     _print_top_functions(profiler)
 
-    if sample_loops > 0:
+    if sampled:
         sample_file = PROFILE_DIR / f"replay_{timestamp}.samples.txt"
-        _record_samples(replay_path=replay_path, loops=sample_loops, output=sample_file)
-        print_sampled_profile(sample_file, sample_rate=SAMPLE_RATE, root=run_replay_loop.__name__, by_layer=False)
+        _record_samples(replay, sample_file)
+        print_sampled_profile(sample_file, root=run_replay_loop.__name__, by_layer=False)
 
 
-def run_replay_loop(replay_path: Path, loops: int) -> None:
-    """Run a replay repeatedly with nothing else in the process, for py-spy to sample."""
-    replay = load_replay_from_file(replay_path)
-    setup_logging(level=logging.CRITICAL)
-    for _ in range(loops):
+def run_replay_loop(replay: ReplayInput) -> None:
+    """Run the replay SAMPLE_LOOPS times, the work the sampled profile covers."""
+    for _ in range(SAMPLE_LOOPS):
         run_replay(replay)
 
-    print(f"{LOOP_DONE} {loops}")
 
+def _record_samples(replay: ReplayInput, output: Path) -> None:
+    sampler = CpuSampler()
+    sampler.start()
+    try:
+        run_replay_loop(replay)
+    finally:
+        sampler.stop()
 
-def _record_samples(replay_path: Path, loops: int, output: Path) -> None:
-    """Record a py-spy profile of a child process running the replay loop.
-
-    py-spy launches the child itself because this host's ptrace_scope of 1 blocks attaching to
-    a process it did not start. Blocking mode at 100 Hz: --nonblocking drops most samples of a
-    CPU-bound loop as torn stacks, and blocking at 250 Hz often falls behind and stalls the child,
-    which skews the shares. py-spy can exit with "No child process" after writing a complete
-    profile when the child exits mid-sample; that exit is accepted only when the child printed that
-    it finished every loop and py-spy reported a valid summary.
-    """
-    command = [
-        "uvx",
-        PY_SPY,
-        "record",
-        "--function",
-        "--rate",
-        str(SAMPLE_RATE),
-        "--format",
-        "raw",
-        "--output",
-        str(output),
-        "--",
-        sys.executable,
-        str(Path(__file__).resolve()),
-        "--replay",
-        str(replay_path),
-        "--loop",
-        str(loops),
-    ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
-    output_text = result.stdout + result.stderr
-    loops_finished = f"{LOOP_DONE} {loops}" in result.stdout
-    known_exit = result.returncode == 0 or (result.returncode == 1 and "No child process" in output_text)
-    if not loops_finished or not known_exit or not output.exists():
-        print(f"py-spy run failed ({result.returncode}):\n{output_text}", file=sys.stderr)
-        sys.exit(1)
-
-    problem = py_spy_output_problem(output_text)
-    if problem is not None:
-        print(f"py-spy profile is invalid, {problem}:\n{output_text}", file=sys.stderr)
-        sys.exit(1)
+    sampler.write(output)
 
 
 def _print_performance_stats(
@@ -172,8 +130,8 @@ def _is_engine_code(filename: str) -> bool:
 
 def _collect_engine_entries(
     stats: pstats.Stats,
-    sort_key: str = "cumulative",
-    limit: int = 30,
+    sort_key: str,
+    limit: int,
 ) -> list[tuple[ProfileKey, int, int, float, float]]:
     """Collect engine-only profile entries sorted by the given key."""
     stats.sort_stats(sort_key)
@@ -201,11 +159,11 @@ def _print_entries_table(
         print(f"{calls:>9}  {tt:>8.3f}  {tt_pc:>8.3f}  {ct:>8.3f}  {ct_pc:>8.3f}  {format_func(key)}")
 
 
-def _print_top_functions(profiler: cProfile.Profile, limit: int = 30) -> None:
+def _print_top_functions(profiler: cProfile.Profile) -> None:
     """Print top functions by cumulative time, showing only game engine code."""
     stats = pstats.Stats(profiler)
-    entries = _collect_engine_entries(stats, "cumulative", limit)
-    print(f"Top {limit} game engine functions by cumulative time:")
+    entries = _collect_engine_entries(stats, "cumulative", TABLE_LIMIT)
+    print(f"Top {TABLE_LIMIT} game engine functions by cumulative time:")
     _print_entries_table(entries)
     print()
 
@@ -218,13 +176,11 @@ def _find_latest_profile() -> Path | None:
     return profiles[-1] if profiles else None
 
 
-def load_profile(profile_path: Path | None, limit: int) -> None:
-    """Load a .prof file and display detailed engine-only analysis."""
+def load_profile() -> None:
+    """Load the latest .prof file and display detailed engine-only analysis."""
+    profile_path = _find_latest_profile()
     if profile_path is None:
-        profile_path = _find_latest_profile()
-    if profile_path is None or not profile_path.exists():
-        path_msg = str(profile_path) if profile_path else PROFILE_DIR
-        print(f"No profile found: {path_msg}", file=sys.stderr)
+        print(f"No profile found in {PROFILE_DIR}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Loading profile: {profile_path.name}")
@@ -232,14 +188,14 @@ def load_profile(profile_path: Path | None, limit: int) -> None:
     print()
 
     # Top functions by cumulative time
-    cum_entries = _collect_engine_entries(stats, "cumulative", limit)
-    print(f"Top {limit} game engine functions by cumulative time:")
+    cum_entries = _collect_engine_entries(stats, "cumulative", TABLE_LIMIT)
+    print(f"Top {TABLE_LIMIT} game engine functions by cumulative time:")
     _print_entries_table(cum_entries)
     print()
 
     # Top functions by total (self) time
-    tot_entries = _collect_engine_entries(stats, "tottime", limit)
-    print(f"Top {limit} game engine functions by total (self) time:")
+    tot_entries = _collect_engine_entries(stats, "tottime", TABLE_LIMIT)
+    print(f"Top {TABLE_LIMIT} game engine functions by total (self) time:")
     _print_entries_table(tot_entries)
     print()
 
@@ -268,64 +224,16 @@ def load_profile(profile_path: Path | None, limit: int) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Profile replay execution with cProfile")
-    parser.add_argument(
-        "--replay",
-        type=Path,
-        default=DEFAULT_REPLAY,
-        help="path to replay file (default: full_game.txt fixture)",
-    )
-    parser.add_argument(
-        "-n",
-        "--iterations",
-        type=int,
-        default=20,
-        help="number of timed iterations (default: 20)",
-    )
-    parser.add_argument(
-        "--sample-loops",
-        type=int,
-        default=200,
-        help="replay runs for the py-spy sampled profile, 0 to skip it (default: 200)",
-    )
-    parser.add_argument("--loop", type=int, help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--load",
-        nargs="?",
-        const="latest",
-        metavar="PROF_FILE",
-        help="load a .prof file for detailed analysis (default: latest)",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=30,
-        help="number of functions to display (default: 30)",
-    )
+    parser = argparse.ArgumentParser(description="Profile the full_game.txt replay")
+    parser.add_argument("--load", action="store_true", help="show the latest cProfile run in detail instead")
+    parser.add_argument("--timing-only", action="store_true", help="skip the sampled profile")
     args = parser.parse_args()
 
-    if args.load is not None:
-        profile_path = None if args.load == "latest" else Path(args.load)
-        load_profile(profile_path, args.limit)
+    if args.load:
+        load_profile()
         return
 
-    if not args.replay.exists():
-        print(f"Replay file not found: {args.replay}", file=sys.stderr)
-        sys.exit(1)
-
-    if args.loop is not None:
-        run_replay_loop(replay_path=args.replay, loops=args.loop)
-        return
-
-    if args.iterations < 1:
-        print("Iterations must be at least 1", file=sys.stderr)
-        sys.exit(1)
-
-    if args.sample_loops < 0:
-        print("Sample loops must be 0 or more", file=sys.stderr)
-        sys.exit(1)
-
-    profile_replay(replay_path=args.replay, iterations=args.iterations, sample_loops=args.sample_loops)
+    profile_replay(sampled=not args.timing_only)
 
 
 if __name__ == "__main__":

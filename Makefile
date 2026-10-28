@@ -72,4 +72,4 @@ run-games:
 	@TABLES=$(TABLES) bash ./bin/run-bots-games.sh $(GAMES)
 
 profile-games:
-	@PROFILE=1 TABLES=$(or $(TABLES),12) bash ./bin/run-bots-games.sh $(or $(GAMES),48)
+	@PROFILE=1 TABLES=12 bash ./bin/run-bots-games.sh 48
