@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 SECONDS_PER_HOUR = 3600
 SECONDS_PER_MINUTE = 60
+HISTORY_GAMES_LIMIT = 20
 
 
 @dataclass(frozen=True)
@@ -103,9 +104,12 @@ def _prepare_history_for_display(games: list[PlayedGame], user_id: str) -> list[
 
 
 async def history_page(request: Request) -> Response:
-    """GET /history - render the history page with recent played games."""
+    """
+    GET /history - render the most recent completed games, earliest first.
+    """
     game_repo = request.app.state.game_repo
-    games = await game_repo.get_recent_completed_games(limit=20)
+    recent_games = await game_repo.get_recent_completed_games(limit=HISTORY_GAMES_LIMIT)
+    games = recent_games[::-1]
     display_games = _prepare_history_for_display(games, request.user.user_id)
     return render_page(
         request,
