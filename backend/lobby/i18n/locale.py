@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -52,7 +53,7 @@ def parse_locale(value: object) -> Locale | None:
 
 def _parse_quality(params: list[str]) -> float | None:
     """
-    Return an ``Accept-Language`` entry's q-value (1 when absent), or None when it is malformed.
+    Return an ``Accept-Language`` entry's q-value (1 when absent), or None when it is malformed or outside [0, 1].
     """
     for param in params:
         name, _, value = param.strip().partition("=")
@@ -60,9 +61,11 @@ def _parse_quality(params: list[str]) -> float | None:
             continue
 
         try:
-            return float(value)
+            quality = float(value)
         except ValueError:
             return None
+
+        return quality if math.isfinite(quality) and 0 <= quality <= 1 else None
 
     return 1.0
 
