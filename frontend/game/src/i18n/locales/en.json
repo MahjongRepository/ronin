@@ -237,10 +237,7 @@
     "replay.speed.slow": "Slow",
     "replay.step": "Step {step} / {steps}",
     "replay.step_title": "{label} ({keys}), hold to repeat",
-    "replay.wall_low": {
-        "one": "Wall low: {count} left",
-        "other": "Wall low: {count} left"
-    },
+    "replay.wall_low": "Wall low: {tiles} left",
     "round.east_1": "East 1",
     "round.east_2": "East 2",
     "round.east_3": "East 3",
