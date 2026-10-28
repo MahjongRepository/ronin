@@ -9,6 +9,8 @@ $rounds-width: 280px;
 $rounds-width-narrow: 220px;
 $rounds-portrait-height: min(40dvh, 360px);
 $rounds-open: ":has(> .replay-controls.replay-rounds-open)";
+$summary-seat-column: 116px;
+$summary-more-glow: 24px;
 
 /* The help pops up over the table: above the board's result dialogs (3) and its settings gear (2). */
 $help-z: 4;
@@ -43,8 +45,8 @@ body.board.replay {
             cursor: pointer;
 
             @media (hover: hover) {
-                &:hover {
-                    background: rgb(255 204 102 / 12%);
+                &:hover > * {
+                    background-image: linear-gradient(rgb(255 204 102 / 12%), rgb(255 204 102 / 12%));
                 }
             }
         }
@@ -52,6 +54,86 @@ body.board.replay {
         @media (pointer: coarse) {
             > .board > .summary .body .row-diff > * {
                 height: 52px;
+            }
+        }
+
+        /* A grid whose rounds alone scroll, so the totals and the exit below them stay in view; a sticky
+           footer would do, but WebKit misplaces one under the table's scale transform. */
+        @supports (grid-template-columns: subgrid) {
+            > .board > .summary > div {
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                max-height: 100%;
+
+                > div {
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 0;
+                    margin: 0 auto;
+                }
+            }
+
+            > .board > .summary table {
+                display: grid;
+                flex: 0 1 auto;
+                grid-template-columns: repeat(3, auto) repeat(4, $summary-seat-column);
+                min-height: 0;
+
+                :is(thead, tfoot, tr) {
+                    display: contents;
+                }
+
+                /* The glow sits at the box's bottom edge; the cover, at the rounds' end, hides it once scrolled there. */
+                tbody {
+                    display: grid;
+                    grid-column: 1 / -1;
+                    grid-template-columns: subgrid;
+                    min-height: 0;
+                    overflow-y: auto;
+                    overscroll-behavior: contain;
+                    background:
+                        linear-gradient($dialog-background, $dialog-background) center bottom / 100%
+                            $summary-more-glow no-repeat local,
+                        linear-gradient(transparent, rgb(255 255 255 / 18%)) center bottom / 100%
+                            $summary-more-glow no-repeat scroll;
+                }
+
+                :is(th, td) {
+                    align-content: center;
+                }
+
+                .row-rank .title {
+                    grid-row: span 2;
+                    border-bottom: solid 2px white;
+                }
+
+                :is(.title, .label, .row-gongtuo th) {
+                    grid-column: span 3;
+                }
+
+                .row-player .player {
+                    width: auto;
+                    max-width: none;
+                    border-bottom: solid 2px white;
+                }
+
+                .row-gongtuo > * {
+                    border-top: solid 1px $grey-700;
+                }
+
+                .row-defen > * {
+                    border-top: solid 2px white;
+                }
+
+                .row-point > * {
+                    border-top: solid 1px white;
+                }
+            }
+
+            .replay-summary-hint,
+            > .board > .summary .footer {
+                flex: none;
             }
         }
 
@@ -253,6 +335,17 @@ body.board.replay {
     max-width: 100%;
     padding: 0 12px;
     font-size: 14px;
+}
+
+.replay-options-head {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+
+.replay-options-head::after {
+    content: "·";
+    flex: none;
 }
 
 .replay-options-view {

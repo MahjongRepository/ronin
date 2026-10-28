@@ -14,7 +14,6 @@ import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "./speeds.js";
 /** Fewer tiles left in the wall than this is a low wall, as Tenhou warns of it. */
 const LOW_WALL = 8;
 
-const FINAL_STANDINGS = "Final standings";
 const FINAL_ROUND = "All last";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -193,12 +192,15 @@ function optionsMarkup() {
         );
 }
 
-/** Opens the options in the info's place where the strip has no room for both; it names the seat viewed from and the speed. */
+/**
+ * Opens the options in the info's place where the strip has no room for both; it names the seat viewed from and the
+ * speed, the dot between them kept with the seat so a wrapped speed never starts its line with it.
+ */
 function optionsToggle() {
     return $('<button type="button" class="replay-options-toggle" aria-expanded="false">')
         .attr({ "aria-controls": OPTIONS_ID, title: "Replay options" })
         .append(
-            $('<span class="replay-options-view">'),
+            $('<span class="replay-options-head">').append($('<span class="replay-options-view">')),
             $('<span class="replay-options-tail">').append(
                 $('<span class="replay-options-speed">'),
                 $('<span class="replay-options-chevron" aria-hidden="true">').text("▾"),
@@ -206,10 +208,10 @@ function optionsToggle() {
         );
 }
 
-/** Where the position stands in its round, counted from 1 at the deal; the standings are not a step of the round. */
+/** Where the position stands in its round, counted from 1 at the deal; the standings are no step of it and have none. */
 function stepText(round, state) {
     if (state.kind === POSITION.SUMMARY) {
-        return FINAL_STANDINGS;
+        return "";
     }
     const steps = round.positions.filter((position) => position.kind !== POSITION.SUMMARY);
     return `Step ${state.step + 1}\u00a0/\u00a0${steps.length}`;
@@ -601,7 +603,7 @@ export class ReplayControls {
         $(".replay-options-view", this.#optionsToggle).text(
             `View: ${this.#replay.players[state.seat]}`,
         );
-        $(".replay-options-speed", this.#optionsToggle).text(` · ${speedName(state.speed)}`);
+        $(".replay-options-speed", this.#optionsToggle).text(speedName(state.speed));
         const position = `${state.round}/${state.step}/${state.page}`;
         if (position !== this.#shownPosition) {
             this.#shownPosition = position;
@@ -619,7 +621,10 @@ export class ReplayControls {
         const info = this.element;
         this.#showAction(lastAction(this.#replay, state));
         $(".replay-final", info).toggleClass("hide", !round.final);
-        $(".replay-step", info).text(stepText(round, state));
+        const step = stepText(round, state);
+        $(".replay-step", info)
+            .text(step)
+            .toggleClass("hide", step === "");
         const warning = wallWarning(state);
         $(".replay-wall-low", info)
             .text(warning)

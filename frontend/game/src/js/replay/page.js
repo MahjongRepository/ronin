@@ -33,8 +33,10 @@ function errorText({ kind, line }) {
 }
 
 /**
- * Replace the board with a message and the ways back to the lobby, and the retries where they may help: the page again,
- * and `startOver` (the replay from its start) where reloading the position shown may fail the same way.
+ * Replace the page with a message and the ways back to the lobby, and the retries where they may help: the page again,
+ * and `startOver` (the replay from its start) where reloading the position shown may fail the same way. It takes the
+ * loading screen's layout, its status line the message and its link the ways out, so a load that waited on the replay
+ * turns into its problem in place.
  */
 function showProblem(text, { retry = false, startOver = null } = {}) {
     const links = $('<p class="replay-problem-links">').append(
@@ -45,9 +47,15 @@ function showProblem(text, { retry = false, startOver = null } = {}) {
     );
     $("body")
         .removeClass("board")
-        .addClass("page")
         .empty()
-        .append($('<main class="replay-problem" lang="en">').append($("<h1>").text(text), links));
+        .append(
+            $('<main class="game-loading replay-problem" lang="en">').append(
+                $('<div class="loading-brand">').text("RONIN"),
+                $('<div class="loading-mark" aria-hidden="true">').text("東"),
+                $("<h1>").text(text),
+                links,
+            ),
+        );
 }
 
 function showDamaged(line, ...logged) {

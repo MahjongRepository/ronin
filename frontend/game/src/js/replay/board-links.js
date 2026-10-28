@@ -13,6 +13,21 @@ const NAMEPLATES = Object.freeze(["main", "xiajia", "duimian", "shangjia"]);
 const AI_TITLE = ` (${SEAT_MARK_TEXT[SEAT_MARK.AI]})`;
 
 /**
+ * Give a table and its parts their roles and spans explicitly, as the replay lays its standings out as a grid, where
+ * some browsers drop a table's native semantics.
+ */
+function markTableRoles(table) {
+    table.attr("role", "table");
+    $("thead, tbody, tfoot", table).attr("role", "rowgroup");
+    $("tr", table).attr("role", "row");
+    $("thead :is(th, td)", table).attr("role", "columnheader");
+    $(":is(tbody, tfoot) th", table).attr("role", "rowheader");
+    $(":is(tbody, tfoot) td", table).attr("role", "cell");
+    $("[colspan]", table).each((_, cell) => cell.setAttribute("aria-colspan", cell.colSpan));
+    $("[rowspan]", table).each((_, cell) => cell.setAttribute("aria-rowspan", cell.rowSpan));
+}
+
+/**
  * Where the standings' exit leads: back to the lobby page the replay was opened from, else the game history. A page of
  * this client is never one to go back to: the finished game's page, which its standings' 牌譜を見る replaced, would
  * only bounce to the lobby.
@@ -68,6 +83,7 @@ export class BoardLinks {
         this.#titleNameplates(state);
         if (state.kind === POSITION.SUMMARY) {
             this.#linkStandingsRounds();
+            markTableRoles($(".summary table", this.root));
         }
     }
 

@@ -268,6 +268,30 @@
                             font-size: 17px;
                         }
 
+                        /* More than four yaku run in two columns, as on Tenhou, so 次へ stays on the short screen. */
+                        .hupai:has(.row-hupai:nth-of-type(5)) {
+                            display: block;
+                            width: fit-content;
+                            columns: 2;
+                            column-gap: 32px;
+
+                            .row-hupai {
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 16px;
+                                break-inside: avoid;
+                            }
+
+                            .row-defen {
+                                display: block;
+                                column-span: all;
+
+                                .defen {
+                                    display: block;
+                                }
+                            }
+                        }
+
                         .jicun {
                             font-size: 13px;
                         }
