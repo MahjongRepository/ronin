@@ -20,13 +20,16 @@ export const WHEEL_STEP_MS = 150;
 /** A wheel quiet this long ends its gesture: the next one may step at once, even from a result. */
 export const WHEEL_GESTURE_GAP_MS = 200;
 
+/** Overflow this small is a text box a fraction of a pixel past the box's edge, rounded up, not content to scroll to. */
+const SCROLL_SLACK_PX = 3;
+
 /** Whether `element`, up to the stage, is a box that scrolls its own content, such as tall final standings. */
 function isInScrollingBox(element, stage) {
     for (let node = element; node !== null && node !== stage; node = node.parentElement) {
         const { overflowY } = window.getComputedStyle(node);
         if (
             (overflowY === "auto" || overflowY === "scroll") &&
-            node.scrollHeight > node.clientHeight
+            node.scrollHeight - node.clientHeight > SCROLL_SLACK_PX
         ) {
             return true;
         }

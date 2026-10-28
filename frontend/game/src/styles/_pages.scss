@@ -22,20 +22,45 @@ body.storybook {
     text-align: center;
 }
 
-.replay-problem {
-    padding: 40px;
-    text-align: center;
+.game-loading.replay-problem {
+    justify-content: flex-start;
+    overflow-y: auto;
+
+    > :first-child {
+        margin-top: auto;
+    }
+
+    > :last-child {
+        margin-bottom: auto;
+    }
 
     h1 {
-        font-size: 24px;
-        font-weight: normal;
+        margin: 0;
+        font: inherit;
     }
 
     .replay-problem-links {
         display: flex;
+        flex-wrap: wrap;
         justify-content: center;
-        gap: 24px;
-        font-size: 18px;
+        gap: 0 16px;
+
+        @media (pointer: coarse) {
+            row-gap: 48px;
+        }
+
+        a {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            padding: 0 8px;
+
+            /* 44pt on a phone, which draws the page at about half scale, without pushing the screen taller. */
+            @media (pointer: coarse) {
+                min-height: 92px;
+                margin-block: -24px;
+            }
+        }
     }
 }
 

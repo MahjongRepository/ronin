@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../majiang.js";
 import PAGE from "../../../index.html?raw";
 import { GAME_PREF_KEY } from "../game-prefs.js";
+import { finishLoading } from "../loading.js";
 import { ROUNDS_IN_STRIP_MEDIA } from "../replay/rounds.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/hold.js";
 import { parseReplay } from "../replay/load.js";
@@ -36,6 +37,7 @@ function label() {
     return {
         round: $(".replay-round").text(),
         step: $(".replay-step").text(),
+        action: $(".replay-action").text(),
         ended: $(".replay-ended").text(),
     };
 }
@@ -53,6 +55,10 @@ function disabled() {
     return Object.fromEntries(
         Object.entries(buttons).map(([name, selector]) => [name, $(selector).prop("disabled")]),
     );
+}
+
+function toggleText() {
+    return [$(".replay-options-view").text(), $(".replay-options-speed").text()];
 }
 
 function problem() {
@@ -213,7 +219,7 @@ describe("showReplay", () => {
         });
     });
 
-    it("explains a replay it cannot load and links back, offering a retry after a failed load", async () => {
+    it("explains a replay it cannot load in the loading screen's layout and links back, offering a retry after a failed load", async () => {
         vi.useFakeTimers();
         stubFetch(new Response("", { status: 404 }));
         const shown = showReplay("g-1", Promise.reject(new Error("tile decode failed")));
@@ -223,6 +229,8 @@ describe("showReplay", () => {
         await vi.runAllTimersAsync();
         await shown;
         expect(problem()).toEqual({ text: "Replay not found", links: ["/history", "/"], board: 0 });
+        finishLoading();
+        expect($(".game-loading.replay-problem h1").text()).toBe("Replay not found");
 
         stubFetch(new Response("", { status: 500 }));
         await showReplay("g-1", Promise.resolve());
@@ -415,13 +423,13 @@ describe("ReplayControls", () => {
         $(".replay-back").trigger("click");
 
         $(".replay-next").trigger("pointerdown");
-        expect(label().step).toBe("Final standings");
+        expect(label().action).toBe("Final standings");
         expect(disabled().next).toBe(true);
         $(window).trigger("pointerup");
         $(".replay-back").trigger("click");
         $(".replay-next").trigger("click");
 
-        expect(label().step).toBe("Final standings");
+        expect(label().action).toBe("Final standings");
     });
 
     it("names the last action, its Japanese marked as such", async () => {
@@ -460,7 +468,7 @@ describe("ReplayControls", () => {
 
         expect(seatChoices()).toEqual(["南 Wanjirou", "西 Ojisan", "北 Ichihime", "東 Akagi"]);
         expect($(".replay-seat").val()).toBe("3");
-        expect(toggle.text()).toBe("View: Akagi · Normal▾");
+        expect(toggleText()).toEqual(["View: Akagi", "Normal"]);
 
         toggle.trigger("click");
         expect(isExpanded(".replay-options-toggle")).toBe(true);
@@ -473,7 +481,7 @@ describe("ReplayControls", () => {
         expect(stepNumber()).toBe(5);
         expect($(".replay-action").text()).toBe(action);
         expect(isExpanded(".replay-options-toggle")).toBe(false);
-        expect(toggle.text()).toBe("View: Ichihime · Normal▾");
+        expect(toggleText()).toEqual(["View: Ichihime", "Normal"]);
 
         expect($("#board .board > .player.shangjia").attr("title")).toBe("View from Ojisan");
         $("#board .board > .player.shangjia").trigger("click");
@@ -689,7 +697,7 @@ describe("bindKeys", () => {
         press("ArrowUp");
         expect(where()).toMatch(/^東二局 1本場 Step 1\u00a0/);
         press("End");
-        expect(label().step).toBe("Final standings");
+        expect(label().action).toBe("Final standings");
         press("Home");
         expect(where()).toMatch(/^東一局 0本場 Step 1\u00a0/);
 
@@ -854,12 +862,20 @@ describe("bindWheel", () => {
         $(".replay-last").trigger("click");
         vi.runAllTimers();
         const standings = $("#board .summary").css("overflow-y", "auto")[0];
-        Object.defineProperty(standings, "scrollHeight", { value: 1000 });
+        let contentHeight = 1000;
+        Object.defineProperty(standings, "scrollHeight", { get: () => contentHeight });
         Object.defineProperty(standings, "clientHeight", { value: 100 });
         expect(wheelOver($(".row-diff", standings)[0], -WHEEL_STEP_PX).defaultPrevented).toBe(
             false,
         );
-        expect(label().step).toBe("Final standings");
+        expect(label().action).toBe("Final standings");
+
+        contentHeight = 102;
+        vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
+        expect(wheelOver($(".row-diff", standings)[0], -WHEEL_STEP_PX).defaultPrevented).toBe(
+            true,
+        );
+        expect(label().action).not.toBe("Final standings");
     });
 });
 
@@ -881,7 +897,7 @@ describe("readPosition", () => {
 });
 
 describe("PositionUrl", () => {
-    it("opens paused at the URL's seat and position, the standings at the last round's last step", async () => {
+    it("opens paused at the URL's seat and position, the standings at the last round's last step, marked as a table", async () => {
         openAt("?seat=1&round=2&step=5");
         await open(FULL_GAME);
 
@@ -899,7 +915,19 @@ describe("PositionUrl", () => {
         openAt(`?round=${lastRound}&step=${rounds[lastRound].positions.length - 1}`);
         await open(FULL_GAME);
 
-        expect(label().step).toBe("Final standings");
+        expect(label()).toMatchObject({ action: "Final standings", step: "" });
+        expect($(".replay-step").hasClass("hide")).toBe(true);
+        const roles = (row) =>
+            $(row)
+                .children()
+                .map((_, cell) => cell.getAttribute("role"))
+                .get();
+        expect(roles("#board .summary .row-player")).toEqual(Array(4).fill("columnheader"));
+        expect(roles($("#board .summary .row-diff").last())).toEqual([
+            ...Array(3).fill("rowheader"),
+            ...Array(4).fill("cell"),
+        ]);
+        expect($("#board .summary .row-rank .title").attr("aria-rowspan")).toBe("2");
     });
 
     it("writes a bad query's fallback into the address bar, dropping anything else", async () => {

@@ -19,6 +19,9 @@ const WIND_NAMES = Object.freeze(HONOR_NAMES.slice(1, 5));
 /** What the strip and the round list say where the replay stops before the game's end. */
 export const CUT_OFF = "Cut off: the server stopped the game";
 
+/** What the strip says at the standings, the position after the game's last result. */
+const FINAL_STANDINGS = "Final standings";
+
 /** Each draw's name in English, beside the board's Japanese one. */
 const DRAW_TEXT = Object.freeze({
     [DRAW_NAMES.EXHAUSTIVE]: "Exhaustive draw",
@@ -261,6 +264,7 @@ function positionParts(replay, round, position, { page, seat, openHands }) {
     const tileShown = (l) => openHands || seatOfL(l, round.dealer) === seat;
     switch (position.kind) {
         case POSITION.SUMMARY:
+            return [FINAL_STANDINGS];
         case POSITION.SILENT:
             return [];
         case POSITION.DEAL:
@@ -275,8 +279,8 @@ function positionParts(replay, round, position, { page, seat, openHands }) {
 /**
  * The last action of the position the viewer `state` stands at, as English strings and `{ ja }` Japanese parts:
  * "Alice: riichi, discards 中", "Charlie: pon 中 ← Alice". A result tells the round's outcome (every win of a double
- * ron, numbered by the win the dialog shows: "Double ron 1/2 from …"); the standings, and silent records at a
- * truncated end, name nothing. With opponents' hands hidden, their draws keep their tiles hidden too. The position's
+ * ron, numbered by the win the dialog shows: "Double ron 1/2 from …"), the standings say so, and silent records at a
+ * truncated end name nothing. With opponents' hands hidden, their draws keep their tiles hidden too. The position's
  * notes of who controls a seat follow, each after a " · ": "Alice deals · Bob returns · AI plays for Diana (left)".
  */
 export function lastAction(replay, { round: roundIndex, step, page = 0, seat, openHands }) {
