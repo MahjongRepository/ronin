@@ -87,6 +87,7 @@
     "lobby.tables.title": "Custom tables",
     "nav.aria_label": "Main",
     "nav.history": "History",
+    "nav.language_menu": "Language: {language}",
     "nav.log_in": "Log in",
     "nav.log_out": "Log out",
     "nav.logo_label": "Ronin logo",

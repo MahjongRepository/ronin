@@ -112,3 +112,14 @@ def test_register_route__when_username_taken_and_lang_is_ru__should_show_the_rus
     )
     assert '<html lang="ru"' in response.text
     assert "Имя «taken_name» уже занято." in response.text
+
+
+def test_language_menu__when_page_is_rendered__should_mark_the_active_language_and_return_to_the_page(client):
+    client.cookies.set("lang", "ru")
+
+    response = client.get("/login?next=%2Fhistory")
+    assert 'action="/lang"' in response.text
+    assert '<input type="hidden" name="next" value="/login?next=%2Fhistory">' in response.text
+    assert 'value="ru" lang="ru" aria-current="true">Русский</button>' in response.text
+    assert 'value="ja" lang="ja">日本語</button>' in response.text
+    assert 'value="en" lang="en">English</button>' in response.text

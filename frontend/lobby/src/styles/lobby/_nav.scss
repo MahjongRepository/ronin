@@ -36,6 +36,17 @@
     }
 }
 
+.lobby-brand-name {
+    @media (width <= 576px) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+
 .lobby-logo {
     display: inline-block;
     width: 2.5rem;
@@ -102,6 +113,91 @@
     .lobby-nav .lobby-nav-link {
         display: inline-flex;
         align-items: center;
+        min-height: var(--ronin-touch-target);
+    }
+}
+
+.lobby-lang form {
+    margin: 0;
+}
+
+.lobby-nav details.lobby-lang-switch {
+    > summary:not([role]) {
+        display: inline-flex;
+        align-items: center;
+        height: auto;
+        padding: 0.25rem 0;
+        border: 0;
+        background: none;
+        font-size: 0.85rem;
+        color: var(--ronin-text-secondary);
+        white-space: nowrap;
+        list-style: none;
+        cursor: pointer;
+
+        &::-webkit-details-marker {
+            display: none;
+        }
+
+        &::after {
+            float: none;
+            width: 0.4rem;
+            height: 0.4rem;
+            margin-inline-start: 0.45rem;
+            border-right: 1.5px solid currentcolor;
+            border-bottom: 1.5px solid currentcolor;
+            background-image: none;
+            transform: translateY(-0.15rem) rotate(45deg);
+        }
+
+        &:hover {
+            color: var(--pico-primary);
+        }
+    }
+
+    &[open] > summary:not([role])::after {
+        transform: translateY(0.1rem) rotate(-135deg);
+    }
+
+    > summary + ul {
+        right: 0;
+        left: auto;
+        width: auto;
+
+        li {
+            padding: 0;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            margin: 0;
+            padding: 0.5rem 1rem;
+            border: 0;
+            border-radius: 0;
+            background: none;
+            font-size: 0.9rem;
+            color: var(--pico-dropdown-color);
+            text-align: start;
+
+            &:hover,
+            &[aria-current="true"] {
+                background-color: var(--pico-dropdown-hover-background-color);
+            }
+
+            &[aria-current="true"] {
+                color: var(--pico-primary);
+            }
+        }
+    }
+}
+
+@media (width <= 576px), (pointer: coarse) {
+    .lobby-nav details.lobby-lang-switch > summary:not([role]) {
+        min-height: var(--ronin-touch-target);
+    }
+
+    .lobby-nav details.lobby-lang-switch > summary + ul button {
         min-height: var(--ronin-touch-target);
     }
 }

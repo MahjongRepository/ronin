@@ -82,6 +82,7 @@
     "lobby.tables.title": "カスタム卓",
     "nav.aria_label": "メイン",
     "nav.history": "履歴",
+    "nav.language_menu": "言語：{language}",
     "nav.log_in": "ログイン",
     "nav.log_out": "ログアウト",
     "nav.logo_label": "Ronin ロゴ",
