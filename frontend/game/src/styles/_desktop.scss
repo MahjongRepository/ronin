@@ -75,8 +75,10 @@
         min-width: 180px + 4 * 66px;
 
         .button {
-            width: 4em;
+            box-sizing: border-box;
+            min-width: 4em;
             height: 24px;
+            padding-inline: 4px;
             margin-left: 2px;
             font-size: 16px;
         }
@@ -93,7 +95,9 @@
         }
 
         .back {
-            width: 4em;
+            box-sizing: border-box;
+            min-width: 4em;
+            padding-inline: 4px;
             height: 24px;
             margin-left: 4px;
             font-size: 16px;
