@@ -27,9 +27,14 @@ PLURAL_PARAM = "count"
 PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
 HTML_TAG = re.compile(r"<[A-Za-z/]")
 KEY_SHAPE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$")
-LOOKUP_CALL = re.compile(r"""\b(?:t|tParts|tNodes)\(\s*(["'`])([^"'`$]*?)\1""")
+LOOKUP_CALL = re.compile(
+    r"""\b(?:t|tParts|tNodes|translate|translate_markup|translate_for_request)\("""
+    r"""\s*(?:[A-Za-z_][\w.]*\s*,\s*)?(["'`])([^"'`$]*?)\1"""
+)
 I18N_ATTRIBUTE = re.compile(r"""\bdata-i18n(?:-[a-z-]+)?\s*=\s*(["'])([^"']*)\1""")
 STRING_LITERAL = re.compile(r"""(["'`])([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)\1""")
+QUOTED_LITERAL = re.compile(r"""(["'])([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)\1""")
+FILE_NAME_SUFFIXES = (".html", ".json", ".js", ".ts", ".py")
 SKIPPED_DIRS = frozenset({"node_modules", "dist", "coverage", "tests", "__tests__", "__pycache__", ".venv"})
 
 
@@ -45,6 +50,7 @@ class App:
     source_suffixes: frozenset[str]
     dynamic_prefixes: tuple[str, ...] = ()
     identical_keys: frozenset[str] = frozenset()
+    literals_in_namespaces_are_keys: bool = False
 
 
 APPS = (
@@ -54,6 +60,7 @@ APPS = (
         source_roots=("backend/lobby",),
         source_suffixes=frozenset({".py", ".html"}),
         dynamic_prefixes=("auth.error.",),
+        literals_in_namespaces_are_keys=True,
     ),
     App(
         name="lobby scripts",
@@ -238,15 +245,23 @@ def check_usage(app: App, en_path: Path, en: Catalog) -> list[Problem]:
     Check that every literal key looked up in code exists in en, and every en key is used somewhere.
 
     A key counts as used when it appears in code as a whole string literal (a lookup, a data-i18n attribute or a
-    constant naming it), or when it falls under one of the app's dynamic prefixes.
+    constant naming it), or when it falls under one of the app's dynamic prefixes. In an app whose code holds keys in
+    tables and constants (the lobby server's error pages and notices), every dotted literal whose first word is one of
+    the catalog's namespaces counts as a lookup too, so a typo in a table fails like one in a call.
     """
     problems: list[Problem] = []
     used: set[str] = set()
+    namespaces = {key.split(".")[0] for key in en}
     for source in iter_sources(app):
         text = source.read_text(encoding="utf-8")
         looked_up = [match[1] for match in LOOKUP_CALL.findall(text)]
         looked_up.extend(match[1] for match in I18N_ATTRIBUTE.findall(text))
-        for key in looked_up:
+        if app.literals_in_namespaces_are_keys:
+            literals = (match[1] for match in QUOTED_LITERAL.findall(text))
+            looked_up.extend(
+                key for key in literals if key.split(".")[0] in namespaces and not key.endswith(FILE_NAME_SUFFIXES)
+            )
+        for key in sorted(set(looked_up)):
             if not KEY_SHAPE.match(key):
                 continue
 
