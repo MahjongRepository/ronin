@@ -29,11 +29,10 @@ export const POSITION = Object.freeze({
 });
 
 /**
- * What a position's note says of the seat it names: its turn or call timed out (`timeout`, the wire's timeout kind),
- * an AI player replaced its human (`reason`, the wire's seat control reason), or its human returned.
+ * What a position's note says of the seat it names: an AI player replaced its human (`reason`, the wire's seat control
+ * reason), or its human returned.
  */
 export const NOTE = Object.freeze({
-    TIMEOUT: "timeout",
     AI_REPLACEMENT: "ai_replacement",
     HUMAN_RETURN: "human_return",
 });
@@ -107,24 +106,11 @@ function notesField(notes) {
     return notes.length > 0 ? { notes } : {};
 }
 
-function checkSeat(seat, subject) {
-    if (!Number.isInteger(seat) || seat < 0 || seat >= SEATS) {
-        throw new Error(`${subject} of unknown seat ${seat}`);
-    }
-}
-
-/** The note of a timeout line: the seat whose turn or call ran out, and which of the two. */
-function timeoutNote(line) {
-    checkSeat(line.s, "timeout");
-    if (!Object.values(wire.TIMEOUT_KIND).includes(line.k)) {
-        throw new Error(`unknown timeout kind ${line.k}`);
-    }
-    return { kind: NOTE.TIMEOUT, seat: line.s, timeout: line.k };
-}
-
 /** The note of a seat control line: the seat's AI replacement, with its reason, or its human's return. */
 function seatControlNote(line) {
-    checkSeat(line.s, "seat control");
+    if (!Number.isInteger(line.s) || line.s < 0 || line.s >= SEATS) {
+        throw new Error(`seat control of unknown seat ${line.s}`);
+    }
     switch (line.ai) {
         case 1:
             if (!Object.values(wire.SEAT_CONTROL_REASON).includes(line.r)) {
@@ -142,16 +128,9 @@ function isAbsentAtTheDeal(note) {
     return note.kind === NOTE.AI_REPLACEMENT && note.reason === wire.SEAT_CONTROL_REASON.ABSENT;
 }
 
-/** The seats AI players control, by absolute seat, after a note; a timeout changes none. */
+/** The seats AI players control, by absolute seat, after a note. */
 function withSeatControl(aiSeats, note) {
-    switch (note.kind) {
-        case NOTE.AI_REPLACEMENT:
-            return aiSeats.with(note.seat, true);
-        case NOTE.HUMAN_RETURN:
-            return aiSeats.with(note.seat, false);
-        default:
-            return aiSeats;
-    }
+    return aiSeats.with(note.seat, note.kind === NOTE.AI_REPLACEMENT);
 }
 
 /**
@@ -346,8 +325,8 @@ class RoundBuilder {
     }
 
     /**
-     * A note (a turn or call timeout, a seat's AI replacement or its human's return) shows nothing of its own: it names
-     * its seat on the next visible position, which may be another seat's (a call-timeout pass folds into the next draw).
+     * A note (a seat's AI replacement or its human's return) shows nothing of its own: it names its seat on the next
+     * visible position, which may be another seat's.
      */
     note(note) {
         this.addSilent(null, note);
@@ -379,8 +358,8 @@ class RoundBuilder {
 
     /**
      * A round end closes the round with its result position, which takes in the silent records before it. A robbed
-     * kan, which no meld record shows, is first its own position, declared as a call; the notes pending then (a
-     * chankan prompt's timeouts, an AI replacement during it) came after its declaration, so they stay for the result.
+     * kan, which no meld record shows, is first its own position, declared as a call; the notes pending then (an
+     * AI replacement during its chankan prompt) came after its declaration, so they stay for the result.
      */
     closeAtRoundEnd(roundEnd) {
         if (roundEnd.rk != null) {
@@ -471,8 +450,6 @@ class ReplayBuilder {
                 return this.currentRound().revealDora(line.ti);
             case wire.E.RIICHI_DECL:
                 return this.currentRound().declareRiichi(line.s);
-            case wire.REPLAY_LINE.TIMEOUT:
-                return this.currentRound().note(timeoutNote(line));
             case wire.REPLAY_LINE.SEAT_CONTROL:
                 return this.controlSeat(seatControlNote(line));
             case wire.E.ROUND_END:

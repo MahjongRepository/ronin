@@ -15,17 +15,7 @@ class ReplayLineType(IntEnum):
     Its values share the `t` space with WireEventType and never take one of its values.
     """
 
-    TIMEOUT = 100
     SEAT_CONTROL = 101
-
-
-class ReplayTimeoutKind(IntEnum):
-    """
-    Integer `k` of a timeout line: the wait the seat let run out.
-    """
-
-    TURN = 0
-    CALL = 1
 
 
 class ReplaySeatControlReason(IntEnum):

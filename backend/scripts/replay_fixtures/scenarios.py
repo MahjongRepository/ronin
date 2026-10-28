@@ -5,7 +5,7 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from game.logic.enums import AbortiveDrawType, KanType, TimeoutType
+from game.logic.enums import AbortiveDrawType, KanType
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import NUM_TILES, is_terminal_or_honor, tile_to_34
 from game.replay import load_replay_from_file, run_replay
@@ -314,10 +314,10 @@ def chankan_added() -> Recording:
     return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
 
 
-def chankan_timeout() -> Recording:
+def chankan_ai_replacement() -> Recording:
     """
-    Raise a pon of 6p to an added kan that two hands waiting on 6p may rob: seat 3's chankan prompt times out into a
-    pass, then seat 2 robs it.
+    Raise a pon of 6p to an added kan that two hands waiting on 6p may rob: seat 3 leaves during the chankan prompt, its
+    AI player passes, then seat 2 robs it.
 
     Seat 3 is one tile from ready until its draw, so the pon's 6p offers it no ron.
     """
@@ -339,7 +339,7 @@ def chankan_timeout() -> Recording:
             (1, added_kan_tile),
         ),
     )
-    game = StagedGame("chankan-timeout", staged)
+    game = StagedGame("chankan-ai-replacement", staged)
     game.discard(0, ponned_tile)
     game.pon(1, ponned_tile)
     game.discard(1, tile(1, honors="1"))
@@ -347,7 +347,7 @@ def chankan_timeout() -> Recording:
     game.discard(3, tile(3, honors="1"))
     game.tsumogiri(0)
     game.kan(1, added_kan_tile, KanType.ADDED)
-    game.time_out(3, TimeoutType.MELD)
+    game.replace_with_ai(3, ReplaySeatControlReason.LEFT)
     game.ron(2)
     return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
 
@@ -585,35 +585,6 @@ def four_kans() -> Recording:
     return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_KANS}))
 
 
-def timeouts() -> Recording:
-    """
-    Let the dealer's first turn time out into its default discard, then seat 3's pon prompt time out into a pass before
-    seat 2's draw, whose discard seat 1 rons; then deal the next round, whose dealer, seat 1, times out its first turn.
-    """
-    ponnable_haku = tile(2, honors="5")
-    winning_tile = tile(1, pin="4")
-    staged = StagedWall(
-        hands=(
-            tile_copies(2, man="1", pin="1569", sou="1589", honors="1234"),
-            tile_copies(0, man="123456789", pin="23", sou="11"),
-            (*tile_copies(0, sou="234567", pin="789"), *tile_copies(1, man="5567")),
-            (*tile_copies(3, man="1", pin="1569", sou="1589", honors="12"), *tile_copies(0, honors="55")),
-        ),
-        draws=((0, tile(0, honors="6")), (1, ponnable_haku), (2, winning_tile)),
-    )
-    game = StagedGame("timeouts", staged)
-    game.time_out(0, TimeoutType.TURN)
-    game.tsumogiri(1)
-    game.time_out(3, TimeoutType.MELD)
-    game.tsumogiri(2)
-    game.ron(1)
-    game.confirm_round()
-    game.time_out(1, TimeoutType.TURN)
-    return game.replay(
-        Outcome({"rt": WireRoundResultType.RON, "ws": 1, "ls": 2}, then=(WireEventType.ROUND_STARTED, {"dl": 1}))
-    )
-
-
 def ai_replacements() -> Recording:
     """
     Replace seat 3, absent at the deal, with an AI player, which declines a pon of haku within seat 1's discard; then
@@ -731,7 +702,7 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "double_ron_head_bump.txt": double_ron_head_bump,
     "head_bump.txt": head_bump,
     "chankan_added.txt": chankan_added,
-    "chankan_timeout.txt": chankan_timeout,
+    "chankan_ai_replacement.txt": chankan_ai_replacement,
     "chankan_closed_kokushi.txt": chankan_closed_kokushi,
     "triple_ron.txt": triple_ron,
     "pao.txt": pao,
@@ -741,7 +712,6 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "four_winds_riichi.txt": four_winds_riichi,
     "four_riichi.txt": four_riichi,
     "four_kans.txt": four_kans,
-    "timeouts.txt": timeouts,
     "ai_replacements.txt": ai_replacements,
     "eager_game.txt": eager_game,
     "double_ron_on_honba.txt": double_ron_on_honba,

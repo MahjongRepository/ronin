@@ -874,20 +874,16 @@ class SessionManager:
 
     def _handle_timeout(self, participant: Participant, timeout_type: TimeoutType) -> None:
         """
-        Record a fired turn or call timer in the replay when the game still awaits its seat, as the engine requires
-        before it plays a default action, then run that action; any unexpected error ends the game through fail_game.
+        Run a fired timer's default action; any unexpected error ends the game through fail_game.
 
-        The action needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer,
-        and a cancel after its sleep ended still stops it before this runs. It logs as the timer's own seat: the timer
-        task copied the log context of whatever armed it, often another seat's action.
+        It needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer, and a
+        cancel after its sleep ended still stops it before this runs. It logs as the timer's own seat: the timer task
+        copied the log context of whatever armed it, often another seat's action.
         """
         game = participant.game
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=participant.seat)
         try:
             seat = self._seat_of(participant)
-            if game.replay is not None and game.awaiting is not None and seat in game.awaiting.seats:
-                self._replay_collector.record_timeout(game.replay, seat=seat, timeout_type=timeout_type)
-
             update = self._game_service.handle_timeout(self._runtime_of(game), seat=seat, timeout_type=timeout_type)
             self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
         except Exception as exc:  # noqa: BLE001

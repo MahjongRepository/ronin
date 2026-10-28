@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from game.logic.enums import GameAction, KanType, PlayerAction, TimeoutType, WaitKind
+from game.logic.enums import GameAction, KanType, PlayerAction, WaitKind
 from game.logic.events import DrawEvent, ErrorEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
@@ -72,12 +72,6 @@ class ReplayRecorder:
     def record(self, events: Sequence[GameEvent]) -> None:
         self._collector.collect_events(self._record, list(events))
         self._call_ends.append(len(self._record.lines))
-
-    def record_timeout(self, *, seat: int, timeout_type: TimeoutType) -> None:
-        """
-        Record a seat's timeout ahead of the events of its default action, which the next record call adds.
-        """
-        self._collector.record_timeout(self._record, seat=seat, timeout_type=timeout_type)
 
     def record_ai_replacement(self, *, seat: int, reason: ReplaySeatControlReason) -> None:
         """
@@ -297,21 +291,6 @@ class StagedGame(_ScriptedGame):
 
     def kyuushu(self, seat: int) -> None:
         self.act(seat, GameAction.CALL_KYUUSHU)
-
-    def time_out(self, seat: int, timeout_type: TimeoutType) -> None:
-        """
-        Let the seat's turn or call prompt run out, recorded as the session records it: its timeout line, then the
-        events of the default action the engine plays for it.
-
-        A seat the game does not await raises, since the engine would ignore its timeout.
-        """
-        if seat not in self._service.get_awaiting(self._runtime).seats:
-            raise ScenarioError(f"{self._game_id}: seat {seat} timed out while the game does not await it")
-
-        self._recorder.record_timeout(seat=seat, timeout_type=timeout_type)
-        update = self._service.handle_timeout(self._runtime, seat=seat, timeout_type=timeout_type)
-        self._draws.pop(seat, None)
-        self._record(update.events)
 
     def replace_with_ai(self, seat: int, reason: ReplaySeatControlReason) -> None:
         """

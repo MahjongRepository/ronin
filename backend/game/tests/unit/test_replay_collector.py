@@ -1,6 +1,6 @@
 import json
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType, TimeoutType, WindName
+from game.logic.enums import CallType, GameErrorCode, MeldViewType, WindName
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
@@ -263,14 +263,6 @@ class TestReplayCollectorFiltering:
             EVENT_TYPE_INT[EventType.GAME_END],
         ]
         assert types == expected
-
-
-class TestReplayCollectorTimeout:
-    def test_record_timeout__when_round_advance_times_out__should_write_nothing(self):
-        replay = ReplayRecord(seed="b" * 192, rng_version=RNG_VERSION, settings=GameSettings())
-
-        ReplayCollector.record_timeout(replay, seat=0, timeout_type=TimeoutType.ROUND_ADVANCE)
-        assert replay.lines == []
 
 
 class TestReplayCollectorRoundStartedMerge:
