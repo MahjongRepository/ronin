@@ -25,8 +25,6 @@ fi
 BOT_NAMES=(Akagi Tetsuya Ichihime Miki)
 PROFILE_DIR="$PROJECT_ROOT/backend/profiles"
 PROFILE_FILE="$PROFILE_DIR/games_$(date +%Y-%m-%d_%H-%M-%S).samples.txt"
-PROFILE_RATE=100
-PY_SPY="py-spy@0.4.2"
 FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
 HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
 
@@ -360,40 +358,6 @@ wait_for_bots() {
     return $failed
 }
 
-stop_profiler() {
-    local profiler=""
-    for pid in $(list_tree "${SERVER_PIDS[0]}"); do
-        if [[ $(ps -o comm= -p "$pid" 2>/dev/null) == py-spy ]]; then
-            profiler="$pid"
-            break
-        fi
-    done
-
-    if [[ -z $profiler ]]; then
-        echo "py-spy is not running under the game server"
-        return 1
-    fi
-
-    local server
-    server=$(pgrep -P "$profiler" || true)
-    if [[ -z $server ]]; then
-        echo "the game server is not running under py-spy"
-        return 1
-    fi
-
-    kill -TERM "$server"
-    wait_for_exit "$server" "$profiler" || return 1
-
-    local status=0
-    wait "${SERVER_PIDS[0]}" || status=$?
-    SERVER_PIDS=("${SERVER_PIDS[@]:1}")
-    if [[ $status -ne 0 ]] &&
-        ! { [[ $status -eq 1 ]] && grep -qa 'No child process' "$GAME_LOG_DIR/stdout.log" "$GAME_LOG_DIR/stderr.log"; }; then
-        echo "py-spy exited with code $status"
-        return 1
-    fi
-}
-
 record_process_state() {
     local pids=()
     for pid in "${SERVER_PIDS[@]}" "${BOT_PIDS[@]}"; do
@@ -415,13 +379,10 @@ archive_failed_run() {
     cp -r "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$FAILED_RUN_DIR/" 2>/dev/null || true
     cp -r "$BOT_LOG_DIR" "$FAILED_RUN_DIR/bot-logs" 2>/dev/null || true
     cp "$HARNESS_LOG" "$FAILED_RUN_DIR/" 2>/dev/null || true
+    cp "$PROFILE_FILE" "$FAILED_RUN_DIR/" 2>/dev/null || true
     {
         echo "exit status: $status"
         echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE"
-        if [[ $PROFILE == 1 ]]; then
-            echo "profiler: ${GAME_LAUNCHER[*]:0:9}"
-            echo "profile: $PROFILE_FILE"
-        fi
         echo "batch seconds: ${BATCH_TIMES[*]}"
         echo "batch game server CPU ticks: ${BATCH_SERVER_TICKS[*]}"
     } > "$FAILED_RUN_DIR/run.txt"
@@ -471,8 +432,7 @@ register_bots
 GAME_LAUNCHER=(uv run --project backend uvicorn)
 if [[ $PROFILE == 1 ]]; then
     mkdir -p "$PROFILE_DIR"
-    GAME_LAUNCHER=(uvx "$PY_SPY" record --function --gil --rate "$PROFILE_RATE" --format raw --output "$PROFILE_FILE"
-        -- backend/.venv/bin/python -m uvicorn)
+    GAME_LAUNCHER=(uv run --project backend python bin/profile_game_server.py "$PROFILE_FILE")
 fi
 
 free_port "$GAME_PORT"
@@ -530,12 +490,6 @@ while [[ $PLAYED -lt $MAX_GAMES ]]; do
     echo ""
 done
 
-if [[ $PROFILE == 1 ]] && ! stop_profiler; then
-    echo "stopping py-spy failed"
-    print_stats
-    exit 1
-fi
-
 if ! stop_servers || ! analyze_logs; then
     echo ""
     echo "issues found during server shutdown"
@@ -547,8 +501,7 @@ print_stats
 
 if [[ $PROFILE == 1 ]]; then
     echo ""
-    if ! (cd "$PROJECT_ROOT" && uv run --project backend python bin/sampled_profile.py --rate "$PROFILE_RATE" \
-        --py-spy-log "$GAME_LOG_DIR/stdout.log" "$PROFILE_FILE"); then
+    if ! (cd "$PROJECT_ROOT" && uv run --project backend python bin/sampled_profile.py "$PROFILE_FILE"); then
         echo "the game server profile is invalid"
         exit 1
     fi

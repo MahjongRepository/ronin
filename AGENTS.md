@@ -47,10 +47,12 @@ The `Makefile` lists the targets; the non-obvious ones:
   missing one), and verifies only the game ids its bots logged, so earlier games and replays are
   kept and never checked. It **wipes** `backend/logs` and the bot's `project/logs` first and kills
   whatever holds `:8710`/`:8711`.
-* `make profile-games [GAMES=n] [TABLES=t]` — the same run (default 48 games, 12 tables) with the
-  game server under py-spy and logging at production's INFO level, then its GIL-holding samples by
-  layer and function, plus its CPU-seconds per game. It points at where real games spend the
-  server's time; `make profile` measures engine changes.
+* `make profile-games` — the same run, fixed at 48 games on 12 tables, with logging at production's
+  INFO level and the game server sampling its own Python stacks per 10 ms of CPU time
+  (`bin/profile_game_server.py`), then those samples by layer and function, plus its CPU-seconds per
+  game. The sampler runs in-process because py-spy, pausing the server per sample, stalled it past
+  the health check in most runs. It points at where real games spend the server's CPU;
+  `make profile` measures engine changes.
 * `make generate-replay-fixtures` — regenerate the game client's replay test fixtures by playing
   the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
   (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.

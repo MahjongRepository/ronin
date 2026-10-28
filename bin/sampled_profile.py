@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import argparse
 import collections
 import re
+import signal
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import CodeType, FrameType
 
-PY_SPY = "py-spy@0.4.2"
 SAMPLE_RATE = 100
 SAMPLED_FRAME = re.compile(r"(?P<name>.*) \((?P<file>.*):(?P<line>\d+)\)$")
-PY_SPY_SUMMARY = re.compile(r"Samples: (?P<samples>\d+) Errors: (?P<errors>\d+)")
-PY_SPY_LAG = "behind in sampling"
 STDLIB_DIR = f"python{sys.version_info.major}.{sys.version_info.minor}/"
 IMPORT_FRAME = "_find_and_load"
 LAYERS = (
@@ -26,11 +24,46 @@ LAYERS = (
 OTHER_LAYER = "other"
 
 type ProfileKey = tuple[str, int, str]
+type Stack = tuple[CodeType, ...]
+
+
+class CpuSampler:
+    """Count the main thread's Python stacks, one sample per 1/SAMPLE_RATE s of the process's CPU time.
+
+    The kernel's ITIMER_PROF delivers SIGPROF and the interpreter runs the handler in the main thread
+    at its next bytecode boundary, so a native call counts toward the Python frame it returns to.
+    Nothing outside the process pauses it, so a run can never stall on the profiler.
+    """
+
+    def __init__(self) -> None:
+        self.stacks: collections.Counter[Stack] = collections.Counter()
+
+    def start(self) -> None:
+        signal.signal(signal.SIGPROF, self.record)
+        signal.siginterrupt(signal.SIGPROF, False)
+        interval = 1 / SAMPLE_RATE
+        signal.setitimer(signal.ITIMER_PROF, interval, interval)
+
+    def stop(self) -> None:
+        signal.setitimer(signal.ITIMER_PROF, 0)
+
+    def record(self, _signum: int, frame: FrameType | None) -> None:
+        codes = []
+        while frame is not None:
+            codes.append(frame.f_code)
+            frame = frame.f_back
+
+        self.stacks[tuple(reversed(codes))] += 1
+
+    def write(self, output: Path) -> None:
+        """Write the samples as collapsed stacks, root first, one `stack count` line each."""
+        lines = [f"{';'.join(_format_code(code) for code in stack)} {count}\n" for stack, count in self.stacks.items()]
+        output.write_text("".join(lines))
 
 
 @dataclass
 class SampleSummary:
-    """Sample counts of a py-spy raw profile; `excluded` holds the samples outside the measured work."""
+    """Sample counts of a sampled profile; `excluded` holds the samples outside the measured work."""
 
     total: int = 0
     excluded: int = 0
@@ -39,26 +72,8 @@ class SampleSummary:
     layer_samples: collections.Counter[str] = field(default_factory=collections.Counter)
 
 
-def py_spy_output_problem(output: str) -> str | None:
-    """Return why a py-spy run's console output makes its profile invalid, or None when it is valid."""
-    summary = PY_SPY_SUMMARY.search(output)
-    if summary is None:
-        return "py-spy printed no sample summary"
-
-    if int(summary["samples"]) == 0:
-        return "py-spy recorded no samples"
-
-    if int(summary["errors"]) > 0:
-        return f"py-spy lost {summary['errors']} samples"
-
-    if PY_SPY_LAG in output:
-        return "py-spy fell behind in sampling"
-
-    return None
-
-
 def summarize_samples(sample_file: Path, *, root: str | None) -> SampleSummary:
-    """Count the samples of a py-spy raw profile that belong to the measured work.
+    """Count the samples of a sampled profile that belong to the measured work.
 
     A sample is excluded when its stack is importing a module or, with `root`, does not pass
     through a function of that name. Each kept sample is charged to the layer of its deepest frame
@@ -84,14 +99,14 @@ def summarize_samples(sample_file: Path, *, root: str | None) -> SampleSummary:
     return summary
 
 
-def print_sampled_profile(sample_file: Path, *, sample_rate: int, root: str | None, by_layer: bool) -> None:
-    """Print the shares of a py-spy raw profile's kept samples, by layer when asked, then by function."""
+def print_sampled_profile(sample_file: Path, *, root: str | None, by_layer: bool) -> None:
+    """Print the shares of a sampled profile's kept samples, by layer when asked, then by function."""
     summary = summarize_samples(sample_file, root=root)
     if summary.total == 0:
         print(f"No samples of the measured work in {sample_file}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Sampled profile: {summary.total} samples at {sample_rate} Hz, {summary.excluded} left out: {sample_file}")
+    print(f"Sampled profile: {summary.total} samples at {SAMPLE_RATE} Hz, {summary.excluded} left out: {sample_file}")
     if by_layer:
         print("Samples by layer, each charged to its deepest frame's layer:")
         _print_shares(summary.layer_samples.most_common(), summary.total)
@@ -135,6 +150,10 @@ def _print_shares(rows: list[tuple[str, int]], total: int) -> None:
     print()
 
 
+def _format_code(code: CodeType) -> str:
+    return f"{code.co_qualname} ({code.co_filename}:{code.co_firstlineno})"
+
+
 def _layer_of(frames: list[ProfileKey]) -> str:
     for filename, _, _ in reversed(frames):
         for layer, fragments in LAYERS:
@@ -145,7 +164,7 @@ def _layer_of(frames: list[ProfileKey]) -> str:
 
 
 def _parse_sampled_frame(frame: str) -> ProfileKey:
-    """Turn a py-spy `name (file:line)` frame into a pstats-style key."""
+    """Turn a sampled `name (file:line)` frame into a pstats-style key."""
     match = SAMPLED_FRAME.match(frame)
     if match is None:
         return ("", 0, frame)
@@ -154,18 +173,8 @@ def _parse_sampled_frame(frame: str) -> ProfileKey:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate and summarize a py-spy raw profile of the game server")
-    parser.add_argument("sample_file", type=Path, help="py-spy raw profile")
-    parser.add_argument("--py-spy-log", type=Path, required=True, help="py-spy's console output for that profile")
-    parser.add_argument("--rate", type=int, default=SAMPLE_RATE, help=f"sampling rate (default: {SAMPLE_RATE})")
-    args = parser.parse_args()
-
-    problem = py_spy_output_problem(args.py_spy_log.read_text(errors="replace"))
-    if problem is not None:
-        print(f"Invalid profile {args.sample_file}: {problem}", file=sys.stderr)
-        sys.exit(1)
-
-    print_sampled_profile(args.sample_file, sample_rate=args.rate, root=None, by_layer=True)
+    """Summarize the game server's sampled profile, the file given as the only argument."""
+    print_sampled_profile(Path(sys.argv[1]), root=None, by_layer=True)
 
 
 if __name__ == "__main__":
