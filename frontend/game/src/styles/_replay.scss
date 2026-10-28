@@ -753,22 +753,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* The round line wraps whole parts (the round, its badges, the step) onto a line of their own rather than cut the step. */
-@mixin wrapping-where {
-    .replay-where {
-        height: auto;
-    }
-
-    .replay-where-text {
-        white-space: normal;
-
-        > * {
-            display: inline-block;
-            white-space: nowrap;
-        }
-    }
-}
-
 @mixin options-beside-info {
     .replay-controls .replay-options-toggle {
         display: none;
@@ -806,7 +790,19 @@ body.board.replay#{$rounds-open} > #board {
             justify-content: flex-start;
         }
 
-        @include wrapping-where;
+        /* Two fixed lines, the round's parts wrapping whole onto the second, so the strip keeps its height while stepping. */
+        .replay-where {
+            height: 2 * $info-line;
+        }
+
+        .replay-where-text {
+            white-space: normal;
+
+            > * {
+                display: inline-block;
+                white-space: nowrap;
+            }
+        }
     }
 
     .replay-controls .replay-options {
@@ -1021,11 +1017,13 @@ body.board.replay#{$rounds-open} > #board {
             font-size: 24px;
         }
 
-        @include wrapping-where;
-
         .replay-where {
-            min-height: 64px;
-            line-height: 1.6;
+            height: 64px;
+            line-height: 64px;
+        }
+
+        .replay-wall-low {
+            display: none;
         }
     }
 
