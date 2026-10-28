@@ -1,5 +1,6 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
+import { type MessageKey, t } from "@/i18n";
 import {
     type EndingCode,
     GAME_START_INVALID,
@@ -16,30 +17,28 @@ interface MatchmakingActions {
 }
 
 interface EndingCopy {
-    text: string;
-    title: string;
+    text: MessageKey;
+    title: MessageKey;
 }
 
-const STOPPED = "Matchmaking stopped";
+const STOPPED = "matchmaking.title.stopped";
 
-const ENDING_TITLE: Readonly<Record<EndingCode, string>> = {
+const ENDING_TITLE: Readonly<Record<EndingCode, MessageKey>> = {
     [GAME_START_INVALID]: STOPPED,
-    [MATCH_FAILED]: "Couldn't start the match",
+    [MATCH_FAILED]: "matchmaking.title.match_failed",
     [OCCUPANCY.ALREADY_IN_GAME]: STOPPED,
     [OCCUPANCY.ALREADY_IN_ROOM]: STOPPED,
     [OCCUPANCY.MATCH_STARTING]: STOPPED,
-    [OCCUPANCY.REPLACED_BY_NEW_CONNECTION]: "Searching in another tab",
+    [OCCUPANCY.REPLACED_BY_NEW_CONNECTION]: "matchmaking.title.replaced",
 };
 
 const MATCHMAKING_ERROR_TEXT = {
-    [GAME_START_INVALID]:
-        "Your match started, but its game could not be opened. Search again to join it.",
-    [MATCH_FAILED]:
-        "Four players were found, but the game could not be started. You are no longer in the queue.",
-} as const;
+    [GAME_START_INVALID]: "matchmaking.error.game_start_invalid",
+    [MATCH_FAILED]: "matchmaking.error.match_failed",
+} as const satisfies Readonly<Record<string, MessageKey>>;
 
 const CONNECTION_LOST: EndingCopy = {
-    text: "Lost the connection to matchmaking, so you are no longer in the queue.",
+    text: "matchmaking.connection_lost",
     title: STOPPED,
 };
 
@@ -62,30 +61,28 @@ function seatsTemplate(filled: number): TemplateResult {
 
 function searchingStatus(state: MatchmakingState): string {
     if (state.phase === "starting") {
-        return "Starting the game…";
+        return t("matchmaking.status.starting");
     }
     if (state.phase === "searching") {
-        return `${state.queueSize} of ${MATCHMAKING_SEATS} players found`;
+        return t("matchmaking.status.found", { count: state.queueSize, total: MATCHMAKING_SEATS });
     }
-    return "Looking for players…";
+    return t("matchmaking.status.looking");
 }
 
 function searchingTemplate(state: MatchmakingState): TemplateResult {
     const found = state.phase === "starting" ? MATCHMAKING_SEATS : state.queueSize;
     const status = searchingStatus(state);
     return html`
-        <h2>${state.phase === "starting" ? "Match found" : "Finding a match"}</h2>
+        <h2>${state.phase === "starting" ? t("matchmaking.title.found") : t("matchmaking.title.finding")}</h2>
         ${seatsTemplate(found)}
         <p class="matchmaking-status" role="status" aria-live="polite">${status}</p>
-        <p class="matchmaking-hint lobby-muted">
-            The game starts as soon as ${MATCHMAKING_SEATS} players are waiting.
-        </p>
+        <p class="matchmaking-hint lobby-muted">${t("matchmaking.hint", { count: MATCHMAKING_SEATS })}</p>
         <div class="lobby-button-row lobby-button-row--center matchmaking-actions">
             ${
                 state.phase === "starting"
                     ? nothing
                     : html`
-                          <a href="/" role="button" class="secondary outline">Cancel</a>
+                          <a href="/" role="button" class="secondary outline">${t("matchmaking.cancel")}</a>
                       `
             }
         </div>
@@ -96,7 +93,7 @@ function tableLinkTemplate(end: MatchmakingEnd): TemplateResult | typeof nothing
     if (end.code !== OCCUPANCY.ALREADY_IN_ROOM || !end.seatedRoomId) {
         return nothing;
     }
-    return html`<a href="/rooms/${encodeURIComponent(end.seatedRoomId)}" role="button">Go to your table</a>`;
+    return html`<a href="/rooms/${encodeURIComponent(end.seatedRoomId)}" role="button">${t("common.go_to_table")}</a>`;
 }
 
 function endedTemplate(state: MatchmakingState, actions: MatchmakingActions): TemplateResult {
@@ -104,20 +101,20 @@ function endedTemplate(state: MatchmakingState, actions: MatchmakingActions): Te
     const copy = end ? endingCopy(end.code) : CONNECTION_LOST;
     const retry = canRetry(state);
     return html`
-        <h2>${copy.title}</h2>
+        <h2>${t(copy.title)}</h2>
         <div class="lobby-alert ${end?.code === OCCUPANCY.REPLACED_BY_NEW_CONNECTION ? "warning" : ""}" role="alert">
-            <p>${copy.text}</p>
+            <p>${t(copy.text)}</p>
         </div>
         <div class="lobby-button-row lobby-button-row--center matchmaking-actions">
             ${end ? tableLinkTemplate(end) : nothing}
             ${
                 retry
                     ? html`<button type="button" class="matchmaking-retry" @click=${actions.onRetry}>
-                      Search again
+                      ${t("matchmaking.search_again")}
                   </button>`
                     : nothing
             }
-            <a href="/" role="button" class="secondary outline">Back to lobby</a>
+            <a href="/" role="button" class="secondary outline">${t("common.back_to_lobby")}</a>
         </div>
     `;
 }

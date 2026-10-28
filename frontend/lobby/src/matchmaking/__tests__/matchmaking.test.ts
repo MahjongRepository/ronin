@@ -71,6 +71,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    document.documentElement.lang = "";
     vi.restoreAllMocks();
     sessionStorage.clear();
     document.body.replaceChildren();
@@ -87,6 +88,19 @@ describe("initMatchmakingPage", () => {
         expect(text(container, ".matchmaking-status")).toBe("2 of 4 players found");
         expect(container.querySelectorAll(".lobby-seat.filled")).toHaveLength(2);
         expect(actionLabels(container)).toEqual(["Cancel"]);
+    });
+
+    test.each([
+        [1, "Найден 1 игрок из 4"],
+        [2, "Найдено 2 игрока из 4"],
+        [5, "Найдено 5 игроков из 4"],
+    ])("counts %i players found with the Russian plural form", (queueSize, status) => {
+        document.documentElement.lang = "ru";
+        const container = renderPage();
+
+        capturedMessageHandler?.({ queue_size: queueSize, type: "queue_update" });
+
+        expect(text(container, ".matchmaking-status")).toBe(status);
     });
 
     test("keeps the match_failed ending and offers a retry despite late queue messages and the close", () => {

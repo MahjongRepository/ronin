@@ -1,5 +1,6 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
+import { type MessageKey, t } from "@/i18n";
 import { OCCUPANCY } from "@/occupancy-errors";
 import { type ActionCallbacks } from "@/room/handlers";
 import {
@@ -19,14 +20,12 @@ import {
 } from "@/room/state";
 
 const IME_PROCESS_KEY_CODE = 229;
-const OPEN_SEAT = "Open seat";
-const CONNECTION_LOST_TEXT = "The connection to the table was lost. Reload the page to rejoin.";
 
-const STATUS_LABEL: Readonly<Record<ConnectionStatus, string>> = {
-    connected: "Connected",
-    connecting: "Connecting…",
-    disconnected: "Disconnected",
-    error: "Connection error",
+const STATUS_LABEL: Readonly<Record<ConnectionStatus, MessageKey>> = {
+    connected: "room.status.connected",
+    connecting: "room.status.connecting",
+    disconnected: "room.status.disconnected",
+    error: "room.status.error",
 };
 
 interface RoomPage {
@@ -43,23 +42,26 @@ interface RecoveryLink {
 }
 
 function backToLobbyLink(): RecoveryLink {
-    return { href: "/", label: "Back to lobby" };
+    return { href: "/", label: t("common.back_to_lobby") };
 }
 
 function reloadLink(): RecoveryLink {
-    return { href: window.location.pathname, label: "Reload" };
+    return { href: window.location.pathname, label: t("common.reload") };
 }
 
 function recoveryLinks({ code, seatedRoomId }: PageError): RecoveryLink[] {
     if (code === OCCUPANCY.ALREADY_IN_ROOM && seatedRoomId) {
         return [
-            { href: `/rooms/${encodeURIComponent(seatedRoomId)}`, label: "Go to your table" },
+            { href: `/rooms/${encodeURIComponent(seatedRoomId)}`, label: t("common.go_to_table") },
             backToLobbyLink(),
         ];
     }
     switch (code) {
         case OCCUPANCY.ALREADY_IN_QUEUE:
-            return [{ href: "/matchmaking", label: "Go to matchmaking" }, backToLobbyLink()];
+            return [
+                { href: "/matchmaking", label: t("common.go_to_matchmaking") },
+                backToLobbyLink(),
+            ];
         case PAGE_ERROR.GAME_START_INVALID:
         case PAGE_ERROR.JOIN_RETRIES_EXHAUSTED:
         case PAGE_ERROR.PAGE_SETUP_FAILED:
@@ -89,28 +91,31 @@ function noticeTemplate(state: RoomState): TemplateResult | typeof nothing {
         return alertTemplate("error", state.pageError.text, recoveryLinks(state.pageError));
     }
     if (isConnectionLost(state)) {
-        return alertTemplate("warning", CONNECTION_LOST_TEXT, [reloadLink(), backToLobbyLink()]);
+        return alertTemplate("warning", t("room.connection_lost"), [
+            reloadLink(),
+            backToLobbyLink(),
+        ]);
     }
     return nothing;
 }
 
 function seatStatus(player: PlayerInfo): { glyph: string; label: string; tone: string } {
     if (player.is_bot) {
-        return { glyph: "", label: OPEN_SEAT, tone: "open" };
+        return { glyph: "", label: t("room.seat.open"), tone: "open" };
     }
     if (player.is_owner) {
-        return { glyph: "", label: "Host", tone: "host" };
+        return { glyph: "", label: t("room.seat.host"), tone: "host" };
     }
     if (player.ready) {
-        return { glyph: "✓", label: "Ready", tone: "ready" };
+        return { glyph: "✓", label: t("room.seat.ready"), tone: "ready" };
     }
-    return { glyph: "○", label: "Not ready", tone: "not-ready" };
+    return { glyph: "○", label: t("room.seat.not_ready"), tone: "not-ready" };
 }
 
 function seatBadge(player: PlayerInfo): TemplateResult | typeof nothing {
     if (player.is_owner) {
         return html`
-            <span class="room-player-badge">Host</span>
+            <span class="room-player-badge">${t("room.seat.host")}</span>
         `;
     }
     return nothing;
@@ -124,11 +129,11 @@ function playerRowTemplate(state: RoomState, player: PlayerInfo): TemplateResult
             <span class="room-player-status ${status.tone}" role="img" title=${status.label} aria-label=${status.label}>
                 ${status.glyph}
             </span>
-            <span class="room-player-name">${player.is_bot ? OPEN_SEAT : player.name}</span>
+            <span class="room-player-name">${player.is_bot ? t("room.seat.open") : player.name}</span>
             ${
                 me
                     ? html`
-                          <span class="room-player-badge you">You</span>
+                          <span class="room-player-badge you">${t("room.badge.you")}</span>
                       `
                     : nothing
             }
@@ -140,7 +145,7 @@ function playerRowTemplate(state: RoomState, player: PlayerInfo): TemplateResult
 function playerListTemplate(state: RoomState): TemplateResult {
     if (state.players.length === 0) {
         return html`
-            <p class="room-placeholder">Taking a seat…</p>
+            <p class="room-placeholder">${t("room.taking_seat")}</p>
         `;
     }
     return html`
@@ -172,21 +177,19 @@ function actionTemplate(
                     ?disabled=${!enabled || !state.canStart}
                     aria-describedby=${blocker ? "room-action-hint" : nothing}
                     @click=${actions.handleStartGame}>
-                Start game
+                ${t("room.start")}
             </button>
             ${actionHintTemplate(blocker)}
         `;
     }
     const ready = getMyReadyState(state);
-    const hint = ready
-        ? "You're ready. Waiting for the host to start."
-        : "The host can start once you're ready.";
+    const hint = ready ? t("room.hint.ready") : t("room.hint.not_ready");
     return html`
         <button class="room-ready-btn ${ready ? "outline secondary" : ""}"
                 ?disabled=${!enabled}
                 aria-describedby=${enabled ? "room-action-hint" : nothing}
                 @click=${actions.handleToggleReady}>
-            ${ready ? "Cancel ready" : "Ready"}
+            ${ready ? t("room.cancel_ready") : t("room.ready")}
         </button>
         ${actionHintTemplate(enabled ? hint : null)}
     `;
@@ -233,13 +236,13 @@ function chatComposerTemplate(page: RoomPage): TemplateResult {
             <input type="text"
                    id="chat-input"
                    name="text"
-                   aria-label="Chat message"
+                   aria-label=${t("room.chat.label")}
                    autocomplete="off"
                    maxlength=${chatMaxLength}
-                   placeholder="Type a message…"
+                   placeholder=${t("room.chat.placeholder")}
                    ?disabled=${!enabled}
                    @keydown=${blockImeEnter} />
-            <button type="submit" class="outline" ?disabled=${!enabled}>Send</button>
+            <button type="submit" class="outline" ?disabled=${!enabled}>${t("room.chat.send")}</button>
         </form>
     `;
 }
@@ -249,12 +252,12 @@ function panelsTemplate(page: RoomPage): TemplateResult {
     return html`
         <div class="room-content">
             <section class="room-panel room-players-panel" aria-labelledby="room-players-title">
-                <h3 class="room-panel-title" id="room-players-title">Players</h3>
+                <h3 class="room-panel-title" id="room-players-title">${t("room.players_title")}</h3>
                 ${playerListTemplate(state)}
                 <div class="room-action">${actionTemplate(state, actions)}</div>
             </section>
             <section class="room-panel room-chat-panel" aria-labelledby="room-chat-title">
-                <h3 class="room-panel-title" id="room-chat-title">Chat</h3>
+                <h3 class="room-panel-title" id="room-chat-title">${t("room.chat_title")}</h3>
                 <div class="room-chat-messages" id="room-chat-messages" role="log" aria-live="polite">
                     ${state.chatMessages.map(chatEntryTemplate)}
                 </div>
@@ -277,11 +280,11 @@ function headerTemplate(
                 ${
                     state.pageError
                         ? nothing
-                        : html`<span class="connection-status status-${status}" role="status">${STATUS_LABEL[status]}</span>`
+                        : html`<span class="connection-status status-${status}" role="status">${t(STATUS_LABEL[status])}</span>`
                 }
                 ${
                     isSeated(state)
-                        ? html`<button class="outline secondary lobby-small-btn room-leave-btn" @click=${actions.handleLeaveRoom}>Leave table</button>`
+                        ? html`<button class="outline secondary lobby-small-btn room-leave-btn" @click=${actions.handleLeaveRoom}>${t("room.leave")}</button>`
                         : nothing
                 }
             </div>

@@ -1,3 +1,4 @@
+import { type MessageKey, formatTime, reportI18nError, t } from "@/i18n";
 import { type SocketStatus, readString } from "@/lobby-socket";
 import { OCCUPANCY, type OccupancyText, describeOccupancyError } from "@/occupancy-errors";
 import {
@@ -32,33 +33,49 @@ const RETRYABLE_JOIN_ERRORS: ReadonlySet<unknown> = new Set([
 ]);
 
 const ROOM_OCCUPANCY_TEXT: OccupancyText = {
-    [OCCUPANCY.ALREADY_IN_ROOM]:
-        "You are already seated at another table. Leave it before joining this one.",
-    [OCCUPANCY.REPLACED_BY_NEW_CONNECTION]:
-        "This table is open in another tab or window and continues there. You can close this one.",
+    [OCCUPANCY.ALREADY_IN_ROOM]: "room.occupancy.already_in_room",
+    [OCCUPANCY.REPLACED_BY_NEW_CONNECTION]: "room.occupancy.replaced_by_new_connection",
 };
 
-const ROOM_ERROR_TEXT: Readonly<Record<string, string>> = {
-    game_server_error: "The game server could not create the game. Try starting again.",
-    game_server_full: "The game server is full. Try again in a few minutes.",
-    game_server_unavailable: "The game server could not be reached. Try starting again.",
-    [PAGE_ERROR.GAME_START_INVALID]:
-        "The game started, but it could not be opened. Reload the page to join it.",
-    internal_error: "Something went wrong starting the game. Try again.",
-    [PAGE_ERROR.JOIN_RETRIES_EXHAUSTED]:
-        "The game did not start in time. Reload the page to try again.",
-    [PAGE_ERROR.PAGE_SETUP_FAILED]: "This table could not be loaded. Reload the page to try again.",
-    player_in_game: "A player at this table is already in a game.",
-    room_full: "This table filled up before you joined.",
-    room_not_found: "This table no longer exists.",
-    [ROOM_TRANSITIONING]: "The game is starting.",
-};
+const ROOM_ERROR_CODES = [
+    "game_server_error",
+    "game_server_full",
+    "game_server_unavailable",
+    "internal_error",
+    "not_all_ready",
+    "not_in_room",
+    "not_owner",
+    "owner_cannot_ready",
+    "player_in_game",
+    "rate_limited",
+    "room_full",
+    "room_not_found",
+    PAGE_ERROR.GAME_START_INVALID,
+    PAGE_ERROR.JOIN_RETRIES_EXHAUSTED,
+    PAGE_ERROR.PAGE_SETUP_FAILED,
+    ROOM_TRANSITIONING,
+] as const;
+
+type RoomErrorCode = (typeof ROOM_ERROR_CODES)[number];
+
+function isRoomErrorCode(code: unknown): code is RoomErrorCode {
+    return ROOM_ERROR_CODES.some((known) => known === code);
+}
+
+function roomErrorKey(code: RoomErrorCode): MessageKey {
+    return `room.error.${code}`;
+}
 
 function describeRoomError(code: unknown): string {
-    if (typeof code === "string" && Object.hasOwn(ROOM_ERROR_TEXT, code)) {
-        return ROOM_ERROR_TEXT[code];
+    if (isRoomErrorCode(code)) {
+        return t(roomErrorKey(code));
     }
-    return describeOccupancyError(code, ROOM_OCCUPANCY_TEXT) ?? `Error: ${String(code)}`;
+    const occupancyText = describeOccupancyError(code, ROOM_OCCUPANCY_TEXT);
+    if (occupancyText !== null) {
+        return occupancyText;
+    }
+    reportI18nError(`room.error.${String(code)}`, "unknown room error code");
+    return t("room.error.unknown");
 }
 
 function updateFromServerState(
@@ -111,7 +128,7 @@ function buildMessageHandlers(
         state.chatMessages.push({
             sender,
             text,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: formatTime(new Date()),
         });
         render();
     }
@@ -126,27 +143,33 @@ function buildMessageHandlers(
         state.currentPlayerName = (message.player_name as string) ?? "";
         state.isOwner = (message.is_owner as boolean) ?? false;
         updateFromServerState(state, message, render);
-        appendChat(LOG_TYPE_SYSTEM, "You joined the table");
+        appendChat(LOG_TYPE_SYSTEM, t("room.chat.you_joined"));
     }
 
     function onPlayerJoined(message: Record<string, unknown>): void {
         updateFromServerState(state, message, render);
         if (message.player_name) {
-            appendChat(LOG_TYPE_SYSTEM, `${message.player_name} joined`);
+            appendChat(
+                LOG_TYPE_SYSTEM,
+                t("room.chat.player_joined", { name: String(message.player_name) }),
+            );
         }
     }
 
     function onPlayerLeft(message: Record<string, unknown>): void {
         updateFromServerState(state, message, render);
         if (message.player_name) {
-            appendChat(LOG_TYPE_SYSTEM, `${message.player_name} left`);
+            appendChat(
+                LOG_TYPE_SYSTEM,
+                t("room.chat.player_left", { name: String(message.player_name) }),
+            );
         }
     }
 
     function onOwnerChanged(message: Record<string, unknown>): void {
         state.isOwner = (message.is_owner as boolean) ?? false;
         updateFromServerState(state, message, render);
-        appendChat(LOG_TYPE_SYSTEM, "You are now the host");
+        appendChat(LOG_TYPE_SYSTEM, t("room.chat.now_host"));
     }
 
     function scheduleRejoin(code: unknown): void {
@@ -187,7 +210,7 @@ function buildMessageHandlers(
             return;
         }
         cancelJoinRetry(state);
-        appendChat(LOG_TYPE_SYSTEM, "Game starting!");
+        appendChat(LOG_TYPE_SYSTEM, t("room.chat.game_starting"));
         enterGame(start);
     }
 
@@ -256,6 +279,7 @@ function buildActionCallbacks(state: RoomState): ActionCallbacks {
 export {
     JOIN_RETRY_DELAY_MS,
     MAX_JOIN_RETRIES,
+    ROOM_ERROR_CODES,
     buildActionCallbacks,
     buildMessageHandlers,
     describeRoomError,

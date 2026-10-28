@@ -1,3 +1,4 @@
+import { formatList, t } from "@/i18n";
 import { type LobbySocket, type SocketStatus } from "@/lobby-socket";
 
 interface PlayerInfo {
@@ -83,13 +84,6 @@ function getMyReadyState(state: RoomState): boolean {
     return state.players.find((player) => isMe(state, player))?.ready ?? false;
 }
 
-function joinNames(names: readonly string[]): string {
-    if (names.length <= 1) {
-        return names.join("");
-    }
-    return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-}
-
 function describeStartBlocker(state: RoomState): string | null {
     if (state.canStart) {
         return null;
@@ -100,7 +94,7 @@ function describeStartBlocker(state: RoomState): string | null {
     if (waitingFor.length === 0) {
         return null;
     }
-    return `Waiting for ${joinNames(waitingFor)} to get ready.`;
+    return t("room.waiting_for", { names: formatList(waitingFor) });
 }
 
 export {

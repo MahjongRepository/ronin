@@ -1,19 +1,14 @@
+import { type MessageKey, formatDateTime, t } from "@/i18n";
+
 const COPY_STATUS_MS = 2000;
 const TIMEZONE_SUFFIX = /(?:Z|[+-]\d{2}:\d{2})$/;
 
 type CopyOutcome = "copied" | "failed";
 
-const COPY_STATUS_TEXT: Readonly<Record<CopyOutcome, string>> = {
-    copied: "Link copied",
-    failed: "Couldn't copy",
+const COPY_STATUS_TEXT: Readonly<Record<CopyOutcome, MessageKey>> = {
+    copied: "history.copy.copied",
+    failed: "history.copy.failed",
 };
-
-const GAME_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-});
 
 const clearStatusTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
@@ -41,7 +36,7 @@ function showCopyOutcome(btn: HTMLButtonElement, outcome: CopyOutcome): void {
     if (!status) {
         return;
     }
-    status.textContent = COPY_STATUS_TEXT[outcome];
+    status.textContent = t(COPY_STATUS_TEXT[outcome]);
     status.dataset.outcome = outcome;
     clearStatusLater(status);
 }
@@ -65,7 +60,7 @@ function showGameTimesInLocalTime(): void {
         if (!TIMEZONE_SUFFIX.test(dateTime) || Number.isNaN(started.getTime())) {
             return;
         }
-        time.textContent = GAME_TIME_FORMAT.format(started);
+        time.textContent = formatDateTime(started);
     });
 }
 
