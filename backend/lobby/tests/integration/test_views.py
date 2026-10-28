@@ -396,6 +396,29 @@ class TestHistoryPage:
         assert "27,000" in marked[0]
         assert response.text.count('class="games-you"') == 1
 
+    def test_history_page__when_viewer_played_the_game__should_link_the_replay_from_their_seat(self, client):
+        viewer = client.app.state.auth_service.validate_session(client.cookies["session_id"])
+        now = datetime.now(UTC)
+        played_game = PlayedGame(
+            game_id="viewer-played-game",
+            started_at=now - timedelta(minutes=30),
+            ended_at=now,
+            end_reason=GameEndReason.COMPLETED,
+            game_type="hanchan",
+            standings=[
+                PlayedGameStanding(name="Tsumogiri 1", seat=2, score=41000, final_score=51),
+                PlayedGameStanding(name=viewer.username, seat=0, user_id=viewer.user_id, score=27000, final_score=7),
+                PlayedGameStanding(name="Tsumogiri 2", seat=1, score=19000, final_score=-21),
+                PlayedGameStanding(name="Tsumogiri 3", seat=3, score=13000, final_score=-37),
+            ],
+        )
+        client.app.state.game_repo.create_game(played_game)
+
+        response = client.get("/history")
+        assert response.status_code == 200
+        assert response.text.count('href="/play/history/viewer-played-game?seat=0"') == 1
+        assert response.text.count('data-replay-url="/play/history/viewer-played-game"') == 1
+
     def test_history_page__when_unauthenticated__should_redirect_to_login(self, app):
         with open_client(app) as c:
             response = c.get("/history", follow_redirects=False)
