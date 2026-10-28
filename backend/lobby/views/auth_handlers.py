@@ -37,7 +37,7 @@ _ACCOUNT_RULES = {
 }
 
 
-def _parse_next_path(value: object) -> str | None:
+def parse_next_path(value: object) -> str | None:
     """
     Return ``value`` when it is a path on this site, otherwise None.
 
@@ -87,7 +87,7 @@ def _render_auth_form(
     comes from the submitted form, or from the ``next`` query parameter the login redirect adds.
     """
     submitted = form.get("username", "") if form is not None else ""
-    next_path = _parse_next_path(form.get("next") if form is not None else request.query_params.get("next"))
+    next_path = parse_next_path(form.get("next") if form is not None else request.query_params.get("next"))
     context: dict[str, object] = {
         **_ACCOUNT_RULES,
         "error": error,
@@ -133,7 +133,7 @@ async def login(request: Request) -> Response:
         return _render_auth_form(request, template_name="login.html", form=form, error=str(e))
 
     return _redirect_with_session_cookie(
-        session=session, auth_settings=auth_settings, next_path=_parse_next_path(form.get("next"))
+        session=session, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
     )
 
 
@@ -146,7 +146,7 @@ async def guest_login(request: Request) -> Response:
     if not is_csrf_valid(request, form):
         return _render_stale_auth_form(request, template_name="login.html", form=form)
 
-    next_path = _parse_next_path(form.get("next"))
+    next_path = parse_next_path(form.get("next"))
     if request.user.is_authenticated:
         return RedirectResponse(next_path or "/", status_code=303)
 
@@ -188,7 +188,7 @@ async def register(request: Request) -> Response:
         return _render_auth_form(request, template_name="register.html", form=form, error=str(e))
 
     return _redirect_with_session_cookie(
-        session=session, auth_settings=auth_settings, next_path=_parse_next_path(form.get("next"))
+        session=session, auth_settings=auth_settings, next_path=parse_next_path(form.get("next"))
     )
 
 
