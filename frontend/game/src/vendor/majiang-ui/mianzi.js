@@ -5,6 +5,11 @@
 
 import $ from 'jquery';
 
+import { setAttributeText } from '../../i18n/index.js';
+
+/* A meld's aria-label key by where its called tile came from (+ = -). */
+const FROM = { '+': 'right', '=': 'across', '-': 'left' };
+
 export default function(pai) {
 
     return function(m) {
@@ -13,7 +18,8 @@ export default function(pai) {
         let s = m[0];
         if (m.replace(/0/g,'5').match(/^[mpsz](\d)\1\1\1$/)) {
             let nn = m.match(/\d/g);
-            mianzi.attr('aria-label','アンカン')
+            setAttributeText(mianzi[0], 'aria-label', 'game.meld.closed_kan');
+            mianzi
                   .append(pai('_'))
                   .append(pai(s+nn[2]))
                   .append(pai(s+nn[3]))
@@ -30,20 +36,19 @@ export default function(pai) {
             let pai_l   = (! jiagang && nn.length == 4)
                                             ? nn.slice(1, 3).map(n=>pai(s+n))
                                             : nn.slice(1, 2).map(n=>pai(s+n));
-            let label   = (  d == '+' ? 'シモチャから'
-                           : d == '=' ? 'トイメンから'
-                           :            'カミチャから' )
-                        + (  jiagang        ? 'カカン'
-                           : nn.length == 4 ? 'カン'
-                           :                  'ポン' );
-            mianzi.attr('aria-label', label);
+            let type    = jiagang        ? 'added_kan'
+                        : nn.length == 4 ? 'kan'
+                        :                  'pon';
+            setAttributeText(mianzi[0], 'aria-label',
+                             `game.meld.${type}_from_${FROM[d]}`);
             if (d == '+') mianzi.append(pai_s).append(pai_l).append(pai_r);
             if (d == '=') mianzi.append(pai_s).append(pai_r).append(pai_l);
             if (d == '-') mianzi.append(pai_r).append(pai_s).append(pai_l);
         }
         else {
             let nn = m.match(/\d(?=\-)/).concat(m.match(/\d(?!\-)/g));
-            mianzi.attr('aria-label','チー')
+            setAttributeText(mianzi[0], 'aria-label', 'game.meld.chi');
+            mianzi
                   .append($('<span class="rotate">')
                             .append(pai(s+nn[0])))
                   .append(pai(s+nn [1]))

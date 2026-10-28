@@ -12,6 +12,8 @@ import Reply from './ronin/reply.js';
 import RoninPlayer from './ronin/player.js';
 import RoninSession from './ronin/session.js';
 import wire from './ronin/wire.js';
+import { gameErrorText, sessionErrorText } from './ronin/error-text.js';
+import { t } from '../i18n/index.js';
 
 const { scale } = Majiang.UI.Util;
 
@@ -36,7 +38,7 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
             translate.handle(msg);
             if (msg.t == wire.E.GAME_STARTED) finishLoading();
         },
-        onSessionError: (code, message) => toast('エラー: ' + message),
+        onSessionError: code => toast(sessionErrorText(code)),
         onPlayerStatus: (name, connected) => {
             const seat = shadow.names.indexOf(name);
             if (seat >= 0) {
@@ -46,19 +48,19 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
         },
         onDisconnected: () => {
             translate.disconnected();
-            toast('接続が切れました。再接続しています…');
+            toast(t('game.connection.lost'));
         },
         onReconnected:  (msg) => {
             translate.reconnect(msg);
             finishLoading();
-            toast('再接続しました');
+            toast(t('game.connection.restored'));
         },
     });
     const reply = new Reply(shadow, obj => session.send(obj), () => session.goLobby());
 
     translate.onDecision  = (kind, r) => reply.decide(kind, r);
-    translate.onGameError = (code, message) => {
-        if (code != wire.GAME_ERROR.STALE_ACTION) toast('操作が拒否されました: ' + message);
+    translate.onGameError = code => {
+        if (code != wire.GAME_ERROR.STALE_ACTION) toast(gameErrorText(code));
     };
 
     function toast(text) {

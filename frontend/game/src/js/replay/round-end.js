@@ -81,18 +81,21 @@ const OUTCOME_OF_TYPE = {
         const loser = seatField(roundEnd, "ls");
         return { kind: OUTCOME.DOUBLE_RON, winners: doubleRonWinners(roundEnd, loser), loser };
     },
-    [wire.RT.EXHAUSTIVE]: (roundEnd, name) => ({
+    [wire.RT.EXHAUSTIVE]: (roundEnd, { code, name }) => ({
         kind: OUTCOME.EXHAUSTIVE,
+        code,
         name,
         tenpai: seatsField(roundEnd, "ts"),
     }),
-    [wire.RT.NAGASHI]: (roundEnd, name) => ({
+    [wire.RT.NAGASHI]: (roundEnd, { code, name }) => ({
         kind: OUTCOME.NAGASHI,
+        code,
         name,
         players: seatsField(roundEnd, "qs"),
     }),
-    [wire.RT.ABORTIVE]: (roundEnd, name) => ({
+    [wire.RT.ABORTIVE]: (roundEnd, { code, name }) => ({
         kind: OUTCOME.ABORT,
+        code,
         name,
         declarer: optionalSeatField(roundEnd, "s"),
     }),
@@ -121,5 +124,5 @@ export function roundOutcome(roundEnd, results) {
         throw new Error(`unknown round end type ${roundEnd.rt}`);
     }
     scoreChanges(roundEnd);
-    return OUTCOME_OF_TYPE[roundEnd.rt](roundEnd, results[0].pingju?.name);
+    return OUTCOME_OF_TYPE[roundEnd.rt](roundEnd, results[0].pingju ?? {});
 }

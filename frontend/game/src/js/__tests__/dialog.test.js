@@ -1,8 +1,12 @@
 import $ from "jquery";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import "../majiang.js";
 import HuleDialog from "../../vendor/majiang-ui/dialog.js";
+import { huleMessage } from "../ronin/results.js";
+import { setLocale } from "../../i18n/index.js";
+
+beforeEach(() => setLocale("ja"));
 
 const PLAYERS = ["Ronin", "Bot 1", "Bot 2", "Bot 3"];
 
@@ -27,7 +31,7 @@ const DAISANGEN_WIN = Object.freeze({
     l: 1,
     baojia: null,
     shoupai: "m23p55m4,z555+,z666-,z777=",
-    hupai: [{ name: "大三元", fanshu: "*" }],
+    hupai: [{ yi: 103, fanshu: "*" }],
     fanshu: 13,
     fu: 0,
     damanguan: 1,
@@ -75,7 +79,7 @@ describe("Majiang.UI.HuleDialog", () => {
         const model = createModel([31000, 21000, 20000, 28000]);
 
         new HuleDialog(root, renderTile, model).pingju({
-            name: "荒牌平局",
+            code: "exhaustive",
             shoupai: [null, null, null, null],
             fenpei: [1500, -1500, -1500, 1500],
             tenpai: [true, false, false, true],
@@ -99,7 +103,7 @@ describe("Majiang.UI.HuleDialog", () => {
         const model = createModel([25000, 25000, 25000, 25000]);
 
         new HuleDialog(root, renderTile, model).pingju({
-            name: "九種九牌",
+            code: "nine_terminals",
             shoupai: [null, null, null, null],
             fenpei: [0, 0, 0, 0],
             tenpai: null,
@@ -118,7 +122,7 @@ describe("Majiang.UI.HuleDialog", () => {
             l: 3,
             baojia: 1,
             shoupai: "m19p19s19z1234567m1",
-            hupai: [{ name: "国士無双十三面", fanshu: "**" }],
+            hupai: [{ yi: 112, fanshu: "**" }],
             fanshu: 26,
             fu: 0,
             damanguan: 2,
@@ -155,5 +159,39 @@ describe("Majiang.UI.HuleDialog", () => {
 
         expect(root.find(".title").text()).toBe("Bot 2 ロン ← Bot 1 (1/2)");
         expect(root.find(".hule .note").text()).toBe("頭ハネ: Bot 3・Ronin のロン無効");
+    });
+
+    it("names an English win's yaku by their server ids and its value in fu, han and points", () => {
+        setLocale("en");
+        const root = renderDialog();
+        const { hule } = huleMessage({
+            l: 1,
+            shoupai: "m123p456s789m22p78p9",
+            baojia: 0,
+            hr: {
+                han: 4,
+                fu: 30,
+                pt: 80,
+                yk: [
+                    { yi: 1, han: 1 },
+                    { yi: 12, han: 1 },
+                    { yi: 13, han: 1 },
+                    { yi: 122, han: 1 },
+                ],
+            },
+            fenpei: [-8000, 8000, 0, 0],
+            fubaopai: ["m1"],
+        });
+
+        new HuleDialog(root, renderTile, createModel([25000, 25000, 25000, 25000])).hule(hule);
+
+        expect(root.find(".title").text()).toBe("Bot 2: Ron ← Bot 1");
+        expect(
+            root
+                .find(".hupai .row-hupai .name")
+                .map((i, cell) => $(cell).text())
+                .get(),
+        ).toEqual(["Riichi", "Pinfu", "Tanyao", "Ura Dora"]);
+        expect(root.find(".hupai .row-defen").text()).toBe("30 fu 4 han Mangan 8,000 points");
     });
 });

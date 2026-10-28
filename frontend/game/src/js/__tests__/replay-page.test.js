@@ -26,6 +26,9 @@ import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
+import { setLocale } from "../../i18n/index.js";
+
+beforeEach(() => setLocale("en"));
 
 function stubFetch(response) {
     const fetchMock = vi.fn().mockResolvedValue(response);
@@ -210,7 +213,7 @@ describe("showReplay", () => {
                 .get(),
         ).toEqual([13, 13, 13, 13]);
         expect(label()).toMatchObject({
-            round: "東一局 0本場",
+            round: "East 1, 0 honba",
             step: expect.stringMatching(/^Step 1\u00a0\/\u00a0\d+$/),
         });
         expect(disabled()).toEqual({
@@ -238,7 +241,7 @@ describe("showReplay", () => {
         $(".replay-next-round").trigger("click");
 
         expect(label()).toMatchObject({
-            round: "東二局 1本場",
+            round: "East 2, 1 honba",
             step: expect.stringMatching(/^Step 1\u00a0/),
         });
     });
@@ -411,7 +414,7 @@ describe("showReplay", () => {
         clickUntil(".replay-next", () => $(".replay-next").prop("disabled"), "Next disabled");
 
         expect(label()).toMatchObject({
-            round: "東二局 1本場",
+            round: "East 2, 1 honba",
             ended: "Cut off: the server stopped the game",
         });
         expect(label().step).toMatch(/^Step (\d+)\u00a0\/\u00a0\1$/);
@@ -464,7 +467,7 @@ describe("ReplayControls", () => {
         vi.advanceTimersByTime(1000 * HOLD_REPEAT_MS);
 
         expect(label()).toMatchObject({
-            round: "東二局 1本場",
+            round: "East 2, 1 honba",
             step: "Step 142\u00a0/\u00a0142",
         });
         expect($(".replay-action").text()).toBe("Exhaustive draw: all noten (荒牌平局)");
@@ -566,19 +569,19 @@ describe("ReplayControls", () => {
 
         expect(entries().length).toBe(9);
         expect(entries().eq(2).text()).toBe(
-            "東二局 1本場Ron: Charlie from Alice 1,300 (+300 honba)",
+            "East 2, 1 honbaRon: Charlie from Alice 1,300 (+300 honba)",
         );
-        expect(toggle.attr("aria-label")).toBe("Round list, 東一局 0本場");
+        expect(toggle.attr("aria-label")).toBe("Round list, East 1, 0 honba");
         toggle.trigger("click");
         expect(toggle.attr("aria-expanded")).toBe("true");
-        expect(toggle.text()).toBe("東一局 0本場 · Rounds▴");
+        expect(toggle.text()).toBe("East 1, 0 honba · Rounds▴");
         expect(document.activeElement).toBe(entries()[0]);
 
         $(".replay-play").trigger("click");
         entries().eq(3).trigger("click");
 
         expect(label()).toMatchObject({
-            round: "東三局 0本場",
+            round: "East 3, 0 honba",
             step: expect.stringMatching(/^Step 1\u00a0/),
         });
         expect($(".replay-play").attr("aria-label")).toBe("Play");
@@ -596,7 +599,7 @@ describe("ReplayControls", () => {
         $(".replay-last").trigger("click");
         vi.runAllTimers();
         $(".summary .replay-summary-round").eq(1).trigger("click");
-        expect(label().round).toBe("東二局 0本場");
+        expect(label().round).toBe("East 2, 0 honba");
         expect(document.activeElement).toBe(toggle[0]);
     });
 
@@ -693,16 +696,16 @@ describe("ReplayControls", () => {
 
 describe("BoardLinks", () => {
     it.each([
-        ["no page", "", "/history", "履歴へ戻る"],
-        ["the game history", "/history?page=2", "/history?page=2", "履歴へ戻る"],
+        ["no page", "", "/history", "Back to history"],
+        ["the game history", "/history?page=2", "/history?page=2", "Back to history"],
         [
             "the finished game's page, which 牌譜を見る replaced",
             "/play/g-1",
             "/history",
-            "履歴へ戻る",
+            "Back to history",
         ],
-        ["a game client page no route names", "/play/a/b", "/history", "履歴へ戻る"],
-        ["another lobby page", "/rooms", "/rooms", "戻る"],
+        ["a game client page no route names", "/play/a/b", "/history", "Back to history"],
+        ["another lobby page", "/rooms", "/rooms", "Back"],
     ])(
         "leaves the final standings for the lobby page the replay was opened from: %s",
         async (_, referrer, exit, text) => {
@@ -747,13 +750,13 @@ describe("bindKeys", () => {
 
         press("ArrowDown");
         press("PageDown");
-        expect(where()).toMatch(/^東三局 \d本場 Step 1\u00a0/);
+        expect(where()).toMatch(/^East 3, \d honba Step 1\u00a0/);
         press("ArrowUp");
-        expect(where()).toMatch(/^東二局 1本場 Step 1\u00a0/);
+        expect(where()).toMatch(/^East 2, 1 honba Step 1\u00a0/);
         press("End");
         expect(label().action).toBe("Final standings");
         press("Home");
-        expect(where()).toMatch(/^東一局 0本場 Step 1\u00a0/);
+        expect(where()).toMatch(/^East 1, 0 honba Step 1\u00a0/);
 
         press(" ");
         expect($(".replay-play").attr("aria-label")).toBe("Pause");
@@ -780,15 +783,15 @@ describe("bindKeys", () => {
         expect(isBusy()).toBe(true);
 
         hold("ArrowRight", 1000);
-        expect(label()).toMatchObject({ round: "東一局 0本場", step: AT_LAST_STEP });
+        expect(label()).toMatchObject({ round: "East 1, 0 honba", step: AT_LAST_STEP });
         expect(isBusy()).toBe(false);
         press("ArrowRight");
-        expect(where()).toMatch(/^東二局 1本場 Step 1\u00a0/);
+        expect(where()).toMatch(/^East 2, 1 honba Step 1\u00a0/);
 
         press("ArrowRight");
         press("ArrowRight");
         hold("ArrowLeft", 50);
-        expect(label()).toMatchObject({ round: "東一局 0本場", step: AT_LAST_STEP });
+        expect(label()).toMatchObject({ round: "East 1, 0 honba", step: AT_LAST_STEP });
     });
 
     it("leaves keys to form fields, focused buttons and switches, modified presses and the round list", async () => {
@@ -896,10 +899,10 @@ describe("bindWheel", () => {
             vi.advanceTimersByTime(WHEEL_STEP_MS);
             wheel(WHEEL_STEP_PX);
         }
-        expect(label().round).toBe("東一局 0本場");
+        expect(label().round).toBe("East 1, 0 honba");
         vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
         wheel(WHEEL_STEP_PX);
-        expect(label().round).toBe("東二局 1本場");
+        expect(label().round).toBe("East 2, 1 honba");
     });
 
     it("leaves a pinch, a box that scrolls and the help's own scrolling to the browser", async () => {
@@ -955,7 +958,7 @@ describe("PositionUrl", () => {
 
         expect($("#board .player.main .name").text()).toBe("Ojisan");
         expect(label()).toMatchObject({
-            round: "東三局 2本場",
+            round: "East 3, 2 honba",
             step: expect.stringMatching(/^Step 6\u00a0/),
         });
         expect($(".replay-play").attr("aria-label")).toBe("Play");

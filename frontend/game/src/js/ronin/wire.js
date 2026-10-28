@@ -70,6 +70,7 @@ const wire = {
     },
 
     SESSION_ERROR: {
+        GAME_NOT_STARTED:          'game_not_started',
         INVALID_MESSAGE:           'invalid_message',
         INTERNAL_ERROR:            'internal_error',
         NOT_IN_GAME:               'not_in_game',
@@ -85,7 +86,18 @@ const wire = {
         JOIN_GAME_NO_SESSION:      'join_game_no_session',
     },
 
-    GAME_ERROR: { STALE_ACTION: 'stale_action' },
+    GAME_ERROR: {
+        NOT_YOUR_TURN:   'not_your_turn',
+        INVALID_DISCARD: 'invalid_discard',
+        INVALID_RIICHI:  'invalid_riichi',
+        INVALID_RON:     'invalid_ron',
+        INVALID_PON:     'invalid_pon',
+        INVALID_CHI:     'invalid_chi',
+        INVALID_KAN:     'invalid_kan',
+        INVALID_PASS:    'invalid_pass',
+        INVALID_ACTION:  'invalid_action',
+        STALE_ACTION:    'stale_action',
+    },
 
     WAIT_ID: 'wi',
 

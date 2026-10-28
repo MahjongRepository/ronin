@@ -7,10 +7,15 @@ import $ from 'jquery';
 
 import Majiang from '../majiang-core/index.js';
 
+import { formatNumber, t } from '../../i18n/index.js';
+import { roundName } from '../../js/ronin/terms.js';
+import { voidsRiichiStick } from '../../js/ronin/draws.js';
+
 const LIZHI_DEPOSIT = 1000;
+const PLACES = 4;
 
 function score_text(score) {
-    return (''+score).replace(/(\d)(\d{3})$/,'$1,$2');
+    return score === '' ? '' : formatNumber(score);
 }
 
 function diff_text(diff) {
@@ -29,7 +34,8 @@ export default function(root, paipu, viewpoint) {
     let rank = $('.row-rank .rank', root);
     for (let i = 0; i < 4; i++) {
         let id = (viewpoint + i) % 4;
-        rank.eq(i).text(paipu.rank[id] ? `${paipu.rank[id]}位` : '')
+        rank.eq(i).text(paipu.rank[id] > 0 && paipu.rank[id] <= PLACES
+                                ? t(`game.summary.rank_${paipu.rank[id]}`) : '')
                   .toggleClass('top', paipu.rank[id] == 1);
     }
 
@@ -46,7 +52,7 @@ export default function(root, paipu, viewpoint) {
         for (let data of log) {
             if (lunban != null) {
                 if (data.hule)  lunban = null;
-                else if (data.pingju && data.pingju.name.match(/^(三家和|四風連打)/))
+                else if (data.pingju && voidsRiichiStick(data.pingju.code))
                                 lunban = null;
                 else            lizhi[lunban] = 1;
             }
@@ -56,14 +62,13 @@ export default function(root, paipu, viewpoint) {
         }
 
         r_diff = r_diff.clone();
-        $('.jushu', r_diff).text(['東','南','西','北'][qipai.zhuangfeng]
-                               + ['一','二','三','四'][qipai.jushu] + '局');
-        $('.changbang', r_diff).text(`${qipai.changbang}本場`);
+        $('.jushu', r_diff).text(roundName(qipai.zhuangfeng, qipai.jushu));
+        $('.changbang', r_diff).text(t('game.honba', { honba: qipai.changbang }));
         $('.last', r_diff).text(
               last.length == 0            ? '−'
-            : last[0].pingju              ? '流局'
-            : last[0].hule.baojia == null ? 'ツモ'
-            :                               'ロン'
+            : last[0].pingju              ? t('draw.generic')
+            : last[0].hule.baojia == null ? t('game.call.tsumo')
+            :                               t('game.call.ron')
         );
         $('.back',  r_diff).removeClass('zhuangjia');
         $('.diff',  r_diff).removeClass('baojia hule even').text('');
@@ -87,7 +92,7 @@ export default function(root, paipu, viewpoint) {
             if (last.length == 0) continue;
 
             if (lizhi[l]) {
-                $('.lizhi', r_diff).eq(i).text('リ');
+                $('.lizhi', r_diff).eq(i).text(t('game.summary.riichi_mark'));
                 any_lizhi = true;
             }
 
@@ -99,7 +104,7 @@ export default function(root, paipu, viewpoint) {
                         $('.diff', r_diff).eq(i).addClass('hule');
             }
             $('.diff', r_diff).eq(i).toggleClass('even', even).text(
-                  tenpai      ? (tenpai[l] ? 'テンパイ' : 'ノーテン')
+                  tenpai      ? t(tenpai[l] ? 'game.state.tenpai' : 'game.state.noten')
                 : even        ? '±0'
                 : diff[l]     ? diff_text(diff[l])
                 :               '');
@@ -111,7 +116,7 @@ export default function(root, paipu, viewpoint) {
     let gongtuo = paipu.gongtuo || [0,0,0,0];
     if (gongtuo.some(d => d)) {
         let r_gongtuo = $('<tr class="row-gongtuo">')
-                            .append($('<th colspan="3">').text('残り供託'));
+                            .append($('<th colspan="3">').text(t('game.summary.leftover')));
         for (let i = 0; i < 4; i++) {
             let id = (viewpoint + i) % 4;
             r_gongtuo.append($('<td>').append($('<span class="diff">')

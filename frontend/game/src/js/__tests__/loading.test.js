@@ -167,3 +167,37 @@ describe("live game loading", () => {
         expect($("#board .shoupai.main .bingpai img")).toHaveLength(13);
     });
 });
+
+describe("live game toasts", () => {
+    it("word a refused action and a session error by their codes, never the server's message", () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const receive = connectGame();
+        const toast = () => document.querySelector("#ronin-toast").textContent;
+
+        receive({
+            t: wire.E.ERROR,
+            cd: wire.GAME_ERROR.NOT_YOUR_TURN,
+            msg: "Not your turn, says the server",
+        });
+        expect(toast()).toBe("操作が拒否されました: 手番ではありません。");
+
+        receive({
+            type: wire.SESSION.ERROR,
+            code: wire.SESSION_ERROR.RATE_LIMITED,
+            message: "Rate limit exceeded",
+        });
+        expect(toast()).toBe("操作が多すぎます。少し待ってください。");
+
+        receive({
+            t: wire.E.ERROR,
+            cd: "brand_new_code",
+            msg: "Something the client never heard of",
+        });
+        expect(toast()).toBe("操作が拒否されました。");
+        expect(console.error).toHaveBeenCalledWith(
+            "i18n error",
+            expect.objectContaining({ key: "game.error.brand_new_code" }),
+        );
+    });
+});

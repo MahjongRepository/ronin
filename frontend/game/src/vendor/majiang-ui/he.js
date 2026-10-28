@@ -5,6 +5,8 @@
 
 import $ from 'jquery';
 
+import { setAttributeText } from '../../i18n/index.js';
+
 export default class He {
 
     constructor(root, pai, he) {
@@ -23,8 +25,10 @@ export default class He {
      * sideways regardless; a riichi voided before its deposit gets no stick. */
     redraw(deposited = true) {
 
-        this._node.root.attr('aria-label', '捨て牌');
-        this._node.chouma.attr('aria-label', 'リーチ');
+        this._node.root.each((i, root)=>
+                setAttributeText(root, 'aria-label', 'game.aria.river'));
+        this._node.chouma.each((i, chouma)=>
+                setAttributeText(chouma, 'aria-label', 'game.call.riichi'));
         this._node.dapai.empty();
         let lizhi = false;
         let declared = false;
@@ -41,8 +45,8 @@ export default class He {
                 pai.addClass('mopai');
             }
             if (lizhi) {
-                pai = $('<span class="lizhi">').attr('aria-label', 'リーチ')
-                                               .append(pai);
+                pai = $('<span class="lizhi">').append(pai);
+                setAttributeText(pai[0], 'aria-label', 'game.call.riichi');
                 lizhi = false;
             }
             this._node.dapai.append(pai);

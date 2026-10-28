@@ -1,19 +1,14 @@
 import $ from "jquery";
 
 import rules from "../ronin/rules.js";
-import {
-    ABORTIVE_NAMES,
-    DRAW_NAMES,
-    huleMessage,
-    jiejuStandings,
-    pingjuMessage,
-} from "../ronin/results.js";
+import { t } from "../../i18n/index.js";
+import { DRAW_CODE } from "../ronin/draws.js";
+import { huleMessage, jiejuStandings, pingjuMessage } from "../ronin/results.js";
 import { replayPath } from "../routes.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
 const QIJIA = 0;
-const GAME_TITLE = "半荘戦";
 const SAMPLE_GAME_ID = "storybook-sample";
 const NO_PAYMENTS = Object.freeze([0, 0, 0, 0]);
 
@@ -67,8 +62,8 @@ function hule({ baojia = null, ...win }) {
     return huleMessage({ baojia, ...win });
 }
 
-function pingju(name, fenpei, draw = {}) {
-    return pingjuMessage({ name, fenpei, ...draw });
+function pingju(code, fenpei, draw = {}) {
+    return pingjuMessage({ code, fenpei, ...draw });
 }
 
 export const WIN_SAMPLES = Object.freeze([
@@ -324,7 +319,7 @@ export const DRAW_SAMPLES = Object.freeze([
             "z3 s1 p1 m9 z5 s9 z6 p9 m1 z4 s2 p7 m4 s7 p6 m6 z1",
             "s4>z1 z7>m1 s8>p3 p1_ m9_ z3_ s1_ z5_ p2_ m3_ z4_ s9_ p6_ m7_ z6_ s5_ m2_",
         ]),
-        end: pingju(DRAW_NAMES.EXHAUSTIVE, [-1500, 1500, -1500, 1500], {
+        end: pingju(DRAW_CODE.EXHAUSTIVE, [-1500, 1500, -1500, 1500], {
             shoupai: [null, "m88p234067s567z22", null, "m456p789s23488z77"],
             tenpai: [false, true, false, true],
         }),
@@ -337,7 +332,7 @@ export const DRAW_SAMPLES = Object.freeze([
         baopai: "s4",
         hand: "m1469p157s39z1236",
         events: [...rotation(["p5", "s8"]), { zimo: { l: 2, p: "z7" } }],
-        end: pingju(ABORTIVE_NAMES.nine_terminals, NO_PAYMENTS, { players: [2] }),
+        end: pingju(DRAW_CODE.NINE_TERMINALS, NO_PAYMENTS, { players: [2] }),
     },
     {
         key: "four-riichi",
@@ -352,7 +347,7 @@ export const DRAW_SAMPLES = Object.freeze([
             "p9 z3 s2 m1*",
             "s9 z5 p2_ z1*",
         ]),
-        end: pingju(ABORTIVE_NAMES.four_riichi, NO_PAYMENTS),
+        end: pingju(DRAW_CODE.FOUR_RIICHI, NO_PAYMENTS),
     },
     {
         key: "nagashi",
@@ -367,7 +362,7 @@ export const DRAW_SAMPLES = Object.freeze([
             "z1 m9 p1 z5 s9 z7 m1 p9 z2 s1 z6 m9 z3 p1 s9 z4 m1",
             "z1 z7 m9 p9 z5 s1 p2 z6 m7 p7 z3 s2 p8_ m3_ z2_ s8_ p4_",
         ]),
-        end: pingju(DRAW_NAMES.NAGASHI, [-4000, -2000, 8000, -2000], {
+        end: pingju(DRAW_CODE.NAGASHI, [-4000, -2000, 8000, -2000], {
             shoupai: [null, null, null, "m34p555s345678z44"],
             tenpai: [false, false, false, true],
             players: [2],
@@ -385,7 +380,7 @@ const GAME_ROUNDS = Object.freeze([
     {
         round: [0, 1, 0],
         riichi: [3],
-        pingju: { name: DRAW_NAMES.EXHAUSTIVE, fenpei: [1500, -1500, -1500, 1500] },
+        pingju: { code: DRAW_CODE.EXHAUSTIVE, fenpei: [1500, -1500, -1500, 1500] },
     },
     {
         round: [0, 1, 1],
@@ -393,13 +388,13 @@ const GAME_ROUNDS = Object.freeze([
         hule: { l: 2, baojia: null, fenpei: [-4100, -2100, 10300, -2100] },
     },
     { round: [0, 2, 0], hule: { l: 2, baojia: 0, fenpei: [-3900, 0, 3900, 0] } },
-    { round: [0, 3, 0], pingju: { name: ABORTIVE_NAMES.nine_terminals, fenpei: NO_PAYMENTS } },
+    { round: [0, 3, 0], pingju: { code: DRAW_CODE.NINE_TERMINALS, fenpei: NO_PAYMENTS } },
     { round: [0, 3, 1], riichi: [1], hule: { l: 2, baojia: 1, fenpei: [0, -5500, 6500, 0] } },
     { round: [1, 0, 0], hule: { l: 0, baojia: null, fenpei: [12000, -4000, -4000, -4000] } },
     {
         round: [1, 0, 1],
         pingju: {
-            name: DRAW_NAMES.EXHAUSTIVE,
+            code: DRAW_CODE.EXHAUSTIVE,
             fenpei: NO_PAYMENTS,
             tenpai: [false, false, false, false],
         },
@@ -503,7 +498,7 @@ function playEvent(model, event) {
 
 export function createRoundModel(log) {
     const model = new Majiang.Board({
-        title: GAME_TITLE,
+        title: t("game.type.hanchan"),
         player: [...SAMPLE_PLAYERS],
         qijia: QIJIA,
     });
@@ -516,7 +511,7 @@ export function createRoundModel(log) {
 function createJieju(gameEnd, log) {
     const player = [...SAMPLE_PLAYERS];
     return {
-        title: GAME_TITLE,
+        title: t("game.type.hanchan"),
         rule: rules,
         player,
         qijia: QIJIA,

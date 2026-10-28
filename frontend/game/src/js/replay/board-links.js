@@ -1,6 +1,7 @@
 import $ from "jquery";
 
-import { SEAT_MARK, SEAT_MARK_TEXT } from "../../vendor/majiang-ui/board.js";
+import { setText, t } from "../../i18n/index.js";
+import { SEAT_MARK, SEAT_MARK_KEY } from "../../vendor/majiang-ui/board.js";
 import { HISTORY_URL, isGameClientPath } from "../routes.js";
 import { COARSE_POINTER_MEDIA } from "./media.js";
 import { POSITION } from "./paipu.js";
@@ -10,7 +11,9 @@ import { SEATS } from "./seats.js";
 const NAMEPLATES = Object.freeze(["main", "xiajia", "duimian", "shangjia"]);
 
 /** What a nameplate's title adds while an AI player holds its seat, the meaning of its mark's colour. */
-const AI_TITLE = ` (${SEAT_MARK_TEXT[SEAT_MARK.AI]})`;
+function aiTitle() {
+    return ` (${t(SEAT_MARK_KEY[SEAT_MARK.AI])})`;
+}
 
 /**
  * Give a table and its parts their roles and spans explicitly, as the replay lays its standings out as a grid, where
@@ -42,11 +45,11 @@ function exitUrl() {
     return isLobbyPage ? referrer : HISTORY_URL;
 }
 
-/** The exit's label names where it leads: the game history, or just back to another page. */
-function exitLabel(url) {
+/** The exit's label, by catalog key, names where it leads: the game history, or just back to another page. */
+function exitLabelKey(url) {
     return new URL(url, window.location.origin).pathname.startsWith(HISTORY_URL)
-        ? "履歴へ戻る"
-        : "戻る";
+        ? "replay.exit.history"
+        : "replay.exit.back";
 }
 
 /**
@@ -73,10 +76,9 @@ export class BoardLinks {
                 this.#seekFromStandings(viewer, event.currentTarget),
             );
         const exit = exitUrl();
-        $(".summary .exit", this.root)
-            .text(exitLabel(exit))
-            .off(".replay-links")
-            .on("click.replay-links", () => window.location.assign(exit));
+        const button = $(".summary .exit", this.root);
+        setText(button[0], exitLabelKey(exit));
+        button.off(".replay-links").on("click.replay-links", () => window.location.assign(exit));
     }
 
     show(state) {
@@ -101,7 +103,7 @@ export class BoardLinks {
             const seat = (viewpoint + offset) % SEATS;
             const name = this.replay.players[seat];
             const view = offset === 0 ? name : `View from ${name}`;
-            const title = seatMarks[seat] === SEAT_MARK.AI ? `${view}${AI_TITLE}` : view;
+            const title = seatMarks[seat] === SEAT_MARK.AI ? `${view}${aiTitle()}` : view;
             plate.add($(".name", plate)).attr("title", title);
         });
     }

@@ -1,5 +1,6 @@
 import $ from "jquery";
 
+import { t } from "../../i18n/index.js";
 import { NO_OFFER } from "../ronin/offer.js";
 import RoninPlayer from "../ronin/player.js";
 import RONIN_RULE from "../ronin/rules.js";
@@ -9,7 +10,6 @@ import wire from "../ronin/wire.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
-const GAME_TITLE = "半荘戦";
 const DECISION_DORA = "s3";
 
 const EAST_ONE = Object.freeze({
@@ -345,7 +345,7 @@ function playDecision(header, pai, { hand, events, offer, press }) {
     const player = new RoninPlayer($("#board"), pai, Majiang.UI.audio($("#loaddata")));
     const kaiju = {
         id: VIEWPOINT,
-        title: GAME_TITLE,
+        title: t("game.type.hanchan"),
         rule: RONIN_RULE,
         player: [...SAMPLE_PLAYERS],
         qijia: 0,
@@ -366,7 +366,11 @@ function playDecision(header, pai, { hand, events, offer, press }) {
 }
 
 export function createTableModel({ round, shoupai, rivers, dora, paishu, lunban }) {
-    const model = new Majiang.Board({ title: GAME_TITLE, player: [...SAMPLE_PLAYERS], qijia: 0 });
+    const model = new Majiang.Board({
+        title: t("game.type.hanchan"),
+        player: [...SAMPLE_PLAYERS],
+        qijia: 0,
+    });
     model.qipai({ ...round, shoupai, baopai: dora[0] });
     rivers.forEach((river, l) => {
         for (const tile of river.split(" ")) {

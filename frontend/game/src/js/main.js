@@ -3,7 +3,7 @@ import "../styles/game-app.scss";
 
 import $ from "jquery";
 
-import { applyStaticText } from "../i18n/index.js";
+import { applyStaticText, t } from "../i18n/index.js";
 import { RECOVERY, readGameSession, recoverGameSession } from "./game-session.js";
 import { finishLoading, loadTileImages, showLoadingError } from "./loading.js";
 import { showReplay } from "./replay/page.js";
@@ -17,11 +17,13 @@ function showSessionProblem(text, ...links) {
         .removeClass("board")
         .addClass("page")
         .empty()
-        .append($('<p class="missing-session">').append(text, ...links));
+        .append(
+            $('<p class="missing-session">').append(document.createTextNode(`${text} `), ...links),
+        );
 }
 
 function lobbyLink() {
-    return $("<a>").attr("href", LOBBY_URL).text("ロビーへ");
+    return $("<a>").attr("href", LOBBY_URL).text(t("game.session.lobby_link"));
 }
 
 async function findGameSession(gameId) {
@@ -32,15 +34,15 @@ async function findGameSession(gameId) {
     const recovery = await recoverGameSession();
     if (recovery.status === RECOVERY.FAILED) {
         showSessionProblem(
-            "セッションを復元できませんでした。",
-            $("<a>").attr("href", window.location.href).text("再読み込み"),
-            " ",
+            t("game.session.recovery_failed"),
+            $("<a>").attr("href", window.location.href).text(t("game.session.reload_link")),
+            document.createTextNode(" "),
             lobbyLink(),
         );
         return null;
     }
     if (recovery.status === RECOVERY.MISSING) {
-        showSessionProblem("セッションが見つかりません。", lobbyLink());
+        showSessionProblem(t("game.session.missing"), lobbyLink());
         return null;
     }
     if (recovery.gameId !== gameId) {

@@ -1,10 +1,13 @@
 import $ from "jquery";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
 import Majiang from "../../vendor/majiang-core/index.js";
 import Board from "../../vendor/majiang-ui/board.js";
 import PAGE from "../../../index.html?raw";
+import { setLocale } from "../../i18n/index.js";
+
+beforeEach(() => setLocale("ja"));
 
 const PLAYERS = ["Ronin", "Bot 1", "Bot 2", "Bot 3"];
 

@@ -14,6 +14,9 @@ import { NO_OFFER } from "../ronin/offer.js";
 import Board from "../../vendor/majiang-ui/board.js";
 import PAGE from "../../../index.html?raw";
 import { renderSummary, rowTexts } from "./summary-table.js";
+import { setLocale } from "../../i18n/index.js";
+
+beforeEach(() => setLocale("ja"));
 
 const DECISIONS = [
     "kaiju",
@@ -885,8 +888,8 @@ describe("the ronin table (Translate and Reply)", () => {
             defen: 3900,
             fubaopai: null,
             hupai: [
-                { name: "断幺九", fanshu: 1 },
-                { name: "ドラ", fanshu: 2 },
+                { yi: 13, fanshu: 1 },
+                { yi: 120, fanshu: 2 },
             ],
         });
         table.decide({});
@@ -1198,6 +1201,53 @@ describe("the ronin table (Translate and Reply)", () => {
         const root = renderSummary();
         summary(root, table.player.shown.at(-1).data, 0);
         expect(rowTexts(root, ".row-diff")).toEqual(["東一局|0本場|流局|±0|±0|±0|±0"]);
+    });
+
+    it("voids a riichi stick the same way under every locale when a triple ron or four winds ends the round on its discard", () => {
+        const voidedRiichi = (locale, roundEnd) => {
+            setLocale(locale);
+            const table = startTable();
+            table.receive(draw(0, 120, { wi: 1 }));
+            table.decide({ dapai: "z1" });
+            table.receive(discard(0, 108));
+            table.receive(discard(1, 109));
+            table.receive(discard(2, 110));
+            table.receive(riichiDiscard(3, 111));
+            table.receive({ t: 4, rt: 4, sch: { 0: 0, 1: 0, 2: 0, 3: 0 }, ...roundEnd });
+            vi.advanceTimersByTime(WIN_CALL_MS);
+            table.receive({
+                t: 10,
+                ws: 0,
+                st: [0, 1, 2, 3].map((s) => ({ s, sc: 250, fs: 0 })),
+                lb: 0,
+            });
+            table.decide({});
+            const root = renderSummary();
+            summary(root, table.player.shown.at(-1).data, 0);
+            return {
+                code: shownOf(table, "pingju")[0].data.code,
+                lizhibang: table.player.model.lizhibang,
+                defen: table.player.model.defen,
+                diffs: root
+                    .find(".row-diff .diff")
+                    .map((i, cell) => $(cell).text())
+                    .get(),
+                riichiMarks: root.find(".row-diff .lizhi").text(),
+            };
+        };
+        vi.useFakeTimers();
+
+        for (const roundEnd of [{ rn: "four_winds" }, { rn: "triple_ron", rcl: [0, 1, 2] }]) {
+            const [ja, en] = ["ja", "en"].map((locale) => voidedRiichi(locale, roundEnd));
+            expect(en).toEqual(ja);
+            expect(en).toEqual({
+                code: roundEnd.rn,
+                lizhibang: 0,
+                defen: [25000, 25000, 25000, 25000],
+                diffs: ["±0", "±0", "±0", "±0"],
+                riichiMarks: "",
+            });
+        }
     });
 
     it("drops a win's pending result when the next round starts before it shows", () => {
