@@ -85,7 +85,16 @@ interleave.
   Beside the events the session writes replay-only annotation lines: a turn or call timeout goes in
   ahead of the events of the default action it leads to, so a call-timeout pass that emits nothing
   still leaves its line. A round advance timeout writes none, since a confirmation is no game
-  decision. The replay runner skips them; they only tell a viewer what happened.
+  decision. Seat control lines follow who plays each seat:
+  * an AI replacement goes in ahead of the AI player's moves, with its reason: `left` for a
+    disconnect (a kick included), which may fall between rounds, during a round advance;
+  * a seat with no connection at the first deal, never joined or gone during the game start pause,
+    is recorded `absent` after the deal's events (the start pause hands no seat over, so nothing is
+    written before the first round), and the replay viewer counts it an AI player's from the deal;
+  * a reconnect that takes the seat back from its AI player writes a human return;
+  * a connection replacement writes nothing: its seat never left its human.
+
+  The replay runner skips them; they only tell a viewer what happened.
 * **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
   it, often another seat's action, so a fired timer binds its game and its own seat, and the
   finalizer its game with no seat; a new background task rebinds its context the same way.

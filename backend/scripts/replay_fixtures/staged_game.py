@@ -17,7 +17,7 @@ from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.enums import WireEventType
-from game.wire.replay_format import REPLAY_VERSION
+from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, ReplaySeatControlReason
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -79,15 +79,35 @@ class ReplayRecorder:
         """
         self._collector.record_timeout(self._record, seat=seat, timeout_type=timeout_type)
 
+    def record_ai_replacement(self, *, seat: int, reason: ReplaySeatControlReason) -> None:
+        """
+        Record the seat's replacement with an AI player, ahead of the events of its moves, which the next record call
+        adds.
+        """
+        self._collector.record_ai_replacement(self._record, seat=seat, reason=reason)
+
+    def record_human_return(self, *, seat: int) -> None:
+        """
+        Record the seat's human return from its AI player: a session step of its own, after which the replay may be
+        saved.
+        """
+        self._collector.record_human_return(self._record, seat=seat)
+        self._call_ends.append(len(self._record.lines))
+
     def recording(self, wall: tuple[int, ...] | None = None) -> Recording:
         return Recording(lines=tuple(self._record.lines), call_ends=tuple(self._call_ends), wall=wall)
 
 
 def require_reproduces(recording: Recording, final_state: MahjongGameState, *, name: str) -> None:
     """
-    Raise ScenarioError unless the replay runner, given the recording, ends in the game's final state.
+    Raise ScenarioError unless the replay runner, given the recording, ends in the game's final state, its wait id
+    aside.
+
+    The wait id is a pacing counter the runner cannot reproduce: it plays each AI player's move within another seat's
+    call as an action of its own, a wait of its own.
     """
-    if recording.run().final_state != final_state:
+    replayed = recording.run().final_state.model_copy(update={"wait_id": final_state.wait_id})
+    if replayed != final_state:
         raise ScenarioError(f"{name}: the replay does not reproduce the game")
 
 
@@ -97,11 +117,12 @@ class Outcome:
     How a scenario's replay must end: the fields its last round end holds, and the line right after it.
 
     Fields match as a subset, nested mappings too, and a list matches item by item at its own length. then is the event
-    type and fields of the line after the round end, or None when the round end is the replay's last line.
+    or replay-only line type and fields of the line after the round end, or None when the round end is the replay's last
+    line.
     """
 
     round_end: Mapping[str, object]
-    then: tuple[WireEventType, Mapping[str, object]] | None = None
+    then: tuple[WireEventType | ReplayLineType, Mapping[str, object]] | None = None
 
 
 def _holds(actual: object, expected: object) -> bool:
@@ -291,6 +312,31 @@ class StagedGame(_ScriptedGame):
         update = self._service.handle_timeout(self._runtime, seat=seat, timeout_type=timeout_type)
         self._draws.pop(seat, None)
         self._record(update.events)
+
+    def replace_with_ai(self, seat: int, reason: ReplaySeatControlReason) -> None:
+        """
+        Hand the seat to an AI player, recorded as the session records it: its seat control line, then the events of the
+        moves the AI player makes at once.
+
+        From then on the engine plays the seat's turns and calls by itself.
+        """
+        if self._runtime.ai.is_ai_player(seat):
+            raise ScenarioError(f"{self._game_id}: seat {seat} was replaced with an AI player twice")
+
+        self._recorder.record_ai_replacement(seat=seat, reason=reason)
+        self._service.replace_with_ai_player(self._runtime, seat)
+        update = self._service.process_ai_player_actions_after_replacement(self._runtime, seat)
+        self._record(update.events)
+
+    def restore_human(self, seat: int) -> None:
+        """
+        Return the seat from its AI player to its participant, recorded as the session records a reconnect.
+        """
+        if not self._runtime.ai.is_ai_player(seat):
+            raise ScenarioError(f"{self._game_id}: seat {seat} was restored without an AI player in it")
+
+        self._service.restore_human_player(self._runtime, seat)
+        self._recorder.record_human_return(seat=seat)
 
     def pass_(self, seat: int) -> None:
         """

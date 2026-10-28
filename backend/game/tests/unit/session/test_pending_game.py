@@ -1,4 +1,5 @@
 import asyncio
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -26,6 +27,7 @@ SHORT_PENDING_TIMEOUT = TimerConfig(pending_game_timeout_seconds=0.01, game_star
 SHORT_START_PAUSE = TimerConfig(game_start_pause_seconds=0.01)
 GAME_STARTED_T = EVENT_TYPE_INT[EventType.GAME_STARTED]
 ROUND_STARTED_T = EVENT_TYPE_INT[EventType.ROUND_STARTED]
+DRAW_T = EVENT_TYPE_INT[EventType.DRAW]
 
 
 def _make_specs(count: int = 1) -> list[PlayerSpec]:
@@ -165,6 +167,9 @@ class TestPendingGameTimeout:
         assert not absent.is_connected
         snapshot = seeded_engine.build_reconnection_snapshot(runtime_of(manager), connected.seat)
         assert snapshot.players[absent.seat].is_ai_player is True
+        recorded = [json.loads(line) for line in game.replay.lines]
+        ai_replacement_at = recorded.index({"t": 101, "s": absent.seat, "ai": 1, "r": 1})
+        assert [line["t"] for line in recorded[:ai_replacement_at]] == [GAME_STARTED_T, ROUND_STARTED_T, DRAW_T]
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)
@@ -248,6 +253,8 @@ class TestGameStartPause:
         await game.start_pause
         assert alice.sent_messages[2]["t"] == ROUND_STARTED_T
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is True
+        recorded = [json.loads(line) for line in game.replay.lines]
+        assert [line for line in recorded if line["t"] == 101] == [{"t": 101, "s": bob_seat, "ai": 1, "r": 1}]
 
         manager.reconnect(early_reconnect, session_token="ticket-1")
         reconnected = [m for m in early_reconnect.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED]

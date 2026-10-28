@@ -40,6 +40,7 @@ from game.session.models import GameLifecycle, GameSession, Participant
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
+from game.wire.replay_format import ReplaySeatControlReason
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
 
@@ -381,7 +382,8 @@ class SessionManager:
 
     def _deal_first_round(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
-        Send the first deal and open the first wait; then seat an AI player for every participant without a connection.
+        Send the first deal and open the first wait; then seat an AI player for every participant without a connection,
+        recorded as absent after the deal.
 
         An absent participant (never joined, or left during the game start pause) can RECONNECT later.
         """
@@ -389,7 +391,7 @@ class SessionManager:
         self._follow_engine(game, events=events, awaiting=awaiting, actor=None)
         for participant in absent:
             if game.lifecycle is GameLifecycle.PLAYING:
-                self._release_seat(participant)
+                self._release_seat(participant, reason=ReplaySeatControlReason.ABSENT)
 
     def _record_game_start(self, game: GameSession, runtime: GameRuntime) -> None:
         """
@@ -428,15 +430,16 @@ class SessionManager:
         logger.info("player left game")
         self._broadcast_to_game(game, PlayerLeftMessage(player_name=participant.name).model_dump())
         if game.lifecycle is GameLifecycle.PLAYING:
-            self._release_seat(participant)
+            self._release_seat(participant, reason=ReplaySeatControlReason.LEFT)
 
-    def _release_seat(self, participant: Participant) -> None:
+    def _release_seat(self, participant: Participant, *, reason: ReplaySeatControlReason) -> None:
         """
-        Hand a participant's seat to an AI player, which plays any turn or call it owed.
+        Hand a participant's seat to an AI player, which plays any turn or call it owed, and record the AI replacement
+        with its reason in the replay ahead of the AI player's moves.
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
-        abandoned instead: there are never all-AI games. During the game start pause the seat stays empty: the first
-        deal hands it over, so no AI player's move goes out ahead of the deal.
+        abandoned instead: there are never all-AI games. During the game start pause the seat stays empty and nothing is
+        recorded: the first deal hands it over as absent, so no AI player's move goes out ahead of the deal.
         """
         game = participant.game
         participant.timer.stop()
@@ -448,6 +451,9 @@ class SessionManager:
             return
 
         seat = self._seat_of(participant)
+        if game.replay is not None:
+            self._replay_collector.record_ai_replacement(game.replay, seat=seat, reason=reason)
+
         runtime = self._runtime_of(game)
         self._game_service.replace_with_ai_player(runtime, seat)
         update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
@@ -543,13 +549,13 @@ class SessionManager:
         """
         Bind a new connection to a participant of a playing game and send it the game's state.
 
-        A disconnected participant takes its seat back from the AI player (`restore_human_player`), and the others get
-        `player_reconnected`. A participant still bound to a connection (a half-open socket after a network switch, or
-        another client) has that connection replaced (`_bind`) instead: its seat was never handed over, the others never
-        saw it leave, and the wait, its timers and the bank carry on untouched. Either way the new connection gets the
-        `game_reconnected` snapshot with the current wait id, the seat's timer settings (its bank as of its last turn)
-        and, during a round advance, whether the seat still owes its confirmation, with how long that wait's timer has
-        run when it does; then the event that opened the wait the game owes the seat, if any
+        A disconnected participant takes its seat back from the AI player (`restore_human_player`), which the replay
+        records, and the others get `player_reconnected`. A participant still bound to a connection (a half-open socket
+        after a network switch, or another client) has that connection replaced (`_bind`) instead: its seat was never
+        handed over, the others never saw it leave, and the wait, its timers and the bank carry on untouched. Either way
+        the new connection gets the `game_reconnected` snapshot with the current wait id, the seat's timer settings (its
+        bank as of its last turn) and, during a round advance, whether the seat still owes its confirmation, with how
+        long that wait's timer has run when it does; then the event that opened the wait the game owes the seat, if any
         (`_send_wait_on_reconnect`). A RECONNECT on a connection the server already evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
@@ -566,6 +572,8 @@ class SessionManager:
         taking_over = participant.is_connected
         if not taking_over:
             self._game_service.restore_human_player(runtime, seat)
+            if game.replay is not None:
+                self._replay_collector.record_human_return(game.replay, seat=seat)
 
         snapshot = self._game_service.build_reconnection_snapshot(runtime, seat)
         self._bind(participant, connection)
@@ -869,9 +877,9 @@ class SessionManager:
         Record a fired turn or call timer in the replay when the game still awaits its seat, as the engine requires
         before it plays a default action, then run that action; any unexpected error ends the game through fail_game.
 
-        The action needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer, and a
-        cancel after its sleep ended still stops it before this runs. It logs as the timer's own seat: the timer task
-        copied the log context of whatever armed it, often another seat's action.
+        The action needs no guard: every path that ends the game, ends the wait or releases the seat cancels the timer,
+        and a cancel after its sleep ended still stops it before this runs. It logs as the timer's own seat: the timer
+        task copied the log context of whatever armed it, often another seat's action.
         """
         game = participant.game
         structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=participant.seat)

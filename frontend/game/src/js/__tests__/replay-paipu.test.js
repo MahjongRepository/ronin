@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import Majiang from "../../vendor/majiang-core/index.js";
 import { parseReplay } from "../replay/load.js";
-import { MalformedReplayError, POSITION, toReplay } from "../replay/paipu.js";
+import { MalformedReplayError, NOTE, POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
 import wire from "../ronin/wire.js";
 import { firstLineOf } from "./replay-edits.js";
+import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import CHANKAN_CLOSED_KOKUSHI from "./fixtures/replays/chankan_closed_kokushi.txt?raw";
 import CHANKAN_TIMEOUT from "./fixtures/replays/chankan_timeout.txt?raw";
@@ -180,11 +181,58 @@ describe("toReplay", () => {
         const [first, second] = convert(TIMEOUTS).rounds;
 
         expect(noted(first)).toEqual([
-            [[{ dapai: { l: 0, p: "z6_" } }], [{ seat: 0, timeout: wire.TIMEOUT_KIND.TURN }]],
-            [[{ zimo: { l: 2, p: "p4" } }], [{ seat: 3, timeout: wire.TIMEOUT_KIND.CALL }]],
+            [
+                [{ dapai: { l: 0, p: "z6_" } }],
+                [{ kind: NOTE.TIMEOUT, seat: 0, timeout: wire.TIMEOUT_KIND.TURN }],
+            ],
+            [
+                [{ zimo: { l: 2, p: "p4" } }],
+                [{ kind: NOTE.TIMEOUT, seat: 3, timeout: wire.TIMEOUT_KIND.CALL }],
+            ],
         ]);
         expect(noted(second)).toEqual([
-            [[{ dapai: { l: 0, p: "s2_" } }], [{ seat: 1, timeout: wire.TIMEOUT_KIND.TURN }]],
+            [
+                [{ dapai: { l: 0, p: "s2_" } }],
+                [{ kind: NOTE.TIMEOUT, seat: 1, timeout: wire.TIMEOUT_KIND.TURN }],
+            ],
+        ]);
+    });
+
+    it("notes each AI replacement and human return on the next visible position, and holds the seats AI plays at each", () => {
+        const controlled = (round) =>
+            stepsOf(round).map(({ kind, position }) => [
+                kind,
+                position.ai.flatMap((ai, seat) => (ai ? [seat] : [])),
+                position.notes,
+            ]);
+        const [first, second] = convert(AI_REPLACEMENTS).rounds;
+        const { LEFT, ABSENT } = wire.SEAT_CONTROL_REASON;
+
+        expect(controlled(first)).toEqual([
+            [POSITION.DEAL, [3], [{ kind: NOTE.AI_REPLACEMENT, seat: 3, reason: ABSENT }]],
+            [POSITION.DRAW, [3], undefined],
+            [POSITION.DISCARD, [3], undefined],
+            [POSITION.DRAW, [3], undefined],
+            [POSITION.DISCARD, [3], undefined],
+            [POSITION.DRAW, [3], undefined],
+            [POSITION.DISCARD, [2, 3], [{ kind: NOTE.AI_REPLACEMENT, seat: 2, reason: LEFT }]],
+            [POSITION.RESULT, [2, 3], undefined],
+        ]);
+        expect(controlled(second)).toEqual([
+            [
+                POSITION.DEAL,
+                [0, 2],
+                [
+                    { kind: NOTE.HUMAN_RETURN, seat: 3 },
+                    { kind: NOTE.AI_REPLACEMENT, seat: 0, reason: LEFT },
+                ],
+            ],
+            [POSITION.DRAW, [0, 2], undefined],
+            [POSITION.DISCARD, [0], [{ kind: NOTE.HUMAN_RETURN, seat: 2 }]],
+            ...[2, 3, 0].flatMap(() => [
+                [POSITION.DRAW, [0], undefined],
+                [POSITION.DISCARD, [0], undefined],
+            ]),
         ]);
     });
 
@@ -209,13 +257,33 @@ describe("toReplay", () => {
             '{"t": 99}',
             '{"t": 100, "s": 4, "k": 0}',
             '{"t": 100, "s": 0, "k": 2}',
+            '{"t": 101, "s": 4, "ai": 1, "r": 0}',
+            '{"t": 101, "s": 0, "ai": 1, "r": 2}',
+            '{"t": 101, "s": 0, "ai": 2}',
+            '{"t": 101, "s": 0, "ai": 0}',
+            '{"t": 101, "s": 1, "ai": 1, "r": 1}',
         ];
+        const absentAfterTheFirstRound = firstLineOf(FULL_GAME.split("\n"), wire.E.ROUND_END) + 2;
 
         for (const record of unreadable) {
             expect(() => convert(insertLine(KANS, 6, record))).toThrow(
                 expect.objectContaining({ name: MalformedReplayError.name, line: 6 }),
             );
         }
+        expect(() =>
+            convert(
+                insertLine(
+                    FULL_GAME,
+                    absentAfterTheFirstRound,
+                    '{"t": 101, "s": 1, "ai": 1, "r": 1}',
+                ),
+            ),
+        ).toThrow(
+            expect.objectContaining({
+                name: MalformedReplayError.name,
+                line: absentAfterTheFirstRound,
+            }),
+        );
     });
 });
 
@@ -335,7 +403,7 @@ describe("toReplay round ends", () => {
         const steps = stepsOf(firstRound(CHANKAN_TIMEOUT));
         expect(steps.slice(-2).map((step) => [step.kind, step.position.notes])).toEqual([
             [POSITION.CALL, undefined],
-            [POSITION.RESULT, [{ seat: 3, timeout: wire.TIMEOUT_KIND.CALL }]],
+            [POSITION.RESULT, [{ kind: NOTE.TIMEOUT, seat: 3, timeout: wire.TIMEOUT_KIND.CALL }]],
         ]);
     });
 

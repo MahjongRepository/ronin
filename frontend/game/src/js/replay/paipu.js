@@ -28,6 +28,16 @@ export const POSITION = Object.freeze({
     SILENT: "silent",
 });
 
+/**
+ * What a position's note says of the seat it names: its turn or call timed out (`timeout`, the wire's timeout kind),
+ * an AI player replaced its human (`reason`, the wire's seat control reason), or its human returned.
+ */
+export const NOTE = Object.freeze({
+    TIMEOUT: "timeout",
+    AI_REPLACEMENT: "ai_replacement",
+    HUMAN_RETURN: "human_return",
+});
+
 /** A paipu message's kind: zimo, dapai, fulou, hule, … */
 export function kindOf(message) {
     return Object.keys(message)[0];
@@ -95,6 +105,66 @@ function discardTile({ tileId, isTsumogiri, isRiichi }) {
 
 function notesField(notes) {
     return notes.length > 0 ? { notes } : {};
+}
+
+function checkSeat(seat, subject) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= SEATS) {
+        throw new Error(`${subject} of unknown seat ${seat}`);
+    }
+}
+
+/** The note of a timeout line: the seat whose turn or call ran out, and which of the two. */
+function timeoutNote(line) {
+    checkSeat(line.s, "timeout");
+    if (!Object.values(wire.TIMEOUT_KIND).includes(line.k)) {
+        throw new Error(`unknown timeout kind ${line.k}`);
+    }
+    return { kind: NOTE.TIMEOUT, seat: line.s, timeout: line.k };
+}
+
+/** The note of a seat control line: the seat's AI replacement, with its reason, or its human's return. */
+function seatControlNote(line) {
+    checkSeat(line.s, "seat control");
+    switch (line.ai) {
+        case 1:
+            if (!Object.values(wire.SEAT_CONTROL_REASON).includes(line.r)) {
+                throw new Error(`unknown AI replacement reason ${line.r}`);
+            }
+            return { kind: NOTE.AI_REPLACEMENT, seat: line.s, reason: line.r };
+        case 0:
+            return { kind: NOTE.HUMAN_RETURN, seat: line.s };
+        default:
+            throw new Error(`unknown seat control ${line.ai}`);
+    }
+}
+
+function isAbsentAtTheDeal(note) {
+    return note.kind === NOTE.AI_REPLACEMENT && note.reason === wire.SEAT_CONTROL_REASON.ABSENT;
+}
+
+/** The seats AI players control, by absolute seat, after a note; a timeout changes none. */
+function withSeatControl(aiSeats, note) {
+    switch (note.kind) {
+        case NOTE.AI_REPLACEMENT:
+            return aiSeats.with(note.seat, true);
+        case NOTE.HUMAN_RETURN:
+            return aiSeats.with(note.seat, false);
+        default:
+            return aiSeats;
+    }
+}
+
+/**
+ * The closed round with `ai` on each position: the seats AI players control there, its notes applied to the previous
+ * position's, the first's to `aiSeats`, those of the previous round's last position.
+ */
+function withAiSeats(round, aiSeats) {
+    const positions = [];
+    for (const position of round.positions) {
+        const before = positions.at(-1)?.ai ?? aiSeats;
+        positions.push({ ...position, ai: (position.notes ?? []).reduce(withSeatControl, before) });
+    }
+    return { ...round, positions };
 }
 
 /** The tiles a meld takes from its caller's hand: all but the called tile, an added kan's fourth tile alone. */
@@ -184,7 +254,8 @@ class SeatState {
  * them, or before it leaves the position, and the position after it starts past them.
  */
 class RoundBuilder {
-    constructor(roundStart, qijia, gameType) {
+    /** `notes` are the seat control notes recorded since the previous round ended, which the deal takes in. */
+    constructor(roundStart, { qijia, gameType, notes }) {
         this.dealer = roundStart.dl;
         this.seats = Array.from(
             { length: SEATS },
@@ -201,7 +272,7 @@ class RoundBuilder {
         this.log = [dealMessage(roundStart, qijia)];
         this.positions = [];
         this.nextStart = 0;
-        this.pendingSilent = [];
+        this.pendingSilent = [...notes];
         this.kanSeat = null;
         this.addPosition(POSITION.DEAL);
     }
@@ -275,23 +346,41 @@ class RoundBuilder {
     }
 
     /**
-     * A turn or call timeout shows nothing of its own: it notes the seat that timed out on the next visible position,
-     * which may be another seat's (a call-timeout pass folds into the next draw).
+     * A note (a turn or call timeout, a seat's AI replacement or its human's return) shows nothing of its own: it names
+     * its seat on the next visible position, which may be another seat's (a call-timeout pass folds into the next draw).
      */
-    noteTimeout(seat, kind) {
-        if (!Number.isInteger(seat) || seat < 0 || seat >= SEATS) {
-            throw new Error(`timeout of unknown seat ${seat}`);
+    note(note) {
+        this.addSilent(null, note);
+    }
+
+    /**
+     * A seat absent at the deal was an AI player's from the deal on, so its note goes on the deal. Its line follows the
+     * deal's events and the moves of the seats found absent before it, which are all the round holds then: any other
+     * seat's discard or call means the line is not where the server writes it.
+     */
+    noteOnDeal(note) {
+        const [deal, ...played] = this.positions;
+        const dealNotes = deal.notes ?? [];
+        const absent = new Set(dealNotes.map((dealNote) => dealNote.seat));
+        const decider = played
+            .filter((position) => position.kind !== POSITION.DRAW)
+            .map((position) => this.actorOf(position))
+            .find((seat) => !absent.has(seat));
+        if (decider !== undefined) {
+            throw new Error(`seat ${note.seat} absent at the deal after seat ${decider} played`);
         }
-        if (!Object.values(wire.TIMEOUT_KIND).includes(kind)) {
-            throw new Error(`unknown timeout kind ${kind}`);
-        }
-        this.addSilent(null, { seat, timeout: kind });
+        this.positions[0] = { ...deal, notes: [...dealNotes, note] };
+    }
+
+    actorOf(position) {
+        const message = this.log[position.end - 1];
+        return seatOfL(message[kindOf(message)].l, this.dealer);
     }
 
     /**
      * A round end closes the round with its result position, which takes in the silent records before it. A robbed
      * kan, which no meld record shows, is first its own position, declared as a call; the notes pending then (a
-     * chankan prompt's timeouts) came after its declaration, so they stay for the result.
+     * chankan prompt's timeouts, an AI replacement during it) came after its declaration, so they stay for the result.
      */
     closeAtRoundEnd(roundEnd) {
         if (roundEnd.rk != null) {
@@ -335,6 +424,12 @@ class RoundBuilder {
     }
 }
 
+/**
+ * The rounds of a replay. Seat control is the game's, not a round's: it keeps the seats AI players control as of the
+ * last line read, and gives each round's positions theirs once the round closes. A seat absent at the first deal is
+ * noted on that deal, an AI player's from it on; any other seat control line recorded between rounds (in a round
+ * advance) is noted on the next round's deal, and one after the last position the replay holds is dropped.
+ */
 class ReplayBuilder {
     constructor(gameStarted) {
         this.players = [];
@@ -348,6 +443,8 @@ class ReplayBuilder {
             throw new Error(`unknown game type ${gameStarted.gt}`);
         }
         this.gameType = gameStarted.gt;
+        this.aiSeats = this.ai;
+        this.notesBetweenRounds = [];
         this.rounds = [];
         this.round = null;
         this.standings = null;
@@ -375,7 +472,9 @@ class ReplayBuilder {
             case wire.E.RIICHI_DECL:
                 return this.currentRound().declareRiichi(line.s);
             case wire.REPLAY_LINE.TIMEOUT:
-                return this.currentRound().noteTimeout(line.s, line.k);
+                return this.currentRound().note(timeoutNote(line));
+            case wire.REPLAY_LINE.SEAT_CONTROL:
+                return this.controlSeat(seatControlNote(line));
             case wire.E.ROUND_END:
                 return this.closeRound(line);
             case wire.E.GAME_END:
@@ -389,12 +488,48 @@ class ReplayBuilder {
         if (this.round !== null) {
             throw new Error("round started before the previous round ended");
         }
-        this.round = new RoundBuilder(roundStart, this.qijia, this.gameType);
+        this.round = new RoundBuilder(roundStart, {
+            qijia: this.qijia,
+            gameType: this.gameType,
+            notes: this.notesBetweenRounds,
+        });
+        this.notesBetweenRounds = [];
+    }
+
+    /**
+     * An AI replacement of a seat an AI player holds, or a human return to a seat its human holds, is no record, and
+     * neither is a seat absent at the deal anywhere but in the game's first round.
+     */
+    controlSeat(note) {
+        const replacing = note.kind === NOTE.AI_REPLACEMENT;
+        if (this.aiSeats[note.seat] === replacing) {
+            throw new Error(
+                replacing
+                    ? `seat ${note.seat} replaced with an AI player while one holds it`
+                    : `seat ${note.seat} returned to its human while they hold it`,
+            );
+        }
+        const absent = isAbsentAtTheDeal(note);
+        if (absent && (this.round === null || this.rounds.length > 0)) {
+            throw new Error(`seat ${note.seat} absent at a deal other than the first`);
+        }
+        this.aiSeats = withSeatControl(this.aiSeats, note);
+        if (absent) {
+            this.round.noteOnDeal(note);
+        } else if (this.round === null) {
+            this.notesBetweenRounds.push(note);
+        } else {
+            this.round.note(note);
+        }
     }
 
     closeRound(roundEnd) {
-        this.rounds.push(this.currentRound().closeAtRoundEnd(roundEnd));
+        this.pushRound(this.currentRound().closeAtRoundEnd(roundEnd));
         this.round = null;
+    }
+
+    pushRound(round) {
+        this.rounds.push(withAiSeats(round, this.rounds.at(-1)?.positions.at(-1).ai ?? this.ai));
     }
 
     /** The final standings, shown as one more position of the last round, after its result. */
@@ -404,14 +539,20 @@ class ReplayBuilder {
             throw new Error("game ended outside a round end");
         }
         const end = last.log.length;
-        const summary = { start: end, end, kind: POSITION.SUMMARY, say: [] };
+        const summary = {
+            start: end,
+            end,
+            kind: POSITION.SUMMARY,
+            say: [],
+            ai: last.positions.at(-1).ai,
+        };
         this.rounds[this.rounds.length - 1] = { ...last, positions: [...last.positions, summary] };
         this.standings = jiejuStandings(gameEnd);
     }
 
     build() {
         if (this.round !== null) {
-            this.rounds.push(this.round.closeTruncated());
+            this.pushRound(this.round.closeTruncated());
         }
         return {
             players: this.players,
