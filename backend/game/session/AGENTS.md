@@ -87,12 +87,14 @@ interleave.
   * an AI replacement goes in ahead of the AI player's moves, with its reason: `left` for a
     disconnect (a kick included), which may fall between rounds, during a round advance;
   * a seat with no connection at the first deal, never joined or gone during the game start pause,
-    is recorded `absent` after the deal's events (the start pause hands no seat over, so nothing is
-    written before the first round), and the replay viewer counts it an AI player's from the deal;
+    is recorded `absent` ahead of the deal's events, the moves of the AI players seated from the
+    start included, since its AI player holds it from the deal (the start pause hands no seat over);
+    its AI player then plays the turn or call the deal leaves it;
+  * an AI player seated from the game's start has no seat control line: it never had a human;
   * a reconnect that takes the seat back from its AI player writes a human return;
   * a connection replacement writes nothing: its seat never left its human.
 
-  The replay runner skips them; they only tell a viewer what happened.
+  The replay loader skips them; they only tell a viewer what happened.
 * **Each task logs as its own subject.** A task copies the structlog context of whatever spawned
   it, often another seat's action, so a fired timer binds its game and its own seat, and the
   finalizer its game with no seat; a new background task rebinds its context the same way.

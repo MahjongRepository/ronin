@@ -128,20 +128,23 @@ function isAbsentAtTheDeal(note) {
     return note.kind === NOTE.AI_REPLACEMENT && note.reason === wire.SEAT_CONTROL_REASON.ABSENT;
 }
 
-/** The seats AI players control, by absolute seat, after a note. */
-function withSeatControl(aiSeats, note) {
-    return aiSeats.with(note.seat, note.kind === NOTE.AI_REPLACEMENT);
+/** Whose seats, by absolute seat, an AI player holds for their human after a note. */
+function withSeatControl(replaced, note) {
+    return replaced.with(note.seat, note.kind === NOTE.AI_REPLACEMENT);
 }
 
 /**
- * The closed round with `ai` on each position: the seats AI players control there, its notes applied to the previous
- * position's, the first's to `aiSeats`, those of the previous round's last position.
+ * The closed round with `replaced` on each position: the seats an AI player holds there for their human, its notes
+ * applied to the previous position's, the first's to `replaced`, those of the previous round's last position.
  */
-function withAiSeats(round, aiSeats) {
+function withReplacedSeats(round, replaced) {
     const positions = [];
     for (const position of round.positions) {
-        const before = positions.at(-1)?.ai ?? aiSeats;
-        positions.push({ ...position, ai: (position.notes ?? []).reduce(withSeatControl, before) });
+        const before = positions.at(-1)?.replaced ?? replaced;
+        positions.push({
+            ...position,
+            replaced: (position.notes ?? []).reduce(withSeatControl, before),
+        });
     }
     return { ...round, positions };
 }
@@ -242,10 +245,8 @@ class RoundBuilder {
         );
         this.outcome = null;
         this.summary = {
-            wind: roundStart.w,
             dealer: roundStart.dl,
             honba: roundStart.h,
-            sticks: roundStart.r,
             final: isFinalRound(gameType, roundStart, qijia),
         };
         this.log = [dealMessage(roundStart, qijia)];
@@ -333,30 +334,6 @@ class RoundBuilder {
     }
 
     /**
-     * A seat absent at the deal was an AI player's from the deal on, so its note goes on the deal. Its line follows the
-     * deal's events and the moves of the seats found absent before it, which are all the round holds then: any other
-     * seat's discard or call means the line is not where the server writes it.
-     */
-    noteOnDeal(note) {
-        const [deal, ...played] = this.positions;
-        const dealNotes = deal.notes ?? [];
-        const absent = new Set(dealNotes.map((dealNote) => dealNote.seat));
-        const decider = played
-            .filter((position) => position.kind !== POSITION.DRAW)
-            .map((position) => this.actorOf(position))
-            .find((seat) => !absent.has(seat));
-        if (decider !== undefined) {
-            throw new Error(`seat ${note.seat} absent at the deal after seat ${decider} played`);
-        }
-        this.positions[0] = { ...deal, notes: [...dealNotes, note] };
-    }
-
-    actorOf(position) {
-        const message = this.log[position.end - 1];
-        return seatOfL(message[kindOf(message)].l, this.dealer);
-    }
-
-    /**
      * A round end closes the round with its result position, which takes in the silent records before it. A robbed
      * kan, which no meld record shows, is first its own position, declared as a call; the notes pending then (an
      * AI replacement during its chankan prompt) came after its declaration, so they stay for the result.
@@ -403,26 +380,36 @@ class RoundBuilder {
     }
 }
 
+const SEAT_NUMBERS = Array.from({ length: SEATS }, (_, seat) => seat);
+
+/** No seat's human is replaced: how every game starts. */
+const NONE_REPLACED = Object.freeze(SEAT_NUMBERS.map(() => false));
+
 /**
- * The rounds of a replay. Seat control is the game's, not a round's: it keeps the seats AI players control as of the
- * last line read, and gives each round's positions theirs once the round closes. A seat absent at the first deal is
- * noted on that deal, an AI player's from it on; any other seat control line recorded between rounds (in a round
- * advance) is noted on the next round's deal, and one after the last position the replay holds is dropped.
+ * The rounds of a replay. Seat control is the game's, not a round's: it keeps the seats an AI player holds for their
+ * human as of the last line read, and gives each round's positions theirs once the round closes. An AI player seated
+ * from the game's start (`game_started`'s `ai`) has no human and no seat control line. A seat absent at the first deal
+ * is recorded ahead of the deal, so it is noted on that deal as any line recorded between rounds (in a round advance)
+ * is noted on the next round's deal; one after the last position the replay holds is dropped.
  */
 class ReplayBuilder {
     constructor(gameStarted) {
         this.players = [];
-        this.ai = [];
+        this.aiFromStart = [];
         for (const player of gameStarted.p) {
             this.players[player.s] = player.nm;
-            this.ai[player.s] = Boolean(player.ai);
+            this.aiFromStart[player.s] = Boolean(player.ai);
+        }
+        const empty = SEAT_NUMBERS.find((seat) => this.players[seat] === undefined);
+        if (empty !== undefined) {
+            throw new Error(`game_started has no player in seat ${empty}`);
         }
         this.qijia = gameStarted.dl;
         if (!Object.hasOwn(LAST_WINDS, gameStarted.gt)) {
             throw new Error(`unknown game type ${gameStarted.gt}`);
         }
         this.gameType = gameStarted.gt;
-        this.aiSeats = this.ai;
+        this.replaced = NONE_REPLACED;
         this.notesBetweenRounds = [];
         this.rounds = [];
         this.round = null;
@@ -474,26 +461,29 @@ class ReplayBuilder {
     }
 
     /**
-     * An AI replacement of a seat an AI player holds, or a human return to a seat its human holds, is no record, and
-     * neither is a seat absent at the deal anywhere but in the game's first round.
+     * Seat control of an AI player's seat from the game's start, an AI replacement of a seat an AI player holds, or a
+     * human return to a seat its human holds, is no record, and neither is a seat absent at the deal anywhere but ahead
+     * of the game's first deal.
      */
     controlSeat(note) {
+        if (this.aiFromStart[note.seat]) {
+            throw new Error(
+                `seat control of seat ${note.seat}, an AI player's from the game's start`,
+            );
+        }
         const replacing = note.kind === NOTE.AI_REPLACEMENT;
-        if (this.aiSeats[note.seat] === replacing) {
+        if (this.replaced[note.seat] === replacing) {
             throw new Error(
                 replacing
                     ? `seat ${note.seat} replaced with an AI player while one holds it`
                     : `seat ${note.seat} returned to its human while they hold it`,
             );
         }
-        const absent = isAbsentAtTheDeal(note);
-        if (absent && (this.round === null || this.rounds.length > 0)) {
+        if (isAbsentAtTheDeal(note) && (this.round !== null || this.rounds.length > 0)) {
             throw new Error(`seat ${note.seat} absent at a deal other than the first`);
         }
-        this.aiSeats = withSeatControl(this.aiSeats, note);
-        if (absent) {
-            this.round.noteOnDeal(note);
-        } else if (this.round === null) {
+        this.replaced = withSeatControl(this.replaced, note);
+        if (this.round === null) {
             this.notesBetweenRounds.push(note);
         } else {
             this.round.note(note);
@@ -506,7 +496,12 @@ class ReplayBuilder {
     }
 
     pushRound(round) {
-        this.rounds.push(withAiSeats(round, this.rounds.at(-1)?.positions.at(-1).ai ?? this.ai));
+        this.rounds.push(
+            withReplacedSeats(
+                round,
+                this.rounds.at(-1)?.positions.at(-1).replaced ?? NONE_REPLACED,
+            ),
+        );
     }
 
     /** The final standings, shown as one more position of the last round, after its result. */
@@ -521,7 +516,7 @@ class ReplayBuilder {
             end,
             kind: POSITION.SUMMARY,
             say: [],
-            ai: last.positions.at(-1).ai,
+            replaced: last.positions.at(-1).replaced,
         };
         this.rounds[this.rounds.length - 1] = { ...last, positions: [...last.positions, summary] };
         this.standings = jiejuStandings(gameEnd);
@@ -533,9 +528,7 @@ class ReplayBuilder {
         }
         return {
             players: this.players,
-            ai: this.ai,
             qijia: this.qijia,
-            gameType: this.gameType,
             rounds: this.rounds,
             standings: this.standings,
         };

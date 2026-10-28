@@ -359,9 +359,9 @@ sequenceDiagram
 | `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
 | Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}` |
 
-A replay file holds the game's recorded events plus replay-only annotation lines the replay runner
-skips: each seat's replacement with an AI player (left, or absent at the first deal) and its
-human's return.
+A replay file holds the game's recorded events plus replay-only annotation lines the replay loader
+skips: each seat's replacement with an AI player (left, or absent at the first deal, recorded ahead
+of that deal) and its human's return. A seat the game started with an AI player in has none.
 
 The finish record is built from the start record, never from end-of-game connection state, so a
 seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL, which is why
@@ -397,16 +397,14 @@ honours this contract can replace it.
   `/play/history/{game_id}?seat=&round=&step=`, all zero-based whole numbers: `seat` the seat at the
   bottom of the table (default: the recorded first dealer's), `round` the recorded deal (repeats
   counted), `step` the position in that round (0 its deal; the final standings are the last round's
-  last step, whose `step` equals the strip's step count n in "Step n / n", since the strip counts
-  from 1 and leaves the standings out). A link opens there paused; a double ron opens at its first
-  win. A bad `seat` falls back to the default, a missing or bad `round` to round 0's deal (its
-  `step` ignored), a bad `step` to its round's deal. The page then keeps the query on the position
-  shown with `history.replaceState`, so the address bar is the share link and Back leaves the
-  replay; neither autoplay nor the hidden-hands choice is in it. The lobby history page links a
-  participant to a replay from their own seat, but its copy-link button copies the link without
-  `seat`, so a shared link imposes no viewpoint. The game client's final standings link the player
-  to the replay from their seat too; since the game end reaches the players before the server has
-  saved the replay, the replay page asks again for a few seconds before calling it not found.
+  last step). A link opens there. A bad `seat` falls back to the default, a missing or bad `round`
+  to round 0's deal (its `step` ignored), a bad `step` to its round's deal. The page then keeps the
+  query on the position shown with `history.replaceState`, so the address bar is the share link and
+  Back leaves the replay. The lobby history page links a participant to a replay from their own
+  seat, but its copy-link button copies the link without `seat`, so a shared link imposes no
+  viewpoint. The game client's final standings link the player to the replay from their seat too;
+  the game end reaches the players before the server has saved the replay, so the replay may answer
+  404 for a moment after it.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **CSP:** game pages allow scripts and styles from `'self'` (inline styles too), Google Fonts, and
   WebSocket connections to any host; no `eval`, so a library that compiles code at runtime must

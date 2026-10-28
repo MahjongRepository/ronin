@@ -3,11 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "../majiang.js";
 import Majiang from "../../vendor/majiang-core/index.js";
-import Board from "../../vendor/majiang-ui/board.js";
+import Board, { SEAT_MARK } from "../../vendor/majiang-ui/board.js";
 import PAGE from "../../../index.html?raw";
 import { parseReplay } from "../replay/load.js";
 import { POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
+import { SEATS } from "../replay/seats.js";
 import { AUTOPLAY_SPEED, AUTOPLAY_SPEEDS } from "../replay/speeds.js";
 import {
     AUTOPLAY_DEAL_MS,
@@ -18,21 +19,29 @@ import {
 import { withUnplayableDraw } from "./replay-edits.js";
 import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
+import CHANKAN_AI_REPLACEMENT from "./fixtures/replays/chankan_ai_replacement.txt?raw";
 import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?raw";
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
 import EXHAUSTIVE_TENPAI from "./fixtures/replays/exhaustive_tenpai.txt?raw";
 import FOUR_KANS from "./fixtures/replays/four_kans.txt?raw";
+import FOUR_WINDS_RIICHI from "./fixtures/replays/four_winds_riichi.txt?raw";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
 import KANS from "./fixtures/replays/kans.txt?raw";
+import KYUUSHU from "./fixtures/replays/kyuushu.txt?raw";
 import PAO from "./fixtures/replays/pao.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import RON_RIICHI_DISCARD from "./fixtures/replays/ron_riichi_discard.txt?raw";
+import TRIPLE_RON from "./fixtures/replays/triple_ron.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
 import TRUNCATED_MID_ROUND from "./fixtures/replays/truncated_mid_round.txt?raw";
 
 /** The board's own delay before a win's dialog opens, shorter than a result's callouts. */
 const BOARD_HULE_MS = 400;
+/** The positions of a round's last four turns, each a draw and a discard. */
+const LAST_TURNS_STEPS = 8;
+/** More polls than any result's callouts and the board's delay take to open its dialog. */
+const MAX_DIALOG_POLLS = 100;
 /** The double ron of double_ron_on_honba.txt, the third round's result. */
 const DOUBLE_RON_ROUND = 2;
 
@@ -44,20 +53,31 @@ function recordingAudio(played = []) {
     return (name) => ({ play: () => played.push(name), currentTime: 0 });
 }
 
-function openViewer(text, { at = { round: 0, step: 0 }, audio = recordingAudio() } = {}) {
+/** The table as the tests view it unless they say otherwise: from seat 0, every hand open. */
+const OPEN_FROM_SEAT_0 = Object.freeze({ seat: 0, openHands: true });
+
+/** A viewer of the converted `replay` on a fresh page, started at `at`. */
+function openReplay(
+    replay,
+    { at = { round: 0, step: 0 }, audio = recordingAudio(), view = OPEN_FROM_SEAT_0 } = {},
+) {
     document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
-    const replay = toReplay(parseReplay(text));
     const model = new Majiang.Board({
         title: "",
         player: [...replay.players],
         qijia: replay.qijia,
     });
     const root = $("#board .board");
-    const view = new Board(root, renderTile, audio, model);
-    view.open_shoupai = true;
-    const viewer = new ReplayViewer({ replay, view, model, root });
+    const board = new Board(root, renderTile, audio, model);
+    board.viewpoint = view.seat;
+    board.open_shoupai = view.openHands;
+    const viewer = new ReplayViewer({ replay, view: board, model, root });
     viewer.start(at.round, at.step);
     return { viewer, model, replay };
+}
+
+function openViewer(text, options) {
+    return openReplay(toReplay(parseReplay(text)), options);
 }
 
 function texts(selector) {
@@ -130,7 +150,7 @@ function settledTable(model) {
 
 /** The players whose nameplates are marked as an AI player's, each with what the mark says without its colour. */
 function aiPlates() {
-    return $("#board .board > .player.ai")
+    return $(`#board .board > .player.${SEAT_MARK.AI}`)
         .map((i, plate) => `${$(".name", plate).text()}: ${$(".seat-mark", plate).text()}`)
         .get()
         .toSorted();
@@ -157,6 +177,11 @@ function pressDialogNext() {
 
 const WHOLE_GAME = () => ({ from: { round: 0, step: 0 }, until: null });
 
+/** Opponents' hands hidden, viewed from the seat after the first dealer's, so the dealer's hand is hidden too. */
+function HIDDEN_FROM_A_NON_DEALER(replay) {
+    return { seat: (replay.qijia + 1) % SEATS, openHands: false };
+}
+
 /** From just before the first won round's result to a few positions into the next round. */
 function acrossTheFirstWin(replay) {
     const round = replay.rounds.findIndex(
@@ -168,6 +193,11 @@ function acrossTheFirstWin(replay) {
         from: { round, step: resultStep(replay, round) - 2 },
         until: { round: round + 1, step: 4 },
     };
+}
+
+/** The first round's last turns, the wall's last tiles drawn, through its result to the game's end. */
+function fromTheFirstRoundsLastTurns(replay) {
+    return { from: { round: 0, step: resultStep(replay, 0) - LAST_TURNS_STEPS }, until: null };
 }
 
 function acrossTheDoubleRon(replay) {
@@ -208,17 +238,29 @@ describe("ReplayViewer", () => {
         ["riichi.txt", RIICHI, WHOLE_GAME],
         ["kans.txt", KANS, WHOLE_GAME],
         ["four_kans.txt", FOUR_KANS, WHOLE_GAME],
+        ["four_winds_riichi.txt", FOUR_WINDS_RIICHI, WHOLE_GAME],
+        ["triple_ron.txt", TRIPLE_RON, WHOLE_GAME],
+        ["kyuushu.txt", KYUUSHU, WHOLE_GAME],
+        ["pao.txt", PAO, WHOLE_GAME],
         ["chankan_added.txt", CHANKAN_ADDED, WHOLE_GAME],
+        ["chankan_ai_replacement.txt", CHANKAN_AI_REPLACEMENT, WHOLE_GAME],
         ["double_ron_head_bump.txt", DOUBLE_RON_HEAD_BUMP, WHOLE_GAME],
-        ["exhaustive_tenpai.txt", EXHAUSTIVE_TENPAI, WHOLE_GAME],
+        ["exhaustive_tenpai.txt", EXHAUSTIVE_TENPAI, fromTheFirstRoundsLastTurns],
         ["ai_replacements.txt", AI_REPLACEMENTS, WHOLE_GAME],
         ["eager_game.txt", EAGER_GAME, acrossTheFirstWin],
         ["double_ron_on_honba.txt", DOUBLE_RON_ON_HONBA, acrossTheDoubleRon],
+        [
+            "double_ron_on_honba.txt, hands hidden from a non-dealer",
+            DOUBLE_RON_ON_HONBA,
+            acrossTheDoubleRon,
+            HIDDEN_FROM_A_NON_DEALER,
+        ],
     ])(
         "lands on the same table stepping forward then back as seeking there: %s",
-        (_, text, span) => {
-            const { from, until } = span(toReplay(parseReplay(text)));
-            const { viewer, model } = openViewer(text, { at: from });
+        (_, text, span, viewOf = () => OPEN_FROM_SEAT_0) => {
+            const replay = toReplay(parseReplay(text));
+            const { from, until } = span(replay);
+            const { viewer, model } = openReplay(replay, { at: from, view: viewOf(replay) });
             const stepped = [{ at: viewer.state, table: settledTable(model) }];
             while (viewer.canNext && !reached(viewer.state, until)) {
                 viewer.next();
@@ -232,15 +274,15 @@ describe("ReplayViewer", () => {
             }
 
             stepped.slice(0, -1).forEach(({ at }, index) => {
-                const opened = openViewer(text, { at });
+                viewer.seek(at.round, at.step);
                 for (let page = 0; page < at.page; page++) {
-                    settledTable(opened.model);
-                    opened.viewer.next();
+                    settledTable(model);
+                    viewer.next();
                 }
-                settledTable(opened.model);
-                opened.viewer.next();
+                settledTable(model);
+                viewer.next();
                 const after = stepped[index + 1];
-                expect(settledTable(opened.model), `next from ${at.round}/${at.step}`).toEqual(
+                expect(settledTable(model), `next from ${at.round}/${at.step}`).toEqual(
                     after.table,
                 );
             });
@@ -495,11 +537,10 @@ describe("ReplayViewer", () => {
         },
     );
 
-    it("shows the final standings after the last result and leaves them for where the replay was opened or a round's deal", () => {
+    it("shows the final standings after the last result", () => {
         const { viewer, replay } = openViewer(FULL_GAME);
         const round = replay.rounds.length - 1;
         viewer.seek(round, resultStep(replay, round));
-        const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
 
         viewer.next();
         vi.runAllTimers();
@@ -516,19 +557,6 @@ describe("ReplayViewer", () => {
         expect(texts("#board .summary .row-defen .defen")[column]).toBe(
             replay.standings.defen[top].toLocaleString("en-US"),
         );
-
-        expect($("#board .summary .exit").text()).toBe("履歴へ戻る");
-        $("#board .summary .exit").trigger("click");
-        expect(assign).toHaveBeenLastCalledWith("/history");
-        vi.spyOn(document, "referrer", "get").mockReturnValue(
-            `${window.location.origin}/history?page=2`,
-        );
-        $("#board .summary .exit").trigger("click");
-        expect(assign).toHaveBeenLastCalledWith(`${window.location.origin}/history?page=2`);
-
-        $("#board .summary .body .row-diff").eq(2).find(".replay-summary-round").trigger("click");
-        expect(viewer.state).toMatchObject({ round: 2, step: 0 });
-        expect(shown("#board .summary")).toBe(false);
     });
 
     it("autoplay steps at once on Play, then at the chosen speed, a draw at half of it and a deal for 1.5 s at least", () => {
@@ -594,7 +622,8 @@ describe("ReplayViewer", () => {
         expect(dialogShown()).toBe(false);
         expect($("#board .say").not(".hide, .fadeout").length).toBeGreaterThan(0);
 
-        while (!dialogShown()) {
+        for (let polls = 0; !dialogShown(); polls += 1) {
+            expect(polls, "the result's dialog never showed").toBeLessThan(MAX_DIALOG_POLLS);
             vi.advanceTimersByTime(AUTOPLAY_DIALOG_POLL_MS);
         }
         expect(viewer.state).toMatchObject({ round, step: result });

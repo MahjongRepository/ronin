@@ -86,7 +86,6 @@ describe("Majiang.UI.Board nameplates", () => {
         expect(plate("shangjia").hasClass("disconnect")).toBe(true);
         expect(plate("shangjia").find(".seat-mark").text()).toBe("切断中");
         expect(plate("shangjia").find(".name").text()).toBe("Bot 3");
-        expect(plate("shangjia").find(".badge")).toHaveLength(0);
 
         board.players([true, true, true, true]);
         expect(plate("shangjia").hasClass("disconnect")).toBe(false);

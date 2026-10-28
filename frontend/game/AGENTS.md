@@ -170,78 +170,35 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   check after a wake sees the whole gap. The limit is hand-derived from the session `TimerConfig`
   defaults (`backend/game/session/AGENTS.md`, Pacing) plus a margin for late timers; re-derive it
   when the pacing changes.
-* **Replay:** the page (`src/js/replay/page.js`) fetches `/api/replays/{game_id}` and checks its
-  `REPLAY_VERSION` before reading a line, since another version's lines may mean something else; then
-  the converter turns it into each round's paipu and positions, and the viewer steps through those on
-  the board, from the recorded first dealer's seat unless the address names another, with every hand
-  open. The live game's final standings link to it from the player's seat (牌譜を見る); the replay's
-  own standings name no replay and hide the link. A plain click replaces the finished game's page in
-  history, since Back to it could only bounce to the lobby, but leaves its session handoff in place:
-  cleared, that page would dead-end on a missing session. The server sends the game end before its
-  finalizer saves the replay, so a link followed at once may ask first: `replay/load.js` asks again
-  after a 404 (four tries over 3.5 s, the loading screen saying it waits) before calling it not
-  found; any other failure shows at once. The page's query names the seat and position
-  (`replay/position-url.js`, contract in `docs/architecture.md`): it is read once and the page opens there paused. A bad seat falls back to
-  the first dealer's, a bad round to round 0's deal (its step dropped), a bad step to its round's
-  deal; the final standings' step equals the strip's step count n. The address bar then follows
-  every move and change of seat by replacing its history entry, at most twice a second (Safari
-  refuses more than 100 history writes in 30 seconds, which a held Next or autoplay would pass). A
-  move still waiting is written once the interval ends or the page is hidden or left, so Back to the
-  page lands on it, but a reload within the interval may land a step or two back. The strip's
-  options (beside its buttons on a wide screen and an upright phone, elsewhere in the info's place
-  behind a toggle that any move closes) or a click on a nameplate turn the table to another seat,
-  and a switch hides opponents' hands; both redraw the position shown, every winner's hand of a
-  result face up. The hidden-hands choice is the replay's own setting, kept by `replay/prefs.js`
-  under a key of its own, never under `GameCtl`'s, which rewrites its whole key on every sound
-  toggle. Since hands may be
-  open, callouts sit on the rivers, off the hands and the score panel, and fade after a moment, so
-  they never hide the newest discards for long. The viewer's only state is
-  the majiang-core model: a seek rebuilds the round from its deal, and every move (the page's
-  controls, the result dialog's 次へ) goes through the viewer, never to the model or the board
-  directly. A move plays its position before the cursor moves there, so the two never part: a position the model
-  refuses stops the viewer and shows the replay as damaged, and any other failure to draw it says it couldn't be shown.
-  A replay-only annotation (a seat's AI replacement or its human's return) is a silent note on the next visible
-  position, its `kind` naming which, and the absolute seat it concerns, never that position's actor; a chankan
-  prompt's notes are held for the result, not the robbed kan's declaration. Seat control is the game's, not a
-  round's: a seat absent at the first deal is noted on that deal, an AI player's from it on, though its line follows
-  the deal's events; any other line recorded between rounds is noted on the next deal. Every position carries the
-  seats AI players control there (`ai`: the game start's, and each AI replacement until its human returns), so a seek
-  needs no history. Every move marks the nameplates from its position alone, through the board's seat marks, which the
-  live game's disconnected seats use too. The strip's action line, the live region, says who controls a seat after
-  the action.
-  A seek draws the table as stepping there does: the board redraws at the turn in play
-  and plays that turn's messages since, so the last discard keeps its mark and a riichi stick
-  shows only once the next turn deposits it. A double ron's wins are each a page of its result: Next shows the next win's dialog as
-  次へ does, and leaves the result only after the last; pressed while a win is still on its way to the dialog, Next
-  opens it at once, so a press is never lost and never skips a win. Its controls (`controls.js`) sit in a strip outside `#board` (under it, or beside it on a short landscape
-  screen), and the table is fitted to the stage with `fitToStage` whenever the layout resizes it, so
-  they never cover the table. On an upright phone the width-bound table leaves height over, which
-  the strip takes rather than the felt: its info in the middle, its buttons at the bottom. Back and
-  Next repeat while held and stop at a result. Play is the viewer's own autoplay, on its own timers:
-  it steps at once, then as Next does at the stored speed, a draw at half of it, the deal and a
-  position with callouts for as long as they need. It pauses at each win's dialog once the dialog is
-  fully shown, never cutting the win's callouts short, and at the end; Play on a result pages to its
-  next win or moves on, and so does 次へ where autoplay paused itself. Any other move pauses it, as
-  does hiding the page; a change of viewpoint or of the hands shown plays on. The speed is kept with
-  the hidden-hands choice. The round's name in the strip opens the round list: every round
-  with its outcome, worded by the same helper as the strip's result line (`describe.js`). A round
-  picked there, or in the final standings, is shown from its deal, a manual move. The list is
-  reserved space, never over the table: beside the table on a landscape screen, under it on an
-  upright one, and in the info's place where the strip has the room (an upright phone, a short
-  landscape column), where any move but autoplay's closes it.
-  A sound the browser blocks before the page's first gesture is skipped
-  (`game-audio.js`, shared with the live game), never left an unhandled rejection. The all-last flag
-  (オーラス) marks the fourth round of the game type's last scheduled wind or of its sudden-death
-  extension, read from the recorded game type, never from what was played after it, so a truncated
-  game's last round is not flagged. The settings gear keeps the live game's sound switch, its one
-  stored setting and Escape closing its menu, but not the live game's sound key: the replay's keys
-  are its own (`replay/keys.js`, `replay/wheel.js`). A key never reaches the replay from a text field
-  or a select or with a modifier held, and Escape closes only the topmost open layer. A held key, a
-  held button and a continuing wheel all stop at a result; the wheel is left to the browser over a
-  box that scrolls. A replay that cannot be shown replaces the board with a message and links back.
-  `src/js/replay/` converts replay files into paipu with `src/js/ronin/`'s pure helpers, never the
-  live shadow; `src/js/ronin/` never imports `src/js/replay/`. The live client and the converter build
-  round results with the same builders (`results.js`).
+* **Replay** (`src/js/replay/`): `page.js` loads `/api/replays/{game_id}` and checks its `REPLAY_VERSION` before
+  reading a line, since another version's lines may mean something else. The server sends the game end before its
+  finalizer saves the replay, so `load.js` asks again after a 404 for a few seconds before calling it not found. The
+  converter (`paipu.js`, `round-end.js`) turns the file into each round's paipu messages and one canonical list of
+  positions, which Next, Back, the round jumps, the address, the round list and the standings all index; a line it
+  cannot read fails the whole replay as damaged, naming that line. It builds round results with the live client's
+  builders (`results.js`) and `src/js/ronin/`'s other pure helpers, never the live shadow; `src/js/ronin/` never
+  imports `src/js/replay/`.
+  `ReplayViewer` (`viewer.js`) is the cursor over the positions, drawing them on the majiang-ui Board, and the
+  majiang-core model is its only state: a seek rebuilds the round from its deal, drawing the table as stepping there
+  does. Every move, from the strip (`controls.js`), the keys (`keys.js`), the wheel (`wheel.js`), the board's links
+  (`board-links.js`: the nameplates, the standings' rounds and exit) or the result dialog's 次へ, goes through the
+  viewer, never to the model or the board directly; the rest only follows its state (`onChange`). A move plays its
+  position before the cursor moves there, so the two never part: a position the model refuses shows the replay as
+  damaged, and any other failure says it couldn't be shown.
+  Replay-only annotations (a seat's AI replacement, its human's return) are silent notes on the next visible
+  position, naming the seat they concern, never that position's actor; a chankan prompt's are held for its result.
+  Every position carries the seats AI players hold for their humans, so a seek needs no history and every move marks
+  the nameplates from its position alone, through the board's seat marks, which the live game's disconnected seats use
+  too.
+  The address names the seat and position (`position-url.js`, contract in `docs/architecture.md`): read once, then
+  kept on the position shown by replacing the history entry. A link to a double ron's result opens at its first win,
+  and neither autoplay nor the hidden-hands choice is in the address. The replay's own settings live under a key of
+  its own (`prefs.js`), never under `GameCtl`'s, which rewrites its whole key on every sound toggle; the sound setting
+  is the one shared with the live game, whose sound key the replay leaves out for keys of its own.
+  The live game's final standings link to the replay from the player's seat (牌譜を見る). A plain click replaces the
+  finished game's page in history, since Back to it could only bounce to the lobby, but leaves its session handoff in
+  place: cleared, that page would dead-end on a missing session. For the same reason the replay's standings exit never
+  leads back to a page of this client.
 * **Storybook:** renders majiang-ui's own components (tiles, hands, melds, rivers and the board)
   and a persistent loading preview cloned from the startup screen's HTML, using its shared styles,
   from fixed sample states in `storybook.js` and `storybook/`; the board pages reuse the page's

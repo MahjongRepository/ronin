@@ -198,22 +198,61 @@ class StagedWall:
         return make_start_wall(self.hands, draws=[tile for _, tile in self.draws], rinshan=self.rinshan, ura=self.ura)
 
 
-class _ScriptedGame:
+@dataclass(frozen=True)
+class Seating:
     """
-    A game of four players a script plays through the game service: every action must be accepted, and every event is
-    recorded, a call at a time as the session would, with each seat's latest draw kept for the script.
+    Who plays a scripted game: its players in input order, and the seats of those with no connection at the first deal.
+
+    The engine seats AI players in the seats the players leave empty, as in a room of fewer than four. An absent seat is
+    an AI player's from the deal, recorded as the session records it: its line ahead of the deal's events, its AI
+    player's moves after them.
     """
 
-    def __init__(self, game_id: str, *, seed: str, settings: GameSettings, wall: tuple[int, ...] | None = None) -> None:
+    players: Sequence[str] = PLAYERS
+    absent: frozenset[int] = frozenset()
+
+
+FOUR_AT_THE_TABLE = Seating()
+
+
+class _ScriptedGame:
+    """
+    A game a script plays through the game service: every action must be accepted, and every event is recorded, a call
+    at a time as the session would, with each seat's latest draw kept for the script.
+    """
+
+    def __init__(
+        self,
+        game_id: str,
+        *,
+        seed: str,
+        settings: GameSettings,
+        seating: Seating,
+        wall: tuple[int, ...] | None = None,
+    ) -> None:
         self._game_id = game_id
         self._recorder = ReplayRecorder(seed=seed, settings=settings)
         self._service = MahjongGameService()
         start = self._service.start_game(
-            game_id, list(PLAYERS), seed=seed, settings=settings, wall=None if wall is None else list(wall)
+            game_id, list(seating.players), seed=seed, settings=settings, wall=None if wall is None else list(wall)
         )
         self._runtime = start.runtime
         self._draws: dict[int, DrawEvent] = {}
-        self._record(start.events)
+        if not seating.absent < set(start.seats):
+            raise ScenarioError(
+                f"{game_id}: absent seats {sorted(seating.absent)} are not some of the players' {start.seats}"
+            )
+
+        game_started, *deal = start.events
+        self._record([game_started])
+        absent_in_player_order = [seat for seat in start.seats if seat in seating.absent]
+        for seat in absent_in_player_order:
+            self._service.replace_with_ai_player(self._runtime, seat)
+            self._recorder.record_ai_replacement(seat=seat, reason=ReplaySeatControlReason.ABSENT)
+
+        self._record(deal)
+        for seat in absent_in_player_order:
+            self._record(self._service.process_ai_player_actions_after_replacement(self._runtime, seat).events)
 
     def _run(self, seat: int, action: GameAction, data: dict[str, object]) -> None:
         events = self._service.handle_action(self._runtime, seat=seat, action=action, data=data).events
@@ -239,14 +278,22 @@ class _ScriptedGame:
 
 class StagedGame(_ScriptedGame):
     """
-    A game of four players dealt from a staged wall and played seat by seat.
+    A game dealt from a staged wall and played seat by seat, by four players unless fewer are given.
 
-    The game records every event the engine emits, a call at a time as the session would, and hands out the replay once
-    it reproduces the game. Like the replay runner, an action that is not an answer to a pending call prompt first
-    passes every seat the prompt waits on, but never a seat offered ron: a scenario declines a ron with pass_.
+    The staged seed seats the players in order at seats 1, 3, 2 and 0, so three players leave the dealer's seat to an AI
+    player. The game records every event the engine emits, a call at a time as the session would, and hands out the
+    replay once it reproduces the game. Like the replay runner, an action that is not an answer to a pending call prompt
+    first passes every seat the prompt waits on, but never a seat offered ron: a scenario declines a ron with pass_.
     """
 
-    def __init__(self, game_id: str, staged: StagedWall, *, settings: GameSettings | None = None) -> None:
+    def __init__(
+        self,
+        game_id: str,
+        staged: StagedWall,
+        *,
+        settings: GameSettings | None = None,
+        seating: Seating = FOUR_AT_THE_TABLE,
+    ) -> None:
         self._staged_draws = tuple(staged.draws)
         self._next_staged_draw = 0
         self._wall = staged.tiles()
@@ -254,6 +301,7 @@ class StagedGame(_ScriptedGame):
             game_id,
             seed=STAGED_SEED,
             settings=settings if settings is not None else GameSettings(),
+            seating=seating,
             wall=self._wall,
         )
 
@@ -292,19 +340,19 @@ class StagedGame(_ScriptedGame):
     def kyuushu(self, seat: int) -> None:
         self.act(seat, GameAction.CALL_KYUUSHU)
 
-    def replace_with_ai(self, seat: int, reason: ReplaySeatControlReason) -> None:
+    def leave(self, seat: int) -> None:
         """
-        Hand the seat to an AI player, recorded as the session records it: its seat control line, then the events of the
-        moves the AI player makes at once.
+        Hand the seat of a player who left to an AI player, recorded as the session records it: its seat control line,
+        then the events of the moves the AI player makes at once.
 
         From then on the engine plays the seat's turns and calls by itself.
         """
         if self._runtime.ai.is_ai_player(seat):
             raise ScenarioError(f"{self._game_id}: seat {seat} was replaced with an AI player twice")
 
-        self._recorder.record_ai_replacement(seat=seat, reason=reason)
         self._service.replace_with_ai_player(self._runtime, seat)
         update = self._service.process_ai_player_actions_after_replacement(self._runtime, seat)
+        self._recorder.record_ai_replacement(seat=seat, reason=ReplaySeatControlReason.LEFT)
         self._record(update.events)
 
     def restore_human(self, seat: int) -> None:
@@ -427,7 +475,7 @@ class EagerGame(_ScriptedGame):
     """
 
     def __init__(self, game_id: str, seed: str) -> None:
-        super().__init__(game_id, seed=seed, settings=GameSettings())
+        super().__init__(game_id, seed=seed, settings=GameSettings(), seating=FOUR_AT_THE_TABLE)
 
     def replay(self, outcome: Outcome) -> Recording:
         """

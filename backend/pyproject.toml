@@ -172,6 +172,12 @@ type = "layers"
 layers = ["shared.db", "shared.auth", "shared.dal"]
 
 [[tool.importlinter.contracts]]
+name = "only the replay fixture generator borrows the game tests' helpers"
+type = "protected"
+protected_modules = ["game.tests"]
+allowed_importers = ["scripts.replay_fixtures"]
+
+[[tool.importlinter.contracts]]
 name = "only composition roots, scripts and the db tests open the database"
 type = "protected"
 protected_modules = ["shared.db"]

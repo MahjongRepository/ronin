@@ -39,7 +39,6 @@ body.board.replay {
             }
         }
 
-        /* Each round of the final standings leads to its deal: its name is a button, its whole row a click target. */
         > .board > .summary .body .row-diff {
             cursor: pointer;
 
@@ -50,7 +49,6 @@ body.board.replay {
             }
         }
 
-        /* On a touch screen each round's row is a finger's height. */
         @media (pointer: coarse) {
             > .board > .summary .body .row-diff > * {
                 height: 52px;
@@ -82,7 +80,6 @@ body.board.replay {
             }
         }
 
-        /* Every hand may be open in a replay: callouts sit on the rivers, off the hands and the score panel, until they fade. */
         > .board .say {
             &.xiajia,
             &.shangjia {
@@ -212,7 +209,6 @@ body.board.replay {
         grid-area: back;
     }
 
-    /* Wide enough for either face, so swapping Play and Pause never shifts the cluster; filled while autoplay runs. */
     .replay-play {
         display: flex;
         grid-area: play;
@@ -265,7 +261,6 @@ body.board.replay {
     text-overflow: ellipsis;
 }
 
-/* The speed and the chevron stay together, beside the seat or, where the strip is narrow, under it. */
 .replay-options-tail {
     display: flex;
     flex: none;
@@ -273,10 +268,6 @@ body.board.replay {
     white-space: nowrap;
 }
 
-/*
- * Where there is no room beside the buttons, the open options take the info's place. Both always hold the cell, the
- * one not shown hidden, so its height fits either and opening the options never resizes the strip.
- */
 .replay-options {
     display: flex;
     grid-area: info;
@@ -349,10 +340,6 @@ body.board.replay {
     cursor: pointer;
 }
 
-/*
- * The round's name opens the round list: "東一局 0本場 · Rounds ▾", as tall as its line and aligned to its top, so
- * neither its underline nor its hover tint is clipped by the line; its focus ring sits inside it.
- */
 .replay-controls .replay-rounds-toggle {
     min-height: 0;
     padding: 0 4px;
@@ -382,10 +369,6 @@ body.board.replay {
     color: $accent;
 }
 
-/*
- * The round list, while shown, takes a column beside the table, which the table's stage leaves free for it, so it never
- * covers the table. The strip is its containing block: the list stands on the strip and is as tall as the stage.
- */
 .replay-rounds {
     position: absolute;
     right: 0;
@@ -409,7 +392,6 @@ body.board.replay#{$rounds-open} > #board {
     margin-right: $rounds-width;
 }
 
-/* A side panel's head (the round list, the help): its title and the button that closes it. */
 .replay-panel-head {
     display: flex;
     flex: none;
@@ -440,7 +422,6 @@ body.board.replay#{$rounds-open} > #board {
     list-style: none;
 }
 
-/* Each round's name over its outcome; the round shown is framed, tinted and its name bold, apart from the focus ring. */
 .replay-controls .replay-round-entry {
     display: flex;
     flex-direction: column;
@@ -484,10 +465,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/*
- * The keys and what the pointer does where: a popover over the table, above the strip, which a press anywhere else
- * closes. Only its list scrolls, its head staying put.
- */
 .replay-help {
     position: absolute;
     right: 0;
@@ -518,10 +495,6 @@ body.board.replay#{$rounds-open} > #board {
     display: flex;
 }
 
-/*
- * One grid for both lists, so their columns line up: each row a key (or a place) beside what it does, a long place
- * wrapping rather than squeezing what it does.
- */
 .replay-help-body {
     display: grid;
     grid-template-columns: fit-content(45%) minmax(0, 1fr);
@@ -572,10 +545,7 @@ body.board.replay#{$rounds-open} > #board {
     display: contents;
 }
 
-/*
- * The help's toggle, a round "?" at the end of the round's line. Its touch target reaches past the circle, to 44pt on
- * the device where the pointer is coarse, without making the line taller.
- */
+/* Its hit area reaches past the circle, to 44pt on the device where the pointer is coarse, without a taller line. */
 .replay-controls .replay-help-toggle {
     --help-size: 18px;
     --help-hit: 24px;
@@ -604,7 +574,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* At most $lines lines, the last cut with an ellipsis; the element's title holds the whole text. */
 @mixin clamp-lines($lines) {
     display: -webkit-box;
     overflow: hidden;
@@ -613,7 +582,6 @@ body.board.replay#{$rounds-open} > #board {
     -webkit-line-clamp: $lines;
 }
 
-/* Three lines of fixed height, each clipped to one line, so no position changes the strip's size. */
 .replay-position {
     box-sizing: border-box;
     grid-area: info;
@@ -634,7 +602,6 @@ body.board.replay#{$rounds-open} > #board {
     .replay-action {
         font-size: 17px;
 
-        /* A tile's name never breaks between its number and its suit. */
         [lang="ja"] {
             white-space: nowrap;
         }
@@ -645,7 +612,6 @@ body.board.replay#{$rounds-open} > #board {
         font-size: 13px;
     }
 
-    /* The round and step, clipped on their own, then the help's toggle, never clipped. */
     .replay-where {
         display: flex;
         align-items: center;
@@ -687,7 +653,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* The options shown with the info, never in its place: the toggle hidden. */
 @mixin options-beside-info {
     .replay-controls .replay-options-toggle {
         display: none;
@@ -699,10 +664,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/*
- * Wide enough for the info and the options beside the button cluster, its step buttons a little narrower: the cluster
- * centred. A short landscape screen of that width keeps its strip in a column.
- */
 @media (width >= 1200px) and (height > 450px) {
     .replay-controls {
         grid-template-areas: "info buttons options";
@@ -711,12 +672,10 @@ body.board.replay#{$rounds-open} > #board {
         gap: 16px;
     }
 
-    /* The info's column is narrow here: the toggle's tint, underline and chevron say what it opens, its label says it aloud. */
     .replay-rounds-word {
         display: none;
     }
 
-    /* The options column makes the strip taller than the info: a long action wraps into that room. */
     .replay-position {
         text-align: left;
 
@@ -756,7 +715,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* A narrower window gives the round list a narrower column, so the table loses less of its width to it. */
 @media (width < 1000px) {
     .replay-controls .replay-rounds {
         width: $rounds-width-narrow;
@@ -767,7 +725,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* An upright screen's table is bound by its width: the round list takes height from it, under the table, instead. */
 @media (orientation: portrait) and (height > 450px) {
     .replay-controls .replay-rounds {
         left: 0;
@@ -783,10 +740,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/*
- * Where the strip has height to spare (an upright phone, a short landscape screen's column), the round list takes the
- * info's place in it instead, leaving the table as it is.
- */
 @mixin rounds-in-strip($first-row, $last-row, $covered) {
     .replay-controls .replay-rounds {
         inset: 0;
@@ -807,7 +760,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* Back, Play and Next as the three big buttons, the four jumps in a row under them. */
 @mixin two-rows {
     width: 100%;
     grid-template-areas:
@@ -820,7 +772,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* Too narrow for the toggle beside the info: it takes a row of its own under it. */
 @media (width < 760px) {
     .replay-controls {
         grid-template:
@@ -839,10 +790,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/*
- * An upright phone's width-bound table leaves height over: the strip takes it, its info and options centred, its
- * buttons below.
- */
 @media #{$portrait-touch} {
     body.board.replay {
         > #board {
@@ -927,10 +874,6 @@ body.board.replay#{$rounds-open} > #board {
         }
     }
 
-    /*
-     * A long action wraps to a second line, which the box always keeps, and the round's name is a pill a finger can
-     * hit; the box's padding and the strip's gaps are tighter for them, so the strip keeps its height.
-     */
     .replay-position {
         align-self: center;
         padding: 8px 24px;
@@ -973,10 +916,7 @@ body.board.replay#{$rounds-open} > #board {
         font-size: 22px;
     }
 
-    /*
-     * As tall as the round's pill; its target reaches 44pt on the device, the page drawn at about half scale (0.46 on
-     * the narrowest phones).
-     */
+    /* Its hit area reaches 44pt on the device, the page drawn at about half scale (0.46 on the narrowest phones). */
     .replay-controls .replay-help-toggle {
         --help-size: 64px;
         --help-hit: 96px;
@@ -997,7 +937,6 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-/* A short landscape screen keeps the strip in a column of fixed width: its lines may wrap there. */
 @media #{$short-landscape} {
     body.board.replay {
         flex-direction: row;
@@ -1020,7 +959,6 @@ body.board.replay#{$rounds-open} > #board {
         border-left: solid 1px $dialog-border;
     }
 
-    /* Too narrow for the seat and the speed on one line: the speed wraps under the seat rather than cut it. */
     .replay-controls .replay-options-toggle {
         flex-wrap: wrap;
         justify-self: stretch;
@@ -1080,10 +1018,6 @@ body.board.replay#{$rounds-open} > #board {
         }
     }
 
-    /*
-     * Held at the top of its cell, so a line that appears or wraps (a low wall, a long action) never moves the rest; the
-     * help's toggle goes under the round and step.
-     */
     .replay-position {
         align-self: start;
 
@@ -1134,7 +1068,6 @@ body.board.replay#{$rounds-open} > #board {
         }
     }
 
-    /* Beside the strip's column, over the table's right side, as tall as the screen allows. */
     .replay-help {
         inset: 8px calc(100% + 8px) auto auto;
         width: min(26rem, calc(100vw - 100% - 24px));
@@ -1143,7 +1076,6 @@ body.board.replay#{$rounds-open} > #board {
         font-size: 12px;
     }
 
-    /* A touch target of 24px at least, though the line's text is small. */
     .replay-controls .replay-rounds-toggle {
         min-height: 24px;
     }

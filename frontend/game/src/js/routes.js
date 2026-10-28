@@ -46,9 +46,13 @@ export function matchRoute(pathname) {
     return null;
 }
 
+/** The query parameters of a replay page: the seat it is viewed from and the position it shows. */
+export const POSITION_PARAM = Object.freeze({ SEAT: "seat", ROUND: "round", STEP: "step" });
+
 /** The replay page of a game, shown from `seat`. */
 export function replayPath(gameId, seat) {
-    return `/play/history/${encodeURIComponent(gameId)}?seat=${seat}`;
+    const params = new URLSearchParams({ [POSITION_PARAM.SEAT]: String(seat) });
+    return `/play/history/${encodeURIComponent(gameId)}?${params}`;
 }
 
 export function storybookPath(page) {

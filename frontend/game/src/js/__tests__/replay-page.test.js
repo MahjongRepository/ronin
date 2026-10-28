@@ -8,6 +8,7 @@ import { ROUNDS_IN_STRIP_MEDIA } from "../replay/controls.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/hold.js";
 import { parseReplay } from "../replay/load.js";
 import { toReplay } from "../replay/paipu.js";
+import wire from "../ronin/wire.js";
 import { URL_WRITE_INTERVAL_MS, readPosition } from "../replay/position-url.js";
 import { REPLAY_PREFS_KEY } from "../replay/prefs.js";
 import { showReplay } from "../replay/page.js";
@@ -18,6 +19,7 @@ import {
     WHEEL_STEP_PX,
 } from "../replay/wheel.js";
 import { withUnplayableDraw } from "./replay-edits.js";
+import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
 import FULL_GAME from "./fixtures/replays/full_game.txt?raw";
@@ -82,10 +84,25 @@ function stepNumber() {
     return Number(label().step.match(/^Step (\d+)/)[1]);
 }
 
-function clickUntil(selector, done) {
-    while (!done()) {
-        $(selector).trigger("click");
+/** More tries than any replay has positions: a loop that reaches it has missed what it waits for. */
+const MAX_TRIES = 1000;
+
+/** Repeat `act` until `done`, failing with what it waited for once MAX_TRIES repeats have not got there. */
+function repeatUntil(done, waitedFor, act) {
+    for (let tries = 0; !done(); tries += 1) {
+        if (tries === MAX_TRIES) {
+            throw new Error(`${waitedFor}: not reached after ${MAX_TRIES} tries`);
+        }
+        act();
     }
+}
+
+function clickUntil(selector, done, waitedFor) {
+    repeatUntil(done, waitedFor, () => $(selector).trigger("click"));
+}
+
+function clickNextUntilProblem() {
+    clickUntil(".replay-next", () => problem().text !== "", "the replay's problem shown");
 }
 
 /** The board's hands drawn as tile backs, by their place at the table. */
@@ -216,17 +233,29 @@ describe("showReplay", () => {
         });
     });
 
-    it("names the line of a replay the converter cannot read and logs why", async () => {
-        const lines = FULL_GAME.split("\n");
-        lines[4] = '{"t": 999}';
+    it.each([
+        ["a record of an unknown type", () => ({ t: 999 })],
+        [
+            "an exhaustive draw without its tenpai seats",
+            (roundEnd) => ({ ...roundEnd, ts: undefined }),
+        ],
+    ])(
+        "names the line of a replay the converter cannot read and logs why: %s",
+        async (_, damage) => {
+            const lines = FULL_GAME.split("\n");
+            const index = lines.findIndex(
+                (line) => line.trim() !== "" && JSON.parse(line).rt === wire.RT.EXHAUSTIVE,
+            );
+            lines[index] = JSON.stringify(damage(JSON.parse(lines[index])));
 
-        await open(lines.join("\n"));
+            await open(lines.join("\n"));
 
-        expect(problem().text).toBe("This replay file is damaged (line 5)");
-        const logged = console.error.mock.calls.flat();
-        const damaged = logged.find((value) => value?.name === "MalformedReplayError");
-        expect(logged).toContain(damaged.cause);
-    });
+            expect(problem().text).toBe(`This replay file is damaged (line ${index + 1})`);
+            const logged = console.error.mock.calls.flat();
+            const damaged = logged.find((value) => value?.name === "MalformedReplayError");
+            expect(logged).toContain(damaged.cause);
+        },
+    );
 
     it("explains a game that ended before its first deal", async () => {
         await open(FULL_GAME.split("\n").slice(0, 2).join("\n"));
@@ -248,12 +277,26 @@ describe("showReplay", () => {
         expect(observe).not.toHaveBeenCalled();
     });
 
+    it("offers the replay from its start beside a retry when a position past the first deal cannot be drawn", async () => {
+        openAt("?seat=1&round=2&step=5");
+        await open(FULL_GAME);
+        vi.spyOn(Majiang.UI.Board.prototype, "update").mockImplementation(() => {
+            throw new Error("the board cannot draw this");
+        });
+
+        $(".replay-next").trigger("click");
+
+        expect(problem()).toMatchObject({
+            text: "Couldn't show the replay",
+            links: [window.location.href, `${REPLAY_PATH}?seat=1`, "/history", "/"],
+        });
+        expect(window.location.search).toBe("?seat=1&round=2&step=5");
+    });
+
     it("calls a replay damaged once a later position cannot be played, and logs why", async () => {
         await open(withUnplayableDraw(FULL_GAME));
 
-        while (problem().text === "" && !$(".replay-next").prop("disabled")) {
-            $(".replay-next").trigger("click");
-        }
+        clickNextUntilProblem();
 
         expect(problem().text).toBe("This replay file is damaged");
         const logged = console.error.mock.calls.flat();
@@ -276,13 +319,34 @@ describe("showReplay", () => {
         expect($(".controller .settings-menu").hasClass("hide")).toBe(true);
     });
 
+    it.each([
+        [
+            "a storage that refuses access",
+            () => {
+                const blocked = () => {
+                    throw new DOMException("site data blocked", "SecurityError");
+                };
+                vi.spyOn(Storage.prototype, "getItem").mockImplementation(blocked);
+                vi.spyOn(Storage.prototype, "setItem").mockImplementation(blocked);
+            },
+        ],
+        ["a sound setting that is not JSON", () => localStorage.setItem(GAME_PREF_KEY, "{")],
+    ])("shows the replay with the sound on despite %s", async (_, breakStorage) => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        breakStorage();
+
+        await open(FULL_GAME);
+
+        expect(problem().text).toBe("");
+        expect(label().step).toMatch(/^Step 1\u00a0/);
+        expect($(".controller .sound").attr("aria-checked")).toBe("true");
+    });
+
     it("says a truncated game ended early at its last position, keeping the keyboard focus in the strip", async () => {
         await open(TRUNCATED_AFTER_ROUND);
         $(".replay-next").trigger("focus");
 
-        while (!$(".replay-next").prop("disabled")) {
-            $(".replay-next").trigger("click");
-        }
+        clickUntil(".replay-next", () => $(".replay-next").prop("disabled"), "Next disabled");
 
         expect(label()).toMatchObject({
             round: "東二局 1本場",
@@ -348,7 +412,7 @@ describe("ReplayControls", () => {
     it("names the last action, its Japanese marked as such", async () => {
         await open(RIICHI);
 
-        clickUntil(".replay-next", () => stepNumber() === 13);
+        clickUntil(".replay-next", () => stepNumber() === 13, "step 13");
         expect($(".replay-action").text()).toBe("Alice: riichi, tsumogiri 中");
         expect($('.replay-action [lang="ja"]').text()).toBe("中");
         $(".replay-next").trigger("click");
@@ -360,18 +424,22 @@ describe("ReplayControls", () => {
         const warning = () =>
             $(".replay-wall-low").hasClass("hide") ? "" : $(".replay-wall-low").text();
 
-        clickUntil(".replay-next", () => warning() !== "");
+        clickUntil(".replay-next", () => warning() !== "", "the low-wall warning");
         expect(warning()).toBe("Wall low: 7 left");
         $(".replay-back").trigger("click");
         expect(warning()).toBe("");
 
-        clickUntil(".replay-next", () => $(".replay-action").text().startsWith("Exhaustive"));
+        clickUntil(
+            ".replay-next",
+            () => $(".replay-action").text().startsWith("Exhaustive"),
+            "the exhaustive draw",
+        );
         expect(warning()).toBe("");
     });
 
     it("views the table from the picked seat or a nameplate at the same position, closing the options", async () => {
         await open(FULL_GAME);
-        clickUntil(".replay-next", () => stepNumber() === 5);
+        clickUntil(".replay-next", () => stepNumber() === 5, "step 5");
         const action = $(".replay-action").text();
         const toggle = $(".replay-options-toggle");
 
@@ -518,10 +586,10 @@ describe("ReplayControls", () => {
         $(".replay-hide-hands").prop("checked", true).trigger("change");
         expect(hiddenHands()).toEqual(["xiajia", "duimian", "shangjia"]);
         const viewpoint = $("#board .player.main .name").text();
-        clickUntil(".replay-next", () => /: draws/.test($(".replay-action").text()));
+        clickUntil(".replay-next", () => /: draws/.test($(".replay-action").text()), "a draw");
         expect($(".replay-action").text()).toMatch(new RegExp(`^${viewpoint}: draws \\S`));
         $(".replay-next").trigger("click");
-        clickUntil(".replay-next", () => /: draws/.test($(".replay-action").text()));
+        clickUntil(".replay-next", () => /: draws/.test($(".replay-action").text()), "a draw");
         expect($(".replay-action").text()).toMatch(/^\S+: draws$/);
 
         vi.useFakeTimers();
@@ -543,6 +611,49 @@ describe("ReplayControls", () => {
             ["xiajia", "duimian"].map((place) => $(`#board .player.${place} .name`).text()),
         ).toEqual(["Alice", "Charlie"]);
         expect(hiddenHands()).toEqual(["shangjia"]);
+    });
+});
+
+describe("BoardLinks", () => {
+    it.each([
+        ["no page", "", "/history", "履歴へ戻る"],
+        ["the game history", "/history?page=2", "/history?page=2", "履歴へ戻る"],
+        [
+            "the finished game's page, which 牌譜を見る replaced",
+            "/play/g-1",
+            "/history",
+            "履歴へ戻る",
+        ],
+        ["another lobby page", "/rooms", "/rooms", "戻る"],
+    ])(
+        "leaves the final standings for the lobby page the replay was opened from: %s",
+        async (_, referrer, exit, text) => {
+            const origin = window.location.origin;
+            vi.spyOn(document, "referrer", "get").mockReturnValue(
+                referrer === "" ? "" : `${origin}${referrer}`,
+            );
+            const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
+            await open(FULL_GAME);
+            $(".replay-last").trigger("click");
+
+            expect($("#board .summary .exit").text()).toBe(text);
+            $("#board .summary .exit").trigger("click");
+            expect(assign).toHaveBeenCalledWith(exit === "/history" ? exit : `${origin}${exit}`);
+        },
+    );
+
+    it("titles each nameplate with the view it offers, and an AI-held seat's with what its mark means", async () => {
+        await open(AI_REPLACEMENTS);
+        const title = (place) => $(`#board .board > .player.${place}`).attr("title");
+
+        expect(["main", "xiajia", "duimian", "shangjia"].map(title)).toEqual([
+            "Diana",
+            "View from Alice",
+            "View from Charlie",
+            "View from Bob (AI plays this seat)",
+        ]);
+        $("#board .board > .player.shangjia").trigger("click");
+        expect(title("main")).toBe("Bob (AI plays this seat)");
     });
 });
 
@@ -644,9 +755,7 @@ describe("bindKeys", () => {
 
     it("lets the keys go once the replay fails, leaving the problem page alone", async () => {
         await open(withUnplayableDraw(FULL_GAME));
-        while (problem().text === "") {
-            $(".replay-next").trigger("click");
-        }
+        clickNextUntilProblem();
 
         expect(press("h", {}, document.body).defaultPrevented).toBe(false);
         expect(press(" ", {}, document.body).defaultPrevented).toBe(false);
@@ -697,10 +806,14 @@ describe("bindWheel", () => {
         expect(stepNumber()).toBe(2);
 
         vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
-        while (!AT_LAST_STEP.test(label().step)) {
-            vi.advanceTimersByTime(WHEEL_STEP_MS);
-            wheel(WHEEL_STEP_PX);
-        }
+        repeatUntil(
+            () => AT_LAST_STEP.test(label().step),
+            "the round's last step",
+            () => {
+                vi.advanceTimersByTime(WHEEL_STEP_MS);
+                wheel(WHEEL_STEP_PX);
+            },
+        );
         for (let i = 0; i < 10; i += 1) {
             vi.advanceTimersByTime(WHEEL_STEP_MS);
             wheel(WHEEL_STEP_PX);
