@@ -23,6 +23,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
 * `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
+* `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
+  `bin/check_i18n.py` over every app's catalogs.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 
 ## Commands

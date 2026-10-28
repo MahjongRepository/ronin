@@ -47,6 +47,11 @@ it exists; a seated player refused the same way mid-start just waits for `game_s
   literal colors and fonts. `styles/lobby-app.scss` is the one entry stylesheet. Block text
   inherits `color`, so set it on the wrapper; focus comes from the one shared outline in
   `_theme.scss`, so components add no focus rings of their own.
+* No literal UI text in code: every string goes through `t()` from `src/i18n/` (keys typed from
+  `locales/en.json`), a sentence with a link through `tParts()` and a link slot, numbers, dates and
+  lists through its formatters. The locale is the page's `<html lang>`, which the server resolved;
+  the scripts never resolve it. A server code maps to a key through a closed list, and an unknown
+  code shows the family's generic key and is reported (`docs/i18n.md`).
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
 
