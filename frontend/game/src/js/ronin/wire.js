@@ -116,10 +116,13 @@ const wire = {
     REPLAY_VERSION: '0.3-dev',
 
     /* replay-only lines (replay_format.py), never sent live: t, outside E's values */
-    REPLAY_LINE: { TIMEOUT: 100 },
+    REPLAY_LINE: { TIMEOUT: 100, SEAT_CONTROL: 101 },
 
     /* replay timeout line { t, s, k }: k = the wait the seat let run out */
     TIMEOUT_KIND: { TURN: 0, CALL: 1 },
+
+    /* replay seat control line { t, s, ai, r }: ai = 1 an AI player replaces the human, r = why; ai = 0 the human returns */
+    SEAT_CONTROL_REASON: { LEFT: 0, ABSENT: 1 },
 };
 
 export default wire;

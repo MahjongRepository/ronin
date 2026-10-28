@@ -16,6 +16,7 @@ class ReplayLineType(IntEnum):
     """
 
     TIMEOUT = 100
+    SEAT_CONTROL = 101
 
 
 class ReplayTimeoutKind(IntEnum):
@@ -25,6 +26,19 @@ class ReplayTimeoutKind(IntEnum):
 
     TURN = 0
     CALL = 1
+
+
+class ReplaySeatControlReason(IntEnum):
+    """
+    Integer `r` of a seat control line that replaces a seat's human with an AI player: why its participant is not
+    playing it.
+
+    LEFT is a disconnect (a kick included) during play; ABSENT a participant without a connection at the first deal,
+    never joined or gone during the game start pause.
+    """
+
+    LEFT = 0
+    ABSENT = 1
 
 
 if {int(line_type) for line_type in ReplayLineType} & {int(event_type) for event_type in WireEventType}:

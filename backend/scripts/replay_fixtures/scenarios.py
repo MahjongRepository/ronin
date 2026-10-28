@@ -18,6 +18,7 @@ from game.tests.helpers.hands import (
 )
 from game.tests.helpers.wall import DEAD_WALL_START, FIRST_DRAW_POSITION
 from game.wire.enums import WireEventType, WireRoundResultType
+from game.wire.replay_format import ReplayLineType, ReplaySeatControlReason
 from scripts.replay_fixtures.staged_game import (
     EagerGame,
     Outcome,
@@ -613,6 +614,46 @@ def timeouts() -> Recording:
     )
 
 
+def ai_replacements() -> Recording:
+    """
+    Replace seat 3, absent at the deal, with an AI player, which declines a pon of haku within seat 1's discard; then
+    seat 2 on its turn, whose AI player discards the 4p that seat 1 rons.
+
+    During the round advance seat 3's human returns and seat 0 leaves, its AI player confirming for it; in the next
+    round seat 2's human returns after the dealer's draw, and seat 0's AI player draws and discards within seat 3's
+    discard.
+    """
+    winning_tile = tile(1, pin="4")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="1", pin="1569", sou="1589", honors="1234"),
+            tile_copies(0, man="123456789", pin="23", sou="11"),
+            (*tile_copies(0, sou="234567", pin="789"), *tile_copies(1, man="5567")),
+            (*tile_copies(3, man="1", pin="1569", sou="1589", honors="12"), *tile_copies(0, honors="55")),
+        ),
+        draws=((0, tile(0, honors="6")), (1, tile(2, honors="5")), (2, winning_tile)),
+    )
+    game = StagedGame("ai-replacements", staged)
+    game.replace_with_ai(3, ReplaySeatControlReason.ABSENT)
+    game.tsumogiri(0)
+    game.tsumogiri(1)
+    game.replace_with_ai(2, ReplaySeatControlReason.LEFT)
+    game.ron(1)
+    game.restore_human(3)
+    game.replace_with_ai(0, ReplaySeatControlReason.LEFT)
+    game.confirm_round()
+    game.restore_human(2)
+    game.tsumogiri(1)
+    game.tsumogiri(2)
+    game.tsumogiri(3)
+    return game.replay(
+        Outcome(
+            {"rt": WireRoundResultType.RON, "ws": 1, "ls": 2},
+            then=(ReplayLineType.SEAT_CONTROL, {"s": 3, "ai": 0}),
+        )
+    )
+
+
 def require_wins_off_seat_zero(recording: Recording, *, name: str) -> None:
     """
     Raise ScenarioError unless the replay holds a tsumo and a ron in rounds dealt by a seat other than 0.
@@ -701,6 +742,7 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "four_riichi.txt": four_riichi,
     "four_kans.txt": four_kans,
     "timeouts.txt": timeouts,
+    "ai_replacements.txt": ai_replacements,
     "eager_game.txt": eager_game,
     "double_ron_on_honba.txt": double_ron_on_honba,
 }

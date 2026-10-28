@@ -29,7 +29,7 @@ flowchart LR
     subgraph Game["Game server :8711"]
         REST["REST<br/>POST /games, GET /players/{user_id}[/game-session]"]
         WS["WebSocket /ws/{game_id}<br/>MessagePack"]
-        SM["SessionManager<br/>live games, timers, AI takeover"]
+        SM["SessionManager<br/>live games, timers, AI replacement"]
         Engine["MahjongGameService<br/>rules engine"]
         Replay["ReplayCollector"]
     end
@@ -358,6 +358,10 @@ sequenceDiagram
 | `players` (SQLite) | Lobby: register, bot registration script | Lobby auth |
 | `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
 | Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}` |
+
+A replay file holds the game's recorded events plus replay-only annotation lines the replay runner
+skips: turn and call timeouts, and each seat's replacement with an AI player (left, or absent at
+the first deal) and its human's return.
 
 The finish record is built from the start record, never from end-of-game connection state, so a
 seat that never connected keeps its name and `user_id`. A crash leaves `ended_at` NULL, which is why

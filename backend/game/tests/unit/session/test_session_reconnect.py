@@ -164,6 +164,7 @@ class TestReconnectTakeover:
         assert runtime.state.round_state.current_player_seat == alice.seat
         awaiting = game_of(manager).awaiting
         deadline, bank = alice.timer.task, alice.timer.bank_seconds
+        replay_lines = list(game_of(manager).replay.lines)
         fake_clock.advance(7)
 
         new_conn = MockConnection()
@@ -197,6 +198,7 @@ class TestReconnectTakeover:
         assert alice.timer.task is deadline
         assert old_conn.sent_messages == []
         assert bob_conn.sent_messages == []
+        assert game_of(manager).replay.lines == replay_lines
 
         await manager.shutdown()
 

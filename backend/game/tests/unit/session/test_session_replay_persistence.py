@@ -28,6 +28,7 @@ from .helpers import (
     arrange_ron_and_pon_on_a_discard,
     create_started_game,
     current_wait_id,
+    disconnect_and_reconnect,
     game_of,
     participant_of,
     run_timeout,
@@ -144,6 +145,40 @@ class TestSessionReplay:
         run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=carol)
         assert [json.loads(line) for line in replay.lines[recorded_before:]] == [{"t": 100, "s": carol, "k": 1}]
         assert (game_of(manager).awaiting.kind, game_of(manager).awaiting.seats) == (WaitKind.CALL, frozenset({bob}))
+
+        await manager.shutdown()
+
+    async def test_disconnect__when_game_playing__should_record_the_ai_replacement_before_its_moves(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice_seat = participant_of(manager, conns[0]).seat
+        assert runtime_of(manager).state.round_state.current_player_seat == alice_seat
+        replay = game_of(manager).replay
+        recorded_before = len(replay.lines)
+
+        manager.disconnect(conns[0])
+        ai_replacement, ai_discard, *_ = (json.loads(line) for line in replay.lines[recorded_before:])
+        assert ai_replacement == {"t": 101, "s": alice_seat, "ai": 1, "r": 0}
+        assert ai_discard["t"] == WireEventType.DISCARD
+        assert decode_discard(ai_discard["d"])[0] == alice_seat
+
+        await manager.shutdown()
+
+    async def test_reconnect__when_an_ai_player_held_the_seat__should_record_the_human_return(self, seeded_engine):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice_seat = participant_of(manager, conns[0]).seat
+        replay = game_of(manager).replay
+
+        disconnect_and_reconnect(manager, conns[0])
+        lines = [json.loads(line) for line in replay.lines]
+        assert [line for line in lines if line["t"] == 101] == [
+            {"t": 101, "s": alice_seat, "ai": 1, "r": 0},
+            {"t": 101, "s": alice_seat, "ai": 0},
+        ]
+        assert lines[-1] == {"t": 101, "s": alice_seat, "ai": 0}
 
         await manager.shutdown()
 

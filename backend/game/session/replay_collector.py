@@ -16,7 +16,13 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.messaging.event_payload import game_event_payload
-from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, ReplayTimeoutKind, encode_replay_settings
+from game.wire.replay_format import (
+    REPLAY_VERSION,
+    ReplayLineType,
+    ReplaySeatControlReason,
+    ReplayTimeoutKind,
+    encode_replay_settings,
+)
 
 if TYPE_CHECKING:
     from game.logic.events import GameEvent
@@ -59,7 +65,8 @@ class ReplayCollector:
     tiles revealed. Other SeatTarget events (prompts, errors, furiten) are
     excluded as internal signals.
 
-    It also writes the replay-only timeout lines the session reports, ahead of the default action's events.
+    It also writes the replay-only lines the session reports: timeouts, ahead of the default action's events, and seat
+    control changes, an AI replacement ahead of the AI player's moves and a human return.
 
     The collector keeps no per-game state: each game holds its own ReplayRecord (on its GameSession) from the start
     until its end detaches the lines, which `save` then persists.
@@ -118,6 +125,20 @@ class ReplayCollector:
             return
 
         record.lines.append(json.dumps({"t": ReplayLineType.TIMEOUT, "s": seat, "k": kind}))
+
+    @staticmethod
+    def record_ai_replacement(record: ReplayRecord, *, seat: int, reason: ReplaySeatControlReason) -> None:
+        """
+        Append the seat control line of a seat's replacement with an AI player, to precede the events of its moves.
+        """
+        record.lines.append(json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": seat, "ai": 1, "r": reason}))
+
+    @staticmethod
+    def record_human_return(record: ReplayRecord, *, seat: int) -> None:
+        """
+        Append the seat control line of a seat's human return: its participant takes it back from the AI player.
+        """
+        record.lines.append(json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": seat, "ai": 0}))
 
     @staticmethod
     def _should_include(event: GameEvent) -> bool:
