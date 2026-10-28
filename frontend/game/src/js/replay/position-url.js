@@ -1,6 +1,6 @@
 import $ from "jquery";
 
-const POSITION_PARAM = Object.freeze({ SEAT: "seat", ROUND: "round", STEP: "step" });
+import { POSITION_PARAM } from "../routes.js";
 
 /**
  * The fewest milliseconds between two writes of the address bar. Safari refuses more than 100 history writes in 30

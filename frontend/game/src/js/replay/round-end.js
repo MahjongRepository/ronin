@@ -11,52 +11,94 @@ export const OUTCOME = Object.freeze({
     ABORT: "abort",
 });
 
+function isSeat(value) {
+    return Number.isInteger(value) && value >= 0 && value < SEATS;
+}
+
+/** The round end's `field`, which must be a seat: a round end without it is a damaged file. */
+function seatField(record, field) {
+    const value = record[field];
+    if (!isSeat(value)) {
+        throw new Error(`round end has no seat ${field}: ${JSON.stringify(value)}`);
+    }
+    return value;
+}
+
+/** The round end's `field`, a seat if present. */
+function optionalSeatField(record, field) {
+    return record[field] == null ? null : seatField(record, field);
+}
+
+/** The round end's `field`, which must be a list of seats. */
+function seatsField(record, field) {
+    const value = record[field];
+    if (!Array.isArray(value) || !value.every(isSeat)) {
+        throw new Error(`round end has no seat list ${field}: ${JSON.stringify(value)}`);
+    }
+    return value;
+}
+
+function handPoints({ hr }) {
+    if (!Number.isInteger(hr?.pt)) {
+        throw new Error(`round end has no hand points (hr.pt): ${JSON.stringify(hr)}`);
+    }
+    return hr.pt * wire.SCORE_DIV;
+}
+
 /**
  * A winner's seat, the hand's points, the seat liable for it (pao) if any, and what each seat paid for this win (by
- * seat, the honba included), from the win's own score changes: a double ron's wins each carry theirs.
+ * seat, the honba included), from the win's own score changes: a double ron's wins each carry theirs. A liable seat that
+ * dealt the ron in pays it whole as any discarder does, so no one is named liable then, as the result dialog names no
+ * one (`results.js`).
  */
-function winnerOutcome(winner) {
+function winnerOutcome(winner, loser) {
+    const seat = seatField(winner, "ws");
+    const liable = optionalSeatField(winner, "ps");
     return {
-        seat: winner.ws,
-        points: winner.hr.pt * wire.SCORE_DIV,
-        liable: winner.ps ?? null,
-        paid: scoreChanges(winner).map((change, seat) =>
-            seat === winner.ws ? 0 : Math.max(0, -change),
+        seat,
+        points: handPoints(winner),
+        liable: liable === loser ? null : liable,
+        paid: scoreChanges(winner).map((change, payer) =>
+            payer === seat ? 0 : Math.max(0, -change),
         ),
     };
+}
+
+function doubleRonWinners(roundEnd, loser) {
+    if (!Array.isArray(roundEnd.wn) || roundEnd.wn.length === 0) {
+        throw new Error(`double ron has no winners (wn): ${JSON.stringify(roundEnd.wn)}`);
+    }
+    return roundEnd.wn.map((winner) => winnerOutcome(winner, loser));
 }
 
 const OUTCOME_OF_TYPE = {
     [wire.RT.TSUMO]: (roundEnd) => ({
         kind: OUTCOME.TSUMO,
-        winners: [winnerOutcome(roundEnd)],
+        winners: [winnerOutcome(roundEnd, null)],
         loser: null,
     }),
-    [wire.RT.RON]: (roundEnd) => ({
-        kind: OUTCOME.RON,
-        winners: [winnerOutcome(roundEnd)],
-        loser: roundEnd.ls,
-    }),
-    [wire.RT.DOUBLE_RON]: (roundEnd) => ({
-        kind: OUTCOME.DOUBLE_RON,
-        winners: roundEnd.wn.map(winnerOutcome),
-        loser: roundEnd.ls,
-    }),
+    [wire.RT.RON]: (roundEnd) => {
+        const loser = seatField(roundEnd, "ls");
+        return { kind: OUTCOME.RON, winners: [winnerOutcome(roundEnd, loser)], loser };
+    },
+    [wire.RT.DOUBLE_RON]: (roundEnd) => {
+        const loser = seatField(roundEnd, "ls");
+        return { kind: OUTCOME.DOUBLE_RON, winners: doubleRonWinners(roundEnd, loser), loser };
+    },
     [wire.RT.EXHAUSTIVE]: (roundEnd, name) => ({
         kind: OUTCOME.EXHAUSTIVE,
         name,
-        tenpai: roundEnd.ts,
+        tenpai: seatsField(roundEnd, "ts"),
     }),
     [wire.RT.NAGASHI]: (roundEnd, name) => ({
         kind: OUTCOME.NAGASHI,
         name,
-        players: roundEnd.qs,
-        tenpai: roundEnd.ts,
+        players: seatsField(roundEnd, "qs"),
     }),
     [wire.RT.ABORTIVE]: (roundEnd, name) => ({
         kind: OUTCOME.ABORT,
         name,
-        declarer: roundEnd.s ?? null,
+        declarer: optionalSeatField(roundEnd, "s"),
     }),
 };
 
@@ -74,10 +116,12 @@ function scoreChanges({ sch }) {
 
 /**
  * What the round list says of a round end whose result messages are results: who won from whom, for how much and who
- * paid it (and who was liable), or the draw's name and seats (a nine-terminals declarer's among them), and every seat's
- * score change (by seat).
+ * paid it (and who was liable), or the draw's name and seats (a nine-terminals declarer's among them). Every field read
+ * is checked here, so a damaged one fails the conversion at its line rather than the page drawing it.
  */
 export function roundOutcome(roundEnd, results) {
-    const outcome = OUTCOME_OF_TYPE[roundEnd.rt](roundEnd, results[0].pingju?.name);
-    return { ...outcome, scoreChanges: scoreChanges(roundEnd) };
+    if (!Object.hasOwn(OUTCOME_OF_TYPE, roundEnd.rt)) {
+        throw new Error(`unknown round end type ${roundEnd.rt}`);
+    }
+    return OUTCOME_OF_TYPE[roundEnd.rt](roundEnd, results[0].pingju?.name);
 }

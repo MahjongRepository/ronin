@@ -5,6 +5,19 @@
 
 import $ from 'jquery';
 
+/* The stored settings, or the defaults when storage is blocked or holds
+ * something else than a settings object. */
+function read_pref(storage) {
+    try {
+        const pref = JSON.parse(localStorage.getItem(storage));
+        if (pref && typeof pref == 'object' && ! Array.isArray(pref)) return pref;
+    }
+    catch (e) {
+        console.warn('[ronin] settings unreadable, using the defaults:', e);
+    }
+    return { sound_on: true };
+}
+
 export default class GameCtl {
 
     constructor(root, storage, ...view) {
@@ -14,9 +27,7 @@ export default class GameCtl {
         this._view = view;
 
         this._storage = storage;
-        this._pref = localStorage.getItem(storage)
-                        ? JSON.parse(localStorage.getItem(storage))
-                        : { sound_on: true };
+        this._pref = read_pref(storage);
         delete this._pref.speed;
 
         this.redraw();
@@ -34,7 +45,12 @@ export default class GameCtl {
             .attr('aria-checked', String(on))
             .find('.state').text(on ? 'ON' : 'OFF');
         this._pref.sound_on = on;
-        localStorage.setItem(this._storage, JSON.stringify(this._pref));
+        try {
+            localStorage.setItem(this._storage, JSON.stringify(this._pref));
+        }
+        catch (e) {
+            console.warn('[ronin] settings not saved:', e);
+        }
         return false;
     }
 

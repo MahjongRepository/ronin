@@ -236,14 +236,25 @@ function messageParts(message, nameOf, tileShown) {
 /** Between the action and each note: a no-break space before the dot keeps it off the start of a line. */
 const NOTE_SEPARATOR = "\u00a0· ";
 
+/** Why an AI player replaced a seat's human, as an AI replacement note says it. */
+const REASON_TEXT = Object.freeze({
+    [wire.SEAT_CONTROL_REASON.LEFT]: "left",
+    [wire.SEAT_CONTROL_REASON.ABSENT]: "absent",
+});
+
+function reasonText(reason) {
+    if (!Object.hasOwn(REASON_TEXT, reason)) {
+        throw new Error(`no text for AI replacement reason ${reason}`);
+    }
+    return REASON_TEXT[reason];
+}
+
 /** What a note says of the seat it names: "AI plays for Bob (absent)", "AI plays for Diana (left)", "Bob returns". */
 function noteText(note, players) {
     const name = players[note.seat];
     switch (note.kind) {
-        case NOTE.AI_REPLACEMENT: {
-            const reason = note.reason === wire.SEAT_CONTROL_REASON.ABSENT ? "absent" : "left";
-            return `AI\u00a0plays for ${name} (${reason})`;
-        }
+        case NOTE.AI_REPLACEMENT:
+            return `AI\u00a0plays for ${name} (${reasonText(note.reason)})`;
         case NOTE.HUMAN_RETURN:
             return `${name} returns`;
         default:

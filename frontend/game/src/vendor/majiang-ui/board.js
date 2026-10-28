@@ -37,8 +37,8 @@ function format_defen(defen) {
 /**
  * What a seat's nameplate may be marked with, each its class: the live game's
  * disconnected player, whose seat is played for them, and the replay's seat an
- * AI player holds. Both turn the name red; what each means is also given as
- * hidden text, so it is not told by colour alone.
+ * AI player holds for its human. Both turn the name red; what each means is
+ * also given as hidden text, so it is not told by colour alone.
  */
 export const SEAT_MARK = Object.freeze({ DISCONNECTED: 'disconnect',
                                          AI: 'ai' });
@@ -410,7 +410,6 @@ export default class Board {
 
     /* Whether each player is connected: those who are not marked so. */
     players(players) {
-        this.mark_seats([0, 1, 2, 3].map(id => players[id]
-                                        ? null : SEAT_MARK.DISCONNECTED));
+        this.mark_seats(players.map(c => c ? null : SEAT_MARK.DISCONNECTED));
     }
 }

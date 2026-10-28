@@ -3,7 +3,8 @@ import $ from "jquery";
 import { withoutBlockedPlayback } from "../game-audio.js";
 import { GAME_PREF_KEY } from "../game-prefs.js";
 import { showLoadingStatus } from "../loading.js";
-import { HISTORY_URL, LOBBY_URL } from "../routes.js";
+import { HISTORY_URL, LOBBY_URL, replayPath } from "../routes.js";
+import { BoardLinks } from "./board-links.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
 import { bindKeys, unbindKeys } from "./keys.js";
@@ -31,10 +32,14 @@ function errorText({ kind, line }) {
     return line === undefined ? ERROR_TEXT[kind] : `${ERROR_TEXT[kind]} (line ${line})`;
 }
 
-/** Replace the board with a message and the ways back to the lobby, and a retry where one may help. */
-function showProblem(text, { retry = false } = {}) {
+/**
+ * Replace the board with a message and the ways back to the lobby, and the retries where they may help: the page again,
+ * and `startOver` (the replay from its start) where reloading the position shown may fail the same way.
+ */
+function showProblem(text, { retry = false, startOver = null } = {}) {
     const links = $('<p class="replay-problem-links">').append(
         retry ? $("<a>").attr("href", window.location.href).text("Try again") : null,
+        startOver === null ? null : $("<a>").attr("href", startOver).text("Replay from the start"),
         $("<a>").attr("href", HISTORY_URL).text("Game history"),
         $("<a>").attr("href", LOBBY_URL).text("Lobby"),
     );
@@ -52,16 +57,19 @@ function showDamaged(line, ...logged) {
 
 /**
  * A replay the model cannot play is damaged; any other failure to show one is the page's own, which a reload may fix.
- * Either way the replay's keys stop: the page shows the problem instead.
+ * A failure at a position past the first deal may be that position's alone, so the replay from its start, from the same
+ * seat, is offered too. Either way the replay's keys stop: the page shows the problem instead.
  */
-function showViewerFailure(error) {
+function showViewerFailure(error, gameId, replay) {
     unbindKeys();
     if (error instanceof UnplayableReplayError) {
         showDamaged(undefined, error, error.cause);
         return;
     }
     console.error("[ronin] replay cannot be shown:", error);
-    showProblem(CANNOT_SHOW, { retry: true });
+    const { seat, round, step } = readPosition(window.location.search, replay);
+    const atStart = round === 0 && step === 0;
+    showProblem(CANNOT_SHOW, { retry: true, startOver: atStart ? null : replayPath(gameId, seat) });
 }
 
 /** The converted replay, or null once its problem is shown. */
@@ -132,13 +140,14 @@ function buildBoard(replay, stage, prefs, seat) {
  * The viewer at the seat and position the address bar names (by default the recorded first dealer's seat at the first
  * deal), paused, the address bar then following every move and change of seat.
  */
-function startViewer(replay) {
+function startViewer(gameId, replay) {
     const stage = $("#board");
     const prefs = readReplayPrefs();
     const { seat, round, step } = readPosition(window.location.search, replay);
     const { model, view, root, settings } = buildBoard(replay, stage, prefs, seat);
     const positionUrl = new PositionUrl();
     const controls = new ReplayControls(replay, { closeSettings: () => settings.menu(false) });
+    const links = new BoardLinks(replay, root, { onStandingsJump: () => controls.focusRounds() });
     $("#space").remove();
     $("body").addClass("replay").append(controls.element);
     const viewer = new ReplayViewer({
@@ -149,12 +158,13 @@ function startViewer(replay) {
         speed: prefs.speed,
         onChange: (state) => {
             controls.show(state);
+            links.show(state);
             positionUrl.show(state);
         },
-        onStandingsJump: () => controls.focusRounds(),
-        onError: showViewerFailure,
+        onError: (error) => showViewerFailure(error, gameId, replay),
     });
     controls.bind(viewer);
+    links.bind(viewer);
     bindKeys(viewer, controls);
     bindWheel(viewer, stage);
     viewer.start(round, step);
@@ -178,8 +188,8 @@ export async function showReplay(gameId, tilesLoaded) {
     }
     await tilesLoaded;
     try {
-        startViewer(replay);
+        startViewer(gameId, replay);
     } catch (error) {
-        showViewerFailure(error);
+        showViewerFailure(error, gameId, replay);
     }
 }

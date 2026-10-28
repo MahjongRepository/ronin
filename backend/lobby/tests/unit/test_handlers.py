@@ -130,9 +130,19 @@ class TestPrepareGamesForDisplay:
         assert entry["viewer_replay_url"] == "/play/history/game-1?seat=0"
         assert entry["replay_url"] == "/play/history/game-1"
 
-        [onlooker_entry] = _prepare_history_for_display([game], user_id="onlooker-user-id")
-        assert [player["is_viewer"] for player in onlooker_entry["players"]] == [False, False, False, False]
-        assert onlooker_entry["viewer_replay_url"] == "/play/history/game-1"
+    def test_prepare_history_for_display__when_viewer_did_not_play__should_link_without_seat(self):
+        game = PlayedGame(
+            game_id="game-1",
+            started_at=datetime.now(UTC),
+            standings=[
+                _make_standing(name="Alice", seat=2, user_id="alice-user-id"),
+                _make_standing(name="Bob", seat=0, user_id=_VIEWER_USER_ID),
+            ],
+        )
+
+        [entry] = _prepare_history_for_display([game], user_id="onlooker-user-id")
+        assert [player["is_viewer"] for player in entry["players"]] == [False, False]
+        assert entry["viewer_replay_url"] == "/play/history/game-1"
 
     def test_prepare_history_for_display__when_tonpusen__should_label_east_tonpuu(self):
         now = datetime.now(UTC)

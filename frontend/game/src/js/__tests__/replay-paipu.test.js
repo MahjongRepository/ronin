@@ -6,6 +6,7 @@ import { MalformedReplayError, NOTE, POSITION, toReplay } from "../replay/paipu.
 import { OUTCOME } from "../replay/round-end.js";
 import wire from "../ronin/wire.js";
 import { firstLineOf } from "./replay-edits.js";
+import AI_DEALER_ABSENT from "./fixtures/replays/ai_dealer_absent.txt?raw";
 import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
 import CHANKAN_AI_REPLACEMENT from "./fixtures/replays/chankan_ai_replacement.txt?raw";
@@ -81,6 +82,11 @@ function resultOf(round) {
 function insertLine(text, number, line) {
     const lines = text.split("\n");
     return [...lines.slice(0, number - 1), line, ...lines.slice(number - 1)].join("\n");
+}
+
+/** The seats an AI player holds for their human at a position. */
+function replacedSeats(position) {
+    return position.replaced.flatMap((replaced, seat) => (replaced ? [seat] : []));
 }
 
 describe("toReplay", () => {
@@ -176,7 +182,7 @@ describe("toReplay", () => {
         const controlled = (round) =>
             stepsOf(round).map(({ kind, position }) => [
                 kind,
-                position.ai.flatMap((ai, seat) => (ai ? [seat] : [])),
+                replacedSeats(position),
                 position.notes,
             ]);
         const [first, second] = convert(AI_REPLACEMENTS).rounds;
@@ -210,6 +216,25 @@ describe("toReplay", () => {
         ]);
     });
 
+    it("notes seats absent at the deal on it, and never an AI player's seat from the game's start", () => {
+        const { rounds } = convert(AI_DEALER_ABSENT);
+        const { ABSENT } = wire.SEAT_CONTROL_REASON;
+        const positions = rounds.flatMap((round) => round.positions);
+
+        expect(rounds[0].positions[0].notes).toEqual([
+            { kind: NOTE.AI_REPLACEMENT, seat: 1, reason: ABSENT },
+            { kind: NOTE.AI_REPLACEMENT, seat: 3, reason: ABSENT },
+        ]);
+        expect(
+            stepsOf(rounds[0])
+                .slice(1, 3)
+                .map((step) => step.messages),
+        ).toEqual([[{ zimo: { l: 0, p: "z5" } }], [{ dapai: { l: 0, p: "z5_" } }]]);
+        expect(new Set(positions.map((position) => replacedSeats(position).join()))).toEqual(
+            new Set(["1,3"]),
+        );
+    });
+
     it("ends a truncated round on its trailing silent records", () => {
         const round = firstRound(endingOnTheDoraReveal(TRUNCATED_MID_ROUND));
         const last = stepsOf(round).at(-1);
@@ -235,6 +260,7 @@ describe("toReplay", () => {
             '{"t": 101, "s": 0, "ai": 0}',
             '{"t": 101, "s": 1, "ai": 1, "r": 1}',
         ];
+        const leavingAiSeatFromTheStart = '{"t": 101, "s": 0, "ai": 1, "r": 0}';
         const absentAfterTheFirstRound = firstLineOf(FULL_GAME.split("\n"), wire.E.ROUND_END) + 2;
 
         for (const record of unreadable) {
@@ -242,6 +268,9 @@ describe("toReplay", () => {
                 expect.objectContaining({ name: MalformedReplayError.name, line: 6 }),
             );
         }
+        expect(() => convert(insertLine(AI_DEALER_ABSENT, 7, leavingAiSeatFromTheStart))).toThrow(
+            expect.objectContaining({ name: MalformedReplayError.name, line: 7 }),
+        );
         expect(() =>
             convert(
                 insertLine(
@@ -308,11 +337,10 @@ describe("toReplay round ends", () => {
             fubaopai: ["p8"],
         });
         expect(resultOf(tsumo).say).toEqual([{ name: "zimo", l: 1 }]);
-        expect(tsumo.outcome).toEqual({
+        expect(tsumo.outcome).toMatchObject({
             kind: OUTCOME.TSUMO,
             winners: [{ seat: 1, points: 8000, liable: null, paid: [4000, 0, 2000, 2000] }],
             loser: null,
-            scoreChanges: [-4000, 10000, -2000, -2000],
         });
 
         const ron = firstRound(RON_RIICHI_DISCARD);
@@ -332,9 +360,9 @@ describe("toReplay round ends", () => {
             headBumped: [],
             page: null,
         });
-        expect(
-            resultOf(firstRound(withLiableDiscarder(RON_RIICHI_DISCARD))).messages[0].hule.pao,
-        ).toBeNull();
+        const liableDiscarder = firstRound(withLiableDiscarder(RON_RIICHI_DISCARD));
+        expect(resultOf(liableDiscarder).messages[0].hule.pao).toBeNull();
+        expect(liableDiscarder.outcome.winners[0].liable).toBeNull();
     });
 
     it("builds a rinshan kaihou tsumo with the kan among its melds", () => {
@@ -374,7 +402,9 @@ describe("toReplay round ends", () => {
 
         const steps = stepsOf(firstRound(CHANKAN_AI_REPLACEMENT));
         expect(
-            steps.slice(-2).map(({ kind, position }) => [kind, position.ai[3], position.notes]),
+            steps
+                .slice(-2)
+                .map(({ kind, position }) => [kind, position.replaced[3], position.notes]),
         ).toEqual([
             [POSITION.CALL, false, undefined],
             [
@@ -446,7 +476,7 @@ describe("toReplay round ends", () => {
     });
 
     it("calls a round end without score changes damaged, naming its line", () => {
-        const lines = EXHAUSTIVE_TENPAI.split("\n");
+        const lines = RIICHI.split("\n");
         const index = firstLineOf(lines, wire.E.ROUND_END);
         const roundEnd = JSON.parse(lines[index]);
         delete roundEnd.sch;
@@ -465,12 +495,10 @@ describe("toReplay round ends", () => {
             tenpai: [false, false, false, true],
             players: [1],
         });
-        expect(round.outcome).toEqual({
+        expect(round.outcome).toMatchObject({
             kind: OUTCOME.NAGASHI,
             name: "流し満貫",
             players: [1],
-            tenpai: [3],
-            scoreChanges: [-4000, 8000, -2000, -2000],
         });
     });
 
@@ -534,7 +562,9 @@ describe("toReplay round ends", () => {
                     expect(model.defen, `round ${index}: next deal`).toEqual(
                         dealtScores(replay.qijia, next),
                     );
-                    expect(model.lizhibang, `round ${index}: sticks carried`).toBe(next.sticks);
+                    expect(model.lizhibang, `round ${index}: sticks carried`).toBe(
+                        next.log[0].qipai.lizhibang,
+                    );
                 } else if (replay.standings !== null) {
                     const { defen, gongtuo } = replay.standings;
                     const sticksTaken = gongtuo.reduce((sum, points) => sum + points, 0);

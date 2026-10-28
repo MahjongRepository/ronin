@@ -18,12 +18,13 @@ from game.tests.helpers.hands import (
 )
 from game.tests.helpers.wall import DEAD_WALL_START, FIRST_DRAW_POSITION
 from game.wire.enums import WireEventType, WireRoundResultType
-from game.wire.replay_format import ReplayLineType, ReplaySeatControlReason
+from game.wire.replay_format import ReplayLineType
 from scripts.replay_fixtures.staged_game import (
     EagerGame,
     Outcome,
     ReplayRecorder,
     ScenarioError,
+    Seating,
     StagedGame,
     StagedWall,
     cut_after,
@@ -86,6 +87,7 @@ def riichi() -> Recording:
         ),
         ura=(tile(1, pin="8"),),
     )
+
     game = StagedGame("riichi", staged)
     game.discard(0, tile(3, honors="1"))
     game.tsumogiri(1)
@@ -100,6 +102,7 @@ def riichi() -> Recording:
     game.tsumogiri(1)
     game.tsumogiri_until(1)
     game.tsumo(1)
+
     return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ud": [tile(1, pin="8")]}))
 
 
@@ -135,6 +138,7 @@ def kans() -> Recording:
         ),
         rinshan=(tile(3, honors="7"), tile(3, man="3"), tile(1, man="9")),
     )
+
     game = StagedGame("kans", staged)
     game.discard(0, open_kan_tile)
     game.kan(2, open_kan_tile, KanType.OPEN)
@@ -148,6 +152,7 @@ def kans() -> Recording:
     game.tsumogiri_until(3)
     game.kan(3, closed_kan_tile, KanType.CLOSED)
     game.tsumo(3)
+
     return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 3}))
 
 
@@ -183,11 +188,13 @@ def ron_riichi_discard() -> Recording:
         ),
         draws=((0, tile(0, honors="5")), (1, tile(0, honors="6")), (2, riichi_discard)),
     )
+
     game = StagedGame("ron-riichi-discard", staged)
     game.tsumogiri(0)
     game.riichi(1)
     game.riichi(2)
     game.ron(1)
+
     return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 1, "ls": 2, "rc": 1}))
 
 
@@ -211,6 +218,7 @@ def double_ron() -> Recording:
             (0, winning_tile),
         ),
     )
+
     game = StagedGame("double-ron", staged)
     game.tsumogiri(0)
     game.riichi(1)
@@ -218,6 +226,7 @@ def double_ron() -> Recording:
     game.tsumogiri(3)
     game.tsumogiri(0)
     game.ron(1, 2)
+
     return game.replay(
         Outcome({"rt": WireRoundResultType.DOUBLE_RON, "ls": 0, "wn": [{"ws": 1, "rc": 2}, {"ws": 2, "rc": 0}]})
     )
@@ -231,6 +240,7 @@ def _pin_3_multi_ron(game_id: str, settings: GameSettings, *, callers: tuple[int
         hands=(PIN_3_TRIPLE_RON_DEALER_HAND, *PIN_3_TRIPLE_RON_CALLER_HANDS),
         draws=((0, PIN_3_TRIPLE_RON_DISCARD),),
     )
+
     game = StagedGame(game_id, staged, settings=settings)
     game.discard(0, PIN_3_TRIPLE_RON_DISCARD)
     for seat in (1, 2, 3):
@@ -238,6 +248,7 @@ def _pin_3_multi_ron(game_id: str, settings: GameSettings, *, callers: tuple[int
             game.pass_(seat)
 
     game.ron(*callers)
+
     return game.replay(outcome)
 
 
@@ -302,6 +313,7 @@ def chankan_added() -> Recording:
             (1, added_kan_tile),
         ),
     )
+
     game = StagedGame("chankan-added", staged)
     game.discard(0, ponned_tile)
     game.pon(1, ponned_tile)
@@ -311,6 +323,7 @@ def chankan_added() -> Recording:
     game.tsumogiri(0)
     game.kan(1, added_kan_tile, KanType.ADDED)
     game.ron(2)
+
     return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
 
 
@@ -339,6 +352,7 @@ def chankan_ai_replacement() -> Recording:
             (1, added_kan_tile),
         ),
     )
+
     game = StagedGame("chankan-ai-replacement", staged)
     game.discard(0, ponned_tile)
     game.pon(1, ponned_tile)
@@ -347,8 +361,9 @@ def chankan_ai_replacement() -> Recording:
     game.discard(3, tile(3, honors="1"))
     game.tsumogiri(0)
     game.kan(1, added_kan_tile, KanType.ADDED)
-    game.replace_with_ai(3, ReplaySeatControlReason.LEFT)
+    game.leave(3)
     game.ron(2)
+
     return game.replay(Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.ADDED}}))
 
 
@@ -375,12 +390,14 @@ def chankan_closed_kokushi() -> Recording:
             (1, closed_kan_tile),
         ),
     )
+
     game = StagedGame("chankan-closed-kokushi", staged)
     game.tsumogiri_until(1)
     game.tsumogiri(1)
     game.tsumogiri_until(1)
     game.kan(1, closed_kan_tile, KanType.CLOSED)
     game.ron(2)
+
     return game.replay(
         Outcome({"rt": WireRoundResultType.RON, "ws": 2, "rk": {"s": 1, "kty": KanType.CLOSED}}, then=GAME_ENDS)
     )
@@ -414,6 +431,7 @@ def pao() -> Recording:
             (1, tile(1, man="4")),
         ),
     )
+
     game = StagedGame("pao", staged)
     game.discard(0, first_dragon)
     game.pon(1, first_dragon)
@@ -427,6 +445,7 @@ def pao() -> Recording:
     game.discard(1, tile(0, sou="9"))
     game.tsumogiri_until(1)
     game.tsumo(1)
+
     return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ps": 0}, then=GAME_ENDS))
 
 
@@ -445,11 +464,13 @@ def exhaustive_tenpai() -> Recording:
             (*tile_copies(0, honors="666"), *tile_copies(3, man="258", pin="258", sou="369", honors="2")),
         ),
     )
+
     game = StagedGame("exhaustive-tenpai", staged)
     game.tsumogiri(0)
     game.riichi(1)
     game.tsumogiri_until()
     game.confirm_round()
+
     return game.replay(
         Outcome(
             {"rt": WireRoundResultType.EXHAUSTIVE_DRAW, "ts": [1, 2], "ns": [0, 3]},
@@ -472,17 +493,22 @@ def nagashi() -> Recording:
         (*tile_copies(3, man="234567", sou="234567"), tile(3, honors="5")),
     )
     nagashi_seat = 1
+
     live_wall_draws = DEAD_WALL_START - FIRST_DRAW_POSITION
     draw_seats = [index % NUM_PLAYERS for index in range(live_wall_draws)]
+
     dealt = {tile_id for hand in hands for tile_id in hand}
     undealt = [tile_id for tile_id in range(NUM_TILES) if tile_id not in dealt]
     terminals_and_honors = [tile_id for tile_id in undealt if is_terminal_or_honor(tile_to_34(tile_id))]
     qualifying = terminals_and_honors[: draw_seats.count(nagashi_seat)]
+
     qualifying_draws = iter(qualifying)
     other_draws = iter(tile_id for tile_id in undealt if tile_id not in qualifying)
     draws = [(seat, next(qualifying_draws) if seat == nagashi_seat else next(other_draws)) for seat in draw_seats]
+
     game = StagedGame("nagashi", StagedWall(hands=hands, draws=draws))
     game.tsumogiri_until()
+
     return game.replay(Outcome({"rt": WireRoundResultType.NAGASHI_MANGAN, "qs": [nagashi_seat]}))
 
 
@@ -499,9 +525,11 @@ def kyuushu() -> Recording:
         ),
         draws=((0, tile(0, honors="6")), (1, tile(0, honors="5"))),
     )
+
     game = StagedGame("kyuushu", staged)
     game.tsumogiri(0)
     game.kyuushu(1)
+
     return game.replay(
         Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.NINE_TERMINALS, "s": 1})
     )
@@ -527,11 +555,13 @@ def four_winds_riichi() -> Recording:
             (3, tile(0, pin="4")),
         ),
     )
+
     game = StagedGame("four-winds-riichi", staged)
     for seat in range(3):
         game.discard(seat, winds[seat])
 
     game.riichi(3, winds[3])
+
     return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_WINDS}))
 
 
@@ -548,6 +578,7 @@ def four_riichi() -> Recording:
         ),
         draws=tuple((seat, tile(0, honors=str(seat + 1))) for seat in range(NUM_PLAYERS)),
     )
+
     game = StagedGame("four-riichi", staged)
     for seat in range(NUM_PLAYERS):
         game.riichi(seat)
@@ -573,6 +604,7 @@ def four_kans() -> Recording:
         draws=((0, tile(0, honors="2")), (1, tile(2, honors="3")), (2, open_kan_tile)),
         rinshan=(tile(0, man="8"), tile(1, man="8"), tile(0, pin="6"), tile(0, pin="4")),
     )
+
     game = StagedGame("four-kans", staged)
     game.kan(0, tile(0, man="1"), KanType.CLOSED)
     game.kan(0, tile(0, man="2"), KanType.CLOSED)
@@ -582,13 +614,14 @@ def four_kans() -> Recording:
     game.tsumogiri(2)
     game.kan(1, open_kan_tile, KanType.OPEN)
     game.tsumogiri(1)
+
     return game.replay(Outcome({"rt": WireRoundResultType.ABORTIVE_DRAW, "rn": AbortiveDrawType.FOUR_KANS}))
 
 
 def ai_replacements() -> Recording:
     """
-    Replace seat 3, absent at the deal, with an AI player, which declines a pon of haku within seat 1's discard; then
-    seat 2 on its turn, whose AI player discards the 4p that seat 1 rons.
+    Deal with seat 3 absent, so its AI player declines a pon of haku within seat 1's discard; then seat 2 leaves on its
+    turn, and its AI player discards the 4p that seat 1 rons.
 
     During the round advance seat 3's human returns and seat 0 leaves, its AI player confirming for it; in the next
     round seat 2's human returns after the dealer's draw, and seat 0's AI player draws and discards within seat 3's
@@ -604,24 +637,64 @@ def ai_replacements() -> Recording:
         ),
         draws=((0, tile(0, honors="6")), (1, tile(2, honors="5")), (2, winning_tile)),
     )
-    game = StagedGame("ai-replacements", staged)
-    game.replace_with_ai(3, ReplaySeatControlReason.ABSENT)
+
+    game = StagedGame("ai-replacements", staged, seating=Seating(absent=frozenset({3})))
     game.tsumogiri(0)
     game.tsumogiri(1)
-    game.replace_with_ai(2, ReplaySeatControlReason.LEFT)
+    game.leave(2)
     game.ron(1)
     game.restore_human(3)
-    game.replace_with_ai(0, ReplaySeatControlReason.LEFT)
+    game.leave(0)
     game.confirm_round()
     game.restore_human(2)
     game.tsumogiri(1)
     game.tsumogiri(2)
     game.tsumogiri(3)
+
     return game.replay(
         Outcome(
             {"rt": WireRoundResultType.RON, "ws": 1, "ls": 2},
             then=(ReplayLineType.SEAT_CONTROL, {"s": 3, "ai": 0}),
         )
+    )
+
+
+def ai_dealer_absent() -> Recording:
+    """
+    Deal from an AI player's seat to three players, two of them absent at the deal, with the dealer's AI player between
+    them in turn order; the one at the table wins by tsumo on the second go-around and confirms the next deal.
+
+    The staged seed seats Alice at seat 1, Bob at seat 3 and Charlie at seat 2. The AI dealer's draw and discard are
+    among the deal's events, which the absent seats' lines precede; Charlie's discard then sets Bob's AI player, the
+    dealer's and Alice's moving in one call. Alice's AI player deals the next round and plays its first turn at once.
+    """
+    winning_tile = tile(1, sou="5")
+    staged = StagedWall(
+        hands=(
+            tile_copies(1, man="147", pin="147", sou="147", honors="1234"),
+            tile_copies(2, man="258", pin="258", sou="258", honors="1234"),
+            (*tile_copies(0, man="123456789", pin="234"), tile(0, sou="5")),
+            tile_copies(3, man="369", pin="369", sou="369", honors="1234"),
+        ),
+        draws=(
+            (0, tile(0, honors="5")),
+            (1, tile(0, honors="6")),
+            (2, tile(0, honors="7")),
+            (3, tile(1, honors="5")),
+            (0, tile(1, honors="6")),
+            (1, tile(1, honors="7")),
+            (2, winning_tile),
+        ),
+    )
+
+    seating = Seating(players=("Alice", "Bob", "Charlie"), absent=frozenset({1, 3}))
+    game = StagedGame("ai-dealer-absent", staged, seating=seating)
+    game.tsumogiri(2)
+    game.tsumo(2)
+    game.confirm_round()
+
+    return game.replay(
+        Outcome({"rt": WireRoundResultType.TSUMO, "ws": 2}, then=(WireEventType.ROUND_STARTED, {"dl": 1}))
     )
 
 
@@ -651,7 +724,7 @@ def eager_game() -> Recording:
     recording = EagerGame("eager-game", EAGER_GAME_SEED).replay(
         Outcome({"rt": WireRoundResultType.TSUMO, "ws": 3}, then=GAME_ENDS)
     )
-    require_wins_off_seat_zero(recording, name="eager_game")
+    require_wins_off_seat_zero(recording, name="eager-game")
     return recording
 
 
@@ -661,7 +734,7 @@ def double_ron_on_honba() -> Recording:
 
     Each winner takes the two honba's 600 on top of a 1600 hand, so the discarder pays 4400.
     """
-    game = EagerGame("double-ron-on-honba", EAGER_DOUBLE_RON_SEED).replay(
+    played = EagerGame("double-ron-on-honba", EAGER_DOUBLE_RON_SEED).replay(
         Outcome({"rt": WireRoundResultType.EXHAUSTIVE_DRAW}, then=GAME_ENDS)
     )
     double_ron = {
@@ -670,13 +743,13 @@ def double_ron_on_honba() -> Recording:
         "wn": [{"ws": 1, "sch": {"0": -22, "1": 22}}, {"ws": 3, "sch": {"0": -22, "3": 22}}],
     }
     require_outcome(
-        cut_after(game, event_type=WireEventType.ROUND_STARTED, occurrence=3),
+        cut_after(played, event_type=WireEventType.ROUND_STARTED, occurrence=3),
         Outcome(double_ron, then=(WireEventType.ROUND_STARTED, {"n": 3, "h": 0})),
-        name="double_ron_on_honba",
+        name="double-ron-on-honba",
     )
 
-    recording = cut_after(game, event_type=WireEventType.ROUND_END, occurrence=3)
-    require_outcome(recording, Outcome({"rt": WireRoundResultType.TSUMO, "ws": 2}), name="double_ron_on_honba")
+    recording = cut_after(played, event_type=WireEventType.ROUND_END, occurrence=3)
+    require_outcome(recording, Outcome({"rt": WireRoundResultType.TSUMO, "ws": 2}), name="double-ron-on-honba")
     return recording
 
 
@@ -713,6 +786,7 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "four_riichi.txt": four_riichi,
     "four_kans.txt": four_kans,
     "ai_replacements.txt": ai_replacements,
+    "ai_dealer_absent.txt": ai_dealer_absent,
     "eager_game.txt": eager_game,
     "double_ron_on_honba.txt": double_ron_on_honba,
 }

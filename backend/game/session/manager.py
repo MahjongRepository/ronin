@@ -382,16 +382,29 @@ class SessionManager:
 
     def _deal_first_round(self, game: GameSession, *, events: list[GameEvent], awaiting: Awaiting) -> None:
         """
-        Send the first deal and open the first wait; then seat an AI player for every participant without a connection,
-        recorded as absent after the deal.
+        Send the first deal and open the first wait, with an AI player in the seat of every participant without a
+        connection (never joined, or left during the game start pause), who can RECONNECT later.
 
-        An absent participant (never joined, or left during the game start pause) can RECONNECT later.
+        Each absent seat is an AI player's from the deal, so its line is recorded ahead of the deal's events, the moves
+        of the AI players seated from the start included; its AI player plays the turn or call the deal leaves it once
+        the deal went out.
         """
-        absent = [participant for participant in game.participants if not participant.is_connected]
+        runtime = self._runtime_of(game)
+        absent = [self._seat_of(participant) for participant in game.participants if not participant.is_connected]
+        for seat in absent:
+            self._game_service.replace_with_ai_player(runtime, seat)
+            if game.replay is not None:
+                self._replay_collector.record_ai_replacement(
+                    game.replay, seat=seat, reason=ReplaySeatControlReason.ABSENT
+                )
+
         self._follow_engine(game, events=events, awaiting=awaiting, actor=None)
-        for participant in absent:
-            if game.lifecycle is GameLifecycle.PLAYING:
-                self._release_seat(participant, reason=ReplaySeatControlReason.ABSENT)
+        for seat in absent:
+            if game.lifecycle is not GameLifecycle.PLAYING:
+                return
+
+            update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
+            self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
     def _record_game_start(self, game: GameSession, runtime: GameRuntime) -> None:
         """
@@ -430,12 +443,12 @@ class SessionManager:
         logger.info("player left game")
         self._broadcast_to_game(game, PlayerLeftMessage(player_name=participant.name).model_dump())
         if game.lifecycle is GameLifecycle.PLAYING:
-            self._release_seat(participant, reason=ReplaySeatControlReason.LEFT)
+            self._release_seat(participant)
 
-    def _release_seat(self, participant: Participant, *, reason: ReplaySeatControlReason) -> None:
+    def _release_seat(self, participant: Participant) -> None:
         """
-        Hand a participant's seat to an AI player, which plays any turn or call it owed, and record the AI replacement
-        with its reason in the replay ahead of the AI player's moves.
+        Hand a departed participant's seat to an AI player, which plays any turn or call it owed, and record the AI
+        replacement in the replay ahead of the AI player's moves, once the engine made them.
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
         abandoned instead: there are never all-AI games. During the game start pause the seat stays empty and nothing is
@@ -451,12 +464,12 @@ class SessionManager:
             return
 
         seat = self._seat_of(participant)
-        if game.replay is not None:
-            self._replay_collector.record_ai_replacement(game.replay, seat=seat, reason=reason)
-
         runtime = self._runtime_of(game)
         self._game_service.replace_with_ai_player(runtime, seat)
         update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
+        if game.replay is not None:
+            self._replay_collector.record_ai_replacement(game.replay, seat=seat, reason=ReplaySeatControlReason.LEFT)
+
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
     def _kick_player(self, connection: ConnectionProtocol, error: InvalidGameActionError) -> None:

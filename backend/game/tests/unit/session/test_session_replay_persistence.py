@@ -1,11 +1,14 @@
 import json
 import logging
 
+import pytest
+
 from game.logic.enums import GameAction
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
 )
+from game.logic.exceptions import GeneratedActionError
 from game.logic.rng import RNG_VERSION
 from game.logic.types import PlayerStanding
 from game.messaging.types import SessionErrorCode
@@ -126,6 +129,23 @@ class TestSessionReplay:
         assert ai_replacement == {"t": 101, "s": alice_seat, "ai": 1, "r": 0}
         assert ai_discard["t"] == WireEventType.DISCARD
         assert decode_discard(ai_discard["d"])[0] == alice_seat
+
+        await manager.shutdown()
+
+    async def test_disconnect__when_the_ai_player_cannot_move__should_record_no_ai_replacement(
+        self, seeded_engine, monkeypatch
+    ):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice", "Bob"])
+        replay = game_of(manager).replay
+
+        def refuse_the_ai_move(*_args: object) -> None:
+            raise GeneratedActionError("AI seat returned no turn action")
+
+        monkeypatch.setattr(seeded_engine, "process_ai_player_actions_after_replacement", refuse_the_ai_move)
+        with pytest.raises(GeneratedActionError):
+            manager.disconnect(conns[0])
+        assert [line for line in replay.lines if json.loads(line)["t"] == 101] == []
 
         await manager.shutdown()
 
