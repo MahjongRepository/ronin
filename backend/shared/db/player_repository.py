@@ -29,6 +29,14 @@ class SqlitePlayerRepository(PlayerRepository):
         """
         await self._db.submit_write(partial(_insert_player, player=player))
 
+    async def set_api_key_hash(self, user_id: str, api_key_hash: str) -> None:
+        """
+        Replace the API key hash of the player with this id.
+
+        Raises ValueError when no player has that id.
+        """
+        await self._db.submit_write(partial(_update_api_key_hash, user_id=user_id, api_key_hash=api_key_hash))
+
     async def get_by_username(self, username: str) -> Player | None:
         """
         Look up a player by username (case-insensitive).
@@ -52,6 +60,15 @@ def _insert_player(conn: sqlite3.Connection, *, player: Player) -> None:
         )
     except sqlite3.IntegrityError as exc:
         raise _duplicate_player_error(player, exc) from exc
+
+
+def _update_api_key_hash(conn: sqlite3.Connection, *, user_id: str, api_key_hash: str) -> None:
+    cursor = conn.execute(
+        "UPDATE players SET api_key_hash = ?, data = json_set(data, '$.api_key_hash', ?) WHERE id = ?",
+        (api_key_hash, api_key_hash, user_id),
+    )
+    if cursor.rowcount == 0:
+        raise ValueError(f"Player with id '{user_id}' does not exist")
 
 
 def _duplicate_player_error(player: Player, exc: sqlite3.IntegrityError) -> ValueError:

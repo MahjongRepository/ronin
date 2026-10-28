@@ -23,13 +23,12 @@ if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 BOT_NAMES=(Akagi Tetsuya Ichihime Miki)
-BOT_GAMES_DIR="$PROJECT_ROOT/backend/data/bot-games"
 PROFILE_DIR="$PROJECT_ROOT/backend/profiles"
 PROFILE_FILE="$PROFILE_DIR/games_$(date +%Y-%m-%d_%H-%M-%S).samples.txt"
 PROFILE_RATE=100
 PY_SPY="py-spy@0.4.2"
 FAILED_RUN_DIR="$PROJECT_ROOT/backend/data/failed-runs/$(date +%Y-%m-%d_%H-%M-%S)"
-HARNESS_LOG="$BOT_GAMES_DIR/harness.log"
+HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
 
 GAME_PORT=8711
 LOBBY_PORT=8710
@@ -452,7 +451,6 @@ if [ -f "$PROJECT_ROOT/.env.local" ]; then
     set -a && . "$PROJECT_ROOT/.env.local" && set +a
 fi
 . "$SCRIPT_DIR/local-settings.sh"
-export AUTH_DATABASE_PATH="$BOT_GAMES_DIR/storage.db"
 if [[ $PROFILE == 1 ]]; then
     export LOG_LEVEL=info
 else
@@ -462,7 +460,7 @@ export LOG_FORMAT=console
 export GAME_LOG_DIR="$PROJECT_ROOT/backend/logs/game"
 export LOBBY_LOG_DIR="$PROJECT_ROOT/backend/logs/lobby"
 
-for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR" "$BOT_GAMES_DIR"; do
+for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR"; do
     find "$dir" -mindepth 1 -delete 2>/dev/null || true
     mkdir -p "$dir"
 done

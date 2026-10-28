@@ -81,6 +81,24 @@ class TestDuplicateDetection:
             await repo.create_player(_bot(user_id="bot2", username="OtherBot", api_key_hash="keyhash1"))
 
 
+class TestSetApiKeyHash:
+    async def test_player_repository_set_api_key_hash__when_player_exists__should_find_it_only_by_the_new_hash(
+        self, repo: SqlitePlayerRepository
+    ):
+        await repo.create_player(_bot())
+
+        await repo.set_api_key_hash("bot1", "keyhash2")
+        assert (await repo.get_by_api_key_hash("keyhash2")).user_id == "bot1"
+        assert await repo.get_by_api_key_hash("keyhash1") is None
+        assert (await repo.get_by_username("TestBot")).api_key_hash == "keyhash2"
+
+    async def test_player_repository_set_api_key_hash__when_player_id_unknown__should_raise(
+        self, repo: SqlitePlayerRepository
+    ):
+        with pytest.raises(ValueError, match="does not exist"):
+            await repo.set_api_key_hash("nobody", "keyhash2")
+
+
 class TestCaseInsensitiveUsername:
     async def test_player_repository__when_username_case_differs__should_find_player(
         self, repo: SqlitePlayerRepository

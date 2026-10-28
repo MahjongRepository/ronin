@@ -66,7 +66,7 @@ class AuthService:
         )
         return await self._save_player(player)
 
-    async def register_bot(self, bot_name: str) -> tuple[Player, str]:  # deadcode: ignore
+    async def register_bot(self, bot_name: str) -> tuple[Player, str]:
         """
         Register a bot account and return (player, raw_api_key).
 
@@ -76,8 +76,7 @@ class AuthService:
         _validate_username(bot_name)
         await self._ensure_username_available(bot_name)
 
-        raw_api_key = secrets.token_urlsafe(32)
-        api_key_hash = hashlib.sha256(raw_api_key.encode()).hexdigest()
+        raw_api_key, api_key_hash = _generate_api_key()
         player = Player(
             user_id=str(uuid4()),
             username=bot_name,
@@ -87,6 +86,27 @@ class AuthService:
         )
         saved = await self._save_player(player)
         return saved, raw_api_key
+
+    async def issue_bot_api_key(self, bot_name: str) -> tuple[Player, str]:
+        """
+        Return the bot account named bot_name with a fresh API key as (player, raw_api_key), registering it if missing.
+
+        The new key replaces the account's previous one, which stops working.
+        """
+        player = await self._player_repo.get_by_username(bot_name)
+        if player is None:
+            return await self.register_bot(bot_name)
+
+        if player.account_type != AccountType.BOT:
+            raise AuthError(f"Username '{bot_name}' belongs to a human account")
+
+        raw_api_key, api_key_hash = _generate_api_key()
+        try:
+            await self._player_repo.set_api_key_hash(player.user_id, api_key_hash)
+        except ValueError as e:
+            raise AuthError(str(e)) from e
+
+        return player.model_copy(update={"api_key_hash": api_key_hash}), raw_api_key
 
     async def login(self, username: str, password: str) -> AuthSession:
         """
@@ -157,6 +177,11 @@ class AuthService:
             raise AuthError(str(e)) from e
 
         return player
+
+
+def _generate_api_key() -> tuple[str, str]:
+    raw_api_key = secrets.token_urlsafe(32)
+    return raw_api_key, hashlib.sha256(raw_api_key.encode()).hexdigest()
 
 
 def _validate_username(username: str) -> None:

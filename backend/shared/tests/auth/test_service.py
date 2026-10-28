@@ -104,6 +104,43 @@ class TestRegisterBot:
             await auth_service.register_bot("ab")
 
 
+class TestIssueBotApiKey:
+    async def test_auth_service_issue_bot_api_key__when_bot_exists__should_replace_its_key_on_the_same_account(
+        self, auth_service
+    ):
+        registered, old_key = await auth_service.register_bot("KeptBot")
+
+        reissued, new_key = await auth_service.issue_bot_api_key("KeptBot")
+        assert reissued.user_id == registered.user_id
+        assert new_key != old_key
+        assert (await auth_service.validate_api_key(new_key)).user_id == registered.user_id
+        assert await auth_service.validate_api_key(old_key) is None
+
+    async def test_auth_service_issue_bot_api_key__when_bot_missing__should_register_it(self, auth_service):
+        player, raw_api_key = await auth_service.issue_bot_api_key("FreshBot")
+
+        assert player.account_type == AccountType.BOT
+        assert (await auth_service.validate_api_key(raw_api_key)).user_id == player.user_id
+
+    async def test_auth_service_issue_bot_api_key__when_name_belongs_to_human__should_raise(self, auth_service):
+        await auth_service.register("alice", "password123")
+
+        with pytest.raises(AuthError, match="human account"):
+            await auth_service.issue_bot_api_key("Alice")
+
+    async def test_auth_service_issue_bot_api_key__when_repo_reports_missing_player__should_raise_auth_error(
+        self, auth_service
+    ):
+        await auth_service.register_bot("RacedBot")
+        error = ValueError("Player with id 'x' does not exist")
+
+        with (
+            patch.object(auth_service._player_repo, "set_api_key_hash", new_callable=AsyncMock, side_effect=error),
+            pytest.raises(AuthError, match="does not exist"),
+        ):
+            await auth_service.issue_bot_api_key("RacedBot")
+
+
 class TestLogin:
     async def test_auth_service_login__when_credentials_valid__should_return_session(self, auth_service):
         await auth_service.register("alice", "password123")
