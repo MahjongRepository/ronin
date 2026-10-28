@@ -20,6 +20,11 @@ function read_pref(storage) {
 
 export default class GameCtl {
 
+    /** Whether the boards a controller of `storage` drives will play sound, before one is built. */
+    static sound_on(storage) {
+        return !! read_pref(storage).sound_on;
+    }
+
     constructor(root, storage, ...view) {
         this._node = {
             controller: $('.controller', root),

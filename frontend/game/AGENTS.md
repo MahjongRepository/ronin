@@ -26,9 +26,12 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   The initial loading screen and its critical styles live inline in the HTML so they appear before
   JavaScript or the board styles arrive. Tile routes decode their images before rendering; the live
   game dismisses the screen after its start event or reconnect snapshot has drawn the table, the
-  replay after its first position (or its error) is shown. The replay's error screen (`showProblem`
-  in `replay/page.js`) takes that screen's layout and retypes its brand and mark, since the screen
-  is gone by the time a later position fails: a change to the loading screen's markup goes there too.
+  replay after its first position (or its error) is shown. With sound on, a loaded replay first
+  waits on the screen's OK button (`waitForStart`), whose press is the user activation the board's
+  sounds need (a wheel step grants none); its board, keys and wheel start only then. The replay's
+  error screen (`showProblem` in `replay/page.js`) takes that screen's layout and retypes its brand
+  and mark, since the screen is gone by the time a later position fails: a change to the loading
+  screen's markup goes there too.
 * Vite builds with base `/game-assets/`; the lobby answers the game pages with `dist/index.html` and
   serves `dist/` under `/game-assets/`, or proxies both to this app's Vite dev server under
   `make run-local-server` (`frontend/AGENTS.md`, Tooling). The proxy asks the dev server for every

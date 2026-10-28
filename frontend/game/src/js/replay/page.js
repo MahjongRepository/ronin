@@ -2,7 +2,7 @@ import $ from "jquery";
 
 import { withoutBlockedPlayback } from "../game-audio.js";
 import { GAME_PREF_KEY } from "../game-prefs.js";
-import { showLoadingStatus } from "../loading.js";
+import { showLoadingStatus, waitForStart } from "../loading.js";
 import { HISTORY_URL, LOBBY_URL, replayPath } from "../routes.js";
 import { BoardLinks } from "./board-links.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
@@ -24,6 +24,7 @@ const ERROR_TEXT = Object.freeze({
 });
 
 const WAITING_TEXT = "牌譜を待っています…";
+const READY_TEXT = "牌譜を読み込みました";
 
 const NO_ROUNDS = "This game ended before its first deal: there is nothing to replay";
 const CANNOT_SHOW = "Couldn't show the replay";
@@ -185,7 +186,9 @@ function startViewer(gameId, replay) {
 /**
  * Show a game's replay on the board at the position its address names, with its control strip, or say why it cannot be
  * shown. The replay loads while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it, so a failed
- * decode is the board's failure alone, never an unhandled rejection on a page that shows a problem instead.
+ * decode is the board's failure alone, never an unhandled rejection on a page that shows a problem instead. Once both
+ * are ready, with sound on, the loading screen waits for its OK, the user activation the board's sounds need (a wheel
+ * step grants none); the board, its keys and its wheel start only then.
  */
 export async function showReplay(gameId, tilesLoaded) {
     document.title = PAGE_TITLE;
@@ -195,6 +198,9 @@ export async function showReplay(gameId, tilesLoaded) {
         return;
     }
     await tilesLoaded;
+    if (ReplaySettings.sound_on(GAME_PREF_KEY)) {
+        await waitForStart(READY_TEXT);
+    }
     try {
         startViewer(gameId, replay);
     } catch (error) {
