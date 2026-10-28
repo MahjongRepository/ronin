@@ -236,9 +236,6 @@ function messageParts(message, nameOf, tileShown) {
 /** Between the action and each note: a no-break space before the dot keeps it off the start of a line. */
 const NOTE_SEPARATOR = "\u00a0· ";
 
-/** The notes the action line tells: who controls a seat. */
-const TOLD_NOTES = new Set([NOTE.AI_REPLACEMENT, NOTE.HUMAN_RETURN]);
-
 /** What a note says of the seat it names: "AI plays for Bob (absent)", "AI plays for Diana (left)", "Bob returns". */
 function noteText(note, players) {
     const name = players[note.seat];
@@ -282,7 +279,7 @@ export function lastAction(replay, { round: roundIndex, step, page = 0, seat, op
     const round = replay.rounds[roundIndex];
     const position = round.positions[step];
     const shown = positionParts(replay, round, position, { page, seat, openHands });
-    const notes = (position.notes ?? []).filter((note) => TOLD_NOTES.has(note.kind));
+    const notes = position.notes ?? [];
     if (notes.length === 0) {
         return shown;
     }

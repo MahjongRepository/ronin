@@ -1,7 +1,7 @@
 import json
 import logging
 
-from game.logic.enums import GameAction, TimeoutType, WaitKind
+from game.logic.enums import GameAction
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
@@ -25,13 +25,11 @@ from shared.dal.models import GameEndReason
 from .helpers import (
     ENGINE_SEED,
     arrange_final_discard,
-    arrange_ron_and_pon_on_a_discard,
     create_started_game,
     current_wait_id,
     disconnect_and_reconnect,
     game_of,
     participant_of,
-    run_timeout,
     runtime_of,
     wait_for_background_tasks,
 )
@@ -112,41 +110,6 @@ class TestSessionReplay:
         assert game_repo.games["game1"].end_reason == GameEndReason.ERROR
         assert [m.get("code") for m in conns[0].sent_messages][-1] == SessionErrorCode.INTERNAL_ERROR
         assert (conns[0]._close_code, conns[0]._close_reason) == (1011, "internal_error")
-
-    async def test_handle_timeout__when_turn_times_out__should_record_the_timeout_before_the_default_discard(
-        self, seeded_engine
-    ):
-        manager = make_session_manager(seeded_engine)
-        conns = create_started_game(manager, player_names=["Alice"])
-        alice_seat = participant_of(manager, conns[0]).seat
-        replay = game_of(manager).replay
-        recorded_before = len(replay.lines)
-
-        run_timeout(manager, game_id="game1", timeout_type=TimeoutType.TURN, seat=alice_seat)
-        timeout_line, default_discard, *_ = (json.loads(line) for line in replay.lines[recorded_before:])
-        assert timeout_line == {"t": 100, "s": alice_seat, "k": 0}
-        assert default_discard["t"] == WireEventType.DISCARD
-        assert decode_discard(default_discard["d"])[0] == alice_seat
-
-        await manager.shutdown()
-
-    async def test_handle_timeout__when_call_prompt_times_out__should_record_only_the_timeout_line(self, seeded_engine):
-        manager = make_session_manager(seeded_engine)
-        conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
-        alice, bob, carol = (participant_of(manager, conn).seat for conn in conns)
-        discarded_four_pin = arrange_ron_and_pon_on_a_discard(runtime_of(manager), discarder=alice, ron=bob, pon=carol)
-        manager.handle_game_action(
-            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
-        )
-        replay = game_of(manager).replay
-        recorded_before = len(replay.lines)
-
-        run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=carol)
-        run_timeout(manager, game_id="game1", timeout_type=TimeoutType.MELD, seat=carol)
-        assert [json.loads(line) for line in replay.lines[recorded_before:]] == [{"t": 100, "s": carol, "k": 1}]
-        assert (game_of(manager).awaiting.kind, game_of(manager).awaiting.seats) == (WaitKind.CALL, frozenset({bob}))
-
-        await manager.shutdown()
 
     async def test_disconnect__when_game_playing__should_record_the_ai_replacement_before_its_moves(
         self, seeded_engine

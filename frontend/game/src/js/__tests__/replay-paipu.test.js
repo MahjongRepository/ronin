@@ -8,8 +8,8 @@ import wire from "../ronin/wire.js";
 import { firstLineOf } from "./replay-edits.js";
 import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import CHANKAN_ADDED from "./fixtures/replays/chankan_added.txt?raw";
+import CHANKAN_AI_REPLACEMENT from "./fixtures/replays/chankan_ai_replacement.txt?raw";
 import CHANKAN_CLOSED_KOKUSHI from "./fixtures/replays/chankan_closed_kokushi.txt?raw";
-import CHANKAN_TIMEOUT from "./fixtures/replays/chankan_timeout.txt?raw";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import DOUBLE_RON_HEAD_BUMP from "./fixtures/replays/double_ron_head_bump.txt?raw";
 import EXHAUSTIVE_TENPAI from "./fixtures/replays/exhaustive_tenpai.txt?raw";
@@ -23,7 +23,6 @@ import NAGASHI from "./fixtures/replays/nagashi.txt?raw";
 import PAO from "./fixtures/replays/pao.txt?raw";
 import RIICHI from "./fixtures/replays/riichi.txt?raw";
 import RON_RIICHI_DISCARD from "./fixtures/replays/ron_riichi_discard.txt?raw";
-import TIMEOUTS from "./fixtures/replays/timeouts.txt?raw";
 import TRIPLE_RON from "./fixtures/replays/triple_ron.txt?raw";
 import TRUNCATED_AFTER_ROUND from "./fixtures/replays/truncated_after_round.txt?raw";
 import TRUNCATED_MID_ROUND from "./fixtures/replays/truncated_mid_round.txt?raw";
@@ -173,31 +172,6 @@ describe("toReplay", () => {
         ]);
     });
 
-    it("notes a timeout on the next visible position, naming the seat that timed out", () => {
-        const noted = (round) =>
-            stepsOf(round)
-                .filter((step) => step.position.notes !== undefined)
-                .map((step) => [step.messages, step.position.notes]);
-        const [first, second] = convert(TIMEOUTS).rounds;
-
-        expect(noted(first)).toEqual([
-            [
-                [{ dapai: { l: 0, p: "z6_" } }],
-                [{ kind: NOTE.TIMEOUT, seat: 0, timeout: wire.TIMEOUT_KIND.TURN }],
-            ],
-            [
-                [{ zimo: { l: 2, p: "p4" } }],
-                [{ kind: NOTE.TIMEOUT, seat: 3, timeout: wire.TIMEOUT_KIND.CALL }],
-            ],
-        ]);
-        expect(noted(second)).toEqual([
-            [
-                [{ dapai: { l: 0, p: "s2_" } }],
-                [{ kind: NOTE.TIMEOUT, seat: 1, timeout: wire.TIMEOUT_KIND.TURN }],
-            ],
-        ]);
-    });
-
     it("notes each AI replacement and human return on the next visible position, and holds the seats AI plays at each", () => {
         const controlled = (round) =>
             stepsOf(round).map(({ kind, position }) => [
@@ -255,8 +229,6 @@ describe("toReplay", () => {
     it("names the file line of a record it cannot read", () => {
         const unreadable = [
             '{"t": 99}',
-            '{"t": 100, "s": 4, "k": 0}',
-            '{"t": 100, "s": 0, "k": 2}',
             '{"t": 101, "s": 4, "ai": 1, "r": 0}',
             '{"t": 101, "s": 0, "ai": 1, "r": 2}',
             '{"t": 101, "s": 0, "ai": 2}',
@@ -400,10 +372,22 @@ describe("toReplay round ends", () => {
         expect(added).toEqual(robbedAs("p666-6"));
         expect(closed).toEqual(robbedAs("m9999"));
 
-        const steps = stepsOf(firstRound(CHANKAN_TIMEOUT));
-        expect(steps.slice(-2).map((step) => [step.kind, step.position.notes])).toEqual([
-            [POSITION.CALL, undefined],
-            [POSITION.RESULT, [{ kind: NOTE.TIMEOUT, seat: 3, timeout: wire.TIMEOUT_KIND.CALL }]],
+        const steps = stepsOf(firstRound(CHANKAN_AI_REPLACEMENT));
+        expect(
+            steps.slice(-2).map(({ kind, position }) => [kind, position.ai[3], position.notes]),
+        ).toEqual([
+            [POSITION.CALL, false, undefined],
+            [
+                POSITION.RESULT,
+                true,
+                [
+                    {
+                        kind: NOTE.AI_REPLACEMENT,
+                        seat: 3,
+                        reason: wire.SEAT_CONTROL_REASON.LEFT,
+                    },
+                ],
+            ],
         ]);
     });
 

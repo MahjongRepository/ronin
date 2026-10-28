@@ -82,10 +82,8 @@ interleave.
   draw, its `turn` event or its call prompt) directly, outside the replay path, so it is not
   recorded twice, and re-arms no timer: only a replaced connection's seat can be awaited, and its
   timer kept running, so the event carries how long it has run for the client's countdown.
-  Beside the events the session writes replay-only annotation lines: a turn or call timeout goes in
-  ahead of the events of the default action it leads to, so a call-timeout pass that emits nothing
-  still leaves its line. A round advance timeout writes none, since a confirmation is no game
-  decision. Seat control lines follow who plays each seat:
+  Beside the events the session writes replay-only annotation lines, the seat control lines, which
+  follow who plays each seat:
   * an AI replacement goes in ahead of the AI player's moves, with its reason: `left` for a
     disconnect (a kick included), which may fall between rounds, during a round advance;
   * a seat with no connection at the first deal, never joined or gone during the game start pause,
