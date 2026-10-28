@@ -604,6 +604,15 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
+/* At most $lines lines, the last cut with an ellipsis; the element's title holds the whole text. */
+@mixin clamp-lines($lines) {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: $lines;
+}
+
 /* Three lines of fixed height, each clipped to one line, so no position changes the strip's size. */
 .replay-position {
     box-sizing: border-box;
@@ -712,9 +721,10 @@ body.board.replay#{$rounds-open} > #board {
         text-align: left;
 
         .replay-action {
+            @include clamp-lines(2);
+
             height: 2 * $info-line;
             line-height: $info-line;
-            white-space: normal;
         }
 
         .replay-where {
@@ -929,10 +939,11 @@ body.board.replay#{$rounds-open} > #board {
         background: $dialog-background;
 
         .replay-action {
+            @include clamp-lines(2);
+
             height: 2 * $info-line;
             font-size: 32px;
             line-height: $info-line;
-            white-space: normal;
         }
 
         .replay-where,
@@ -1083,6 +1094,8 @@ body.board.replay#{$rounds-open} > #board {
         }
 
         .replay-action {
+            @include clamp-lines(3);
+
             font-size: 14px;
         }
 

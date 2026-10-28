@@ -258,18 +258,22 @@ body.board {
                 background: $accent;
                 color: black;
             }
+        }
 
-            &.offline {
-                background: $danger;
-                color: white;
+        &.disconnect,
+        &.ai {
+            .name {
+                color: $loss;
             }
         }
 
-        &.disconnect {
-            .name,
-            .defen {
-                color: $grey-400;
-            }
+        .seat-mark {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
         }
 
         &.lunban {

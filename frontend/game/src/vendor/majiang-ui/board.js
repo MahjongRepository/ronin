@@ -34,9 +34,21 @@ function format_defen(defen) {
     return ('' + defen).replace(/(\d)(\d{3})$/,'$1,$2');
 }
 
-/* A seat's nameplate: its wind, name and score, the dealer's 親, and 切断中
- * while a disconnected player's seat is played for them. */
-function nameplate(plate, l, name, defen, connected) {
+/**
+ * What a seat's nameplate may be marked with, each its class: the live game's
+ * disconnected player, whose seat is played for them, and the replay's seat an
+ * AI player holds. Both turn the name red; what each means is also given as
+ * hidden text, so it is not told by colour alone.
+ */
+export const SEAT_MARK = Object.freeze({ DISCONNECTED: 'disconnect',
+                                         AI: 'ai' });
+
+const seat_mark_text = { [SEAT_MARK.DISCONNECTED]: '切断中',
+                         [SEAT_MARK.AI]:           'AI plays this seat' };
+
+/* A seat's nameplate: its wind, name and score, the dealer's 親, and its
+ * mark (SEAT_MARK) or null. */
+function nameplate(plate, l, name, defen, mark) {
     plate.toggleClass('zhuangjia', l == 0)
          .empty()
          .append($('<span class="feng">').text(feng_hanzi[l]),
@@ -45,14 +57,17 @@ function nameplate(plate, l, name, defen, connected) {
                     $('<span class="defen">').text(format_defen(defen)),
                     l == 0 ? $('<span class="badge dealer">').text('親')
                            : null));
-    return mark_offline(plate, ! connected);
+    return mark_plate(plate, mark);
 }
 
-function mark_offline(plate, offline) {
-    $('.badge.offline', plate).remove();
-    if (offline) $('.info', plate).append(
-                        $('<span class="badge offline">').text('切断中'));
-    return plate.toggleClass('disconnect', offline);
+function mark_plate(plate, mark) {
+    $('.seat-mark', plate).remove();
+    for (const name of Object.values(SEAT_MARK)) {
+        plate.toggleClass(name, name == mark);
+    }
+    if (mark) plate.append($('<span class="seat-mark">')
+                                    .text(seat_mark_text[mark]));
+    return plate;
 }
 
 /* Whether seat l's riichi stick is down: the model holds the deposit (_lizhi)
@@ -132,7 +147,7 @@ export default class Board {
         };
         this._say = [];
         this._lizhi = false;
-        this._connected = [true, true, true, true];
+        this._seat_marks = [null, null, null, null];
 
         this.viewpoint = 0;
         this.sound_on  = true
@@ -145,7 +160,7 @@ export default class Board {
 
         this.set_audio(audio);
 
-        $('> .player', this._root).each((i, plate)=>mark_offline($(plate), false));
+        $('> .player', this._root).each((i, plate)=>mark_plate($(plate), null));
 
         $(window).on('resize', ()=>this._view.shoupai.forEach(s=>s.adjust()));
     }
@@ -181,7 +196,7 @@ export default class Board {
 
             let name = this._model.player[id].replace(/\n.*$/,'');
             show(nameplate($(`> .player.${c}`, this._root), l, name,
-                           this._model.defen[id], this._connected[id]));
+                           this._model.defen[id], this._seat_marks[id]));
 
             let open = this._model.player_id[l] == this.viewpoint;
             this._view.shoupai[l]
@@ -383,11 +398,19 @@ export default class Board {
         else    hide(this._view.furiten);
     }
 
-    players(players) {
+    /* Each player's nameplate mark (SEAT_MARK) or null, by player id, kept
+     * through redraws until the next call. */
+    mark_seats(marks) {
         for (let id = 0; id < 4; id++) {
-            this._connected[id] = !! players[id];
+            this._seat_marks[id] = marks[id];
             let c = class_name[(id + 4 - this.viewpoint) % 4];
-            mark_offline($(`> .player.${c}`, this._root), ! players[id]);
+            mark_plate($(`> .player.${c}`, this._root), marks[id]);
         }
+    }
+
+    /* Whether each player is connected: those who are not marked so. */
+    players(players) {
+        this.mark_seats([0, 1, 2, 3].map(id => players[id]
+                                        ? null : SEAT_MARK.DISCONNECTED));
     }
 }
