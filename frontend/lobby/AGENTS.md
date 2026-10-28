@@ -51,7 +51,9 @@ it exists; a seated player refused the same way mid-start just waits for `game_s
   `locales/en.json`), a sentence with a link through `tParts()` and a link slot, numbers, dates and
   lists through its formatters. The locale is the page's `<html lang>`, which the server resolved;
   the scripts never resolve it. A server code maps to a key through a closed list, and an unknown
-  code shows the family's generic key and is reported (`docs/i18n.md`).
+  code shows the family's generic key and is reported (`docs/i18n.md`). A missing key or param throws
+  under the Vite dev server and Vitest and falls back to English with one `console.error` in
+  production.
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
 
