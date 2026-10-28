@@ -40,6 +40,10 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   run, and game sockets accept frames before they authenticate. The game cap is the decoder's
   `MAX_BUFFER_LEN`, the lobby's twice its room message limit; keep each in step with that limit.
   An oversized frame closes the socket with 1009. TestClient bypasses uvicorn, so no test pins this.
+* **No WebSocket compression.** Both uvicorn commands (and both local launchers in `bin/`) pass
+  `--ws-per-message-deflate false`: frames average about 13 bytes, so deflate costs CPU per frame
+  and saves nothing, and with it off browsers get what the bot client (which never offers it) gets,
+  so bot runs measure production's send path.
 * Per-service settings live in compose `environment:`, secrets only in `.env`. A deployment-specific
   setting has no default (`backend/AGENTS.md`), so a new one must be added here or the service fails
   to start and the deploy's health gate stops. A release that adds, renames or removes a required

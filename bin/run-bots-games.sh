@@ -134,7 +134,7 @@ start_server() {
     local launcher=("${@:6}")
 
     echo "starting $name server on port $port..."
-    cd "$PROJECT_ROOT" && "${launcher[@]}" --factory "$module" --host 0.0.0.0 --port "$port" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size "$ws_max_size" > "$log_dir/stdout.log" 2> "$log_dir/stderr.log" &
+    cd "$PROJECT_ROOT" && "${launcher[@]}" --factory "$module" --host 0.0.0.0 --port "$port" --timeout-graceful-shutdown 5 --ws websockets-sansio --ws-per-message-deflate false --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size "$ws_max_size" > "$log_dir/stdout.log" 2> "$log_dir/stderr.log" &
     SERVER_PIDS+=($!)
 
     if ! wait_for_server "$port" || ! kill -0 "${SERVER_PIDS[-1]}" 2>/dev/null; then
