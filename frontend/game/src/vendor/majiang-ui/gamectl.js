@@ -5,6 +5,8 @@
 
 import $ from 'jquery';
 
+import { setText } from '../../i18n/index.js';
+
 /* The stored settings, or the defaults when storage is blocked or holds
  * something else than a settings object. */
 function read_pref(storage) {
@@ -46,9 +48,10 @@ export default class GameCtl {
 
     sound(on) {
         this._view.forEach(v => v.sound_on = on);
-        $('.sound', this._node.controller)
-            .attr('aria-checked', String(on))
-            .find('.state').text(on ? 'ON' : 'OFF');
+        const sound = $('.sound', this._node.controller)
+            .attr('aria-checked', String(on));
+        sound.find('.state').each((i, state)=>
+            setText(state, on ? 'game.settings.on' : 'game.settings.off'));
         this._pref.sound_on = on;
         try {
             localStorage.setItem(this._storage, JSON.stringify(this._pref));
