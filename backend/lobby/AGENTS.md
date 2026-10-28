@@ -135,6 +135,6 @@ Mandatory for all lobby code; review must catch violations.
   one, a setting every deployment must supply.
 * Two CSP tiers: lobby pages (same-origin connect) and game pages (`/play/*`, `/game-assets/`,
   external WebSockets allowed). A new route fits a tier or gets an explicit policy.
-* Replay serving resolves paths only through `shared.storage.replay_file_path` and keeps its id
-  checks, path traversal protection and size limit.
+* Replay serving reads files only through `shared.storage.read_replay`, which keeps the id checks,
+  path traversal protection and size limit; the game server's Tenhou export reads through it too.
 * Passwords, API keys, session ids and game tickets are never logged at INFO or above.

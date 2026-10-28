@@ -42,3 +42,4 @@ from lobby.views.handlers import (
 )
 from lobby.views.history_handlers import history_page as history_page
 from lobby.views.replay_handlers import replay_content as replay_content
+from lobby.views.replay_handlers import tenhou_replay as tenhou_replay

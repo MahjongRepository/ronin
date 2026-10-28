@@ -1,4 +1,6 @@
+import asyncio
 import contextlib
+import gzip
 import hmac
 import json
 from typing import TYPE_CHECKING
@@ -8,10 +10,11 @@ from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import ClientDisconnect
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route, WebSocketRoute
 
 from game.logic.mahjong_service import MahjongGameService
+from game.replay.external.tenhou import IncompleteReplayError, convert_replay_content
 from game.server.router import MessageRouter
 from game.server.settings import GameServerSettings
 from game.server.types import CreateGameRequest
@@ -22,7 +25,7 @@ from shared.auth.game_ticket import verify_game_ticket
 from shared.build_info import APP_VERSION, GIT_COMMIT
 from shared.db import Database, SqliteGameRepository
 from shared.logging import setup_logging
-from shared.storage import LocalReplayStorage
+from shared.storage import LocalReplayStorage, read_replay
 
 logger = structlog.get_logger()
 
@@ -100,6 +103,37 @@ async def player_game_session(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Player is not in a game"}, status_code=404, headers=_NO_STORE)
 
     return JSONResponse({"game_id": participant.game.game_id, "game_ticket": participant.ticket}, headers=_NO_STORE)
+
+
+def _export_tenhou_replay(replay_dir: str, game_id: str) -> str | None:
+    gzip_bytes = read_replay(replay_dir, game_id)
+    if gzip_bytes is None:
+        return None
+
+    return convert_replay_content(gzip.decompress(gzip_bytes).decode())
+
+
+async def tenhou_replay(request: Request) -> Response:
+    """
+    Answer 200 with a stored replay converted to tenhou.net XML, 404 when none is stored, or 422 for a failed game's
+    replay, which has no game end (internal: the lobby's public Tenhou download).
+
+    Only a caller with the internal API secret gets an answer, so the conversion runs only behind the lobby's route and
+    its rate limit; it runs in a worker thread to keep the event loop serving games.
+    """
+    settings: GameServerSettings = request.app.state.settings
+    if not _is_internal_caller(request, settings.internal_api_secret):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    try:
+        xml = await asyncio.to_thread(_export_tenhou_replay, settings.replay_dir, request.path_params["game_id"])
+    except IncompleteReplayError:
+        return JSONResponse({"error": "Replay has no game end"}, status_code=422)
+
+    if xml is None:
+        return JSONResponse({"error": "Replay not found"}, status_code=404)
+
+    return Response(xml, media_type="application/xml")
 
 
 _MAX_REQUEST_BODY_SIZE = 4096
@@ -244,6 +278,7 @@ def create_app(
         Route("/games", create_game, methods=["POST"]),
         Route("/players/{user_id}", player_game, methods=["GET"]),
         Route("/players/{user_id}/game-session", player_game_session, methods=["GET"]),
+        Route("/replays/{game_id}/tenhou", tenhou_replay, methods=["GET"]),
         WebSocketRoute("/ws/{game_id}", ws_endpoint),
     ]
 

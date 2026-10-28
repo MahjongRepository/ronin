@@ -329,6 +329,12 @@ def _format_pao_attr(pao_seat: int | None) -> str:
     return f' paoWho="{pao_seat}"'
 
 
+class IncompleteReplayError(ValueError):
+    """
+    A replay without a game end (a failed game), which a tenhou.net log cannot represent.
+    """
+
+
 class TenhouConverter:
     """
     Convert a Ronin replay event log to tenhou.net XML, the common replay format of other mahjong services.
@@ -713,17 +719,28 @@ class TenhouConverter:
         self.tags.append("</mjloggm>")
 
 
+def convert_replay_content(content: str) -> str:
+    """
+    Convert the text of a replay file (one JSON event per line) to tenhou.net XML.
+
+    Raise IncompleteReplayError for the replay of a failed game, which has no game end to close the log with.
+    """
+    events = [json.loads(line) for line in content.strip().split("\n") if line]
+    if not any(event.get("t") == WireEventType.GAME_END for event in events):
+        raise IncompleteReplayError("replay has no game end")
+
+    return TenhouConverter(events).convert()
+
+
 def convert_replay(filepath: Path) -> str:
     if filepath.name.endswith(".gz"):
         with gzip.open(filepath, "rt", encoding="utf-8") as f:
-            content = f.read().strip()
+            content = f.read()
     else:
         with filepath.open() as f:
-            content = f.read().strip()
+            content = f.read()
 
-    events = [json.loads(line) for line in content.split("\n") if line]
-    converter = TenhouConverter(events)
-    return converter.convert()
+    return convert_replay_content(content)
 
 
 def main() -> None:
@@ -739,14 +756,21 @@ def main() -> None:
         logger.info("No replay files found in %s", REPLAYS_DIR)
         return
 
+    converted = 0
     for filepath in replay_files:
         logger.info("Converting %s...", filepath.name)
-        tenhou_xml = convert_replay(filepath)
+        try:
+            tenhou_xml = convert_replay(filepath)
+        except IncompleteReplayError:
+            logger.warning("  skipped: a failed game's replay has no game end")
+            continue
+
         output_path = OUTPUT_DIR / filepath.name.removesuffix(".gz")
         output_path.write_text(tenhou_xml)
         logger.info("  -> %s", output_path)
+        converted += 1
 
-    logger.info("Converted %d file(s).", len(replay_files))
+    logger.info("Converted %d of %d file(s).", converted, len(replay_files))
 
 
 if __name__ == "__main__":

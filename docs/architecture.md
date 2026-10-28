@@ -357,7 +357,7 @@ sequenceDiagram
 |---|---|---|
 | `players` (SQLite) | Lobby: register, bot registration script | Lobby auth |
 | `played_games` (SQLite) | Game server: start record at engine start, finish record from the end finalizer | Lobby history page |
-| Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}` |
+| Replay files | Game server finalizer, completed and failed games (abandoned ones are discarded) | Lobby `/api/replays/{game_id}` and `/play/history/{game_id}`; game server's internal Tenhou export, behind the lobby's `/api/replays/{game_id}/tenhou.xml` |
 
 A replay file holds the game's recorded events plus replay-only annotation lines the replay loader
 skips: each seat's replacement with an AI player (left, or absent at the first deal, recorded ahead
@@ -391,7 +391,11 @@ honours this contract can replace it.
   of the seat took it over) and 1008 `invalid_game_action` (the seat was kicked). A 1000
   `game_ended` close keeps reconnecting, so a client that missed the game end is refused into the
   lobby.
-* **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required. The
+* **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required;
+  `GET /api/replays/{game_id}/tenhou.xml` downloads the same game as a tenhou.net XML log. The lobby
+  cannot import the engine's converter, so it asks the game server, which converts the stored
+  replay and answers only the internal API secret: 404 when no replay is stored, 422 for a failed
+  game's replay (no game end, so no Tenhou log), 502 when the conversion or the call failed. The
   client's replay page renders it on the board and refuses a file whose version line is not the
   `REPLAY_VERSION` it was built for. The page's query names what it shows,
   `/play/history/{game_id}?seat=&round=&step=`, all zero-based whole numbers: `seat` the seat at the
