@@ -105,11 +105,10 @@ def _prepare_history_for_display(games: list[PlayedGame], user_id: str) -> list[
 
 async def history_page(request: Request) -> Response:
     """
-    GET /history - render the most recent completed games, earliest first.
+    GET /history - render the most recent completed games, newest first.
     """
     game_repo = request.app.state.game_repo
-    recent_games = await game_repo.get_recent_completed_games(limit=HISTORY_GAMES_LIMIT)
-    games = recent_games[::-1]
+    games = await game_repo.get_recent_completed_games(limit=HISTORY_GAMES_LIMIT)
     display_games = _prepare_history_for_display(games, request.user.user_id)
     return render_page(
         request,
