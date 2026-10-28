@@ -23,7 +23,7 @@ const OPTIONS_ID = "replay-options";
  * The layouts that show the options beside the info, never in its place, their toggle hidden: a wide screen and an
  * upright phone (`_replay.scss`'s `options-beside-info` includes, which the two must match).
  */
-const OPTIONS_BESIDE_INFO_MEDIA = `(width >= 1200px) and (height > 450px), ${UPRIGHT_PHONE_MEDIA}`;
+const OPTIONS_BESIDE_INFO_MEDIA = `(width >= 1280px) and (height > 450px), ${UPRIGHT_PHONE_MEDIA}`;
 
 /** The jump buttons, each with its caption and label keys and its icon as polygon point lists and a bar on a 24-unit square. */
 const JUMPS = Object.freeze([
