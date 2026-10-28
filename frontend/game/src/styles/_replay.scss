@@ -10,6 +10,9 @@ $rounds-width-narrow: 220px;
 $rounds-portrait-height: min(40dvh, 360px);
 $rounds-open: ":has(> .replay-controls.replay-rounds-open)";
 
+/* The help pops up over the table: above the board's result dialogs (3) and its settings gear (2). */
+$help-z: 4;
+
 body.board.replay {
     display: flex;
     flex-direction: column;
@@ -406,7 +409,8 @@ body.board.replay#{$rounds-open} > #board {
     margin-right: $rounds-width;
 }
 
-.replay-rounds-head {
+/* A side panel's head (the round list, the help): its title and the button that closes it. */
+.replay-panel-head {
     display: flex;
     flex: none;
     align-items: center;
@@ -420,7 +424,7 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
-.replay-controls .replay-rounds-close {
+.replay-controls .replay-panel-close {
     min-width: 44px;
     border-color: transparent;
     font-size: 1.1em;
@@ -480,6 +484,126 @@ body.board.replay#{$rounds-open} > #board {
     }
 }
 
+/*
+ * The keys and what the pointer does where: a popover over the table, above the strip, which a press anywhere else
+ * closes. Only its list scrolls, its head staying put.
+ */
+.replay-help {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: $help-z;
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    width: min(30rem, calc(100% - 32px));
+    max-height: calc(100dvh - 100% - 16px);
+    margin-inline: auto;
+    background: $dialog-background;
+    border: solid 1px $dialog-border;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 50%);
+    font-size: 14px;
+    text-align: left;
+
+    h3 {
+        margin: 6px 0 0;
+        color: $accent;
+        font-size: 1em;
+    }
+}
+
+.replay-help.replay-help-open {
+    display: flex;
+}
+
+/*
+ * One grid for both lists, so their columns line up: each row a key (or a place) beside what it does, a long place
+ * wrapping rather than squeezing what it does.
+ */
+.replay-help-body {
+    display: grid;
+    grid-template-columns: fit-content(45%) minmax(0, 1fr);
+    gap: 6px 12px;
+    align-content: start;
+    min-height: 0;
+    padding: 0 12px 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    &:focus-visible {
+        outline: solid 2px $accent;
+        outline-offset: -2px;
+    }
+
+    h3 {
+        grid-column: 1 / -1;
+    }
+}
+
+.replay-help-list {
+    display: contents;
+
+    dt {
+        color: $grey-50;
+    }
+
+    dd {
+        margin: 0;
+        color: $grey-200;
+    }
+
+    kbd {
+        display: inline-block;
+        min-width: 1.4em;
+        padding: 0 0.35em;
+        border: solid 1px $grey-600;
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        font-family: $text-font;
+        line-height: 1.4;
+        text-align: center;
+        white-space: nowrap;
+    }
+}
+
+.replay-help-row {
+    display: contents;
+}
+
+/*
+ * The help's toggle, a round "?" at the end of the round's line. Its touch target reaches past the circle, to 44pt on
+ * the device where the pointer is coarse, without making the line taller.
+ */
+.replay-controls .replay-help-toggle {
+    --help-size: 18px;
+    --help-hit: 24px;
+
+    position: relative;
+    flex: none;
+    width: var(--help-size);
+    min-height: 0;
+    height: var(--help-size);
+    padding: 0;
+    border-radius: 50%;
+    font-size: calc(var(--help-size) * 0.6);
+    font-weight: bold;
+    line-height: 1;
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: min(0px, (var(--help-size) - var(--help-hit)) * 0.5);
+        border-radius: 50%;
+    }
+
+    @media (pointer: coarse) {
+        --help-size: 24px;
+        --help-hit: 44px;
+    }
+}
+
 /* Three lines of fixed height, each clipped to one line, so no position changes the strip's size. */
 .replay-position {
     box-sizing: border-box;
@@ -500,6 +624,11 @@ body.board.replay#{$rounds-open} > #board {
 
     .replay-action {
         font-size: 17px;
+
+        /* A tile's name never breaks between its number and its suit. */
+        [lang="ja"] {
+            white-space: nowrap;
+        }
     }
 
     .replay-where,
@@ -507,8 +636,21 @@ body.board.replay#{$rounds-open} > #board {
         font-size: 13px;
     }
 
+    /* The round and step, clipped on their own, then the help's toggle, never clipped. */
     .replay-where {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        overflow: visible;
         color: $grey-400;
+    }
+
+    .replay-where-text {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 
     .replay-step::before {
@@ -573,6 +715,10 @@ body.board.replay#{$rounds-open} > #board {
             height: 2 * $info-line;
             line-height: $info-line;
             white-space: normal;
+        }
+
+        .replay-where {
+            justify-content: flex-start;
         }
     }
 
@@ -816,7 +962,21 @@ body.board.replay#{$rounds-open} > #board {
         font-size: 22px;
     }
 
-    .replay-controls .replay-rounds-close {
+    /*
+     * As tall as the round's pill; its target reaches 44pt on the device, the page drawn at about half scale (0.46 on
+     * the narrowest phones).
+     */
+    .replay-controls .replay-help-toggle {
+        --help-size: 64px;
+        --help-hit: 96px;
+    }
+
+    .replay-help {
+        width: calc(100% - 48px);
+        font-size: 22px;
+    }
+
+    .replay-controls .replay-panel-close {
         min-width: 64px;
         min-height: 64px;
     }
@@ -909,11 +1069,15 @@ body.board.replay#{$rounds-open} > #board {
         }
     }
 
-    /* Held at the top of its cell, so a line that appears or wraps (a low wall, a long action) never moves the rest. */
+    /*
+     * Held at the top of its cell, so a line that appears or wraps (a low wall, a long action) never moves the rest; the
+     * help's toggle goes under the round and step.
+     */
     .replay-position {
         align-self: start;
 
-        p {
+        p,
+        .replay-where-text {
             height: auto;
             white-space: normal;
         }
@@ -925,6 +1089,11 @@ body.board.replay#{$rounds-open} > #board {
         .replay-where,
         .replay-ended {
             font-size: 12px;
+        }
+
+        .replay-where {
+            flex-direction: column;
+            gap: 4px;
         }
 
         .replay-step,
@@ -941,6 +1110,26 @@ body.board.replay#{$rounds-open} > #board {
 
     @include rounds-in-strip(info, toggle, ".replay-options-toggle");
 
+    .replay-controls .replay-help-toggle {
+        --help-size: 24px;
+        --help-hit: 24px;
+
+        /* 44pt on the device, the page drawn at 0.83 of its size on the narrowest phones held sideways. */
+        @media (pointer: coarse) {
+            --help-size: 32px;
+            --help-hit: 56px;
+        }
+    }
+
+    /* Beside the strip's column, over the table's right side, as tall as the screen allows. */
+    .replay-help {
+        inset: 8px calc(100% + 8px) auto auto;
+        width: min(26rem, calc(100vw - 100% - 24px));
+        max-height: calc(100% - 16px);
+        margin: 0;
+        font-size: 12px;
+    }
+
     /* A touch target of 24px at least, though the line's text is small. */
     .replay-controls .replay-rounds-toggle {
         min-height: 24px;
@@ -950,11 +1139,11 @@ body.board.replay#{$rounds-open} > #board {
         font-size: 12px;
     }
 
-    .replay-rounds-head {
+    .replay-panel-head {
         padding: 2px 2px 2px 8px;
     }
 
-    .replay-controls .replay-rounds-close {
+    .replay-controls .replay-panel-close {
         min-width: 32px;
         min-height: 32px;
     }

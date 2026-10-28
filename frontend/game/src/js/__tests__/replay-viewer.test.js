@@ -299,7 +299,6 @@ describe("ReplayViewer", () => {
         expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND, step, page: 1 });
         expect(dialogFigures()).toEqual(DOUBLE_RON_SECOND_WIN);
         viewer.back();
-        vi.runAllTimers();
         expect(viewer.state).toMatchObject({ round: DOUBLE_RON_ROUND, step, page: 0 });
         expect(dialogFigures()).toEqual(DOUBLE_RON_FIRST_WIN);
 

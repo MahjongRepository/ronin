@@ -4,12 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../majiang.js";
 import PAGE from "../../../index.html?raw";
 import { GAME_PREF_KEY } from "../game-prefs.js";
-import { HOLD_DELAY_MS, HOLD_REPEAT_MS, ROUNDS_IN_STRIP_MEDIA } from "../replay/controls.js";
+import { ROUNDS_IN_STRIP_MEDIA } from "../replay/controls.js";
+import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/hold.js";
 import { parseReplay } from "../replay/load.js";
 import { toReplay } from "../replay/paipu.js";
 import { URL_WRITE_INTERVAL_MS, readPosition } from "../replay/position-url.js";
 import { REPLAY_PREFS_KEY } from "../replay/prefs.js";
 import { showReplay } from "../replay/page.js";
+import {
+    WHEEL_GESTURE_GAP_MS,
+    WHEEL_START_PX,
+    WHEEL_STEP_MS,
+    WHEEL_STEP_PX,
+} from "../replay/wheel.js";
 import { withUnplayableDraw } from "./replay-edits.js";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
@@ -99,6 +106,36 @@ function loadPage() {
     $(document).off();
     document.body.className = "board";
     document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
+}
+
+function press(key, init = {}, target = document.activeElement ?? document.body) {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event);
+    return event;
+}
+
+/** A key held down: its press, then `repeats` system repeats at the held button's pace. */
+function hold(key, repeats) {
+    press(key);
+    for (let i = 0; i < repeats; i += 1) {
+        vi.advanceTimersByTime(HOLD_REPEAT_MS);
+        press(key, { repeat: true });
+    }
+}
+
+function where() {
+    return `${label().round} ${label().step}`;
+}
+
+const AT_LAST_STEP = /^Step (\d+)\u00a0\/\u00a0\1$/;
+
+function isBusy() {
+    return $(".replay-action").attr("aria-busy") === "true";
+}
+
+/** Whether the panel the toggle at `selector` opens is open. */
+function isExpanded(selector) {
+    return $(selector).attr("aria-expanded") === "true";
 }
 
 beforeEach(() => {
@@ -230,7 +267,7 @@ describe("showReplay", () => {
         $(".controller .sound").trigger("click");
         expect(JSON.parse(localStorage.getItem(GAME_PREF_KEY))).toEqual({ sound_on: false });
         expect($(".controller .sound").attr("title")).toBe("音声");
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        press("Escape");
         expect($(".controller .settings-menu").hasClass("hide")).toBe(true);
     });
 
@@ -276,18 +313,17 @@ describe("ReplayControls", () => {
     it("repeats next while held, stops at a result and steps once per click", async () => {
         await open(FULL_GAME);
         vi.useFakeTimers();
-        const busy = () => $(".replay-action").attr("aria-busy") === "true";
 
         $(".replay-next").trigger("pointerdown");
         expect(stepNumber()).toBe(2);
-        expect(busy()).toBe(true);
+        expect(isBusy()).toBe(true);
         vi.advanceTimersByTime(HOLD_DELAY_MS + HOLD_REPEAT_MS);
         expect(stepNumber()).toBe(4);
         $(window).trigger("pointerup");
         $(".replay-next").trigger("click");
         vi.advanceTimersByTime(10 * HOLD_REPEAT_MS);
         expect(stepNumber()).toBe(4);
-        expect(busy()).toBe(false);
+        expect(isBusy()).toBe(false);
 
         $(".replay-next").trigger("click");
         expect(stepNumber()).toBe(5);
@@ -301,7 +337,7 @@ describe("ReplayControls", () => {
             step: "Step 142\u00a0/\u00a0142",
         });
         expect($(".replay-action").text()).toBe("Exhaustive draw: all noten (荒牌平局)");
-        expect(busy()).toBe(false);
+        expect(isBusy()).toBe(false);
     });
 
     it("names the last action, its Japanese marked as such", async () => {
@@ -333,20 +369,22 @@ describe("ReplayControls", () => {
         clickUntil(".replay-next", () => stepNumber() === 5);
         const action = $(".replay-action").text();
         const toggle = $(".replay-options-toggle");
-        const optionsOpen = () => toggle.attr("aria-expanded") === "true";
 
         expect(seatChoices()).toEqual(["南 Wanjirou", "西 Ojisan", "北 Ichihime", "東 Akagi"]);
         expect($(".replay-seat").val()).toBe("3");
         expect(toggle.text()).toBe("View: Akagi · Normal▾");
 
         toggle.trigger("click");
-        expect(optionsOpen()).toBe(true);
+        expect(isExpanded(".replay-options-toggle")).toBe(true);
+        $(".replay-seat").trigger("focus").trigger("pointerdown");
+        press("ArrowDown");
         $(".replay-seat").val("2").trigger("change");
+        expect(document.activeElement).toBe($(".replay-seat")[0]);
 
         expect($("#board .player.main .name").text()).toBe("Ichihime");
         expect(stepNumber()).toBe(5);
         expect($(".replay-action").text()).toBe(action);
-        expect(optionsOpen()).toBe(false);
+        expect(isExpanded(".replay-options-toggle")).toBe(false);
         expect(toggle.text()).toBe("View: Ichihime · Normal▾");
 
         expect($("#board .board > .player.shangjia").attr("title")).toBe("View from Ojisan");
@@ -356,12 +394,15 @@ describe("ReplayControls", () => {
         expect($(".replay-seat").val()).toBe("1");
         expect(stepNumber()).toBe(5);
 
+        $(".replay-speed").trigger("focus").trigger("pointerdown").val("fast").trigger("change");
+        expect(document.activeElement).not.toBe($(".replay-speed")[0]);
+
         toggle.trigger("click");
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-        expect(optionsOpen()).toBe(false);
+        press("Escape");
+        expect(isExpanded(".replay-options-toggle")).toBe(false);
         toggle.trigger("click");
         $(".replay-next-round").trigger("click");
-        expect(optionsOpen()).toBe(false);
+        expect(isExpanded(".replay-options-toggle")).toBe(false);
 
         expect(seatChoices()).toEqual(["東 Wanjirou", "南 Ojisan", "西 Ichihime", "北 Akagi"]);
         expect($("#board .player.main .name").text()).toBe("Ojisan");
@@ -397,7 +438,7 @@ describe("ReplayControls", () => {
         expect(current()).toBe(4);
 
         entries().eq(4).trigger("focus");
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        press("Escape");
         expect(toggle.attr("aria-expanded")).toBe("false");
         expect(document.activeElement).toBe(toggle[0]);
 
@@ -412,19 +453,57 @@ describe("ReplayControls", () => {
     it("closes the round list on a pick or a move where it takes the info's place", async () => {
         vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
             matches: query === ROUNDS_IN_STRIP_MEDIA,
+            addEventListener: () => {},
         }));
         await open(EAGER_GAME);
         const toggle = $(".replay-rounds-toggle");
-        const isOpen = () => toggle.attr("aria-expanded") === "true";
 
         toggle.trigger("click");
         $(".replay-round-entry").eq(2).trigger("click");
-        expect(isOpen()).toBe(false);
+        expect(isExpanded(".replay-rounds-toggle")).toBe(false);
         expect(document.activeElement).toBe(toggle[0]);
 
         toggle.trigger("click");
         $(".replay-next").trigger("click");
-        expect(isOpen()).toBe(false);
+        expect(isExpanded(".replay-rounds-toggle")).toBe(false);
+    });
+
+    it("opens the help over the gear's menu and the round list, Escape closing one layer at a time", async () => {
+        await open(EAGER_GAME);
+        const helpOpen = () => isExpanded(".replay-help-toggle");
+        const gearOpen = () => !$(".controller .settings-menu").hasClass("hide");
+
+        $(".replay-rounds-toggle").trigger("click");
+        $(".controller .settings-toggle").trigger("click");
+        press("?", { shiftKey: true });
+        expect([helpOpen(), gearOpen(), isExpanded(".replay-rounds-toggle")]).toEqual([
+            true,
+            false,
+            false,
+        ]);
+        expect(document.activeElement).toBe($(".replay-help-body")[0]);
+        expect($(".replay-help dt").first().text()).toBe("← →");
+        expect($(".replay-help").text()).toContain("Rounds");
+
+        press("Escape", { repeat: true });
+        expect(helpOpen()).toBe(true);
+        press("Escape");
+        expect(helpOpen()).toBe(false);
+        expect(document.activeElement).toBe($(".replay-rounds-toggle")[0]);
+
+        $(".replay-help-toggle").trigger("click");
+        $(".controller .settings-toggle").trigger("click");
+        press("Escape");
+        expect([helpOpen(), gearOpen()]).toEqual([true, false]);
+        press("Escape");
+        expect(helpOpen()).toBe(false);
+
+        $(".replay-help-toggle").trigger("click");
+        $("#board .board")[0].dispatchEvent(new Event("pointerdown", { bubbles: true }));
+        expect(helpOpen()).toBe(false);
+        $(".replay-help-toggle").trigger("click");
+        $(".controller .settings-toggle").trigger("focus");
+        expect(helpOpen()).toBe(false);
     });
 
     it("hides opponents' hands behind tile backs, and a result still reveals every winner's", async () => {
@@ -459,6 +538,194 @@ describe("ReplayControls", () => {
             ["xiajia", "duimian"].map((place) => $(`#board .player.${place} .name`).text()),
         ).toEqual(["Alice", "Charlie"]);
         expect(hiddenHands()).toEqual(["shangjia"]);
+    });
+});
+
+describe("bindKeys", () => {
+    it("steps, jumps, plays and turns the table from the keyboard", async () => {
+        await open(FULL_GAME);
+        vi.useFakeTimers();
+
+        press("ArrowRight");
+        expect(stepNumber()).toBe(2);
+        press("ArrowLeft");
+        expect(stepNumber()).toBe(1);
+
+        press("ArrowDown");
+        press("PageDown");
+        expect(where()).toMatch(/^東三局 \d本場 Step 1\u00a0/);
+        press("ArrowUp");
+        expect(where()).toMatch(/^東二局 1本場 Step 1\u00a0/);
+        press("End");
+        expect(label().step).toBe("Final standings");
+        press("Home");
+        expect(where()).toMatch(/^東一局 0本場 Step 1\u00a0/);
+
+        press(" ");
+        expect($(".replay-play").attr("aria-label")).toBe("Pause");
+        press(" ");
+        expect($(".replay-play").attr("aria-label")).toBe("Play");
+
+        press("v");
+        expect($(".replay-seat").val()).toBe("0");
+        press("м", { code: "KeyV" });
+        expect($(".replay-seat").val()).toBe("1");
+        press("H");
+        expect(hiddenHands()).toEqual(["xiajia", "duimian", "shangjia"]);
+    });
+
+    it("repeats a held arrow at the held button's pace, stopping at a result until pressed afresh", async () => {
+        await open(FULL_GAME);
+        vi.useFakeTimers();
+
+        press("ArrowRight");
+        press("ArrowRight", { repeat: true });
+        expect(stepNumber()).toBe(2);
+        hold("ArrowRight", 3);
+        expect(stepNumber()).toBe(6);
+        expect(isBusy()).toBe(true);
+
+        hold("ArrowRight", 1000);
+        expect(label()).toMatchObject({ round: "東一局 0本場", step: AT_LAST_STEP });
+        expect(isBusy()).toBe(false);
+        press("ArrowRight");
+        expect(where()).toMatch(/^東二局 1本場 Step 1\u00a0/);
+
+        press("ArrowRight");
+        press("ArrowRight");
+        hold("ArrowLeft", 50);
+        expect(label()).toMatchObject({ round: "東一局 0本場", step: AT_LAST_STEP });
+    });
+
+    it("leaves keys to form fields, focused buttons and switches, modified presses and the round list", async () => {
+        await open(EAGER_GAME);
+        vi.useFakeTimers();
+
+        const seat = $(".replay-seat").val();
+        $(".replay-seat").trigger("focus");
+        press("ArrowRight");
+        press("v");
+        expect(stepNumber()).toBe(1);
+        expect($(".replay-seat").val()).toBe(seat);
+        $(".replay-seat").trigger("blur");
+
+        for (const modifier of ["ctrlKey", "altKey", "metaKey", "shiftKey"]) {
+            expect(press("ArrowRight", { [modifier]: true }, document.body).defaultPrevented).toBe(
+                false,
+            );
+        }
+        expect(stepNumber()).toBe(1);
+
+        $(".replay-next").trigger("focus");
+        expect(press(" ").defaultPrevented).toBe(false);
+        expect($(".replay-play").attr("aria-label")).toBe("Play");
+
+        $(".replay-hide-hands").trigger("focus");
+        expect(press(" ").defaultPrevented).toBe(false);
+        press("ArrowRight");
+        expect(stepNumber()).toBe(2);
+
+        $(".replay-rounds-toggle").trigger("click");
+        press("ArrowDown");
+        press("ArrowDown");
+        expect(document.activeElement).toBe($(".replay-round-entry")[2]);
+        press("End");
+        expect(document.activeElement).toBe($(".replay-round-entry").last()[0]);
+        press("PageUp");
+        expect(stepNumber()).toBe(2);
+        press("ArrowRight");
+        expect(stepNumber()).toBe(3);
+    });
+
+    it("lets the keys go once the replay fails, leaving the problem page alone", async () => {
+        await open(withUnplayableDraw(FULL_GAME));
+        while (problem().text === "") {
+            $(".replay-next").trigger("click");
+        }
+
+        expect(press("h", {}, document.body).defaultPrevented).toBe(false);
+        expect(press(" ", {}, document.body).defaultPrevented).toBe(false);
+        expect(localStorage.getItem(REPLAY_PREFS_KEY)).toBeNull();
+    });
+});
+
+describe("bindWheel", () => {
+    function wheelOver(element, deltaY, { deltaMode = 0, ctrlKey = false } = {}) {
+        const event = new WheelEvent("wheel", {
+            deltaY,
+            deltaMode,
+            bubbles: true,
+            cancelable: true,
+        });
+        Object.defineProperty(event, "ctrlKey", { value: ctrlKey });
+        element.dispatchEvent(event);
+        return event;
+    }
+
+    const wheel = (deltaY, init) => wheelOver($("#board .board")[0], deltaY, init);
+
+    it("steps once per notch over the board, not on a graze, a continuous scroll stopping at a result", async () => {
+        await open(FULL_GAME);
+        vi.useFakeTimers();
+
+        expect(wheel(WHEEL_START_PX / 2).defaultPrevented).toBe(true);
+        expect(stepNumber()).toBe(1);
+        wheel(WHEEL_START_PX / 2);
+        expect(stepNumber()).toBe(2);
+
+        vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
+        wheel(WHEEL_STEP_PX);
+        expect(stepNumber()).toBe(3);
+        wheel(WHEEL_STEP_PX);
+        expect(stepNumber()).toBe(3);
+        vi.advanceTimersByTime(WHEEL_STEP_MS);
+        wheel(WHEEL_STEP_PX / 2);
+        expect(stepNumber()).toBe(3);
+        wheel(WHEEL_STEP_PX / 2);
+        expect(stepNumber()).toBe(4);
+
+        vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
+        wheel(-1, { deltaMode: WheelEvent.DOM_DELTA_LINE });
+        expect(stepNumber()).toBe(3);
+        vi.advanceTimersByTime(WHEEL_STEP_MS);
+        wheel(-1, { deltaMode: WheelEvent.DOM_DELTA_LINE });
+        expect(stepNumber()).toBe(2);
+
+        vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
+        while (!AT_LAST_STEP.test(label().step)) {
+            vi.advanceTimersByTime(WHEEL_STEP_MS);
+            wheel(WHEEL_STEP_PX);
+        }
+        for (let i = 0; i < 10; i += 1) {
+            vi.advanceTimersByTime(WHEEL_STEP_MS);
+            wheel(WHEEL_STEP_PX);
+        }
+        expect(label().round).toBe("東一局 0本場");
+        vi.advanceTimersByTime(WHEEL_GESTURE_GAP_MS);
+        wheel(WHEEL_STEP_PX);
+        expect(label().round).toBe("東二局 1本場");
+    });
+
+    it("leaves a pinch, a box that scrolls and the help's own scrolling to the browser", async () => {
+        await open(FULL_GAME);
+        vi.useFakeTimers();
+
+        expect(wheel(WHEEL_STEP_PX, { ctrlKey: true }).defaultPrevented).toBe(false);
+        expect(stepNumber()).toBe(1);
+
+        $(".replay-help-toggle").trigger("click");
+        expect(wheelOver($(".replay-help-body")[0], WHEEL_STEP_PX).defaultPrevented).toBe(false);
+        expect(stepNumber()).toBe(1);
+
+        $(".replay-last").trigger("click");
+        vi.runAllTimers();
+        const standings = $("#board .summary").css("overflow-y", "auto")[0];
+        Object.defineProperty(standings, "scrollHeight", { value: 1000 });
+        Object.defineProperty(standings, "clientHeight", { value: 100 });
+        expect(wheelOver($(".row-diff", standings)[0], -WHEEL_STEP_PX).defaultPrevented).toBe(
+            false,
+        );
+        expect(label().step).toBe("Final standings");
     });
 });
 

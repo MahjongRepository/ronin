@@ -218,7 +218,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   extension, read from the recorded game type, never from what was played after it, so a truncated
   game's last round is not flagged. The settings gear keeps the live game's sound switch, its one
   stored setting and Escape closing its menu, but not the live game's sound key: the replay's keys
-  are its own. A replay that cannot be shown replaces the board with a message and links back.
+  are its own (`replay/keys.js`, `replay/wheel.js`). A key never reaches the replay from a text field
+  or a select or with a modifier held, and Escape closes only the topmost open layer. A held key, a
+  held button and a continuing wheel all stop at a result; the wheel is left to the browser over a
+  box that scrolls. A replay that cannot be shown replaces the board with a message and links back.
   `src/js/replay/` converts replay files into paipu with `src/js/ronin/`'s pure helpers, never the
   live shadow; `src/js/ronin/` never imports `src/js/replay/`. The live client and the converter build
   round results with the same builders (`results.js`).
