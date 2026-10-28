@@ -3,7 +3,7 @@
     "common.go_to_matchmaking": "К подбору игроков",
     "common.go_to_table": "К своему столу",
     "common.reload": "Обновить",
-    "history.copy.copied": "Ссылка скопирована",
+    "history.copy.copied": "Скопировано",
     "history.copy.failed": "Не удалось скопировать",
     "matchmaking.cancel": "Отмена",
     "matchmaking.connection_lost": "Связь с подбором игроков потеряна, поэтому вы больше не в очереди.",
