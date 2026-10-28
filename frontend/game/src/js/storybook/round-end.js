@@ -8,11 +8,13 @@ import {
     jiejuStandings,
     pingjuMessage,
 } from "../ronin/results.js";
+import { replayPath } from "../routes.js";
 import { SAMPLE_PLAYERS, currentVariant, renderVariantNav, showBoardPage } from "./board-page.js";
 
 const VIEWPOINT = 0;
 const QIJIA = 0;
 const GAME_TITLE = "半荘戦";
+const SAMPLE_GAME_ID = "storybook-sample";
 const NO_PAYMENTS = Object.freeze([0, 0, 0, 0]);
 
 const YAKU = Object.freeze({
@@ -520,6 +522,7 @@ function createJieju(gameEnd, log) {
         qijia: QIJIA,
         ...jiejuStandings(gameEnd),
         log,
+        replayUrl: replayPath(SAMPLE_GAME_ID, VIEWPOINT),
     };
 }
 

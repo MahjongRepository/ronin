@@ -344,6 +344,7 @@
                         margin-top: 6px;
                         font-size: 13px;
 
+                        .replay-link,
                         .exit {
                             padding: 3px 14px;
                             font-size: 15px;
@@ -372,6 +373,18 @@
         .autoplay {
             bottom: 4px;
             left: 4px;
+        }
+    }
+}
+
+@media screen and (height <= 450px) and (pointer: coarse) {
+    #board > .board > .summary > div > div .footer {
+        gap: 24px;
+
+        .replay-link,
+        .exit {
+            padding: 17px 24px;
+            font-size: 16px;
         }
     }
 }

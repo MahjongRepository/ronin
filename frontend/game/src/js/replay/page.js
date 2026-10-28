@@ -2,6 +2,7 @@ import $ from "jquery";
 
 import { withoutBlockedPlayback } from "../game-audio.js";
 import { GAME_PREF_KEY } from "../game-prefs.js";
+import { showLoadingStatus } from "../loading.js";
 import { HISTORY_URL, LOBBY_URL } from "../routes.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
@@ -20,6 +21,8 @@ const ERROR_TEXT = Object.freeze({
     [REPLAY_ERROR.FAILED]: "Couldn't load the replay",
     [REPLAY_ERROR.MALFORMED]: "This replay file is damaged",
 });
+
+const WAITING_TEXT = "牌譜を待っています…";
 
 const NO_ROUNDS = "This game ended before its first deal: there is nothing to replay";
 const CANNOT_SHOW = "Couldn't show the replay";
@@ -63,7 +66,9 @@ function showViewerFailure(error) {
 
 /** The converted replay, or null once its problem is shown. */
 async function readReplay(gameId) {
-    const loaded = await loadReplay(gameId);
+    const loaded = await loadReplay(gameId, {
+        onWait: () => showLoadingStatus(WAITING_TEXT),
+    });
     if (loaded.error) {
         showProblem(errorText(loaded.error), {
             retry: loaded.error.kind === REPLAY_ERROR.FAILED,

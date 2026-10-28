@@ -181,7 +181,7 @@ function createUIPlayer() {
     );
 }
 
-function startTableOnPage() {
+function startTableOnPage(seat = 0) {
     vi.useFakeTimers();
     document.body.innerHTML = new DOMParser().parseFromString(PAGE, "text/html").body.innerHTML;
     const renderTile = (p) => $('<span class="pai">').attr("data-pai", p.slice(0, 2));
@@ -189,7 +189,13 @@ function startTableOnPage() {
     const player = new RoninPlayer($("#board"), renderTile, silent);
     player.view = new Board($("#board .board"), renderTile, silent, player.model);
     return {
-        table: startTable(BASE_HAND, {}, {}, player, new Autoplay($("#board .autoplay"))),
+        table: startTable(
+            BASE_HAND,
+            { s: seat },
+            { s: seat },
+            player,
+            new Autoplay($("#board .autoplay")),
+        ),
         hand: $("#board .shoupai.main .bingpai"),
     };
 }
@@ -1074,11 +1080,12 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(countdown.text()).toBe("");
     });
 
-    it("counts the game's last result down like a round advance's and moves on from it by itself to the final standings, confirming nothing", () => {
-        const { table } = startTableOnPage();
+    it("counts the game's last result down like a round advance's and moves on from it by itself to the final standings, confirming nothing, and links them to the replay from the player's seat", () => {
+        const { table } = startTableOnPage(2);
         const countdown = $("#board .hule-dialog .next .countdown");
-        table.receive(draw(0, 120, { wi: 8 }));
-        table.receive(discard(0, 120));
+        const replayLink = $("#board .summary .replay-link");
+        table.receive(draw(2, 120, { wi: 8 }));
+        table.receive(discard(2, 120));
 
         table.receive({ t: 4, rt: 3, ts: [], th: [], sch: {} });
         table.receive({
@@ -1091,8 +1098,20 @@ describe("the ronin table (Translate and Reply)", () => {
 
         vi.advanceTimersByTime(4_900);
         expect($("#board .hule-dialog").hasClass("hide")).toBe(false);
+        expect(replayLink.hasClass("hide")).toBe(true);
         vi.advanceTimersByTime(100);
         expect($("#board .hule-dialog").hasClass("hide")).toBe(true);
+        expect(replayLink.hasClass("hide")).toBe(false);
+        expect(replayLink.attr("href")).toBe("/play/history/g?seat=2");
+        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+        const newTab = $.Event("click", { button: 0, ctrlKey: true });
+        replayLink.trigger(newTab);
+        expect(newTab.isDefaultPrevented()).toBe(false);
+        expect(replace).not.toHaveBeenCalled();
+        const plain = $.Event("click", { button: 0 });
+        replayLink.trigger(plain);
+        expect(plain.isDefaultPrevented()).toBe(true);
+        expect(replace).toHaveBeenCalledWith(`${window.location.origin}/play/history/g?seat=2`);
         $("#board .summary .exit").trigger("click");
         expect(table.sent).toEqual(["lobby"]);
     });

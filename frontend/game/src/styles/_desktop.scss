@@ -323,6 +323,7 @@
                     margin-top: 12px;
                     font-size: 15px;
 
+                    .replay-link,
                     .exit {
                         padding: 6px 20px;
                         font-size: 18px;
@@ -384,6 +385,23 @@
 }
 
 @media #{$portrait-touch} {
+    #board > .board > .summary > div > div .footer {
+        flex-wrap: wrap;
+        gap: 16px 32px;
+
+        .legend {
+            flex-basis: 100%;
+        }
+
+        .replay-link,
+        .exit {
+            flex: 1;
+            padding: 24px;
+            font-size: 28px;
+            text-align: center;
+        }
+    }
+
     #board {
         .autoplay {
             flex-direction: row;

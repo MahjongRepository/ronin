@@ -2,6 +2,12 @@ import wire from "../ronin/wire.js";
 
 const HTTP_NOT_FOUND = 404;
 
+/**
+ * The waits before asking again for a replay not found. A game's final standings link to its replay as the game ends,
+ * while the server still saves it, so a player who follows the link at once may ask before it exists.
+ */
+const NOT_FOUND_RETRY_MS = Object.freeze([500, 1000, 2000]);
+
 export const REPLAY_ERROR = Object.freeze({
     NOT_FOUND: "not_found",
     FAILED: "failed",
@@ -83,8 +89,36 @@ async function fetchReplayText(gameId) {
     }
 }
 
-/** Fetch a game's replay and parse it, as `parseReplay` does. */
-export async function loadReplay(gameId) {
-    const fetched = await fetchReplayText(gameId);
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isNotFound(fetched) {
+    return fetched.error?.kind === REPLAY_ERROR.NOT_FOUND;
+}
+
+/** The replay's text, asked for again after each of `NOT_FOUND_RETRY_MS` while it is not found, `onWait` before the first. */
+async function fetchUntilFound(gameId, onWait) {
+    let fetched = await fetchReplayText(gameId);
+    if (!isNotFound(fetched)) {
+        return fetched;
+    }
+    onWait();
+    for (const delay of NOT_FOUND_RETRY_MS) {
+        await sleep(delay);
+        fetched = await fetchReplayText(gameId);
+        if (!isNotFound(fetched)) {
+            return fetched;
+        }
+    }
+    return fetched;
+}
+
+/**
+ * Fetch a game's replay and parse it, as `parseReplay` does. A replay not found is waited for a few seconds, `onWait`
+ * called as the waiting begins, before it counts as missing.
+ */
+export async function loadReplay(gameId, { onWait = () => {} } = {}) {
+    const fetched = await fetchUntilFound(gameId, onWait);
     return fetched.error ? fetched : parseReplay(fetched.text);
 }

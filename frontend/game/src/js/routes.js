@@ -46,6 +46,11 @@ export function matchRoute(pathname) {
     return null;
 }
 
+/** The replay page of a game, shown from `seat`. */
+export function replayPath(gameId, seat) {
+    return `/play/history/${encodeURIComponent(gameId)}?seat=${seat}`;
+}
+
 export function storybookPath(page) {
     return page === STORYBOOK_PAGE.INDEX ? "/play/storybook" : `/play/storybook/${page}`;
 }

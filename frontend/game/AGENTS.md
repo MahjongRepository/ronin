@@ -174,8 +174,14 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   `REPLAY_VERSION` before reading a line, since another version's lines may mean something else; then
   the converter turns it into each round's paipu and positions, and the viewer steps through those on
   the board, from the recorded first dealer's seat unless the address names another, with every hand
-  open. The page's query names the seat and position (`replay/position-url.js`, contract in
-  `docs/architecture.md`): it is read once and the page opens there paused. A bad seat falls back to
+  open. The live game's final standings link to it from the player's seat (牌譜を見る); the replay's
+  own standings name no replay and hide the link. A plain click replaces the finished game's page in
+  history, since Back to it could only bounce to the lobby, but leaves its session handoff in place:
+  cleared, that page would dead-end on a missing session. The server sends the game end before its
+  finalizer saves the replay, so a link followed at once may ask first: `replay/load.js` asks again
+  after a 404 (four tries over 3.5 s, the loading screen saying it waits) before calling it not
+  found; any other failure shows at once. The page's query names the seat and position
+  (`replay/position-url.js`, contract in `docs/architecture.md`): it is read once and the page opens there paused. A bad seat falls back to
   the first dealer's, a bad round to round 0's deal (its step dropped), a bad step to its round's
   deal; the final standings' step equals the strip's step count n. The address bar then follows
   every move and change of seat by replacing its history entry, at most twice a second (Safari
