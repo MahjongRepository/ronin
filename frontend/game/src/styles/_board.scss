@@ -899,6 +899,53 @@ body.board {
                 font-weight: bold;
             }
         }
+
+        .language {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: solid 1px $grey-700;
+        }
+
+        .language-label {
+            display: block;
+            padding: 2px 8px;
+            font-size: 0.8em;
+            color: $grey-400;
+        }
+
+        .language-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font: inherit;
+            white-space: nowrap;
+
+            &::before {
+                content: "";
+                flex: none;
+                box-sizing: border-box;
+                width: 0.9em;
+                height: 0.9em;
+                border: solid 2px currentcolor;
+                border-radius: 50%;
+            }
+
+            &:hover {
+                background: rgb(255 255 255 / 15%);
+            }
+
+            &[aria-checked="true"] {
+                color: $accent;
+
+                &::before {
+                    background: currentcolor;
+                    box-shadow: inset 0 0 0 2px black;
+                }
+            }
+        }
     }
 
     .autoplay {

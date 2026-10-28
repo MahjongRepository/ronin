@@ -105,6 +105,7 @@
     "game.session_error.reconnect_no_session": "There's no game to reconnect to.",
     "game.session_error.reconnect_retry_later": "Can't reconnect yet; trying again shortly.",
     "game.session_error.unknown": "Something went wrong.",
+    "game.settings.language": "Language",
     "game.settings.off": "OFF",
     "game.settings.on": "ON",
     "game.settings.sound": "Sound",

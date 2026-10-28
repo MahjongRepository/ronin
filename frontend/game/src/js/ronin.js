@@ -14,6 +14,8 @@ import RoninSession from './ronin/session.js';
 import wire from './ronin/wire.js';
 import { gameErrorText, sessionErrorText } from './ronin/error-text.js';
 import { t } from '../i18n/index.js';
+import { bindLanguageMenu } from './language-menu.js';
+import { switchLiveLocale } from './live-locale.js';
 
 const { scale } = Majiang.UI.Util;
 
@@ -26,6 +28,7 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
     player.view  = new Majiang.UI.Board($('#board .board'), pai, audio, player.model);
 
     new Majiang.UI.GameCtl($('#board'), GAME_PREF_KEY, player, player._view);
+    bindLanguageMenu(document.getElementById('board'), next => switchLiveLocale(player._view, next));
 
     scale($('#board'), $('#space'));
     $(window).on('resize', ()=>scale($('#board'), $('#space')));

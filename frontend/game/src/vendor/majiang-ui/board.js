@@ -428,6 +428,12 @@ export default class Board {
                       this._view.kaiju].filter(node => ! node.hasClass('hide'));
         open.forEach(node => node.attr('lang', previous));
         applyStaticText(this._root[0], { skip: open.map(node => node[0]) });
+        if (this._view.shan) this._view.score.redraw().update();
+    }
+
+    /* The table's root element, which a page relabels apart from the rest. */
+    get root() {
+        return this._root[0];
     }
 
     /* Whether each player is connected: those who are not marked so. */

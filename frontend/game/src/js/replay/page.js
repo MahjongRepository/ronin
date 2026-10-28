@@ -6,6 +6,7 @@ import { GAME_PREF_KEY } from "../game-prefs.js";
 import { showLoadingStatus, waitForStart } from "../loading.js";
 import { HISTORY_URL, LOBBY_URL, replayPath } from "../routes.js";
 import { BoardLinks } from "./board-links.js";
+import { bindLanguageMenu, reloadInLanguage } from "../language-menu.js";
 import { REPLAY_ERROR, loadReplay } from "./load.js";
 import { ReplayControls } from "./controls.js";
 import { bindKeys, unbindKeys } from "./keys.js";
@@ -142,6 +143,7 @@ function buildBoard(replay, stage, prefs, seat) {
     view.viewpoint = seat;
     view.open_shoupai = !prefs.hideHands;
     const settings = new ReplaySettings(stage, GAME_PREF_KEY, view);
+    bindLanguageMenu(stage[0], reloadInLanguage);
     $(".controller .sound", stage)
         .removeAttr("data-i18n-title")
         .attr("title", t("game.settings.sound"));
