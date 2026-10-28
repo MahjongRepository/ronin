@@ -85,7 +85,8 @@ def test_page_locale__when_resolved_from_accept_language__should_vary_on_it_and_
     assert '<html lang="ru"' in from_header.text
     assert {"Accept-Language", "Cookie"} <= set(from_header.headers["vary"].split(", "))
     assert '<html lang="ja"' in from_cookie.text
-    assert "Accept-Language" not in from_cookie.headers.get("vary", "")
+    assert "Cookie" in from_cookie.headers["vary"].split(", ")
+    assert "Accept-Language" not in from_cookie.headers["vary"]
 
 
 def test_login_page__when_lang_cookie_is_ja__should_render_in_japanese(client):
@@ -123,3 +124,20 @@ def test_language_menu__when_page_is_rendered__should_mark_the_active_language_a
     assert 'value="ru" lang="ru" aria-current="true">Русский</button>' in response.text
     assert 'value="ja" lang="ja">日本語</button>' in response.text
     assert 'value="en" lang="en">English</button>' in response.text
+
+
+@pytest.mark.parametrize(
+    ("referer", "return_page"),
+    [("http://testserver/history?page=2", "/history?page=2"), (None, "/")],
+    ids=["same_origin_referer", "no_referer"],
+)
+def test_language_menu__when_page_answers_a_post__should_return_to_the_posting_page_instead_of_the_post_target(
+    client, referer, return_page
+):
+    _csrf_token(client)
+    headers = {"referer": referer} if referer else {}
+
+    response = client.post("/lang", data={"csrf_token": "stale", "lang": "ja"}, headers=headers)
+    assert response.status_code == 403
+    assert f'<input type="hidden" name="next" value="{return_page}">' in response.text
+    assert 'name="next" value="/lang"' not in response.text

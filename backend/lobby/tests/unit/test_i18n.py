@@ -49,6 +49,11 @@ class TestResolveLocale:
         resolved = resolve_locale(cookie=None, accept_language="fr;q=1, ru-RU;q=0.8, ja;q=0.5")
         assert resolved.locale == Locale.RU
 
+    @pytest.mark.parametrize("bad_quality", ["1.5", "-0.1", "nan", "inf"])
+    def test_resolve_locale__when_a_q_value_is_outside_zero_to_one__should_skip_that_entry(self, bad_quality):
+        resolved = resolve_locale(cookie=None, accept_language=f"ru;q={bad_quality}, ja;q=0.2")
+        assert resolved.locale == Locale.JA
+
     def test_resolve_locale__when_neither_cookie_nor_header__should_default_to_en(self):
         resolved = resolve_locale(cookie=None, accept_language=None)
         assert resolved.locale == Locale.EN

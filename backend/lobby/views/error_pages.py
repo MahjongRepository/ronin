@@ -3,13 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
 
 from starlette.exceptions import HTTPException
 from starlette.responses import PlainTextResponse, Response
 
 from lobby.auth.csrf import is_csrf_valid
-from lobby.views.assets import render_page, translate_for_request
+from lobby.views.assets import render_page, same_origin_referer_path, translate_for_request
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -89,7 +88,7 @@ def _session_expired_page(request: Request) -> Response:
     """
     Render the 403 page for a failed CSRF check: the form was stale, so reloading the page it came from fixes it.
     """
-    back_path = _same_origin_referer_path(request)
+    back_path = same_origin_referer_path(request)
     return _render_error_page(
         request,
         status_code=HTTPStatus.FORBIDDEN,
@@ -135,26 +134,3 @@ def _wants_html(request: Request) -> bool:
     Return whether the client is a browser navigating to a page; API clients and asset loads keep the plain answer.
     """
     return "text/html" in request.headers.get("accept", "")
-
-
-def _same_origin_referer_path(request: Request) -> str | None:
-    """
-    Return the path and query of the page that posted the form, or None when it is missing, malformed or off-site.
-
-    Leading slashes and backslashes collapse to one slash: a browser reads ``//host/x`` and ``/\\host/x`` alike as a
-    link to another host.
-    """
-    referer = request.headers.get("referer")
-    if not referer:
-        return None
-
-    try:
-        parsed = urlsplit(referer)
-    except ValueError:
-        return None
-
-    if parsed.scheme not in {"http", "https"} or parsed.netloc != request.url.netloc:
-        return None
-
-    path = "/" + parsed.path.lstrip("/\\")
-    return f"{path}?{parsed.query}" if parsed.query else path

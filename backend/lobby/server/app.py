@@ -121,20 +121,23 @@ def _create_seating(
     return room_manager, matchmaking_manager, occupancy
 
 
-def create_app(
+def create_app(  # noqa: PLR0913
     settings: LobbyServerSettings | None = None,
     auth_settings: AuthSettings | None = None,  # required in production (via get_app)
     is_playing: Callable[[str], Awaitable[bool]] | None = None,
     game_server_transport: httpx.AsyncBaseTransport | None = None,
     game_client_dev_transport: httpx.AsyncBaseTransport | None = None,
+    *,
+    strict_i18n: bool = APP_VERSION == "dev",
 ) -> Starlette:
     """
     Build the lobby app.
 
     ``is_playing`` replaces the game-server lookup of a user already playing, ``game_server_transport`` the network
     under the game server client, and ``game_client_dev_transport`` the network under the game client's dev-server proxy
-    (tests only). The game server client is closed in the lifespan, but works without it, so a test that drives a
-    handler directly can still start games.
+    (tests only). ``strict_i18n`` makes a bad catalog lookup raise instead of falling back to English (development and
+    tests). The game server client is closed in the lifespan, but works without it, so a test that drives a handler
+    directly can still start games.
     """
     if settings is None:  # pragma: no cover (entrypoint)
         settings = LobbyServerSettings()
@@ -145,7 +148,7 @@ def create_app(
     static_dir = Path(settings.static_dir).resolve()
     assets_dir = Path(settings.assets_dir).resolve()
     game_client = _create_game_client(settings, dev_transport=game_client_dev_transport)
-    translator = Translator(catalogs=load_catalogs(), strict=APP_VERSION == "dev")
+    translator = Translator(catalogs=load_catalogs(), strict=strict_i18n)
 
     game_server = create_game_server_client(settings.game_server_url, transport=game_server_transport)
     if is_playing is None:

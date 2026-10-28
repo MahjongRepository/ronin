@@ -120,6 +120,7 @@ def make_app(tmp_path: Path, game_server: FakeGameServer) -> Callable[..., Starl
             is_playing=is_playing,
             game_server_transport=httpx.MockTransport(game_server.handle),
             game_client_dev_transport=game_client_dev_transport,
+            strict_i18n=True,
         )
 
     return build

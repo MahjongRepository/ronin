@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from starlette.templating import Jinja2Templates
 
@@ -38,14 +39,27 @@ def _i18n_context(request: Request) -> dict[str, object]:
     def format_locale_number(number: int) -> str:
         return format_number(locale, number)
 
-    query = request.url.query
     return {
         "locale": locale,
         "t": t,
         "format_number": format_locale_number,
         "language_names": LANGUAGE_NAMES,
-        "current_page": f"{request.url.path}?{query}" if query else request.url.path,
+        "current_page": _return_page(request),
     }
+
+
+def _return_page(request: Request) -> str:
+    """
+    Return the page the language menu sends the user back to: this one for a GET, else the page that posted the form.
+
+    A page rendered for a POST (a refused form, an error) has no GET route at its path, so returning there would fail;
+    the same-origin page that sent the form, or the lobby, is the closest page to reopen.
+    """
+    if request.method in {"GET", "HEAD"}:
+        query = request.url.query
+        return f"{request.url.path}?{query}" if query else request.url.path
+
+    return same_origin_referer_path(request) or "/"
 
 
 def translate_for_request(request: Request, key: str, /, **params: object) -> str:
@@ -75,7 +89,7 @@ def render_page(
     Render a lobby page with the CSRF token its forms carry, setting the CSRF cookie when the token is new.
 
     An existing cookie is never replaced. A POST from another site arrives without it, so its answer sets none either. A
-    page whose locale the browser's preference chose varies with that preference and with the ``lang`` cookie.
+    page varies with the ``lang`` cookie, and one whose locale the browser's preference chose with that preference too.
     """
     templates: Jinja2Templates = request.app.state.templates
     csrf_token, is_new = get_or_create_csrf_token(request)
@@ -86,9 +100,9 @@ def render_page(
         auth_settings: AuthSettings = request.app.state.auth_settings
         set_csrf_cookie(response, token=csrf_token, cookie_secure=auth_settings.cookie_secure)
 
+    response.headers.add_vary_header("Cookie")
     if not resolve_request_locale(request).from_cookie:
         response.headers.add_vary_header("Accept-Language")
-        response.headers.add_vary_header("Cookie")
 
     return response
 
@@ -148,3 +162,26 @@ def resolve_vite_asset_urls(manifest: dict[str, dict], base_path: str = "/lobby-
         urls["lobby_css"] = lobby_css
 
     return urls
+
+
+def same_origin_referer_path(request: Request) -> str | None:
+    """
+    Return the path and query of the page that posted the form, or None when it is missing, malformed or off-site.
+
+    Leading slashes and backslashes collapse to one slash: a browser reads ``//host/x`` and ``/\\host/x`` alike as a
+    link to another host.
+    """
+    referer = request.headers.get("referer")
+    if not referer:
+        return None
+
+    try:
+        parsed = urlsplit(referer)
+    except ValueError:
+        return None
+
+    if parsed.scheme not in {"http", "https"} or parsed.netloc != request.url.netloc:
+        return None
+
+    path = "/" + parsed.path.lstrip("/\\")
+    return f"{path}?{parsed.query}" if parsed.query else path
