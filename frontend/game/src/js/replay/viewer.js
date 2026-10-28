@@ -4,7 +4,7 @@ import { SEAT_MARK } from "../../vendor/majiang-ui/board.js";
 import fadein from "../../vendor/majiang-ui/fadein.js";
 import { WIN_CALL_MS } from "../ronin/results.js";
 import { POSITION, kindOf } from "./paipu.js";
-import { SEATS } from "./seats.js";
+import { isSeat } from "./seats.js";
 import { AUTOPLAY_SPEEDS, DEFAULT_AUTOPLAY_SPEED } from "./speeds.js";
 
 /** How long a step's callouts show before they fade: long enough to read, short enough to uncover the rivers under them. */
@@ -134,8 +134,8 @@ export class ReplayViewer {
     /** Bind the result dialog's 次へ and pausing autoplay on a hidden page, and show the position at (round, step). */
     start(round = 0, step = 0) {
         this.#dialog()
-            .off(".replay")
-            .on("click.replay", ".next", () => this.#pageResult());
+            .off(".replay-viewer")
+            .on("click.replay-viewer", ".next", () => this.#pageResult());
         $(document)
             .off(".replay-autoplay")
             .on("visibilitychange.replay-autoplay", () => {
@@ -248,7 +248,7 @@ export class ReplayViewer {
 
     /** Put seat at the bottom of the table, keeping the position and a double ron's page. */
     setViewpoint(seat) {
-        if (!isIndex(seat, SEATS)) {
+        if (!isSeat(seat)) {
             throw new RangeError(`no seat ${seat}`);
         }
         this.view.viewpoint = seat;

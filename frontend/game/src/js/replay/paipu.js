@@ -12,7 +12,7 @@ import {
 import * as tiles from "../ronin/tiles.js";
 import wire from "../ronin/wire.js";
 import { roundOutcome } from "./round-end.js";
-import { SEATS } from "./seats.js";
+import { SEATS, isSeat } from "./seats.js";
 
 /**
  * What a position of a round shows: its last visible record, the round's result, the game's final standings after
@@ -108,7 +108,7 @@ function notesField(notes) {
 
 /** The note of a seat control line: the seat's AI replacement, with its reason, or its human's return. */
 function seatControlNote(line) {
-    if (!Number.isInteger(line.s) || line.s < 0 || line.s >= SEATS) {
+    if (!isSeat(line.s)) {
         throw new Error(`seat control of unknown seat ${line.s}`);
     }
     switch (line.ai) {

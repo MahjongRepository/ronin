@@ -180,9 +180,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   imports `src/js/replay/`.
   `ReplayViewer` (`viewer.js`) is the cursor over the positions, drawing them on the majiang-ui Board, and the
   majiang-core model is its only state: a seek rebuilds the round from its deal, drawing the table as stepping there
-  does. Every move, from the strip (`controls.js`), the keys (`keys.js`), the wheel (`wheel.js`), the board's links
-  (`board-links.js`: the nameplates, the standings' rounds and exit) or the result dialog's 次へ, goes through the
-  viewer, never to the model or the board directly; the rest only follows its state (`onChange`). A move plays its
+  does. Every move, from the strip (`controls.js`, its round list `rounds.js`), the keys (`keys.js`), the wheel
+  (`wheel.js`), the board's links (`board-links.js`: the nameplates, the standings' rounds and exit) or the result
+  dialog's 次へ, goes through the viewer, never to the model or the board directly; the rest only follows its state (`onChange`). A move plays its
   position before the cursor moves there, so the two never part: a position the model refuses shows the replay as
   damaged, and any other failure says it couldn't be shown.
   Replay-only annotations (a seat's AI replacement, its human's return) are silent notes on the next visible

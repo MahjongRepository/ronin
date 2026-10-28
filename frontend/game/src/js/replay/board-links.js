@@ -1,7 +1,7 @@
 import $ from "jquery";
 
-import { SEAT_MARK } from "../../vendor/majiang-ui/board.js";
-import { HISTORY_URL, matchRoute } from "../routes.js";
+import { SEAT_MARK, SEAT_MARK_TEXT } from "../../vendor/majiang-ui/board.js";
+import { HISTORY_URL, isGameClientPath } from "../routes.js";
 import { COARSE_POINTER_MEDIA } from "./media.js";
 import { POSITION } from "./paipu.js";
 import { SEATS } from "./seats.js";
@@ -10,7 +10,7 @@ import { SEATS } from "./seats.js";
 const NAMEPLATES = Object.freeze(["main", "xiajia", "duimian", "shangjia"]);
 
 /** What a nameplate's title adds while an AI player holds its seat, the meaning of its mark's colour. */
-const AI_TITLE = " (AI plays this seat)";
+const AI_TITLE = ` (${SEAT_MARK_TEXT[SEAT_MARK.AI]})`;
 
 /**
  * Where the standings' exit leads: back to the lobby page the replay was opened from, else the game history. A page of
@@ -23,7 +23,7 @@ function exitUrl() {
         return HISTORY_URL;
     }
     const url = new URL(referrer);
-    const isLobbyPage = url.origin === window.location.origin && matchRoute(url.pathname) === null;
+    const isLobbyPage = url.origin === window.location.origin && !isGameClientPath(url.pathname);
     return isLobbyPage ? referrer : HISTORY_URL;
 }
 
@@ -48,18 +48,20 @@ export class BoardLinks {
 
     bind(viewer) {
         $("> .player", this.root)
-            .off(".replay")
-            .on("click.replay", (event) => this.#viewFromNameplate(viewer, event.currentTarget));
+            .off(".replay-links")
+            .on("click.replay-links", (event) =>
+                this.#viewFromNameplate(viewer, event.currentTarget),
+            );
         $(".summary", this.root)
-            .off(".replay")
-            .on("click.replay", ".body .row-diff", (event) =>
+            .off(".replay-links")
+            .on("click.replay-links", ".body .row-diff", (event) =>
                 this.#seekFromStandings(viewer, event.currentTarget),
             );
         const exit = exitUrl();
         $(".summary .exit", this.root)
             .text(exitLabel(exit))
-            .off(".replay")
-            .on("click.replay", () => window.location.assign(exit));
+            .off(".replay-links")
+            .on("click.replay-links", () => window.location.assign(exit));
     }
 
     show(state) {

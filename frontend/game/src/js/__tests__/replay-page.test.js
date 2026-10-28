@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../majiang.js";
 import PAGE from "../../../index.html?raw";
 import { GAME_PREF_KEY } from "../game-prefs.js";
-import { ROUNDS_IN_STRIP_MEDIA } from "../replay/controls.js";
+import { ROUNDS_IN_STRIP_MEDIA } from "../replay/rounds.js";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "../replay/hold.js";
 import { parseReplay } from "../replay/load.js";
 import { toReplay } from "../replay/paipu.js";
@@ -409,6 +409,21 @@ describe("ReplayControls", () => {
         expect(isBusy()).toBe(false);
     });
 
+    it("steps on a click with no press before it after a press that disabled its own button", async () => {
+        await open(FULL_GAME);
+        $(".replay-last").trigger("click");
+        $(".replay-back").trigger("click");
+
+        $(".replay-next").trigger("pointerdown");
+        expect(label().step).toBe("Final standings");
+        expect(disabled().next).toBe(true);
+        $(window).trigger("pointerup");
+        $(".replay-back").trigger("click");
+        $(".replay-next").trigger("click");
+
+        expect(label().step).toBe("Final standings");
+    });
+
     it("names the last action, its Japanese marked as such", async () => {
         await open(RIICHI);
 
@@ -624,6 +639,7 @@ describe("BoardLinks", () => {
             "/history",
             "履歴へ戻る",
         ],
+        ["a game client page no route names", "/play/a/b", "/history", "履歴へ戻る"],
         ["another lobby page", "/rooms", "/rooms", "戻る"],
     ])(
         "leaves the final standings for the lobby page the replay was opened from: %s",

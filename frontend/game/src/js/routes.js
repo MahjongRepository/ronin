@@ -22,6 +22,9 @@ export const STORYBOOK_PAGE = Object.freeze({
 });
 const STORYBOOK_PAGES = Object.values(STORYBOOK_PAGE);
 
+/** Every page of the game client is under this path; the lobby serves the rest. */
+const GAME_CLIENT_PREFIX = "/play/";
+
 const REPLAY_PATH = /^\/play\/history\/(?<gameId>[^/]+)$/;
 const STORYBOOK_PATH = /^\/play\/storybook(?:\/(?<page>[^/]+))?$/;
 const GAME_PATH = /^\/play\/(?<gameId>[^/]+)$/;
@@ -44,6 +47,11 @@ export function matchRoute(pathname) {
     }
 
     return null;
+}
+
+/** Whether a path is one of the game client's, a route of it or not. */
+export function isGameClientPath(pathname) {
+    return pathname.startsWith(GAME_CLIENT_PREFIX);
 }
 
 /** The query parameters of a replay page: the seat it is viewed from and the position it shows. */
