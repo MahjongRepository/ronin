@@ -462,7 +462,6 @@ export LOG_FORMAT=console
 export GAME_LOG_DIR="$PROJECT_ROOT/backend/logs/game"
 export LOBBY_LOG_DIR="$PROJECT_ROOT/backend/logs/lobby"
 
-find "$PROJECT_ROOT/backend/data/replays" "$PROJECT_ROOT/backend/data/tenhou_replays" -mindepth 1 -delete 2>/dev/null || true
 for dir in "$GAME_LOG_DIR" "$LOBBY_LOG_DIR" "$BOT_LOG_DIR" "$BOT_GAMES_DIR"; do
     find "$dir" -mindepth 1 -delete 2>/dev/null || true
     mkdir -p "$dir"
