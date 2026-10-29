@@ -113,7 +113,7 @@ function winPayments(winner) {
  */
 function tsumoSplit(payers, honba) {
     const shares = new Set(payers.map((paid) => paid - honba / payers.length));
-    const [low, high] = [...shares].sort((a, b) => a - b);
+    const [low, high] = [...shares].toSorted((a, b) => a - b);
     return high === undefined
         ? t("replay.outcome.split_all", { points: low })
         : `(${formatNumber(low)}/${formatNumber(high)})`;

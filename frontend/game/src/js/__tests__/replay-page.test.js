@@ -96,7 +96,10 @@ async function load(text) {
     const shown = showReplay("g-1", Promise.resolve()).finally(() => {
         settled = true;
     });
-    for (let turns = 0; !settled && $(START).length === 0; turns += 1) {
+    for (let turns = 0; $(START).length === 0; turns += 1) {
+        if (settled) {
+            break;
+        }
         if (turns === LOAD_TURNS) {
             throw new Error(`the game start screen's OK: not offered after ${LOAD_TURNS} turns`);
         }
