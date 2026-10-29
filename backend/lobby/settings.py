@@ -52,6 +52,8 @@ class LobbyServerSettings(BaseSettings):
     game_client_url: str = "/play"
     game_client_dir: str = "frontend/game/dist"
     game_client_dev_url: str = ""
+    game_client_v2_dir: str = "frontend/game_v2/dist"
+    game_client_v2_dev_url: str = ""
     replay_dir: str = Field(min_length=1)
     ws_allowed_origin: str = Field(min_length=1)
 
@@ -70,7 +72,7 @@ class LobbyServerSettings(BaseSettings):
     def validate_game_server_ws_url(cls, v: str) -> str:
         return _parse_url_origin(v, _WS_SCHEMES)
 
-    @field_validator("game_client_dev_url")
+    @field_validator("game_client_dev_url", "game_client_v2_dev_url")
     @classmethod
     def validate_game_client_dev_url(cls, v: str) -> str:
         if not v:

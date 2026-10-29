@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 GAME_ASSETS_PATH = "/game-assets"
+GAME_V2_ASSETS_PATH = "/game-assets/v2"
 _DEV_SERVER_TIMEOUT_SECONDS = 30.0
 _FORWARDED_RESPONSE_HEADERS = ("content-type", "cache-control", "etag")
 
@@ -27,10 +28,11 @@ class GameClient(Protocol):
 @dataclass(frozen=True)
 class BuiltGameClient:
     """
-    Serve the game client's production build: its ``index.html`` answers every game page.
+    Serve a game client's production build under ``assets_path``: its ``index.html`` answers every game page.
     """
 
     directory: Path
+    assets_path: str
 
     async def serve_page(self) -> Response:
         index = self.directory / "index.html"
@@ -43,16 +45,18 @@ class BuiltGameClient:
 @dataclass(frozen=True)
 class DevGameClient:
     """
-    Proxy the game client's page and files to its Vite dev server, keeping them on the lobby's origin.
+    Proxy a game client's page and files under ``assets_path`` to its Vite dev server, keeping them on the lobby's
+    origin.
 
     The lobby hands a game over through ``sessionStorage``, which only a page on the same origin can read.
     """
 
     origin: str
+    assets_path: str
     transport: httpx.AsyncBaseTransport | None = None
 
     async def serve_page(self) -> Response:
-        return await self._forward(f"{GAME_ASSETS_PATH}/", accept="text/html")
+        return await self._forward(f"{self.assets_path}/", accept="text/html")
 
     async def serve_asset(self, request: Request) -> Response:
         path = request.scope["raw_path"].decode("ascii")

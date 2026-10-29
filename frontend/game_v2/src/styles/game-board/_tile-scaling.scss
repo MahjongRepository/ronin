@@ -1,0 +1,64 @@
+// Tile, hand, meld, and discard scaling overrides inside .game-board
+
+.game-board {
+    .tile {
+        width: var(--board-tile-w);
+        height: var(--board-tile-h);
+        border-radius: calc(6px * var(--board-scale));
+        padding: calc(4px * var(--board-scale)) calc(3px * var(--board-scale));
+    }
+
+    .hand {
+        gap: calc(1px * var(--board-scale));
+        width: 100%;
+    }
+
+    .hand-drawn-gap {
+        margin-left: calc(8px * var(--board-scale));
+    }
+
+    .meld {
+        gap: calc(1px * var(--board-scale));
+    }
+
+    .discards {
+        gap: calc(2px * var(--board-scale));
+        min-width: var(--board-disc-width);
+        min-height: calc(3 * var(--board-tile-h) + 2 * 2px * var(--board-scale));
+    }
+
+    .discard-row {
+        gap: calc(1px * var(--board-scale));
+    }
+
+    // Sideways tile overrides (melds + riichi discards)
+    .meld-tile-sideways {
+        width: var(--board-tile-h);
+        height: var(--board-tile-w);
+
+        > .tile {
+            left: calc((var(--board-tile-h) - var(--board-tile-w)) / 2);
+            top: calc((var(--board-tile-w) - var(--board-tile-h)) / 2);
+        }
+    }
+
+    .discard-tile-riichi {
+        width: var(--board-tile-h);
+        height: var(--board-tile-w);
+
+        > .tile {
+            left: calc((var(--board-tile-h) - var(--board-tile-w)) / 2);
+            top: calc((var(--board-tile-w) - var(--board-tile-h)) / 2);
+        }
+    }
+
+    // Stacked tile overrides (added_kan)
+    .meld-tile-stacked {
+        width: var(--board-tile-h);
+        height: calc(var(--board-tile-w) * 2 + 2px * var(--board-scale));
+    }
+
+    .meld-tile-stacked .meld-tile-stacked-top {
+        bottom: calc(var(--board-tile-w) + 2px * var(--board-scale));
+    }
+}

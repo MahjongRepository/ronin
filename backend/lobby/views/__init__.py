@@ -11,6 +11,9 @@ from lobby.views.game_client import (
     GAME_ASSETS_PATH as GAME_ASSETS_PATH,
 )
 from lobby.views.game_client import (
+    GAME_V2_ASSETS_PATH as GAME_V2_ASSETS_PATH,
+)
+from lobby.views.game_client import (
     BuiltGameClient as BuiltGameClient,
 )
 from lobby.views.game_client import (

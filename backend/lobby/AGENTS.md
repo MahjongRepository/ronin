@@ -15,7 +15,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   directory: it answers the game pages with that app's `index.html` and serves its files under
   `/game-assets/`, or proxies both to the app's Vite dev server when `game_client_dev_url` is set.
   The proxy exists only for local runs, so the game page keeps the lobby's origin and the
-  `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
+  `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works. A game page with
+  `?v=2` gets the v2 client (`frontend/game_v2/`) instead, hosted the same way from its own
+  directory under `/game-assets/v2/` (`game_client_v2_dir`, `game_client_v2_dev_url`); that path
+  lies inside the default client's, so its routes are listed first.
 * `views/error_pages.py` — every error answer, the failed CSRF check included: a browser (`Accept: text/html`) gets
   `error.html` through `render_page`, any other client plain text; the 500 handler runs outside the middleware, so
   `create_app()` wraps it to add the security headers.

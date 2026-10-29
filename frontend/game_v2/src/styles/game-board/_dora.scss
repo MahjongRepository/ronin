@@ -1,0 +1,35 @@
+// Dora indicator (top-left corner of the board)
+// Uses --board-scale inherited from the .game-board ancestor in the DOM.
+
+.board-dora {
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.375rem;
+}
+
+.board-dora__label {
+    font-family: var(--ronin-font-mono);
+    font-size: calc(8px * var(--board-scale));
+    font-weight: 600;
+    color: var(--ronin-text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.board-dora__tiles {
+    display: flex;
+    gap: 2px;
+}
+
+.board-dora__tile .tile {
+    width: calc(var(--board-tile-w) * 0.6);
+    height: calc(var(--board-tile-h) * 0.6);
+}

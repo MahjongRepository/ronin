@@ -15,10 +15,12 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
   * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
-* `frontend/` — Vite / npm on Node: two isolated apps, each its own package. See `frontend/AGENTS.md`.
+* `frontend/` — Vite / npm on Node: three isolated apps, each its own package. See `frontend/AGENTS.md`.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
     `frontend/lobby/AGENTS.md`.
   * `frontend/game/` — the game client (MajiangNG: JavaScript / jQuery). See `frontend/game/AGENTS.md`.
+  * `frontend/game_v2/` — the earlier TypeScript / lit-html game client, behind `?v=2` on the game
+    pages, the foundation of a future client. See `frontend/game_v2/AGENTS.md`.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
@@ -35,7 +37,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 
 * `make install-frontend` — `npm ci` in each frontend app.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
-  frontend app (`:5173` lobby, `:5174` game client) together,
+  frontend app (`:5173` lobby, `:5174` game client, `:5175` game client v2) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).

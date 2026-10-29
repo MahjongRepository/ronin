@@ -25,9 +25,12 @@ _NO_STORE = {"Cache-Control": "no-store"}
 
 async def play_page(request: Request) -> Response:
     """
-    GET /play/* — serve the game client's page; the game client routes the path itself.
+    GET /play/* — serve the game client's page, or the v2 client's with ``?v=2``; the client routes the path itself.
     """
     game_client: GameClient = request.app.state.game_client
+    if request.query_params.get("v") == "2":
+        game_client = request.app.state.game_client_v2
+
     return await game_client.serve_page()
 
 

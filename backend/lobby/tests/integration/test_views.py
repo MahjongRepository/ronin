@@ -15,6 +15,7 @@ from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 
 _GAME_CLIENT_INDEX = '<div id="app"></div><script type="module" src="/game-assets/assets/index-abc123.js"></script>'
+_GAME_CLIENT_V2_INDEX = '<div id="app"></div><script type="module" src="/game-assets/v2/assets/index-v2.js"></script>'
 
 
 def _create_lobby_assets(assets_dir):
@@ -38,11 +39,11 @@ def _create_lobby_assets(assets_dir):
     )
 
 
-def _create_game_client_build(game_client_dir):
+def _create_game_client_build(game_client_dir, *, index, script_name, script):
     built_dir = game_client_dir / "assets"
     built_dir.mkdir(parents=True)
-    (built_dir / "index-abc123.js").write_text("console.log('game');")
-    (game_client_dir / "index.html").write_text(_GAME_CLIENT_INDEX)
+    (built_dir / script_name).write_text(script)
+    (game_client_dir / "index.html").write_text(index)
 
 
 @pytest.fixture
@@ -50,9 +51,19 @@ def app(make_app, tmp_path, monkeypatch):
     monkeypatch.setattr("lobby.server.app.APP_VERSION", "dev")
     assets_dir = tmp_path / "lobby-dist"
     game_client_dir = tmp_path / "game-dist"
+    game_client_v2_dir = tmp_path / "game-v2-dist"
     _create_lobby_assets(assets_dir)
-    _create_game_client_build(game_client_dir)
-    return make_app(assets_dir=str(assets_dir), game_client_dir=str(game_client_dir))
+    _create_game_client_build(
+        game_client_dir, index=_GAME_CLIENT_INDEX, script_name="index-abc123.js", script="console.log('game');"
+    )
+    _create_game_client_build(
+        game_client_v2_dir, index=_GAME_CLIENT_V2_INDEX, script_name="index-v2.js", script="console.log('game v2');"
+    )
+    return make_app(
+        assets_dir=str(assets_dir),
+        game_client_dir=str(game_client_dir),
+        game_client_v2_dir=str(game_client_v2_dir),
+    )
 
 
 class TestLobbyViews:
@@ -144,6 +155,12 @@ class TestLobbyViews:
         assert "text/html" in response.headers["content-type"]
         assert response.text == _GAME_CLIENT_INDEX
 
+    @pytest.mark.parametrize("path", ["/play/test-game?v=2", "/play/history/test-game?v=2"])
+    def test_play_page__when_v_is_2__should_serve_v2_game_client_index(self, client, path):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.text == _GAME_CLIENT_V2_INDEX
+
     @pytest.mark.parametrize(
         "page", ["board", "discards", "hand", "melds", "decisions", "table", "win", "draw", "standings"]
     )
@@ -173,6 +190,11 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "javascript" in response.headers["content-type"]
         assert response.text == "console.log('game');"
+
+    def test_game_assets_route__when_v2_asset_requested__should_serve_it_from_v2_build(self, client):
+        response = client.get("/game-assets/v2/assets/index-v2.js")
+        assert response.status_code == 200
+        assert response.text == "console.log('game v2');"
 
     def test_game_assets_route__when_dir_missing__should_not_mount(self, make_app, tmp_path):
         app = make_app(game_client_dir=str(tmp_path / "no-such-dir"))
@@ -252,6 +274,7 @@ class TestLobbyViews:
 
 
 _DEV_GAME_CLIENT_PAGE = '<script type="module" src="/game-assets/@vite/client"></script>'
+_DEV_GAME_CLIENT_V2_PAGE = '<script type="module" src="/game-assets/v2/@vite/client"></script>'
 
 
 async def _dev_game_client_page(request):
@@ -259,6 +282,10 @@ async def _dev_game_client_page(request):
         return PlainTextResponse("not html", status_code=406)
 
     return HTMLResponse(_DEV_GAME_CLIENT_PAGE)
+
+
+async def _dev_game_client_v2_page(request):
+    return HTMLResponse(_DEV_GAME_CLIENT_V2_PAGE)
 
 
 async def _dev_game_client_file(request):
@@ -269,8 +296,14 @@ async def _dev_game_client_file(request):
     )
 
 
+async def _dev_game_client_v2_file(request):
+    return PlainTextResponse(f"v2:{request.path_params['path']}", media_type="text/javascript")
+
+
 _DEV_GAME_CLIENT_SERVER = Starlette(
     routes=[
+        Route("/game-assets/v2/", _dev_game_client_v2_page),
+        Route("/game-assets/v2/{path:path}", _dev_game_client_v2_file),
         Route("/game-assets/", _dev_game_client_page),
         Route("/game-assets/{path:path}", _dev_game_client_file),
     ],
@@ -288,6 +321,7 @@ class TestViteDevMode:
         return make_app(
             vite_dev_url="http://localhost:5173",
             game_client_dev_url="http://localhost:5174",
+            game_client_v2_dev_url="http://localhost:5175",
             game_client_dev_transport=httpx.ASGITransport(app=_DEV_GAME_CLIENT_SERVER),
         )
 
@@ -306,6 +340,12 @@ class TestViteDevMode:
         response = client.get("/play/test-game")
         assert response.status_code == 200
         assert response.text == _DEV_GAME_CLIENT_PAGE
+
+    def test_play_page__when_v_is_2_and_v2_dev_url_set__should_proxy_v2_dev_server(self, client):
+        page = client.get("/play/test-game?v=2")
+        asset = client.get("/game-assets/v2/src/index.ts")
+        assert page.text == _DEV_GAME_CLIENT_V2_PAGE
+        assert asset.text == "v2:src/index.ts"
 
     def test_game_assets_route__when_game_client_dev_url_set__should_proxy_encoded_path_and_query(self, client):
         response = client.get("/game-assets/src/tile%23back.svg?import&t=1")

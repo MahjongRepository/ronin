@@ -1,0 +1,49 @@
+// Board container, CSS custom properties, grid template, and responsive breakpoints
+
+.game-board {
+    --board-scale-base: 0.64;
+    --board-scale-multiplier: 1;
+    --board-scale: calc(var(--board-scale-base) * var(--board-scale-multiplier));
+    --board-tile-w: calc(60px * var(--board-scale));
+    --board-tile-h: calc(80px * var(--board-scale));
+    --board-hand-depth: calc(var(--board-tile-h) + 8px * var(--board-scale));
+    --board-hand-width: calc(14 * var(--board-tile-w) + 21px * var(--board-scale));
+    --board-disc-width: calc(6 * var(--board-tile-w) + 5 * 1px * var(--board-scale));
+    --board-disc-height: calc(
+        3 * var(--board-tile-h) + 2 * 2px * var(--board-scale) + 8px * var(--board-scale)
+    );
+    --board-center-size: calc(6 * var(--board-tile-w));
+    --board-gap: 2px;
+
+    display: grid;
+    grid-template:
+        "top-meld-l     top-hand     top-hand     top-hand     top-meld-r" var(--board-hand-depth)
+        "left-hand      top-disc     top-disc     top-disc     right-hand" minmax(
+            var(--board-disc-height),
+            1fr
+        )
+        "left-hand      left-disc    center       right-disc   right-hand" var(--board-center-size)
+        "left-hand      bottom-disc  bottom-disc  bottom-disc  right-hand" minmax(
+            var(--board-disc-height),
+            1fr
+        )
+        "bottom-meld-l  bottom-hand  bottom-hand  bottom-hand  bottom-meld-r"
+        var(--board-hand-depth) / var(--board-hand-depth) minmax(var(--board-disc-height), 1fr) var(
+            --board-center-size
+        )
+        minmax(var(--board-disc-height), 1fr) var(--board-hand-depth);
+    gap: var(--board-gap);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: var(--ronin-surface);
+    border-radius: 0.5rem;
+
+    @media (width >= 640px) {
+        --board-scale-multiplier: 1.5;
+    }
+
+    @media (width >= 1024px) {
+        --board-scale-multiplier: 2;
+    }
+}

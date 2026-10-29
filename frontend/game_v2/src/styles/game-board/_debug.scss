@@ -1,0 +1,34 @@
+// Debug mode — grid area labels and component borders
+
+.game-board--debug {
+    // Corner label on grid cell wrappers
+    [data-area] {
+        position: relative;
+
+        &::after {
+            content: attr(data-area);
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 0 3px;
+            color: red;
+            background: rgb(0 0 0 / 60%);
+            font-family: var(--ronin-font-mono);
+            font-size: 0.55rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1;
+            line-height: 1.4;
+        }
+    }
+
+    // Border on inner components to show real rendered size
+    .hand,
+    .discards,
+    .meld,
+    .board-center {
+        border: 1px solid red;
+    }
+}

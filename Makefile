@@ -4,7 +4,7 @@ BE_RUN := uv run --project backend
 
 DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
-FRONTEND_APPS := lobby game
+FRONTEND_APPS := lobby game game_v2
 
 .PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check profile profile-games measure-wall
 

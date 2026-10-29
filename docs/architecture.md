@@ -385,7 +385,9 @@ honours this contract can replace it.
   that base path; the app routes the path itself. The pages are an explicit list in the lobby's
   route table, each with its login policy (`/play/{game_id}` requires a login; the replay
   `/play/history/{game_id}` and the storybook pages do not); any other path is a 404, so a new client
-  route needs its path added there.
+  route needs its path added there. A second client (`frontend/game_v2/`, `LOBBY_GAME_CLIENT_V2_DIR`)
+  answers the same pages when their query has `v=2`, built with base `/game-assets/v2/`; the lobby
+  never adds the parameter itself, so it is opened by hand.
 * **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
   `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session
   storage is per origin, which is why the game client must be served by the lobby. A game page
