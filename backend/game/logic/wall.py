@@ -202,13 +202,20 @@ def build_dead_wall(stacks: list[TileStack]) -> DeadWall:
     return DeadWall(rinshan=rinshan, indicators=tuple(stacks[RINSHAN_STACKS:]), reserve=())
 
 
+def build_wall(shuffled: list[int], dice: tuple[int, int], dealer_seat: int) -> Wall:
+    """
+    Split an already shuffled ring of 136 tiles at the dice-determined break into a live wall and a dead wall.
+    """
+    live_tiles, dead_stacks = _split_wall_by_dice(shuffled, dice, dealer_seat)
+    return Wall(live_tiles=tuple(live_tiles), dead_wall=build_dead_wall(dead_stacks), dice=dice)
+
+
 def create_wall(*, seed: str, round_number: int, dealer_seat: int) -> Wall:
     """
     Generate a shuffled wall with dice-determined break position.
     """
     shuffled, dice = generate_shuffled_wall_and_dice(seed, round_number)
-    live_tiles, dead_stacks = _split_wall_by_dice(shuffled, dice, dealer_seat)
-    return Wall(live_tiles=tuple(live_tiles), dead_wall=build_dead_wall(dead_stacks), dice=dice)
+    return build_wall(shuffled, dice, dealer_seat)
 
 
 def create_wall_from_tiles(tiles: list[int]) -> Wall:

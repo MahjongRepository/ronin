@@ -23,6 +23,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
 * `docs/game-rules.md` — the Riichi ruleset the engine implements, read before rule work.
+* `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
+  `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
   `bin/check_i18n.py` over every app's catalogs.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
@@ -55,6 +57,10 @@ The `Makefile` lists the targets; the non-obvious ones:
   game. The sampler runs in-process because py-spy, pausing the server per sample, stalled it past
   the health check in most runs. It points at where real games spend the server's CPU;
   `make profile` measures engine changes.
+* `make measure-wall [MEASURE_ARGS=...]` — sample games from the engine's seed, dealer and wall functions and
+  report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
+  A structural failure exits 1; a statistical warning is printed, never a gate. `--json` saves a run and
+  `--baseline` compares with one, the loop for changing a constant in `game/logic/rng.py` and remeasuring.
 * `make generate-replay-fixtures` — regenerate the game client's replay test fixtures by playing
   the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
   (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.
