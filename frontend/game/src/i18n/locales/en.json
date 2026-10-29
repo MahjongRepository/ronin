@@ -254,7 +254,10 @@
     "round.west_2": "West 2",
     "round.west_3": "West 3",
     "round.west_4": "West 4",
-    "round.with_honba": "{round}, {honba} honba",
+    "round.with_honba": {
+        "one": "{round}, {count} honba",
+        "other": "{round}, {count} honba"
+    },
     "tile.spoken.m0": "red 5-man",
     "tile.spoken.m1": "1-man",
     "tile.spoken.m2": "2-man",

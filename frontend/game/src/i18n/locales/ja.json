@@ -253,7 +253,9 @@
     "round.west_2": "西二局",
     "round.west_3": "西三局",
     "round.west_4": "西四局",
-    "round.with_honba": "{round} {honba}本場",
+    "round.with_honba": {
+        "other": "{round} {count}本場"
+    },
     "tile.spoken.m0": "赤ウーワン",
     "tile.spoken.m1": "イーワン",
     "tile.spoken.m2": "リャンワン",
