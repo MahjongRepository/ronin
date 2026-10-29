@@ -158,11 +158,13 @@ function RoundEndDisplay(
         <div class="round-end-result__scores">
             ${players.map((p) => {
                 const delta = result.scoreChanges[String(p.seat)] ?? 0;
+                const scoreBeforePayment =
+                    result.scoresBeforePayment[String(p.seat)] ?? p.score - delta;
                 const wind = windName((p.seat - dealerSeat + 4) % 4);
                 return html`<div class="round-end-result__score-row">
                     <span class="round-end-result__score-wind">${wind}</span>
                     <span class="round-end-result__score-name">${p.name}</span>
-                    <span class="round-end-result__score-value">${p.score.toLocaleString("en-US")}</span>
+                    <span class="round-end-result__score-value">${scoreBeforePayment.toLocaleString("en-US")}</span>
                     <span class="round-end-result__score-delta${deltaModifier(delta)}">${formatDelta(delta)}</span>
                 </div>`;
             })}

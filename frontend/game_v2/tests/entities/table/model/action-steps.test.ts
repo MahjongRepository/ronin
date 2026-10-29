@@ -1,10 +1,35 @@
 import { describe, expect, test } from "vitest";
 
+import {
+    makeDiscardEvent,
+    makeDoraRevealedEvent,
+    makeDrawEvent,
+    makeGameEndEvent,
+    makeGameStartedEvent,
+    makeMeldEvent,
+    makeRiichiDeclaredEvent,
+    makeRoundStartedEvent,
+    makeTsumoRoundEnd,
+} from "#tests/fixtures/events";
 import { type ActionStep, buildActionSteps } from "@/entities/table/model/action-steps";
 import { type ReplayEvent } from "@/entities/table/model/types";
 
+const EVENT_FACTORIES: {
+    [Type in ReplayEvent["type"]]: () => Extract<ReplayEvent, { type: Type }>;
+} = {
+    discard: makeDiscardEvent,
+    dora_revealed: makeDoraRevealedEvent,
+    draw: makeDrawEvent,
+    game_end: makeGameEndEvent,
+    game_started: makeGameStartedEvent,
+    meld: makeMeldEvent,
+    riichi_declared: makeRiichiDeclaredEvent,
+    round_end: makeTsumoRoundEnd,
+    round_started: makeRoundStartedEvent,
+};
+
 function event(type: ReplayEvent["type"]): ReplayEvent {
-    return { type } as ReplayEvent;
+    return EVENT_FACTORIES[type]();
 }
 
 describe("buildActionSteps", () => {

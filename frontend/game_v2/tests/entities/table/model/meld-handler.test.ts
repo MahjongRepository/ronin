@@ -1,41 +1,29 @@
 import { describe, expect, test } from "vitest";
 
+import {
+    makeDiscardEvent,
+    makeDrawEvent,
+    makeGameStartedEvent,
+    makeMeldEvent,
+    makeRoundStartedEvent,
+} from "#tests/fixtures/events";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
-import {
-    type DiscardEvent,
-    type DrawEvent,
-    type GameStartedEvent,
-    type MeldEvent,
-    type RoundStartedEvent,
-} from "@/shared/protocol";
+import { type GameStartedEvent, type MeldEvent, type RoundStartedEvent } from "@/shared/protocol";
 
-function makeGameStartedEvent(): GameStartedEvent {
-    return {
-        dealerDice: [
-            [2, 3],
-            [4, 5],
-        ],
-        dealerSeat: 0,
-        gameId: "test-game-1",
+function gameStartedWithNamedPlayers(): GameStartedEvent {
+    return makeGameStartedEvent({
         players: [
             { isAiPlayer: false, name: "Alice", seat: 0 },
             { isAiPlayer: false, name: "Bob", seat: 1 },
             { isAiPlayer: true, name: "Charlie", seat: 2 },
             { isAiPlayer: true, name: "Diana", seat: 3 },
         ],
-        type: "game_started",
-    };
+    });
 }
 
-function makeRoundStartedEvent(): RoundStartedEvent {
-    return {
-        currentPlayerSeat: 0,
-        dealerSeat: 0,
-        dice: [3, 4],
-        doraIndicators: [10],
-        honbaSticks: 0,
-        myTiles: null,
+function roundStartedWithMeldHands(): RoundStartedEvent {
+    return makeRoundStartedEvent({
         players: [
             // Alice: 1m-1m-1m-2m-3m-4m-5m-6m-7m-8m-9m-1p-1p (tiles 0-12)
             { score: 25_000, seat: 0, tiles: [0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 36, 37] },
@@ -50,86 +38,59 @@ function makeRoundStartedEvent(): RoundStartedEvent {
             // Diana: tiles starting at 3 (1m copy 4), various
             { score: 25_000, seat: 3, tiles: [3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19] },
         ],
-        riichiSticks: 0,
-        roundNumber: 1,
-        seat: null,
-        type: "round_started",
-        wind: 0,
-    };
+    });
 }
 
 function stateAfterRoundStarted() {
-    let state = applyEvent(createInitialTableState(), makeGameStartedEvent());
-    state = applyEvent(state, makeRoundStartedEvent());
+    let state = applyEvent(createInitialTableState(), gameStartedWithNamedPlayers());
+    state = applyEvent(state, roundStartedWithMeldHands());
     return state;
 }
 
 function drawTile(state: ReturnType<typeof createInitialTableState>, seat: number, tileId: number) {
-    const drawEvent: DrawEvent = {
-        availableActions: [],
-        seat,
-        tileId,
-        type: "draw",
-    };
-    return applyEvent(state, drawEvent);
+    return applyEvent(state, makeDrawEvent({ seat, tileId }));
 }
 
 function stateWithDiscard(seat: number, tileId: number) {
     const state = drawTile(stateAfterRoundStarted(), seat, tileId);
-    const discardEvent: DiscardEvent = {
-        isRiichi: false,
-        isTsumogiri: false,
-        seat,
-        tileId,
-        type: "discard",
-    };
-    return applyEvent(state, discardEvent);
+    return applyEvent(state, makeDiscardEvent({ seat, tileId }));
 }
 
 function stateWithPon() {
     // Bob (seat 1) discards tile 38 (1p), Alice calls pon with [36, 37, 38]
     const state = stateWithDiscard(1, 38);
-    const ponEvent: MeldEvent = {
+    const ponEvent = makeMeldEvent({
         calledTileId: 38,
         callerSeat: 0,
         fromSeat: 1,
         meldType: "pon",
         tileIds: [36, 37, 38],
-        type: "meld",
-    };
+    });
     return applyEvent(state, ponEvent);
 }
 
 function stateWithChiAndPon() {
     // Diana (seat 3) discards tile 5, Alice calls chi
     let state = stateWithDiscard(3, 5);
-    const chiEvent: MeldEvent = {
+    const chiEvent = makeMeldEvent({
         calledTileId: 5,
         callerSeat: 0,
         fromSeat: 3,
         meldType: "chi",
         tileIds: [0, 5, 8],
-        type: "meld",
-    };
+    });
     state = applyEvent(state, chiEvent);
 
     // Bob draws 38, then discards it; Alice pons with 36, 37
     state = drawTile(state, 1, 38);
-    state = applyEvent(state, {
-        isRiichi: false,
-        isTsumogiri: false,
-        seat: 1,
-        tileId: 38,
-        type: "discard",
-    } as DiscardEvent);
-    const ponEvent: MeldEvent = {
+    state = applyEvent(state, makeDiscardEvent({ seat: 1, tileId: 38 }));
+    const ponEvent = makeMeldEvent({
         calledTileId: 38,
         callerSeat: 0,
         fromSeat: 1,
         meldType: "pon",
         tileIds: [36, 37, 38],
-        type: "meld",
-    };
+    });
     return applyEvent(state, ponEvent);
 }
 
@@ -140,14 +101,13 @@ describe("applyEvent - meld - chi", () => {
 
         // Alice has tiles [0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 36, 37]
         // Chi: tiles [0, 5, 8] where 5 is the called tile from Diana
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 5,
             callerSeat: 0,
             fromSeat: 3,
             meldType: "chi",
             tileIds: [0, 5, 8],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         // Tiles 0 and 8 removed from Alice's hand (5 was from discard, not in hand)
@@ -161,14 +121,13 @@ describe("applyEvent - meld - chi", () => {
     test("marks last discard of fromSeat as claimed", () => {
         const state = stateWithDiscard(3, 5);
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 5,
             callerSeat: 0,
             fromSeat: 3,
             meldType: "chi",
             tileIds: [0, 5, 8],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         const dianaDiscards = next.players[3].discards;
@@ -179,14 +138,13 @@ describe("applyEvent - meld - chi", () => {
         // Give Alice a drawn tile, then call chi
         const state = drawTile(stateWithDiscard(3, 5), 0, 53);
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 5,
             callerSeat: 0,
             fromSeat: 3,
             meldType: "chi",
             tileIds: [0, 5, 8],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         expect(next.players[0].drawnTileId).toBeNull();
@@ -199,14 +157,13 @@ describe("applyEvent - meld - pon", () => {
         const state = stateWithDiscard(1, 38);
 
         // Pon: Alice calls with [36, 37, 38] - calledTile 38 from Bob
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 38,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "pon",
             tileIds: [36, 37, 38],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         expect(next.players[0].tiles).not.toContain(36);
@@ -219,14 +176,13 @@ describe("applyEvent - meld - pon", () => {
     test("marks last discard of fromSeat as claimed", () => {
         const state = stateWithDiscard(1, 38);
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 38,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "pon",
             tileIds: [36, 37, 38],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         const bobDiscards = next.players[1].discards;
@@ -239,14 +195,13 @@ describe("applyEvent - meld - open_kan", () => {
         // Alice has tiles 0, 1, 2 (three 1m copies). Bob discards tile 3 (fourth 1m copy).
         const state = stateWithDiscard(1, 3);
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 3,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "open_kan",
             tileIds: [0, 1, 2, 3],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         expect(next.players[0].tiles).not.toContain(0);
@@ -259,14 +214,13 @@ describe("applyEvent - meld - open_kan", () => {
     test("marks last discard of fromSeat as claimed", () => {
         const state = stateWithDiscard(1, 3);
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 3,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "open_kan",
             tileIds: [0, 1, 2, 3],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         const bobDiscards = next.players[1].discards;
@@ -276,14 +230,13 @@ describe("applyEvent - meld - open_kan", () => {
 
 describe("applyEvent - meld - closed_kan", () => {
     function makeClosedKanEvent(): MeldEvent {
-        return {
+        return makeMeldEvent({
             calledTileId: null,
             callerSeat: 0,
             fromSeat: null,
             meldType: "closed_kan",
             tileIds: [0, 1, 2, 3],
-            type: "meld",
-        };
+        });
     }
 
     function stateReadyForClosedKan() {
@@ -327,14 +280,13 @@ describe("applyEvent - meld - added_kan", () => {
         // calledTileId is the original pon's called tile (38).
         // The handler derives the added tile (39) by comparing
         // event.tileIds against the existing pon's tileIds.
-        return {
+        return makeMeldEvent({
             calledTileId: 38,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "added_kan",
             tileIds: [36, 37, 38, 39],
-            type: "meld",
-        };
+        });
     }
 
     test("removes 1 tile from caller's hand and replaces matching pon meld", () => {
@@ -379,14 +331,13 @@ describe("applyEvent - meld - added_kan", () => {
 
     test("throws when no matching pon exists for added_kan", () => {
         const state = stateAfterRoundStarted();
-        const addedKanEvent: MeldEvent = {
+        const addedKanEvent = makeMeldEvent({
             calledTileId: 38,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "added_kan",
             tileIds: [36, 37, 38, 39],
-            type: "meld",
-        };
+        });
         expect(() => applyEvent(state, addedKanEvent)).toThrow(
             "No matching pon found for added_kan at seat 0",
         );
@@ -397,14 +348,13 @@ describe("applyEvent - meld - description", () => {
     test("generates description with player name, meld type, and tile name", () => {
         const state = stateWithDiscard(1, 38);
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 38,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "pon",
             tileIds: [36, 37, 38],
-            type: "meld",
-        };
+        });
         const next = applyEvent(state, meldEvent);
 
         // tileId 38 = 1p (copy index 2 of tile-34 index 9, which is 1p)
@@ -419,14 +369,13 @@ describe("applyEvent - meld - immutability", () => {
         const originalMelds = [...state.players[0].melds];
         const originalDiscards = [...state.players[1].discards];
 
-        const meldEvent: MeldEvent = {
+        const meldEvent = makeMeldEvent({
             calledTileId: 38,
             callerSeat: 0,
             fromSeat: 1,
             meldType: "pon",
             tileIds: [36, 37, 38],
-            type: "meld",
-        };
+        });
         applyEvent(state, meldEvent);
 
         expect(state.players[0].tiles).toEqual(originalTiles);

@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
 
+import {
+    makeDrawEvent,
+    makeGameEndEvent,
+    makeGameStartedEvent,
+    makeRoundStartedEvent,
+    makeTsumoRoundEnd,
+} from "#tests/fixtures/events";
+import { loadEngineReplay } from "#tests/fixtures/replays";
 import { buildActionSteps } from "@/entities/table/model/action-steps";
 import {
     type NavigationIndex,
@@ -9,92 +17,6 @@ import {
 } from "@/entities/table/model/navigation-index";
 import { buildTimeline } from "@/entities/table/model/timeline";
 import { type ReplayEvent } from "@/entities/table/model/types";
-import {
-    type DrawEvent,
-    type GameEndEvent,
-    type GameStartedEvent,
-    ROUND_RESULT_TYPE,
-    type RoundStartedEvent,
-    type TsumoRoundEnd,
-} from "@/shared/protocol";
-
-function makeGameStartedEvent(): GameStartedEvent {
-    return {
-        dealerDice: [
-            [2, 3],
-            [4, 5],
-        ],
-        dealerSeat: 0,
-        gameId: "test-game",
-        players: [
-            { isAiPlayer: false, name: "Alice", seat: 0 },
-            { isAiPlayer: true, name: "Bot-1", seat: 1 },
-            { isAiPlayer: true, name: "Bot-2", seat: 2 },
-            { isAiPlayer: false, name: "Bob", seat: 3 },
-        ],
-        type: "game_started",
-    };
-}
-
-function makeRoundStartedEvent(overrides?: Partial<RoundStartedEvent>): RoundStartedEvent {
-    return {
-        currentPlayerSeat: 0,
-        dealerSeat: 0,
-        dice: [3, 4],
-        doraIndicators: [10],
-        honbaSticks: 0,
-        myTiles: null,
-        players: [
-            { score: 25_000, seat: 0, tiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
-            { score: 25_000, seat: 1, tiles: [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25] },
-            { score: 25_000, seat: 2, tiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38] },
-            { score: 25_000, seat: 3, tiles: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51] },
-        ],
-        riichiSticks: 0,
-        roundNumber: 1,
-        seat: null,
-        type: "round_started",
-        wind: 0,
-        ...overrides,
-    };
-}
-
-function makeDrawEvent(seat: number, tileId: number): DrawEvent {
-    return {
-        availableActions: [],
-        seat,
-        tileId,
-        type: "draw",
-    };
-}
-
-function makeTsumoRoundEnd(winnerSeat: number, scores: Record<string, number>): TsumoRoundEnd {
-    return {
-        closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        handResult: { fu: 30, han: 4, yaku: [{ han: 1, yakuId: 0 }] },
-        melds: [],
-        resultType: ROUND_RESULT_TYPE.TSUMO,
-        scoreChanges: scores,
-        scores,
-        type: "round_end",
-        winnerSeat,
-        winningTile: 52,
-    } as TsumoRoundEnd;
-}
-
-function makeGameEndEvent(): GameEndEvent {
-    return {
-        numRounds: 2,
-        standings: [
-            { finalScore: 40, score: 40_000, seat: 0 },
-            { finalScore: 20, score: 20_000, seat: 1 },
-            { finalScore: 20, score: 20_000, seat: 2 },
-            { finalScore: 20, score: 20_000, seat: 3 },
-        ],
-        type: "game_end",
-        winnerSeat: 0,
-    };
-}
 
 function buildNavInputs(events: ReplayEvent[]) {
     const states = buildTimeline(events);
@@ -106,11 +28,11 @@ function buildTwoRoundNavIndex() {
     const events: ReplayEvent[] = [
         makeGameStartedEvent(),
         makeRoundStartedEvent({ honbaSticks: 0, roundNumber: 1, wind: 0 }),
-        makeDrawEvent(0, 52),
-        makeTsumoRoundEnd(0, { "0": 33_000, "1": 22_300, "2": 22_300, "3": 22_300 }),
+        makeDrawEvent({ seat: 0, tileId: 52 }),
+        makeTsumoRoundEnd({ winnerSeat: 0 }),
         makeRoundStartedEvent({ honbaSticks: 1, roundNumber: 2, wind: 0 }),
-        makeDrawEvent(0, 53),
-        makeTsumoRoundEnd(0, { "0": 41_000, "1": 19_600, "2": 19_600, "3": 19_600 }),
+        makeDrawEvent({ seat: 0, tileId: 53 }),
+        makeTsumoRoundEnd({ winnerSeat: 0 }),
         makeGameEndEvent(),
     ];
     const { actionSteps, states } = buildNavInputs(events);
@@ -142,10 +64,10 @@ describe("buildNavigationIndex", () => {
         const events: ReplayEvent[] = [
             makeGameStartedEvent(),
             makeRoundStartedEvent(),
-            makeDrawEvent(0, 52), // batched with round_started (not a separate turn)
-            makeDrawEvent(1, 53),
-            makeDrawEvent(2, 54),
-            makeTsumoRoundEnd(2, { "0": 22_000, "1": 22_000, "2": 34_000, "3": 22_000 }),
+            makeDrawEvent({ seat: 0, tileId: 52 }),
+            makeDrawEvent({ seat: 1, tileId: 53 }),
+            makeDrawEvent({ seat: 2, tileId: 54 }),
+            makeTsumoRoundEnd({ winnerSeat: 2 }),
             makeGameEndEvent(),
         ];
 
@@ -197,12 +119,12 @@ describe("buildNavigationIndex", () => {
         const events: ReplayEvent[] = [
             makeGameStartedEvent(),
             makeRoundStartedEvent({ roundNumber: 1, wind: 0 }),
-            makeDrawEvent(0, 52), // batched with round_started
-            makeDrawEvent(1, 53),
-            makeTsumoRoundEnd(0, { "0": 33_000, "1": 22_300, "2": 22_300, "3": 22_300 }),
+            makeDrawEvent({ seat: 0, tileId: 52 }),
+            makeDrawEvent({ seat: 1, tileId: 53 }),
+            makeTsumoRoundEnd({ winnerSeat: 0 }),
             makeRoundStartedEvent({ roundNumber: 2, wind: 0 }),
-            makeDrawEvent(0, 54), // batched with round_started
-            makeTsumoRoundEnd(0, { "0": 41_000, "1": 19_600, "2": 19_600, "3": 19_600 }),
+            makeDrawEvent({ seat: 0, tileId: 54 }),
+            makeTsumoRoundEnd({ winnerSeat: 0 }),
             makeGameEndEvent(),
         ];
 
@@ -223,9 +145,9 @@ describe("single-round game", () => {
         const events: ReplayEvent[] = [
             makeGameStartedEvent(),
             makeRoundStartedEvent({ honbaSticks: 0, roundNumber: 1, wind: 0 }),
-            makeDrawEvent(0, 52),
-            makeDrawEvent(1, 53),
-            makeTsumoRoundEnd(0, { "0": 33_000, "1": 22_300, "2": 22_300, "3": 22_300 }),
+            makeDrawEvent({ seat: 0, tileId: 52 }),
+            makeDrawEvent({ seat: 1, tileId: 53 }),
+            makeTsumoRoundEnd({ winnerSeat: 0 }),
             makeGameEndEvent(),
         ];
         const { actionSteps, states } = buildNavInputs(events);
@@ -267,8 +189,8 @@ describe("game ending mid-round (no round_end before game_end)", () => {
         const events: ReplayEvent[] = [
             makeGameStartedEvent(),
             makeRoundStartedEvent({ honbaSticks: 0, roundNumber: 1, wind: 0 }),
-            makeDrawEvent(0, 52),
-            makeDrawEvent(1, 53),
+            makeDrawEvent({ seat: 0, tileId: 52 }),
+            makeDrawEvent({ seat: 1, tileId: 53 }),
             // game_end directly without round_end
             makeGameEndEvent(),
         ];
@@ -321,5 +243,32 @@ describe("turnsForStep", () => {
 
         expect(turnsForStep(navIndex, 0)).toEqual([]);
         expect(turnsForStep(navIndex, 1)).toEqual([]);
+    });
+});
+
+describe("buildNavigationIndex - engine replays", () => {
+    test("lists every round of a played-out game with its honba and result", () => {
+        const events = loadEngineReplay("eager_game");
+        const { actionSteps, states } = buildNavInputs(events);
+        const navIndex = buildNavigationIndex(events, actionSteps, states);
+
+        expect(
+            navIndex.rounds.map((round) => [
+                round.wind,
+                round.roundNumber,
+                round.honba,
+                round.resultDescription,
+            ]),
+        ).toEqual([
+            [0, 0, 0, "Tsumo by Diana"],
+            [0, 1, 0, "Tsumo by Bob"],
+            [0, 2, 1, "Ron by Charlie from Alice"],
+            [0, 3, 0, "Exhaustive draw"],
+            [0, 4, 1, "Ron by Charlie from Diana"],
+            [1, 5, 0, "Ron by Bob from Charlie"],
+            [1, 6, 0, "Tsumo by Charlie"],
+            [1, 7, 0, "Ron by Bob from Alice"],
+            [1, 8, 0, "Tsumo by Diana"],
+        ]);
     });
 });

@@ -1,67 +1,26 @@
 import { describe, expect, test } from "vitest";
 
+import {
+    makeAbortiveDrawRoundEnd,
+    makeDiscardEvent,
+    makeDoraRevealedEvent,
+    makeDoubleRonRoundEnd,
+    makeDrawEvent,
+    makeExhaustiveDrawRoundEnd,
+    makeGameEndEvent,
+    makeGameStartedEvent,
+    makeHandResult,
+    makeMeldEvent,
+    makeNagashiManganRoundEnd,
+    makeRiichiDeclaredEvent,
+    makeRonRoundEnd,
+    makeRoundStartedEvent,
+    makeTsumoRoundEnd,
+} from "#tests/fixtures/events";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type ReplayEvent } from "@/entities/table/model/types";
-import {
-    type AbortiveDrawRoundEnd,
-    type DiscardEvent,
-    type DoraRevealedEvent,
-    type DoubleRonRoundEnd,
-    type DrawEvent,
-    type ExhaustiveDrawRoundEnd,
-    type GameEndEvent,
-    type GameStartedEvent,
-    type MeldEvent,
-    type NagashiManganRoundEnd,
-    ROUND_RESULT_TYPE,
-    type RiichiDeclaredEvent,
-    type RonRoundEnd,
-    type RoundStartedEvent,
-    type TsumoRoundEnd,
-} from "@/shared/protocol";
-
-function makeGameStartedEvent(overrides?: Partial<GameStartedEvent>): GameStartedEvent {
-    return {
-        dealerDice: [
-            [2, 3],
-            [4, 5],
-        ],
-        dealerSeat: 0,
-        gameId: "test-game-1",
-        players: [
-            { isAiPlayer: false, name: "Alice", seat: 0 },
-            { isAiPlayer: true, name: "Bot-1", seat: 1 },
-            { isAiPlayer: true, name: "Bot-2", seat: 2 },
-            { isAiPlayer: false, name: "Bob", seat: 3 },
-        ],
-        type: "game_started",
-        ...overrides,
-    };
-}
-
-function makeRoundStartedEvent(overrides?: Partial<RoundStartedEvent>): RoundStartedEvent {
-    return {
-        currentPlayerSeat: 0,
-        dealerSeat: 0,
-        dice: [3, 4],
-        doraIndicators: [10],
-        honbaSticks: 0,
-        myTiles: null,
-        players: [
-            { score: 25_000, seat: 0, tiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
-            { score: 25_000, seat: 1, tiles: [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25] },
-            { score: 25_000, seat: 2, tiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38] },
-            { score: 25_000, seat: 3, tiles: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51] },
-        ],
-        riichiSticks: 0,
-        roundNumber: 1,
-        seat: null,
-        type: "round_started",
-        wind: 0,
-        ...overrides,
-    };
-}
+import { ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
     test("sets phase to pre_game with 4 players at score 0", () => {
@@ -273,27 +232,6 @@ function stateAfterRoundStarted() {
     return applyEvent(s1, makeRoundStartedEvent());
 }
 
-function makeDrawEvent(overrides?: Partial<DrawEvent>): DrawEvent {
-    return {
-        availableActions: [],
-        seat: 0,
-        tileId: 52,
-        type: "draw",
-        ...overrides,
-    };
-}
-
-function makeDiscardEvent(overrides?: Partial<DiscardEvent>): DiscardEvent {
-    return {
-        isRiichi: false,
-        isTsumogiri: false,
-        seat: 0,
-        tileId: 52,
-        type: "discard",
-        ...overrides,
-    };
-}
-
 describe("applyEvent - draw throws for invalid seat", () => {
     test("throws when no player matches the draw seat", () => {
         const state = stateAfterRoundStarted();
@@ -438,37 +376,6 @@ describe("applyEvent - discard", () => {
     });
 });
 
-function makeRiichiDeclaredEvent(overrides?: Partial<RiichiDeclaredEvent>): RiichiDeclaredEvent {
-    return {
-        seat: 0,
-        type: "riichi_declared",
-        ...overrides,
-    };
-}
-
-function makeDoraRevealedEvent(overrides?: Partial<DoraRevealedEvent>): DoraRevealedEvent {
-    return {
-        tileId: 20,
-        type: "dora_revealed",
-        ...overrides,
-    };
-}
-
-function makeGameEndEvent(overrides?: Partial<GameEndEvent>): GameEndEvent {
-    return {
-        numRounds: 8,
-        standings: [
-            { finalScore: 45, score: 35_000, seat: 0 },
-            { finalScore: 12, score: 22_000, seat: 1 },
-            { finalScore: -8, score: 18_000, seat: 2 },
-            { finalScore: -49, score: 25_000, seat: 3 },
-        ],
-        type: "game_end",
-        winnerSeat: 0,
-        ...overrides,
-    };
-}
-
 describe("applyEvent - riichi_declared", () => {
     test("marks player as riichi", () => {
         const state = stateAfterRoundStarted();
@@ -551,10 +458,9 @@ describe("applyEvent - game_end", () => {
         const state = stateAfterRoundStarted();
         const next = applyEvent(state, makeGameEndEvent());
 
-        expect(next.players[0].score).toBe(35_000);
-        expect(next.players[1].score).toBe(22_000);
-        expect(next.players[2].score).toBe(18_000);
-        expect(next.players[3].score).toBe(25_000);
+        expect(next.players.map((player) => player.score)).toEqual([
+            35_000, 22_000, 22_000, 21_000,
+        ]);
     });
 
     test("generates description with winner name", () => {
@@ -583,133 +489,20 @@ describe("applyEvent - game_end", () => {
 
 // --- round_end helpers and tests ---
 
-function makeTsumoRoundEnd(overrides?: Partial<TsumoRoundEnd>): TsumoRoundEnd {
-    return {
-        closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        handResult: { fu: 30, han: 4, yaku: [{ han: 1, yakuId: 0 }] },
-        melds: [],
-        paoSeat: null,
-        resultType: ROUND_RESULT_TYPE.TSUMO,
-        riichiSticksCollected: 0,
-        scoreChanges: { "0": 10_000, "1": -3000, "2": -3000, "3": -4000 },
-        scores: { "0": 35_000, "1": 22_000, "2": 18_000, "3": 25_000 },
-        type: "round_end",
-        uraDoraIndicators: null,
-        winnerSeat: 0,
-        winningTile: 52,
-        ...overrides,
-    };
-}
-
-function makeRonRoundEnd(overrides?: Partial<RonRoundEnd>): RonRoundEnd {
-    return {
-        closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        handResult: { fu: 30, han: 3, yaku: [{ han: 1, yakuId: 0 }] },
-        loserSeat: 1,
-        melds: [],
-        paoSeat: null,
-        resultType: ROUND_RESULT_TYPE.RON,
-        riichiSticksCollected: 0,
-        scoreChanges: { "0": 8000, "1": -8000, "2": 0, "3": 0 },
-        scores: { "0": 33_000, "1": 17_000, "2": 25_000, "3": 25_000 },
-        type: "round_end",
-        uraDoraIndicators: null,
-        winnerSeat: 0,
-        winningTile: 52,
-        ...overrides,
-    };
-}
-
-function makeDoubleRonRoundEnd(overrides?: Partial<DoubleRonRoundEnd>): DoubleRonRoundEnd {
-    return {
-        loserSeat: 1,
-        resultType: ROUND_RESULT_TYPE.DOUBLE_RON,
-        scoreChanges: { "0": 8000, "1": -16_000, "2": 8000, "3": 0 },
-        scores: { "0": 33_000, "1": 9000, "2": 33_000, "3": 25_000 },
-        type: "round_end",
-        winners: [
-            {
-                closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                handResult: { fu: 30, han: 3, yaku: [{ han: 1, yakuId: 0 }] },
-                melds: [],
-                paoSeat: null,
-                riichiSticksCollected: 0,
-                uraDoraIndicators: null,
-                winnerSeat: 0,
-            },
-            {
-                closedTiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
-                handResult: { fu: 30, han: 3, yaku: [{ han: 1, yakuId: 0 }] },
-                melds: [],
-                paoSeat: null,
-                riichiSticksCollected: 0,
-                uraDoraIndicators: null,
-                winnerSeat: 2,
-            },
-        ],
-        winningTile: 52,
-        ...overrides,
-    };
-}
-
-function makeExhaustiveDrawRoundEnd(
-    overrides?: Partial<ExhaustiveDrawRoundEnd>,
-): ExhaustiveDrawRoundEnd {
-    return {
-        notenSeats: [1, 3],
-        resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
-        scoreChanges: { "0": 1500, "1": -1500, "2": 1500, "3": -1500 },
-        scores: { "0": 26_500, "1": 23_500, "2": 26_500, "3": 23_500 },
-        tenpaiHands: [
-            { closedTiles: [0, 1, 2], melds: [], seat: 0 },
-            { closedTiles: [26, 27, 28], melds: [], seat: 2 },
-        ],
-        tenpaiSeats: [0, 2],
-        type: "round_end",
-        ...overrides,
-    };
-}
-
-function makeAbortiveDrawRoundEnd(overrides?: Partial<AbortiveDrawRoundEnd>): AbortiveDrawRoundEnd {
-    return {
-        reason: "four_winds",
-        resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-        scoreChanges: { "0": 0, "1": 0, "2": 0, "3": 0 },
-        scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
-        seat: null,
-        type: "round_end",
-        ...overrides,
-    };
-}
-
-function makeNagashiManganRoundEnd(
-    overrides?: Partial<NagashiManganRoundEnd>,
-): NagashiManganRoundEnd {
-    return {
-        notenSeats: [1, 2, 3],
-        qualifyingSeats: [0],
-        resultType: ROUND_RESULT_TYPE.NAGASHI_MANGAN,
-        scoreChanges: { "0": 12_000, "1": -4000, "2": -4000, "3": -4000 },
-        scores: { "0": 37_000, "1": 21_000, "2": 21_000, "3": 21_000 },
-        tenpaiHands: [{ closedTiles: [0, 1, 2], melds: [], seat: 0 }],
-        tenpaiSeats: [0],
-        type: "round_end",
-        ...overrides,
-    };
-}
-
 describe("applyEvent - round_end", () => {
     describe("tsumo", () => {
-        test("updates scores and sets phase to round_ended", () => {
+        test("settles each score from the event's pre-payment score and sets round_ended", () => {
             const state = stateAfterRoundStarted();
-            const event = makeTsumoRoundEnd();
+            const event = makeTsumoRoundEnd({
+                scores: { "0": 25_000, "1": 24_000, "2": 25_000, "3": 25_000 },
+            });
             const next = applyEvent(state, event);
 
             expect(next.phase).toBe("round_ended");
-            expect(next.players[0].score).toBe(35_000);
-            expect(next.players[1].score).toBe(22_000);
-            expect(next.players[2].score).toBe(18_000);
-            expect(next.players[3].score).toBe(25_000);
+            expect(next.players.map((player) => player.score)).toEqual([
+                35_000, 21_000, 22_000, 21_000,
+            ]);
+            expect(next.roundEndResult?.scoresBeforePayment).toEqual(event.scores);
         });
 
         test("description includes winner name", () => {
@@ -855,7 +648,7 @@ describe("applyEvent - round_end result data", () => {
     test("tsumo populates yaku list and han/fu totals", () => {
         const state = stateAfterRoundStarted();
         const event = makeTsumoRoundEnd({
-            handResult: {
+            handResult: makeHandResult({
                 fu: 30,
                 han: 4,
                 yaku: [
@@ -864,7 +657,7 @@ describe("applyEvent - round_end result data", () => {
                     { han: 1, yakuId: 12 },
                     { han: 1, yakuId: 120 },
                 ],
-            },
+            }),
         });
         const next = applyEvent(state, event);
         const [winner] = next.roundEndResult!.winners;
@@ -970,25 +763,10 @@ describe("applyEvent - round_end result data", () => {
 describe("applyEvent - game_end result data", () => {
     test("populates gameEndResult with standings and finalScore", () => {
         const state = stateAfterRoundStarted();
-        const event = makeGameEndEvent({
-            standings: [
-                { finalScore: 45, score: 35_000, seat: 0 },
-                { finalScore: 12, score: 22_000, seat: 1 },
-                { finalScore: -8, score: 18_000, seat: 2 },
-                { finalScore: -49, score: 25_000, seat: 3 },
-            ],
-            winnerSeat: 0,
-        });
+        const event = makeGameEndEvent({ winnerSeat: 0 });
         const next = applyEvent(state, event);
 
-        expect(next.gameEndResult).not.toBeNull();
-        expect(next.gameEndResult!.winnerSeat).toBe(0);
-        expect(next.gameEndResult!.standings).toEqual([
-            { finalScore: 45, score: 35_000, seat: 0 },
-            { finalScore: 12, score: 22_000, seat: 1 },
-            { finalScore: -8, score: 18_000, seat: 2 },
-            { finalScore: -49, score: 25_000, seat: 3 },
-        ]);
+        expect(next.gameEndResult).toEqual({ standings: event.standings, winnerSeat: 0 });
     });
 });
 
@@ -1031,12 +809,7 @@ describe("applyEvent - result clearing", () => {
 // riichi_declared -> discard (riichi) -> dora_revealed -> round_end (tsumo) -> game_end
 
 function makeIntegrationSetupEvents() {
-    const gameStarted: GameStartedEvent = {
-        dealerDice: [
-            [2, 3],
-            [4, 5],
-        ],
-        dealerSeat: 0,
+    const gameStarted = makeGameStartedEvent({
         gameId: "integration-test",
         players: [
             { isAiPlayer: false, name: "Alice", seat: 0 },
@@ -1044,121 +817,63 @@ function makeIntegrationSetupEvents() {
             { isAiPlayer: true, name: "Bot-1", seat: 2 },
             { isAiPlayer: true, name: "Bot-2", seat: 3 },
         ],
-        type: "game_started",
-    };
+    });
 
-    const roundStarted: RoundStartedEvent = {
-        currentPlayerSeat: 0,
-        dealerSeat: 0,
-        dice: [3, 4],
-        doraIndicators: [10],
-        honbaSticks: 0,
-        myTiles: null,
+    const roundStarted = makeRoundStartedEvent({
         players: [
             { score: 25_000, seat: 0, tiles: [0, 4, 5, 6, 7, 8, 9, 10, 11, 53, 54, 55, 56] },
             { score: 25_000, seat: 1, tiles: [1, 2, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 57] },
             { score: 25_000, seat: 2, tiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38] },
             { score: 25_000, seat: 3, tiles: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51] },
         ],
-        riichiSticks: 0,
-        roundNumber: 1,
-        seat: null,
-        type: "round_started",
-        wind: 0,
-    };
+    });
 
     return { gameStarted, roundStarted };
 }
 
 function makeIntegrationMidGameEvents() {
     // Dealer (seat 0) draws tile 52
-    const draw: DrawEvent = {
-        availableActions: [],
-        seat: 0,
-        tileId: 52,
-        type: "draw",
-    };
+    const draw = makeDrawEvent({ seat: 0, tileId: 52 });
 
     // Dealer discards tile 0 (1m) from their hand
-    const discard: DiscardEvent = {
-        isRiichi: false,
-        isTsumogiri: false,
-        seat: 0,
-        tileId: 0,
-        type: "discard",
-    };
+    const discard = makeDiscardEvent({ seat: 0, tileId: 0 });
 
     // Seat 1 calls pon on tile 0 (1m) using tiles [1, 2] from hand + [0] called
-    const meld: MeldEvent = {
+    const meld = makeMeldEvent({
         calledTileId: 0,
         callerSeat: 1,
         fromSeat: 0,
         meldType: "pon",
         tileIds: [1, 2, 0],
-        type: "meld",
-    };
+    });
 
     // Seat 1 discards tile 16 after the pon
-    const discardAfterMeld: DiscardEvent = {
-        isRiichi: false,
-        isTsumogiri: false,
-        seat: 1,
-        tileId: 16,
-        type: "discard",
-    };
+    const discardAfterMeld = makeDiscardEvent({ seat: 1, tileId: 16 });
 
     return { discard, discardAfterMeld, draw, meld };
 }
 
 function makeIntegrationLateGameEvents() {
     // Seat 2 draws and declares riichi
-    const drawSeat2: DrawEvent = {
-        availableActions: [],
-        seat: 2,
-        tileId: 58,
-        type: "draw",
-    };
-
-    const riichiDeclared: RiichiDeclaredEvent = {
-        seat: 2,
-        type: "riichi_declared",
-    };
-
-    const riichiDiscard: DiscardEvent = {
-        isRiichi: true,
-        isTsumogiri: false,
-        seat: 2,
-        tileId: 26,
-        type: "discard",
-    };
-
-    const doraRevealed: DoraRevealedEvent = {
-        tileId: 60,
-        type: "dora_revealed",
-    };
+    const drawSeat2 = makeDrawEvent({ seat: 2, tileId: 58 });
+    const riichiDeclared = makeRiichiDeclaredEvent({ seat: 2 });
+    const riichiDiscard = makeDiscardEvent({ isRiichi: true, seat: 2, tileId: 26 });
+    const doraRevealed = makeDoraRevealedEvent({ tileId: 60 });
 
     return { doraRevealed, drawSeat2, riichiDeclared, riichiDiscard };
 }
 
 function makeIntegrationEndEvents() {
     // Round ends with tsumo by seat 0
-    const roundEnd: TsumoRoundEnd = {
+    const roundEnd = makeTsumoRoundEnd({
         closedTiles: [4, 5, 6, 7, 8, 9, 10, 11, 53, 54, 55, 56, 52],
-        handResult: { fu: 30, han: 4, yaku: [{ han: 1, yakuId: 0 }] },
-        melds: [],
-        paoSeat: null,
-        resultType: ROUND_RESULT_TYPE.TSUMO,
-        riichiSticksCollected: 0,
         scoreChanges: { "0": 12_000, "1": -4000, "2": -4000, "3": -4000 },
-        scores: { "0": 37_000, "1": 21_000, "2": 21_000, "3": 21_000 },
-        type: "round_end",
-        uraDoraIndicators: null,
         winnerSeat: 0,
         winningTile: 52,
-    };
+    });
 
     // Game ends
-    const gameEnd: GameEndEvent = {
+    const gameEnd = makeGameEndEvent({
         numRounds: 1,
         standings: [
             { finalScore: 47, score: 37_000, seat: 0 },
@@ -1166,9 +881,8 @@ function makeIntegrationEndEvents() {
             { finalScore: -9, score: 21_000, seat: 2 },
             { finalScore: -29, score: 21_000, seat: 3 },
         ],
-        type: "game_end",
         winnerSeat: 0,
-    };
+    });
 
     return { gameEnd, roundEnd };
 }

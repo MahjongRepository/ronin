@@ -1,6 +1,15 @@
-import { describe, expect, test } from "vitest";
+import { assert, describe, expect, test } from "vitest";
 
-import { type NavigationIndex, type ReplayEvent } from "@/entities/table";
+import { ENGINE_REPLAYS } from "#tests/fixtures/replays";
+import {
+    type BoardDisplayState,
+    type NavigationIndex,
+    type ReplayEvent,
+    buildActionSteps,
+    buildNavigationIndex,
+    buildTimeline,
+    tableStateToDisplayState,
+} from "@/entities/table";
 import { type ParsedServerMessage, REPLAY_VERSION, parseServerMessage } from "@/shared/protocol";
 import {
     formatStepCounter,
@@ -111,20 +120,25 @@ describe("parseReplayLines - event parsing", () => {
     });
 });
 
-const FIXTURE_REPLAYS: Record<string, string> = import.meta.glob("../fixtures/replays/*.txt", {
-    eager: true,
-    import: "default",
-    query: "?raw",
-});
+function buildBoards(events: ReplayEvent[]): (BoardDisplayState | null)[] {
+    const states = buildTimeline(events);
+    const steps = buildActionSteps(events);
+    buildNavigationIndex(events, steps, states);
+    return steps.map((step) => tableStateToDisplayState(states[step.stateIndex]));
+}
 
 describe("parseReplayLines - engine fixtures", () => {
-    test("parses every replay the engine records without an error", () => {
-        const fixtures = Object.entries(FIXTURE_REPLAYS);
-        expect(fixtures.length).toBeGreaterThan(0);
-        for (const [path, text] of fixtures) {
+    test("loads every replay the engine records and maps each of its steps to a board", () => {
+        expect(ENGINE_REPLAYS.size).toBeGreaterThan(0);
+        for (const [name, text] of ENGINE_REPLAYS) {
             const parsed = parseReplayLines(text);
-            expect(parsed.ok ? parsed.errors : [parsed.refusal], path).toEqual([]);
-            expect(parsed.ok && parsed.events.length > 0, path).toBe(true);
+            expect(parsed.ok ? parsed.errors : [parsed.refusal], name).toEqual([]);
+            assert(parsed.ok);
+            expect(parsed.events.length, name).toBeGreaterThan(0);
+
+            const boards = buildBoards(parsed.events);
+            expect(boards.length, name).toBeGreaterThan(1);
+            expect(boards.indexOf(null), name).toBe(-1);
         }
     });
 });

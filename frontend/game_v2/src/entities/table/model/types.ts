@@ -51,6 +51,8 @@ export interface RoundEndResult {
     resultType: RoundEndEvent["resultType"];
     winners: WinnerResult[];
     scoreChanges: Record<string, number>;
+    /** The wire's `scores`: after riichi deposits, before this round's payments. */
+    scoresBeforePayment: Record<string, number>;
     doraIndicators: number[];
     uraDoraIndicators: number[];
     loserSeat?: number;

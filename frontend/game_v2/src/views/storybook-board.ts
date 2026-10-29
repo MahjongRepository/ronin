@@ -267,6 +267,7 @@ const mockRoundEnd: RoundEndResult = {
     doraIndicators: [16, 56],
     resultType: ROUND_RESULT_TYPE.TSUMO,
     scoreChanges: { "0": 8000, "1": -4000, "2": -2000, "3": -2000 },
+    scoresBeforePayment: { "0": 25_000, "1": 25_000, "2": 27_000, "3": 23_000 },
     uraDoraIndicators: [28],
     winners: [
         {

@@ -67,11 +67,22 @@ rather than introducing new FSD layers:
 
 Vitest. UI tests render lit templates into a DOM element and assert on the result; logic tests call
 the module directly. Tests live in `tests/`, outside `src/`, at the path of the module they cover
-(`tests/entities/tile/hand.test.ts` for `src/entities/tile/hand.ts`), and import it through `@/`;
-a module whose tests need different file-level `vi.mock`s gets a second, suffixed file
-(`tests/views/replay-click-outside.test.ts`). The replay files under `tests/fixtures/replays/` are
-generated, never edited by hand: `make generate-replay-fixtures` records each from a game the engine
-plays (`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
-records now. A new replay case is a new scenario there. The `describe` block
-names the subject (the module or function under test) and the `it` title says what it pins; tests
-carry no doc comments, and source files carry no file-header comment.
+(`tests/entities/tile/hand.test.ts` for `src/entities/tile/hand.ts`), and import it through `@/`; a
+module whose tests need different file-level `vi.mock`s gets a second, suffixed file
+(`tests/views/replay-click-outside.test.ts`). `tsconfig.json` includes `tests`, so
+`npm run typecheck` checks them like `src`. Test helpers live in `tests/fixtures/` and are imported
+through the `#tests/` subpath import (`package.json` `imports`), since a relative parent import
+fails lint. Build protocol events with the event factories there, typed by the schemas' output,
+rather than as literals repeated across tests, so a schema change fails the typecheck and is fixed
+in one place.
+
+The replay files under `tests/fixtures/replays/` are generated, never edited by hand:
+`make generate-replay-fixtures` records each from a game the engine plays
+(`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
+records now. A new replay case is a new scenario there. Tests load them through the fixtures'
+loader, which parses them as the replay view does, and the model's tests assert outcomes on them,
+not only that they run: literals for what the model computes, and a field the model passes through
+compared with the event it came from.
+
+The `describe` block names the subject (the module or function under test) and the `it` title says
+what it pins; tests carry no doc comments, and source files carry no file-header comment.

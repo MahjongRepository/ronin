@@ -28,7 +28,7 @@ vi.mock("@/entities/table", () => ({
 const { render: litRender } = await import("lit-html");
 const { cleanupReplayView, handleClickOutside, replayView } = await import("@/views/replay");
 
-const mockRender = litRender as ReturnType<typeof vi.fn>;
+const mockRender = vi.mocked(litRender);
 
 function setupContainer(): void {
     const container = document.createElement("div");
@@ -55,10 +55,7 @@ async function flushAsyncChain(): Promise<void> {
 
 async function initReplayView(): Promise<void> {
     setupContainer();
-    globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: () => Promise.resolve('{"version": "0.3-dev"}'),
-    }) as unknown as typeof fetch;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response('{"version": "0.3-dev"}'));
     replayView("test-game");
     vi.runAllTimers();
     await flushAsyncChain();

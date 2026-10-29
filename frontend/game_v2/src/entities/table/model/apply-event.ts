@@ -1,6 +1,5 @@
 import { tile136toString } from "@/entities/tile";
 import {
-    type AbortiveDrawRoundEnd,
     type DiscardEvent,
     type DoraRevealedEvent,
     type DoubleRonRoundEnd,
@@ -20,7 +19,6 @@ import { applyMeld } from "./handlers/meld";
 import { updatePlayer } from "./helpers";
 import { createInitialPlayerState } from "./initial-state";
 import {
-    type GamePhase,
     type PlayerState,
     type ReplayEvent,
     type RoundEndResult,
@@ -50,7 +48,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         gameEndResult: null,
         gameId: event.gameId,
         lastEventDescription: "Game started",
-        phase: "pre_game" as GamePhase,
+        phase: "pre_game",
         players,
         roundEndResult: null,
     };
@@ -76,7 +74,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         doraIndicators: [...event.doraIndicators],
         honbaSticks: event.honbaSticks,
         lastEventDescription: "Round started",
-        phase: "in_round" as GamePhase,
+        phase: "in_round",
         players,
         riichiSticks: event.riichiSticks,
         roundEndResult: null,
@@ -177,7 +175,7 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
             winnerSeat: event.winnerSeat,
         },
         lastEventDescription: `Game over - Winner: ${winner?.name ?? `Seat ${event.winnerSeat}`}`,
-        phase: "game_ended" as GamePhase,
+        phase: "game_ended",
         players,
         roundEndResult: null,
     };
@@ -187,35 +185,32 @@ function playerName(state: TableState, seat: number): string {
     return state.players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`;
 }
 
-function updateScoresFromMap(
-    players: PlayerState[],
-    scores: Record<string, number>,
-): PlayerState[] {
+function settleScores(players: PlayerState[], event: RoundEndEvent): PlayerState[] {
     return players.map((p) => {
-        const score = scores[String(p.seat)];
-        return score !== undefined ? { ...p, score } : p;
+        const seat = String(p.seat);
+        const scoreBeforePayment = event.scores[seat];
+        if (scoreBeforePayment === undefined) {
+            return p;
+        }
+        return { ...p, score: scoreBeforePayment + (event.scoreChanges[seat] ?? 0) };
     });
 }
 
-function tsumoDescription(state: TableState, event: RoundEndEvent): string {
-    const re = event as TsumoRoundEnd;
-    return `Tsumo by ${playerName(state, re.winnerSeat)}`;
+function tsumoDescription(state: TableState, event: TsumoRoundEnd): string {
+    return `Tsumo by ${playerName(state, event.winnerSeat)}`;
 }
 
-function ronDescription(state: TableState, event: RoundEndEvent): string {
-    const re = event as RonRoundEnd;
-    return `Ron by ${playerName(state, re.winnerSeat)} from ${playerName(state, re.loserSeat)}`;
+function ronDescription(state: TableState, event: RonRoundEnd): string {
+    return `Ron by ${playerName(state, event.winnerSeat)} from ${playerName(state, event.loserSeat)}`;
 }
 
-function doubleRonDescription(state: TableState, event: RoundEndEvent): string {
-    const re = event as DoubleRonRoundEnd;
-    const names = re.winners.map((w) => playerName(state, w.winnerSeat));
+function doubleRonDescription(state: TableState, event: DoubleRonRoundEnd): string {
+    const names = event.winners.map((w) => playerName(state, w.winnerSeat));
     return `Double ron by ${names.join(" and ")}`;
 }
 
-function nagashiDescription(state: TableState, event: RoundEndEvent): string {
-    const re = event as NagashiManganRoundEnd;
-    const names = re.qualifyingSeats.map((seat) => playerName(state, seat));
+function nagashiDescription(state: TableState, event: NagashiManganRoundEnd): string {
+    const names = event.qualifyingSeats.map((seat) => playerName(state, seat));
     return `Nagashi mangan by ${names.join(" and ")}`;
 }
 
@@ -234,7 +229,7 @@ function roundEndDescription(state: TableState, event: RoundEndEvent): string {
             return "Exhaustive draw";
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return `Abortive draw: ${(event as AbortiveDrawRoundEnd).reason}`;
+            return `Abortive draw: ${event.reason}`;
         }
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
             return nagashiDescription(state, event);
@@ -286,6 +281,7 @@ function extractRoundEndResult(event: RoundEndEvent, doraIndicators: number[]): 
                 doraIndicators,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                scoresBeforePayment: event.scores,
                 uraDoraIndicators,
                 winners: [extractWinnerFromSingle(event)],
             };
@@ -296,6 +292,7 @@ function extractRoundEndResult(event: RoundEndEvent, doraIndicators: number[]): 
                 loserSeat: event.loserSeat,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                scoresBeforePayment: event.scores,
                 uraDoraIndicators,
                 winners: [extractWinnerFromSingle(event)],
             };
@@ -306,6 +303,7 @@ function extractRoundEndResult(event: RoundEndEvent, doraIndicators: number[]): 
                 loserSeat: event.loserSeat,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                scoresBeforePayment: event.scores,
                 uraDoraIndicators,
                 winners: event.winners.map((w) => ({
                     closedTiles: w.closedTiles,
@@ -323,6 +321,7 @@ function extractRoundEndResult(event: RoundEndEvent, doraIndicators: number[]): 
                 doraIndicators,
                 resultType: event.resultType,
                 scoreChanges: event.scoreChanges,
+                scoresBeforePayment: event.scores,
                 uraDoraIndicators,
                 winners: [],
             };
@@ -338,8 +337,8 @@ function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     return {
         ...state,
         lastEventDescription: roundEndDescription(state, event),
-        phase: "round_ended" as GamePhase,
-        players: updateScoresFromMap(state.players, event.scores),
+        phase: "round_ended",
+        players: settleScores(state.players, event),
         roundEndResult: extractRoundEndResult(event, state.doraIndicators),
     };
 }

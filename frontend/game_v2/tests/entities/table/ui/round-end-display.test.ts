@@ -18,10 +18,10 @@ function renderTo(template: TemplateResult): HTMLElement {
 
 function makePlayers(): PlayerState[] {
     return [
-        createInitialPlayerState({ isAiPlayer: false, name: "Alice", score: 25_000, seat: 0 }),
-        createInitialPlayerState({ isAiPlayer: true, name: "Bot-1", score: 25_000, seat: 1 }),
-        createInitialPlayerState({ isAiPlayer: true, name: "Bot-2", score: 25_000, seat: 2 }),
-        createInitialPlayerState({ isAiPlayer: false, name: "Bob", score: 25_000, seat: 3 }),
+        createInitialPlayerState({ isAiPlayer: false, name: "Alice", score: 35_000, seat: 0 }),
+        createInitialPlayerState({ isAiPlayer: true, name: "Bot-1", score: 22_000, seat: 1 }),
+        createInitialPlayerState({ isAiPlayer: true, name: "Bot-2", score: 22_000, seat: 2 }),
+        createInitialPlayerState({ isAiPlayer: false, name: "Bob", score: 21_000, seat: 3 }),
     ];
 }
 
@@ -50,6 +50,7 @@ function makeTsumoResult(overrides?: Partial<RoundEndResult>): RoundEndResult {
         doraIndicators: [16],
         resultType: ROUND_RESULT_TYPE.TSUMO,
         scoreChanges: { "0": 10_000, "1": -3000, "2": -3000, "3": -4000 },
+        scoresBeforePayment: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         uraDoraIndicators: [],
         winners: [makeWinner()],
         ...overrides,
@@ -219,6 +220,7 @@ describe("RoundEndDisplay", () => {
                 loserSeat: 1,
                 resultType: ROUND_RESULT_TYPE.DOUBLE_RON,
                 scoreChanges: { "0": 8000, "1": -16_000, "2": 8000, "3": 0 },
+                scoresBeforePayment: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
                 uraDoraIndicators: [],
                 winners: [
                     makeWinner({ seat: 0 }),
@@ -260,8 +262,15 @@ describe("RoundEndDisplay", () => {
             expect(names[3].textContent).toBe("Bob");
         });
 
-        test("renders score deltas with correct signs", () => {
+        test("renders each score before payment with its signed delta", () => {
             const el = renderTo(RoundEndDisplay(makeTsumoResult(), makePlayers(), 0));
+            const values = el.querySelectorAll(".round-end-result__score-value");
+            expect([...values].map((value) => value.textContent)).toEqual([
+                "25,000",
+                "25,000",
+                "25,000",
+                "25,000",
+            ]);
             const deltas = el.querySelectorAll(".round-end-result__score-delta");
             expect(deltas[0].textContent).toBe("+10,000");
             expect(deltas[1].textContent).toBe("\u22123,000");
