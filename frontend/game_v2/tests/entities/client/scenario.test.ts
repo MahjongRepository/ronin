@@ -23,6 +23,7 @@ import {
     scenarioStateIndex,
     timelineStates,
 } from "@/entities/client";
+import { tableStateToDisplayState } from "@/entities/table";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
     CALL_TYPE,
@@ -41,6 +42,8 @@ import {
 const CALL_PROMPT = loadSeatScenario("call_prompt_seat_1");
 const OWN_TURN = loadSeatScenario("own_turn_seat_1");
 const RECONNECT = loadSeatScenario("reconnect_seat_1");
+const RIICHI_RECONNECT = loadSeatScenario("riichi_reconnect_seat_1");
+const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
 
 const CALLED_THREE_MAN = 8;
 const HAKU = 126;
@@ -90,6 +93,7 @@ describe("seatScenarioFromTranscript", () => {
             "call_prompt_seat_1",
             "own_turn_seat_1",
             "reconnect_seat_1",
+            "riichi_reconnect_seat_1",
         ]);
         for (const name of SEAT_TRANSCRIPTS.keys()) {
             expect(runSeatScenario(loadSeatScenario(name).scenario).mismatches).toEqual([]);
@@ -432,6 +436,9 @@ describe("stepGameClient - generated own turn", () => {
         const nextRound = stateAt(scenario, run, "next round");
 
         expect([nextRound.table.dealerSeat, nextRound.furiten]).toEqual([1, false]);
+        expect(tableStateToDisplayState(nextRound.table, ALICE_VIEW)?.center.roundDisplay).toBe(
+            "East 2",
+        );
         expect(nextRound.table.players[1].tiles).toEqual(
             receivedPayload(transcript, "next round").mt,
         );
@@ -452,6 +459,34 @@ describe("stepGameClient - generated own turn", () => {
         const variant = { ...scenario, steps: noBank };
 
         expect(stateAt(variant, runClean(variant), "dealer draw").decision?.deadline).toBeNull();
+    });
+});
+
+describe("stepGameClient - generated riichi reconnect", () => {
+    const { scenario } = RIICHI_RECONNECT;
+
+    function sticksAndScores(state: GameClientState): (number | number[])[] {
+        return [state.table.riichiSticks, state.table.players.map((player) => player.score)];
+    }
+
+    it("deposits the stick once the riichi passes; the snapshot already holds it and the ron settles once", () => {
+        const run = runClean(scenario);
+        const reconnected = stateAt(scenario, run, "reconnected");
+
+        expect(sticksAndScores(stateAt(scenario, run, "riichi chosen"))).toEqual([
+            0,
+            [25_000, 25_000, 25_000, 25_000],
+        ]);
+        expect(sticksAndScores(stateAt(scenario, run, "riichi accepted"))).toEqual([
+            1,
+            [25_000, 24_000, 25_000, 25_000],
+        ]);
+        expect(sticksAndScores(reconnected)).toEqual([1, [25_000, 24_000, 25_000, 25_000]]);
+        expect(reconnected.table.players[1].isRiichi).toBe(true);
+        expect(sticksAndScores(stateAt(scenario, run, "round end"))).toEqual([
+            0,
+            [25_000, 30_200, 19_800, 25_000],
+        ]);
     });
 });
 

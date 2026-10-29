@@ -89,6 +89,11 @@ function findRoundEnd(timeline: EngineReplay): { event: RoundEndEvent; index: nu
     return { event, index };
 }
 
+function rightRiverSideways(state: TableState): boolean[] {
+    const board = tableStateToDisplayState(state, REPLAY_VIEW);
+    return board?.players[1].discards.map((tile) => tile.riichi === true) ?? [];
+}
+
 function scoresOf(state: TableState): number[] {
     return state.players.map((player) => player.score);
 }
@@ -151,8 +156,8 @@ function pairRevealedHands(name: string): HandCheck[] {
 
 interface SettlementCheck {
     label: string;
-    nextRoundScores: number[];
-    settledScores: number[];
+    nextRound: (number | number[])[];
+    settled: (number | number[])[];
 }
 
 function pairSettlements(name: string): SettlementCheck[] {
@@ -165,8 +170,8 @@ function pairSettlements(name: string): SettlementCheck[] {
         return [
             {
                 label: `${name}, event ${index}`,
-                nextRoundScores: scoresOf(tables[next + 1]),
-                settledScores: scoresOf(tables[index + 1]),
+                nextRound: [scoresOf(tables[next + 1]), tables[next + 1].riichiSticks],
+                settled: [scoresOf(tables[index + 1]), tables[index + 1].riichiSticks],
             },
         ];
     });
@@ -188,59 +193,12 @@ describe("readReplayTimeline - engine replays", () => {
         }
     });
 
-    test("settles every round end to the scores the next round starts from", () => {
+    test("settles every round end to the scores and riichi sticks the next round starts from", () => {
         const checks = [...ENGINE_REPLAYS.keys()].flatMap(pairSettlements);
         expect(checks.length).toBeGreaterThan(0);
-        for (const { label, nextRoundScores, settledScores } of checks) {
-            expect(settledScores, label).toEqual(nextRoundScores);
+        for (const { label, nextRound, settled } of checks) {
+            expect(settled, label).toEqual(nextRound);
         }
-    });
-
-    test("riichi: a pon claims a riichi discard and the discarder stays in riichi", () => {
-        const timeline = loadEngineReplay("riichi");
-        const afterPon = stateAfter(timeline, findEventIndex(timeline, "meld"));
-
-        expect(afterPon.players[1].isRiichi).toBe(true);
-        expect(afterPon.players[1].discards.at(-1)).toEqual({
-            claimed: true,
-            isRiichi: true,
-            isTsumogiri: true,
-            tileId: 134,
-        });
-        expect(afterPon.players[2].melds).toEqual([
-            {
-                calledTileId: 134,
-                callerSeat: 2,
-                fromSeat: 1,
-                meldType: "pon",
-                tileIds: [132, 133, 134],
-            },
-        ]);
-        expect(afterPon.players[2].tiles).toHaveLength(11);
-    });
-
-    test("riichi: a riichi tsumo settles every score after the riichi deposits", () => {
-        const timeline = loadEngineReplay("riichi");
-        const { event, index } = findRoundEnd(timeline);
-        assert(event.resultType === ROUND_RESULT_TYPE.TSUMO);
-        const end = stateAfter(timeline, index);
-
-        expect(end.phase).toBe("round_ended");
-        expect(end.lastEventDescription).toBe("Tsumo by Alice");
-        expect(end.players.map((player) => player.isRiichi)).toEqual([false, true, false, true]);
-        expect(scoresOf(end)).toEqual([21_000, 34_000, 23_000, 22_000]);
-        expect(end.roundEndResult).toMatchObject({
-            scoreChanges: event.scoreChanges,
-            scoresBeforePayment: event.scores,
-            uraDoraIndicators: event.uraDoraIndicators,
-            winners: [
-                {
-                    handResult: event.handResult,
-                    seat: event.winnerSeat,
-                    winningTile: event.winningTile,
-                },
-            ],
-        });
     });
 
     test("kans: keeps an open, an added and a closed kan, each with its dora", () => {
@@ -286,6 +244,7 @@ describe("readReplayTimeline - engine replays", () => {
 
         expect(end.lastEventDescription).toBe("Double ron by Alice and Charlie");
         expect(scoresOf(end)).toEqual([5000, 38_000, 32_000, 25_000]);
+        expect([timeline.tables[index].riichiSticks, end.riichiSticks]).toEqual([2, 0]);
         expect(end.roundEndResult).toMatchObject({
             loserSeat: event.loserSeat,
             scoreChanges: event.scoreChanges,
@@ -354,6 +313,7 @@ describe("readReplayTimeline - engine replays", () => {
         expect(end.phase).toBe("game_ended");
         expect(end.lastEventDescription).toBe("Game over - Winner: Bob");
         expect(end.gameEndResult).toEqual({
+            leftoverRiichiBonus: gameEnd.leftoverRiichiBonus,
             standings: gameEnd.standings,
             winnerSeat: gameEnd.winnerSeat,
         });
@@ -362,6 +322,136 @@ describe("readReplayTimeline - engine replays", () => {
                 .map((standing) => [standing.seat, standing.score])
                 .toSorted(([left], [right]) => left - right),
         );
+    });
+});
+
+describe("readReplayTimeline - riichi deposits", () => {
+    test("reaches every round end on the scores it was taken at, every accepted riichi deposited", () => {
+        const checks = [...ENGINE_REPLAYS.keys()].flatMap((name) => {
+            const { events, tables } = loadEngineReplay(name);
+            return events.flatMap((event, index) =>
+                event?.type === "round_end"
+                    ? [{ event, label: `${name}, event ${index}`, table: tables[index] }]
+                    : [],
+            );
+        });
+        expect(checks.length).toBeGreaterThan(0);
+        for (const { event, label, table } of checks) {
+            expect(scoresOf(table), label).toEqual(
+                table.players.map((player) => event.scores[String(player.seat)]),
+            );
+        }
+    });
+
+    test("riichi: the stick is deposited once the declaration's discard passes, not on the discard", () => {
+        const timeline = loadEngineReplay("riichi");
+        const declared = findEventIndex(timeline, "riichi_declared");
+        const declaredAgain = findEventIndex(timeline, "riichi_declared", declared);
+        const onDiscard = timeline.tables[declared];
+
+        expect(onDiscard.players[1].discards.at(-1)?.isRiichi).toBe(true);
+        expect([scoresOf(onDiscard), onDiscard.riichiSticks]).toEqual([
+            [25_000, 25_000, 25_000, 25_000],
+            0,
+        ]);
+        expect([
+            scoresOf(stateAfter(timeline, declared)),
+            stateAfter(timeline, declared).riichiSticks,
+        ]).toEqual([[25_000, 24_000, 25_000, 25_000], 1]);
+        expect([
+            scoresOf(stateAfter(timeline, declaredAgain)),
+            stateAfter(timeline, declaredAgain).riichiSticks,
+        ]).toEqual([[25_000, 24_000, 25_000, 24_000], 2]);
+        expect(stateAfter(timeline, findRoundEnd(timeline).index).riichiSticks).toBe(0);
+    });
+
+    test("ron riichi discard: a ronned declaration discard deposits nothing", () => {
+        const timeline = loadEngineReplay("ron_riichi_discard");
+        const { index } = findRoundEnd(timeline);
+        const ronned = timeline.tables[index];
+
+        expect(ronned.players.map((player) => [player.score, player.isRiichi])).toEqual([
+            [25_000, false],
+            [24_000, true],
+            [25_000, false],
+            [25_000, false],
+        ]);
+        expect(ronned.players[2].discards.at(-1)?.isRiichi).toBe(true);
+        expect(ronned.riichiSticks).toBe(1);
+        expect(stateAfter(timeline, index).riichiSticks).toBe(0);
+    });
+
+    test("leftover riichi: the game end pays the stick left on the table to the winner's standing", () => {
+        const timeline = loadEngineReplay("leftover_riichi");
+        const { index } = findRoundEnd(timeline);
+        const gameEnd = timeline.events.at(-1);
+        assert(gameEnd?.type === "game_end");
+        const drawn = stateAfter(timeline, index);
+        const end = stateAfter(timeline, timeline.events.length - 1);
+
+        expect([scoresOf(drawn), drawn.riichiSticks]).toEqual([
+            [23_500, 25_500, 26_500, 23_500],
+            1,
+        ]);
+        expect(gameEnd.leftoverRiichiBonus).toBe(1000);
+        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 25_500, 27_500, 23_500], 0]);
+        expect(end.gameEndResult).toMatchObject({ leftoverRiichiBonus: 1000, winnerSeat: 2 });
+    });
+
+    test("riichi: a pon claims a riichi discard, the discarder stays in riichi and its next discard lies sideways", () => {
+        const timeline = loadEngineReplay("riichi");
+        const pon = findEventIndex(timeline, "meld");
+        const afterPon = stateAfter(timeline, pon);
+        const nextDiscard = timeline.events.findIndex(
+            (event, at) => at > pon && event?.type === "discard" && event.seat === 1,
+        );
+
+        expect(afterPon.players[1].isRiichi).toBe(true);
+        expect(afterPon.players[1].discards.at(-1)).toEqual({
+            claimed: true,
+            isRiichi: true,
+            isTsumogiri: true,
+            tileId: 134,
+        });
+        expect(afterPon.players[2].melds).toEqual([
+            {
+                calledTileId: 134,
+                callerSeat: 2,
+                fromSeat: 1,
+                meldType: "pon",
+                tileIds: [132, 133, 134],
+            },
+        ]);
+        expect(afterPon.players[2].tiles).toHaveLength(11);
+        expect(rightRiverSideways(afterPon)).not.toContain(true);
+        expect(rightRiverSideways(stateAfter(timeline, nextDiscard))).toEqual([
+            ...rightRiverSideways(afterPon),
+            true,
+        ]);
+    });
+
+    test("riichi: a riichi tsumo settles every score after the riichi deposits", () => {
+        const timeline = loadEngineReplay("riichi");
+        const { event, index } = findRoundEnd(timeline);
+        assert(event.resultType === ROUND_RESULT_TYPE.TSUMO);
+        const end = stateAfter(timeline, index);
+
+        expect(end.phase).toBe("round_ended");
+        expect(end.lastEventDescription).toBe("Tsumo by Alice");
+        expect(end.players.map((player) => player.isRiichi)).toEqual([false, true, false, true]);
+        expect(scoresOf(end)).toEqual([21_000, 34_000, 23_000, 22_000]);
+        expect(end.roundEndResult).toMatchObject({
+            scoreChanges: event.scoreChanges,
+            scoresBeforePayment: event.scores,
+            uraDoraIndicators: event.uraDoraIndicators,
+            winners: [
+                {
+                    handResult: event.handResult,
+                    seat: event.winnerSeat,
+                    winningTile: event.winningTile,
+                },
+            ],
+        });
     });
 });
 

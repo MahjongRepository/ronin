@@ -24,6 +24,11 @@ import { type PlayerState, type TableEvent, type TableState } from "./types";
 /** Live wall size after dealing: 136 total - 14 dead wall - 52 dealt (13 × 4 players). */
 const TILES_AFTER_DEAL = 136 - 14 - 13 * 4;
 const DEALT_HAND_SIZE = 13;
+/**
+ * What an accepted riichi takes from its declarer onto the table: the server's `riichi_cost`, which no live message
+ * carries, at its default, the one every game is played with.
+ */
+const RIICHI_DEPOSIT = 1000;
 
 function applyGameStarted(state: TableState, event: GameStartedEvent): TableState {
     const players = event.players.map((p) =>
@@ -37,6 +42,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
     return {
         ...state,
         dealerSeat: event.dealerSeat,
+        firstDealerSeat: event.dealerSeat,
         gameEndResult: null,
         gameId: event.gameId,
         lastEventDescription: "Game started",
@@ -85,7 +91,6 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         players,
         riichiSticks: event.riichiSticks,
         roundEndResult: null,
-        roundNumber: event.roundNumber,
         roundWind: event.wind,
         tilesRemaining: TILES_AFTER_DEAL,
     };
@@ -142,14 +147,20 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
     };
 }
 
+/**
+ * The server declares riichi once the declaration's discard passes without a ron, and only then takes the stick: the
+ * declarer's score pays it onto the table. A ronned declaration discard never reaches here, so it deposits nothing.
+ */
 function applyRiichiDeclared(state: TableState, event: RiichiDeclaredEvent): TableState {
-    const player = state.players.find((p) => p.seat === event.seat);
+    const player = requirePlayer(state, event.seat);
     return {
         ...state,
-        lastEventDescription: `${player?.name ?? `Seat ${event.seat}`} declared riichi`,
+        lastEventDescription: `${player.name} declared riichi`,
         players: updatePlayer(state.players, event.seat, {
             isRiichi: true,
+            score: player.score - RIICHI_DEPOSIT,
         }),
+        riichiSticks: state.riichiSticks + 1,
     };
 }
 
@@ -171,6 +182,7 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
     return {
         ...state,
         gameEndResult: {
+            leftoverRiichiBonus: event.leftoverRiichiBonus,
             standings: event.standings.map((s) => ({
                 finalScore: s.finalScore,
                 score: s.score,
@@ -181,6 +193,7 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
         lastEventDescription: `Game over - Winner: ${winner?.name ?? `Seat ${event.winnerSeat}`}`,
         phase: "game_ended",
         players,
+        riichiSticks: 0,
         roundEndResult: null,
     };
 }

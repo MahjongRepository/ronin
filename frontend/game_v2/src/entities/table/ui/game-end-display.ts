@@ -13,6 +13,21 @@ function formatFinalScore(finalScore: number): string {
     return finalScore.toFixed(1);
 }
 
+/** The riichi sticks the game ended with, which the winner's score holds; nothing when none were left. */
+function leftoverRiichiNote(
+    result: GameEndResult,
+    players: readonly PlayerState[],
+): TemplateResult | string {
+    if (result.leftoverRiichiBonus === 0) {
+        return "";
+    }
+    const winner = players.find((p) => p.seat === result.winnerSeat);
+    const name = winner?.name ?? `Seat ${result.winnerSeat}`;
+    return html`<div class="game-end-result__leftover">
+        Leftover riichi sticks: +${result.leftoverRiichiBonus.toLocaleString("en-US")} to ${name}
+    </div>`;
+}
+
 function GameEndDisplay(result: GameEndResult, players: readonly PlayerState[]): TemplateResult {
     return html`<div class="game-end-result">
         <div class="game-end-result__title">Final Standings</div>
@@ -28,6 +43,7 @@ function GameEndDisplay(result: GameEndResult, players: readonly PlayerState[]):
                 <span class="game-end-result__final-score">${formatFinalScore(standing.finalScore)}</span>
             </div>`;
         })}
+        ${leftoverRiichiNote(result, players)}
     </div>`;
 }
 

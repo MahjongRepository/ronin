@@ -20,13 +20,22 @@ replay view, the live game and the storybook read the tables it produces.
   already holds is the one a reconnect re-sends: it marks the drawn tile and takes nothing from the
   wall. A round end writes the hands it reveals (its winners', a draw's tenpai hands) into the
   table as known tiles.
-- The draw, discard and meld handlers throw on an impossible state (a tile neither shown nor
+- The draw, discard, meld and riichi handlers throw on an impossible state (a tile neither shown nor
   covered by the count, a missing player or caller); a new check throws the same way rather than
   returning the state unchanged. The other handlers tolerate a missing player or result.
+- Riichi deposits on `riichi_declared`, which the server sends only once the declaration's discard
+  passes without a ron (a ronned declaration discard deposits nothing): one stick onto the table,
+  1000 (the server's `riichi_cost` default, which no live message carries) off the declarer. The
+  reconnect snapshot's scores and sticks already hold every deposit and are taken as they are.
 - A round end's wire `scores` are taken after the riichi deposits and before the round's payments.
   `applyEvent` settles each player at that score plus its `scoreChanges` (the aggregated map, for a
-  double ron too), never from the prior state, so a deposit is not deducted twice; the result keeps
-  the pre-payment map for the overlay, which shows the score before payment and its delta.
+  double ron too), never from the prior state, so a deposit is not deducted twice; the winners'
+  collected sticks leave the table, a draw's stay. The result keeps the pre-payment map for the
+  overlay, which shows the score before payment and its delta. A game end's standings already hold
+  the leftover sticks paid to the winner (`lb`); the table takes them and empties the sticks.
+- The wire's round number counts every deal of the game; a round's name ("East 1", "South 3") is
+  its number within its wind, the dealer's distance from the first dealer (`roundInWind`), which
+  the table keeps from the game start or, on a reconnect, the snapshot's first listed round.
 - Seat marks: `aiStandIn` says an AI player holds the seat for its human, from a replay's seat
   control lines or the live `player_left` / `player_reconnected` (which name the player, not the
   seat). The snapshot's AI flag cannot tell a bot from a stand-in, so it rebuilds no mark.
@@ -38,11 +47,12 @@ replay view, the live game and the storybook read the tables it produces.
 - `lib/board-mapper.ts` turns a table into the display state the `ui/` components render, from a
   perspective that is an input, not the dealer: which seat sits at the bottom, and whether every
   known hand shows face up (a replay) or only the bottom seat's. A known tile keeps its id;
-  concealed tiles render as backs from the count; melds are laid out as faces; a seat an AI player
-  holds for its human is marked (in its wind badge). The board marks no tile playable: that is the
-  client's mapper's, from a decision this slice does not know. `ui/board-overlay.ts` picks the
-  panel a table shows over its board (the seating, a round's result, the standings) for every
-  board that shows a table.
+  concealed tiles render as backs from the count; melds are laid out as faces; a riichi
+  declaration's discard lies sideways, or when called, the declarer's next discard left in the
+  river; a seat an AI player holds for its human is marked (in its wind badge). The board marks no
+  tile playable: that is the client's mapper's, from a decision this slice does not know.
+  `ui/board-overlay.ts` picks the panel a table shows over its board (the seating, a round's
+  result, the standings) for every board that shows a table.
 - `model/replay-file.ts` reads a replay file: it refuses one whose version line is not
   `REPLAY_VERSION` and hands back each event line as a JSON object for the dispatcher to parse
   (`parseReplayLine`), reporting a line that is not one without dropping the rest.

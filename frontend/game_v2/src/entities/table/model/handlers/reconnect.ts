@@ -57,8 +57,17 @@ function snapshotPlayer(
 }
 
 /**
+ * The game's first dealer: the dealer of the first round the snapshot's history lists, or while no round has ended
+ * yet, the dealer of the round in play.
+ */
+function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
+    return snapshot.roundHistory[0]?.dealerSeat ?? snapshot.dealerSeat;
+}
+
+/**
  * Rebuild the table from a reconnect snapshot. It opens no wait: when the game awaits the seat, the server re-sends
- * the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result.
+ * the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result. Its
+ * scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
  */
 export function applyGameReconnected(
     state: TableState,
@@ -72,6 +81,7 @@ export function applyGameReconnected(
         currentPlayerSeat: snapshot.currentPlayerSeat,
         dealerSeat: snapshot.dealerSeat,
         doraIndicators: snapshot.doraIndicators,
+        firstDealerSeat: snapshotFirstDealer(snapshot),
         gameEndResult: null,
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
@@ -83,7 +93,6 @@ export function applyGameReconnected(
             roundResult === null
                 ? null
                 : extractRoundEndResult(roundResult, snapshot.doraIndicators),
-        roundNumber: snapshot.roundNumber,
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,
     };

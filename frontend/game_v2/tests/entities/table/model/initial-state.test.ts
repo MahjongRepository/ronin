@@ -15,7 +15,6 @@ describe("createInitialTableState", () => {
     test("returns zeroed round-level fields", () => {
         const state = createInitialTableState();
         expect(state.roundWind).toBe(0);
-        expect(state.roundNumber).toBe(0);
         expect(state.honbaSticks).toBe(0);
         expect(state.riichiSticks).toBe(0);
         expect(state.doraIndicators).toEqual([]);

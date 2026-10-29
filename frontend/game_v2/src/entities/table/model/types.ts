@@ -82,6 +82,8 @@ export interface RoundEndResult {
 
 export interface GameEndResult {
     readonly winnerSeat: number;
+    /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */
+    readonly leftoverRiichiBonus: number;
     readonly standings: readonly {
         readonly seat: number;
         readonly score: number;
@@ -94,9 +96,10 @@ export type GamePhase = "pre_game" | "in_round" | "round_ended" | "game_ended";
 export interface TableState {
     readonly gameId: string;
     readonly players: readonly PlayerState[];
+    /** The game's first dealer (East 1's), from which a round's number within its wind counts. */
+    readonly firstDealerSeat: number;
     readonly dealerSeat: number;
     readonly roundWind: number;
-    readonly roundNumber: number;
     readonly honbaSticks: number;
     readonly riichiSticks: number;
     readonly doraIndicators: readonly number[];

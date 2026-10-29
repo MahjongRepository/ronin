@@ -1,4 +1,5 @@
 import { type ActionStep, type StepEvent } from "./action-steps";
+import { roundInWind } from "./helpers";
 import { type TableState } from "./types";
 
 export interface RoundInfo {
@@ -6,8 +7,8 @@ export interface RoundInfo {
     actionStepIndex: number;
     /** Round wind (0=East, 1=South, etc.) */
     wind: number;
-    /** Round number within the wind */
-    roundNumber: number;
+    /** The round's number within its wind, from 1 (the wire's round number counts every deal) */
+    roundInWind: number;
     /** Honba stick count */
     honba: number;
     /** Human-readable result description from round_end (empty if game ended mid-round).
@@ -82,7 +83,7 @@ function collectRounds(
                     actionStepIndex: stepIdx,
                     honba: event.honbaSticks,
                     resultDescription: findRoundResultDescription(events, states, eventIdx),
-                    roundNumber: event.roundNumber,
+                    roundInWind: roundInWind(states[eventIdx + 1]),
                     wind: event.wind,
                 });
             }

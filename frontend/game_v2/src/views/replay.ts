@@ -140,7 +140,7 @@ function buildBoardContent(tableState: TableState, perspective: BoardPerspective
     if (tableState.phase === "pre_game" && tableState.players.length > 0) {
         return html`<div class="board-overlay">
             <div class="board-overlay__panel">
-                ${GameStartDisplay(tableState.players, tableState.dealerSeat)}
+                ${GameStartDisplay(tableState.players, tableState.firstDealerSeat)}
             </div>
         </div>`;
     }

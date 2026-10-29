@@ -22,6 +22,7 @@ function makePlayers(): PlayerState[] {
 
 function makeGameEndResult(overrides?: Partial<GameEndResult>): GameEndResult {
     return {
+        leftoverRiichiBonus: 0,
         standings: [
             { finalScore: 42, score: 35_000, seat: 0 },
             { finalScore: 12, score: 28_000, seat: 1 },
@@ -120,6 +121,18 @@ describe("GameEndDisplay", () => {
         const scores = el.querySelectorAll(".game-end-result__score");
         expect(scores[0].textContent).toBe("35000");
         expect(scores[3].textContent).toBe("15000");
+    });
+
+    test("names the leftover riichi sticks the winner's score holds, and nothing when none were left", () => {
+        const withSticks = renderTo(
+            GameEndDisplay(makeGameEndResult({ leftoverRiichiBonus: 2000 }), makePlayers()),
+        );
+        const without = renderTo(GameEndDisplay(makeGameEndResult(), makePlayers()));
+
+        expect(withSticks.querySelector(".game-end-result__leftover")?.textContent?.trim()).toBe(
+            "Leftover riichi sticks: +2,000 to Alice",
+        );
+        expect(without.querySelector(".game-end-result__leftover")).toBeNull();
     });
 
     test("renders Final Standings title", () => {

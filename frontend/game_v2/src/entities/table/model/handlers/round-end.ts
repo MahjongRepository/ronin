@@ -273,6 +273,27 @@ function revealHands(players: readonly PlayerState[], event: RoundEndEvent): Pla
     );
 }
 
+/** The riichi sticks the round's winners take off the table; a draw leaves them for the next deal. */
+function riichiSticksCollected(event: RoundEndEvent): number {
+    switch (event.resultType) {
+        case ROUND_RESULT_TYPE.TSUMO:
+        case ROUND_RESULT_TYPE.RON: {
+            return event.riichiSticksCollected;
+        }
+        case ROUND_RESULT_TYPE.DOUBLE_RON: {
+            return event.winners.reduce((sum, winner) => sum + winner.riichiSticksCollected, 0);
+        }
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
+        case ROUND_RESULT_TYPE.ABORTIVE_DRAW:
+        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
+            return 0;
+        }
+        default: {
+            return assertNever(event);
+        }
+    }
+}
+
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     const drawn = settleUnseenDraws(state, event);
     return {
@@ -280,6 +301,7 @@ export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableSta
         lastEventDescription: roundEndDescription(state, event),
         phase: "round_ended",
         players: revealHands(settleScores(drawn.players, event), event),
+        riichiSticks: state.riichiSticks - riichiSticksCollected(event),
         roundEndResult: extractRoundEndResult(event, state.doraIndicators),
     };
 }

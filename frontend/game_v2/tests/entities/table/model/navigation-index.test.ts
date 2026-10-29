@@ -34,7 +34,7 @@ function buildTwoRoundNavIndex() {
         makeRoundStartedEvent({ honbaSticks: 0, roundNumber: 1, wind: 0 }),
         makeDrawEvent({ seat: 0, tileId: 52 }),
         makeTsumoRoundEnd({ winnerSeat: 0 }),
-        makeRoundStartedEvent({ honbaSticks: 1, roundNumber: 2, wind: 0 }),
+        makeRoundStartedEvent({ dealerSeat: 1, honbaSticks: 1, roundNumber: 2, wind: 0 }),
         makeDrawEvent({ seat: 0, tileId: 53 }),
         makeTsumoRoundEnd({ winnerSeat: 0 }),
         makeGameEndEvent(),
@@ -52,14 +52,14 @@ describe("buildNavigationIndex", () => {
         expect(navIndex.rounds[0]).toMatchObject({
             honba: 0,
             resultDescription: "Tsumo by Alice",
-            roundNumber: 1,
+            roundInWind: 1,
             wind: 0,
         });
 
         expect(navIndex.rounds[1]).toMatchObject({
             honba: 1,
             resultDescription: "Tsumo by Alice",
-            roundNumber: 2,
+            roundInWind: 2,
             wind: 0,
         });
     });
@@ -89,13 +89,13 @@ describe("buildNavigationIndex", () => {
         const { navIndex } = buildTwoRoundNavIndex();
 
         const round1 = roundForStep(navIndex, navIndex.rounds[0].actionStepIndex);
-        expect(round1?.roundNumber).toBe(1);
+        expect(round1?.roundInWind).toBe(1);
 
         const midRound1 = roundForStep(navIndex, navIndex.rounds[0].actionStepIndex + 1);
-        expect(midRound1?.roundNumber).toBe(1);
+        expect(midRound1?.roundInWind).toBe(1);
 
         const round2 = roundForStep(navIndex, navIndex.rounds[1].actionStepIndex);
-        expect(round2?.roundNumber).toBe(2);
+        expect(round2?.roundInWind).toBe(2);
     });
 
     test("step at game_started (before any round) returns undefined / empty", () => {
@@ -165,7 +165,7 @@ describe("single-round game", () => {
         expect(navIndex.rounds[0]).toMatchObject({
             honba: 0,
             resultDescription: "Tsumo by Alice",
-            roundNumber: 1,
+            roundInWind: 1,
             wind: 0,
         });
     });
@@ -183,8 +183,8 @@ describe("single-round game", () => {
         const { navIndex } = buildSingleRoundNavIndex();
         const roundStep = navIndex.rounds[0].actionStepIndex;
 
-        expect(roundForStep(navIndex, roundStep)?.roundNumber).toBe(1);
-        expect(roundForStep(navIndex, roundStep + 1)?.roundNumber).toBe(1);
+        expect(roundForStep(navIndex, roundStep)?.roundInWind).toBe(1);
+        expect(roundForStep(navIndex, roundStep + 1)?.roundInWind).toBe(1);
     });
 });
 
@@ -251,27 +251,45 @@ describe("turnsForStep", () => {
 });
 
 describe("buildNavigationIndex - engine replays", () => {
-    test("lists every round of a played-out game with its honba and result", () => {
-        const { events, tables } = loadEngineReplay("eager_game");
+    function roundsOf(name: string): (string | number)[][] {
+        const { events, tables } = loadEngineReplay(name);
         const navIndex = buildNavigationIndex(events, buildActionSteps(events), tables);
+        return navIndex.rounds.map((round) => [
+            round.wind,
+            round.roundInWind,
+            round.honba,
+            round.resultDescription,
+        ]);
+    }
 
-        expect(
-            navIndex.rounds.map((round) => [
-                round.wind,
-                round.roundNumber,
-                round.honba,
-                round.resultDescription,
-            ]),
-        ).toEqual([
-            [0, 0, 0, "Tsumo by Diana"],
-            [0, 1, 0, "Tsumo by Bob"],
+    test("numbers each round within its wind from a first dealer off seat 0, a dealer's repeat keeping it", () => {
+        expect(roundsOf("eager_game")).toEqual([
+            [0, 1, 0, "Tsumo by Diana"],
+            [0, 2, 0, "Tsumo by Bob"],
             [0, 2, 1, "Ron by Charlie from Alice"],
             [0, 3, 0, "Exhaustive draw"],
             [0, 4, 1, "Ron by Charlie from Diana"],
-            [1, 5, 0, "Ron by Bob from Charlie"],
-            [1, 6, 0, "Tsumo by Charlie"],
-            [1, 7, 0, "Ron by Bob from Alice"],
-            [1, 8, 0, "Tsumo by Diana"],
+            [1, 1, 0, "Ron by Bob from Charlie"],
+            [1, 2, 0, "Tsumo by Charlie"],
+            [1, 3, 0, "Ron by Bob from Alice"],
+            [1, 4, 0, "Tsumo by Diana"],
+        ]);
+    });
+
+    test("starts each wind over at 1, into the West round", () => {
+        expect(roundsOf("full_game").map(([wind, round]) => [wind, round])).toEqual([
+            [0, 1],
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [1, 1],
+            [1, 2],
+            [1, 3],
+            [1, 4],
+            [2, 1],
+            [2, 2],
+            [2, 3],
+            [2, 4],
         ]);
     });
 });

@@ -5,6 +5,7 @@ export function createInitialTableState(): TableState {
         currentPlayerSeat: 0,
         dealerSeat: 0,
         doraIndicators: [],
+        firstDealerSeat: 0,
         gameEndResult: null,
         gameId: "",
         honbaSticks: 0,
@@ -13,7 +14,6 @@ export function createInitialTableState(): TableState {
         players: [],
         riichiSticks: 0,
         roundEndResult: null,
-        roundNumber: 0,
         roundWind: 0,
         tilesRemaining: 0,
     };

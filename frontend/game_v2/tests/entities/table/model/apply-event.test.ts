@@ -18,9 +18,10 @@ import {
     makeTsumoRoundEnd,
 } from "#tests/fixtures/events";
 import { WIRE_GAME_RECONNECTED } from "#tests/fixtures/wire";
+import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
-import { type ReplayEvent } from "@/entities/table/model/types";
+import { type ReplayEvent, type TableState } from "@/entities/table/model/types";
 import { MELD_TYPE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
@@ -118,7 +119,6 @@ describe("applyEvent - round_started", () => {
         const next = applyEvent(state, event);
 
         expect(next.roundWind).toBe(1);
-        expect(next.roundNumber).toBe(3);
         expect(next.honbaSticks).toBe(2);
         expect(next.riichiSticks).toBe(1);
         expect(next.doraIndicators).toEqual([10, 20]);
@@ -230,6 +230,11 @@ describe("applyEvent - round_started", () => {
 function stateAfterRoundStarted() {
     const s1 = applyEvent(createInitialTableState(), makeGameStartedEvent());
     return applyEvent(s1, makeRoundStartedEvent());
+}
+
+function shownRound(state: TableState): string | undefined {
+    return tableStateToDisplayState(state, { bottomSeat: 0, reveal: "bottom" })?.center
+        .roundDisplay;
 }
 
 describe("applyEvent - draw throws for invalid seat", () => {
@@ -545,6 +550,28 @@ describe("applyEvent - game_reconnected", () => {
             { claimed: true, isRiichi: true, isTsumogiri: false, tileId: 33 },
         ]);
         expect(next.tilesRemaining).toBe(70);
+    });
+
+    test("names the round from the first dealer its history lists, else from the dealer in play", () => {
+        const history = { h: 0, rs: [], sch: {}, w: 0, ws: [] };
+        const [error, later] = parseServerMessage({
+            ...WIRE_GAME_RECONNECTED,
+            dl: 1,
+            n: 5,
+            rh: [
+                { ...history, dl: 3 },
+                { ...history, dl: 0 },
+            ],
+            w: 1,
+        });
+        const [firstError, first] = parseServerMessage({ ...WIRE_GAME_RECONNECTED, dl: 2 });
+        assert(error === null && later.type === "game_reconnected");
+        assert(firstError === null && first.type === "game_reconnected");
+
+        const initial = createInitialTableState();
+
+        expect(shownRound(applyEvent(initial, later))).toBe("South 3");
+        expect(shownRound(applyEvent(initial, first))).toBe("East 1");
     });
 });
 
@@ -865,10 +892,14 @@ describe("applyEvent - round_end result data", () => {
 describe("applyEvent - game_end result data", () => {
     test("populates gameEndResult with standings and finalScore", () => {
         const state = stateAfterRoundStarted();
-        const event = makeGameEndEvent({ winnerSeat: 0 });
+        const event = makeGameEndEvent({ leftoverRiichiBonus: 2000, winnerSeat: 0 });
         const next = applyEvent(state, event);
 
-        expect(next.gameEndResult).toEqual({ standings: event.standings, winnerSeat: 0 });
+        expect(next.gameEndResult).toEqual({
+            leftoverRiichiBonus: 2000,
+            standings: event.standings,
+            winnerSeat: 0,
+        });
     });
 });
 

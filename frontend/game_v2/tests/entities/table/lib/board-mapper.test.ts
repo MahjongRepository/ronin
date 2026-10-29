@@ -228,10 +228,10 @@ describe("tableStateToDisplayState", () => {
     });
 
     describe("center info mapping", () => {
-        test("round display formatted as wind name + number", () => {
-            const state = makeTableState({ roundNumber: 2, roundWind: 1 });
+        test("round display counts the round within its wind from the first dealer, not the seat", () => {
+            const state = makeTableState({ dealerSeat: 1, firstDealerSeat: 2, roundWind: 1 });
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            expect(result.center.roundDisplay).toBe("South 2");
+            expect(result.center.roundDisplay).toBe("South 4");
         });
 
         test("player scores formatted as plain numbers", () => {

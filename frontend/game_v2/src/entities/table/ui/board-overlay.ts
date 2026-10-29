@@ -12,7 +12,7 @@ import { RoundEndDisplay } from "./round-end-display";
  */
 export function boardOverlay(table: TableState): TemplateResult | undefined {
     if (table.phase === "pre_game" && table.players.length > 0) {
-        return GameStartDisplay(table.players, table.dealerSeat);
+        return GameStartDisplay(table.players, table.firstDealerSeat);
     }
     if (table.phase === "round_ended" && table.roundEndResult) {
         return RoundEndDisplay(table.roundEndResult, table.players, table.dealerSeat);

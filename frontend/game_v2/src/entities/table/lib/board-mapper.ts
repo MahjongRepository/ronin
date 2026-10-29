@@ -1,10 +1,12 @@
-import { windLetter, windName } from "@/entities/table/lib/wind-name";
+import { roundName } from "@/entities/table/lib/round-name";
+import { windLetter } from "@/entities/table/lib/wind-name";
 import {
     type BoardDisplayState,
     type BoardPerspective,
     type BoardPlayerDisplay,
     type BoardPlayerScore,
 } from "@/entities/table/model/board-types";
+import { roundInWind } from "@/entities/table/model/helpers";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
 import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
 
@@ -43,11 +45,24 @@ function buildHandTiles(
     };
 }
 
+/**
+ * The river's sideways tile: the riichi declaration's discard, or when another seat called it, the declarer's first
+ * discard after it that stayed in the river.
+ */
+function sidewaysDiscardIndex(discards: PlayerState["discards"]): number {
+    const declared = discards.findIndex((discard) => discard.isRiichi);
+    if (declared === -1) {
+        return -1;
+    }
+    return discards.findIndex((discard, index) => index >= declared && discard.claimed !== true);
+}
+
 function buildDiscardTiles(player: PlayerState): DiscardTile[] {
-    return player.discards.map((d) => ({
+    const sideways = sidewaysDiscardIndex(player.discards);
+    return player.discards.map((d, index) => ({
         face: tile136toString(d.tileId),
         grayed: d.claimed,
-        riichi: d.isRiichi,
+        riichi: index === sideways,
     }));
 }
 
@@ -129,7 +144,7 @@ function tableStateToDisplayState(
             doraIndicators: state.doraIndicators.map((id) => tile136toString(id)),
             honbaSticks: state.honbaSticks,
             riichiSticks: state.riichiSticks,
-            roundDisplay: `${windName(state.roundWind)} ${state.roundNumber}`,
+            roundDisplay: roundName(state.roundWind, roundInWind(state)),
             scores: [score(bottom), score(right), score(top), score(left)],
             tilesRemaining: state.tilesRemaining,
         },

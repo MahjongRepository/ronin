@@ -9,7 +9,7 @@ function makeRound(overrides: Partial<RoundInfo> = {}): RoundInfo {
         actionStepIndex: 2,
         honba: 0,
         resultDescription: "",
-        roundNumber: 1,
+        roundInWind: 1,
         wind: 0,
         ...overrides,
     };
@@ -40,17 +40,17 @@ function renderSelector(
 
 describe("formatRoundLabel", () => {
     test("formats basic round without honba or result", () => {
-        const round = makeRound({ roundNumber: 1, wind: 0 });
+        const round = makeRound({ roundInWind: 1, wind: 0 });
         expect(formatRoundLabel(round)).toBe("East 1");
     });
 
     test("formats round with honba", () => {
-        const round = makeRound({ honba: 2, roundNumber: 3, wind: 1 });
+        const round = makeRound({ honba: 2, roundInWind: 3, wind: 1 });
         expect(formatRoundLabel(round)).toBe("South 3, 2 honba");
     });
 
     test("formats round with result description", () => {
-        const round = makeRound({ resultDescription: "Tsumo by Alice", roundNumber: 1, wind: 0 });
+        const round = makeRound({ resultDescription: "Tsumo by Alice", roundInWind: 1, wind: 0 });
         expect(formatRoundLabel(round)).toBe("East 1 \u2014 Tsumo by Alice");
     });
 
@@ -58,7 +58,7 @@ describe("formatRoundLabel", () => {
         const round = makeRound({
             honba: 1,
             resultDescription: "Ron by Bob from Carol",
-            roundNumber: 2,
+            roundInWind: 2,
             wind: 0,
         });
         expect(formatRoundLabel(round)).toBe("East 2, 1 honba \u2014 Ron by Bob from Carol");
@@ -69,8 +69,8 @@ describe("RoundSelector", () => {
     describe("maps rounds to correct dropdown items", () => {
         test("renders correct number of items when open", () => {
             const rounds = [
-                makeRound({ actionStepIndex: 2, roundNumber: 1, wind: 0 }),
-                makeRound({ actionStepIndex: 15, roundNumber: 2, wind: 0 }),
+                makeRound({ actionStepIndex: 2, roundInWind: 1, wind: 0 }),
+                makeRound({ actionStepIndex: 15, roundInWind: 2, wind: 0 }),
             ];
             const el = renderSelector({ isOpen: true, rounds });
             const items = el.querySelectorAll(".dropdown-select__item");
@@ -82,14 +82,14 @@ describe("RoundSelector", () => {
                 makeRound({
                     actionStepIndex: 2,
                     resultDescription: "Tsumo by Alice",
-                    roundNumber: 1,
+                    roundInWind: 1,
                     wind: 0,
                 }),
                 makeRound({
                     actionStepIndex: 15,
                     honba: 1,
                     resultDescription: "Exhaustive draw",
-                    roundNumber: 2,
+                    roundInWind: 2,
                     wind: 0,
                 }),
             ];
@@ -100,8 +100,8 @@ describe("RoundSelector", () => {
         });
 
         test("highlights current round", () => {
-            const round1 = makeRound({ actionStepIndex: 2, roundNumber: 1, wind: 0 });
-            const round2 = makeRound({ actionStepIndex: 15, roundNumber: 2, wind: 0 });
+            const round1 = makeRound({ actionStepIndex: 2, roundInWind: 1, wind: 0 });
+            const round2 = makeRound({ actionStepIndex: 15, roundInWind: 2, wind: 0 });
             const el = renderSelector({
                 currentRound: round2,
                 isOpen: true,
@@ -115,8 +115,8 @@ describe("RoundSelector", () => {
         test("calls onSelect with correct step index when item is clicked", () => {
             const onSelect = vi.fn();
             const rounds = [
-                makeRound({ actionStepIndex: 2, roundNumber: 1, wind: 0 }),
-                makeRound({ actionStepIndex: 15, roundNumber: 2, wind: 0 }),
+                makeRound({ actionStepIndex: 2, roundInWind: 1, wind: 0 }),
+                makeRound({ actionStepIndex: 15, roundInWind: 2, wind: 0 }),
             ];
             const el = renderSelector({ isOpen: true, onSelect, rounds });
             const items = el.querySelectorAll<HTMLButtonElement>(".dropdown-select__item");
@@ -133,14 +133,14 @@ describe("RoundSelector", () => {
         });
 
         test("shows current round name when round is active", () => {
-            const currentRound = makeRound({ roundNumber: 2, wind: 0 });
+            const currentRound = makeRound({ roundInWind: 2, wind: 0 });
             const el = renderSelector({ currentRound, rounds: [currentRound] });
             const trigger = el.querySelector(".dropdown-select__trigger");
             expect(trigger?.textContent).toBe("East 2");
         });
 
         test("shows South wind correctly", () => {
-            const currentRound = makeRound({ roundNumber: 1, wind: 1 });
+            const currentRound = makeRound({ roundInWind: 1, wind: 1 });
             const el = renderSelector({ currentRound, rounds: [currentRound] });
             const trigger = el.querySelector(".dropdown-select__trigger");
             expect(trigger?.textContent).toBe("South 1");

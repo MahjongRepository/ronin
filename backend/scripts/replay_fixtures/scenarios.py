@@ -442,12 +442,11 @@ def pao() -> Recording:
     return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ps": 0}, then=GAME_ENDS))
 
 
-def exhaustive_tenpai() -> Recording:
+def _riichi_to_exhaustive_draw(game_id: str, settings: GameSettings) -> StagedGame:
     """
-    Play a round out to an exhaustive draw with two tenpai hands, one in riichi, then deal the next round.
+    Play a round out to an exhaustive draw with two tenpai hands, seat 1's in riichi, and the noten seats 0 and 3.
 
-    Both tenpai hands wait on a tile whose other copies sit in a noten hand, so no discard of the wall can be won; the
-    riichi stick and the honba carry into the second round's deal.
+    Both tenpai hands wait on a tile whose other copies sit in a noten hand, so no discard of the wall can be won.
     """
     staged = StagedWall(
         hands=(
@@ -458,16 +457,41 @@ def exhaustive_tenpai() -> Recording:
         ),
     )
 
-    game = StagedGame("exhaustive-tenpai", staged)
+    game = StagedGame(game_id, staged, settings=settings)
     game.tsumogiri(0)
     game.riichi(1)
     game.tsumogiri_until()
+    return game
+
+
+def exhaustive_tenpai() -> Recording:
+    """
+    Play a round out to an exhaustive draw with two tenpai hands, one in riichi, then deal the next round.
+
+    The riichi stick and the honba carry into the second round's deal.
+    """
+    game = _riichi_to_exhaustive_draw("exhaustive-tenpai", GameSettings())
     game.confirm_round()
 
     return game.replay(
         Outcome(
             {"rt": WireRoundResultType.EXHAUSTIVE_DRAW, "ts": [1, 2], "ns": [0, 3]},
             then=(WireEventType.ROUND_STARTED, {"dl": 1, "h": 1, "r": 1}),
+        )
+    )
+
+
+def leftover_riichi() -> Recording:
+    """
+    End the game at the exhaustive draw of a riichi round: with the tobi threshold raised above the noten seats' 23,500,
+    the riichi stick left on the table goes to the leader, seat 2, at the game end.
+    """
+    game = _riichi_to_exhaustive_draw("leftover-riichi", GameSettings(tobi_threshold=24000))
+
+    return game.replay(
+        Outcome(
+            {"rt": WireRoundResultType.EXHAUSTIVE_DRAW, "ts": [1, 2], "ns": [0, 3]},
+            then=(WireEventType.GAME_END, {"ws": 2, "lb": 10}),
         )
     )
 
@@ -773,6 +797,7 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "triple_ron.txt": triple_ron,
     "pao.txt": pao,
     "exhaustive_tenpai.txt": exhaustive_tenpai,
+    "leftover_riichi.txt": leftover_riichi,
     "nagashi.txt": nagashi,
     "kyuushu.txt": kyuushu,
     "four_winds_riichi.txt": four_winds_riichi,

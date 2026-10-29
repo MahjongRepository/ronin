@@ -1,7 +1,6 @@
 import { type TemplateResult } from "lit-html";
 
-import { formatRoundName } from "@/entities/table/lib/round-name";
-import { windName } from "@/entities/table/lib/wind-name";
+import { formatRoundName, roundName } from "@/entities/table/lib/round-name";
 import { type RoundInfo } from "@/entities/table/model/navigation-index";
 
 import { type DropdownItem, DropdownSelect } from "./dropdown-select";
@@ -16,7 +15,7 @@ interface RoundSelectorProps {
 
 /** Formats a round's label for display in the dropdown: "East 2, 1 honba — Tsumo by Alice". */
 function formatRoundLabel(round: RoundInfo): string {
-    const name = formatRoundName(round.wind, round.roundNumber, round.honba);
+    const name = formatRoundName(round.wind, round.roundInWind, round.honba);
     return round.resultDescription ? `${name} \u2014 ${round.resultDescription}` : name;
 }
 
@@ -25,7 +24,7 @@ function triggerLabel(currentRound: RoundInfo | undefined): string {
     if (!currentRound) {
         return "Rounds";
     }
-    return `${windName(currentRound.wind)} ${currentRound.roundNumber}`;
+    return roundName(currentRound.wind, currentRound.roundInWind);
 }
 
 /** Maps RoundInfo[] to DropdownItem[] for the shared DropdownSelect component. */

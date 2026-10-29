@@ -384,6 +384,7 @@ const mockRoundEnd: RoundEndResult = {
 
 // Mock game-end result: 4 player standings
 const mockGameEnd: GameEndResult = {
+    leftoverRiichiBonus: 1000,
     standings: [
         { finalScore: 52, score: 42_000, seat: 0 },
         { finalScore: -2, score: 28_000, seat: 2 },

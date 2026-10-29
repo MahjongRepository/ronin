@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from scripts.seat_scenarios.harness import SeatTranscript
 
 PLAYER = "Alice"
+OWN_TURN_RINSHAN = tile(0, honors="4")
 
 
 def call_prompt() -> tuple[SeatTranscript, ...]:
@@ -65,19 +66,12 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
         return game.transcripts("call_prompt", PLAYER)
 
 
-def own_turn() -> tuple[SeatTranscript, ...]:
+def _own_turn_wall() -> StagedWall:
     """
-    Deal Alice (seat 1) three 1m and draw her the fourth, which offers a closed kan and riichi.
-
-    Her socket dies unseen during the turn, and her reconnect takes it over: the snapshot, then the draw re-sent with
-    the time its timer has run. She declares the kan and riichi on its rinshan draw.
-
-    She passes a ron on seat 2's 6s, which leaves her furiten, wins by tsumo on her next draw, and confirms the round
-    end a second after it, as the client does on its own, after which she deals the next round from the seed.
+    Deal Alice (seat 1) three 1m, a ready shape waiting on 6s or 9s once a 1m goes, and draw her the fourth 1m; seat 2
+    then draws and discards the 6s.
     """
-    rinshan_tile = tile(0, honors="4")
-    passed_ron_tile = tile(0, sou="6")
-    staged = StagedWall(
+    return StagedWall(
         hands=(
             tile_copies(3, man="2456789", pin="19", sou="1234"),
             (
@@ -94,15 +88,26 @@ def own_turn() -> tuple[SeatTranscript, ...]:
         draws=(
             (0, tile(0, honors="2")),
             (1, tile(3, man="1")),
-            (2, passed_ron_tile),
+            (2, tile(0, sou="6")),
             (3, tile(0, honors="3")),
             (0, tile(0, honors="6")),
             (1, tile(0, sou="9")),
         ),
-        rinshan=(rinshan_tile,),
+        rinshan=(OWN_TURN_RINSHAN,),
     )
 
-    with seated_game("seat-own-turn", staged, players=(PLAYER,)) as game:
+
+def own_turn() -> tuple[SeatTranscript, ...]:
+    """
+    Deal Alice (seat 1) three 1m and draw her the fourth, which offers a closed kan and riichi.
+
+    Her socket dies unseen during the turn, and her reconnect takes it over: the snapshot, then the draw re-sent with
+    the time its timer has run. She declares the kan and riichi on its rinshan draw.
+
+    She passes a ron on seat 2's 6s, which leaves her furiten, wins by tsumo on her next draw, and confirms the round
+    end a second after it, as the client does on its own, after which she deals the next round from the seed.
+    """
+    with seated_game("seat-own-turn", _own_turn_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
         alice.drop_unseen(at=3.5, label="dropped")
@@ -112,7 +117,7 @@ def own_turn() -> tuple[SeatTranscript, ...]:
         alice.label("draw re-sent", WireEventType.DRAW)
         alice.kan(tile(0, man="1"), KanType.CLOSED, at=5, label="kan chosen")
         alice.label("rinshan", WireEventType.DRAW)
-        alice.riichi(rinshan_tile, at=11, label="riichi chosen")
+        alice.riichi(OWN_TURN_RINSHAN, at=11, label="riichi chosen")
         alice.label("ron prompt", WireEventType.CALL_PROMPT)
         alice.pass_(at=13, label="passed")
         alice.label("furiten", WireEventType.FURITEN)
@@ -173,8 +178,34 @@ def reconnect() -> tuple[SeatTranscript, ...]:
         return game.transcripts("reconnect", PLAYER)
 
 
+def riichi_reconnect() -> tuple[SeatTranscript, ...]:
+    """
+    Declare riichi for Alice (seat 1) on her first draw, discarding a 1m; it passes, so the server takes her stick.
+
+    Her socket dies unseen at seat 2's 6s, and her reconnect takes it over: the snapshot, with her stick already taken,
+    then the ron prompt re-sent. She rons it.
+    """
+    with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("first draw", WireEventType.DRAW)
+        alice.riichi(tile(0, man="1"), at=5, label="riichi chosen")
+        alice.label("riichi accepted", WireEventType.RIICHI_DECLARED)
+        alice.label("ron prompt", WireEventType.CALL_PROMPT)
+        alice.drop_unseen(at=5.5, label="dropped")
+        alice.reconnect(at=6.5, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.label("ron prompt re-sent", WireEventType.CALL_PROMPT)
+        alice.ron(at=7, label="ron chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+
+        return game.transcripts("riichi_reconnect", PLAYER)
+
+
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
     "reconnect": reconnect,
+    "riichi_reconnect": riichi_reconnect,
 }

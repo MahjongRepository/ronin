@@ -1,3 +1,5 @@
+import { NUM_PLAYERS } from "@/shared/protocol";
+
 import { type PlayerState, type TableState } from "./types";
 
 /** A closed hand of 3n+1 tiles waits for a draw; one of 3n+2 holds its turn's draw. */
@@ -53,4 +55,13 @@ export function takeFromHand(hand: ClosedHand, tileIds: readonly number[]): Clos
         }
     }
     return { concealedCount, tiles };
+}
+
+/**
+ * The round's number within its wind, from 1. The wire's round number counts every deal of the game, repeats
+ * included; the deal passes one seat on per round of the wind, so the dealer's distance from the first dealer
+ * names it ("East 1" through "East 4", then "South 1").
+ */
+export function roundInWind(table: Pick<TableState, "dealerSeat" | "firstDealerSeat">): number {
+    return ((table.dealerSeat - table.firstDealerSeat + NUM_PLAYERS) % NUM_PLAYERS) + 1;
 }
