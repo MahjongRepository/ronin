@@ -27,6 +27,51 @@
     }
 }
 
+.footer-lang {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1rem;
+    margin: 0;
+
+    button {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        font-family: var(--ronin-font-body);
+        font-size: 0.7rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: var(--pico-muted-color);
+
+        &:hover {
+            color: var(--pico-primary);
+        }
+
+        &[aria-current="true"] {
+            color: var(--pico-color);
+            text-decoration: underline;
+            text-decoration-color: var(--pico-primary);
+            text-decoration-thickness: 1px;
+            text-underline-offset: 0.35em;
+        }
+    }
+
+    @media (width <= 576px), (pointer: coarse) {
+        gap: 0 1.25rem;
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            min-height: var(--ronin-touch-target);
+            font-size: 0.75rem;
+        }
+    }
+}
+
 .footer-dev-links {
     display: flex;
     flex-wrap: wrap;

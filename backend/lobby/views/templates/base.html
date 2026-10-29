@@ -24,28 +24,12 @@
     {% set current_path = request.url.path if request is defined else "" %}
     <nav class="container lobby-nav" aria-label="{{ t('nav.aria_label') }}">
         <ul>
-            <li><a href="/" class="lobby-brand"><span class="lobby-logo" aria-hidden="true"></span><span class="lobby-brand-name">Ronin</span></a></li>
+            <li><a href="/" class="lobby-brand"><span class="lobby-logo" aria-hidden="true"></span>Ronin</a></li>
             {% if username %}
             <li><a href="/history" class="lobby-nav-link"{% if current_path == "/history" %} aria-current="page"{% endif %}>{{ t("nav.history") }}</a></li>
             {% endif %}
         </ul>
         <ul>
-            {% block language_switch %}
-            <li class="lobby-lang">
-                <form method="POST" action="/lang">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="next" value="{{ current_page }}">
-                    <details class="dropdown lobby-lang-switch">
-                        <summary aria-label="{{ t('nav.language_menu', language=language_names[locale]) }}">{{ language_names[locale] }}</summary>
-                        <ul>
-                            {% for code, name in language_names.items() %}
-                            <li><button type="submit" name="lang" value="{{ code }}" lang="{{ code }}"{% if code == locale %} aria-current="true"{% endif %}>{{ name }}</button></li>
-                            {% endfor %}
-                        </ul>
-                    </details>
-                </form>
-            </li>
-            {% endblock %}
             {% if username %}
             <li class="lobby-username" title="{{ username }}">{{ username }}</li>
             <li>
@@ -66,6 +50,15 @@
     <footer class="container">
         <div class="footer-content">
             <small class="footer-meta">&copy; {{ current_year }} Ronin &middot; v{{ app_version | default('dev') }}</small>
+            {% block language_switch %}
+            <form method="POST" action="/lang" class="footer-lang" aria-label="{{ t('footer.language_label') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="next" value="{{ current_page }}">
+                {% for code, name in language_names.items() %}
+                <button type="submit" name="lang" value="{{ code }}" lang="{{ code }}"{% if code == locale %} aria-current="true"{% endif %}>{{ name }}</button>
+                {% endfor %}
+            </form>
+            {% endblock %}
             {% if dev_mode %}
             <nav class="footer-dev-links" aria-label="{{ t('footer.dev_links_label') }}">
                 <a href="/storybook">{{ t("footer.lobby_storybook") }}</a>

@@ -27,8 +27,8 @@ LOBBY_ENTRY = "src/index.ts"
 def _i18n_context(request: Request) -> dict[str, object]:
     """
     Give every template the request's ``locale``, ``t(key, **params)``, which returns the message as escaped HTML,
-    ``format_number(n)`` in the locale's digit grouping, and what the language menu needs: the languages by their native
-    names and the page to return to (path and query).
+    ``format_number(n)`` in the locale's digit grouping, and what the language switch needs: the languages by their
+    native names and the page to return to (path and query).
     """
     translator: Translator = request.app.state.translator
     locale = resolve_request_locale(request).locale
@@ -50,7 +50,7 @@ def _i18n_context(request: Request) -> dict[str, object]:
 
 def _return_page(request: Request) -> str:
     """
-    Return the page the language menu sends the user back to: this one for a GET, else the page that posted the form.
+    Return the page the language switch sends the user back to: this one for a GET, else the page that posted the form.
 
     A page rendered for a POST (a refused form, an error) has no GET route at its path, so returning there would fail;
     the same-origin page that sent the form, or the lobby, is the closest page to reopen.

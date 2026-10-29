@@ -115,11 +115,13 @@ def test_register_route__when_username_taken_and_lang_is_ru__should_show_the_rus
     assert "Имя «taken_name» уже занято." in response.text
 
 
-def test_language_menu__when_page_is_rendered__should_mark_the_active_language_and_return_to_the_page(client):
+def test_language_switch__when_page_is_rendered__should_mark_the_active_language_and_return_to_the_page(client):
     client.cookies.set("lang", "ru")
 
     response = client.get("/login?next=%2Fhistory")
-    assert 'action="/lang"' in response.text
+    footer = response.text.split("<footer", 1)[1]
+    assert 'action="/lang"' in footer
+    assert 'action="/lang"' not in response.text.split("<footer", 1)[0]
     assert '<input type="hidden" name="next" value="/login?next=%2Fhistory">' in response.text
     assert 'value="ru" lang="ru" aria-current="true">Русский</button>' in response.text
     assert 'value="ja" lang="ja">日本語</button>' in response.text
@@ -131,7 +133,7 @@ def test_language_menu__when_page_is_rendered__should_mark_the_active_language_a
     [("http://testserver/history?page=2", "/history?page=2"), (None, "/")],
     ids=["same_origin_referer", "no_referer"],
 )
-def test_language_menu__when_page_answers_a_post__should_return_to_the_posting_page_instead_of_the_post_target(
+def test_language_switch__when_page_answers_a_post__should_return_to_the_posting_page_instead_of_the_post_target(
     client, referer, return_page
 ):
     _csrf_token(client)
