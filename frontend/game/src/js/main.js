@@ -89,4 +89,5 @@ async function start() {
     }
 }
 
+document.addEventListener("dragstart", (event) => event.preventDefault());
 $(start);
