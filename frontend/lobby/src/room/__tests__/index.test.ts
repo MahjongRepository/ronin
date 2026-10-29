@@ -10,6 +10,7 @@ let capturedLifetime: PageLifetime | null = null;
 
 const mockConnect = vi.fn();
 const mockDisconnect = vi.fn();
+const mockSocketCreated = vi.fn();
 
 vi.mock("@/lobby-socket", async (importOriginal) => ({
     ...(await importOriginal<typeof import("@/lobby-socket")>()),
@@ -20,6 +21,7 @@ vi.mock("@/lobby-socket", async (importOriginal) => ({
         ) {
             capturedMessageHandler = onMessage;
             capturedStatusHandler = onStatusChange;
+            mockSocketCreated();
         }
 
         connect = mockConnect;
@@ -40,8 +42,9 @@ const WS_URL = "ws://lobby/ws/rooms/room-1";
 
 function renderPage(
     attributes = `data-room-name="Jade Crane" data-ws-url="${WS_URL}" data-chat-max-length="1000"`,
+    chrome = "",
 ): HTMLElement {
-    document.body.innerHTML = `<div id="room-app" ${attributes}></div>`;
+    document.body.innerHTML = `<div id="room-app" ${attributes}></div>${chrome}`;
     const container = document.getElementById("room-app");
     if (!container) {
         throw new Error("missing #room-app");
@@ -80,14 +83,17 @@ function alertText(container: HTMLElement): string {
 beforeEach(() => {
     mockConnect.mockClear();
     mockDisconnect.mockClear();
+    mockSocketCreated.mockClear();
     vi.useFakeTimers();
 });
 
 afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     sessionStorage.clear();
     document.body.replaceChildren();
+    document.documentElement.lang = "";
 });
 
 describe("initRoomPage", () => {
@@ -186,5 +192,114 @@ describe("initRoomPage across the back-forward cache", () => {
 
         expect(mockConnect).toHaveBeenCalledTimes(1);
         expect(alertText(container)).toContain("open in another tab");
+    });
+});
+
+describe("initRoomPage language switch", () => {
+    const CHROME = `
+        <nav aria-label="Main" data-i18n-aria-label="nav.aria_label">
+            <a href="/history" data-i18n="nav.history">History</a>
+        </nav>
+        <footer>
+            <form method="POST" action="/lang" class="footer-lang" aria-label="Language" data-i18n-aria-label="footer.language_label">
+                <input type="hidden" name="csrf_token" value="csrf-1">
+                <input type="hidden" name="next" value="/rooms/room-1">
+                <button type="submit" name="lang" value="en" lang="en" aria-current="true">English</button>
+                <button type="submit" name="lang" value="ru" lang="ru">Русский</button>
+            </form>
+        </footer>`;
+
+    function openSeatedRoom(): HTMLElement {
+        document.documentElement.lang = "en";
+        const container = renderPage(undefined, CHROME);
+        capturedStatusHandler?.("connected");
+        receive({
+            can_start: true,
+            is_owner: true,
+            player_name: "dev",
+            players: [
+                { is_bot: false, is_owner: true, name: "dev", ready: true },
+                { is_bot: false, is_owner: false, name: "guest", ready: true },
+            ],
+            type: "room_joined",
+        });
+        return container;
+    }
+
+    function stubLanguageSave() {
+        const save = vi.fn(async () => ({ ok: false, status: 0, type: "opaqueredirect" }));
+        vi.stubGlobal("fetch", save);
+        return save;
+    }
+
+    function chooseLanguage(locale: string): void {
+        document
+            .querySelector<HTMLButtonElement>(`.footer-lang button[value="${locale}"]`)
+            ?.click();
+    }
+
+    function readChrome(): Record<string, unknown> {
+        return {
+            activeLanguages: [
+                ...document.querySelectorAll(".footer-lang [aria-current='true']"),
+            ].map((button) => button.textContent),
+            history: document.querySelector("[data-i18n='nav.history']")?.textContent,
+            lang: document.documentElement.lang,
+            languageLabel: document.querySelector(".footer-lang")?.getAttribute("aria-label"),
+            navLabel: document.querySelector("nav")?.getAttribute("aria-label"),
+            title: document.title,
+        };
+    }
+
+    function readRoom(container: HTMLElement): Record<string, unknown> {
+        return {
+            chat: [...container.querySelectorAll(".room-chat-text")].map(
+                (line) => line.textContent,
+            ),
+            seats: [...container.querySelectorAll(".room-player-item")].map((seat) => [
+                seat.querySelector(".room-player-name")?.textContent,
+                seat.querySelector(".room-player-status")?.getAttribute("aria-label"),
+            ]),
+            start: container.querySelector(".room-start-btn")?.textContent?.trim(),
+            status: statusText(container),
+        };
+    }
+
+    test("switches the page and its chrome in place, keeping the socket, the seats and the chat", async () => {
+        const save = stubLanguageSave();
+        const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+        const pageUrl = window.location.href;
+        const container = openSeatedRoom();
+
+        chooseLanguage("ru");
+
+        expect(readChrome()).toEqual({
+            activeLanguages: ["Русский"],
+            history: "История",
+            lang: "ru",
+            languageLabel: "Язык",
+            navLabel: "Основное меню",
+            title: "Jade Crane · Маджонг Ronin",
+        });
+        expect(readRoom(container)).toEqual({
+            chat: ["You joined the table"],
+            seats: [
+                ["dev", "Хозяин"],
+                ["guest", "Готов"],
+            ],
+            start: "Начать игру",
+            status: "Подключено",
+        });
+        expect(
+            [mockSocketCreated, mockConnect, mockDisconnect].map((mock) => mock.mock.calls.length),
+        ).toEqual([1, 1, 0]);
+        expect([replace.mock.calls.length, window.location.href]).toEqual([0, pageUrl]);
+        await vi.waitFor(() =>
+            expect(save).toHaveBeenCalledExactlyOnceWith(new URL("/lang", pageUrl).href, {
+                body: new URLSearchParams({ csrf_token: "csrf-1", lang: "ru" }),
+                method: "POST",
+                redirect: "manual",
+            }),
+        );
     });
 });

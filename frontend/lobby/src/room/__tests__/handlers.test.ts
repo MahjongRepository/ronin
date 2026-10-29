@@ -75,7 +75,8 @@ describe("buildMessageHandlers", () => {
 
         handleMessage(handlers, { message: code, type: "error" });
 
-        expect(state.pageError).toEqual({ code, seatedRoomId: undefined, text });
+        expect(state.pageError).toEqual({ code, seatedRoomId: undefined });
+        expect(describeRoomError(state.pageError?.code)).toBe(text);
         expect(state.chatMessages).toEqual([]);
         expect(rejoin).not.toHaveBeenCalled();
     });
@@ -98,7 +99,7 @@ describe("buildMessageHandlers", () => {
         }
 
         expect(rejoin).toHaveBeenCalledTimes(MAX_JOIN_RETRIES);
-        expect(state.pageError?.text).toBe(
+        expect(describeRoomError(state.pageError?.code)).toBe(
             "The game didn't start in time. Reload the page to try again.",
         );
     });

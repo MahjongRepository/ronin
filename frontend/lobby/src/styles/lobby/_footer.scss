@@ -1,23 +1,25 @@
 // Lobby footer
 
 .footer-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-areas: "meta lang dev";
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.5rem 1rem;
     padding: 1.5rem 0;
     border-top: 1px solid var(--ronin-border);
 
     @media (width <= 576px) {
-        flex-direction: column;
-        align-items: flex-start;
+        grid-template-areas: "meta" "lang" "dev";
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: start;
         gap: 0.25rem;
         padding-block: 1rem;
     }
 }
 
 .footer-meta {
+    grid-area: meta;
     font-family: var(--ronin-font-mono);
     font-size: 0.7rem;
     color: var(--pico-muted-color);
@@ -25,9 +27,16 @@
     @media (width <= 576px) {
         font-size: 0.75rem;
     }
+
+    @media (width > 576px) and (pointer: coarse) {
+        display: flex;
+        align-items: center;
+        min-height: var(--ronin-touch-target);
+    }
 }
 
 .footer-lang {
+    grid-area: lang;
     display: flex;
     flex-wrap: wrap;
     gap: 0 1rem;
@@ -73,9 +82,15 @@
 }
 
 .footer-dev-links {
+    grid-area: dev;
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 1rem;
+
+    @media (width <= 576px) {
+        justify-content: flex-start;
+    }
 
     a {
         font-family: var(--ronin-font-mono);

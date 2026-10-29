@@ -1,10 +1,10 @@
 import { t } from "@/i18n";
+import { bindLanguageSwitchInPlace } from "@/language-switch";
 import { LobbySocket } from "@/lobby-socket";
 import { bindToPageLifetime } from "@/page-lifetime";
 import {
     buildActionCallbacks,
     buildMessageHandlers,
-    describeRoomError,
     handleMessage,
     handleStatusChange,
     joinRoom,
@@ -29,17 +29,27 @@ function readRoomConfig(container: HTMLElement): RoomConfig | null {
     return { chatMaxLength: maxLength, roomName, wsUrl };
 }
 
+function bindLanguageSwitch(roomName: string | undefined, render: () => void): void {
+    bindLanguageSwitchInPlace(() => {
+        document.title = t("page.title.with_page", { page: roomName || t("room.fallback_name") });
+        render();
+    });
+}
+
 function renderSetupFailure(container: HTMLElement): void {
     const state = createRoomState();
-    const code = PAGE_ERROR.PAGE_SETUP_FAILED;
-    state.pageError = { code, text: describeRoomError(code) };
-    renderRoom({
-        actions: buildActionCallbacks(state),
-        chatMaxLength: 0,
-        container,
-        roomName: container.dataset.roomName || t("room.fallback_name"),
-        state,
-    });
+    state.pageError = { code: PAGE_ERROR.PAGE_SETUP_FAILED };
+    function render(): void {
+        renderRoom({
+            actions: buildActionCallbacks(state),
+            chatMaxLength: 0,
+            container,
+            roomName: container.dataset.roomName || t("room.fallback_name"),
+            state,
+        });
+    }
+    bindLanguageSwitch(container.dataset.roomName, render);
+    render();
 }
 
 function openRoomPage(container: HTMLElement, config: RoomConfig): void {
@@ -68,6 +78,7 @@ function openRoomPage(container: HTMLElement, config: RoomConfig): void {
         release: () => leaveOnPageHide(state),
         restore: () => rejoinOnPageShow(state, rejoin),
     });
+    bindLanguageSwitch(config.roomName, render);
 
     rejoin();
 }

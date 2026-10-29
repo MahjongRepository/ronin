@@ -43,6 +43,9 @@ SKIPPED_DIRS = frozenset({"node_modules", "dist", "coverage", "tests", "__tests_
 class App:
     """
     One app's catalogs, the sources that look keys up, and the keys exempt from the usage and identity rules.
+
+    ``markup_roots`` hold another app's server-rendered markup whose ``data-i18n`` keys this app writes again in place
+    (the lobby scripts re-render the lobby templates' chrome on a language switch): only those attributes count there.
     """
 
     name: str
@@ -52,6 +55,7 @@ class App:
     dynamic_prefixes: tuple[str, ...] = ()
     identical_keys: frozenset[str] = frozenset()
     literals_in_namespaces_are_keys: bool = False
+    markup_roots: tuple[str, ...] = ()
 
 
 APPS = (
@@ -69,6 +73,7 @@ APPS = (
         source_roots=("frontend/lobby/src",),
         source_suffixes=frozenset({".ts"}),
         dynamic_prefixes=("occupancy.", "room.error."),
+        markup_roots=("backend/lobby/views/templates",),
     ),
     App(
         name="game client",
@@ -238,16 +243,16 @@ def check_catalogs(app: App, catalogs: dict[str, tuple[Path, Catalog]]) -> list[
     return problems
 
 
-def iter_sources(app: App) -> list[Path]:
+def iter_sources(roots: tuple[str, ...], suffixes: frozenset[str]) -> list[Path]:
     """
-    List the app's source files, leaving out dependencies, builds and tests.
+    List the source files under ``roots`` with one of ``suffixes``, leaving out dependencies, builds and tests.
     """
     files: list[Path] = []
-    for root in app.source_roots:
+    for root in roots:
         path = ROOT / root
         candidates = [path] if path.is_file() else sorted(path.rglob("*"))
         for candidate in candidates:
-            if not candidate.is_file() or candidate.suffix not in app.source_suffixes:
+            if not candidate.is_file() or candidate.suffix not in suffixes:
                 continue
 
             if SKIPPED_DIRS.intersection(candidate.relative_to(ROOT).parts):
@@ -258,6 +263,29 @@ def iter_sources(app: App) -> list[Path]:
     return files
 
 
+def attribute_keys(text: str) -> list[str]:
+    """
+    Return the keys named by the ``data-i18n`` attributes of ``text``, leaving out those that hold no key.
+    """
+    return [value for name, _, value in I18N_ATTRIBUTE.findall(text) if name not in NON_KEY_I18N_ATTRIBUTES]
+
+
+def check_looked_up(source: Path, looked_up: list[str], en_path: Path, en: Catalog) -> list[Problem]:
+    """
+    Check the keys one source looks up: each must be shaped like a key and present in en.
+    """
+    problems = []
+    for key in sorted(set(looked_up)):
+        if not KEY_SHAPE.match(key):
+            problems.append(Problem(source, key, "looked up in code but not dotted lower-case words"))
+            continue
+
+        if key not in en:
+            problems.append(Problem(source, key, f"looked up in code but absent from {en_path.name}"))
+
+    return problems
+
+
 def check_usage(app: App, en_path: Path, en: Catalog) -> list[Problem]:
     """
     Check that every literal key looked up in code exists in en, and every en key is used somewhere.
@@ -266,31 +294,29 @@ def check_usage(app: App, en_path: Path, en: Catalog) -> list[Problem]:
     constant naming it), or when it falls under one of the app's dynamic prefixes. A literal lookup or data-i18n
     attribute whose value is not shaped like a key fails; `data-i18n-slot` and `data-i18n-params` hold no key. In an app whose code holds keys in
     tables and constants (the lobby server's error pages and notices), every dotted literal whose first word is one of
-    the catalog's namespaces counts as a lookup too, so a typo in a table fails like one in a call.
+    the catalog's namespaces counts as a lookup too, so a typo in a table fails like one in a call. In the app's markup
+    roots only the data-i18n attributes count.
     """
     problems: list[Problem] = []
     used: set[str] = set()
     namespaces = {key.split(".")[0] for key in en}
-    for source in iter_sources(app):
+    markup = iter_sources(app.markup_roots, frozenset({".html"}))
+    for source in markup:
+        looked_up = attribute_keys(source.read_text(encoding="utf-8"))
+        problems.extend(check_looked_up(source, looked_up, en_path, en))
+        used.update(key for key in looked_up if KEY_SHAPE.match(key))
+
+    for source in iter_sources(app.source_roots, app.source_suffixes):
         text = source.read_text(encoding="utf-8")
-        looked_up = [match[1] for match in LOOKUP_CALL.findall(text)]
-        looked_up.extend(
-            value for name, _, value in I18N_ATTRIBUTE.findall(text) if name not in NON_KEY_I18N_ATTRIBUTES
-        )
+        looked_up = attribute_keys(text) + [match[1] for match in LOOKUP_CALL.findall(text)]
         if app.literals_in_namespaces_are_keys:
             literals = (match[1] for match in QUOTED_LITERAL.findall(text))
             looked_up.extend(
                 key for key in literals if key.split(".")[0] in namespaces and not key.endswith(FILE_NAME_SUFFIXES)
             )
-        for key in sorted(set(looked_up)):
-            if not KEY_SHAPE.match(key):
-                problems.append(Problem(source, key, "looked up in code but not dotted lower-case words"))
-                continue
 
-            used.add(key)
-            if key not in en:
-                problems.append(Problem(source, key, f"looked up in code but absent from {en_path.name}"))
-
+        problems.extend(check_looked_up(source, looked_up, en_path, en))
+        used.update(key for key in looked_up if KEY_SHAPE.match(key))
         used.update(match[1] for match in STRING_LITERAL.findall(text))
 
     unused = sorted(key for key in en.keys() - used if not key.startswith(app.dynamic_prefixes))

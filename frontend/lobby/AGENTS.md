@@ -13,6 +13,12 @@ navigates away keeps their queue entry or seat. A page leaves for the game, and 
 table for the lobby, with `location.replace`, so Back never restores a page whose rejoin would only
 hand the user the same game or seat again.
 
+For the same reason the room and matchmaking pages never reload for a language change:
+`language-switch.ts` takes over the footer's language form there, saves the choice through `fetch`
+and switches the page in place (`docs/i18n.md`), then the page re-renders its view from its state.
+Text a page module keeps in its state is therefore stored as a code or key and translated at render
+time, except chat lines, which keep the language they arrived in.
+
 ## Build
 
 Vite builds one entry, `src/index.ts`, with a manifest; the lobby backend serves `dist/` under
@@ -50,7 +56,7 @@ it exists; a seated player refused the same way mid-start just waits for `game_s
 * No literal UI text in code: every string goes through `t()` from `src/i18n/` (keys typed from
   `locales/en.json`), a sentence with a link through `tParts()` and a link slot, numbers, dates and
   lists through its formatters. The locale is the page's `<html lang>`, which the server resolved;
-  the scripts never resolve it. A server code maps to a key through a closed list, and an unknown
+  the scripts never resolve it, and only the in-place language switch changes it. A server code maps to a key through a closed list, and an unknown
   code shows the family's generic key and is reported (`docs/i18n.md`). A missing key or param throws
   under the Vite dev server and Vitest and falls back to English with one `console.error` in
   production.

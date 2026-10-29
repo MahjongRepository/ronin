@@ -2,7 +2,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import { type MessageKey, t } from "@/i18n";
 import { OCCUPANCY } from "@/occupancy-errors";
-import { type ActionCallbacks } from "@/room/handlers";
+import { type ActionCallbacks, describeRoomError } from "@/room/handlers";
 import {
     type ChatEntry,
     type ConnectionStatus,
@@ -88,7 +88,11 @@ function alertTemplate(
 
 function noticeTemplate(state: RoomState): TemplateResult | typeof nothing {
     if (state.pageError) {
-        return alertTemplate("error", state.pageError.text, recoveryLinks(state.pageError));
+        return alertTemplate(
+            "error",
+            describeRoomError(state.pageError.code),
+            recoveryLinks(state.pageError),
+        );
     }
     if (isConnectionLost(state)) {
         return alertTemplate("warning", t("room.connection_lost"), [

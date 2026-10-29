@@ -1,3 +1,5 @@
+import { t } from "@/i18n";
+import { bindLanguageSwitchInPlace } from "@/language-switch";
 import { LobbySocket } from "@/lobby-socket";
 import {
     handleMessage,
@@ -27,6 +29,10 @@ function openMatchmakingPage(container: HTMLElement, wsUrl: string): void {
     bindToPageLifetime({
         release: () => leaveOnPageHide(state),
         restore: () => rejoinOnPageShow(state, rejoin),
+    });
+    bindLanguageSwitchInPlace(() => {
+        document.title = t("page.title.with_page", { page: t("lobby.action.quick_match") });
+        render();
     });
 
     rejoin();
