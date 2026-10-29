@@ -347,6 +347,10 @@ body.board {
 
                 .hule {
                     .note {
+                        display: flex;
+                        flex-wrap: wrap;
+                        column-gap: 1em;
+                        justify-content: center;
                         contain: inline-size;
                         font-family: $text-font;
                         text-align: center;
@@ -354,10 +358,6 @@ body.board {
 
                         &:empty {
                             display: none;
-                        }
-
-                        .note-item + .note-item {
-                            margin-left: 1em;
                         }
                     }
 
