@@ -82,7 +82,7 @@ describe("outcomeParts", () => {
     it("names a draw and the seats it names before its Japanese name", () => {
         expect(outcomes(EAGER_GAME)[3]).toBe("Exhaustive draw: tenpai Alice, Bob (荒牌平局)");
         expect(outcomes(NAGASHI)).toEqual(["Nagashi Mangan: Alice (流し満貫)"]);
-        expect(outcomes(KYUUSHU)).toEqual(["Nine terminals: Alice (九種九牌)"]);
+        expect(outcomes(KYUUSHU)).toEqual(["Kyuushu Kyuuhai: Alice (九種九牌)"]);
         setLocale("ja");
         expect(outcomes(EAGER_GAME)[3]).toBe("荒牌平局: テンパイ Alice・Bob");
     });
