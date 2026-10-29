@@ -20,7 +20,7 @@ function roundName(zhuangfeng, jushu) {
 
 /** A round's name with its honba: 東一局 1本場, East 1, 1 honba. */
 function roundWithHonba(zhuangfeng, jushu, honba) {
-    return t('round.with_honba', { round: roundName(zhuangfeng, jushu), honba });
+    return t('round.with_honba', { round: roundName(zhuangfeng, jushu), count: honba });
 }
 
 /** A wind's name in text (seat or round), never a table glyph: East, Восток, 東. */

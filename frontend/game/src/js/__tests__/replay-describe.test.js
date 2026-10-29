@@ -58,7 +58,7 @@ describe("outcomeParts", () => {
         setLocale("ru");
         expect(outcomes(EAGER_GAME).slice(0, 2)).toEqual([
             "Цумо: Diana 8\u00a0000 (2\u00a0000/4\u00a0000)",
-            "Цумо: Bob 12\u00a0000 (4\u00a0000 со всех)",
+            "Цумо: Bob 12\u00a0000 (по 4\u00a0000 с каждого)",
         ]);
     });
 
@@ -68,9 +68,9 @@ describe("outcomeParts", () => {
             "Double ron from Bob: Alice 1,600, Diana 1,600 (+1,200 honba)",
         );
         setLocale("ru");
-        expect(outcomes(EAGER_GAME)[2]).toBe("Рон: Charlie от Alice 1\u00a0300 (хонба +300)");
+        expect(outcomes(EAGER_GAME)[2]).toBe("Рон: Charlie с Alice 1\u00a0300 (хонба +300)");
         expect(outcomes(DOUBLE_RON_ON_HONBA)[2]).toBe(
-            "Двойной рон от Bob: Alice 1\u00a0600, Diana 1\u00a0600 (хонба +1\u00a0200)",
+            "Двойной рон с Bob: Alice 1\u00a0600, Diana 1\u00a0600 (хонба +1\u00a0200)",
         );
     });
 
@@ -125,7 +125,7 @@ describe("lastAction", () => {
         ]);
         setLocale("ru");
         expect(actionOnPage(1)).toBe(
-            "Двойной рон 2/2 от Diana: Alice 12\u00a0000, Charlie 8\u00a0000",
+            "Двойной рон 2/2 с Diana: Alice 12\u00a0000, Charlie 8\u00a0000",
         );
     });
 
