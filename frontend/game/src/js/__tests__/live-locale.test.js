@@ -134,11 +134,14 @@ describe("switchLiveLocale", () => {
         expect(dialog.attr("lang")).toBe("ja");
         expect(dialog.find(".title").text()).toBe(title);
         expect(dialog.find(".next [data-i18n]").text()).toBe("次へ");
+        switchLiveLocale(board, "ru");
+        expect(dialog.attr("lang")).toBe("ja");
+        expect(dialog.find(".title").text()).toBe(title);
         board.update({ hule: win });
         vi.advanceTimersByTime(SELECTOR_SETTLE_MS);
         expect(dialog.attr("lang")).toBeUndefined();
-        expect(dialog.find(".title").text()).toBe("Ronin: Ron ← Bot 3");
-        expect(dialog.find(".next [data-i18n]").text()).toBe("Next");
+        expect(dialog.find(".title").text()).toBe("Ronin: Рон ← Bot 3");
+        expect(dialog.find(".next [data-i18n]").text()).toBe("Далее");
     });
 });
 
