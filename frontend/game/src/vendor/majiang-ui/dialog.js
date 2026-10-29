@@ -16,14 +16,9 @@ const { hide, show, fadeIn, fadeOut } = fadein;
 import { applyStaticText, formatNumber, t } from '../../i18n/index.js';
 import { yakuName } from '../../js/ronin/yaku.js';
 import { drawName } from '../../js/ronin/terms.js';
-import { DRAW_CODE } from '../../js/ronin/draws.js';
 
 const feng_hanzi = ['東','南','西','北'];
 const YAKUMAN_MULTIPLES = 6;
-/* Who a draw names, by its code: the seat that declared nine terminals,
- * the seats that made nagashi mangan. */
-const player_role = { [DRAW_CODE.NINE_TERMINALS]: 'game.result.declared',
-                      [DRAW_CODE.NAGASHI]:        'game.result.achieved' };
 
 /* A yakuman's name by its multiple: 役満, ダブル役満, … 六倍役満. */
 function yakuman(n) {
@@ -160,10 +155,8 @@ export default class HuleDialog {
         show(this._node.pingju);
 
         $('.name', this._node.pingju).text(drawName(pingju.code));
-        let players = names_text((pingju.players || []).map(l => this.name(l)));
-        let role = player_role[pingju.code];
         $('.players', this._node.pingju)
-                .text(players && role ? t(role, { players }) : players);
+                .text(names_text((pingju.players || []).map(l => this.name(l))));
 
         if (pingju.fenpei) this.fenpei(pingju.fenpei, pingju.tenpai);
 

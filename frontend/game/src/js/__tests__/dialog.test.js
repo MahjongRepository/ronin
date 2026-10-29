@@ -110,7 +110,7 @@ describe("Majiang.UI.HuleDialog", () => {
             players: [2],
         });
 
-        expect(root.find(".pingju .players").text()).toBe("宣言: Bot 3");
+        expect(root.find(".pingju .players").text()).toBe("Bot 3");
         expect(root.find(".fenpei .tenpai")).toHaveLength(0);
     });
 

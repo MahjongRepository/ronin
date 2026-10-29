@@ -58,8 +58,6 @@
     "game.meld.pon_from_left": "上家からポン",
     "game.meld.pon_from_right": "下家からポン",
     "game.page.title": "Ronin - 対局",
-    "game.result.achieved": "達成: {players}",
-    "game.result.declared": "宣言: {players}",
     "game.result.draw_label": "流局情報",
     "game.result.fu_han": "{fu}符 {han}翻",
     "game.result.han": "{han}翻",

@@ -225,7 +225,7 @@ describe("showReplay", () => {
             nextRound: false,
             last: false,
         });
-        expect($(".replay-action").text()).toBe("Akagi deals");
+        expect($(".replay-action").text()).toBe("Dealer: Akagi");
 
         $(".replay-play").trigger("click");
         expect(label().step).toMatch(/^Step 2\u00a0[/]/);

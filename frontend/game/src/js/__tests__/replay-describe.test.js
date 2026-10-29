@@ -140,13 +140,13 @@ describe("lastAction", () => {
                 }),
             );
 
-        expect(actionAt(0, 0)).toBe("Diana deals\u00a0· AI\u00a0plays for Bob (absent)");
+        expect(actionAt(0, 0)).toBe("Dealer: Diana\u00a0· AI\u00a0plays for Bob (absent)");
         expect(actionAt(1, 0)).toBe(
-            "Alice deals\u00a0· Bob returns\u00a0· AI\u00a0plays for Diana (left)",
+            "Dealer: Alice\u00a0· Bob returns\u00a0· AI\u00a0plays for Diana (left)",
         );
         setLocale("ru");
         expect(actionAt(1, 0)).toBe(
-            "Сдаёт Alice\u00a0· Bob снова в игре\u00a0· ИИ\u00a0играет за Diana (выход из игры)",
+            "Дилер: Alice\u00a0· Bob снова в игре\u00a0· ИИ\u00a0играет за Diana (выход из игры)",
         );
     });
 });
