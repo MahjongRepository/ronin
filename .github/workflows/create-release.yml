@@ -47,7 +47,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v7
 
       - name: Validate version
         id: validate
@@ -110,7 +110,7 @@ jobs:
         with:
           ref: main
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v7
 
       - name: Configure git
         run: |
