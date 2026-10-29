@@ -3,9 +3,8 @@
         "target": "ES2022",
         "module": "ESNext",
         "moduleResolution": "bundler",
-        "baseUrl": ".",
         "paths": {
-            "@/*": ["src/*"]
+            "@/*": ["./src/*"]
         },
         "strict": true,
         "noUnusedLocals": true,

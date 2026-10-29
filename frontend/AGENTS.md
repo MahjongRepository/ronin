@@ -1,6 +1,6 @@
 # Frontend
 
-Two isolated apps, each its own Bun package with its own dependencies, lockfile, language, lint,
+Two isolated apps, each its own npm package with its own dependencies, lockfile, language, lint,
 format and test config, and its own styles:
 
 * `lobby/` — the scripts and styles of the server-rendered lobby pages (TypeScript / lit-html). See
@@ -14,13 +14,25 @@ that honours it.
 
 ## Tooling
 
-Run a package's scripts from its directory (`cd frontend/game && bunx vitest run <path>`). The root
+Run a package's scripts from its directory (`cd frontend/game && npx vitest run <path>`). The root
 `make` targets (`install-frontend`, `lint-frontend`, `typecheck-frontend`, `format-frontend`,
 `test-frontend`) loop over both apps.
 
-Before Bun 1.4 (oven-sh/bun#35681), `bun remove` of a package another dependency lists as an
-optional peer (e.g. `stylus` under Vite) leaves it in `bun.lock`: delete its `packages` line by
-hand, then `rm -rf node_modules && bun install`, since `bun install` alone keeps its directories.
+Node is pinned to one exact version in two places, kept in step: the repo's `mise.toml` for
+development (`mise trust && mise install` once; the `Makefile` puts that Node first on `PATH`) and
+`NODE_VERSION` in `deploy/Dockerfile` for the image.
+
+Each app's `.npmrc` holds the dependency policy: `save-exact` pins every version `npm install` adds,
+and `min-release-age=7` makes npm resolve only versions published at least seven days ago, a
+cooldown against a compromised release. Add or upgrade a package with `npm install <pkg>@latest`,
+which takes the newest version past the cooldown; `make install-frontend` runs `npm ci` from the
+lockfile. A package's install script runs only once `allowScripts` in `package.json` approves it
+(`npm install-scripts ls`); both apps deny `@parcel/watcher`'s, a node-gyp fallback build its
+prebuilt binaries make unnecessary.
+
+The lobby's `.oxfmtrc.json` turns `embeddedLanguageFormatting` off, so oxfmt leaves the HTML inside
+lit-html `html` templates as written instead of reflowing it, splitting tags as `</a\n>` to keep
+their whitespace exact.
 
 Both apps make every deprecation their own installed Sass marks active an error in our stylesheets,
 by the same mechanism: the `lint` script's compile check (`--fatal-deprecation` with the installed

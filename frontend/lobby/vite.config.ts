@@ -13,7 +13,7 @@ export default defineConfig(({ command }) => ({
         outDir: "dist",
         rollupOptions: {
             input: {
-                lobby: resolve(__dirname, "src/index.ts"),
+                lobby: resolve(import.meta.dirname, "src/index.ts"),
             },
         },
     },
@@ -29,7 +29,7 @@ export default defineConfig(({ command }) => ({
     publicDir: false,
     resolve: {
         alias: {
-            "@": resolve(__dirname, "src"),
+            "@": resolve(import.meta.dirname, "src"),
         },
     },
     server: {

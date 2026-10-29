@@ -88,11 +88,11 @@ if ! wait_for_server $GAME_PORT; then
 fi
 
 echo "Starting lobby Vite dev server on port $VITE_PORT..."
-(cd frontend/lobby && VITE_PORT=$VITE_PORT bun run dev) &
+(cd frontend/lobby && VITE_PORT=$VITE_PORT npm run dev) &
 VITE_PID=$!
 
 echo "Starting game client Vite dev server on port $GAME_VITE_PORT..."
-(cd frontend/game && GAME_VITE_PORT=$GAME_VITE_PORT bun run dev) &
+(cd frontend/game && GAME_VITE_PORT=$GAME_VITE_PORT npm run dev) &
 GAME_VITE_PID=$!
 
 sleep 2

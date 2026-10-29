@@ -1,4 +1,4 @@
-export PATH := $(HOME)/.bun/bin:$(PATH)
+export PATH := $(shell mise where node 2>/dev/null)/bin:$(PATH)
 
 BE_RUN := uv run --project backend
 
@@ -34,19 +34,19 @@ typecheck:
 	cd backend && uv run ty check
 
 install-frontend:
-	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun install) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm ci) || exit 1; done
 
 typecheck-frontend:
-	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run typecheck) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run typecheck) || exit 1; done
 
 format-frontend:
-	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run fmt) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run fmt) || exit 1; done
 
 lint-frontend:
-	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run lint) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run lint) || exit 1; done
 
 test-frontend:
-	for app in $(FRONTEND_APPS); do (cd frontend/$$app && bun run test) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run test) || exit 1; done
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

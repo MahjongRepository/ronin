@@ -22,6 +22,7 @@
         "capitalized-comments": "off",
         "no-magic-numbers": "off",
         "no-ternary": "off",
+        "one-var": "off",
         "unicorn/no-null": "off",
         "unicorn/prefer-global-this": "off",
         "unicorn/prefer-add-event-listener": "warn",
