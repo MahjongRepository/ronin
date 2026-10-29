@@ -326,7 +326,7 @@ export const DRAW_SAMPLES = Object.freeze([
     },
     {
         key: "nine-terminals",
-        title: "Nine terminals",
+        title: "Kyuushu Kyuuhai",
         round: { zhuangfeng: 0, jushu: 2, changbang: 0, lizhibang: 0 },
         defen: [27000, 23000, 25000, 25000],
         baopai: "s4",
