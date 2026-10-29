@@ -10,11 +10,10 @@ export default defineConfig({
     },
     test: {
         coverage: {
-            exclude: ["src/**/*.test.ts"],
             include: ["src/**/*.ts"],
             provider: "v8",
         },
         environment: "happy-dom",
-        include: ["src/**/*.test.ts"],
+        include: ["tests/**/*.test.ts"],
     },
 });

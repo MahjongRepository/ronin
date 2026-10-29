@@ -66,6 +66,9 @@ rather than introducing new FSD layers:
 ## Tests
 
 Vitest. UI tests render lit templates into a DOM element and assert on the result; logic tests call
-the module directly. New tests go in a `__tests__/` directory beside the code. The `describe` block
+the module directly. Tests live in `tests/`, outside `src/`, at the path of the module they cover
+(`tests/entities/tile/hand.test.ts` for `src/entities/tile/hand.ts`), and import it through `@/`;
+a module whose tests need different file-level `vi.mock`s gets a second, suffixed file
+(`tests/views/replay-click-outside.test.ts`). The `describe` block
 names the subject (the module or function under test) and the `it` title says what it pins; tests
 carry no doc comments, and source files carry no file-header comment.

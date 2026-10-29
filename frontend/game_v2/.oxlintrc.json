@@ -104,7 +104,7 @@
             }
         },
         {
-            "files": ["src/**/__tests__/**", "src/**/*.test.ts"],
+            "files": ["tests/**"],
             "rules": {
                 "unicorn/consistent-function-scoping": "off",
                 "unicorn/no-unreadable-array-destructuring": "off",
