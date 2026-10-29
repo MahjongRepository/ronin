@@ -77,7 +77,8 @@ leaves a partial state.
 
 The same seed and inputs produce an identical replay trace. Randomness comes only from `rng.py`: a SHAKE256 word
 stream over the seed, with a separate domain per use (the wall of each round, the first dealer, the seat
-permutation), read through rejection sampling so no draw is biased; AI strategies must be deterministic for a given
+permutation), read through rejection sampling so no draw is biased (`docs/rng.md` explains the whole algorithm and
+`make measure-wall` measures it); AI strategies must be deterministic for a given
 state. Seat assignment is part of the contract: the replay loader inverts the seeded seat permutation to rebuild the
 input order, so a change to it is a change to the replay format. A change to wall or RNG behaviour bumps
 `RNG_VERSION`; a change to the replay format bumps `REPLAY_VERSION` (`wire/replay_format.py`).
