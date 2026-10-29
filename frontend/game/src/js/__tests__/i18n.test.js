@@ -114,7 +114,7 @@ describe("t and tNodes", () => {
         const nodes = tNodes("game.board.kyotaku", { sticks: "<b>3</b>" });
 
         expect(nodes.every((node) => node.nodeType === Node.TEXT_NODE)).toBe(true);
-        expect(nodes.map((node) => node.textContent).join("")).toBe("Sticks: <b>3</b>");
+        expect(nodes.map((node) => node.textContent).join("")).toBe("Riichi: <b>3</b>");
     });
 
     it("throws in strict mode on a missing key, a missing param, an extra param and a missing translation", () => {
