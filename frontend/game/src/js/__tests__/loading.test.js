@@ -180,7 +180,7 @@ describe("live game toasts", () => {
             cd: wire.GAME_ERROR.NOT_YOUR_TURN,
             msg: "Not your turn, says the server",
         });
-        expect(toast()).toBe("操作が拒否されました: 手番ではありません。");
+        expect(toast()).toBe("手番ではありません。");
 
         receive({
             type: wire.SESSION.ERROR,
@@ -194,7 +194,7 @@ describe("live game toasts", () => {
             cd: "brand_new_code",
             msg: "Something the client never heard of",
         });
-        expect(toast()).toBe("操作が拒否されました。");
+        expect(toast()).toBe("この操作はできません。");
         expect(console.error).toHaveBeenCalledWith(
             "i18n error",
             expect.objectContaining({ key: "game.error.brand_new_code" }),
