@@ -511,11 +511,11 @@ describe("readReplayTimeline - riichi deposits", () => {
         expect(end.roundEndResult).toMatchObject({
             scoreChanges: event.scoreChanges,
             scoresBeforePayment: event.scores,
-            uraDoraIndicators: event.uraDoraIndicators,
             winners: [
                 {
                     handResult: event.handResult,
                     seat: event.winnerSeat,
+                    uraDoraIndicators: event.uraDoraIndicators,
                     winningTile: event.winningTile,
                 },
             ],

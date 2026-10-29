@@ -1,6 +1,10 @@
 import { drewUnseen, updatePlayer } from "@/entities/table/model/helpers";
 import {
+    type DrawKind,
+    type DrawResult,
+    type HandValue,
     type PlayerState,
+    type RoundEndPage,
     type RoundEndResult,
     type TableState,
     type WinnerResult,
@@ -8,6 +12,7 @@ import {
 import { assertNever } from "@/shared/lib";
 import {
     type DoubleRonRoundEnd,
+    type ExhaustiveDrawRoundEnd,
     type NagashiManganRoundEnd,
     ROUND_RESULT_TYPE,
     type RonRoundEnd,
@@ -76,99 +81,180 @@ function roundEndDescription(state: TableState, event: RoundEndEvent): string {
     }
 }
 
-function extractWinnerFromSingle(event: TsumoRoundEnd | RonRoundEnd): WinnerResult {
+/**
+ * What a riichi stick a winner collects is worth: the server's `riichi_stick_value`, which no live message carries, at
+ * its default, the one every game is played with.
+ */
+export const RIICHI_STICK_VALUE = 1000;
+
+const DORA_YAKU_ID = { aka: 121, dora: 120, ura: 122 } as const;
+
+/** The table at a round end that its result reads beyond the event: the round's dealer and dora indicators. */
+export interface RoundEndContext {
+    readonly dealerSeat: number;
+    readonly doraIndicators: readonly number[];
+}
+
+interface WinnerSource {
+    readonly winnerSeat: number;
+    readonly closedTiles: readonly number[];
+    readonly melds: readonly number[];
+    readonly handResult: HandValue;
+    readonly scoreChanges: Readonly<Record<string, number>>;
+    readonly riichiSticksCollected: number;
+    readonly paoSeat: number | null;
+    readonly uraDoraIndicators: readonly number[] | null;
+}
+
+function yakuHan(hand: HandValue, yakuId: number): number {
+    return hand.yaku.find((yaku) => yaku.yakuId === yakuId)?.han ?? 0;
+}
+
+function extractWinner(
+    source: WinnerSource,
+    winningTile: number,
+    context: RoundEndContext,
+): WinnerResult {
+    const { handResult, scoreChanges, winnerSeat } = source;
+    const sticks = source.riichiSticksCollected;
+    const gain = scoreChanges[String(winnerSeat)] ?? 0;
     return {
-        closedTiles: event.closedTiles,
-        handResult: event.handResult,
-        melds: event.melds,
-        seat: event.winnerSeat,
-        winningTile: event.winningTile,
+        closedTiles: source.closedTiles,
+        doraHan: {
+            aka: yakuHan(handResult, DORA_YAKU_ID.aka),
+            dora: yakuHan(handResult, DORA_YAKU_ID.dora),
+            ura: yakuHan(handResult, DORA_YAKU_ID.ura),
+        },
+        handResult,
+        honbaBonus: gain - handResult.points - sticks * RIICHI_STICK_VALUE,
+        isDealer: winnerSeat === context.dealerSeat,
+        melds: source.melds,
+        paoSeat: source.paoSeat,
+        riichiSticksCollected: sticks,
+        scoreChanges,
+        seat: winnerSeat,
+        uraDoraIndicators: source.uraDoraIndicators ?? [],
+        winningTile,
     };
 }
 
-function collectUraDoraIndicators(event: RoundEndEvent): number[] {
+const NO_SEATS: readonly number[] = [];
+
+function emptyDraw(kind: DrawKind): DrawResult {
+    return {
+        declarerSeat: null,
+        kind,
+        nagashiSeats: NO_SEATS,
+        notenSeats: NO_SEATS,
+        ronSeats: NO_SEATS,
+        tenpaiHands: [],
+        tenpaiSeats: NO_SEATS,
+    };
+}
+
+function tenpaiDraw(
+    kind: DrawKind,
+    event: ExhaustiveDrawRoundEnd | NagashiManganRoundEnd,
+): DrawResult {
+    return {
+        ...emptyDraw(kind),
+        notenSeats: event.notenSeats,
+        tenpaiHands: event.tenpaiHands,
+        tenpaiSeats: event.tenpaiSeats,
+    };
+}
+
+function resultWinners(event: RoundEndEvent, context: RoundEndContext): readonly WinnerResult[] {
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.TSUMO:
         case ROUND_RESULT_TYPE.RON: {
-            return event.uraDoraIndicators ?? [];
+            return [extractWinner(event, event.winningTile, context)];
         }
         case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            const ids = new Set<number>();
-            for (const w of event.winners) {
-                for (const id of w.uraDoraIndicators ?? []) {
-                    ids.add(id);
-                }
-            }
-            return [...ids];
+            return event.winners.map((winner) => extractWinner(winner, event.winningTile, context));
+        }
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
+        case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
+        case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
+            return [];
         }
         default: {
-            return [];
+            return assertNever(event);
         }
     }
 }
 
-/** The round end's result as the table keeps it for the overlay, beside the dora indicators the round showed. */
-export function extractRoundEndResult(
-    event: RoundEndEvent,
-    doraIndicators: readonly number[],
-): RoundEndResult {
-    const uraDoraIndicators = collectUraDoraIndicators(event);
-
+function resultDraw(event: RoundEndEvent): DrawResult | null {
     switch (event.resultType) {
-        case ROUND_RESULT_TYPE.TSUMO: {
-            return {
-                doraIndicators,
-                resultType: event.resultType,
-                scoreChanges: event.scoreChanges,
-                scoresBeforePayment: event.scores,
-                uraDoraIndicators,
-                winners: [extractWinnerFromSingle(event)],
-            };
-        }
-        case ROUND_RESULT_TYPE.RON: {
-            return {
-                doraIndicators,
-                loserSeat: event.loserSeat,
-                resultType: event.resultType,
-                scoreChanges: event.scoreChanges,
-                scoresBeforePayment: event.scores,
-                uraDoraIndicators,
-                winners: [extractWinnerFromSingle(event)],
-            };
-        }
+        case ROUND_RESULT_TYPE.TSUMO:
+        case ROUND_RESULT_TYPE.RON:
         case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return {
-                doraIndicators,
-                loserSeat: event.loserSeat,
-                resultType: event.resultType,
-                scoreChanges: event.scoreChanges,
-                scoresBeforePayment: event.scores,
-                uraDoraIndicators,
-                winners: event.winners.map((w) => ({
-                    closedTiles: w.closedTiles,
-                    handResult: w.handResult,
-                    melds: w.melds,
-                    seat: w.winnerSeat,
-                    winningTile: event.winningTile,
-                })),
-            };
+            return null;
         }
-        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.ABORTIVE_DRAW:
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW: {
+            return tenpaiDraw("exhaustive", event);
+        }
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
+            return { ...tenpaiDraw("nagashi_mangan", event), nagashiSeats: event.qualifyingSeats };
+        }
+        case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             return {
-                doraIndicators,
-                resultType: event.resultType,
-                scoreChanges: event.scoreChanges,
-                scoresBeforePayment: event.scores,
-                uraDoraIndicators,
-                winners: [],
+                ...emptyDraw(event.reason),
+                declarerSeat: event.seat,
+                ronSeats: event.ronSeats,
             };
         }
         default: {
             return assertNever(event);
         }
     }
+}
+
+interface RonDetail {
+    readonly loserSeat: number | null;
+    readonly headBumpedSeats: readonly number[];
+}
+
+function ronDetail(event: RoundEndEvent): RonDetail {
+    switch (event.resultType) {
+        case ROUND_RESULT_TYPE.RON:
+        case ROUND_RESULT_TYPE.DOUBLE_RON: {
+            return { headBumpedSeats: event.headBumpedSeats, loserSeat: event.loserSeat };
+        }
+        case ROUND_RESULT_TYPE.TSUMO:
+        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
+        case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
+        case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
+            return { headBumpedSeats: NO_SEATS, loserSeat: null };
+        }
+        default: {
+            return assertNever(event);
+        }
+    }
+}
+
+/** The round end's result as the table keeps it for the result panel, read with the table it ended on. */
+export function extractRoundEndResult(
+    event: RoundEndEvent,
+    context: RoundEndContext,
+): RoundEndResult {
+    return {
+        ...ronDetail(event),
+        doraIndicators: context.doraIndicators,
+        draw: resultDraw(event),
+        resultType: event.resultType,
+        scoreChanges: event.scoreChanges,
+        scoresBeforePayment: event.scores,
+        winners: resultWinners(event, context),
+    };
+}
+
+/** The pages a result shows: a winner's each, in the server's order, or the draw's one. */
+export function roundEndPages(result: RoundEndResult): readonly RoundEndPage[] {
+    if (result.draw !== null) {
+        return [{ draw: result.draw, kind: "draw" }];
+    }
+    return result.winners.map((winner) => ({ kind: "win", winner }));
 }
 
 /**
@@ -312,6 +398,6 @@ export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableSta
         phase: "round_ended",
         players: revealHands(settleScores(drawn.players, event), event),
         riichiSticks: state.riichiSticks - riichiSticksCollected(event),
-        roundEndResult: extractRoundEndResult(event, state.doraIndicators),
+        roundEndResult: extractRoundEndResult(event, state),
     };
 }

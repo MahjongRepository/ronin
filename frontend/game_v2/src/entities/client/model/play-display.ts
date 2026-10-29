@@ -2,6 +2,8 @@ import {
     type BoardDisplayState,
     type BoardPlayerDisplay,
     type PlayerState,
+    type TableState,
+    roundEndPageAt,
     tableStateToDisplayState,
 } from "@/entities/table";
 import { type HandTile, type PlayableState, type TileFace, tile136toString } from "@/entities/tile";
@@ -18,10 +20,14 @@ import {
     type Offer,
 } from "./types";
 
-/** What a control of the board does: send the client an intent, or turn picking riichi's discard on or off. */
+/**
+ * What a control of the board does: send the client an intent, turn picking riichi's discard on or off, or turn the
+ * round result's panel to a page.
+ */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
-    | { readonly kind: "toggle_riichi_pick" };
+    | { readonly kind: "toggle_riichi_pick" }
+    | { readonly kind: "show_result_page"; readonly page: number };
 
 /** A button of the open decision: its label and the tiles that tell it from another of its kind (two chi). */
 export interface PlayAction {
@@ -34,13 +40,15 @@ export interface PlayAction {
 
 /**
  * What the view holds beside the client state: that the player is picking riichi's discard, for the decision of
- * this wait id, so a newer decision never inherits it.
+ * this wait id, so a newer decision never inherits it; and the page of a round's result the player turned to, for
+ * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
+    readonly resultPage: { readonly round: string; readonly page: number } | null;
 }
 
-export const NO_PLAY_UI: PlayUi = { riichiPickWaitId: null };
+export const NO_PLAY_UI: PlayUi = { resultPage: null, riichiPickWaitId: null };
 
 /**
  * The live board as the viewer plays it: the table from its seat, its own hand's tiles marked by the open decision
@@ -53,6 +61,8 @@ export interface PlayDisplay {
     readonly actions: readonly PlayAction[];
     readonly countdown: DecisionCountdown | null;
     readonly furiten: boolean;
+    /** The page of the round's result the panel shows, clamped to its pages; 0 with no result. */
+    readonly resultPage: number;
 }
 
 /** How each tile of the viewer's hand plays now: its mark, and what tapping it sends when selectable. */
@@ -246,6 +256,26 @@ function viewerBoard(
 }
 
 /**
+ * The round a table's result belongs to, which a reconnect's snapshot of it names alike: the server names an ended
+ * round by its wind, dealer and honba, and no two rounds of a game share all three.
+ */
+function resultRound(table: TableState): string | null {
+    if (table.roundEndResult === null) {
+        return null;
+    }
+    return `${table.gameId}/${table.roundWind}/${table.dealerSeat}/${table.honbaSticks}`;
+}
+
+/** The result page the player turned to, while its round's result shows; else the first. */
+function shownResultPage(table: TableState, ui: PlayUi): number {
+    const round = resultRound(table);
+    if (table.roundEndResult === null || ui.resultPage === null || ui.resultPage.round !== round) {
+        return 0;
+    }
+    return roundEndPageAt(table.roundEndResult, ui.resultPage.page).index;
+}
+
+/**
  * The live board a client state shows its viewer, with the view's `ui` beside it: the table from the viewer's seat
  * with only its own hand face up, and the open decision as the hand's playable tiles and the buttons around them.
  * What may be played is the dispatcher's answer (`takesIntent`), never a rule restated here, so the board offers
@@ -262,16 +292,31 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         board: viewerBoard(state, plays),
         countdown: decisionCountdown(state),
         furiten: furiten && viewer !== undefined,
+        resultPage: shownResultPage(table, ui),
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
         tileIntents: intentsOf(plays),
     };
 }
 
-/** The view's `ui` after a command: picking riichi's discard turns on or off for the open decision. */
+/**
+ * The view's `ui` after a command: picking riichi's discard turns on or off for the open decision; the result's panel
+ * turns to a page of the result showing.
+ */
 export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayCommand): PlayUi {
-    if (command.kind === "intent") {
-        return ui;
+    switch (command.kind) {
+        case "intent": {
+            return ui;
+        }
+        case "toggle_riichi_pick": {
+            const waitId = state.decision?.waitId ?? null;
+            return { ...ui, riichiPickWaitId: pickingRiichi(state, ui) ? null : waitId };
+        }
+        case "show_result_page": {
+            const round = resultRound(state.table);
+            return { ...ui, resultPage: round === null ? null : { page: command.page, round } };
+        }
+        default: {
+            return assertNever(command);
+        }
     }
-    const waitId = state.decision?.waitId ?? null;
-    return { riichiPickWaitId: pickingRiichi(state, ui) ? null : waitId };
 }

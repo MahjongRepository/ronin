@@ -15,6 +15,7 @@ import {
     GameBoard,
     GameStartDisplay,
     type NavigationIndex,
+    type ResultPaging,
     RoundSelector,
     type StepEvent,
     type TableState,
@@ -49,6 +50,8 @@ type ReplayScreen =
           readonly replay: LoadedReplay;
           readonly currentStep: number;
           readonly openDropdown: Dropdown | null;
+          /** The page of a round result's panel shown at the current step: a double ron has one per winner. */
+          readonly resultPage: number;
       };
 
 interface ReplayHandlers {
@@ -58,6 +61,7 @@ interface ReplayHandlers {
     readonly next: () => void;
     readonly prev: () => void;
     readonly toggleDropdown: (which: Dropdown) => void;
+    readonly showResultPage: (page: number) => void;
     readonly wheel: { handleEvent: (event: WheelEvent) => void; passive: false };
 }
 
@@ -102,6 +106,7 @@ function loadedScreen(timeline: ClientTimeline, parseErrors: readonly string[]):
             perspective: replayPerspective(events),
             states,
         },
+        resultPage: 0,
     };
 }
 
@@ -136,7 +141,11 @@ function elementOf(target: EventTarget | null): Element | null {
     return target instanceof Element ? target : null;
 }
 
-function buildBoardContent(tableState: TableState, perspective: BoardPerspective): TemplateResult {
+function buildBoardContent(
+    tableState: TableState,
+    perspective: BoardPerspective,
+    paging: ResultPaging,
+): TemplateResult {
     if (tableState.phase === "pre_game" && tableState.players.length > 0) {
         return html`<div class="board-overlay">
             <div class="board-overlay__panel">
@@ -146,7 +155,7 @@ function buildBoardContent(tableState: TableState, perspective: BoardPerspective
     }
     return GameBoard({
         debug: false,
-        overlay: boardOverlay(tableState),
+        overlay: boardOverlay(tableState, paging),
         state: tableStateToDisplayState(tableState, perspective),
     });
 }
@@ -155,14 +164,21 @@ function loadedTemplate(
     screen: Extract<ReplayScreen, { kind: "loaded" }>,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { currentStep, openDropdown, replay } = screen;
+    const { currentStep, openDropdown, replay, resultPage } = screen;
     const step = replay.actionSteps[currentStep];
     const displayState = step ? replay.states[step.stateIndex] : undefined;
     const totalSteps = replay.actionSteps.length;
     const inRound = displayState?.phase === "in_round" || displayState?.phase === "round_ended";
     return html`
         <div class="board-page__board">
-            ${displayState ? buildBoardContent(displayState, replay.perspective) : ""}
+            ${
+                displayState
+                    ? buildBoardContent(displayState, replay.perspective, {
+                          onPage: handlers.showResultPage,
+                          page: resultPage,
+                      })
+                    : ""
+            }
         </div>
         <div class="board-page__aside replay-controls">
             ${
@@ -248,6 +264,7 @@ class ReplayViewController {
         next: () => this.stepBy(1),
         prev: () => this.stepBy(-1),
         root: createRef<HTMLElement>(),
+        showResultPage: (page) => this.showResultPage(page),
         toggleDropdown: (which) => this.toggleDropdown(which),
         wheel: { handleEvent: (event) => this.onWheel(event), passive: false },
     };
@@ -331,7 +348,13 @@ class ReplayViewController {
         if (stepIndex < 0 || stepIndex >= screen.replay.actionSteps.length) {
             return;
         }
-        this.show({ ...screen, currentStep: stepIndex, openDropdown });
+        this.show({ ...screen, currentStep: stepIndex, openDropdown, resultPage: 0 });
+    }
+
+    private showResultPage(page: number): void {
+        if (this.screen.kind === "loaded") {
+            this.show({ ...this.screen, resultPage: page });
+        }
     }
 
     private stepBy(delta: number): void {

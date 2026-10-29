@@ -1,178 +1,190 @@
-import { type TemplateResult, html } from "lit-html";
+import { type TemplateResult, html, nothing } from "lit-html";
 
-import { windName } from "@/entities/table/lib/wind-name";
-import { yakuName } from "@/entities/table/lib/yaku-names";
 import {
-    type PlayerState,
-    type RoundEndResult,
-    type WinnerResult,
-} from "@/entities/table/model/types";
-import { Hand, type HandTile, Meld, Tile, meldTiles, tile136toString } from "@/entities/tile";
-import { ROUND_RESULT_TYPE } from "@/shared/protocol";
-import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
+    type DrawPageDisplay,
+    type ResultHandDisplay,
+    type ResultScoreRow,
+    type RoundEndDisplayState,
+    type WinPageDisplay,
+    formatDelta,
+    formatPoints,
+} from "@/entities/table/lib/round-end-display";
+import { Hand, Meld, Tile, type TileFace } from "@/entities/tile";
 
-function toHandTile(tileId: number): HandTile {
-    return { face: tile136toString(tileId), show: "face" };
-}
-
-function formatDelta(delta: number): string {
-    if (delta > 0) {
-        return `+${delta.toLocaleString("en-US")}`;
-    }
-    if (delta < 0) {
-        return `\u2212${Math.abs(delta).toLocaleString("en-US")}`;
-    }
-    return "0";
-}
-
-const YAKUMAN_LABELS: Record<number, string> = {
-    1: "Yakuman",
-    2: "Double Yakuman",
-    3: "Triple Yakuman",
-    4: "Quadruple Yakuman",
-    5: "Quintuple Yakuman",
-    6: "Sextuple Yakuman",
-};
-
-function formatTotals(han: number, fu: number): string {
-    if (han >= 13) {
-        const multiplier = Math.floor(han / 13);
-        return YAKUMAN_LABELS[multiplier] ?? `${multiplier}x Yakuman`;
-    }
-    return `${han} han / ${fu} fu`;
-}
-
-const RESULT_TYPE_LABELS: Record<number, string> = {
-    [ROUND_RESULT_TYPE.TSUMO]: "Tsumo",
-    [ROUND_RESULT_TYPE.RON]: "Ron",
-    [ROUND_RESULT_TYPE.DOUBLE_RON]: "Double Ron",
-    [ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW]: "Exhaustive Draw",
-    [ROUND_RESULT_TYPE.ABORTIVE_DRAW]: "Abortive Draw",
-    [ROUND_RESULT_TYPE.NAGASHI_MANGAN]: "Nagashi Mangan",
-};
-
-function resultTypeLabel(resultType: number): string {
-    return RESULT_TYPE_LABELS[resultType] ?? "Round End";
-}
-
-function winnerPoints(result: RoundEndResult): number | null {
-    if (result.winners.length === 0) {
-        return null;
-    }
-    let total = 0;
-    for (const winner of result.winners) {
-        const delta = result.scoreChanges[String(winner.seat)] ?? 0;
-        if (delta > 0) {
-            total += delta;
-        }
-    }
-    return total > 0 ? total : null;
+export interface RoundEndDisplayProps {
+    readonly display: RoundEndDisplayState;
+    /** Called with the page to show; without it the panel offers no paging, only says which page it shows. */
+    readonly onPage?: (page: number) => void;
 }
 
 function deltaModifier(delta: number): string {
     if (delta > 0) {
-        return " round-end-result__score-delta--positive";
+        return "round-end-result__delta--positive";
     }
     if (delta < 0) {
-        return " round-end-result__score-delta--negative";
+        return "round-end-result__delta--negative";
     }
     return "";
 }
 
-function WinnerSection(
-    winner: WinnerResult,
-    players: readonly PlayerState[],
-    dealerSeat: number,
-): TemplateResult {
-    const player = players.find((p) => p.seat === winner.seat);
-    const name = player?.name ?? `Seat ${winner.seat}`;
-    const wind = windName((winner.seat - dealerSeat + 4) % 4);
+function Melds(melds: ResultHandDisplay["melds"]): TemplateResult | typeof nothing {
+    if (melds.length === 0) {
+        return nothing;
+    }
+    return html`<span class="round-end-result__melds">${melds.map((meld) => Meld(meld))}</span>`;
+}
 
-    const closedHandTiles = winner.closedTiles.toSorted((id1, id2) => id1 - id2).map(toHandTile);
-    const drawnTile = toHandTile(winner.winningTile);
+function TenpaiHand(name: string, hand: ResultHandDisplay): TemplateResult {
+    return html`<li class="round-end-result__tenpai-hand">
+        <span class="round-end-result__label">${name}</span>
+        <span class="round-end-result__hand">${Hand({ tiles: hand.tiles })}${Melds(hand.melds)}</span>
+    </li>`;
+}
 
-    const melds = winner.melds.map(decodeMeldCompact);
-
-    return html`<div class="round-end-result__winner">
-        <div class="round-end-result__winner-name">${name} (${wind})</div>
-        <div class="round-end-result__hand">
-            ${Hand({ drawnTile, tiles: closedHandTiles })}
-            ${melds.map((meld) => Meld(meldTiles(meld)))}
-        </div>
-        <div class="round-end-result__yaku-list">
-            ${winner.handResult.yaku.map(
-                (yk) =>
-                    html`<div class="round-end-result__yaku-item">
-                        <span class="round-end-result__yaku-name">${yakuName(yk.yakuId)}</span>
-                        <span class="round-end-result__yaku-han">${yk.han} han</span>
-                    </div>`,
-            )}
-        </div>
-        <div class="round-end-result__totals">
-            ${formatTotals(winner.handResult.han, winner.handResult.fu)}
-        </div>
+/** The winner's closed tiles, then the winning tile set apart under its label, then the melds. */
+function WinHand(page: WinPageDisplay): TemplateResult {
+    return html`<div class="round-end-result__hand">
+        ${Hand({ tiles: page.hand.tiles })}
+        <span class="round-end-result__win-tile">
+            <span class="round-end-result__win-label">${page.winningTileLabel}</span>
+            ${Hand({ tiles: [page.winningTile] })}
+        </span>
+        ${Melds(page.hand.melds)}
     </div>`;
 }
 
-function indicatorGroup(label: string, tileIds: readonly number[]): TemplateResult | string {
-    if (tileIds.length === 0) {
-        return "";
+function IndicatorGroup(
+    label: string,
+    faces: readonly TileFace[],
+): TemplateResult | typeof nothing {
+    if (faces.length === 0) {
+        return nothing;
     }
     return html`<div class="round-end-result__indicator-group">
-        <span class="round-end-result__indicator-label">${label}</span>
-        <span class="round-end-result__indicator-tiles">
-            ${tileIds.map((id) => html`<span class="round-end-result__indicator-tile">${Tile(tile136toString(id), "face")}</span>`)}
-        </span>
+        <span class="round-end-result__label">${label}</span>
+        <span class="round-end-result__indicator-tiles">${faces.map((face) => Tile(face, "face"))}</span>
     </div>`;
 }
 
-function doraIndicatorSection(
-    doraIds: readonly number[],
-    uraDoraIds: readonly number[],
-): TemplateResult | string {
-    if (doraIds.length === 0 && uraDoraIds.length === 0) {
-        return "";
+function PagerControls(
+    display: RoundEndDisplayState,
+    onPage?: (page: number) => void,
+): TemplateResult | typeof nothing {
+    const { page, pageCount } = display;
+    if (pageCount < 2) {
+        return nothing;
     }
+    const label = html`<span class="round-end-result__page">${page + 1} / ${pageCount}</span>`;
+    if (onPage === undefined) {
+        return label;
+    }
+    return html`<span class="round-end-result__pager">
+        <button
+            class="round-end-result__page-btn"
+            aria-label="Previous winner"
+            ?disabled=${page === 0}
+            @click=${() => onPage(page - 1)}
+        >&lsaquo;</button>
+        ${label}
+        <button
+            class="round-end-result__page-btn"
+            aria-label="Next winner"
+            ?disabled=${page >= pageCount - 1}
+            @click=${() => onPage(page + 1)}
+        >&rsaquo;</button>
+    </span>`;
+}
 
-    return html`<div class="round-end-result__indicators">
-        ${indicatorGroup("Dora", doraIds)}
-        ${indicatorGroup("Ura", uraDoraIds)}
+function YakuList(page: WinPageDisplay): TemplateResult {
+    return html`<ul class="round-end-result__yaku">
+        ${page.yaku.map(
+            (line) => html`<li class=${line.isDora ? "round-end-result__yaku-dora" : ""}>
+                <span>${line.name}</span>
+                <span class="round-end-result__han">${line.han}</span>
+            </li>`,
+        )}
+    </ul>`;
+}
+
+function WinValue(page: WinPageDisplay): TemplateResult {
+    return html`<div class="round-end-result__value">
+        <div class="round-end-result__points">${formatPoints(page.points)}</div>
+        ${page.limit === null ? nothing : html`<div class="round-end-result__limit">${page.limit}</div>`}
+        ${page.hanFu === null ? nothing : html`<div class="round-end-result__han-fu">${page.hanFu}</div>`}
+        <div class="round-end-result__indicators">
+            ${IndicatorGroup("Dora", page.doraIndicators)}
+            ${IndicatorGroup("Ura", page.uraIndicators)}
+        </div>
+        ${
+            page.notes.length === 0
+                ? nothing
+                : html`<ul class="round-end-result__notes">
+                      ${page.notes.map((note) => html`<li>${note}</li>`)}
+                  </ul>`
+        }
     </div>`;
 }
 
-function RoundEndDisplay(
-    result: RoundEndResult,
-    players: readonly PlayerState[],
-    dealerSeat: number,
-): TemplateResult {
-    const points = winnerPoints(result);
+function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
+    return html`<ol class="round-end-result__scores">
+        ${rows.map(
+            (row) => html`<li class="round-end-result__score">
+                <span class="round-end-result__score-who">
+                    <span class="round-end-result__score-wind">${row.wind}</span>
+                    <span class="round-end-result__score-name">${row.name}</span>
+                </span>
+                ${row.tag === null ? nothing : html`<span class="round-end-result__score-tag">${row.tag}</span>`}
+                <span class="round-end-result__delta ${deltaModifier(row.delta)}">${formatDelta(row.delta)}</span>
+                <span class="round-end-result__score-after">${formatPoints(row.after)}</span>
+            </li>`,
+        )}
+    </ol>`;
+}
 
-    return html`<div class="round-end-result">
-        <div class="round-end-result__header">
-            <div class="round-end-result__result-type">${resultTypeLabel(result.resultType)}</div>
-            ${
-                points !== null
-                    ? html`<div class="round-end-result__points">${points.toLocaleString("en-US")} pts</div>`
-                    : ""
-            }
+function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateResult {
+    const { display, onPage } = props;
+    return html`<div class="round-end-result round-end-result--win">
+        <div class="round-end-result__head">
+            <span class="round-end-result__kind">${page.title}</span>
+            <span class="round-end-result__title">
+                ${page.winnerName}
+                <span class="round-end-result__wind">${page.winnerWind}</span>
+            </span>
+            ${page.fromName === null ? nothing : html`<span class="round-end-result__from">from ${page.fromName}</span>`}
+            ${PagerControls(display, onPage)}
         </div>
-        ${result.winners.length > 0 ? doraIndicatorSection(result.doraIndicators, result.uraDoraIndicators) : ""}
-        ${result.winners.map((w) => WinnerSection(w, players, dealerSeat))}
-        <div class="round-end-result__scores">
-            ${players.map((p) => {
-                const delta = result.scoreChanges[String(p.seat)] ?? 0;
-                const scoreBeforePayment =
-                    result.scoresBeforePayment[String(p.seat)] ?? p.score - delta;
-                const wind = windName((p.seat - dealerSeat + 4) % 4);
-                return html`<div class="round-end-result__score-row">
-                    <span class="round-end-result__score-wind">${wind}</span>
-                    <span class="round-end-result__score-name">${p.name}</span>
-                    <span class="round-end-result__score-value">${scoreBeforePayment.toLocaleString("en-US")}</span>
-                    <span class="round-end-result__score-delta${deltaModifier(delta)}">${formatDelta(delta)}</span>
-                </div>`;
-            })}
-        </div>
+        ${WinHand(page)}
+        ${YakuList(page)}
+        ${WinValue(page)}
+        ${ScoreGrid(display.scores)}
     </div>`;
+}
+
+function DrawPage(display: RoundEndDisplayState, page: DrawPageDisplay): TemplateResult {
+    return html`<div class="round-end-result round-end-result--draw">
+        <div class="round-end-result__head">
+            <span class="round-end-result__kind">Draw</span>
+            <span class="round-end-result__title">${page.title}</span>
+            ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
+        </div>
+        ${
+            page.tenpaiHands.length === 0
+                ? nothing
+                : html`<ul class="round-end-result__tenpai">
+                      ${page.tenpaiHands.map((tenpai) => TenpaiHand(tenpai.name, tenpai.hand))}
+                  </ul>`
+        }
+        ${ScoreGrid(display.scores)}
+    </div>`;
+}
+
+/**
+ * One page of a round's result, as `roundEndDisplay` maps it: a winner's hand, value and payments, or the draw with
+ * its tenpai hands. Given `onPage`, a result of several pages (a double ron's) pages between them.
+ */
+function RoundEndDisplay(props: RoundEndDisplayProps): TemplateResult {
+    const { body } = props.display;
+    return body.kind === "draw" ? DrawPage(props.display, body) : WinPage(props, body);
 }
 
 export { RoundEndDisplay };

@@ -1,4 +1,5 @@
 import {
+    type AbortiveDrawType,
     type DiscardEvent,
     type DoraRevealedEvent,
     type DrawEvent,
@@ -58,28 +59,87 @@ export interface PlayerState {
     readonly isRiichi: boolean;
 }
 
+export interface YakuResult {
+    readonly yakuId: number;
+    readonly han: number;
+}
+
+/** A winning hand's value as the server scored it. */
+export interface HandValue {
+    readonly han: number;
+    readonly fu: number;
+    /** The hand's value without honba or riichi sticks, which pao does not change: the ron payment, or every tsumo payment together. */
+    readonly points: number;
+    /** Every yaku with its han, the dora, red-five and ura dora entries among them, in the server's order. */
+    readonly yaku: readonly YakuResult[];
+}
+
+/** One winner's page of a round's result: its hand, its value and its own payments. */
 export interface WinnerResult {
     readonly seat: number;
+    readonly isDealer: boolean;
     readonly closedTiles: readonly number[];
     readonly melds: readonly number[];
     readonly winningTile: number;
-    readonly handResult: {
-        readonly han: number;
-        readonly fu: number;
-        readonly yaku: readonly { readonly yakuId: number; readonly han: number }[];
-    };
+    readonly handResult: HandValue;
+    /** The han of each kind of dora, out of `handResult.yaku`. */
+    readonly doraHan: { readonly dora: number; readonly aka: number; readonly ura: number };
+    /** This winner's ura dora indicators: none unless it won in riichi. */
+    readonly uraDoraIndicators: readonly number[];
+    /**
+     * This winner's own payments, a part of the result's aggregate `scoreChanges` for a double ron. They describe the
+     * payment only: the table settles from the aggregate, once.
+     */
+    readonly scoreChanges: Readonly<Record<string, number>>;
+    /** The honba bonus this winner collected, in points: its own gain beyond its hand value and riichi sticks. */
+    readonly honbaBonus: number;
+    readonly riichiSticksCollected: number;
+    /** The seat liable for this winner's pao yakuman, or null. */
+    readonly paoSeat: number | null;
+}
+
+export type DrawKind = "exhaustive" | "nagashi_mangan" | AbortiveDrawType;
+
+export interface TenpaiHandResult {
+    readonly seat: number;
+    readonly closedTiles: readonly number[];
+    readonly melds: readonly number[];
+}
+
+/** A drawn round's result: its kind and the seats it names. Seat lists are empty where the kind names none. */
+export interface DrawResult {
+    readonly kind: DrawKind;
+    readonly tenpaiSeats: readonly number[];
+    readonly notenSeats: readonly number[];
+    readonly tenpaiHands: readonly TenpaiHandResult[];
+    /** The seats whose discards made a nagashi mangan. */
+    readonly nagashiSeats: readonly number[];
+    /** The seat that declared kyuushu kyuuhai, or null. */
+    readonly declarerSeat: number | null;
+    /** The seats that declared the triple ron, in caller order. */
+    readonly ronSeats: readonly number[];
 }
 
 export interface RoundEndResult {
     readonly resultType: RoundEndEvent["resultType"];
+    /** One per winner, in the server's order; empty for a draw. */
     readonly winners: readonly WinnerResult[];
+    /** The discarder (or robbed kan's declarer) of a ron, or null. */
+    readonly loserSeat: number | null;
+    /** The seats that also declared ron on the tile and lost it to head bump, in caller order. */
+    readonly headBumpedSeats: readonly number[];
+    /** The aggregate payments, which the table settles once. */
     readonly scoreChanges: Readonly<Record<string, number>>;
     /** The wire's `scores`: after riichi deposits, before this round's payments. */
     readonly scoresBeforePayment: Readonly<Record<string, number>>;
     readonly doraIndicators: readonly number[];
-    readonly uraDoraIndicators: readonly number[];
-    readonly loserSeat?: number;
+    readonly draw: DrawResult | null;
 }
+
+/** One page of a round's result: a winner's, or the draw's. A double ron has a page per winner. */
+export type RoundEndPage =
+    | { readonly kind: "win"; readonly winner: WinnerResult }
+    | { readonly kind: "draw"; readonly draw: DrawResult };
 
 export interface GameEndResult {
     readonly winnerSeat: number;

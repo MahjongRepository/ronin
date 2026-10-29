@@ -9,8 +9,8 @@ import {
     type GameEndResult,
     type PlayerState,
     RoundEndDisplay,
-    type RoundEndResult,
     createInitialPlayerState,
+    roundEndDisplay,
 } from "@/entities/table";
 import {
     type DiscardTile,
@@ -19,7 +19,13 @@ import {
     type MeldTile,
     meldTiles,
 } from "@/entities/tile";
-import { ROUND_RESULT_TYPE } from "@/shared/protocol";
+
+import {
+    RESULT_STORIES,
+    type ResultStory,
+    resultStoryLabel,
+    resultStoryTable,
+} from "./storybook-results";
 
 type OverlayMode = "none" | "round_end" | "game_end";
 
@@ -45,6 +51,20 @@ interface BoardStoryState {
     readonly debug: boolean;
     readonly overlay: OverlayMode;
     readonly story: BoardStory;
+    readonly result: ResultStory;
+    readonly page: number;
+}
+
+const DEFAULT_RESULT: ResultStory = "tsumo";
+
+function parseResultParam(search: string): ResultStory {
+    const param = new URLSearchParams(search).get("result");
+    return RESULT_STORIES.find((result) => result === param) ?? DEFAULT_RESULT;
+}
+
+function parsePageParam(search: string): number {
+    const page = Number(new URLSearchParams(search).get("page") ?? "0");
+    return Number.isInteger(page) && page >= 0 ? page : 0;
 }
 
 function parseOverlayParam(search: string): OverlayMode {
@@ -356,32 +376,6 @@ const mockPlayers: readonly PlayerState[] = [
     },
 ];
 
-// Mock round-end result: tsumo by seat 0 with 3 yaku
-const mockRoundEnd: RoundEndResult = {
-    doraIndicators: [16, 56],
-    resultType: ROUND_RESULT_TYPE.TSUMO,
-    scoreChanges: { "0": 8000, "1": -4000, "2": -2000, "3": -2000 },
-    scoresBeforePayment: { "0": 25_000, "1": 25_000, "2": 27_000, "3": 23_000 },
-    uraDoraIndicators: [28],
-    winners: [
-        {
-            closedTiles: [0, 4, 8, 36, 40, 44, 72, 76, 80, 108, 112, 116, 120],
-            handResult: {
-                fu: 40,
-                han: 3,
-                yaku: [
-                    { han: 1, yakuId: 0 },
-                    { han: 1, yakuId: 23 },
-                    { han: 1, yakuId: 1 },
-                ],
-            },
-            melds: [],
-            seat: 0,
-            winningTile: 124,
-        },
-    ],
-};
-
 // Mock game-end result: 4 player standings
 const mockGameEnd: GameEndResult = {
     leftoverRiichiBonus: 1000,
@@ -394,9 +388,16 @@ const mockGameEnd: GameEndResult = {
     winnerSeat: 0,
 };
 
-function buildOverlay(overlay: OverlayMode): TemplateResult | undefined {
+function buildOverlay(
+    story: BoardStoryState,
+    handlers: BoardStoryHandlers,
+): TemplateResult | undefined {
+    const { overlay } = story;
     if (overlay === "round_end") {
-        return RoundEndDisplay(mockRoundEnd, mockPlayers, 0);
+        return RoundEndDisplay({
+            display: roundEndDisplay(resultStoryTable(story.result), story.page),
+            onPage: handlers.showPage,
+        });
     }
     if (overlay === "game_end") {
         return GameEndDisplay(mockGameEnd, mockPlayers);
@@ -406,6 +407,8 @@ function buildOverlay(overlay: OverlayMode): TemplateResult | undefined {
 
 interface BoardStoryHandlers {
     readonly showStory: (story: BoardStory) => void;
+    readonly showResult: (result: ResultStory) => void;
+    readonly showPage: (page: number) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
 }
@@ -422,7 +425,7 @@ function storybookBoardTemplate(
     return html`
         <div class="board-page board-storybook">
             <div class="board-page__board">
-                ${GameBoard({ debug: story.debug, overlay: buildOverlay(story.overlay), state })}
+                ${GameBoard({ debug: story.debug, overlay: buildOverlay(story, handlers), state })}
             </div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>
@@ -440,6 +443,33 @@ function storybookBoardTemplate(
                     class="board-storybook__btn ${activeClass(story.overlay === "round_end")}"
                     @click=${() => handlers.toggleOverlay("round_end")}
                 >Round end</button>
+                ${
+                    story.overlay === "round_end"
+                        ? html`<div class="board-storybook__picker"><select
+                              class="board-storybook__select"
+                              aria-label="Round result"
+                              @change=${(event: Event) => {
+                                  const { target } = event;
+                                  const picked = RESULT_STORIES.find(
+                                      (result) =>
+                                          target instanceof HTMLSelectElement &&
+                                          result === target.value,
+                                  );
+                                  if (picked !== undefined) {
+                                      handlers.showResult(picked);
+                                  }
+                              }}
+                          >
+                              ${RESULT_STORIES.map(
+                                  (
+                                      result,
+                                  ) => html`<option value=${result} ?selected=${result === story.result}>
+                                      ${resultStoryLabel(result)}
+                                  </option>`,
+                              )}
+                          </select></div>`
+                        : ""
+                }
                 <button
                     class="board-storybook__btn ${activeClass(story.overlay === "game_end")}"
                     @click=${() => handlers.toggleOverlay("game_end")}
@@ -454,6 +484,8 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     let story: BoardStoryState = {
         debug: true,
         overlay: parseOverlayParam(window.location.search),
+        page: parsePageParam(window.location.search),
+        result: parseResultParam(window.location.search),
         story: parseStoryParam(window.location.search),
     };
 
@@ -463,6 +495,15 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     }
 
     const handlers: BoardStoryHandlers = {
+        showPage(page) {
+            syncQueryParam("page", String(page), "0");
+            show({ ...story, page });
+        },
+        showResult(result) {
+            syncQueryParam("result", result, DEFAULT_RESULT);
+            syncQueryParam("page", "0", "0");
+            show({ ...story, page: 0, result });
+        },
         showStory(key) {
             syncQueryParam("state", key, DEFAULT_STORY);
             show({ ...story, story: key });

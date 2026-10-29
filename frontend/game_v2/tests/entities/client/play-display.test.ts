@@ -92,7 +92,10 @@ describe("playDisplay", () => {
         const toggle = { kind: "toggle_riichi_pick" } as const;
         const picking = nextPlayUi(state, NO_PLAY_UI, toggle);
         const display = playDisplay(state, picking);
-        const stale = playDisplay(state, { riichiPickWaitId: (state.decision?.waitId ?? 0) - 1 });
+        const stale = playDisplay(state, {
+            ...NO_PLAY_UI,
+            riichiPickWaitId: (state.decision?.waitId ?? 0) - 1,
+        });
 
         expect([...display.tileIntents]).toEqual([
             [120, { offer: { kind: "riichi", tileId: 120 }, type: "choose" }],
@@ -107,6 +110,21 @@ describe("playDisplay", () => {
             { tileId: 120, type: "discard" },
             viewerTiles(state).length,
         ]);
+    });
+
+    it("turns a double ron's result to the page asked for, kept through a reconnect's copy of it, not by a newer round", () => {
+        const roundEnd = checkpointState("double_ron_seat_1", "round end");
+        const reconnected = checkpointState("double_ron_seat_1", "reconnected");
+        const nextRound = checkpointState("chankan_robbed_seat_1", "round end");
+        const secondPage = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
+        const pastLast = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 4 });
+
+        expect(
+            [NO_PLAY_UI, secondPage, pastLast].map((ui) => playDisplay(roundEnd, ui).resultPage),
+        ).toEqual([0, 1, 1]);
+        expect(reconnected.table.roundEndResult).not.toBe(roundEnd.table.roundEndResult);
+        expect(playDisplay(reconnected, secondPage).resultPage).toBe(1);
+        expect(playDisplay(nextRound, secondPage).resultPage).toBe(0);
     });
 
     it("once a discard is sent marks the tile it played and offers nothing more", () => {

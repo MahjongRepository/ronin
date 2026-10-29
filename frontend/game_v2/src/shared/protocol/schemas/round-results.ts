@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { EVENT_TYPE, KAN_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
+import {
+    ABORTIVE_DRAW_TYPE,
+    EVENT_TYPE,
+    KAN_TYPE,
+    ROUND_RESULT_TYPE,
+} from "@/shared/protocol/constants";
 
 import { seatSchema, tileIdSchema, waitIdSchema, wireScoreMapSchema } from "./common";
 import { handResultSchema } from "./events";
@@ -187,7 +192,7 @@ const abortiveDrawSchema = z
     .object({
         rcl: z.array(seatSchema).optional(),
         rk: robbedKanSchema.optional(),
-        rn: z.string(),
+        rn: z.enum(ABORTIVE_DRAW_TYPE),
         rt: z.literal(ROUND_RESULT_TYPE.ABORTIVE_DRAW),
         s: seatSchema.optional(),
         sch: wireScoreMapSchema,

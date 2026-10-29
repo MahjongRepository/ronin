@@ -27,10 +27,12 @@ interface RouteBudget {
 }
 
 /**
- * Budgets in KiB, about a tenth over what each route measured on 2026-10-29 (raw / gzip), and a lazy route's CSS at
- * least 1 KiB over, so a small style edit is not a budget decision: the game 417.6 / 83.2 JS and 80.4 / 12.5 CSS,
- * the replay 7.4 / 2.8 JS and 2.3 / 0.8 CSS, the storybook 26.3 / 6.2 JS (the four seat transcripts its decisions
- * stories run among them) and 1.1 / 0.4 CSS.
+ * Budgets in KiB (raw / gzip), each set about a tenth over what its route measured when it was set, and a lazy
+ * route's CSS at least 1 KiB over, so a small style edit is not a budget decision. The game and the replay were set
+ * on 2026-10-29 at 417.6 / 83.2 JS and 80.4 / 12.5 CSS, and 7.4 / 2.8 JS and 2.3 / 0.8 CSS; the storybook on
+ * 2026-10-30 at 34.4 / 8.0 JS (the four seat transcripts its decisions stories run and the sixteen round ends its
+ * result stories show among them) and 1.1 / 0.4 CSS. Measured on 2026-10-30: the game 429.6 / 86.8 JS and
+ * 81.7 / 12.8 CSS, the replay 5.9 / 2.3 JS and 2.3 / 0.8 CSS.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 14, raw: 88 }, js: { gzip: 92, raw: 460 } },
@@ -42,7 +44,7 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     storybook: {
         chunk: "src/views/storybook-routes.ts",
         css: { gzip: 1.4, raw: 2.1 },
-        js: { gzip: 7, raw: 29 },
+        js: { gzip: 8.8, raw: 37.8 },
     },
 };
 

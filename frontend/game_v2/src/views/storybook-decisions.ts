@@ -14,7 +14,6 @@ import {
     seatScenarioFromTranscript,
     stepGameClient,
 } from "@/entities/client";
-import { boardOverlay } from "@/entities/table";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
@@ -99,7 +98,9 @@ function checkpointState(transcriptName: TranscriptName, label: string): GameCli
 function storyScreen(key: DecisionStoryKey): StoryScreen {
     const { label, pickRiichi, transcript } = DECISION_STORIES[key];
     const state = checkpointState(transcript, label);
-    const ui = pickRiichi ? { riichiPickWaitId: state.decision?.waitId ?? null } : NO_PLAY_UI;
+    const ui = pickRiichi
+        ? { ...NO_PLAY_UI, riichiPickWaitId: state.decision?.waitId ?? null }
+        : NO_PLAY_UI;
     return { sent: [], state, story: key, ui };
 }
 
@@ -135,7 +136,7 @@ function storybookTemplate(
     return html`
         <div class="board-page decisions-storybook">
             <div class="board-page__board">
-                ${PlayBoard({ display: playDisplay(state, ui), onCommand, overlay: boardOverlay(state.table) })}
+                ${PlayBoard({ display: playDisplay(state, ui), onCommand, table: state.table })}
             </div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>

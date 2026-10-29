@@ -6,14 +6,15 @@ import {
     type PlayCommand,
     type PlayDisplay,
 } from "@/entities/client/model/play-display";
-import { GameBoard } from "@/entities/table";
+import { GameBoard, type TableState, boardOverlay } from "@/entities/table";
 import { Tile } from "@/entities/tile";
 
 import { countdownAnnouncement } from "./rotate-panel";
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
-    readonly overlay?: TemplateResult;
+    /** The table the display was mapped from, whose panel (the seating, the round's result, the standings) shows over the board. */
+    readonly table: TableState;
     readonly onCommand: (command: PlayCommand) => void;
 }
 
@@ -85,10 +86,11 @@ function DecisionControls(
 }
 
 /**
- * The live board: the table from the viewer's seat with its decision's controls in their corner. A tap on one of the
- * viewer's tiles sends the intent the display gives it, and a tile with none sends nothing.
+ * The live board: the table from the viewer's seat with its decision's controls in their corner and the table's
+ * panel over it, a round's result at the page the display picked. A tap on one of the viewer's tiles sends the intent
+ * the display gives it, and a tile with none sends nothing; turning the result's page is a command too.
  */
-export function PlayBoard({ display, onCommand, overlay }: PlayBoardProps): TemplateResult {
+export function PlayBoard({ display, onCommand, table }: PlayBoardProps): TemplateResult {
     function onTile(tileId: number): void {
         const intent = display.tileIntents.get(tileId);
         if (intent !== undefined) {
@@ -99,7 +101,10 @@ export function PlayBoard({ display, onCommand, overlay }: PlayBoardProps): Temp
         actions: DecisionControls(display, onCommand),
         debug: false,
         localHand: { onTile, tileAction: display.tileAction },
-        overlay,
+        overlay: boardOverlay(table, {
+            onPage: (page) => onCommand({ kind: "show_result_page", page }),
+            page: display.resultPage,
+        }),
         state: display.board,
     });
 }

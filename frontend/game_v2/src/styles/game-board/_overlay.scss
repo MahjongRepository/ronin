@@ -1,20 +1,23 @@
 @use "grid" as *;
 
-/* The overlay sizes its tiles from the board's box like the board does; a wide short board lays the round end out
-   in two columns so it fits without scrolling. */
+/* The overlay sizes its tiles from the board's box like the board does; a wide board lays the round end out in
+   two columns under the hand so it fits without scrolling. */
 
-$overlay-unit-min: 0.3px;
-$overlay-unit-max: 0.55px;
-$overlay-hand-units: 1700;
-$overlay-height-units: 900;
-$compact-scores-min: 13rem;
-$compact-reserved: 18rem;
-$compact-hand-units: 1000;
+$overlay-unit-min: 0.25px;
+$overlay-unit-max: 0.8px;
+$overlay-hand-units: 1000;
+$overlay-height-units: 640;
+$overlay-chrome: 3rem;
+$tenpai-scale: 0.5;
+$indicator-scale: 0.6;
 
 .board-overlay {
     --board-unit: clamp(
         #{$overlay-unit-min},
-        min(100cqw / #{$overlay-hand-units}, 100cqh / #{$overlay-height-units}),
+        min(
+            (100cqw - #{$overlay-chrome}) / #{$overlay-hand-units},
+            100cqh / #{$overlay-height-units}
+        ),
         #{$overlay-unit-max}
     );
     --board-tile-w: calc(#{$tile-w} * var(--board-unit));
@@ -34,84 +37,61 @@ $compact-hand-units: 1000;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
-    padding: 0.75rem;
-    max-width: min(96%, 560px);
+    padding: 0.6rem 0.75rem;
+    max-width: min(100%, 900px);
     max-height: 100%;
     overflow-y: auto;
 
     @container (width >= 640px) and (height >= 480px) {
-        padding: 1.5rem;
-    }
-
-    @container (aspect-ratio >= #{$wide-board}) and (height < 560px) {
-        max-width: min(96%, 760px);
-        padding: 0.5rem 1rem;
+        padding: 1.25rem 1.5rem;
     }
 }
 
-@container (aspect-ratio >= #{$wide-board}) and (height < 560px) {
-    .board-overlay {
-        --board-unit: min(
-            #{$overlay-unit-max},
-            (100cqw - #{$compact-reserved}) / #{$compact-hand-units}
-        );
-    }
+/* One or two tenpai hands take the win hand's size, one under the other; three or four shrink to sit two abreast. */
+.board-overlay .round-end-result__tenpai:has(> :nth-child(3)) {
+    --board-tile-w: calc(#{$tile-w} * #{$tenpai-scale} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * #{$tenpai-scale} * var(--board-unit));
+}
 
+.board-overlay .round-end-result__indicator-tiles {
+    --board-tile-w: calc(#{$tile-w} * #{$indicator-scale} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * var(--board-unit));
+}
+
+@container (aspect-ratio >= #{$wide-board}) {
+    .board-overlay .round-end-result--win {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+            "head head"
+            "hand hand"
+            "yaku value"
+            "scores scores";
+    }
+}
+
+@container (height >= 560px) {
     .board-overlay .round-end-result {
-        display: grid;
-        grid-template-columns: minmax(0, 3fr) minmax($compact-scores-min, 2fr);
-        column-gap: 1rem;
-        align-items: start;
-
-        > * {
-            grid-column: 1;
-        }
-
-        > .round-end-result__indicators,
-        > .round-end-result__scores {
-            grid-column: 2;
-        }
+        font-size: 0.95rem;
+        gap: 0.75rem 1.5rem;
     }
 
-    .board-overlay .round-end-result__header {
-        padding: 0.25rem 0;
+    .board-overlay .round-end-result__title {
+        font-size: 1.4rem;
+    }
+
+    .board-overlay .round-end-result__yaku {
+        font-size: 0.9rem;
     }
 
     .board-overlay .round-end-result__points {
-        font-size: 1.2rem;
+        font-size: 3rem;
     }
 
-    .board-overlay .round-end-result__winner {
-        gap: 0.35rem;
-        padding: 0.4rem 0;
+    .board-overlay .round-end-result__limit {
+        font-size: 1.5rem;
     }
 
-    .board-overlay .round-end-result__score-delta {
-        min-width: 3.5rem;
-    }
-
-    /* The scores' column is narrow here: each seat's score before payment sits over its change, leaving its name
-       the room a player's name needs. */
-    .board-overlay .round-end-result__score-row {
-        grid-template:
-            "wind name value" auto
-            "wind name delta" auto / 2.5rem minmax(0, 1fr) auto;
-        row-gap: 0;
-    }
-
-    .board-overlay .round-end-result__score-wind {
-        grid-area: wind;
-    }
-
-    .board-overlay .round-end-result__score-name {
-        grid-area: name;
-    }
-
-    .board-overlay .round-end-result__score-value {
-        grid-area: value;
-    }
-
-    .board-overlay .round-end-result__score-delta {
-        grid-area: delta;
+    .board-overlay .round-end-result__delta {
+        font-size: 1.1rem;
     }
 }

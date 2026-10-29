@@ -250,6 +250,15 @@ function boardCase(name: string, query: string, extra: readonly string[] = []): 
     };
 }
 
+/** A round result over the board storybook's board, one of its result stories, at a page of it. */
+function resultCase(result: string, query: string, extra: readonly string[]): PageCase {
+    return boardCase(
+        `board-result-${result.replaceAll("_", "-")}`,
+        `?overlay=round_end&result=${result}${query}`,
+        [".board-overlay__panel", ...extra],
+    );
+}
+
 /** A decisions story: the live board at a checkpoint of a generated seat transcript. */
 function decisionCase(story: string, extra: readonly string[]): PageCase {
     return {
@@ -273,6 +282,10 @@ const PAGES: readonly PageCase[] = [
     documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
     boardCase("board-full-rivers", "?state=full_rivers"),
     boardCase("board-worst", "?state=worst", [".board-strip .meld", ".board-dora .tile"]),
+    resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
+    resultCase("sanbaiman", "", [".round-end-result__hand .meld"]),
+    resultCase("pao", "", [".round-end-result__notes"]),
+    resultCase("exhaustive", "", [".round-end-result__tenpai .tile"]),
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
     decisionCase("chankan_prompt", [ACTION, ".board-strip .meld"]),
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),

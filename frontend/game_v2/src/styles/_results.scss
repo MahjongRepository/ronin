@@ -42,191 +42,289 @@
 
 /* ─── Round-End Result Panel ───────────────────────────────── */
 
+/* One page of a round's result. Single column on an upright board; beside each other on a wide one, the yaku and the
+   hand's value, under the hand that spans the panel. Tiles take the overlay's board unit. */
 .round-end-result {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+        "head"
+        "hand"
+        "value"
+        "yaku"
+        "scores";
+    gap: 0.4rem 1rem;
+    font-size: 0.8rem;
+    font-family: var(--ronin-font-body);
+    color: var(--pico-color);
 }
 
-/* Header: result type label + total points */
-.round-end-result__header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.75rem 0 0.6rem;
+.round-end-result--draw {
+    grid-template-areas:
+        "head"
+        "tenpai"
+        "scores";
 }
 
-.round-end-result__result-type {
+.round-end-result__head {
+    grid-area: head;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.6rem;
+}
+
+.round-end-result__kind {
     font-family: var(--ronin-font-display);
     font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ronin-gold);
+}
+
+.round-end-result__title {
+    font-family: var(--ronin-font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.round-end-result__wind,
+.round-end-result__label,
+.round-end-result__score-wind {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.08em;
+    color: var(--ronin-text-muted);
+}
+
+.round-end-result__from {
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__pager {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.round-end-result__page {
+    font-family: var(--ronin-font-mono);
+    color: var(--ronin-text-secondary);
+}
+
+.round-end-result__page-btn {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0 0.5rem;
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.round-end-result__hand {
+    grid-area: hand;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    row-gap: 0.25rem;
+}
+
+/* The winning tile stands apart from the closed tiles and the melds, framed in gold under the way it was won. */
+.round-end-result__win-tile {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    margin-inline: 0.6rem 0.3rem;
+
+    .tile {
+        box-shadow: 0 0 0 2px var(--ronin-gold);
+    }
+}
+
+.round-end-result__win-label {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: var(--ronin-gold);
+}
+
+.round-end-result__melds {
+    display: inline-flex;
+    align-items: flex-end;
+    margin-left: 0.3rem;
+}
+
+.round-end-result__yaku {
+    grid-area: yaku;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.75rem;
+
+    > li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 0;
+        padding: 0.05rem 0;
+        list-style: none;
+        color: var(--ronin-text-secondary);
+    }
+}
+
+.round-end-result__han {
+    color: var(--pico-color);
+    font-weight: 600;
+
+    &::after {
+        content: " han";
+        font-weight: 400;
+        color: var(--ronin-text-muted);
+    }
+}
+
+.round-end-result__yaku-dora > span:first-child {
+    color: var(--ronin-text-muted);
+}
+
+.round-end-result__value {
+    grid-area: value;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    align-content: flex-start;
+    gap: 0.2rem 0.75rem;
 }
 
 .round-end-result__points {
     font-family: var(--ronin-font-display);
-    font-size: 1.5rem;
+    font-size: 1.9rem;
     font-weight: 700;
-    color: var(--pico-color);
-    line-height: 1.2;
+    line-height: 1;
 }
 
-/* Dora indicator section */
+.round-end-result__limit {
+    font-family: var(--ronin-font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--ronin-gold);
+}
+
+.round-end-result__han-fu {
+    font-family: var(--ronin-font-mono);
+    color: var(--ronin-text-secondary);
+}
+
 .round-end-result__indicators {
+    flex-basis: 100%;
     display: flex;
-    gap: 1.5rem;
-    justify-content: flex-start;
-    align-items: flex-start;
-    padding: 0.5rem 0;
-    margin: 0 -0.25rem;
-    border-top: 1px solid var(--ronin-border-subtle);
-    border-bottom: 1px solid var(--ronin-border-subtle);
-    background: color-mix(in srgb, var(--ronin-surface-elevated) 50%, transparent);
+    gap: 1rem;
+
+    &:empty {
+        display: none;
+    }
 }
 
 .round-end-result__indicator-group {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
-}
-
-.round-end-result__indicator-label {
-    font-family: var(--ronin-font-mono);
-    font-size: 0.6rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ronin-text-muted);
+    gap: 0.4rem;
 }
 
 .round-end-result__indicator-tiles {
     display: flex;
     gap: 2px;
-    align-items: center;
 }
 
-.round-end-result__indicator-tile .tile {
-    width: 28px;
-    height: 37px;
-}
-
-/* Winner section */
-.round-end-result__winner {
+.round-end-result__notes {
+    flex-basis: 100%;
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.75rem 0;
-}
-
-.round-end-result__winner + .round-end-result__winner {
-    border-top: 1px solid var(--ronin-border-subtle);
-}
-
-.round-end-result__winner-name {
-    font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--ronin-text-muted);
-    font-family: var(--ronin-font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.round-end-result__hand {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
     flex-wrap: wrap;
-}
-
-/* Yaku breakdown: name left, han right */
-.round-end-result__yaku-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+    column-gap: 0.9rem;
     font-family: var(--ronin-font-mono);
-    font-size: 0.78rem;
-    padding-top: 0.2rem;
-}
-
-.round-end-result__yaku-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 1rem;
-    padding: 0.12rem 0;
-}
-
-.round-end-result__yaku-name {
     color: var(--ronin-text-secondary);
-}
 
-.round-end-result__yaku-han {
-    color: var(--pico-color);
-    white-space: nowrap;
-    font-weight: 500;
-}
-
-/* Totals line */
-.round-end-result__totals {
-    font-family: var(--ronin-font-mono);
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--ronin-gold);
-    text-align: right;
-}
-
-/* Score changes grid */
-.round-end-result__scores {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    padding: 0.6rem 0.5rem;
-    border-top: 1px solid var(--ronin-border);
-    background: color-mix(in srgb, var(--ronin-surface-elevated) 40%, transparent);
-    border-radius: 0 0 0.5rem 0.5rem;
-    margin: 0 -0.25rem -0.25rem;
-
-    /* No double border when scores directly follow the header (draws) */
-    .round-end-result__header + & {
-        border-top: none;
+    > li {
+        margin: 0;
+        list-style: none;
     }
 }
 
-.round-end-result__score-row {
-    display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1fr) auto auto;
-    align-items: baseline;
-    gap: 0.5rem;
-    font-size: 0.78rem;
-    font-family: var(--ronin-font-mono);
-    padding: 0.12rem 0;
+.round-end-result__tenpai {
+    grid-area: tenpai;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
 }
 
-.round-end-result__score-wind {
-    color: var(--ronin-text-muted);
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+.round-end-result__tenpai-hand {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin: 0;
+    list-style: none;
+}
+
+.round-end-result__scores {
+    grid-area: scores;
+    list-style: none;
+    margin: 0;
+    padding: 0.4rem 0 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    border-top: 1px solid var(--ronin-border);
+    font-family: var(--ronin-font-mono);
+}
+
+.round-end-result__score {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.round-end-result__score-who {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    min-width: 0;
 }
 
 .round-end-result__score-name {
-    color: var(--pico-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--ronin-font-body);
 }
 
-.round-end-result__score-value {
+.round-end-result__score-tag {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--ronin-text-muted);
-    text-align: right;
 }
 
-.round-end-result__score-delta {
-    text-align: right;
-    min-width: 4.5rem;
-    font-weight: 600;
+.round-end-result__delta {
+    font-weight: 700;
+    font-size: 0.9rem;
     color: var(--ronin-text-secondary);
 
     &--positive {
@@ -236,6 +334,10 @@
     &--negative {
         color: var(--ronin-score-negative);
     }
+}
+
+.round-end-result__score-after {
+    color: var(--ronin-text-muted);
 }
 
 /* ─── Game-End Result Panel ───────────────────────────────── */

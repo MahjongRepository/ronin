@@ -304,6 +304,47 @@ def chankan_passed() -> tuple[SeatTranscript, ...]:
         return game.transcripts("chankan_passed", ROBBER)
 
 
+def double_ron() -> tuple[SeatTranscript, ...]:
+    """
+    The dealer, an AI player, discards the 4p that Alice (seat 1) and Bob (seat 3) both wait on, and both ron it: a
+    double ron with a result page per winner, Alice's first.
+
+    Her socket dies unseen during the round advance, and her reconnect takes it over: the snapshot carries the same
+    result, and she confirms a second after it as the client does on its own; Bob confirms a second after the round end.
+    Tobi is off, so what the dealer pays leaves the game going.
+    """
+    winning_tile = tile(2, pin="4")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="258", pin="258", sou="258", honors="1234"),
+            tile_copies(0, man="234567", pin="23", sou="34566"),
+            tile_copies(3, man="258", pin="258", sou="258", honors="1234"),
+            (*tile_copies(1, man="345678", sou="234"), *tile_copies(0, pin="568"), tile(1, pin="8")),
+        ),
+        draws=((0, winning_tile),),
+    )
+
+    settings = GameSettings(tobi_enabled=False)
+    with seated_game("seat-double-ron", staged, players=(PLAYER, ROBBER), settings=settings) as game:
+        alice = game.clients[PLAYER]
+        bob = game.clients[ROBBER]
+        alice.join(at=0)
+        bob.join(at=0)
+        game.wait_until(4)
+        alice.label("ron prompt", WireEventType.CALL_PROMPT)
+        alice.ron(at=5, label="ron chosen")
+        bob.ron(at=5.5, label="ron chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+        alice.drop_unseen(at=5.75, label="dropped")
+        bob.confirm_round(at=6.5, label="confirmed")
+        alice.reconnect(at=6.75, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.confirm_round(at=7.75, label="confirmed")
+        alice.label("next round", WireEventType.ROUND_STARTED)
+
+        return game.transcripts("double_ron", PLAYER)
+
+
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
@@ -311,4 +352,5 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "riichi_reconnect": riichi_reconnect,
     "chankan_robbed": chankan_robbed,
     "chankan_passed": chankan_passed,
+    "double_ron": double_ron,
 }

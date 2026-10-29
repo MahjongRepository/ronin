@@ -15,7 +15,7 @@ const VIEWBOX = "0 0 300 400";
  * where the root element is always a single top-level <svg>.
  *
  * Self-closing SVGs (e.g. `<svg ... />`) are valid — they indicate an empty
- * tile face (like Haku/white dragon). Returns an empty string in that case.
+ * tile face (a set may leave its haku blank). Returns an empty string in that case.
  */
 function extractSvgInner(svgString: string): string {
     // Self-closing root element: <svg ... />

@@ -43,9 +43,22 @@ replay view, the live game and the storybook read the tables it produces.
 - A round end's wire `scores` are taken after the riichi deposits and before the round's payments.
   `applyEvent` settles each player at that score plus its `scoreChanges` (the aggregated map, for a
   double ron too), never from the prior state, so a deposit is not deducted twice; the winners'
-  collected sticks leave the table, a draw's stay. The result keeps the pre-payment map for the
-  overlay, which shows the score before payment and its delta. A game end's standings already hold
+  collected sticks leave the table, a draw's stay. The result keeps the pre-payment map, from which
+  the result panel shows a page's deltas and the scores after every payment through that page: a
+  double ron's first page ends at the scores after its first winner alone, its last at the scores
+  the table settled. A game end's standings already hold
   the leftover sticks paid to the winner (`lb`); the table takes them and empties the sticks.
+- A round end's result (`RoundEndResult`) keeps what the panel shows: per winner its hand, value
+  (`handResult.points`, the hand alone), dora kinds, ura indicators, its own payments, honba bonus
+  (its gain beyond hand value and sticks), sticks and pao seat; for a draw its kind and the seats it
+  names (tenpai/noten with hands, nagashi, kyuushu declarer, triple-ron callers). Per-winner payments
+  only describe: the table settles from the aggregate, once. `roundEndPages` gives a page per
+  winner (a double ron's two) or the draw's one; the view picks the page, and `roundEndPageAt` is
+  the one place that clamps it to the pages and counts them. `lib/round-end-display.ts` maps a
+  result at a page to the panel's display state (faces, names, limit, notes, score rows, the
+  clamped page and the count), which `ui/round-end-display.ts` only renders. A limit's name
+  (`handLimitName`) comes from the points the server paid, 4x (6x for the dealer) the limit's basic
+  points, never from han, so it follows whatever kiriage, kazoe and yakuman rules the game used.
 - The wire's round number counts every deal of the game; a round's name ("East 1", "South 3") is
   its number within its wind, the dealer's distance from the first dealer (`roundInWind`), which
   the table keeps from the game start or, on a reconnect, the snapshot's first listed round.

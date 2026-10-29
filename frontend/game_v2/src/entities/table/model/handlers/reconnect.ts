@@ -90,10 +90,7 @@ export function applyGameReconnected(
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),
         riichiSticks: snapshot.riichiSticks,
-        roundEndResult:
-            roundResult === null
-                ? null
-                : extractRoundEndResult(roundResult, snapshot.doraIndicators),
+        roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,
     };

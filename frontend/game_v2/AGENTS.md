@@ -114,11 +114,13 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   then each other offer, then a pass), the countdown and furiten. What may be played is never
   restated there: every tile intent and button is one the dispatcher's own `takesIntent` takes (the
   decision's answer on a socket it can send on), so the board offers exactly what stepping the
-  intent would send. `PlayBoard` only renders that and
-  routes a command: an intent goes to the dispatcher; the riichi toggle is the one piece of view
-  state (`PlayUi`, keyed by the decision's wait id so a newer decision never inherits it), and it
-  too is an input of the mapper. A new prop on the board is added to these mappers when a scenario
-  shows the need, never computed in a view.
+  intent would send. `PlayBoard` only renders that, with the table's panel over it, and routes a
+  command: an intent goes to the dispatcher; the view state is `PlayUi`, an input of the mapper too:
+  the riichi toggle, keyed by the decision's wait id so a newer decision never inherits it, and the
+  round result's page, keyed by the round the result ends (its wind, dealer and honba, which a
+  reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
+  keeps the page. A new prop on the board is added to these mappers when a scenario shows the need,
+  never computed in a view.
 * **Session** (`entities/session`): one machine owns joining, playing, reconnecting and the end.
   It joins with the lobby's ticket (`shared/session` holds the handoff) and resumes the seat with
   the same ticket. Two retries stay distinct, each with its own backoff and budget: a transport
@@ -185,7 +187,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
-  dora, AI marks; and the decisions stories), the replay and the live game, at its call prompt and at
+  dora, AI marks; the dense round results; and the decisions stories), the replay and the live game, at its call prompt and at
   its turn, at 1280x800 (Chromium),
   iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context. It

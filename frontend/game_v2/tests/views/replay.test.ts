@@ -42,11 +42,11 @@ function mountReplay(): MountedReplay {
     return mounted;
 }
 
-async function mountLoadedReplay(): Promise<MountedReplay> {
+async function mountLoadedReplay(name = "riichi"): Promise<MountedReplay> {
     const mounted = mountReplay();
-    const text = ENGINE_REPLAYS.get("riichi");
+    const text = ENGINE_REPLAYS.get(name);
     if (text === undefined) {
-        throw new Error("No engine replay named riichi");
+        throw new Error(`No engine replay named ${name}`);
     }
     await mounted.settle({ ok: true, text });
     return mounted;
@@ -62,6 +62,13 @@ function rootOf(host: HTMLElement): Element {
 
 function isAtFirstStep(host: HTMLElement): boolean | undefined {
     return host.querySelector<HTMLButtonElement>(".replay-state__nav-btn")?.disabled;
+}
+
+function resultTitle(host: HTMLElement): string | undefined {
+    return host
+        .querySelector(".round-end-result__title")
+        ?.textContent?.replaceAll(/\s+/g, " ")
+        .trim();
 }
 
 function pressKey(target: EventTarget, key: string): void {
@@ -134,6 +141,21 @@ describe("mountReplayView", () => {
 
         document.body.click();
         expect(host.querySelector(".dropdown-select__panel")).toBeNull();
+    });
+
+    it("pages a double ron's result between its winners, back to the first after a step", async () => {
+        const { host } = await mountLoadedReplay("double_ron");
+        for (let step = 0; step < 200 && resultTitle(host) === undefined; step += 1) {
+            pressKey(rootOf(host), "ArrowRight");
+        }
+        expect(resultTitle(host)).toBe("Alice South");
+
+        host.querySelectorAll<HTMLButtonElement>(".round-end-result__page-btn")[1]?.click();
+        expect(resultTitle(host)).toBe("Charlie West");
+
+        pressKey(rootOf(host), "ArrowLeft");
+        pressKey(rootOf(host), "ArrowRight");
+        expect(resultTitle(host)).toBe("Alice South");
     });
 
     it("says the replay was not found when its source answers 404", async () => {

@@ -78,3 +78,29 @@
         padding: 0.2rem 0.35rem;
     }
 }
+
+/* Beside the board, the picker takes the aside's width without widening it, so the board keeps the size its stories
+   measure. */
+.board-storybook__picker {
+    @media (orientation: landscape) {
+        contain: inline-size;
+    }
+}
+
+.board-storybook .board-storybook__select {
+    width: 100%;
+    font-size: 0.8rem;
+    height: auto;
+    padding: 0.25rem 1.1rem 0.25rem 0.4rem;
+    margin: 0;
+    background-position: center right 0.3rem;
+    background-size: 0.6rem auto;
+
+    /* Beside the board the column is a button's width: the arrow gives its room to the story's name. */
+    @media (orientation: landscape) {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.3rem;
+        background-image: none;
+        text-align: center;
+    }
+}

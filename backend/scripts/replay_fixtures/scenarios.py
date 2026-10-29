@@ -442,6 +442,40 @@ def pao() -> Recording:
     return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1, "ps": 0}, then=GAME_ENDS))
 
 
+def kazoe() -> Recording:
+    """
+    Win the dealer's double riichi by an ippatsu tsumo on a closed pin flush, thirteen han of ordinary yaku or more.
+
+    The hand is ryanpeikou with pinfu and tanyao, so it scores as a kazoe yakuman, the limit no yakuman yaku names.
+    """
+    winning_tile = tile(1, pin="2")
+    junk = {"man": "2468", "sou": "2468", "honors": "12345"}
+    staged = StagedWall(
+        hands=(
+            (*tile_copies(0, pin="23344667788"), tile(1, pin="5"), tile(2, pin="5")),
+            tile_copies(1, **junk),
+            tile_copies(2, **junk),
+            tile_copies(3, **junk),
+        ),
+        draws=(
+            (0, tile(0, man="1")),
+            (1, tile(0, man="9")),
+            (2, tile(1, man="9")),
+            (3, tile(2, man="9")),
+            (0, winning_tile),
+        ),
+    )
+
+    game = StagedGame("kazoe", staged)
+    game.riichi(0)
+    game.tsumogiri(1)
+    game.tsumogiri(2)
+    game.tsumogiri(3)
+    game.tsumo(0)
+
+    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 0}))
+
+
 def _riichi_to_exhaustive_draw(game_id: str, settings: GameSettings) -> StagedGame:
     """
     Play a round out to an exhaustive draw with two tenpai hands, seat 1's in riichi, and the noten seats 0 and 3.
@@ -796,6 +830,7 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "chankan_closed_kokushi.txt": chankan_closed_kokushi,
     "triple_ron.txt": triple_ron,
     "pao.txt": pao,
+    "kazoe.txt": kazoe,
     "exhaustive_tenpai.txt": exhaustive_tenpai,
     "leftover_riichi.txt": leftover_riichi,
     "nagashi.txt": nagashi,

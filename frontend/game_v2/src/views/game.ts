@@ -21,7 +21,6 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
-import { boardOverlay } from "@/entities/table";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
 import { EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
@@ -166,7 +165,7 @@ function gameTemplate(props: GameViewProps): TemplateResult {
             <div class="game__rotate">${RotatePanel(rotatePanelProps(state, onLeave))}</div>
             <div class="game__play board-page">
                 <div class="board-page__board">
-                    ${PlayBoard({ display: playDisplay(state, ui), onCommand, overlay: boardOverlay(state.table) })}
+                    ${PlayBoard({ display: playDisplay(state, ui), onCommand, table: state.table })}
                 </div>
                 <aside class="board-page__aside game-aside" aria-label="Game ${gameId}">
                     <button class="secondary game-aside__leave" @click=${onLeave}>Lobby</button>
@@ -235,7 +234,7 @@ class GameViewController {
         this.dispatch({ at: this.deps.clock.now(), intent: { type: "leave" }, kind: "intent" });
     };
 
-    /** A board control: an intent goes to the dispatcher; picking riichi's discard only changes the view's `ui`. */
+    /** A board control: an intent goes to the dispatcher; picking riichi's discard or a result page only changes the view's `ui`. */
     private readonly command = (command: PlayCommand): void => {
         if (command.kind === "intent") {
             this.dispatch({ at: this.deps.clock.now(), intent: command.intent, kind: "intent" });

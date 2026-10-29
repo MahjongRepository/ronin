@@ -99,6 +99,7 @@ describe("seatScenarioFromTranscript", () => {
             "chankan_passed_seat_3",
             "chankan_robbed_seat_1",
             "chankan_robbed_seat_3",
+            "double_ron_seat_1",
             "own_turn_seat_1",
             "reconnect_seat_1",
             "riichi_reconnect_seat_1",
