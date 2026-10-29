@@ -147,7 +147,12 @@ function renderMessage(key: string, params: PartParams): Part[] {
         throw new I18nError(key, "missing key");
     }
     checkParams(key, en[key], params);
-    return splitMessage(pickText(key, CATALOGS[pageLocale()][key] ?? en[key], params), params);
+    const locale = pageLocale();
+    const catalog = CATALOGS[locale];
+    if (!Object.hasOwn(catalog, key)) {
+        throw new I18nError(key, `missing ${locale} translation`);
+    }
+    return splitMessage(pickText(key, catalog[key], params), params);
 }
 
 function lookupParts(key: string, params: PartParams): Part[] {

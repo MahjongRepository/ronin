@@ -14,6 +14,7 @@ CATALOGS = {
     Locale.EN: {
         "auth.login.no_account": "Don't have an account? {register}",
         "auth.login.title": "Log in",
+        "auth.login.untranslated": "Only in English",
         "history.rounds": {"one": "{count} round", "other": "{count} rounds"},
     },
     Locale.JA: {
@@ -70,8 +71,17 @@ class TestTranslator:
             ("history.rounds", {}),
             ("history.rounds", {"count": "3"}),
             ("auth.login.title", {"count": 3}),
+            ("auth.login.untranslated", {}),
         ],
-        ids=["missing_key", "extra_param", "missing_param", "plural_without_count", "non_numeric_count", "not_plural"],
+        ids=[
+            "missing_key",
+            "extra_param",
+            "missing_param",
+            "plural_without_count",
+            "non_numeric_count",
+            "not_plural",
+            "missing_translation",
+        ],
     )
     def test_translate__when_strict_and_call_does_not_match_the_catalog__should_raise(self, key, params):
         translator = Translator(catalogs=CATALOGS, strict=True)
@@ -85,11 +95,15 @@ class TestTranslator:
         with caplog.at_level(logging.WARNING):
             first = translator.translate(Locale.RU, "auth.login.title", name="dev")
             second = translator.translate(Locale.JA, "auth.login.title", name="dev")
+            untranslated = translator.translate(Locale.RU, "auth.login.untranslated")
         assert first == second == "Log in"
-        warnings = [record for record in caplog.records if "i18n error" in record.getMessage()]
-        assert len(warnings) == 1
-        assert "auth.login.title" in warnings[0].getMessage()
-        assert "ru" in warnings[0].getMessage()
+        assert untranslated == "Only in English"
+        warnings = [record.getMessage() for record in caplog.records if "i18n error" in record.getMessage()]
+        assert len(warnings) == 2
+        assert "auth.login.title" in warnings[0]
+        assert "ru" in warnings[0]
+        assert "auth.login.untranslated" in warnings[1]
+        assert "missing ru translation" in warnings[1]
 
     def test_translate__when_plural__should_pick_the_locale_form_and_format_the_count(self):
         translator = Translator(catalogs=CATALOGS, strict=True)
