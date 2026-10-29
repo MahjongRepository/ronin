@@ -1,0 +1,96 @@
+import { type WirePayload } from "#tests/fixtures/wire";
+import {
+    type ClientEffect,
+    type ClientEvent,
+    type GameClientState,
+    startGameClient,
+    stepGameClient,
+} from "@/entities/client";
+import {
+    type SessionEffect,
+    type SessionInput,
+    type SessionState,
+    startSession,
+    stepSession,
+} from "@/entities/session";
+import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
+
+export const GAME_ID = "g1";
+export const HANDOFF = { gameTicket: "ticket-1", wsUrl: "ws://game/ws/g1" } as const;
+
+interface Step<State, Effect> {
+    readonly state: State;
+    readonly effects: readonly Effect[];
+}
+
+/** Steps a pure transition one input at a time, keeping the state and returning each step's effects. */
+export class Scenario<State, Input, Effect> {
+    readonly startEffects: readonly Effect[];
+    private current: State;
+    private readonly transition: (state: State, input: Input) => Step<State, Effect>;
+
+    constructor(
+        start: Step<State, Effect>,
+        transition: (state: State, input: Input) => Step<State, Effect>,
+    ) {
+        this.current = start.state;
+        this.startEffects = start.effects;
+        this.transition = transition;
+    }
+
+    get state(): State {
+        return this.current;
+    }
+
+    step(input: Input): readonly Effect[] {
+        const next = this.transition(this.current, input);
+        this.current = next.state;
+        return next.effects;
+    }
+}
+
+export function sessionScenario(): Scenario<SessionState, SessionInput, SessionEffect> {
+    return new Scenario(startSession(GAME_ID, HANDOFF), stepSession);
+}
+
+export function clientScenario(): Scenario<GameClientState, ClientEvent, ClientEffect> {
+    return new Scenario(startGameClient(GAME_ID, HANDOFF, 0), stepGameClient);
+}
+
+function parsed(raw: WirePayload): ParsedServerMessage {
+    const [error, message] = parseServerMessage(raw);
+    if (error) {
+        throw error;
+    }
+    return message;
+}
+
+export const sessionInput = {
+    closed: (at: number, code: number): SessionInput => ({
+        at,
+        code,
+        kind: "transport_closed",
+        reason: "",
+    }),
+    leave: (at: number): SessionInput => ({ at, kind: "leave" }),
+    message: (at: number, raw: WirePayload): SessionInput => ({
+        at,
+        kind: "message",
+        message: parsed(raw),
+    }),
+    opened: (at: number): SessionInput => ({ at, kind: "transport_opened" }),
+    tick: (at: number): SessionInput => ({ at, kind: "tick" }),
+};
+
+export const clientEvent = {
+    closed: (at: number, code: number): ClientEvent => ({
+        at,
+        code,
+        kind: "transport_closed",
+        reason: "",
+    }),
+    leave: (at: number): ClientEvent => ({ at, intent: { type: "leave" }, kind: "intent" }),
+    message: (at: number, raw: WirePayload): ClientEvent => ({ at, kind: "server_message", raw }),
+    opened: (at: number): ClientEvent => ({ at, kind: "transport_opened" }),
+    tick: (at: number): ClientEvent => ({ at, kind: "tick" }),
+};

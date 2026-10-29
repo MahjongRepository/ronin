@@ -121,6 +121,10 @@
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+
+    &:focus {
+        outline: none;
+    }
 }
 
 .replay-board-layout__board {

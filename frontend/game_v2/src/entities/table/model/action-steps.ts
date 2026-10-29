@@ -26,7 +26,7 @@ function isStoppingEvent(event: ReplayEvent, previousEvent: ReplayEvent | undefi
 }
 
 /** Scans ahead past any trailing non-stopping events starting from `start`, returns the end index. */
-function findBatchEnd(events: ReplayEvent[], start: number): number {
+function findBatchEnd(events: readonly ReplayEvent[], start: number): number {
     let end = start;
     while (end < events.length && !isStoppingEvent(events[end], events[end - 1])) {
         end++;
@@ -35,7 +35,7 @@ function findBatchEnd(events: ReplayEvent[], start: number): number {
 }
 
 /** Collects action steps by scanning events for stopping points and batching trailing non-stopping events. */
-function collectStoppingSteps(events: ReplayEvent[], steps: ActionStep[]): void {
+function collectStoppingSteps(events: readonly ReplayEvent[], steps: ActionStep[]): void {
     let i = 0;
     while (i < events.length) {
         if (!isStoppingEvent(events[i], events[i - 1])) {
@@ -59,7 +59,7 @@ function collectStoppingSteps(events: ReplayEvent[], steps: ActionStep[]): void 
  * Returns an array where the first entry is always the initial state (before any events)
  * and the last entry's stateIndex equals events.length (the state after all events).
  */
-export function buildActionSteps(events: ReplayEvent[]): ActionStep[] {
+export function buildActionSteps(events: readonly ReplayEvent[]): ActionStep[] {
     const initialEnd = findBatchEnd(events, 0);
     const steps: ActionStep[] = [{ descriptionStateIndex: initialEnd, stateIndex: initialEnd }];
     collectStoppingSteps(events, steps);

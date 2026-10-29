@@ -1,5 +1,4 @@
-import { type ReplayEvent } from "@/entities/table";
-import { parseReplayLines } from "@/views/replay";
+import { type ReplayEvent, parseReplayLines } from "@/entities/table";
 
 const REPLAY_FILES = import.meta.glob("./replays/*.txt", {
     eager: true,
@@ -14,7 +13,7 @@ export const ENGINE_REPLAYS: ReadonlyMap<string, string> = new Map(
     ]),
 );
 
-export function loadEngineReplay(name: string): ReplayEvent[] {
+export function loadEngineReplay(name: string): readonly ReplayEvent[] {
     const text = ENGINE_REPLAYS.get(name);
     if (text === undefined) {
         throw new Error(`No engine replay named ${name}`);

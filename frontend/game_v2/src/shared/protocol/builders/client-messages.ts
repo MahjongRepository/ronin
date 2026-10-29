@@ -101,3 +101,19 @@ export function buildConfirmRoundAction(waitId: number) {
         wi: waitId,
     } as const;
 }
+
+/** Every message the client sends, as the builders above construct it. */
+export type ClientMessage = ReturnType<
+    | typeof buildJoinGameMessage
+    | typeof buildReconnectMessage
+    | typeof buildDiscardAction
+    | typeof buildRiichiAction
+    | typeof buildTsumoAction
+    | typeof buildRonAction
+    | typeof buildPonAction
+    | typeof buildChiAction
+    | typeof buildKanAction
+    | typeof buildKyuushuAction
+    | typeof buildPassAction
+    | typeof buildConfirmRoundAction
+>;

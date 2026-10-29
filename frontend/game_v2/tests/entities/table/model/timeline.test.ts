@@ -128,7 +128,7 @@ describe("buildTimeline", () => {
 });
 
 interface EngineTimeline {
-    events: ReplayEvent[];
+    events: readonly ReplayEvent[];
     states: TableState[];
 }
 

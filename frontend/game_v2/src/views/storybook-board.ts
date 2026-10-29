@@ -16,45 +16,26 @@ import { ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 type OverlayMode = "none" | "round_end" | "game_end";
 
-const VALID_OVERLAY_MODES = new Set<OverlayMode>(["none", "round_end", "game_end"]);
+const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
 
-function parseOverlayParam(): OverlayMode {
-    const param = new URLSearchParams(window.location.search).get("overlay");
-    if (param && VALID_OVERLAY_MODES.has(param as OverlayMode)) {
-        return param as OverlayMode;
-    }
-    return "none";
+interface BoardStoryState {
+    readonly debug: boolean;
+    readonly overlay: OverlayMode;
 }
 
-let debugMode = true;
-let overlayMode: OverlayMode = parseOverlayParam();
-
-function rerender(): void {
-    const app = document.getElementById("app");
-    if (app) {
-        render(storybookBoardView(), app);
-    }
+function parseOverlayParam(search: string): OverlayMode {
+    const param = new URLSearchParams(search).get("overlay");
+    return OVERLAY_MODES.find((mode) => mode === param) ?? "none";
 }
 
-function handleDebugToggle(): void {
-    debugMode = !debugMode;
-    rerender();
-}
-
-function syncOverlayParam(): void {
+function syncOverlayParam(overlay: OverlayMode): void {
     const url = new URL(window.location.href);
-    if (overlayMode === "none") {
+    if (overlay === "none") {
         url.searchParams.delete("overlay");
     } else {
-        url.searchParams.set("overlay", overlayMode);
+        url.searchParams.set("overlay", overlay);
     }
     history.replaceState(null, "", url);
-}
-
-function handleOverlayToggle(mode: OverlayMode): void {
-    overlayMode = overlayMode === mode ? "none" : mode;
-    syncOverlayParam();
-    rerender();
 }
 
 // Mock data: bottom player (seat 0) — face-up hand, 2 melds, 8 discards
@@ -299,39 +280,74 @@ const mockGameEnd: GameEndResult = {
     winnerSeat: 0,
 };
 
-function buildOverlay(): TemplateResult | undefined {
-    if (overlayMode === "round_end") {
+function buildOverlay(overlay: OverlayMode): TemplateResult | undefined {
+    if (overlay === "round_end") {
         return RoundEndDisplay(mockRoundEnd, mockPlayers, 0);
     }
-    if (overlayMode === "game_end") {
+    if (overlay === "game_end") {
         return GameEndDisplay(mockGameEnd, mockPlayers);
     }
     return undefined;
 }
 
-function storybookBoardView(): TemplateResult {
+interface BoardStoryHandlers {
+    readonly toggleDebug: () => void;
+    readonly toggleOverlay: (mode: OverlayMode) => void;
+}
+
+function activeClass(active: boolean): string {
+    return active ? "board-storybook__btn--active" : "";
+}
+
+function storybookBoardTemplate(
+    story: BoardStoryState,
+    handlers: BoardStoryHandlers,
+): TemplateResult {
     return html`
         <div class="board-storybook">
             <div class="board-storybook__viewport">
-                ${GameBoard({ debug: debugMode, overlay: buildOverlay(), state: mockState })}
+                ${GameBoard({ debug: story.debug, overlay: buildOverlay(story.overlay), state: mockState })}
             </div>
             <div class="board-storybook__overlay">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>
                 <button
-                    class="board-storybook__btn ${debugMode ? "board-storybook__btn--active" : ""}"
-                    @click=${handleDebugToggle}
+                    class="board-storybook__btn ${activeClass(story.debug)}"
+                    @click=${handlers.toggleDebug}
                 >Debug</button>
                 <button
-                    class="board-storybook__btn ${overlayMode === "round_end" ? "board-storybook__btn--active" : ""}"
-                    @click=${() => handleOverlayToggle("round_end")}
+                    class="board-storybook__btn ${activeClass(story.overlay === "round_end")}"
+                    @click=${() => handlers.toggleOverlay("round_end")}
                 >Round end</button>
                 <button
-                    class="board-storybook__btn ${overlayMode === "game_end" ? "board-storybook__btn--active" : ""}"
-                    @click=${() => handleOverlayToggle("game_end")}
+                    class="board-storybook__btn ${activeClass(story.overlay === "game_end")}"
+                    @click=${() => handlers.toggleOverlay("game_end")}
                 >Game end</button>
             </div>
         </div>
     `;
 }
 
-export { storybookBoardView };
+/** Mount the board storybook into `host`; its overlay choice is kept in the page's `?overlay=` query. */
+export function mountStorybookBoard(host: HTMLElement): () => void {
+    let story: BoardStoryState = {
+        debug: true,
+        overlay: parseOverlayParam(window.location.search),
+    };
+
+    function show(next: BoardStoryState): void {
+        story = next;
+        render(storybookBoardTemplate(story, handlers), host);
+    }
+
+    const handlers: BoardStoryHandlers = {
+        toggleDebug: () => show({ ...story, debug: !story.debug }),
+        toggleOverlay(mode) {
+            const overlay = story.overlay === mode ? "none" : mode;
+            syncOverlayParam(overlay);
+            show({ ...story, overlay });
+        },
+    };
+
+    show(story);
+    return () => {};
+}

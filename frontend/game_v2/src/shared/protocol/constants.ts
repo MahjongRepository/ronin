@@ -206,14 +206,11 @@ export const SESSION_ERROR_CODE = {
 
 export type SessionErrorCode = (typeof SESSION_ERROR_CODE)[keyof typeof SESSION_ERROR_CODE];
 
-// --- Internal message types (client-only) ---
-
-export const INTERNAL_MESSAGE_TYPE = {
-    DECODE_ERROR: "decode_error",
+/** The WebSocket close codes the client acts on, as `backend/game/session/manager.py` sends them. */
+export const CLOSE_CODE = {
+    INVALID_GAME_ACTION: 1008,
+    REPLACED_BY_NEW_CONNECTION: 4002,
 } as const;
-
-export type InternalMessageType =
-    (typeof INTERNAL_MESSAGE_TYPE)[keyof typeof INTERNAL_MESSAGE_TYPE];
 
 // --- Log type constants ---
 

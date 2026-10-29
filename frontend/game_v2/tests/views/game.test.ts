@@ -1,295 +1,216 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { CLIENT_MESSAGE_TYPE, GAME_ACTION } from "@/shared/protocol";
+import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
+import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
+import { type Clock } from "@/shared/clock";
+import { type ClientMessage, buildJoinGameMessage, buildReconnectMessage } from "@/shared/protocol";
+import { type GameConnection, type SocketHandlers } from "@/shared/websocket";
+import { type GameViewDeps, mountGameView } from "@/views/game";
 
-// --- Mocks ---
+class FakeConnection implements GameConnection {
+    readonly sent: ClientMessage[] = [];
+    disconnected = false;
 
-let capturedMessageHandler: ((message: Record<string, unknown>) => void) | null = null;
-let capturedStatusHandler: ((status: string) => void) | null = null;
+    constructor(
+        readonly url: string,
+        readonly handlers: SocketHandlers,
+    ) {}
 
-const mockSend = vi.fn();
-const mockConnect = vi.fn();
-const mockEnableReconnect = vi.fn();
-const mockDisableReconnect = vi.fn();
-const mockDisconnect = vi.fn();
+    send(message: ClientMessage): void {
+        this.sent.push(message);
+    }
 
-// Use a class mock so `new GameSocket(...)` works correctly
-vi.mock("@/shared/websocket", () => ({
-    GameSocket: class MockGameSocket {
-        constructor(
-            onMessage: (msg: Record<string, unknown>) => void,
-            onStatusChange: (s: string) => void,
-        ) {
-            capturedMessageHandler = onMessage;
-            capturedStatusHandler = onStatusChange;
+    disconnect(): void {
+        this.disconnected = true;
+    }
+}
+
+interface ManualTimer {
+    readonly at: number;
+    readonly callback: () => void;
+    cancelled: boolean;
+}
+
+/** A clock moved by hand; `timers` keeps every callback, cancelled ones too, so a test can fire a stale one. */
+class ManualClock implements Clock {
+    readonly timers: ManualTimer[] = [];
+    private current = 0;
+
+    now = (): number => this.current;
+
+    setTimer = (delayMs: number, callback: () => void): (() => void) => {
+        const timer: ManualTimer = { at: this.current + delayMs, callback, cancelled: false };
+        this.timers.push(timer);
+        return () => {
+            timer.cancelled = true;
+        };
+    };
+
+    advanceTo(at: number): void {
+        this.current = at;
+        for (const timer of this.timers.filter((t) => !t.cancelled && t.at <= at)) {
+            timer.cancelled = true;
+            timer.callback();
         }
-
-        connect = mockConnect;
-        disableReconnect = mockDisableReconnect;
-        disconnect = mockDisconnect;
-        enableReconnect = mockEnableReconnect;
-        isOpen = true;
-        send = mockSend;
-    },
-}));
-
-vi.mock("@/shared/session", () => ({
-    clearGameSession: vi.fn(),
-    clearSessionData: vi.fn(),
-    getGameSession: vi.fn().mockReturnValue({ gameTicket: "ticket-123", wsUrl: "ws://test" }),
-}));
-
-vi.mock("@/shared/config", () => ({
-    getLobbyUrl: vi.fn().mockReturnValue("/lobby"),
-}));
-
-vi.mock("lit-html", () => ({
-    html: (..._args: unknown[]) => ({ _brand: "template" }),
-    render: vi.fn(),
-}));
-
-// Dynamic import after mocks are set up (vitest hoists vi.mock calls)
-const { cleanupGameView, gameView } = await import("@/views/game");
-
-let locationReplace = vi.fn();
-
-function resetMocks(): void {
-    capturedMessageHandler = null;
-    capturedStatusHandler = null;
-    mockSend.mockClear();
-    mockConnect.mockClear();
-    mockEnableReconnect.mockClear();
-    mockDisableReconnect.mockClear();
-    mockDisconnect.mockClear();
+    }
 }
 
-function setupLocation(): void {
-    locationReplace = vi.fn();
-    Object.defineProperty(window, "location", {
-        configurable: true,
-        value: { replace: locationReplace },
-        writable: true,
-    });
+interface FakeOverrides {
+    readonly connect?: GameViewDeps["connect"];
+    readonly leaveToLobby?: () => void;
 }
 
-function setupConnection(): void {
-    gameView("test-game");
-    vi.runAllTimers();
-    capturedStatusHandler!("connected");
+function mountWithFakes(overrides: FakeOverrides = {}): {
+    clock: ManualClock;
+    connections: FakeConnection[];
+    host: HTMLElement;
+    sink: GameViewDeps["sink"];
+    dispose: () => void;
+} {
+    const clock = new ManualClock();
+    const connections: FakeConnection[] = [];
+    const sink = { clearHandoff: vi.fn(), leaveToLobby: vi.fn(overrides.leaveToLobby) };
+    const host = document.createElement("div");
+    function fakeConnect(url: string, handlers: SocketHandlers): FakeConnection {
+        const connection = new FakeConnection(url, handlers);
+        connections.push(connection);
+        return connection;
+    }
+    const dispose = mountGameView(host, GAME_ID, {
+        clock,
+        connect: overrides.connect ?? fakeConnect,
+        handoff: HANDOFF,
+        sink,
+    });
+    return { clock, connections, dispose, host, sink };
 }
 
-const retryLaterMessage = {
-    code: "reconnect_retry_later",
-    message: "Try again later",
-    type: "session_error",
-};
-
-function setupPlayingAndReconnect(): void {
-    setupConnection();
-    capturedMessageHandler!({ d: 0, t: 1 });
-    capturedStatusHandler!("disconnected");
-    capturedStatusHandler!("connected");
-    mockSend.mockClear();
+/** Join a game that already started, then get told to retry the RECONNECT later. */
+function waitOutRetryLater(socket: FakeConnection): void {
+    socket.handlers.onOpen();
+    socket.handlers.onMessage(wireSessionError("join_game_already_started"));
+    socket.handlers.onMessage(wireSessionError("reconnect_retry_later"));
 }
 
-const TSUMO_ROUND_END = {
-    ct: [0, 4, 8],
-    hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0 }] },
-    ml: [],
-    rc: 0,
-    rt: 0,
-    sch: { "0": 30, "1": -10, "2": -10, "3": -10 },
-    scs: { "0": 280, "1": 240, "2": 240, "3": 240 },
-    t: 4,
-    ws: 0,
-    wt: 12,
-};
+const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
+const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
-describe("game view message handling", () => {
-    beforeEach(() => {
-        vi.useFakeTimers();
-        resetMocks();
-        setupLocation();
-        cleanupGameView();
+describe("mountGameView", () => {
+    it("joins on the handoff's socket and renders the session status and the message log", () => {
+        const { connections, host } = mountWithFakes();
+        const [socket] = connections;
+        expect(socket.url).toBe(HANDOFF.wsUrl);
+
+        socket.handlers.onOpen();
+        socket.handlers.onMessage(WIRE_GAME_STARTED);
+
+        expect(socket.sent).toEqual([JOIN]);
+        expect(host.querySelector(".connection-status")?.textContent).toBe("playing (open)");
+        expect(host.querySelector(".log-entry:last-child .log-type")?.textContent).toBe(
+            "game_started",
+        );
     });
 
-    afterEach(() => {
-        vi.useRealTimers();
+    it("reopens a dropped socket when its retry comes due and resumes the seat on it", () => {
+        const { clock, connections } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+
+        connections[0].handlers.onClose(1006, "");
+        clock.advanceTo(999);
+        expect(connections).toHaveLength(1);
+        clock.advanceTo(1000);
+        expect(connections).toHaveLength(2);
+
+        connections[1].handlers.onOpen();
+        expect(connections[1].sent).toEqual([RECONNECT]);
     });
 
-    describe("connection lifecycle", () => {
-        test("sends JOIN_GAME on initial connection", () => {
-            setupConnection();
-            expect(mockSend).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    game_ticket: "ticket-123",
-                    t: CLIENT_MESSAGE_TYPE.JOIN_GAME,
-                }),
-            );
-        });
+    it("lets no retry callback reopen a socket after dispose", () => {
+        const { clock, connections, dispose, host } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        connections[0].handlers.onClose(1006, "");
+        const [retry] = clock.timers;
 
-        test("join -> playing: reconnect sends RECONNECT not JOIN_GAME", () => {
-            setupConnection();
-            mockSend.mockClear();
+        dispose();
+        retry.callback();
 
-            capturedMessageHandler!({ d: 0, t: 1 });
-            capturedStatusHandler!("disconnected");
-            capturedStatusHandler!("connected");
-
-            expect(mockSend).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    game_ticket: "ticket-123",
-                    t: CLIENT_MESSAGE_TYPE.RECONNECT,
-                }),
-            );
-            expect(mockSend).not.toHaveBeenCalledWith(
-                expect.objectContaining({ t: CLIENT_MESSAGE_TYPE.JOIN_GAME }),
-            );
-        });
-
-        test("game_reconnected is processed without redirect", () => {
-            setupPlayingAndReconnect();
-
-            capturedMessageHandler!({
-                cp: 0,
-                dc: [1, 2],
-                dd: [
-                    [1, 2],
-                    [3, 4],
-                ],
-                di: [0],
-                dl: 0,
-                f: false,
-                gid: "test-game",
-                h: 0,
-                mt: [0, 1, 2],
-                n: 1,
-                p: [
-                    { ai: 0, nm: "P1", s: 0 },
-                    { ai: 0, nm: "P2", s: 1 },
-                    { ai: 1, nm: "B1", s: 2 },
-                    { ai: 1, nm: "B2", s: 3 },
-                ],
-                pst: [],
-                r: 0,
-                s: 0,
-                tr: 70,
-                type: "game_reconnected",
-                w: 0,
-            });
-
-            expect(locationReplace).not.toHaveBeenCalled();
-        });
+        expect([retry.cancelled, connections.length, host.childElementCount]).toEqual([true, 1, 0]);
     });
 
-    describe("reconnection", () => {
-        test("permanent reconnect error triggers redirect", () => {
-            setupConnection();
-            capturedMessageHandler!({ d: 0, t: 1 });
+    it("lets no retry callback resend RECONNECT after a terminal close", () => {
+        const { clock, connections, sink } = mountWithFakes();
+        const [socket] = connections;
+        waitOutRetryLater(socket);
+        const [retry] = clock.timers;
 
-            capturedMessageHandler!({
-                code: "reconnect_no_session",
-                message: "No disconnected session found",
-                type: "session_error",
-            });
+        socket.handlers.onClose(4002, "replaced_by_new_connection");
+        retry.callback();
 
-            expect(locationReplace).toHaveBeenCalledWith("/lobby");
-        });
-
-        test("reconnect_retry_later schedules retry", () => {
-            setupPlayingAndReconnect();
-
-            capturedMessageHandler!(retryLaterMessage);
-
-            expect(locationReplace).not.toHaveBeenCalled();
-            vi.advanceTimersByTime(1500);
-            expect(mockSend).toHaveBeenCalledWith(
-                expect.objectContaining({ t: CLIENT_MESSAGE_TYPE.RECONNECT }),
-            );
-        });
-
-        test("reconnect_retry_later uses exponential backoff", () => {
-            setupPlayingAndReconnect();
-
-            function expectRetryAfterMs(delayMs: number): void {
-                capturedMessageHandler!(retryLaterMessage);
-                vi.advanceTimersByTime(delayMs - 1);
-                expect(mockSend).not.toHaveBeenCalled();
-                vi.advanceTimersByTime(1);
-                expect(mockSend).toHaveBeenCalledTimes(1);
-                mockSend.mockClear();
-            }
-
-            expectRetryAfterMs(1000);
-            expectRetryAfterMs(2000);
-        });
+        expect([retry.cancelled, socket.sent, connections.length]).toEqual([
+            true,
+            [JOIN, RECONNECT],
+            1,
+        ]);
+        expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);
+        expect(sink.leaveToLobby).toHaveBeenCalledOnce();
     });
 
-    describe("session errors", () => {
-        test("not_in_game triggers redirect to lobby", () => {
-            setupConnection();
-            capturedMessageHandler!({ d: 0, t: 1 });
+    it("on Back to Lobby after the game ended closes the socket, clears the handoff and leaves", () => {
+        const { connections, host, sink } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+        connections[0].handlers.onMessage(WIRE_GAME_END);
 
-            capturedMessageHandler!({
-                code: "not_in_game",
-                message: "Player is not in a game",
-                type: "session_error",
-            });
+        host.querySelector("button")?.click();
 
-            expect(locationReplace).toHaveBeenCalledWith("/lobby");
-        });
-
-        test("join_game_already_started sends RECONNECT", () => {
-            setupConnection();
-            mockSend.mockClear();
-
-            capturedMessageHandler!({
-                code: "join_game_already_started",
-                message: "Game already started",
-                type: "session_error",
-            });
-
-            expect(mockSend).toHaveBeenCalledWith(
-                expect.objectContaining({ t: CLIENT_MESSAGE_TYPE.RECONNECT }),
-            );
-            expect(locationReplace).not.toHaveBeenCalled();
-        });
+        expect(connections[0].disconnected).toBe(true);
+        expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);
+        expect(sink.leaveToLobby).toHaveBeenCalledOnce();
     });
 
-    describe("game events", () => {
-        test("round end triggers auto-confirm after delay, echoing its wait id", () => {
-            setupConnection();
-            mockSend.mockClear();
-
-            capturedMessageHandler!({ ...TSUMO_ROUND_END, wi: 5 });
-
-            expect(mockSend).not.toHaveBeenCalled();
-            vi.advanceTimersByTime(1500);
-            expect(mockSend).toHaveBeenCalledWith({
-                a: GAME_ACTION.CONFIRM_ROUND,
-                t: CLIENT_MESSAGE_TYPE.GAME_ACTION,
-                wi: 5,
-            });
+    it("treats a socket factory that throws as a failed connection and retries it", () => {
+        const { clock, connections, host } = mountWithFakes({
+            connect: (url, handlers) => {
+                if (clock.now() === 0) {
+                    throw new Error("refused URL");
+                }
+                const connection = new FakeConnection(url, handlers);
+                connections.push(connection);
+                return connection;
+            },
         });
+        expect(host.querySelector(".log-entry .log-raw")?.textContent).toContain("connect_failed");
 
-        test("round end of a finished game, with no wait id, is not confirmed", () => {
-            setupConnection();
-            mockSend.mockClear();
+        clock.advanceTo(1000);
 
-            capturedMessageHandler!(TSUMO_ROUND_END);
+        expect(connections).toHaveLength(1);
+    });
 
-            vi.advanceTimersByTime(1500);
-            expect(mockSend).not.toHaveBeenCalled();
+    it("ends as failed, shown on the page, when running an effect throws, and keeps taking input", () => {
+        const leaveToLobby = vi.fn(() => {
+            throw new Error("navigation blocked");
         });
+        const { connections, host } = mountWithFakes({ leaveToLobby });
+        connections[0].handlers.onOpen();
 
-        test("parse failure logs fallback without crashing", () => {
-            setupConnection();
+        connections[0].handlers.onMessage(wireSessionError("reconnect_no_session"));
+        expect(host.querySelector(".connection-status")?.textContent).toBe(
+            "failed: navigation blocked",
+        );
 
-            capturedMessageHandler!({ t: 8 });
-            expect(locationReplace).not.toHaveBeenCalled();
+        host.querySelector("button")?.click();
+        expect(leaveToLobby).toHaveBeenCalledTimes(2);
+    });
 
-            capturedMessageHandler!({ d: 0, t: 1 });
-            expect(locationReplace).not.toHaveBeenCalled();
-        });
+    it("ignores a late callback from a socket it already replaced", () => {
+        const { clock, connections } = mountWithFakes();
+        const [first] = connections;
+        first.handlers.onClose(1006, "");
+        clock.advanceTo(1000);
+
+        first.handlers.onClose(1006, "");
+
+        expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
     });
 });

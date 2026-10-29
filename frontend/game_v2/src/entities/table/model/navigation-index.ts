@@ -45,7 +45,7 @@ function buildEventToStepMap(actionSteps: ActionStep[]): Map<number, number> {
 
 /** Scans ahead from a round_started event to find the result description from the next round_end. */
 function findRoundResultDescription(
-    events: ReplayEvent[],
+    events: readonly ReplayEvent[],
     states: TableState[],
     startIdx: number,
 ): string {
@@ -66,7 +66,7 @@ function findRoundResultDescription(
 
 /** Collects all rounds from the event stream. */
 function collectRounds(
-    events: ReplayEvent[],
+    events: readonly ReplayEvent[],
     states: TableState[],
     eventToStepIndex: Map<number, number>,
 ): RoundInfo[] {
@@ -106,7 +106,7 @@ interface EventRange {
 
 interface TurnCollectionContext {
     eventToStepIndex: Map<number, number>;
-    events: ReplayEvent[];
+    events: readonly ReplayEvent[];
     states: TableState[];
 }
 
@@ -134,7 +134,11 @@ function collectTurnsForRange(ctx: TurnCollectionContext, range: EventRange): Tu
 }
 
 /** Checks whether a given action step corresponds to a game_end event. */
-function isGameEndStep(stepIdx: number, actionSteps: ActionStep[], events: ReplayEvent[]): boolean {
+function isGameEndStep(
+    stepIdx: number,
+    actionSteps: ActionStep[],
+    events: readonly ReplayEvent[],
+): boolean {
     if (stepIdx <= 0) {
         return false;
     }
@@ -163,7 +167,7 @@ function buildTurnsByRound(
 function buildStepToRoundIndex(
     rounds: RoundInfo[],
     actionSteps: ActionStep[],
-    events: ReplayEvent[],
+    events: readonly ReplayEvent[],
 ): number[] {
     const stepToRoundIndex: number[] = Array.from({ length: actionSteps.length }, () => -1);
 
@@ -191,7 +195,7 @@ function buildStepToRoundIndex(
  * then maps each action step to its parent round for O(1) lookup.
  */
 export function buildNavigationIndex(
-    events: ReplayEvent[],
+    events: readonly ReplayEvent[],
     actionSteps: ActionStep[],
     states: TableState[],
 ): NavigationIndex {

@@ -20,9 +20,10 @@ export function setGameTicket(ticket: string): void {
     sessionStorage.setItem("game_ticket", ticket);
 }
 
-interface GameSessionData {
-    wsUrl: string;
-    gameTicket: string;
+/** The lobby's handoff for one game: the socket to join and the ticket that names the seat. */
+export interface GameSessionData {
+    readonly wsUrl: string;
+    readonly gameTicket: string;
 }
 
 function isGameSessionData(data: unknown): data is GameSessionData {

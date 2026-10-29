@@ -1,63 +1,59 @@
 import { type TemplateResult, render } from "lit-html";
 
-import { getLobbyUrl } from "@/shared/config";
+/** Undo a route's mount: cancel its timers, IO and listeners. */
+export type Unmount = () => void;
 
-interface Route {
-    pattern: RegExp;
-    handler: (params: Record<string, string>) => TemplateResult;
-    cleanup?: () => void;
+export interface Route {
+    readonly pattern: RegExp;
+    readonly mount: (host: HTMLElement, params: Record<string, string>) => Unmount;
 }
 
-let routes: Route[] = [];
-let container: HTMLElement | undefined = undefined;
-let activeRoute: Route | null = null;
-
-export function initRouter(el: HTMLElement, routeDefs: Route[]): void {
-    container = el;
-    routes = routeDefs;
-    window.addEventListener("popstate", () => resolve());
-    resolve();
+/** A route that renders a template once and owns nothing to undo. */
+export function staticRoute(pattern: RegExp, view: () => TemplateResult): Route {
+    return {
+        mount(host) {
+            render(view(), host);
+            return () => {};
+        },
+        pattern,
+    };
 }
 
-export function navigate(path: string): void {
-    history.pushState(null, "", path);
-    resolve();
-}
-
-function resolve(): void {
-    if (!container) {
-        return;
-    }
-    const path = window.location.pathname;
-    const matched = findMatchingRoute(path);
-    runRouteCleanup();
-    if (matched) {
-        activeRoute = matched.route;
-        render(matched.route.handler(matched.params), container);
-    } else {
-        activeRoute = null;
-        window.location.replace(getLobbyUrl());
-    }
-}
-
-function findMatchingRoute(
-    hash: string,
+function matchRoute(
+    routes: readonly Route[],
+    path: string,
 ): { params: Record<string, string>; route: Route } | undefined {
     for (const route of routes) {
-        const match = hash.match(route.pattern);
+        const match = path.match(route.pattern);
         if (match) {
-            const params: Record<string, string> = {};
-            if (match.groups) {
-                Object.assign(params, match.groups);
-            }
-            return { params, route };
+            return { params: { ...match.groups }, route };
         }
     }
     return undefined;
 }
 
-function runRouteCleanup(): void {
-    if (activeRoute?.cleanup) {
-        activeRoute.cleanup();
+/**
+ * Mount the route matching the location into `host`, unmounting the previous one first, and again on every
+ * history navigation; a path no route matches goes to `onUnmatched`.
+ */
+export function startRouter(
+    host: HTMLElement,
+    routes: readonly Route[],
+    onUnmatched: () => void,
+): void {
+    let unmount: Unmount | null = null;
+
+    function resolve(): void {
+        unmount?.();
+        unmount = null;
+        const matched = matchRoute(routes, window.location.pathname);
+        if (!matched) {
+            onUnmatched();
+            return;
+        }
+        unmount = matched.route.mount(host, matched.params);
     }
+
+    window.addEventListener("popstate", resolve);
+    resolve();
 }

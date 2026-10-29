@@ -1,206 +1,127 @@
 import { decode, encode } from "@msgpack/msgpack";
 
-import { CONNECTION_STATUS, type ConnectionStatus, INTERNAL_MESSAGE_TYPE } from "@/shared/protocol";
+import { type CancelTimer, type Clock, browserClock } from "@/shared/clock";
+import { type ClientMessage } from "@/shared/protocol";
 
-export type MessageHandler = (message: Record<string, unknown>) => void;
-export type StatusHandler = (status: ConnectionStatus) => void;
+/** What one socket reports; after `onClose` it reports nothing more. */
+export interface SocketHandlers {
+    readonly onOpen: () => void;
+    readonly onMessage: (message: Record<string, unknown>) => void;
+    readonly onClose: (code: number, reason: string) => void;
+    readonly onError: (detail: string) => void;
+}
 
-const MAX_RECONNECT_ATTEMPTS = 10;
-const MAX_BACKOFF_MS = 30_000;
+/** One connection attempt: it never reconnects by itself, and `disconnect` silences it. */
+export interface GameConnection {
+    readonly send: (message: ClientMessage) => void;
+    readonly disconnect: () => void;
+}
+
+export type ConnectSocket = (url: string, handlers: SocketHandlers) => GameConnection;
+
+/** The close the silence watchdog reports: 1006, what a browser reports for a connection lost without a close frame. */
+const SERVER_SILENT_CLOSE = { code: 1006, reason: "server_silent" } as const;
+
 const SERVER_SILENCE_LIMIT_MS = 90_000;
 const SILENCE_CHECK_INTERVAL_MS = 5000;
 
-export class GameSocket {
-    private ws: WebSocket | null = null;
+function isWireRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+type DecodedFrame =
+    | { readonly ok: true; readonly message: Record<string, unknown> }
+    | { readonly ok: false; readonly detail: string };
+
+function decodeFrame(data: unknown): DecodedFrame {
+    if (!(data instanceof ArrayBuffer)) {
+        return { detail: "Received a non-binary frame", ok: false };
+    }
+    let message: unknown = null;
+    try {
+        message = decode(new Uint8Array(data));
+    } catch {
+        return { detail: "Failed to decode a MessagePack frame", ok: false };
+    }
+    return isWireRecord(message)
+        ? { message, ok: true }
+        : { detail: "Received a frame that is not a message object", ok: false };
+}
+
+/**
+ * The game server socket as an IO adapter: it decodes MessagePack frames and reports open, message, close and
+ * error to its handlers, and decides nothing. A server silent longer than any legitimate wait is reported as a
+ * close, measured on the clock's wall time so the first check after a device wake sees the whole gap.
+ */
+export class GameSocket implements GameConnection {
+    private readonly ws: WebSocket;
+    private readonly handlers: SocketHandlers;
+    private readonly clock: Clock;
     private lastFrameAt = 0;
-    private silenceWatchdog: ReturnType<typeof setInterval> | null = null;
-    private onMessage: MessageHandler;
-    private onStatusChange: StatusHandler;
+    private cancelWatchdog: CancelTimer | null = null;
 
-    private reconnectAttempts = 0;
-    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    private reconnectEnabled = false;
-    private reconnectUrl: string | null = null;
-    private onReconnect: (() => void) | null = null;
-
-    constructor(onMessage: MessageHandler, onStatusChange: StatusHandler) {
-        this.onMessage = onMessage;
-        this.onStatusChange = onStatusChange;
+    constructor(url: string, handlers: SocketHandlers, clock: Clock = browserClock) {
+        this.handlers = handlers;
+        this.clock = clock;
+        this.ws = new WebSocket(url);
+        this.ws.binaryType = "arraybuffer";
+        this.listen();
     }
 
-    connect(websocketUrl: string): void {
-        this.disconnectExisting();
-        this.onStatusChange(CONNECTION_STATUS.CONNECTING);
-        const ws = new WebSocket(websocketUrl);
-        this.ws = ws;
-        ws.binaryType = "arraybuffer";
-
-        ws.onopen = () => {
-            if (this.ws !== ws) {
-                return;
-            }
-            this.reconnectAttempts = 0;
-            this.startSilenceWatchdog(ws);
-            this.onStatusChange(CONNECTION_STATUS.CONNECTED);
-        };
-
-        ws.onmessage = (event: MessageEvent) => {
-            if (this.ws !== ws) {
-                return;
-            }
-            this.lastFrameAt = Date.now();
-            const { data } = event;
-            if (data instanceof ArrayBuffer) {
-                try {
-                    const message = decode(new Uint8Array(data)) as Record<string, unknown>;
-                    this.onMessage(message);
-                } catch {
-                    this.onMessage({
-                        error: "failed to decode MessagePack frame",
-                        type: INTERNAL_MESSAGE_TYPE.DECODE_ERROR,
-                    });
-                }
-            }
-        };
-
-        ws.onclose = () => {
-            if (this.ws !== ws) {
-                return;
-            }
-            this.handleClosed();
-        };
-
-        ws.onerror = () => {
-            if (this.ws !== ws) {
-                return;
-            }
-            this.onStatusChange(CONNECTION_STATUS.ERROR);
-        };
-    }
-
-    /** Enable auto-reconnect on disconnect with exponential backoff. */
-    enableReconnect(url: string, onReconnect?: () => void): void {
-        this.reconnectEnabled = true;
-        this.reconnectUrl = url;
-        this.onReconnect = onReconnect ?? null;
-    }
-
-    /** Disable auto-reconnect and cancel any pending retry. */
-    disableReconnect(): void {
-        this.reconnectEnabled = false;
-        this.reconnectUrl = null;
-        this.onReconnect = null;
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-    }
-
-    /** Whether the underlying WebSocket is currently open. */
-    get isOpen(): boolean {
-        return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
-    }
-
-    send(message: Record<string, unknown>): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    send(message: ClientMessage): void {
+        if (this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(encode(message));
         }
     }
 
     disconnect(): void {
-        this.disableReconnect();
-        this.stopSilenceWatchdog();
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    private handleClosed(): void {
-        this.stopSilenceWatchdog();
-        this.ws = null;
-        this.onStatusChange(CONNECTION_STATUS.DISCONNECTED);
-        this.scheduleReconnect();
-    }
-
-    private startSilenceWatchdog(ws: WebSocket): void {
-        this.stopSilenceWatchdog();
-        this.lastFrameAt = Date.now();
-        this.silenceWatchdog = setInterval(() => {
-            if (this.ws === ws && Date.now() - this.lastFrameAt > SERVER_SILENCE_LIMIT_MS) {
-                this.detachHandlers(ws);
-                ws.close();
-                this.handleClosed();
-            }
-        }, SILENCE_CHECK_INTERVAL_MS);
-    }
-
-    private stopSilenceWatchdog(): void {
-        if (this.silenceWatchdog) {
-            clearInterval(this.silenceWatchdog);
-            this.silenceWatchdog = null;
-        }
-    }
-
-    private detachHandlers(ws: WebSocket): void {
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onclose = null;
-        ws.onerror = null;
-    }
-
-    private scheduleReconnect(): void {
-        if (!this.reconnectEnabled || !this.reconnectUrl) {
-            return;
-        }
-        if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            return;
-        }
-
-        const delayMs = Math.min(1000 * 2 ** this.reconnectAttempts, MAX_BACKOFF_MS);
-        this.reconnectAttempts++;
-
-        this.reconnectTimer = setTimeout(() => {
-            this.reconnectTimer = null;
-            this.executeReconnect();
-        }, delayMs);
-    }
-
-    private executeReconnect(): void {
-        if (!this.reconnectEnabled || !this.reconnectUrl) {
-            return;
-        }
-        const savedCallback = this.onReconnect;
-
-        this.connect(this.reconnectUrl);
-        this.wrapOnopenForReconnect(savedCallback);
-    }
-
-    private wrapOnopenForReconnect(callback: (() => void) | null): void {
-        const { ws } = this;
-        if (!ws) {
-            return;
-        }
-        const originalOnopen = ws.onopen;
-        ws.onopen = (event) => {
-            if (originalOnopen) {
-                (originalOnopen as (ev: Event) => void)(event);
-            }
-            if (callback && this.ws === ws) {
-                callback();
-            }
-        };
-    }
-
-    // detach handlers before closing to prevent stale onclose from
-    // nullifying the reference to a new socket created below
-    private disconnectExisting(): void {
-        this.stopSilenceWatchdog();
-        if (!this.ws) {
-            return;
-        }
-        this.detachHandlers(this.ws);
+        this.detach();
         this.ws.close();
-        this.ws = null;
+    }
+
+    private listen(): void {
+        this.ws.onopen = () => {
+            this.lastFrameAt = this.clock.now();
+            this.armWatchdog();
+            this.handlers.onOpen();
+        };
+        this.ws.onmessage = (event: MessageEvent) => this.receive(event.data);
+        this.ws.onclose = (event: CloseEvent) => this.finish(event.code, event.reason);
+        this.ws.onerror = () => this.handlers.onError("WebSocket error");
+    }
+
+    private receive(data: unknown): void {
+        this.lastFrameAt = this.clock.now();
+        const frame = decodeFrame(data);
+        if (frame.ok) {
+            this.handlers.onMessage(frame.message);
+        } else {
+            this.handlers.onError(frame.detail);
+        }
+    }
+
+    private armWatchdog(): void {
+        this.cancelWatchdog = this.clock.setTimer(SILENCE_CHECK_INTERVAL_MS, () => {
+            if (this.clock.now() - this.lastFrameAt <= SERVER_SILENCE_LIMIT_MS) {
+                this.armWatchdog();
+                return;
+            }
+            this.ws.close();
+            this.finish(SERVER_SILENT_CLOSE.code, SERVER_SILENT_CLOSE.reason);
+        });
+    }
+
+    private finish(code: number, reason: string): void {
+        this.detach();
+        this.handlers.onClose(code, reason);
+    }
+
+    private detach(): void {
+        this.cancelWatchdog?.();
+        this.cancelWatchdog = null;
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
+        this.ws.onclose = null;
+        this.ws.onerror = null;
     }
 }

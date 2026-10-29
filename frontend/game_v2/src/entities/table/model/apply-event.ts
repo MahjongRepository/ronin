@@ -1,4 +1,5 @@
 import { tile136toString } from "@/entities/tile";
+import { assertNever } from "@/shared/lib";
 import {
     type DiscardEvent,
     type DoraRevealedEvent,
@@ -28,10 +29,6 @@ import {
 
 /** Live wall size after dealing: 136 total - 14 dead wall - 52 dealt (13 × 4 players). */
 const TILES_AFTER_DEAL = 136 - 14 - 13 * 4;
-
-function assertNever(value: never): never {
-    throw new Error(`Unhandled replay event type: ${(value as { type: string }).type}`);
-}
 
 function applyGameStarted(state: TableState, event: GameStartedEvent): TableState {
     const players = event.players.map((p) =>

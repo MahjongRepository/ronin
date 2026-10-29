@@ -9,7 +9,7 @@ import { type ReplayEvent, type TableState } from "./types";
  * and states[i+1] is the state after applying events[i].
  * Length is always events.length + 1.
  */
-export function buildTimeline(events: ReplayEvent[]): TableState[] {
+export function buildTimeline(events: readonly ReplayEvent[]): TableState[] {
     const states: TableState[] = [createInitialTableState()];
 
     for (const event of events) {

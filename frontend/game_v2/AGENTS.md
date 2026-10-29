@@ -3,7 +3,7 @@
 The earlier game client SPA, restored as the foundation of a future client: the lobby serves it
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
 `/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
-but the views act on far less of it than v1 does: no countdowns, close codes or robbed kans yet.
+but the views act on far less of it than v1 does: no countdowns, decisions or robbed kans yet.
 Adapt the client to the server rather than the server to it. `src/shared/protocol/` and `src/entities/table/` have their own `AGENTS.md`.
 
 ## Build
@@ -21,16 +21,49 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 ## App
 
 * **Routes** (`src/index.ts` → `router.ts` → `views/`): pathname routes for the live game, the
-  replay (loaded over HTTP) and the storybook component showcase. Each route may register a cleanup
-  the router runs on navigation. The lobby lists each game page path with its login policy
-  (`backend/lobby/server/app.py`) and 404s any other, so a new route needs its path added there.
-* **Handoff:** the lobby stores the game socket URL and ticket per game (`shared/session/`, key and
-  shape in `docs/architecture.md`) and navigates here; the client joins with the ticket and, after a
-  disconnect, reconnects with backoff and resumes the seat with the same ticket. A "retry later"
-  reconnect error is retried; every other reconnect error sends the player back to the lobby.
+  replay (loaded over HTTP) and the storybook component showcase. A route mounts into the app's
+  host element and returns its unmount, which the router runs before the next route mounts. The
+  lobby lists each game page path with its login policy (`backend/lobby/server/app.py`) and 404s
+  any other, so a new route needs its path added there.
+* **Views are controller instances, one per mount.** A view is given its host, its sources and
+  sinks (the socket factory, the replay loader, the handoff and the navigation) and its clock;
+  `index.ts` is the one place that wires the browser's. A view keeps no module state, looks up no
+  element by id and renders one top-level template into its host. Its input is its own: keys reach
+  it only through its own focusable root, and a click outside closes only its own dropdown, so two
+  mounts never move together. Its dispose cancels every timer, socket, fetch and listener it owns
+  and clears its host, and a callback that still fires afterwards is dropped. The game view's
+  driver ends the client as failed, on the page, when a step or an effect throws, rather than
+  leaving its queue stuck, and reports a socket factory that throws as a failed connection.
+* **One dispatcher over client events.** The live game runs on `entities/client`'s dispatcher, a
+  pure `(state, event) → { state, effects }` over an explicit client event union: the raw wire
+  payload of a server message (parsed inside, through `parseServerMessage`), the transport's open,
+  close (with code and reason) and error, a logical time tick, and a local user intent. Every event
+  carries the logical time its source stamped, and the state keeps the last one as its `now`, so a
+  state kept at a historical cursor keeps its time. The transitions never run IO, read a clock or
+  start a timer: they return effect descriptions of real IO only (open or close the socket, send,
+  clear the handoff, leave for the lobby, report an unparseable message), and only the live driver
+  (`views/game.ts`) executes them, so a scripted scenario steps the same dispatcher and asserts its
+  effects. Timers are not effects: the state holds its pending deadlines, `nextDeadline` derives
+  the earliest, and the driver keeps one timer armed to it that comes back as a tick. A tick before
+  a deadline, or with none, does nothing, so a stale timer cannot act. Table and decision state
+  join this dispatcher, not a second one; display-only data (the game view's debug log) stays in
+  the view, out of the state.
+* **Session** (`entities/session`): one machine owns joining, playing, reconnecting and the end.
+  It joins with the lobby's ticket (`shared/session` holds the handoff) and resumes the seat with
+  the same ticket. Two retries stay distinct, each with its own backoff and budget: a transport
+  retry reopens a dropped socket, a session retry resends RECONNECT on the open socket after
+  `reconnect_retry_later` (honoured only while reconnecting) or a rate limit on its JOIN_GAME or
+  RECONNECT (only before the seat is held). A drop supersedes a waiting session retry, since the
+  reopened socket sends RECONNECT itself. The stop policy follows the server: the 4002 and 1008 closes, a
+  refusal that means the ticket will never hold the seat again, and a spent retry budget end the
+  session, cancel its retry and send the player to the lobby; a game end ends it on the page; any
+  other close is retried, 1000 included (`docs/architecture.md`, Game client contract). An ended
+  session ignores everything after, except that leaving still goes to the lobby from an end that
+  stayed on the page (a game end or a failure).
 * **Silence watchdog:** the client sends nothing on its own, so a socket whose peer vanished never
-  fires `onclose`. `GameSocket` therefore treats a server silent longer than any legitimate wait as
-  a disconnect, measured on the wall clock so the first check after a device wake sees the whole
+  fires `onclose`. `GameSocket`, the socket's thin IO adapter (one connection attempt per
+  instance; it never reconnects), therefore reports a server silent longer than any legitimate
+  wait as a close, measured on the wall clock so the first check after a device wake sees the whole
   gap. The limit is hand-derived from the session `TimerConfig` defaults
   (`backend/game/session/AGENTS.md`, Pacing) plus a margin for late timers; re-derive it when the
   pacing changes.
@@ -42,9 +75,12 @@ rather than introducing new FSD layers:
 
 * `views/` — route views; they compose entities and shared code.
 * `entities/` — domain UI and models (`tile`: tiles, hands, melds, discards and the tile-id
-  helpers; `table`: the game table model and board UI), imported through each slice's `index.ts`;
-  `table` may use `tile`, never the reverse.
-* `shared/` — protocol, session, WebSocket and config; imports nothing above it.
+  helpers; `table`: the game table model, the replay file reader and the board UI; `session`: the
+  session machine; `client`: the dispatcher over client events), imported through each slice's
+  `index.ts`. A slice uses only slices below it: `client` may use `session` and `table`, `table`
+  may use `tile`, never the reverse.
+* `shared/` — protocol, handoff storage, the socket adapter, the replay fetch, the clock, config and
+  small helpers; imports nothing above it.
 
 ## Conventions
 
@@ -68,13 +104,15 @@ rather than introducing new FSD layers:
 Vitest. UI tests render lit templates into a DOM element and assert on the result; logic tests call
 the module directly. Tests live in `tests/`, outside `src/`, at the path of the module they cover
 (`tests/entities/tile/hand.test.ts` for `src/entities/tile/hand.ts`), and import it through `@/`; a
-module whose tests need different file-level `vi.mock`s gets a second, suffixed file
-(`tests/views/replay-click-outside.test.ts`). `tsconfig.json` includes `tests`, so
-`npm run typecheck` checks them like `src`. Test helpers live in `tests/fixtures/` and are imported
+module whose tests need different file-level `vi.mock`s gets a second, suffixed file.
+`tsconfig.json` includes `tests`, so `npm run typecheck` checks them like `src`. Test helpers live in `tests/fixtures/` and are imported
 through the `#tests/` subpath import (`package.json` `imports`), since a relative parent import
 fails lint. Build protocol events with the event factories there, typed by the schemas' output,
 rather than as literals repeated across tests, so a schema change fails the typecheck and is fixed
-in one place.
+in one place. Raw wire payloads for the dispatcher live there too, as does the scenario stepper:
+session and dispatcher tests are written as sequences of client events with the effects each step
+returns, never through the DOM, and a view's own tests inject fakes for its socket factory, loader
+and clock rather than mocking modules.
 
 The replay files under `tests/fixtures/replays/` are generated, never edited by hand:
 `make generate-replay-fixtures` records each from a game the engine plays

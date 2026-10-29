@@ -1,2 +1,2 @@
 export { GameSocket } from "./websocket";
-export type { MessageHandler, StatusHandler } from "./websocket";
+export type { ConnectSocket, GameConnection, SocketHandlers } from "./websocket";

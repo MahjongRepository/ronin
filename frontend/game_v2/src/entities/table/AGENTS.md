@@ -16,5 +16,9 @@ The game table model and board UI. The replay view and the storybook run on it.
   steps to rounds and turns.
 - `lib/board-mapper.ts` turns a `TableState` into the display state the `ui/` components render,
   rotating seats so the dealer sits at the bottom.
+- `model/replay-file.ts` reads a replay file: it refuses one whose version line is not
+  `REPLAY_VERSION`, keeps the `ReplayEvent` lines, skips the seat control lines and reports any
+  other line as an error without dropping the rest. The replay view and the tests' fixture loader
+  both read through it.
 - `ReplayEvent` is the subset of protocol events a replay stores; prompts, errors and furiten
   notices never appear there.

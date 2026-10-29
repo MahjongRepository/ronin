@@ -18,7 +18,7 @@ import {
 import { buildTimeline } from "@/entities/table/model/timeline";
 import { type ReplayEvent } from "@/entities/table/model/types";
 
-function buildNavInputs(events: ReplayEvent[]) {
+function buildNavInputs(events: readonly ReplayEvent[]) {
     const states = buildTimeline(events);
     const actionSteps = buildActionSteps(events);
     return { actionSteps, events, states };

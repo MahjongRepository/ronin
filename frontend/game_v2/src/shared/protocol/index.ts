@@ -17,9 +17,9 @@ export {
     KAN_TYPE,
     MELD_TYPE,
     CONNECTION_STATUS,
+    CLOSE_CODE,
     ABORTIVE_DRAW_TYPE,
     SESSION_ERROR_CODE,
-    INTERNAL_MESSAGE_TYPE,
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
     REPLAY_VERSION,
@@ -43,7 +43,6 @@ export type {
     ConnectionStatus,
     AbortiveDrawType,
     SessionErrorCode,
-    InternalMessageType,
     SeatControlReason,
     GameType,
 } from "./constants";
@@ -84,6 +83,7 @@ export {
     buildPassAction,
     buildConfirmRoundAction,
 } from "./builders/client-messages";
+export type { ClientMessage } from "./builders/client-messages";
 
 export type {
     GameStartedEvent,
