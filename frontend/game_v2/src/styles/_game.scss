@@ -41,41 +41,6 @@ section {
     border-radius: 6px;
 }
 
-// ─── Game Header ─────────────────────────────────────────────
-
-.game-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 1.5rem;
-    background: var(--ronin-surface-elevated);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
-    transition:
-        border-color 0.3s ease,
-        box-shadow 0.3s ease;
-
-    h2 {
-        flex: 1;
-        min-width: 0;
-        overflow-wrap: anywhere;
-        font-size: 1.3rem;
-        margin-bottom: 0;
-        font-weight: 600;
-        letter-spacing: 0;
-        color: var(--pico-color);
-        font-family: var(--ronin-font-body);
-    }
-
-    button {
-        flex-shrink: 0;
-        margin-bottom: 0;
-        padding: 0.5rem 1rem;
-        font-size: 0.85rem;
-    }
-}
-
 // ─── Connection Status Badges ────────────────────────────────
 
 .connection-status {
@@ -155,6 +120,53 @@ section {
         &::before {
             background: var(--ronin-gold);
         }
+    }
+}
+
+/* The live page's aside is a narrow column in landscape, so the board keeps the width its hand needs. */
+.game-aside {
+    @media (orientation: landscape) {
+        max-width: 6rem;
+    }
+}
+
+.game-aside__leave {
+    width: auto;
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.game-aside__status {
+    justify-content: center;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.65rem;
+    letter-spacing: 0;
+    white-space: normal;
+    text-align: center;
+}
+
+.game-aside__warning {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--ronin-danger);
+}
+
+/* The debug log (`?debug`): a summary in the aside that opens the log as a sheet over the board. */
+.game-log {
+    margin: 0;
+
+    > summary {
+        font-size: 0.75rem;
+        color: var(--ronin-text-secondary);
+        cursor: pointer;
+    }
+
+    &[open] > .log-panel {
+        position: fixed;
+        inset: 5dvh 5vw auto;
+        z-index: 50;
+        max-height: 85dvh;
     }
 }
 

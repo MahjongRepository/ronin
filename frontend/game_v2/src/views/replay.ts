@@ -1,4 +1,6 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
+
+import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
@@ -11,14 +13,13 @@ import {
     type ActionStep,
     type BoardPerspective,
     GameBoard,
-    GameEndDisplay,
     GameStartDisplay,
     type NavigationIndex,
-    RoundEndDisplay,
     RoundSelector,
     type StepEvent,
     type TableState,
     TurnSelector,
+    boardOverlay,
     buildActionSteps,
     buildNavigationIndex,
     roundForStep,
@@ -62,6 +63,12 @@ interface ReplayHandlers {
 
 const IGNORED_KEY_TARGETS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
+/**
+ * The User Timing measure of reading a fetched replay: parsing it, reducing it into the client timeline and building
+ * its steps and navigation index, before the first render. The layout gate's load budget reads it.
+ */
+const REPLAY_LOAD_MEASURE = "replay-load";
+
 /** The seat at the bottom when the replay records no game start to name its first dealer. */
 const FALLBACK_BOTTOM_SEAT = 0;
 
@@ -98,22 +105,35 @@ function loadedScreen(timeline: ClientTimeline, parseErrors: readonly string[]):
     };
 }
 
-function elementOf(target: EventTarget | null): Element | null {
-    return target instanceof Element ? target : null;
+/**
+ * What a replay's reading produced, as the `replay-load` measure's detail, so whoever reads the timing can check it
+ * timed the whole file: its steps, rounds, unreadable lines and final standings (seat and score), or its refusal.
+ */
+function loadDetail(screen: ReplayScreen): Record<string, unknown> {
+    if (screen.kind === "message") {
+        return { refusal: screen.text };
+    }
+    const { actionSteps, navigationIndex, parseErrors, states } = screen.replay;
+    const standings = states.at(-1)?.gameEndResult?.standings ?? [];
+    return {
+        parseErrors: parseErrors.length,
+        rounds: navigationIndex.rounds.length,
+        standings: standings.map(({ score, seat }) => [seat, score]),
+        steps: actionSteps.length,
+    };
 }
 
-function buildOverlay(tableState: TableState): TemplateResult | undefined {
-    if (tableState.phase === "round_ended" && tableState.roundEndResult) {
-        return RoundEndDisplay(
-            tableState.roundEndResult,
-            tableState.players,
-            tableState.dealerSeat,
-        );
-    }
-    if (tableState.phase === "game_ended" && tableState.gameEndResult) {
-        return GameEndDisplay(tableState.gameEndResult, tableState.players);
-    }
-    return undefined;
+/** The screen a fetched replay file shows, its reading timed as the `replay-load` measure. */
+function readReplayScreen(text: string): ReplayScreen {
+    const started = performance.now();
+    const read = readReplayTimeline(text);
+    const screen = read.ok ? loadedScreen(read.timeline, read.errors) : messageScreen(read.refusal);
+    performance.measure(REPLAY_LOAD_MEASURE, { detail: loadDetail(screen), start: started });
+    return screen;
+}
+
+function elementOf(target: EventTarget | null): Element | null {
+    return target instanceof Element ? target : null;
 }
 
 function buildBoardContent(tableState: TableState, perspective: BoardPerspective): TemplateResult {
@@ -126,7 +146,7 @@ function buildBoardContent(tableState: TableState, perspective: BoardPerspective
     }
     return GameBoard({
         debug: false,
-        overlay: buildOverlay(tableState),
+        overlay: boardOverlay(tableState),
         state: tableStateToDisplayState(tableState, perspective),
     });
 }
@@ -287,10 +307,7 @@ class ReplayViewController {
                 this.show(messageScreen(describeRefusedFetch(fetched.status)));
                 return;
             }
-            const read = readReplayTimeline(fetched.text);
-            this.show(
-                read.ok ? loadedScreen(read.timeline, read.errors) : messageScreen(read.refusal),
-            );
+            this.show(readReplayScreen(fetched.text));
         } catch (error: unknown) {
             if (!isAbortError(error)) {
                 this.show(messageScreen("Failed to load replay"));

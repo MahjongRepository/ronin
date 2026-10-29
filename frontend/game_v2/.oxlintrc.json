@@ -49,7 +49,14 @@
                     "DoraDisplay",
                     "HonbaStickIcon",
                     "RiichiStickIcon",
-                    "RotatePanel"
+                    "RotatePanel",
+                    "HandSlot",
+                    "TileFaceView",
+                    "MeldTileView",
+                    "PlayBoard",
+                    "DecisionControls",
+                    "CountdownView",
+                    "ActionButton"
                 ]
             }
         ],
@@ -74,6 +81,28 @@
         ]
     },
     "overrides": [
+        {
+            "files": ["src/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "patterns": [
+                            {
+                                "group": ["@/fixtures/*"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/views/storybook-*.ts"],
+            "rules": {
+                "no-restricted-imports": "off"
+            }
+        },
         {
             "files": ["vite.config.ts", "vitest.config.ts"],
             "rules": {

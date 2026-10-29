@@ -33,10 +33,19 @@ export function describeClientStatus(state: GameClientState): SessionStatusDispl
     return state.session === null ? NO_SESSION_STATUS : describeSessionStatus(state.session);
 }
 
+/** The session's status in a player's terms, for the live page and its rotate panel. */
+export function describePlayerClientStatus(state: GameClientState): SessionStatusDisplay {
+    return state.session === null
+        ? NOT_CONNECTED_STATUS
+        : describePlayerSessionStatus(state.session);
+}
+
 export function rotatePanelProps(state: GameClientState, onLeave: () => void): RotatePanelProps {
-    const status =
-        state.session === null ? NOT_CONNECTED_STATUS : describePlayerSessionStatus(state.session);
-    return { countdown: decisionCountdown(state), onLeave, status };
+    return {
+        countdown: decisionCountdown(state),
+        onLeave,
+        status: describePlayerClientStatus(state),
+    };
 }
 
 function moveName(move: DecisionCountdown["move"]): string {
@@ -47,7 +56,7 @@ function moveName(move: DecisionCountdown["move"]): string {
  * What the polite live region says: it changes only when the countdown crosses a threshold or expires, so a screen
  * reader is not read the seconds every second.
  */
-function countdownAnnouncement(countdown: DecisionCountdown | null): string {
+export function countdownAnnouncement(countdown: DecisionCountdown | null): string {
     if (countdown?.kind === "expired") {
         return "Time is up";
     }

@@ -6,7 +6,7 @@ import {
     type BoardPlayerScore,
 } from "@/entities/table/model/board-types";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
-import { type DiscardTile, type HandTile, tile136toString } from "@/entities/tile";
+import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
 
 const REQUIRED_PLAYERS = 4;
 
@@ -59,6 +59,7 @@ const EMPTY_PLAYER: BoardPlayerDisplay = {
 };
 
 const EMPTY_SCORE: BoardPlayerScore = {
+    aiStandIn: false,
     isCurrent: false,
     isDealer: false,
     isRiichi: false,
@@ -78,12 +79,13 @@ function mapPlayerDisplay(
         discards: buildDiscardTiles(player),
         drawnTile,
         hand: baseTiles,
-        melds: player.melds,
+        melds: player.melds.map(meldTiles),
     };
 }
 
 function mapPlayerScore(player: PlayerState, state: TableState): BoardPlayerScore {
     return {
+        aiStandIn: player.aiStandIn !== null,
         isCurrent: player.seat === state.currentPlayerSeat,
         isDealer: player.seat === state.dealerSeat,
         isRiichi: player.isRiichi,

@@ -36,7 +36,12 @@ run_check "Frontend format" "make format-frontend"
 run_check "Frontend lint" "make lint-frontend"
 run_check "Frontend typecheck" "make typecheck-frontend"
 run_check "Frontend test" "make test-frontend"
-run_check "Frontend visual check" "make visual-check"
+visual_check_stamp=frontend/game_v2/node_modules/.cache/visual-check.pass
+if [ -f "$visual_check_stamp" ] && [ "$(make -s --no-print-directory visual-check-fingerprint)" = "$(cat "$visual_check_stamp")" ]; then
+    echo "⏭ Skipped: Frontend visual check (it passed on these exact inputs: $visual_check_stamp)"
+else
+    run_check "Frontend visual check" "make visual-check"
+fi
 
 # If the script reaches this line, it's because no check failed and the script never exited.
 echo "🎉 All checks are good, thank you!"

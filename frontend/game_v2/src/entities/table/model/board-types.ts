@@ -1,4 +1,4 @@
-import { type DiscardTile, type HandTile, type MeldInput, type TileFace } from "@/entities/tile";
+import { type DiscardTile, type HandTile, type MeldTile, type TileFace } from "@/entities/tile";
 
 type SeatPosition = "bottom" | "right" | "top" | "left";
 
@@ -24,12 +24,15 @@ interface BoardPlayerScore {
     readonly isDealer: boolean;
     readonly isCurrent: boolean;
     readonly isRiichi: boolean;
+    /** An AI player holds the seat for its human, who left or was replaced. */
+    readonly aiStandIn: boolean;
 }
 
 interface BoardPlayerDisplay {
     readonly hand: readonly HandTile[];
     readonly drawnTile?: HandTile;
-    readonly melds: readonly MeldInput[];
+    /** Each meld laid out, oldest first. */
+    readonly melds: readonly (readonly MeldTile[])[];
     readonly discards: readonly DiscardTile[];
 }
 

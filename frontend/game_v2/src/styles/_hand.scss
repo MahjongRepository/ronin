@@ -12,3 +12,51 @@
 .hand-drawn-gap {
     margin-left: 8px;
 }
+
+/* A playable tile is a native button holding the tile: no box of its own, so it sizes and taps as the tile. */
+button.hand-tile {
+    width: auto;
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    line-height: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.12s ease;
+
+    &:focus-visible {
+        outline: 3px solid var(--ronin-gold);
+        outline-offset: 2px;
+    }
+
+    &[aria-disabled="true"] {
+        cursor: default;
+    }
+}
+
+.hand-tile--selectable {
+    @media (hover: hover) {
+        &:hover {
+            transform: translateY(-4px);
+        }
+    }
+}
+
+.hand-tile--disabled .tile {
+    filter: brightness(0.55) saturate(0.4);
+}
+
+.hand-tile--selected {
+    transform: translateY(-4px);
+
+    .tile {
+        box-shadow: 0 0 0 2px var(--ronin-gold);
+    }
+}

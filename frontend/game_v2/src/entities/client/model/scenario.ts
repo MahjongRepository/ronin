@@ -1,7 +1,7 @@
 import { type GameSessionData } from "@/shared/session";
 
 import { startGameClient } from "./dispatch";
-import { type ClientTimeline, buildClientTimeline } from "./timeline";
+import { type ClientTimeline, buildClientTimeline, timelineStates } from "./timeline";
 import { type ClientEffect, type ClientEvent, type GameClientState } from "./types";
 
 /** The client events a seat's scenario takes: everything but a replay line, which only a replay file holds. */
@@ -110,4 +110,19 @@ export function scenarioStateIndex(scenario: SeatScenario, label: string): numbe
         throw new Error(`Scenario ${scenario.name} has no step labelled ${label}`);
     }
     return index + 1;
+}
+
+/**
+ * The client state after the step labelled `label` of a run that must match its scenario: a checkpoint the
+ * storybook renders and the tests assert on. A run that parts from its scenario throws rather than show a state the
+ * transcript never reached.
+ */
+export function scenarioCheckpoint(scenario: SeatScenario, label: string): GameClientState {
+    const run = runSeatScenario(scenario);
+    if (run.mismatches.length > 0) {
+        throw new Error(
+            `${scenario.name} parts from its scenario: ${JSON.stringify(run.mismatches[0])}`,
+        );
+    }
+    return timelineStates(run.timeline)[scenarioStateIndex(scenario, label)];
 }

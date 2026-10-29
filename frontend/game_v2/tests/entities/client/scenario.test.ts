@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { forbiddingIo } from "#tests/fixtures/scenario";
 import {
-    SEAT_TRANSCRIPTS,
     loadSeatScenario,
     receivedPayload,
     scenarioFromTranscript,
@@ -24,6 +23,7 @@ import {
     scenarioStateIndex,
     timelineStates,
 } from "@/entities/client";
+import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
     CALL_TYPE,
     CLIENT_MESSAGE_TYPE,

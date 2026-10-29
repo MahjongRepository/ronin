@@ -12,7 +12,13 @@ import {
     type RoundEndResult,
     createInitialPlayerState,
 } from "@/entities/table";
-import { type DiscardTile, type HandTile, type MeldInput } from "@/entities/tile";
+import {
+    type DiscardTile,
+    type HandTile,
+    type MeldInput,
+    type MeldTile,
+    meldTiles,
+} from "@/entities/tile";
 import { ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 type OverlayMode = "none" | "round_end" | "game_end";
@@ -20,21 +26,20 @@ type OverlayMode = "none" | "round_end" | "game_end";
 const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
 
 /**
- * The board's stories: a mid-round table, and the ones that test the fit: the widest local strip, full rivers, and
- * the worst case of all at once (every seat with four melds, long rivers, five dora).
+ * The board's hand-written stories, the edge cases no generated scenario reaches: full rivers, and the worst case of
+ * all at once (every seat with four melds, long rivers, five dora, AI marks). A board the scenarios reach is a
+ * decisions story instead.
  */
-const BOARD_STORIES = ["mid_round", "open_hand", "full_rivers", "worst"] as const;
+const BOARD_STORIES = ["full_rivers", "worst"] as const;
 
 type BoardStory = (typeof BOARD_STORIES)[number];
 
 const BOARD_STORY_LABELS: Readonly<Record<BoardStory, string>> = {
     full_rivers: "Full rivers",
-    mid_round: "Mid round",
-    open_hand: "Four kans",
     worst: "Worst case",
 };
 
-const DEFAULT_STORY: BoardStory = "mid_round";
+const DEFAULT_STORY: BoardStory = "full_rivers";
 
 interface BoardStoryState {
     readonly debug: boolean;
@@ -178,82 +183,72 @@ const mockCenter: BoardCenterInfo = {
     riichiSticks: 1,
     roundDisplay: "East 1",
     scores: [
-        { isCurrent: false, isDealer: true, isRiichi: true, score: "25000", wind: "E" },
-        { isCurrent: true, isDealer: false, isRiichi: true, score: "25000", wind: "S" },
-        { isCurrent: false, isDealer: false, isRiichi: true, score: "25000", wind: "W" },
-        { isCurrent: false, isDealer: false, isRiichi: true, score: "24000", wind: "N" },
+        {
+            aiStandIn: false,
+            isCurrent: false,
+            isDealer: true,
+            isRiichi: true,
+            score: "25000",
+            wind: "E",
+        },
+        {
+            aiStandIn: false,
+            isCurrent: true,
+            isDealer: false,
+            isRiichi: true,
+            score: "25000",
+            wind: "S",
+        },
+        {
+            aiStandIn: false,
+            isCurrent: false,
+            isDealer: false,
+            isRiichi: true,
+            score: "25000",
+            wind: "W",
+        },
+        {
+            aiStandIn: false,
+            isCurrent: false,
+            isDealer: false,
+            isRiichi: true,
+            score: "24000",
+            wind: "N",
+        },
     ],
     tilesRemaining: 42,
 };
+
+function laid(melds: readonly MeldInput[]): MeldTile[][] {
+    return melds.map(meldTiles);
+}
 
 const bottomPlayer: BoardPlayerDisplay = {
     discards: bottomDiscards,
     drawnTile: bottomDrawn,
     hand: bottomHand,
-    melds: bottomMelds,
+    melds: laid(bottomMelds),
 };
 
 const rightPlayer: BoardPlayerDisplay = {
     discards: rightDiscards,
     drawnTile: undefined,
     hand: rightHand,
-    melds: rightMelds,
+    melds: laid(rightMelds),
 };
 
 const topPlayer: BoardPlayerDisplay = {
     discards: topDiscards,
     drawnTile: undefined,
     hand: topHand,
-    melds: topMelds,
+    melds: laid(topMelds),
 };
 
 const leftPlayer: BoardPlayerDisplay = {
     discards: leftDiscards,
     drawnTile: undefined,
     hand: leftHand,
-    melds: leftMelds,
-};
-
-const mockState: BoardDisplayState = {
-    center: mockCenter,
-    players: [bottomPlayer, rightPlayer, topPlayer, leftPlayer],
-};
-
-const fourKansBottom: BoardPlayerDisplay = {
-    discards: bottomDiscards,
-    drawnTile: { face: "6z", show: "face" },
-    hand: [{ face: "2s", show: "face" }],
-    melds: [
-        {
-            calledTileId: null,
-            callerSeat: 0,
-            fromSeat: null,
-            meldType: "closed_kan",
-            tileIds: [0, 1, 2, 3],
-        },
-        {
-            calledTileId: 39,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "open_kan",
-            tileIds: [36, 37, 38, 39],
-        },
-        {
-            addedTileId: 75,
-            calledTileId: 73,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "added_kan",
-            tileIds: [72, 73, 74, 75],
-        },
-        {
-            calledTileId: 119,
-            callerSeat: 0,
-            fromSeat: 2,
-            meldType: "open_kan",
-            tileIds: [116, 117, 118, 119],
-        },
-    ],
+    melds: laid(leftMelds),
 };
 
 /** Nineteen discards, a long river a drawn round can reach: its third row runs past the other two. */
@@ -315,7 +310,7 @@ function worstSeat(seat: number): BoardPlayerDisplay {
         discards: longRiver,
         drawnTile: { face: "6z", show: "face" },
         hand: [{ face: "2s", show: "face" }],
-        melds: fourMelds(seat),
+        melds: laid(fourMelds(seat)),
     };
 }
 
@@ -329,12 +324,16 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
             withRiver(leftPlayer, thirteenFaces),
         ],
     },
-    mid_round: mockState,
-    open_hand: { ...mockState, players: [fourKansBottom, rightPlayer, topPlayer, leftPlayer] },
     worst: {
         center: {
             ...mockCenter,
             doraIndicators: ["5m", "3p", "7s", "2z", "9m"],
+            scores: [
+                mockCenter.scores[0],
+                { ...mockCenter.scores[1], aiStandIn: true },
+                mockCenter.scores[2],
+                { ...mockCenter.scores[3], aiStandIn: true },
+            ],
             tilesRemaining: 0,
         },
         players: [worstSeat(0), worstSeat(1), worstSeat(2), worstSeat(3)],

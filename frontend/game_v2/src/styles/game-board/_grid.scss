@@ -82,9 +82,9 @@ $table-columns: var(--board-strip-depth) var(--board-disc-height) var(--board-ce
 
     display: grid;
     grid-template:
-        "info" var(--board-info-h)
-        "table" auto
-        "local" var(--board-local-depth) / minmax(0, 1fr);
+        "info actions" var(--board-info-h)
+        "table table" auto
+        "local local" var(--board-local-depth) / auto minmax(0, 1fr);
     align-content: center;
     width: 100%;
     height: 100%;
@@ -94,7 +94,7 @@ $table-columns: var(--board-strip-depth) var(--board-disc-height) var(--board-ce
         --board-table-height: calc(100cqh - var(--board-reserved-h));
 
         grid-template:
-            "info table ." auto
+            "info table actions" auto
             "local local local" var(--board-local-depth) / #{$wide-columns};
     }
 

@@ -7,6 +7,7 @@ import {
     createInitialTableState,
 } from "@/entities/table/model/initial-state";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
+import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 const SEAT_0_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "bottom" };
 
@@ -159,7 +160,7 @@ describe("tableStateToDisplayState", () => {
             expect(result.players[0].drawnTile).toBeUndefined();
         });
 
-        test("melds passed through to display state", () => {
+        test("lays each meld out from the called seat's side", () => {
             const state = makeTableState({
                 players: [
                     makePlayer({
@@ -180,9 +181,13 @@ describe("tableStateToDisplayState", () => {
                 ],
             });
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            expect(result.players[0].melds).toHaveLength(1);
-            expect(result.players[0].melds[0].meldType).toBe("pon");
-            expect(result.players[0].melds[0].tileIds).toEqual([0, 1, 2]);
+            expect(result.players[0].melds).toEqual([
+                [
+                    { face: "1m", kind: "sideways" },
+                    { face: "1m", kind: "upright" },
+                    { face: "1m", kind: "upright" },
+                ],
+            ]);
         });
 
         test("discards mapped with grayed and riichi flags", () => {
@@ -269,6 +274,24 @@ describe("tableStateToDisplayState", () => {
             expect(result.center.scores[1].wind).toBe("S");
             expect(result.center.scores[2].wind).toBe("W");
             expect(result.center.scores[3].wind).toBe("N");
+        });
+
+        test("marks the seats an AI player holds for their humans, by board position", () => {
+            const state = makeTableState({
+                players: [
+                    makePlayer({ seat: 0 }),
+                    makePlayer({ seat: 1 }),
+                    makePlayer({ aiStandIn: SEAT_CONTROL_REASON.LEFT, seat: 2 }),
+                    makePlayer({ seat: 3 }),
+                ],
+            });
+            const result = tableStateToDisplayState(state, { bottomSeat: 1, reveal: "bottom" })!;
+            expect(result.center.scores.map((score) => score.aiStandIn)).toEqual([
+                false,
+                true,
+                false,
+                false,
+            ]);
         });
 
         test("scores tuple has exactly 4 entries", () => {

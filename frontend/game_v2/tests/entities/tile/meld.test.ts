@@ -1,7 +1,7 @@
 import { type TemplateResult, render } from "lit-html";
 import { describe, expect, test } from "vitest";
 
-import { Meld, type MeldInput } from "@/entities/tile";
+import { Meld, type MeldInput, meldTiles } from "@/entities/tile";
 
 // Tile ID reference (136-format):
 //   Man: 0-35 (type34 0-8), Pin: 36-71 (type34 9-17), Sou: 72-107 (type34 18-26)
@@ -15,7 +15,7 @@ function renderTo(template: TemplateResult): HTMLElement {
     return el;
 }
 
-function meldTiles(el: HTMLElement): NodeListOf<Element> {
+function laidTiles(el: HTMLElement): NodeListOf<Element> {
     return el.querySelectorAll(".meld > .meld-tile");
 }
 
@@ -28,8 +28,8 @@ describe("Meld - chi", () => {
             meldType: "chi",
             tileIds: [4, 0, 8],
         };
-        const el = renderTo(Meld(input));
-        expect(meldTiles(el)).toHaveLength(3);
+        const el = renderTo(Meld(meldTiles(input)));
+        expect(laidTiles(el)).toHaveLength(3);
         expect(el.querySelectorAll(".meld .meld-tile-sideways")).toHaveLength(1);
     });
 
@@ -42,8 +42,8 @@ describe("Meld - chi", () => {
             meldType: "chi",
             tileIds: [104, 100, 96],
         };
-        const el = renderTo(Meld(input));
-        expect(meldTiles(el)).toHaveLength(3);
+        const el = renderTo(Meld(meldTiles(input)));
+        expect(laidTiles(el)).toHaveLength(3);
     });
 
     test("called tile at middle position after sorting gets sideways class", () => {
@@ -55,8 +55,8 @@ describe("Meld - chi", () => {
             meldType: "chi",
             tileIds: [0, 8, 4],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         // After sorting: [0(1m), 4(2m), 8(3m)] — index 1 is sideways
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
@@ -74,8 +74,8 @@ describe("Meld - pon", () => {
             meldType: "pon",
             tileIds: [0, 1, 2],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles).toHaveLength(3);
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(true);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(false);
@@ -91,8 +91,8 @@ describe("Meld - pon", () => {
             meldType: "pon",
             tileIds: [0, 1, 2],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
         expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
@@ -107,8 +107,8 @@ describe("Meld - pon", () => {
             meldType: "pon",
             tileIds: [0, 1, 2],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(false);
         expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(true);
@@ -123,8 +123,8 @@ describe("Meld - pon", () => {
             meldType: "pon",
             tileIds: [36, 37, 38],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
         expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
@@ -141,8 +141,8 @@ describe("Meld - open kan", () => {
             meldType: "open_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles).toHaveLength(4);
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(true);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(false);
@@ -159,8 +159,8 @@ describe("Meld - open kan", () => {
             meldType: "open_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
     });
@@ -175,9 +175,9 @@ describe("Meld - closed kan", () => {
             meldType: "closed_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
+        const el = renderTo(Meld(meldTiles(input)));
         expect(el.querySelectorAll(".tile-back")).toHaveLength(2);
-        expect(meldTiles(el)).toHaveLength(4);
+        expect(laidTiles(el)).toHaveLength(4);
     });
 
     test("uses correct tile faces for honor tiles", () => {
@@ -189,7 +189,7 @@ describe("Meld - closed kan", () => {
             meldType: "closed_kan",
             tileIds: [108, 109, 110, 111],
         };
-        const el = renderTo(Meld(input));
+        const el = renderTo(Meld(meldTiles(input)));
         expect(el.querySelectorAll(".tile-back")).toHaveLength(2);
     });
 });
@@ -205,9 +205,9 @@ describe("Meld - added kan", () => {
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
+        const el = renderTo(Meld(meldTiles(input)));
         expect(el.querySelector(".meld-tile-stacked")).not.toBeNull();
-        const tiles = meldTiles(el);
+        const tiles = laidTiles(el);
         expect(tiles).toHaveLength(3);
         expect(tiles[0].classList.contains("meld-tile-stacked")).toBe(true);
         expect(tiles[1].classList.contains("meld-tile-stacked")).toBe(false);
@@ -224,8 +224,8 @@ describe("Meld - added kan", () => {
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles[0].classList.contains("meld-tile-stacked")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-stacked")).toBe(true);
         expect(tiles[2].classList.contains("meld-tile-stacked")).toBe(false);
@@ -241,8 +241,8 @@ describe("Meld - added kan", () => {
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
-        const tiles = meldTiles(el);
+        const el = renderTo(Meld(meldTiles(input)));
+        const tiles = laidTiles(el);
         expect(tiles[0].classList.contains("meld-tile-stacked")).toBe(false);
         expect(tiles[1].classList.contains("meld-tile-stacked")).toBe(false);
         expect(tiles[2].classList.contains("meld-tile-stacked")).toBe(true);
@@ -257,7 +257,7 @@ describe("Meld - added kan", () => {
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
+        const el = renderTo(Meld(meldTiles(input)));
         const stacked = el.querySelector(".meld-tile-stacked")!;
         expect(stacked.querySelector(".meld-tile-stacked-bottom")).not.toBeNull();
         expect(stacked.querySelector(".meld-tile-stacked-top")).not.toBeNull();
@@ -273,9 +273,9 @@ describe("Meld - added kan", () => {
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
-        const el = renderTo(Meld(input));
+        const el = renderTo(Meld(meldTiles(input)));
         // open_kan renders 4 tiles, not 3 stacked
-        expect(meldTiles(el)).toHaveLength(4);
+        expect(laidTiles(el)).toHaveLength(4);
         expect(el.querySelector(".meld-tile-stacked")).toBeNull();
         expect(el.querySelector(".meld-tile-sideways")).not.toBeNull();
     });

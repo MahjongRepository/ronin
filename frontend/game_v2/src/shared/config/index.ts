@@ -1,1 +1,1 @@
-export { getLobbyUrl } from "./env";
+export { getLobbyUrl, isDebugRequested } from "./env";

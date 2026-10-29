@@ -28,7 +28,7 @@ import {
 import {
     type CallDecision,
     type Decision,
-    type LocalIntent,
+    type DecisionIntent,
     type Offer,
     type TurnDecision,
 } from "./types";
@@ -37,7 +37,6 @@ const MS_PER_SECOND = 1000;
 const OPEN = { kind: "open" } as const;
 
 type AvailableAction = DrawEvent["availableActions"][number];
-type DecisionIntent = Exclude<LocalIntent, { type: "leave" }>;
 
 /**
  * Messages that end the wait a decision answers: the server moved on to a draw, a discard, a meld, the next prompt

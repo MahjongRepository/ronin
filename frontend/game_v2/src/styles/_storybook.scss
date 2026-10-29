@@ -66,3 +66,11 @@
     align-items: flex-end;
     overflow-x: auto;
 }
+
+.decisions-storybook__sent {
+    max-width: 16rem;
+    margin: 0;
+    font-size: 0.65rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

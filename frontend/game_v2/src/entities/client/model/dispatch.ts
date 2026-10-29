@@ -14,6 +14,7 @@ import {
 } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
+    type ClientMessage,
     type ParsedServerMessage,
     buildConfirmRoundAction,
     parseReplayLine,
@@ -25,6 +26,7 @@ import { answerDecision, expireDecision, followDecision, openDecision } from "./
 import {
     type ClientEvent,
     type ClientStep,
+    type DecisionIntent,
     type GameClientState,
     type LocalIntent,
     type TracedStep,
@@ -209,18 +211,29 @@ function onTick(state: GameClientState): ClientStep {
     };
 }
 
-/** Answer the open decision: send the action it takes and mark it submitted, or change nothing. */
-function onDecisionIntent(
-    state: GameClientState,
-    intent: Exclude<LocalIntent, { type: "leave" }>,
-): ClientStep {
+/** The action `intent` sends now: the open decision's answer, on a socket the client can send on; or null. */
+function decisionAnswer(state: GameClientState, intent: DecisionIntent): ClientMessage | null {
     const { decision, table, viewerSeat } = state;
     if (decision === null || !canSend(state.session)) {
-        return { effects: [], state };
+        return null;
     }
     const viewer = table.players.find((player) => player.seat === viewerSeat);
-    const message = answerDecision(decision, intent, viewer);
-    if (message === null) {
+    return answerDecision(decision, intent, viewer);
+}
+
+/**
+ * Whether stepping `intent` now would answer the open decision: the one test of what the client may play, so the
+ * board offers exactly the intents the dispatcher takes.
+ */
+export function takesIntent(state: GameClientState, intent: DecisionIntent): boolean {
+    return decisionAnswer(state, intent) !== null;
+}
+
+/** Answer the open decision: send the action it takes and mark it submitted, or change nothing. */
+function onDecisionIntent(state: GameClientState, intent: DecisionIntent): ClientStep {
+    const { decision } = state;
+    const message = decisionAnswer(state, intent);
+    if (decision === null || message === null) {
         return { effects: [], state };
     }
     const status = { at: state.now, kind: "submitted", message } as const;

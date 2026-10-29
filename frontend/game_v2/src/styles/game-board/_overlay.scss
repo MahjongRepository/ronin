@@ -89,4 +89,29 @@ $compact-hand-units: 1000;
     .board-overlay .round-end-result__score-delta {
         min-width: 3.5rem;
     }
+
+    /* The scores' column is narrow here: each seat's score before payment sits over its change, leaving its name
+       the room a player's name needs. */
+    .board-overlay .round-end-result__score-row {
+        grid-template:
+            "wind name value" auto
+            "wind name delta" auto / 2.5rem minmax(0, 1fr) auto;
+        row-gap: 0;
+    }
+
+    .board-overlay .round-end-result__score-wind {
+        grid-area: wind;
+    }
+
+    .board-overlay .round-end-result__score-name {
+        grid-area: name;
+    }
+
+    .board-overlay .round-end-result__score-value {
+        grid-area: value;
+    }
+
+    .board-overlay .round-end-result__score-delta {
+        grid-area: delta;
+    }
 }

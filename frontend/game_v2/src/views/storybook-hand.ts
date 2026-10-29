@@ -23,6 +23,15 @@ const THIRTEEN_FACES: TileFace[] = [
     "4p",
 ];
 
+/** A turn's hand: the tiles kuikae blocks disabled, the rest selectable, and one tile its answer played selected. */
+const PLAYED_TILES: readonly HandTile[] = THIRTEEN_FACES.map((face, index) => {
+    const tileId = index * 4;
+    if (index === 6) {
+        return { face, show: "face", state: "selected", tileId };
+    }
+    return { face, show: "face", state: index < 3 ? "disabled" : "selectable", tileId };
+});
+
 function storybookHandView(): TemplateResult {
     return html`
         <div class="storybook">
@@ -31,33 +40,40 @@ function storybookHandView(): TemplateResult {
             <section>
                 <h2>Face Up Hand</h2>
                 <div class="storybook-meld-row">
-                    ${Hand(makeTiles(THIRTEEN_FACES, "face"))}
+                    ${Hand({ tiles: makeTiles(THIRTEEN_FACES, "face") })}
                 </div>
             </section>
 
             <section>
                 <h2>Face Down Hand</h2>
                 <div class="storybook-meld-row">
-                    ${Hand(makeTiles(THIRTEEN_FACES, "back"))}
+                    ${Hand({ tiles: makeTiles(THIRTEEN_FACES, "back") })}
                 </div>
             </section>
 
             <section>
                 <h2>Hand with Drawn Tile</h2>
                 <div class="storybook-meld-row">
-                    ${Hand(makeTiles(THIRTEEN_FACES, "face"), {
-                        face: "5p",
-                        show: "face",
+                    ${Hand({
+                        drawnTile: { face: "5p", show: "face" },
+                        tiles: makeTiles(THIRTEEN_FACES, "face"),
                     })}
+                </div>
+            </section>
+
+            <section>
+                <h2>Hand in Play (selectable, disabled, selected)</h2>
+                <div class="storybook-meld-row">
+                    ${Hand({ drawnTile: { face: "5p", show: "face", state: "selectable", tileId: 53 }, tileAction: "Discard", tiles: PLAYED_TILES })}
                 </div>
             </section>
 
             <section>
                 <h2>Small Hand</h2>
                 <div class="storybook-meld-row">
-                    ${Hand(makeTiles(["1m", "2m", "3m", "5p"], "face"), {
-                        face: "5p",
-                        show: "face",
+                    ${Hand({
+                        drawnTile: { face: "5p", show: "face" },
+                        tiles: makeTiles(["1m", "2m", "3m", "5p"], "face"),
                     })}
                 </div>
             </section>

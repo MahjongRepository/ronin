@@ -4,7 +4,13 @@ import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
 import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
 import { type Clock } from "@/shared/clock";
-import { type ClientMessage, buildJoinGameMessage, buildReconnectMessage } from "@/shared/protocol";
+import {
+    type ClientMessage,
+    buildDiscardAction,
+    buildJoinGameMessage,
+    buildPassAction,
+    buildReconnectMessage,
+} from "@/shared/protocol";
 import { type GameConnection, type SocketHandlers } from "@/shared/websocket";
 import { type GameViewDeps, mountGameView } from "@/views/game";
 
@@ -58,6 +64,7 @@ class ManualClock implements Clock {
 
 interface FakeOverrides {
     readonly connect?: GameViewDeps["connect"];
+    readonly debug?: boolean;
     readonly leaveToLobby?: () => void;
 }
 
@@ -80,6 +87,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     const dispose = mountGameView(host, GAME_ID, {
         clock,
         connect: overrides.connect ?? fakeConnect,
+        debug: overrides.debug ?? false,
         handoff: HANDOFF,
         sink,
     });
@@ -102,16 +110,37 @@ function openCallPrompt(socket: FakeConnection): void {
     }
 }
 
+/** Join, then receive the call prompt scenario's messages through its turn after the chi (kuikae blocks 3m). */
+function openKuikaeTurn(socket: FakeConnection): void {
+    const { transcript } = loadSeatScenario("call_prompt_seat_1");
+    socket.handlers.onOpen();
+    for (const payload of receivedThrough(transcript, "turn")) {
+        socket.handlers.onMessage(payload);
+    }
+}
+
+function press(host: HTMLElement, selector: string): void {
+    const element = host.querySelector(`.game__play ${selector}`);
+    if (element === null) {
+        throw new Error(`nothing matches ${selector}`);
+    }
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 function secondsLeft(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game__rotate .rotate-panel__seconds")?.textContent;
 }
 
 const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
+/** The first tile of the turn's hand that kuikae lets go, 4m, and the turn's wait id. */
+const FIRST_FREE_TILE = 12;
+const TURN_WAIT_ID = 2;
+const PROMPT_WAIT_ID = 1;
 const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
 describe("mountGameView", () => {
-    it("joins on the handoff's socket and renders the session status and the message log", () => {
-        const { connections, host } = mountWithFakes();
+    it("joins on the handoff's socket and renders the session status and, under debug, the message log", () => {
+        const { connections, host } = mountWithFakes({ debug: true });
         const [socket] = connections;
         expect(socket.url).toBe(HANDOFF.wsUrl);
 
@@ -119,11 +148,12 @@ describe("mountGameView", () => {
         socket.handlers.onMessage(WIRE_GAME_STARTED);
 
         expect(socket.sent).toEqual([JOIN]);
-        expect(host.querySelector(".game-header .connection-status")?.textContent).toBe(
-            "playing (open)",
-        );
+        expect(host.querySelector(".game-aside__status")?.textContent).toBe("Connected");
         expect(host.querySelector(".log-entry:last-child .log-type")?.textContent).toBe(
             "game_started",
+        );
+        expect(host.querySelector(".log-entry.log-sent .log-raw")?.textContent).toBe(
+            JSON.stringify(JOIN, null, 2),
         );
     });
 
@@ -210,6 +240,7 @@ describe("mountGameView", () => {
                 connections.push(connection);
                 return connection;
             },
+            debug: true,
         });
         expect(host.querySelector(".log-entry .log-raw")?.textContent).toContain("connect_failed");
 
@@ -226,12 +257,25 @@ describe("mountGameView", () => {
         connections[0].handlers.onOpen();
 
         connections[0].handlers.onMessage(wireSessionError("reconnect_no_session"));
-        expect(host.querySelector(".game-header .connection-status")?.textContent).toBe(
-            "failed: navigation blocked",
-        );
+        expect(host.querySelector(".game-aside__status")?.textContent).toBe("Something went wrong");
 
         host.querySelector("button")?.click();
         expect(leaveToLobby).toHaveBeenCalledTimes(2);
+    });
+
+    it("reports a server message it cannot read on the console and the page, without the debug log", () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+        const { connections, host } = mountWithFakes();
+        connections[0].handlers.onOpen();
+
+        connections[0].handlers.onMessage({ t: 999 });
+
+        expect(consoleError).toHaveBeenCalledOnce();
+        expect(host.querySelector(".game-aside__warning")?.textContent).toContain(
+            "1 server message(s) could not be read",
+        );
+        expect(host.querySelector(".log-entry")).toBeNull();
+        consoleError.mockRestore();
     });
 
     it("ignores a late callback from a socket it already replaced", () => {
@@ -243,5 +287,33 @@ describe("mountGameView", () => {
         first.handlers.onClose(1006, "");
 
         expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
+    });
+});
+
+describe("mountGameView board", () => {
+    it("sends one discard with the turn's wait id for a tapped tile, and nothing for a kuikae-blocked one or a second tap", () => {
+        const { connections, host } = mountWithFakes();
+        openKuikaeTurn(connections[0]);
+
+        for (const tile of ["disabled", "selectable", "selected"]) {
+            press(host, `.board-local .hand-tile--${tile}`);
+        }
+
+        expect(connections[0].sent).toEqual([
+            JOIN,
+            buildDiscardAction(FIRST_FREE_TILE, TURN_WAIT_ID),
+        ]);
+        expect(
+            host.querySelectorAll('.game__play button.hand-tile:not([aria-disabled="true"])'),
+        ).toHaveLength(0);
+    });
+
+    it("sends a pass with the prompt's wait id when the call prompt's Pass is pressed", () => {
+        const { connections, host } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        press(host, ".decision-controls__action.secondary");
+
+        expect(connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
     });
 });

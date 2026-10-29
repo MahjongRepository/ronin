@@ -1,22 +1,12 @@
 import {
+    type GameClientState,
     type SeatScenario,
     type SeatTranscript,
     parseSeatTranscript,
+    scenarioCheckpoint,
     seatScenarioFromTranscript,
 } from "@/entities/client";
-
-const TRANSCRIPT_FILES: Record<string, unknown> = import.meta.glob("./seat-scenarios/*.json", {
-    eager: true,
-    import: "default",
-});
-
-/** The generated seat transcripts by file name without its extension (`call_prompt_seat_1`), unparsed. */
-export const SEAT_TRANSCRIPTS: ReadonlyMap<string, unknown> = new Map(
-    Object.entries(TRANSCRIPT_FILES).map(([path, raw]) => [
-        path.slice("./seat-scenarios/".length, -".json".length),
-        raw,
-    ]),
-);
+import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 
 /** A transcript with the seat scenario it describes. */
 export interface GeneratedScenario {
@@ -68,4 +58,9 @@ export function receivedThrough(
         throw new Error(`${transcript.scenario} has no received message labelled ${label}`);
     }
     return received.slice(0, last + 1).map((event) => event.payload);
+}
+
+/** The client state after the step labelled `label` of the named transcript's scenario, which must run clean. */
+export function checkpointState(name: string, label: string): GameClientState {
+    return scenarioCheckpoint(loadSeatScenario(name).scenario, label);
 }

@@ -1,7 +1,9 @@
 import { type TemplateResult, render } from "lit-html";
 import { describe, expect, test } from "vitest";
 
+import { buildRiichiAction } from "@/shared/protocol";
 import { storybookView } from "@/views/storybook";
+import { mountStorybookDecisions } from "@/views/storybook-decisions";
 import { storybookDiscardsView } from "@/views/storybook-discards";
 import { storybookHandView } from "@/views/storybook-hand";
 import { storybookMeldsView } from "@/views/storybook-melds";
@@ -17,13 +19,15 @@ describe("storybookNav", () => {
     test("renders badge links for all storybook pages", () => {
         const el = renderTo(storybookNav("/play/storybook"));
         const badges = el.querySelectorAll(".storybook-badge");
-        expect(badges).toHaveLength(6);
-        expect(badges[0].textContent).toBe("Index");
-        expect(badges[1].textContent).toBe("Board");
-        expect(badges[2].textContent).toBe("Discards");
-        expect(badges[3].textContent).toBe("Hand");
-        expect(badges[4].textContent).toBe("Melds");
-        expect(badges[5].textContent).toBe("Rotate");
+        expect([...badges].map((badge) => badge.textContent)).toEqual([
+            "Index",
+            "Board",
+            "Decisions",
+            "Discards",
+            "Hand",
+            "Melds",
+            "Rotate",
+        ]);
     });
 
     test("marks the current page badge as active", () => {
@@ -81,12 +85,12 @@ describe("storybookDiscardsView", () => {
 });
 
 describe("storybookHandView", () => {
-    test("renders all 4 hand sections", () => {
+    test("renders all 5 hand sections", () => {
         const el = renderTo(storybookHandView());
         const container = el.querySelector(".storybook");
         expect(container).not.toBeNull();
         const sections = container?.querySelectorAll("section");
-        expect(sections).toHaveLength(4);
+        expect(sections).toHaveLength(5);
     });
 
     test("renders nav with hand badge active", () => {
@@ -99,5 +103,21 @@ describe("storybookHandView", () => {
         const el = renderTo(storybookHandView());
         const indexLink = el.querySelector('a[href="/play/storybook"]');
         expect(indexLink).not.toBeNull();
+    });
+});
+
+describe("mountStorybookDecisions", () => {
+    test("shows a transcript's checkpoint and, when its board is played, the answer the client describes", () => {
+        history.replaceState(null, "", "/play/storybook/decisions?state=riichi_pick");
+        const host = document.createElement("div");
+        mountStorybookDecisions(host);
+
+        const pressed = host.querySelector('.decision-controls__action[aria-pressed="true"]');
+        const tiles = host.querySelectorAll(".board-local button.hand-tile--selectable");
+        tiles[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        const sent = host.querySelector(".decisions-storybook__sent")?.textContent ?? "";
+
+        expect([pressed?.textContent?.trim(), tiles.length]).toEqual(["Riichi", 1]);
+        expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 2), type: "send" });
     });
 });

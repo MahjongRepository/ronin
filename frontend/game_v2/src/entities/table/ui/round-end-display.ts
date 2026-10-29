@@ -7,7 +7,7 @@ import {
     type RoundEndResult,
     type WinnerResult,
 } from "@/entities/table/model/types";
-import { Hand, type HandTile, Meld, Tile, tile136toString } from "@/entities/tile";
+import { Hand, type HandTile, Meld, Tile, meldTiles, tile136toString } from "@/entities/tile";
 import { ROUND_RESULT_TYPE } from "@/shared/protocol";
 import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
@@ -96,8 +96,8 @@ function WinnerSection(
     return html`<div class="round-end-result__winner">
         <div class="round-end-result__winner-name">${name} (${wind})</div>
         <div class="round-end-result__hand">
-            ${Hand(closedHandTiles, drawnTile)}
-            ${melds.map((m) => Meld(m))}
+            ${Hand({ drawnTile, tiles: closedHandTiles })}
+            ${melds.map((meld) => Meld(meldTiles(meld)))}
         </div>
         <div class="round-end-result__yaku-list">
             ${winner.handResult.yaku.map(

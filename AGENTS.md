@@ -71,12 +71,16 @@ The `Makefile` lists the targets; the non-obvious ones:
   scenarios of `backend/scripts/seat_scenarios/` through the real session manager and router on virtual
   time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
   longer matches what the server sends a seat.
-* `make visual-check` — the v2 game client's layout gate (`frontend/game_v2/AGENTS.md`, Layout):
-  Playwright's Chromium and WebKit, which `make install-frontend` installs; no backend. It writes
-  screenshots to `thoughts/screenshots/visual-check/`.
+* `make visual-check` — the v2 game client's layout gate and its bundle and replay-load budgets
+  (`frontend/game_v2/AGENTS.md`, Layout): Playwright's Chromium and WebKit, which
+  `make install-frontend` installs; no backend. It writes screenshots to
+  `thoughts/screenshots/visual-check/`.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final
-  `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.
+  `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output. It
+  skips the v2 client's `make visual-check` (layout and budgets), saying so, only when the gate
+  already passed on these exact inputs (the fingerprint `make visual-check` stamps on success,
+  `frontend/game_v2/AGENTS.md`); a direct `make visual-check` always runs.
 
 ## Workflow
 

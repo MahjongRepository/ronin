@@ -11,15 +11,15 @@ from shared.logging import setup_logging
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS_DIR = FixtureDir(
-    REPO_ROOT / "frontend" / "game_v2" / "tests" / "fixtures" / "seat-scenarios",
+    REPO_ROOT / "frontend" / "game_v2" / "src" / "fixtures" / "seat-scenarios",
     suffix=".json",
 )
 DESCRIPTION = """
-Generate the seat transcripts the v2 game client's scenario tests read, by playing the scenarios of
-scripts.seat_scenarios through the real session manager, message router and engine on virtual time: what each named
-seat's client received, the game actions it sent, and the sockets it opened and saw close. With --check nothing is
-written: the run fails, naming each transcript, when a committed one differs from what the server sends now, is missing,
-or has no scenario.
+Generate the seat transcripts the v2 game client's scenario tests and storybook read, by playing the scenarios
+of scripts.seat_scenarios through the real session manager, message router and engine on virtual time: what
+each named seat's client received, the game actions it sent, and the sockets it opened and saw close. With
+--check nothing is written: the run fails, naming each transcript, when a committed one differs from what the
+server sends now, is missing, or has no scenario.
 """
 
 

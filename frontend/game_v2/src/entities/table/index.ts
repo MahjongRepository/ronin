@@ -24,7 +24,8 @@ export { buildNavigationIndex, roundForStep, turnsForStep } from "./model/naviga
 export { windName } from "./lib/wind-name";
 export { yakuName } from "./lib/yaku-names";
 export { GameBoard } from "./ui/game-board";
-export type { GameBoardProps } from "./ui/game-board";
+export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
+export { boardOverlay } from "./ui/board-overlay";
 export { SEAT_POSITIONS } from "./model/board-types";
 export type {
     BoardCenterInfo,

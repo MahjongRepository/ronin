@@ -38,7 +38,11 @@ replay view, the live game and the storybook read the tables it produces.
 - `lib/board-mapper.ts` turns a table into the display state the `ui/` components render, from a
   perspective that is an input, not the dealer: which seat sits at the bottom, and whether every
   known hand shows face up (a replay) or only the bottom seat's. A known tile keeps its id;
-  concealed tiles render as backs from the count.
+  concealed tiles render as backs from the count; melds are laid out as faces; a seat an AI player
+  holds for its human is marked (in its wind badge). The board marks no tile playable: that is the
+  client's mapper's, from a decision this slice does not know. `ui/board-overlay.ts` picks the
+  panel a table shows over its board (the seating, a round's result, the standings) for every
+  board that shows a table.
 - `model/replay-file.ts` reads a replay file: it refuses one whose version line is not
   `REPLAY_VERSION` and hands back each event line as a JSON object for the dispatcher to parse
   (`parseReplayLine`), reporting a line that is not one without dropping the rest.

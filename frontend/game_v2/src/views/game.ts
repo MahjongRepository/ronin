@@ -5,15 +5,23 @@ import {
     type ClientEffect,
     type ClientEvent,
     type GameClientState,
+    NO_PLAY_UI,
+    PlayBoard,
+    type PlayCommand,
+    type PlayUi,
     RotatePanel,
     describeClientStatus,
+    describePlayerClientStatus,
     failGameClient,
     nextCountdownChange,
     nextDeadline,
+    nextPlayUi,
+    playDisplay,
     rotatePanelProps,
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
+import { boardOverlay } from "@/entities/table";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
 import { EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
@@ -31,12 +39,15 @@ export interface GameViewDeps {
     readonly connect: ConnectSocket;
     readonly handoff: GameSessionData | null;
     readonly sink: GameViewSink;
+    /** Keep and show the debug log of every message and transport event (the page's `?debug`). */
+    readonly debug: boolean;
 }
 
 /** The close the driver reports when the socket factory throws: what a browser reports for a failed connection. */
 const CONNECT_FAILED_CLOSE_CODE = 1006;
 const MAX_LOG_ENTRIES = 500;
 const LOG_TYPE_ERROR = "error";
+const LOG_TYPE_SENT = "sent";
 
 const EVENT_NAMES: ReadonlyMap<number, string> = new Map(
     Object.entries(EVENT_TYPE).map(([name, type]) => [type, name.toLowerCase()]),
@@ -60,10 +71,13 @@ interface LogEntry {
 
 interface GameViewProps {
     readonly gameId: string;
-    readonly log: readonly LogEntry[];
+    readonly log: readonly LogEntry[] | null;
     readonly state: GameClientState;
+    readonly ui: PlayUi;
+    readonly parseErrors: number;
     readonly panel: Ref<HTMLElement>;
     readonly onLeave: () => void;
+    readonly onCommand: (command: PlayCommand) => void;
 }
 
 function describeError(error: unknown): string {
@@ -116,24 +130,52 @@ function logEntryTemplate(entry: LogEntry): TemplateResult {
     `;
 }
 
+function logTemplate(
+    log: readonly LogEntry[],
+    panel: Ref<HTMLElement>,
+    state: GameClientState,
+): TemplateResult {
+    return html`<details class="game-log">
+        <summary>Log: ${describeClientStatus(state).label}</summary>
+        <div class="log-panel" ${ref(panel)}>
+            <div class="log-entries">${log.map(logEntryTemplate)}</div>
+        </div>
+    </details>`;
+}
+
+/** The page's notice of server messages the client could not read: the game may be off from here on. */
+function parseErrorNotice(count: number): TemplateResult | string {
+    if (count === 0) {
+        return "";
+    }
+    return html`<p class="game-aside__warning" role="alert">
+        ${count} server message(s) could not be read; the table may be wrong.
+    </p>`;
+}
+
 /**
- * The live game: its play area, and the rotate panel the stylesheet shows in its place on an upright phone, both
+ * The live game: its board, played from the viewer's seat, beside its controls (the way back, the session's status
+ * and, under `?debug`, the log), and the rotate panel the stylesheet shows in their place on an upright phone, all
  * rendered from the same state so the panel's status and countdown stay current while it is hidden.
  */
-function gameTemplate({ gameId, log, onLeave, panel, state }: GameViewProps): TemplateResult {
-    const status = describeClientStatus(state);
+function gameTemplate(props: GameViewProps): TemplateResult {
+    const { gameId, log, onCommand, onLeave, panel, parseErrors, state, ui } = props;
+    const status = describePlayerClientStatus(state);
     return html`
         <div class="game">
             <div class="game__rotate">${RotatePanel(rotatePanelProps(state, onLeave))}</div>
-            <div class="game__play">
-                <div class="game-header">
-                    <button class="secondary" @click=${onLeave}>Back to Lobby</button>
-                    <h2>Game: ${gameId}</h2>
-                    <span class="connection-status status-${status.tone}">${status.label}</span>
+            <div class="game__play board-page">
+                <div class="board-page__board">
+                    ${PlayBoard({ display: playDisplay(state, ui), onCommand, overlay: boardOverlay(state.table) })}
                 </div>
-                <div class="log-panel" ${ref(panel)}>
-                    <div class="log-entries">${log.map(logEntryTemplate)}</div>
-                </div>
+                <aside class="board-page__aside game-aside" aria-label="Game ${gameId}">
+                    <button class="secondary game-aside__leave" @click=${onLeave}>Lobby</button>
+                    <span class="connection-status game-aside__status status-${status.tone}" role="status"
+                        >${status.label}</span
+                    >
+                    ${parseErrorNotice(parseErrors)}
+                    ${log === null ? "" : logTemplate(log, panel, state)}
+                </aside>
             </div>
         </div>
     `;
@@ -159,8 +201,10 @@ class GameViewController {
     private readonly deps: GameViewDeps;
     private readonly panel = createRef<HTMLElement>();
     private readonly queue: ClientEvent[] = [];
-    private readonly log: LogEntry[] = [];
+    private readonly log: LogEntry[] | null;
     private state: GameClientState;
+    private ui: PlayUi = NO_PLAY_UI;
+    private parseErrors = 0;
     private timer: ArmedTimer | null = null;
     private socket: GameConnection | null = null;
     private socketGeneration = 0;
@@ -173,6 +217,7 @@ class GameViewController {
         this.host = host;
         this.gameId = gameId;
         this.deps = deps;
+        this.log = deps.debug ? [] : null;
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
         this.state = state;
         this.settle(effects);
@@ -190,11 +235,23 @@ class GameViewController {
         this.dispatch({ at: this.deps.clock.now(), intent: { type: "leave" }, kind: "intent" });
     };
 
+    /** A board control: an intent goes to the dispatcher; picking riichi's discard only changes the view's `ui`. */
+    private readonly command = (command: PlayCommand): void => {
+        if (command.kind === "intent") {
+            this.dispatch({ at: this.deps.clock.now(), intent: command.intent, kind: "intent" });
+            return;
+        }
+        this.ui = nextPlayUi(this.state, this.ui, command);
+        this.draw();
+    };
+
     private dispatch(event: ClientEvent): void {
         if (this.disposed) {
             return;
         }
-        this.appendLog(logEntryFor(event));
+        if (this.log !== null) {
+            this.appendLog(logEntryFor(event));
+        }
         this.queue.push(event);
         if (!this.draining) {
             this.settle([]);
@@ -239,19 +296,33 @@ class GameViewController {
     }
 
     private appendLog(entry: LogEntry | null): void {
-        if (entry === null) {
+        const { log } = this;
+        if (entry === null || log === null) {
             return;
         }
-        this.log.push(entry);
+        log.push(entry);
         this.logAppended += 1;
-        if (this.log.length > MAX_LOG_ENTRIES) {
-            this.log.splice(0, this.log.length - MAX_LOG_ENTRIES);
+        if (log.length > MAX_LOG_ENTRIES) {
+            log.splice(0, log.length - MAX_LOG_ENTRIES);
         }
     }
 
     private draw(): void {
-        const { gameId, leave, log, panel, state } = this;
-        render(gameTemplate({ gameId, log, onLeave: leave, panel, state }), this.host);
+        if (this.disposed) {
+            return;
+        }
+        const { command, gameId, leave, log, panel, parseErrors, state, ui } = this;
+        const props = {
+            gameId,
+            log,
+            onCommand: command,
+            onLeave: leave,
+            panel,
+            parseErrors,
+            state,
+            ui,
+        };
+        render(gameTemplate(props), this.host);
         if (panel.value && this.logAppended !== this.logAppendedAtDraw) {
             panel.value.scrollTop = panel.value.scrollHeight;
         }
@@ -281,11 +352,7 @@ class GameViewController {
                 return;
             }
             case "report_parse_error": {
-                this.appendLog({
-                    at: this.state.now,
-                    kind: LOG_TYPE_UNKNOWN,
-                    text: `Parse error: ${effect.detail}`,
-                });
+                this.reportParseError(effect.detail);
                 return;
             }
             default: {
@@ -306,12 +373,28 @@ class GameViewController {
             }
             case "send": {
                 this.socket?.send(effect.message);
+                this.appendLog({
+                    at: this.state.now,
+                    kind: LOG_TYPE_SENT,
+                    text: JSON.stringify(effect.message, null, 2),
+                });
                 return;
             }
             default: {
                 assertNever(effect);
             }
         }
+    }
+
+    /**
+     * A server message the client could not read: always on the console and counted on the page, whatever the log,
+     * since the table may be wrong from here on.
+     */
+    private reportParseError(detail: string): void {
+        const text = `Parse error: ${detail}`;
+        console.error(text);
+        this.parseErrors += 1;
+        this.appendLog({ at: this.state.now, kind: LOG_TYPE_UNKNOWN, text });
     }
 
     private runSinkEffect(effect: SinkEffect): void {
@@ -394,7 +477,7 @@ class GameViewController {
     }
 }
 
-/** Mount the live game's log view into `host` and return its dispose, which cancels the timer and the socket. */
+/** Mount the live game into `host` and return its dispose, which cancels the timer and the socket. */
 export function mountGameView(host: HTMLElement, gameId: string, deps: GameViewDeps): () => void {
     const controller = new GameViewController(host, gameId, deps);
     return () => controller.dispose();

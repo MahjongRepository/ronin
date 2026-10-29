@@ -4,6 +4,7 @@ export type {
     ClientEvent,
     ClientStep,
     Decision,
+    DecisionIntent,
     DecisionStatus,
     GameClientState,
     LocalIntent,
@@ -13,14 +14,24 @@ export type {
 export {
     failGameClient,
     nextDeadline,
+    takesIntent,
     startGameClient,
     startReplayClient,
     stepGameClient,
 } from "./model/dispatch";
 export type { DecisionCountdown } from "./model/countdown";
 export { decisionCountdown, nextCountdownChange } from "./model/countdown";
+export type { PlayAction, PlayCommand, PlayDisplay, PlayUi } from "./model/play-display";
+export { NO_PLAY_UI, nextPlayUi, playDisplay } from "./model/play-display";
+export type { PlayBoardProps } from "./ui/play-board";
+export { PlayBoard } from "./ui/play-board";
 export type { RotatePanelProps } from "./ui/rotate-panel";
-export { RotatePanel, describeClientStatus, rotatePanelProps } from "./ui/rotate-panel";
+export {
+    RotatePanel,
+    describeClientStatus,
+    describePlayerClientStatus,
+    rotatePanelProps,
+} from "./ui/rotate-panel";
 export type { ClientTimeline, TimelineEntry } from "./model/timeline";
 export { buildClientTimeline, timelineStates } from "./model/timeline";
 export type { ReplayTimelineRead } from "./model/replay";
@@ -32,6 +43,6 @@ export type {
     ScenarioStep,
     SeatScenario,
 } from "./model/scenario";
-export { runSeatScenario, scenarioStateIndex } from "./model/scenario";
+export { runSeatScenario, scenarioCheckpoint, scenarioStateIndex } from "./model/scenario";
 export type { SeatTranscript } from "./model/seat-transcript";
 export { parseSeatTranscript, seatScenarioFromTranscript } from "./model/seat-transcript";

@@ -1,6 +1,6 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { Meld, type MeldInput } from "@/entities/tile";
+import { Meld, type MeldInput, meldTiles } from "@/entities/tile";
 import { storybookNav } from "@/views/storybook-nav";
 
 type Direction = "left" | "across" | "right";
@@ -66,41 +66,41 @@ function storybookMeldsView(): TemplateResult {
             <section>
                 <h2>Chi (チー)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(chiMeld())}
+                    ${Meld(meldTiles(chiMeld()))}
                 </div>
             </section>
 
             <section>
                 <h2>Pon (ポン)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(ponMeld("left"))}
-                    ${Meld(ponMeld("across"))}
-                    ${Meld(ponMeld("right"))}
+                    ${Meld(meldTiles(ponMeld("left")))}
+                    ${Meld(meldTiles(ponMeld("across")))}
+                    ${Meld(meldTiles(ponMeld("right")))}
                 </div>
             </section>
 
             <section>
                 <h2>Open Kan (大明槓)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(openKanMeld("left"))}
-                    ${Meld(openKanMeld("across"))}
-                    ${Meld(openKanMeld("right"))}
+                    ${Meld(meldTiles(openKanMeld("left")))}
+                    ${Meld(meldTiles(openKanMeld("across")))}
+                    ${Meld(meldTiles(openKanMeld("right")))}
                 </div>
             </section>
 
             <section>
                 <h2>Closed Kan (暗槓)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(closedKanMeld())}
+                    ${Meld(meldTiles(closedKanMeld()))}
                 </div>
             </section>
 
             <section>
                 <h2>Added Kan (加槓)</h2>
                 <div class="storybook-meld-row">
-                    ${Meld(addedKanMeld("left"))}
-                    ${Meld(addedKanMeld("across"))}
-                    ${Meld(addedKanMeld("right"))}
+                    ${Meld(meldTiles(addedKanMeld("left")))}
+                    ${Meld(meldTiles(addedKanMeld("across")))}
+                    ${Meld(meldTiles(addedKanMeld("right")))}
                 </div>
             </section>
         </div>

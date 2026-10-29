@@ -72,6 +72,9 @@ export type LocalIntent =
     | { readonly type: "choose"; readonly offer: Offer }
     | { readonly type: "pass" };
 
+/** An intent that answers the open decision. */
+export type DecisionIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
+
 /**
  * The one input of the game client's dispatcher, from any source: the live socket, a scripted scenario, or a
  * replay file. Each is stamped with the logical time `at` the source's clock gave it; a `tick` only advances
