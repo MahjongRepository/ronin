@@ -17,8 +17,9 @@ that honours it.
 ## Tooling
 
 Run a package's scripts from its directory (`cd frontend/game && npx vitest run <path>`). The root
-`make` targets (`install-frontend`, `lint-frontend`, `typecheck-frontend`, `format-frontend`,
-`test-frontend`) loop over every app.
+`make install-frontend` loops over every app; the check targets (`lint-frontend`,
+`typecheck-frontend`, `format-frontend`, `test-frontend`, and so `make run-all-checks`) skip `game/`,
+which is still served, as the baseline v2 is compared against, but no longer checked.
 
 Node is pinned to one exact version in two places, kept in step: the repo's `mise.toml` for
 development (`mise trust && mise install` once; the `Makefile` puts that Node first on `PATH`) and

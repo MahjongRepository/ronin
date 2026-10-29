@@ -85,7 +85,7 @@ select by element id, class or `snapshot -i` refs.
   Playwright's `page.mouse.move(x, y)` then `page.mouse.wheel(0, 100)`.
   On a phone, tap as *WebKit phone check* says. A replay it cannot show gets a
   `.replay-problem` message instead. To show a particular case, gzip a fixture from
-  `frontend/game/src/js/__tests__/fixtures/replays/` into the replay dir under an id of your own
+  `frontend/game_v2/tests/fixtures/replays/` into the replay dir under an id of your own
   (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards. The speed and
   the hidden-hands choice are stored under `ronin.replay.prefs` in `localStorage`: remove it after a
   session that changed them. A sound the browser blocks without a user gesture (a scripted click) is

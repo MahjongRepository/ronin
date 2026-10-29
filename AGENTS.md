@@ -28,7 +28,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
   `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
-  `bin/check_i18n.py` over every app's catalogs.
+  `bin/check_i18n.py` over the lobby's catalogs (the v1 game client's are no longer checked).
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 
 ## Commands
@@ -63,7 +63,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   report their statistics against exact references and a stdlib-shuffle control (`backend/scripts/measure_wall/`).
   A structural failure exits 1; a statistical warning is printed, never a gate. `--json` saves a run and
   `--baseline` compares with one, the loop for changing a constant in `game/logic/rng.py` and remeasuring.
-* `make generate-replay-fixtures` — regenerate the game client's replay test fixtures by playing
+* `make generate-replay-fixtures` — regenerate the v2 game client's replay test fixtures by playing
   the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
   (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**

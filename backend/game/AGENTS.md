@@ -21,7 +21,7 @@ signed game ticket; players then connect by WebSocket and play. `logic/`, `sessi
   Tenhou export; input stays name-keyed and is mapped to seats once, at its boundary. A replay
   records every `GameSettings` field on its `game_started` line, and both the runner and the export
   read them from there, never from the defaults. A change to the replay lines is followed by
-  `make generate-replay-fixtures`, which re-records the game client's replay fixtures.
+  `make generate-replay-fixtures`, which re-records the v2 game client's replay fixtures.
 
 Import direction is `server` → `session` → `messaging` → `wire` → `logic` (the import-linter
 contracts in `backend/pyproject.toml`). Something two layers both need goes down into `wire/` or

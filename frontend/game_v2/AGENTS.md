@@ -69,6 +69,9 @@ Vitest. UI tests render lit templates into a DOM element and assert on the resul
 the module directly. Tests live in `tests/`, outside `src/`, at the path of the module they cover
 (`tests/entities/tile/hand.test.ts` for `src/entities/tile/hand.ts`), and import it through `@/`;
 a module whose tests need different file-level `vi.mock`s gets a second, suffixed file
-(`tests/views/replay-click-outside.test.ts`). The `describe` block
+(`tests/views/replay-click-outside.test.ts`). The replay files under `tests/fixtures/replays/` are
+generated, never edited by hand: `make generate-replay-fixtures` records each from a game the engine
+plays (`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
+records now. A new replay case is a new scenario there. The `describe` block
 names the subject (the module or function under test) and the `it` title says what it pins; tests
 carry no doc comments, and source files carry no file-header comment.

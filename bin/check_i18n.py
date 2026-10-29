@@ -75,29 +75,6 @@ APPS = (
         dynamic_prefixes=("occupancy.", "room.error."),
         markup_roots=("backend/lobby/views/templates",),
     ),
-    App(
-        name="game client",
-        catalog_dir="frontend/game/src/i18n/locales",
-        source_roots=("frontend/game/src", "frontend/game/index.html", "frontend/game/public"),
-        source_suffixes=frozenset({".js", ".html"}),
-        dynamic_prefixes=(
-            "draw.",
-            "game.error.",
-            "game.meld.",
-            "game.score.yakuman_",
-            "game.session_error.",
-            "game.summary.rank_",
-            "replay.speed.",
-            "round.",
-            "tile.",
-            "wind.",
-            "yaku.",
-        ),
-        identical_keys=frozenset(
-            {"game.settings.off", "game.settings.on", "list.separator", "replay.seat_option", "replay.start"}
-        ),
-        literals_in_namespaces_are_keys=True,
-    ),
 )
 
 

@@ -9,9 +9,9 @@ from scripts.replay_fixtures.scenarios import FIXTURES
 from shared.logging import setup_logging
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FIXTURE_DIR = REPO_ROOT / "frontend" / "game" / "src" / "js" / "__tests__" / "fixtures" / "replays"
+FIXTURE_DIR = REPO_ROOT / "frontend" / "game_v2" / "tests" / "fixtures" / "replays"
 DESCRIPTION = """
-Generate the replay files the game client's tests read, by playing the scenarios of scripts.replay_fixtures through
+Generate the replay files the v2 game client's tests read, by playing the scenarios of scripts.replay_fixtures through
 the real engine: games dealt from a staged wall and played seat by seat, a game dealt from its seed and played by a
 fixed policy, a recorded backend replay run again, and cuts of those. Each replay must reproduce its game through the
 replay runner before it is written. With --check nothing is written: the run fails, naming each fixture, when a

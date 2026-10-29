@@ -258,7 +258,7 @@ which jQuery 4 takes for a window not yet shown, and it would rerun the probe, i
 removing a table in the document, on every `.width()` and `.height()`. The `describe` block names the subject
 (the module or function under test) and the `it` title says what it pins.
 
-The replay files under `src/js/__tests__/fixtures/replays/`, for the replay converter's tests, are
-generated, never edited by hand: `make generate-replay-fixtures` records each from a game the engine
-plays (`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
-records now. A new replay case is a new scenario there.
+This app is out of `make run-all-checks` (`frontend/AGENTS.md`, Tooling): run its scripts by hand
+when you touch it. The replay files under `src/js/__tests__/fixtures/replays/`, for the replay
+converter's tests, are a frozen copy of what the engine recorded when the fixtures moved to
+`frontend/game_v2/tests/fixtures/replays/`; `make generate-replay-fixtures` no longer writes them.
