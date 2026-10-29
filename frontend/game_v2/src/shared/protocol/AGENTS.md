@@ -9,3 +9,7 @@ the protocol's source files, and a protocol change lands here and in the backend
 - `parseServerMessage` is the single entry for inbound messages and returns an `[error, message]`
   tuple that callers check before using the value. The per-message parsers under it throw on a bad
   payload and rely on that wrapper, so a new parser throws too rather than returning its own tuple.
+- A replay file's event lines go through `parseReplayLine` instead, which also reads the replay-only
+  lines (`REPLAY_LINE_TYPE`) the live socket never sends and defers every other line to
+  `parseServerMessage`. Fields only the live socket stamps (viewer seat, timers, wait ids, banks,
+  elapsed seconds) parse as optional and read as null in a replay.

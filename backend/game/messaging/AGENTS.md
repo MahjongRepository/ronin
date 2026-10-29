@@ -33,5 +33,5 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   the reconnect snapshot always carries it. Every game action must echo it, and one for another wait
   is refused as stale. The replay collector shapes its own payloads, so live-only metadata like the
   wait id never reaches a replay file.
-* The game client mirrors this protocol in `frontend/game/src/js/ronin/`; change both in the same
-  change.
+* Both game clients mirror this protocol, v1 in `frontend/game/src/js/ronin/` and v2 in
+  `frontend/game_v2/src/shared/protocol/`; change them in the same change.

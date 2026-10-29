@@ -7,8 +7,6 @@ export const WIRE_SCORE_DIVISOR = 100;
 export const SEAT_TILE_SPACE = 544; // NUM_PLAYERS * NUM_TILES
 export const NUM_DISCARD_FLAGS = 4;
 
-// --- Game event types (integer `t` field, 0-11) ---
-
 export const EVENT_TYPE = {
     CALL_PROMPT: 3,
     DISCARD: 2,
@@ -22,14 +20,34 @@ export const EVENT_TYPE = {
     RIICHI_DECLARED: 5,
     ROUND_END: 4,
     ROUND_STARTED: 9,
+    TURN: 12,
 } as const;
 
 export type EventType = (typeof EVENT_TYPE)[keyof typeof EVENT_TYPE];
 
+export const REPLAY_VERSION = "0.3-dev";
+
+export const REPLAY_LINE_TYPE = {
+    SEAT_CONTROL: 101,
+} as const;
+
+export const SEAT_CONTROL_REASON = {
+    ABSENT: 1,
+    LEFT: 0,
+} as const;
+
+export type SeatControlReason = (typeof SEAT_CONTROL_REASON)[keyof typeof SEAT_CONTROL_REASON];
+
+export const GAME_TYPE = {
+    HANCHAN: 0,
+    TONPUSEN: 1,
+} as const;
+
+export type GameType = (typeof GAME_TYPE)[keyof typeof GAME_TYPE];
+
 // --- Client message types (integer `t` field) ---
 
 export const CLIENT_MESSAGE_TYPE = {
-    CHAT: 4,
     GAME_ACTION: 3,
     JOIN_GAME: 7,
     RECONNECT: 6,
@@ -57,9 +75,7 @@ export type GameAction = (typeof GAME_ACTION)[keyof typeof GAME_ACTION];
 // --- Session message types (string `type` field) ---
 
 export const SESSION_MESSAGE_TYPE = {
-    CHAT: "chat",
     ERROR: "session_error",
-    GAME_LEFT: "game_left",
     GAME_RECONNECTED: "game_reconnected",
     PLAYER_LEFT: "player_left",
     PLAYER_RECONNECTED: "player_reconnected",

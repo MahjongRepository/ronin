@@ -1,77 +1,61 @@
 import { describe, expect, test } from "vitest";
 
-import { type NavigationIndex } from "@/entities/table";
-import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
+import { type NavigationIndex, type ReplayEvent } from "@/entities/table";
+import { type ParsedServerMessage, REPLAY_VERSION, parseServerMessage } from "@/shared/protocol";
 import {
     formatStepCounter,
     handleKeydown,
     handleWheel,
     isAbortError,
     isReplayEvent,
-    isVersionTag,
     parseReplayLines,
 } from "@/views/replay";
 
-describe("isVersionTag", () => {
-    test("detects version field", () => {
-        expect(isVersionTag('{"version": "1.0"}')).toBe(true);
+const VERSION_LINE = JSON.stringify({ version: REPLAY_VERSION });
+
+function parseEventLines(...lines: string[]): { errors: string[]; events: ReplayEvent[] } {
+    const parsed = parseReplayLines([VERSION_LINE, ...lines].join("\n"));
+    if (!parsed.ok) {
+        throw new Error(parsed.refusal);
+    }
+    return parsed;
+}
+
+const drawLine = '{"d": 136, "t": 1}';
+const discardLine = '{"d": 0, "t": 2}';
+const meldLine = '{"m": 24384, "t": 0}';
+
+describe("parseReplayLines - version", () => {
+    test("refuses a replay of another version", () => {
+        const parsed = parseReplayLines(`{"version": "0.2"}\n${drawLine}`);
+        expect(parsed).toEqual({ ok: false, refusal: 'Unsupported replay version "0.2"' });
     });
 
-    test("rejects regular event line", () => {
-        expect(isVersionTag('{"t": 1, "data": {}}')).toBe(false);
+    test("refuses a replay that does not start with a version line", () => {
+        const parsed = parseReplayLines(`${meldLine}\n${drawLine}`);
+        expect(parsed).toEqual({ ok: false, refusal: "Replay does not start with a version line" });
     });
 
-    test("rejects invalid JSON", () => {
-        expect(isVersionTag("not json")).toBe(false);
-    });
-
-    test("rejects version with falsy value", () => {
-        expect(isVersionTag('{"version": 0}')).toBe(false);
-        expect(isVersionTag('{"version": ""}')).toBe(false);
+    test("refuses an empty replay", () => {
+        expect(parseReplayLines(" \n")).toEqual({ ok: false, refusal: "Replay is empty" });
     });
 });
 
-// Realistic wire payloads for testing
-// draw: t=1, d=136 (seat 1, tile 0)
-const drawLine = '{"d": 136, "t": 1}';
-// discard: t=2, d=0 (seat 0, tile 0, no flags)
-const discardLine = '{"d": 0, "t": 2}';
-// meld: t=0, m=24384 (ankan)
-const meldLine = '{"m": 24384, "t": 0}';
-
 describe("parseReplayLines - line filtering", () => {
-    test("skips version tag on first line", () => {
-        const text = `{"version": "1.0"}\n${drawLine}\n${discardLine}`;
-        const { events } = parseReplayLines(text);
-        expect(events).toHaveLength(2);
-        expect(events[0].type).toBe("draw");
-        expect(events[1].type).toBe("discard");
-    });
-
-    test("keeps first line when it is not a version tag", () => {
-        const text = `${meldLine}\n${drawLine}`;
-        const { events } = parseReplayLines(text);
-        expect(events).toHaveLength(2);
-        expect(events[0].type).toBe("meld");
+    test("parses the events after the version line", () => {
+        const { errors, events } = parseEventLines(meldLine, drawLine, discardLine);
+        expect(errors).toEqual([]);
+        expect(events.map((event) => event.type)).toEqual(["meld", "draw", "discard"]);
     });
 
     test("filters empty and whitespace-only lines", () => {
-        const text = `${drawLine}\n\n   \n${discardLine}\n`;
-        const { events } = parseReplayLines(text);
+        const { events } = parseEventLines(drawLine, "", "   ", discardLine, "");
         expect(events).toHaveLength(2);
     });
 
-    test("returns empty arrays for empty input", () => {
-        const { errors, events } = parseReplayLines("");
-        expect(events).toHaveLength(0);
-        expect(errors).toHaveLength(0);
-    });
-
     test("version tag on second line surfaces as error", () => {
-        const text = `${drawLine}\n{"version": "1.0"}`;
-        const { errors, events } = parseReplayLines(text);
+        const { errors, events } = parseEventLines(drawLine, VERSION_LINE);
         expect(events).toHaveLength(1);
-        expect(events[0].type).toBe("draw");
         expect(errors).toHaveLength(1);
         expect(errors[0]).toContain("Parse error:");
     });
@@ -79,42 +63,69 @@ describe("parseReplayLines - line filtering", () => {
 
 describe("parseReplayLines - event parsing", () => {
     test("parsed events have correct types and fields", () => {
-        const { events } = parseReplayLines(drawLine);
+        const { events } = parseEventLines(drawLine);
         expect(events[0].type).toBe("draw");
         expect(events[0]).toHaveProperty("seat", 1);
         expect(events[0]).toHaveProperty("tileId", 0);
     });
 
     test("malformed JSON surfaces in errors", () => {
-        const text = "not json";
-        const { errors, events } = parseReplayLines(text);
+        const { errors, events } = parseEventLines("not json");
         expect(events).toHaveLength(0);
         expect(errors).toHaveLength(1);
         expect(errors[0]).toContain("JSON parse error:");
     });
 
     test("unknown event type surfaces in errors", () => {
-        const text = '{"t": 99}';
-        const { errors, events } = parseReplayLines(text);
+        const { errors, events } = parseEventLines('{"t": 99}');
         expect(events).toHaveLength(0);
         expect(errors).toHaveLength(1);
         expect(errors[0]).toContain("Parse error:");
     });
 
     test("non-replay event type surfaces in errors", () => {
-        // error event: t=7
         const errorLine = '{"cd": "test_code", "msg": "test message", "t": 7}';
-        const { errors, events } = parseReplayLines(errorLine);
+        const { errors, events } = parseEventLines(errorLine);
         expect(events).toHaveLength(0);
         expect(errors).toHaveLength(1);
         expect(errors[0]).toContain("Non-replay event type: error");
     });
 
     test("mixed valid and invalid lines separates correctly", () => {
-        const text = `${drawLine}\nnot json\n${discardLine}\n{"t": 99}`;
-        const { errors, events } = parseReplayLines(text);
+        const { errors, events } = parseEventLines(drawLine, "not json", discardLine, '{"t": 99}');
         expect(events).toHaveLength(2);
         expect(errors).toHaveLength(2);
+    });
+
+    test("reads seat control lines without error, and rejects an unknown one", () => {
+        const { errors, events } = parseEventLines(
+            '{"ai": 1, "r": 0, "s": 2, "t": 101}',
+            '{"ai": 0, "s": 2, "t": 101}',
+            '{"ai": 2, "s": 2, "t": 101}',
+            drawLine,
+        );
+        expect(events.map((event) => event.type)).toEqual(["draw"]);
+        expect(errors).toEqual([
+            "Parse error: Failed to parse replay line t=101: Unknown seat control: ai=2",
+        ]);
+    });
+});
+
+const FIXTURE_REPLAYS: Record<string, string> = import.meta.glob("../fixtures/replays/*.txt", {
+    eager: true,
+    import: "default",
+    query: "?raw",
+});
+
+describe("parseReplayLines - engine fixtures", () => {
+    test("parses every replay the engine records without an error", () => {
+        const fixtures = Object.entries(FIXTURE_REPLAYS);
+        expect(fixtures.length).toBeGreaterThan(0);
+        for (const [path, text] of fixtures) {
+            const parsed = parseReplayLines(text);
+            expect(parsed.ok ? parsed.errors : [parsed.refusal], path).toEqual([]);
+            expect(parsed.ok && parsed.events.length > 0, path).toBe(true);
+        }
     });
 });
 
@@ -142,6 +153,7 @@ describe("isReplayEvent", () => {
                 ],
                 dl: 0,
                 gid: "g1",
+                gt: 0,
                 p: [{ ai: 0, nm: "P0", s: 0 }],
                 t: 8,
             },
@@ -150,7 +162,7 @@ describe("isReplayEvent", () => {
             // round_end (abortive draw - minimal variant)
             { rn: "four_riichi", rt: 4, sch: {}, scs: { "0": 250 }, t: 4 },
             // game_end
-            { st: [{ fs: 0, s: 0, sc: 250 }], t: 10, ws: 0 },
+            { lb: 0, nr: 1, st: [{ fs: 0, s: 0, sc: 250 }], t: 10, ws: 0 },
         ];
 
         for (const wire of replayTypes) {

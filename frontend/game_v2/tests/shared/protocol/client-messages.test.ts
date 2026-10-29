@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    buildChatMessage,
     buildChiAction,
     buildConfirmRoundAction,
     buildDiscardAction,
@@ -32,14 +31,6 @@ describe("client message builders", () => {
             expect(msg).toEqual({
                 game_ticket: "ticket-xyz-789",
                 t: CLIENT_MESSAGE_TYPE.RECONNECT,
-            });
-        });
-
-        it("buildChatMessage creates correct wire format", () => {
-            const msg = buildChatMessage("Hello world");
-            expect(msg).toEqual({
-                t: CLIENT_MESSAGE_TYPE.CHAT,
-                text: "Hello world",
             });
         });
     });

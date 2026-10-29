@@ -94,7 +94,7 @@ function setupPlayingAndReconnect(): void {
 
 const TSUMO_ROUND_END = {
     ct: [0, 4, 8],
-    hr: { fu: 30, han: 3, yk: [{ han: 1, yi: 0 }] },
+    hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0 }] },
     ml: [],
     rc: 0,
     rt: 0,

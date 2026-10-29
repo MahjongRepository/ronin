@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EVENT_TYPE } from "@/shared/protocol/constants";
+import { EVENT_TYPE, GAME_TYPE } from "@/shared/protocol/constants";
 import {
     discardSchema,
     doraRevealedSchema,
@@ -12,6 +12,7 @@ import {
     meldSchema,
     riichiDeclaredSchema,
     roundStartedSchema,
+    turnSchema,
 } from "@/shared/protocol/schemas/events";
 
 describe("gameStartedSchema", () => {
@@ -23,6 +24,7 @@ describe("gameStartedSchema", () => {
             ],
             dl: 0,
             gid: "game-abc-123",
+            gt: GAME_TYPE.HANCHAN,
             p: [
                 { ai: 0, nm: "Alice", s: 0 },
                 { ai: 0, nm: "Bob", s: 1 },
@@ -52,11 +54,42 @@ describe("gameStartedSchema", () => {
             ],
             dl: 0,
             gid: "g1",
+            gt: GAME_TYPE.TONPUSEN,
             p: [{ ai: 1, nm: "Bot", s: 0 }],
             t: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
         expect(result.players[0].isAiPlayer).toBe(true);
+    });
+
+    it("reads the live copy's viewer seat and timer settings, null in a replay", () => {
+        const wire = {
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            dl: 0,
+            gid: "g1",
+            gt: GAME_TYPE.TONPUSEN,
+            p: [{ ai: 0, nm: "Alice", s: 2 }],
+            t: EVENT_TYPE.GAME_STARTED,
+        };
+        const timer = { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 };
+        const live = gameStartedSchema.parse({ ...wire, s: 2, tm: timer });
+        const replay = gameStartedSchema.parse(wire);
+        expect(live.gameType).toBe(GAME_TYPE.TONPUSEN);
+        expect(live.seat).toBe(2);
+        expect(live.timer).toEqual({
+            bankSeconds: 20,
+            baseTurnSeconds: 5,
+            gameStartPauseSeconds: 3,
+            maxBankSeconds: 60,
+            meldDecisionSeconds: 5,
+            roundAdvanceTimeoutSeconds: 15,
+            roundBonusSeconds: 10,
+        });
+        expect(replay.seat).toBeNull();
+        expect(replay.timer).toBeNull();
     });
 
     it("rejects missing required fields", () => {
@@ -242,6 +275,33 @@ describe("drawSchema", () => {
         const result = drawSchema.parse(wire);
         expect(result.availableActions).toEqual([]);
     });
+
+    it("reads the turn's bank and a re-send's elapsed seconds, null without them", () => {
+        const opening = drawSchema.parse({ bk: 12.5, d: 0, el: 3.2, t: EVENT_TYPE.DRAW, wi: 4 });
+        const plain = drawSchema.parse({ d: 0, t: EVENT_TYPE.DRAW });
+        expect(opening.bankSeconds).toBe(12.5);
+        expect(opening.elapsedSeconds).toBe(3.2);
+        expect(opening.waitId).toBe(4);
+        expect(plain.bankSeconds).toBeNull();
+        expect(plain.elapsedSeconds).toBeNull();
+    });
+});
+
+describe("turnSchema", () => {
+    it("reads the kuikae tile types and the turn's wait", () => {
+        const result = turnSchema.parse({ bk: 20, kt: [4, 7], t: EVENT_TYPE.TURN, wi: 9 });
+        expect(result).toEqual({
+            bankSeconds: 20,
+            elapsedSeconds: null,
+            kuikaeTileTypes: [4, 7],
+            type: "turn",
+            waitId: 9,
+        });
+    });
+
+    it("rejects a kuikae tile outside the 34 types", () => {
+        expect(() => turnSchema.parse({ kt: [34], t: EVENT_TYPE.TURN })).toThrow();
+    });
 });
 
 describe("discardSchema", () => {
@@ -295,7 +355,6 @@ describe("meldSchema", () => {
         expect(result.fromSeat).toBeNull();
         expect(result.tileIds).toEqual([0, 1, 2, 3]);
         expect(result.calledTileId).toBeNull();
-        expect(result.waitId).toBeNull();
     });
 });
 
@@ -364,6 +423,7 @@ describe("furitenSchema", () => {
 describe("gameEndSchema", () => {
     it("parses valid wire payload with standings", () => {
         const wire = {
+            lb: 20,
             nr: 8,
             st: [
                 { fs: 42, s: 0, sc: 350 },
@@ -378,17 +438,8 @@ describe("gameEndSchema", () => {
         expect(result.type).toBe("game_end");
         expect(result.winnerSeat).toBe(0);
         expect(result.numRounds).toBe(8);
+        expect(result.leftoverRiichiBonus).toBe(2000);
         expect(result.standings[0]).toEqual({ finalScore: 42, score: 35_000, seat: 0 });
         expect(result.standings[3]).toEqual({ finalScore: -36, score: 20_000, seat: 3 });
-    });
-
-    it("defaults numRounds to 0 when nr is absent", () => {
-        const wire = {
-            st: [{ fs: 0, s: 0, sc: 250 }],
-            t: EVENT_TYPE.GAME_END,
-            ws: 1,
-        };
-        const result = gameEndSchema.parse(wire);
-        expect(result.numRounds).toBe(0);
     });
 });

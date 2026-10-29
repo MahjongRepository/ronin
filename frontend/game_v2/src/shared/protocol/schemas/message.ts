@@ -14,6 +14,7 @@ import {
     meldSchema,
     riichiDeclaredSchema,
     roundStartedSchema,
+    turnSchema,
 } from "./events";
 import { type GameReconnectedEvent, gameReconnectedSchema } from "./reconnect";
 import { type RoundEndEvent, parseRoundEnd } from "./round-results";
@@ -32,6 +33,7 @@ export type GameEvent =
     | z.output<typeof errorEventSchema>
     | z.output<typeof furitenSchema>
     | z.output<typeof gameEndSchema>
+    | z.output<typeof turnSchema>
     | CallPromptEvent
     | RoundEndEvent;
 
@@ -81,6 +83,9 @@ function parseGameEvent(raw: Record<string, unknown>): GameEvent {
         }
         case EVENT_TYPE.FURITEN: {
             return furitenSchema.parse(raw);
+        }
+        case EVENT_TYPE.TURN: {
+            return turnSchema.parse(raw);
         }
         default: {
             throw new Error(`Unknown game event type: t=${String(t)}`);

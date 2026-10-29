@@ -11,6 +11,7 @@ describe("parseRoundEnd", () => {
                 hr: {
                     fu: 30,
                     han: 3,
+                    pt: 30,
                     yk: [
                         { han: 1, yi: 0 },
                         { han: 2, yi: 7 },
@@ -41,7 +42,7 @@ describe("parseRoundEnd", () => {
         it("decodes wire scores (250 -> 25000)", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 1, yk: [{ han: 1, yi: 0 }] },
+                hr: { fu: 30, han: 1, pt: 10, yk: [{ han: 1, yi: 0 }] },
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
@@ -62,6 +63,7 @@ describe("parseRoundEnd", () => {
                 hr: {
                     fu: 40,
                     han: 4,
+                    pt: 40,
                     yk: [
                         { han: 1, yi: 0 },
                         { han: 1, yi: 1 },
@@ -83,6 +85,7 @@ describe("parseRoundEnd", () => {
             }
             expect(result.handResult.han).toBe(4);
             expect(result.handResult.fu).toBe(40);
+            expect(result.handResult.points).toBe(4000);
             expect(result.handResult.yaku).toEqual([
                 { han: 1, yakuId: 0 },
                 { han: 1, yakuId: 1 },
@@ -93,7 +96,7 @@ describe("parseRoundEnd", () => {
         it("includes optional pao seat when present", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 13, yk: [{ han: 13, yi: 40 }] },
+                hr: { fu: 30, han: 13, pt: 130, yk: [{ han: 13, yi: 40 }] },
                 ml: [6100],
                 ps: 2,
                 rc: 0,
@@ -111,7 +114,7 @@ describe("parseRoundEnd", () => {
         it("defaults pao seat to null when absent", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 1, yk: [{ han: 1, yi: 0 }] },
+                hr: { fu: 30, han: 1, pt: 10, yk: [{ han: 1, yi: 0 }] },
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
@@ -128,7 +131,7 @@ describe("parseRoundEnd", () => {
         it("includes ura dora indicators when present", () => {
             const wire = {
                 ct: [0, 4],
-                hr: { fu: 30, han: 2, yk: [{ han: 2, yi: 7 }] },
+                hr: { fu: 30, han: 2, pt: 20, yk: [{ han: 2, yi: 7 }] },
                 ml: [],
                 rc: 1,
                 rt: ROUND_RESULT_TYPE.TSUMO,
@@ -146,7 +149,7 @@ describe("parseRoundEnd", () => {
         it("defaults ura dora indicators to null when absent", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 1, yk: [{ han: 1, yi: 0 }] },
+                hr: { fu: 30, han: 1, pt: 10, yk: [{ han: 1, yi: 0 }] },
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
@@ -177,6 +180,7 @@ describe("parseRoundEnd", () => {
                 hr: {
                     fu: 30,
                     han: 3,
+                    pt: 30,
                     yk: [
                         { han: 1, yi: 0 },
                         { han: 2, yi: 7 },
@@ -206,7 +210,7 @@ describe("parseRoundEnd", () => {
         it("includes optional pao seat when present", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 13, yk: [{ han: 13, yi: 40 }] },
+                hr: { fu: 30, han: 13, pt: 130, yk: [{ han: 13, yi: 40 }] },
                 ls: 2,
                 ml: [6100],
                 ps: 3,
@@ -225,7 +229,7 @@ describe("parseRoundEnd", () => {
         it("defaults pao seat to null when absent", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 1, yk: [{ han: 1, yi: 0 }] },
+                hr: { fu: 30, han: 1, pt: 10, yk: [{ han: 1, yi: 0 }] },
                 ls: 1,
                 ml: [],
                 rc: 0,
@@ -243,7 +247,7 @@ describe("parseRoundEnd", () => {
         it("includes ura dora indicators when present", () => {
             const wire = {
                 ct: [0],
-                hr: { fu: 30, han: 2, yk: [{ han: 2, yi: 7 }] },
+                hr: { fu: 30, han: 2, pt: 20, yk: [{ han: 2, yi: 7 }] },
                 ls: 1,
                 ml: [],
                 rc: 1,
@@ -257,6 +261,28 @@ describe("parseRoundEnd", () => {
             };
             const result = parseRoundEnd(wire);
             expect(result).toHaveProperty("uraDoraIndicators", [56]);
+        });
+
+        it("reads the kan it robs and the seats its win head-bumped, empty without them", () => {
+            const wire = {
+                ct: [0],
+                hr: { fu: 30, han: 2, pt: 20, yk: [{ han: 1, yi: 3 }] },
+                ls: 1,
+                ml: [],
+                rc: 0,
+                rt: ROUND_RESULT_TYPE.RON,
+                sch: { "0": 20, "1": -20 },
+                scs: { "0": 270, "1": 230 },
+                t: EVENT_TYPE.ROUND_END,
+                ws: 0,
+                wt: 9,
+            };
+            const robbed = parseRoundEnd({ ...wire, hbs: [3], rk: { kty: "added", s: 1, ti: 9 } });
+            expect(robbed).toMatchObject({
+                headBumpedSeats: [3],
+                robbedKan: { kanType: "added", seat: 1, tileId: 9 },
+            });
+            expect(parseRoundEnd(wire)).toMatchObject({ headBumpedSeats: [], robbedKan: null });
         });
     });
 
@@ -273,6 +299,7 @@ describe("parseRoundEnd", () => {
                     hr: {
                         fu: 30,
                         han: 3,
+                        pt: 30,
                         yk: [
                             { han: 1, yi: 0 },
                             { han: 2, yi: 7 },
@@ -280,13 +307,15 @@ describe("parseRoundEnd", () => {
                     },
                     ml: [],
                     rc: 1,
+                    sch: { "0": 40, "3": -40 },
                     ws: 0,
                 },
                 {
                     ct: [52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 96],
-                    hr: { fu: 30, han: 2, yk: [{ han: 2, yi: 7 }] },
+                    hr: { fu: 30, han: 2, pt: 20, yk: [{ han: 2, yi: 7 }] },
                     ml: [],
                     rc: 0,
+                    sch: { "1": 30, "3": -30 },
                     ws: 1,
                 },
             ],
@@ -312,6 +341,10 @@ describe("parseRoundEnd", () => {
             expect(result.winners[0].handResult.han).toBe(3);
             expect(result.winners[1].winnerSeat).toBe(1);
             expect(result.winners[1].handResult.han).toBe(2);
+            expect(result.winners.map((winner) => winner.scoreChanges)).toEqual([
+                { "0": 4000, "3": -4000 },
+                { "1": 3000, "3": -3000 },
+            ]);
         });
 
         it("includes pao seat and ura dora on individual winners", () => {
@@ -324,18 +357,20 @@ describe("parseRoundEnd", () => {
                 wn: [
                     {
                         ct: [0],
-                        hr: { fu: 30, han: 13, yk: [{ han: 13, yi: 40 }] },
+                        hr: { fu: 30, han: 13, pt: 130, yk: [{ han: 13, yi: 40 }] },
                         ml: [6100],
                         ps: 2,
                         rc: 0,
+                        sch: { "0": 160, "2": -160 },
                         ud: [56],
                         ws: 0,
                     },
                     {
                         ct: [52],
-                        hr: { fu: 30, han: 13, yk: [{ han: 13, yi: 41 }] },
+                        hr: { fu: 30, han: 13, pt: 130, yk: [{ han: 13, yi: 41 }] },
                         ml: [],
                         rc: 0,
+                        sch: { "1": 160, "2": -160 },
                         ws: 1,
                     },
                 ],
@@ -478,6 +513,22 @@ describe("parseRoundEnd", () => {
                 throw new Error("wrong type");
             }
             expect(result.seat).toBeNull();
+        });
+
+        it("reads a triple ron's declarers", () => {
+            const wire = {
+                rcl: [0, 1, 2],
+                rn: ABORTIVE_DRAW_TYPE.TRIPLE_RON,
+                rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+                sch: {},
+                scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
+                t: EVENT_TYPE.ROUND_END,
+            };
+            const result = parseRoundEnd(wire);
+            if (result.resultType !== ROUND_RESULT_TYPE.ABORTIVE_DRAW) {
+                throw new Error("wrong type");
+            }
+            expect(result.ronSeats).toEqual([0, 1, 2]);
         });
     });
 

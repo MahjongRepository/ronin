@@ -2,9 +2,9 @@
 
 The earlier game client SPA, restored as the foundation of a future client: the lobby serves it
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
-`/play/history/{game_id}?v=2`). It still speaks the protocol and replay format of the day it was
-replaced, so many current messages and steps are not handled yet; adapt it to the server rather
-than the server to it. `src/shared/protocol/` and `src/entities/table/` have their own `AGENTS.md`.
+`/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
+but the views act on far less of it than v1 does: no countdowns, close codes or robbed kans yet.
+Adapt the client to the server rather than the server to it. `src/shared/protocol/` and `src/entities/table/` have their own `AGENTS.md`.
 
 ## Build
 

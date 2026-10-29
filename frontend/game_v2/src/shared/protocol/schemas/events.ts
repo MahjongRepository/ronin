@@ -1,11 +1,20 @@
 import { z } from "zod";
 
-import { EVENT_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import { EVENT_TYPE, GAME_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 import { decodeDiscard } from "@/shared/protocol/decoders/discard";
 import { decodeDraw } from "@/shared/protocol/decoders/draw";
 import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
-import { gamePlayerInfoSchema, seatSchema, tileIdSchema, waitIdSchema } from "./common";
+import {
+    gamePlayerInfoSchema,
+    seatSchema,
+    secondsSchema,
+    tileIdSchema,
+    tileTypeSchema,
+    timerSettingsSchema,
+    waitIdSchema,
+    wireScoreSchema,
+} from "./common";
 
 // --- Available action item (inside draw event `aa` array) ---
 
@@ -51,11 +60,13 @@ export const handResultSchema = z
     .object({
         fu: z.number().int(),
         han: z.number().int(),
+        pt: wireScoreSchema,
         yk: z.array(yakuInfoSchema),
     })
     .transform((raw) => ({
         fu: raw.fu,
         han: raw.han,
+        points: raw.pt,
         yaku: raw.yk,
     }));
 
@@ -80,14 +91,20 @@ export const gameStartedSchema = z
         dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
         dl: seatSchema,
         gid: z.string(),
+        gt: z.union([z.literal(GAME_TYPE.HANCHAN), z.literal(GAME_TYPE.TONPUSEN)]),
         p: z.array(gamePlayerInfoSchema),
+        s: seatSchema.optional(),
         t: z.literal(EVENT_TYPE.GAME_STARTED),
+        tm: timerSettingsSchema.optional(),
     })
     .transform((raw) => ({
         dealerDice: raw.dd,
         dealerSeat: raw.dl,
         gameId: raw.gid,
+        gameType: raw.gt,
         players: raw.p,
+        seat: raw.s ?? null,
+        timer: raw.tm ?? null,
         type: "game_started" as const,
     }));
 
@@ -129,14 +146,34 @@ export const roundStartedSchema = z
 export const drawSchema = z
     .object({
         aa: z.array(availableActionSchema).optional(),
+        bk: secondsSchema.optional(),
         d: z.number().int(),
+        el: secondsSchema.optional(),
         t: z.literal(EVENT_TYPE.DRAW),
         wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         ...decodeDraw(raw.d),
         availableActions: raw.aa ?? [],
+        bankSeconds: raw.bk ?? null,
+        elapsedSeconds: raw.el ?? null,
         type: "draw" as const,
+        waitId: raw.wi ?? null,
+    }));
+
+export const turnSchema = z
+    .object({
+        bk: secondsSchema.optional(),
+        el: secondsSchema.optional(),
+        kt: z.array(tileTypeSchema),
+        t: z.literal(EVENT_TYPE.TURN),
+        wi: waitIdSchema.optional(),
+    })
+    .transform((raw) => ({
+        bankSeconds: raw.bk ?? null,
+        elapsedSeconds: raw.el ?? null,
+        kuikaeTileTypes: raw.kt,
+        type: "turn" as const,
         waitId: raw.wi ?? null,
     }));
 
@@ -158,12 +195,10 @@ export const meldSchema = z
     .object({
         m: z.number().int(),
         t: z.literal(EVENT_TYPE.MELD),
-        wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
         ...decodeMeldCompact(raw.m),
         type: "meld" as const,
-        waitId: raw.wi ?? null,
     }));
 
 // --- Riichi Declared (t=5) ---
@@ -220,13 +255,15 @@ export const furitenSchema = z
 
 export const gameEndSchema = z
     .object({
-        nr: z.number().int().optional(),
+        lb: wireScoreSchema,
+        nr: z.number().int(),
         st: z.array(playerStandingSchema),
         t: z.literal(EVENT_TYPE.GAME_END),
         ws: seatSchema,
     })
     .transform((raw) => ({
-        numRounds: raw.nr ?? 0,
+        leftoverRiichiBonus: raw.lb,
+        numRounds: raw.nr,
         standings: raw.st,
         type: "game_end" as const,
         winnerSeat: raw.ws,

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 
-import { seatSchema, tileIdSchema, waitIdSchema } from "./common";
+import { seatSchema, secondsSchema, tileIdSchema, waitIdSchema } from "./common";
 
 // --- Available call option (inside meld prompt `ac` array) ---
 
@@ -29,16 +29,20 @@ const availableCallSchema = z
 
 const ronPromptSchema = z
     .object({
+        ac: z.array(availableCallSchema).optional(),
         clt: z.literal(CALL_TYPE.RON),
         cs: seatSchema,
+        el: secondsSchema.optional(),
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
         wi: waitIdSchema.optional(),
     })
     .transform((raw) => ({
+        availableCalls: raw.ac ?? [],
         callType: CALL_TYPE.RON as typeof CALL_TYPE.RON,
         callerSeat: raw.cs,
+        elapsedSeconds: raw.el ?? null,
         fromSeat: raw.frs,
         tileId: raw.ti,
         type: "call_prompt" as const,
@@ -51,6 +55,7 @@ const chankanPromptSchema = z
     .object({
         clt: z.literal(CALL_TYPE.CHANKAN),
         cs: seatSchema,
+        el: secondsSchema.optional(),
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
@@ -59,6 +64,7 @@ const chankanPromptSchema = z
     .transform((raw) => ({
         callType: CALL_TYPE.CHANKAN as typeof CALL_TYPE.CHANKAN,
         callerSeat: raw.cs,
+        elapsedSeconds: raw.el ?? null,
         fromSeat: raw.frs,
         tileId: raw.ti,
         type: "call_prompt" as const,
@@ -72,6 +78,7 @@ const meldPromptSchema = z
         ac: z.array(availableCallSchema),
         clt: z.literal(CALL_TYPE.MELD),
         cs: seatSchema,
+        el: secondsSchema.optional(),
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
@@ -81,6 +88,7 @@ const meldPromptSchema = z
         availableCalls: raw.ac,
         callType: CALL_TYPE.MELD as typeof CALL_TYPE.MELD,
         callerSeat: raw.cs,
+        elapsedSeconds: raw.el ?? null,
         fromSeat: raw.frs,
         tileId: raw.ti,
         type: "call_prompt" as const,

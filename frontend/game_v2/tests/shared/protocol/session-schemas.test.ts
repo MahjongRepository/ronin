@@ -45,22 +45,6 @@ describe("parseSessionMessage", () => {
         });
     });
 
-    describe("chat", () => {
-        it("parses chat with playerName and text", () => {
-            const wire = {
-                player_name: "Bob",
-                text: "Hello world!",
-                type: SESSION_MESSAGE_TYPE.CHAT,
-            };
-            const result = parseSessionMessage(wire);
-            expect(result).toEqual({
-                playerName: "Bob",
-                text: "Hello world!",
-                type: "chat",
-            });
-        });
-    });
-
     describe("player_left", () => {
         it("transforms player_name to playerName", () => {
             const wire = {
@@ -72,14 +56,6 @@ describe("parseSessionMessage", () => {
                 playerName: "Charlie",
                 type: "player_left",
             });
-        });
-    });
-
-    describe("game_left", () => {
-        it("parses game_left with minimal output", () => {
-            const wire = { type: SESSION_MESSAGE_TYPE.GAME_LEFT };
-            const result = parseSessionMessage(wire);
-            expect(result).toEqual({ type: "game_left" });
         });
     });
 

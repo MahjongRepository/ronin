@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
+import { EVENT_TYPE, KAN_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol/constants";
 
 import { seatSchema, tileIdSchema, waitIdSchema, wireScoreMapSchema } from "./common";
 import { handResultSchema } from "./events";
@@ -19,6 +19,18 @@ const tenpaiHandSchema = z
         seat: raw.s,
     }));
 
+const robbedKanSchema = z
+    .object({
+        kty: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
+        s: seatSchema,
+        ti: tileIdSchema,
+    })
+    .transform((raw) => ({
+        kanType: raw.kty,
+        seat: raw.s,
+        tileId: raw.ti,
+    }));
+
 // --- Double ron winner (inside double_ron `wn` array) ---
 
 const doubleRonWinnerSchema = z
@@ -28,6 +40,7 @@ const doubleRonWinnerSchema = z
         ml: z.array(z.number().int()),
         ps: seatSchema.optional(),
         rc: z.number().int(),
+        sch: wireScoreMapSchema,
         ud: z.array(tileIdSchema).optional(),
         ws: seatSchema,
     })
@@ -37,6 +50,7 @@ const doubleRonWinnerSchema = z
         melds: raw.ml,
         paoSeat: raw.ps ?? null,
         riichiSticksCollected: raw.rc,
+        scoreChanges: raw.sch,
         uraDoraIndicators: raw.ud ?? null,
         winnerSeat: raw.ws,
     }));
@@ -80,11 +94,13 @@ const tsumoSchema = z
 const ronSchema = z
     .object({
         ct: z.array(tileIdSchema),
+        hbs: z.array(seatSchema).optional(),
         hr: handResultSchema,
         ls: seatSchema,
         ml: z.array(z.number().int()),
         ps: seatSchema.optional(),
         rc: z.number().int(),
+        rk: robbedKanSchema.optional(),
         rt: z.literal(ROUND_RESULT_TYPE.RON),
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
@@ -97,11 +113,13 @@ const ronSchema = z
     .transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,
+        headBumpedSeats: raw.hbs ?? [],
         loserSeat: raw.ls,
         melds: raw.ml,
         paoSeat: raw.ps ?? null,
         resultType: ROUND_RESULT_TYPE.RON as typeof ROUND_RESULT_TYPE.RON,
         riichiSticksCollected: raw.rc,
+        robbedKan: raw.rk ?? null,
         scoreChanges: raw.sch,
         scores: raw.scs,
         type: "round_end" as const,
@@ -115,7 +133,9 @@ const ronSchema = z
 
 const doubleRonSchema = z
     .object({
+        hbs: z.array(seatSchema).optional(),
         ls: seatSchema,
+        rk: robbedKanSchema.optional(),
         rt: z.literal(ROUND_RESULT_TYPE.DOUBLE_RON),
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
@@ -125,8 +145,10 @@ const doubleRonSchema = z
         wt: tileIdSchema,
     })
     .transform((raw) => ({
+        headBumpedSeats: raw.hbs ?? [],
         loserSeat: raw.ls,
         resultType: ROUND_RESULT_TYPE.DOUBLE_RON as typeof ROUND_RESULT_TYPE.DOUBLE_RON,
+        robbedKan: raw.rk ?? null,
         scoreChanges: raw.sch,
         scores: raw.scs,
         type: "round_end" as const,
@@ -163,6 +185,8 @@ const exhaustiveDrawSchema = z
 
 const abortiveDrawSchema = z
     .object({
+        rcl: z.array(seatSchema).optional(),
+        rk: robbedKanSchema.optional(),
         rn: z.string(),
         rt: z.literal(ROUND_RESULT_TYPE.ABORTIVE_DRAW),
         s: seatSchema.optional(),
@@ -174,6 +198,8 @@ const abortiveDrawSchema = z
     .transform((raw) => ({
         reason: raw.rn,
         resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW as typeof ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+        robbedKan: raw.rk ?? null,
+        ronSeats: raw.rcl ?? [],
         scoreChanges: raw.sch,
         scores: raw.scs,
         seat: raw.s ?? null,
@@ -250,4 +276,9 @@ export function parseRoundEnd(raw: Record<string, unknown>): RoundEndEvent {
             throw new Error(`Unknown round result type: rt=${String(rt)}`);
         }
     }
+}
+
+/** Parse a round result carried without its event type, as the reconnect snapshot's `re`. */
+export function parseRoundResult(raw: Record<string, unknown>): RoundEndEvent {
+    return parseRoundEnd({ ...raw, t: EVENT_TYPE.ROUND_END });
 }

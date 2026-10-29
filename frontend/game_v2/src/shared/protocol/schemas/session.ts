@@ -28,20 +28,6 @@ const playerReconnectedSchema = z
         type: "player_reconnected" as const,
     }));
 
-// --- Chat ---
-
-const sessionChatSchema = z
-    .object({
-        player_name: z.string(),
-        text: z.string(),
-        type: z.literal(SESSION_MESSAGE_TYPE.CHAT),
-    })
-    .transform((raw) => ({
-        playerName: raw.player_name,
-        text: raw.text,
-        type: "chat" as const,
-    }));
-
 // --- Player Left ---
 
 const playerLeftSchema = z
@@ -54,30 +40,13 @@ const playerLeftSchema = z
         type: "player_left" as const,
     }));
 
-// --- Game Left ---
-
-const gameLeftSchema = z
-    .object({
-        type: z.literal(SESSION_MESSAGE_TYPE.GAME_LEFT),
-    })
-    .transform(() => ({
-        type: "game_left" as const,
-    }));
-
 // --- Dispatch ---
 
 export type SessionErrorMessage = z.output<typeof sessionErrorSchema>;
 export type PlayerReconnectedMessage = z.output<typeof playerReconnectedSchema>;
-export type SessionChatMessage = z.output<typeof sessionChatSchema>;
 export type PlayerLeftMessage = z.output<typeof playerLeftSchema>;
-export type GameLeftMessage = z.output<typeof gameLeftSchema>;
 
-export type SessionMessage =
-    | SessionErrorMessage
-    | PlayerReconnectedMessage
-    | SessionChatMessage
-    | PlayerLeftMessage
-    | GameLeftMessage;
+export type SessionMessage = SessionErrorMessage | PlayerReconnectedMessage | PlayerLeftMessage;
 
 export function parseSessionMessage(raw: Record<string, unknown>): SessionMessage {
     const { type } = raw;
@@ -88,14 +57,8 @@ export function parseSessionMessage(raw: Record<string, unknown>): SessionMessag
         case SESSION_MESSAGE_TYPE.PLAYER_RECONNECTED: {
             return playerReconnectedSchema.parse(raw);
         }
-        case SESSION_MESSAGE_TYPE.CHAT: {
-            return sessionChatSchema.parse(raw);
-        }
         case SESSION_MESSAGE_TYPE.PLAYER_LEFT: {
             return playerLeftSchema.parse(raw);
-        }
-        case SESSION_MESSAGE_TYPE.GAME_LEFT: {
-            return gameLeftSchema.parse(raw);
         }
         default: {
             throw new Error(`Unknown session message type: type=${String(type)}`);

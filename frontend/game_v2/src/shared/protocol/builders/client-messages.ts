@@ -13,10 +13,6 @@ export function buildReconnectMessage(gameTicket: string) {
     } as const;
 }
 
-export function buildChatMessage(text: string) {
-    return { t: CLIENT_MESSAGE_TYPE.CHAT, text } as const;
-}
-
 // --- Game action messages ---
 
 export function buildDiscardAction(tileId: number, waitId: number) {

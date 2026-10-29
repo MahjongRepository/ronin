@@ -11,6 +11,7 @@ import {
     type meldSchema,
     type riichiDeclaredSchema,
     type roundStartedSchema,
+    type turnSchema,
 } from "./schemas/events";
 
 // --- Game event types ---
@@ -25,6 +26,7 @@ export type DoraRevealedEvent = z.output<typeof doraRevealedSchema>;
 export type ErrorEvent = z.output<typeof errorEventSchema>;
 export type FuritenEvent = z.output<typeof furitenSchema>;
 export type GameEndEvent = z.output<typeof gameEndSchema>;
+export type TurnEvent = z.output<typeof turnSchema>;
 
 // --- Call prompt types ---
 
@@ -50,10 +52,8 @@ export type {
 // --- Session message types ---
 
 export type {
-    GameLeftMessage,
     PlayerLeftMessage,
     PlayerReconnectedMessage,
-    SessionChatMessage,
     SessionErrorMessage,
     SessionMessage,
 } from "./schemas/session";

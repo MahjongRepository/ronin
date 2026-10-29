@@ -16,18 +16,41 @@ describe("parseCallPrompt", () => {
             };
             const result = parseCallPrompt(wire);
             expect(result).toEqual({
+                availableCalls: [],
                 callType: CALL_TYPE.RON,
                 callerSeat: 2,
+                elapsedSeconds: null,
                 fromSeat: 0,
                 tileId: 42,
                 type: "call_prompt",
                 waitId: 4,
             });
         });
+
+        it("reads the meld choices offered beside the ron and a re-send's elapsed seconds", () => {
+            const wire = {
+                ac: [{ clt: MELD_CALL_TYPE.PON }],
+                clt: CALL_TYPE.RON,
+                cs: 2,
+                el: 1.5,
+                frs: 0,
+                t: EVENT_TYPE.CALL_PROMPT,
+                ti: 42,
+                wi: 4,
+            };
+            const result = parseCallPrompt(wire);
+            if (result.callType !== CALL_TYPE.RON) {
+                throw new Error("wrong type");
+            }
+            expect(result.availableCalls).toEqual([
+                { callType: MELD_CALL_TYPE.PON, options: null },
+            ]);
+            expect(result.elapsedSeconds).toBe(1.5);
+        });
     });
 
     describe("chankan prompt (clt=2)", () => {
-        it("parses chankan prompt with same shape as ron", () => {
+        it("parses chankan prompt with tileId, fromSeat, callerSeat", () => {
             const wire = {
                 clt: CALL_TYPE.CHANKAN,
                 cs: 3,
@@ -39,6 +62,7 @@ describe("parseCallPrompt", () => {
             expect(result).toEqual({
                 callType: CALL_TYPE.CHANKAN,
                 callerSeat: 3,
+                elapsedSeconds: null,
                 fromSeat: 1,
                 tileId: 100,
                 type: "call_prompt",

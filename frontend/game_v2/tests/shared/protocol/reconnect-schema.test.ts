@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
+import {
+    ABORTIVE_DRAW_TYPE,
+    ROUND_RESULT_TYPE,
+    SESSION_MESSAGE_TYPE,
+} from "@/shared/protocol/constants";
 import { gameReconnectedSchema } from "@/shared/protocol/schemas/reconnect";
 
-// Realistic reconnection payload matching the wire format from
-// backend/game/session/manager.py:642-644 (ReconnectionSnapshot with aliases + injected type).
 function makeReconnectPayload(overrides?: Record<string, unknown>): Record<string, unknown> {
     return {
         cp: 2,
@@ -33,6 +35,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
                 ri: false,
                 s: 0,
                 sc: 250,
+                tc: 13,
             },
             {
                 dsc: [{ rd: true, tg: false, ti: 100 }],
@@ -40,6 +43,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
                 ri: true,
                 s: 1,
                 sc: 240,
+                tc: 10,
             },
             {
                 dsc: [],
@@ -47,6 +51,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
                 ri: false,
                 s: 2,
                 sc: 260,
+                tc: 13,
             },
             {
                 dsc: [],
@@ -54,10 +59,13 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
                 ri: false,
                 s: 3,
                 sc: 250,
+                tc: 13,
             },
         ],
         r: 1,
+        rh: [],
         s: 0,
+        tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
         tr: 52,
         type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
         w: 0,
@@ -81,6 +89,8 @@ describe("gameReconnectedSchema", () => {
         expect(result.roundNumber).toBe(2);
         expect(result.wind).toBe(0);
         expect(result.waitId).toBe(9);
+        expect(result.roundResult).toBeNull();
+        expect(result.confirmationOwed).toBe(false);
     });
 
     it("parses sticks, tiles remaining, seat info and the seat's furiten", () => {
@@ -92,6 +102,42 @@ describe("gameReconnectedSchema", () => {
         expect(result.seat).toBe(0);
         expect(result.myTiles).toHaveLength(13);
         expect(result.isFuriten).toBe(true);
+        expect(result.playerStates.map((state) => state.tileCount)).toEqual([13, 10, 13, 13]);
+        expect(result.timer.bankSeconds).toBe(20);
+    });
+
+    it("reads a round advance's result, owed confirmation and the finished rounds' ledger", () => {
+        const result = parsePayload({
+            el: 4.5,
+            oc: true,
+            re: {
+                rn: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
+                rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+                sch: {},
+                scs: { "0": 250, "1": 240, "2": 260, "3": 250 },
+            },
+            rh: [{ dl: 0, h: 0, ls: 2, rs: [1], sch: { "0": 39, "2": -39 }, w: 0, ws: [0] }],
+        });
+
+        expect(result.confirmationOwed).toBe(true);
+        expect(result.elapsedSeconds).toBe(4.5);
+        expect(result.roundResult).toMatchObject({
+            reason: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
+            resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+            type: "round_end",
+        });
+        expect(result.roundHistory).toEqual([
+            {
+                dealerSeat: 0,
+                honbaSticks: 0,
+                loserSeat: 2,
+                riichiSeats: [1],
+                scoreChanges: { "0": 3900, "2": -3900 },
+                tenpaiSeats: null,
+                wind: 0,
+                winnerSeats: [0],
+            },
+        ]);
     });
 
     it("parses dice and dora indicators", () => {

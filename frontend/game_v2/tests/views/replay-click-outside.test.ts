@@ -57,7 +57,7 @@ async function initReplayView(): Promise<void> {
     setupContainer();
     globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        text: () => Promise.resolve(""),
+        text: () => Promise.resolve('{"version": "0.3-dev"}'),
     }) as unknown as typeof fetch;
     replayView("test-game");
     vi.runAllTimers();

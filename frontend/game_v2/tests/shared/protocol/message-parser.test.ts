@@ -33,21 +33,6 @@ describe("parseServerMessage", () => {
             });
         });
 
-        it("parses a chat message", () => {
-            const raw = {
-                player_name: "Alice",
-                text: "Hello!",
-                type: SESSION_MESSAGE_TYPE.CHAT,
-            };
-            const [err, parsed] = parseServerMessage(raw);
-            expect(err).toBeNull();
-            expect(parsed).toEqual({
-                playerName: "Alice",
-                text: "Hello!",
-                type: "chat",
-            });
-        });
-
         it("parses a player_left message", () => {
             const raw = {
                 player_name: "Bob",
@@ -59,13 +44,6 @@ describe("parseServerMessage", () => {
                 playerName: "Bob",
                 type: "player_left",
             });
-        });
-
-        it("parses a game_left message", () => {
-            const raw = { type: SESSION_MESSAGE_TYPE.GAME_LEFT };
-            const [err, parsed] = parseServerMessage(raw);
-            expect(err).toBeNull();
-            expect(parsed).toEqual({ type: "game_left" });
         });
 
         it("parses a game_reconnected message", () => {
@@ -90,13 +68,15 @@ describe("parseServerMessage", () => {
                     { ai: 1, nm: "Bot3", s: 3 },
                 ],
                 pst: [
-                    { dsc: [], ml: [], ri: false, s: 0, sc: 250 },
-                    { dsc: [{ tg: true, ti: 50 }], ml: [100], ri: false, s: 1, sc: 250 },
-                    { dsc: [], ml: [], ri: false, s: 2, sc: 250 },
-                    { dsc: [], ml: [], ri: false, s: 3, sc: 250 },
+                    { dsc: [], ml: [], ri: false, s: 0, sc: 250, tc: 13 },
+                    { dsc: [{ tg: true, ti: 50 }], ml: [100], ri: false, s: 1, sc: 250, tc: 13 },
+                    { dsc: [], ml: [], ri: false, s: 2, sc: 250, tc: 13 },
+                    { dsc: [], ml: [], ri: false, s: 3, sc: 250, tc: 13 },
                 ],
                 r: 0,
+                rh: [],
                 s: 0,
+                tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
                 tr: 60,
                 type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
                 w: 0,
@@ -116,11 +96,20 @@ describe("parseServerMessage", () => {
             expect(err).toBeNull();
             expect(parsed).toEqual({
                 availableActions: [],
+                bankSeconds: null,
+                elapsedSeconds: null,
                 seat: 0,
                 tileId: 5,
                 type: "draw",
                 waitId: 3,
             });
+        });
+
+        it("parses a turn event", () => {
+            const raw = { kt: [3], t: EVENT_TYPE.TURN, wi: 5 };
+            const [err, parsed] = parseServerMessage(raw);
+            expect(err).toBeNull();
+            expect(parsed).toMatchObject({ kuikaeTileTypes: [3], type: "turn", waitId: 5 });
         });
 
         it("parses a discard event", () => {
@@ -145,6 +134,7 @@ describe("parseServerMessage", () => {
                 ],
                 dl: 0,
                 gid: "g-abc",
+                gt: 0,
                 p: [
                     { ai: 0, nm: "Alice", s: 0 },
                     { ai: 1, nm: "Bot", s: 1 },
@@ -169,8 +159,10 @@ describe("parseServerMessage", () => {
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
+                availableCalls: [],
                 callType: 0,
                 callerSeat: 2,
+                elapsedSeconds: null,
                 fromSeat: 1,
                 tileId: 50,
                 type: "call_prompt",
@@ -181,7 +173,7 @@ describe("parseServerMessage", () => {
         it("parses a round_end event (tsumo)", () => {
             const raw = {
                 ct: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                hr: { fu: 30, han: 3, yk: [{ han: 1, yi: 0 }] },
+                hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0 }] },
                 ml: [],
                 rc: 1,
                 rt: 0,

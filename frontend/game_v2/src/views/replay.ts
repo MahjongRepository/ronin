@@ -20,7 +20,12 @@ import {
     tableStateToDisplayState,
     turnsForStep,
 } from "@/entities/table";
-import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
+import {
+    REPLAY_VERSION,
+    type ReplayLine,
+    type SeatControlLine,
+    parseReplayLine,
+} from "@/shared/protocol";
 
 const REPLAY_EVENT_TYPES: Record<ReplayEvent["type"], true> = {
     discard: true,
@@ -34,14 +39,25 @@ const REPLAY_EVENT_TYPES: Record<ReplayEvent["type"], true> = {
     round_started: true,
 };
 
-export function isReplayEvent(msg: ParsedServerMessage): msg is ReplayEvent {
-    return msg.type in REPLAY_EVENT_TYPES;
+const SEAT_CONTROL_LINE_TYPES: Record<SeatControlLine["type"], true> = {
+    ai_replacement: true,
+    human_return: true,
+};
+
+export function isReplayEvent(line: ReplayLine): line is ReplayEvent {
+    return line.type in REPLAY_EVENT_TYPES;
+}
+
+function isSeatControlLine(line: ReplayLine): line is SeatControlLine {
+    return line.type in SEAT_CONTROL_LINE_TYPES;
 }
 
 interface ParsedReplay {
     errors: string[];
     events: ReplayEvent[];
 }
+
+type ReplayParse = ({ ok: true } & ParsedReplay) | { ok: false; refusal: string };
 
 interface ReplayViewState {
     abortController: AbortController | null;
@@ -67,30 +83,33 @@ let state: ReplayViewState = {
     viewGeneration: 0,
 };
 
-export function isVersionTag(line: string): boolean {
+function readReplayVersion(line: string): unknown {
     try {
-        return Boolean(JSON.parse(line).version);
+        const raw: unknown = JSON.parse(line);
+        return typeof raw === "object" && raw !== null && "version" in raw
+            ? raw.version
+            : undefined;
     } catch {
-        return false;
+        return undefined;
     }
 }
 
-function classifyParsedMessage(parsed: ParsedServerMessage, result: ParsedReplay): void {
-    if (isReplayEvent(parsed)) {
-        result.events.push(parsed);
-    } else {
-        result.errors.push(`Non-replay event type: ${parsed.type}`);
+function classifyReplayLine(line: ReplayLine, result: ParsedReplay): void {
+    if (isReplayEvent(line)) {
+        result.events.push(line);
+    } else if (!isSeatControlLine(line)) {
+        result.errors.push(`Non-replay event type: ${line.type}`);
     }
 }
 
 function parseLine(trimmed: string, result: ParsedReplay): void {
     try {
         const raw = JSON.parse(trimmed) as Record<string, unknown>;
-        const [error, parsed] = parseServerMessage(raw);
+        const [error, parsed] = parseReplayLine(raw);
         if (error) {
             result.errors.push(`Parse error: ${error.message}`);
         } else {
-            classifyParsedMessage(parsed, result);
+            classifyReplayLine(parsed, result);
         }
     } catch (parseError) {
         const detail = parseError instanceof Error ? parseError.message : String(parseError);
@@ -98,19 +117,35 @@ function parseLine(trimmed: string, result: ParsedReplay): void {
     }
 }
 
-export function parseReplayLines(text: string): ParsedReplay {
-    const result: ParsedReplay = { errors: [], events: [] };
+function findVersionRefusal(versionLine: string | undefined): string | null {
+    if (versionLine === undefined) {
+        return "Replay is empty";
+    }
+    const version = readReplayVersion(versionLine);
+    if (version === undefined) {
+        return "Replay does not start with a version line";
+    }
+    if (version !== REPLAY_VERSION) {
+        return `Unsupported replay version ${JSON.stringify(version)}`;
+    }
+    return null;
+}
 
-    const lines = text.split("\n").filter((line, index) => {
-        const trimmed = line.trim();
-        return trimmed && !(index === 0 && isVersionTag(trimmed));
-    });
-
-    for (const line of lines) {
-        parseLine(line.trim(), result);
+export function parseReplayLines(text: string): ReplayParse {
+    const [versionLine, ...eventLines] = text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const refusal = findVersionRefusal(versionLine);
+    if (refusal !== null) {
+        return { ok: false, refusal };
     }
 
-    return result;
+    const result: ParsedReplay = { errors: [], events: [] };
+    for (const line of eventLines) {
+        parseLine(line, result);
+    }
+    return { ok: true, ...result };
 }
 
 export function isAbortError(error: unknown): boolean {
@@ -143,7 +178,16 @@ async function processResponse(response: Response, generation: number): Promise<
     if (state.viewGeneration !== generation) {
         return;
     }
-    applyParsedReplay(parseReplayLines(text));
+    showReplay(text);
+}
+
+function showReplay(text: string): void {
+    const parsed = parseReplayLines(text);
+    if (!parsed.ok) {
+        renderSystemMessage(parsed.refusal);
+        return;
+    }
+    applyParsedReplay(parsed);
     updateStateDisplay();
 }
 

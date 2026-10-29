@@ -22,6 +22,10 @@ export {
     INTERNAL_MESSAGE_TYPE,
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
+    REPLAY_VERSION,
+    REPLAY_LINE_TYPE,
+    SEAT_CONTROL_REASON,
+    GAME_TYPE,
 } from "./constants";
 
 export type {
@@ -40,6 +44,8 @@ export type {
     AbortiveDrawType,
     SessionErrorCode,
     InternalMessageType,
+    SeatControlReason,
+    GameType,
 } from "./constants";
 
 export { decodeDraw } from "./decoders/draw";
@@ -54,12 +60,19 @@ export type { GameEvent, ParsedServerMessage, ParseResult } from "./schemas/mess
 
 export { parseSessionMessage } from "./schemas/session";
 export { parseCallPrompt } from "./schemas/call-prompt";
-export { parseRoundEnd } from "./schemas/round-results";
+export { parseRoundEnd, parseRoundResult } from "./schemas/round-results";
+export { parseReplayLine } from "./schemas/replay";
+export type {
+    AiReplacementLine,
+    HumanReturnLine,
+    ReplayLine,
+    ReplayLineParseResult,
+    SeatControlLine,
+} from "./schemas/replay";
 
 export {
     buildJoinGameMessage,
     buildReconnectMessage,
-    buildChatMessage,
     buildDiscardAction,
     buildRiichiAction,
     buildTsumoAction,
@@ -83,6 +96,7 @@ export type {
     ErrorEvent,
     FuritenEvent,
     GameEndEvent,
+    TurnEvent,
     RonPromptEvent,
     ChankanPromptEvent,
     MeldPromptEvent,
@@ -96,9 +110,7 @@ export type {
     RoundEndEvent,
     SessionErrorMessage,
     PlayerReconnectedMessage,
-    SessionChatMessage,
     PlayerLeftMessage,
-    GameLeftMessage,
     SessionMessage,
     GameReconnectedEvent,
 } from "./types";
