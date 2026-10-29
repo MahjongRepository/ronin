@@ -18,6 +18,7 @@ from game.logic.enums import (
 )
 from game.logic.events import (
     DiscardEvent,
+    DrawEvent,
     EventType,
     SeatTarget,
 )
@@ -55,6 +56,15 @@ class TestMahjongGameServiceAllPlayers:
         draw_events = [e for e in events if e.type == EventType.DRAW]
         assert len(draw_events) == 1
 
+    def test_start_game__when_dealer_is_ai__should_include_ai_dealer_draw_and_discard(self, service):
+        start = service.start_game("game1", ["Alice"], seed="c" * 192)
+        dealer_seat = start.runtime.state.round_state.dealer_seat
+        assert start.runtime.ai.is_ai_player(dealer_seat)
+
+        dealer_turn = [e for e in start.events if isinstance(e, DrawEvent | DiscardEvent) and e.seat == dealer_seat]
+        assert [type(e) for e in dealer_turn] == [DrawEvent, DiscardEvent]
+        assert start.runtime.state.round_state.current_player_seat == start.seats[0]
+
 
 class TestMahjongGameServiceReplaceWithAIPlayer:
     @pytest.fixture
@@ -62,7 +72,7 @@ class TestMahjongGameServiceReplaceWithAIPlayer:
         return MahjongGameService()
 
     def test_replace_with_ai_player__when_player_replaced__should_register_ai_player_in_controller(self, service):
-        start = service.start_game("game1", ["Alice"])
+        start = service.start_game("game1", ["Alice"], seed="a" * 192)
         runtime = start.runtime
         player_seat = start.seats[0]
         ai_player_controller = runtime.ai
@@ -112,14 +122,14 @@ class TestMahjongGameServiceProcessAIPlayerActionsAfterReplacement:
         return MahjongGameService()
 
     def test_ai_actions_after_replacement__when_round_not_playing__should_return_no_events(self, service):
-        runtime = service.start_game("game1", ["Alice"]).runtime
+        runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
         _update_round_state(runtime, phase=RoundPhase.FINISHED)
 
         events = service.process_ai_player_actions_after_replacement(runtime, seat=0).events
         assert events == []
 
     def test_ai_actions_after_replacement__when_replaced_player_has_turn__should_play_turn(self, service):
-        runtime = service.start_game("game1", ["Alice", "Bob"]).runtime
+        runtime = service.start_game("game1", ["Alice", "Bob"], seed="a" * 192).runtime
         game_state = runtime.state
         round_state = game_state.round_state
         player = _find_player(round_state, "Alice")

@@ -128,7 +128,7 @@ class TestConfirmRound:
         assert runtime.state.round_state.result is None
 
     def test_confirm_round__when_other_player_unconfirmed__should_keep_waiting(self, service):
-        runtime = service.start_game("game1", ["Alice", "Bob"]).runtime
+        runtime = service.start_game("game1", ["Alice", "Bob"], seed="a" * 192).runtime
         game_state = runtime.state
         alice = _find_player(game_state.round_state, "Alice")
         bob = _find_player(game_state.round_state, "Bob")
@@ -201,7 +201,7 @@ class TestRoundAdvanceAIPlayerReplacement:
         return MahjongGameService()
 
     def test_ai_replacement__when_one_player_disconnects_during_advance__should_confirm_their_seat(self, service):
-        runtime = service.start_game("game1", ["Alice", "Bob"]).runtime
+        runtime = service.start_game("game1", ["Alice", "Bob"], seed="a" * 192).runtime
         game_state = runtime.state
         alice = _find_player(game_state.round_state, "Alice")
 
