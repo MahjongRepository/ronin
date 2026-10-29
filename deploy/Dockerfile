@@ -1,16 +1,17 @@
 ARG PYTHON_VERSION=3.14.3
 ARG PYTHON_MINOR=3.14
 ARG ALPINE_VERSION=3.23
+ARG NODE_VERSION=26.13.0
 
 # =============================================================================
 # Stage 1: Build frontend assets
 # =============================================================================
-FROM oven/bun:1.3.9-alpine AS lobby-builder
+FROM node:${NODE_VERSION}-alpine AS lobby-builder
 
 WORKDIR /app/frontend/lobby
 
-COPY frontend/lobby/package.json frontend/lobby/bun.lock ./
-RUN bun install --frozen-lockfile
+COPY frontend/lobby/package.json frontend/lobby/package-lock.json frontend/lobby/.npmrc ./
+RUN npm ci
 
 COPY frontend/lobby/ ./
 
@@ -18,14 +19,14 @@ ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown
 ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
 
-RUN bun run build
+RUN npm run build
 
-FROM oven/bun:1.3.9-alpine AS game-builder
+FROM node:${NODE_VERSION}-alpine AS game-builder
 
 WORKDIR /app/frontend/game
 
-COPY frontend/game/package.json frontend/game/bun.lock ./
-RUN bun install --frozen-lockfile
+COPY frontend/game/package.json frontend/game/package-lock.json frontend/game/.npmrc ./
+RUN npm ci
 
 COPY frontend/game/ ./
 
@@ -33,7 +34,7 @@ ARG APP_VERSION=dev
 ARG GIT_COMMIT=unknown
 ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
 
-RUN bun run build
+RUN npm run build
 
 # =============================================================================
 # Stage 2: Install Python dependencies

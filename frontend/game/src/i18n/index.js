@@ -13,7 +13,7 @@ const LANG_COOKIE = "lang";
 const LANG_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
 const PLURAL_PARAM = "count";
-const PLACEHOLDER = /\{([a-z][a-z0-9_]*)\}/g;
+const PLACEHOLDER = /\{(?<name>[a-z][a-z0-9_]*)\}/g;
 const CATALOGS = Object.freeze({ en, ja, ru });
 
 /** The attributes `applyStaticText` fills, each from the key in its `data-i18n-…` attribute. */

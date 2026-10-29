@@ -5,7 +5,7 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "typecheck": "bunx tsc --noEmit && bunx tsc --noEmit -p tsconfig.node.json",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
         "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/lobby-app.scss:/dev/null",
         "lint:fix": "oxlint --fix . && stylelint --fix 'src/**/*.scss'",
         "fmt": "oxfmt",
@@ -14,20 +14,23 @@
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@picocss/pico": "^2.1.1",
-        "lit-html": "^3.3.2"
+        "@picocss/pico": "2.1.1",
+        "lit-html": "3.3.3"
     },
     "devDependencies": {
-        "@types/node": "^25.1.0",
-        "@vitest/coverage-v8": "^4.0.18",
-        "happy-dom": "^20.7.0",
-        "oxfmt": "^0.35.0",
-        "oxlint": "^1.50.0",
-        "sass": "^1.97.3",
-        "stylelint": "^17.1.0",
-        "stylelint-config-standard-scss": "^17.0.0",
-        "typescript": "^5.9.3",
-        "vite": "^7",
-        "vitest": "^4.0.18"
+        "@types/node": "26.6.5",
+        "@vitest/coverage-v8": "5.0.5",
+        "happy-dom": "21.0.4",
+        "oxfmt": "0.74.0",
+        "oxlint": "1.89.0",
+        "sass": "1.106.1",
+        "stylelint": "17.16.0",
+        "stylelint-config-standard-scss": "17.0.0",
+        "typescript": "7.0.2",
+        "vite": "8.3.5",
+        "vitest": "5.0.5"
+    },
+    "allowScripts": {
+        "@parcel/watcher": false
     }
 }

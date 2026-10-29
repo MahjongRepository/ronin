@@ -54,7 +54,7 @@ print_section "Bug Fixes" "${bugs[@]}"
 print_section "Maintenance" "${maintenance[@]}"
 print_section "Other" "${other[@]}"
 
-stats=$(git diff "${from_ref}..${to_ref}" --shortstat -- ':!*.lock' ':!bun.lock' ':!*.svg' | sed 's/^ *//')
+stats=$(git diff "${from_ref}..${to_ref}" --shortstat -- ':!*.lock' ':!package-lock.json' ':!*.svg' | sed 's/^ *//')
 echo "## Stats"
 echo
 echo "- Code changes (lock files and SVG assets excluded): ${stats}"

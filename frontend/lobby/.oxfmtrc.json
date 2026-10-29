@@ -6,5 +6,6 @@
     "semi": true,
     "singleQuote": false,
     "sortImports": {},
+    "embeddedLanguageFormatting": "off",
     "ignorePatterns": ["*.md", "coverage/**", "public/**"]
 }

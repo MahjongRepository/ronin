@@ -2,7 +2,7 @@
 
 The game client under `/play/*`: a fork of kobalab's 電脳麻将 (MajiangNG, MIT, see `LICENSE`). Its UI
 is the majiang-ui components drawing a majiang-core model; `src/js/ronin/` is the layer that speaks
-ronin's game protocol and drives that model. Plain JavaScript ES modules, built by Vite with Bun.
+ronin's game protocol and drives that model. Plain JavaScript ES modules, built by Vite.
 
 ## Vendored libraries
 
@@ -247,11 +247,14 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   `index.html` sets is renamed there too. Stylelint runs a copy of the lobby's config (keep the two
   in sync), which lets `-webkit-text-size-adjust` through because iOS Safari still needs it.
 * ES modules only (`"type": "module"`), `src/vendor/` included.
-* The app is plain JavaScript, so `bun run typecheck` is a no-op.
+* The app is plain JavaScript, so `npm run typecheck` is a no-op.
 
 ## Tests
 
-Vitest with happy-dom. New tests go in `src/js/__tests__/`. The `describe` block names the subject
+Vitest with happy-dom. New tests go in `src/js/__tests__/`. Their setup file settles jQuery's
+table-dimension support probe once: happy-dom lays nothing out, so every `offsetWidth` reads 0,
+which jQuery 4 takes for a window not yet shown, and it would rerun the probe, inserting and
+removing a table in the document, on every `.width()` and `.height()`. The `describe` block names the subject
 (the module or function under test) and the `it` title says what it pins.
 
 The replay files under `src/js/__tests__/fixtures/replays/`, for the replay converter's tests, are

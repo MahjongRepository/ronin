@@ -15,7 +15,7 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
   * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
-* `frontend/` — Vite / Bun: two isolated apps, each its own package. See `frontend/AGENTS.md`.
+* `frontend/` — Vite / npm on Node: two isolated apps, each its own package. See `frontend/AGENTS.md`.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
     `frontend/lobby/AGENTS.md`.
   * `frontend/game/` — the game client (MajiangNG: JavaScript / jQuery). See `frontend/game/AGENTS.md`.
@@ -33,7 +33,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make install-frontend` — `bun install` in each frontend app.
+* `make install-frontend` — `npm ci` in each frontend app.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
   frontend app (`:5173` lobby, `:5174` game client) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
@@ -71,7 +71,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 ## Workflow
 
 * While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
-  `cd frontend/<app> && bunx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
+  `cd frontend/<app> && npx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
   `make lint` and `make typecheck` are fine.
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.

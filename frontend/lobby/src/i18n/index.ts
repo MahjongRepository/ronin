@@ -7,7 +7,7 @@ import ru from "@/i18n/locales/ru.json";
 const LOCALES = ["en", "ja", "ru"] as const;
 const DEFAULT_LOCALE = "en";
 const PLURAL_PARAM = "count";
-const PLACEHOLDER = /\{([a-z][a-z0-9_]*)\}/g;
+const PLACEHOLDER = /\{(?<name>[a-z][a-z0-9_]*)\}/g;
 
 type Locale = (typeof LOCALES)[number];
 type MessageKey = keyof typeof en;
