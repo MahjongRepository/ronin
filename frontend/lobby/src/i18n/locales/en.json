@@ -31,7 +31,7 @@
     "occupancy.match_starting": "Your match is starting. Try again in a moment to join the game.",
     "occupancy.replaced_by_new_connection": "This page is now open in another tab or window. You can close this one.",
     "room.badge.you": "You",
-    "room.cancel_ready": "Cancel ready",
+    "room.cancel_ready": "Not ready",
     "room.chat.game_starting": "Game starting!",
     "room.chat.label": "Chat message",
     "room.chat.now_host": "You're now the host",
