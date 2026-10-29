@@ -55,10 +55,8 @@ class HeldSleep:
 
 
 @pytest.fixture
-def fake_clock(monkeypatch):
-    clock = FakeClock()
-    monkeypatch.setattr(timer_module, "time", SimpleNamespace(monotonic=clock.monotonic))
-    return clock
+def fake_clock():
+    return FakeClock()
 
 
 @pytest.fixture

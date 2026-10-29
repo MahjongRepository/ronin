@@ -75,7 +75,18 @@ own `AGENTS.md`.
   the lobby handoff, then ordered client events, each step naming exactly the effects it must
   describe (none when omitted), so every send is asserted and never fed in. `runSeatScenario`
   builds its timeline and reports every step whose effects part from the scenario, a payload that
-  does not parse included. The tests run the hand-written ones under `tests/fixtures/scenarios/`;
+  does not parse included. `seatScenarioFromTranscript` builds one from a seat transcript the
+  backend generated (what the server sent one seat and what the seat sent it, JOIN_GAME and
+  RECONNECT included with the ticket left out, and the closes it saw, parsed strictly with Zod where
+  it arrives as JSON). It drives the client as the live driver does, ticking at each deadline the
+  client holds before the next recorded event, but takes the effects it expects only from the
+  transcript and the contract, never from the client logic under test: each recorded send at its
+  recorded time (an answer as the intent choosing it, a send the client makes on its own, a round
+  confirm or a resent identity, as a tick then, the identity after an open as that open's effect), a
+  reopened socket asked for at its recorded open, the lobby after a close the contract makes
+  terminal (its own copy of the codes), and nothing from any other tick, so an automatic send that is
+  early, late or missing is a mismatch. Because sent messages parse strictly, an expected send also
+  pins the builders' wire shape to what the server accepted. The tests run the generated ones;
   nothing in the app runs one yet.
 * **Session** (`entities/session`): one machine owns joining, playing, reconnecting and the end.
   It joins with the lobby's ticket (`shared/session` holds the handoff) and resumes the seat with
@@ -139,11 +150,23 @@ in `tests/fixtures/` and are imported through the `#tests/` subpath import (`pac
 `imports`), since a relative parent import fails lint. Build protocol events with the event
 factories there, typed by the schemas' output, rather than as literals repeated across tests, so a
 schema change fails the typecheck and is fixed in one place. Raw wire payloads for the dispatcher
-live there too, as do the scenario stepper and the hand-written seat scenarios
-(`tests/fixtures/scenarios/`): session and dispatcher tests are written as sequences of client
-events with the effects each step returns, never through the DOM, and a view's own tests inject
-fakes for its socket factory, loader and clock rather than mocking modules. A seat scenario's
-payloads must parse, which its run checks.
+live there too, as does the scenario stepper: session and dispatcher tests are written as
+sequences of client events with the effects each step returns, never through the DOM, and a view's
+own tests inject fakes for its socket factory, loader and clock rather than mocking modules. A seat
+scenario's payloads must parse, which its run checks.
+
+The seat transcripts under `tests/fixtures/seat-scenarios/` are generated too, never edited by hand
+(oxfmt skips them): `make generate-seat-scenarios` plays each scenario of
+`backend/scripts/seat_scenarios/` through the real session manager, router and engine on virtual
+time, and the checks fail when one drifts from what the server sends now. A new interaction case is
+a new scenario there, labelling the messages and actions its tests look up. Every transcript runs
+through `runSeatScenario` with no mismatch, and the tests assert named checkpoints apart from the
+effects (the open decision with its offers, wait id and deadline, the table, the result), since
+matching effects alone passes with a wrong hand or decision. What the server cannot produce is a
+hand-written branch on a generated scenario: the client's own intents and ticks (a kuikae or riichi
+discard it refuses, an expired prompt), an answer racing a newer wait or the endpoint's rate limit
+(the harness skips the endpoint, and a transcript keeps the server's order), and a payload edited to
+a shape the server never sends.
 
 The replay files under `tests/fixtures/replays/` are generated, never edited by hand:
 `make generate-replay-fixtures` records each from a game the engine plays

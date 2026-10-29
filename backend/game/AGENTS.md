@@ -72,3 +72,9 @@ real and fake WebSockets and holds hand staging shared by unit and integration t
 timers without waiting.
 Whole-game flows use the replay runner on `tests/integration/replays/fixtures/` or a built
 `ReplayInput`, asserting on each step's before/after state.
+A change to what the session sends a seat (a payload, a stamp, a delivery rule) is followed by
+`make generate-seat-scenarios`: `scripts/seat_scenarios/` plays scripted clients through the real
+`SessionManager` and `MessageRouter` over in-memory sockets, on an event loop whose clock jumps to each
+timer instead of waiting, and records what each seat received and sent for the v2 client's tests. A
+socket the server closes runs the router's disconnect as the endpoint does, and a scripted step that
+falls on the moment a server timer fires is refused, since their order would be the loop's.

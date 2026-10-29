@@ -29,3 +29,5 @@ export type {
     SeatScenario,
 } from "./model/scenario";
 export { runSeatScenario, scenarioStateIndex } from "./model/scenario";
+export type { SeatTranscript } from "./model/seat-transcript";
+export { parseSeatTranscript, seatScenarioFromTranscript } from "./model/seat-transcript";

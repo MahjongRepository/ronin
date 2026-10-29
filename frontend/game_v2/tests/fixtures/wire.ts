@@ -1,4 +1,4 @@
-import { ROUND_RESULT_TYPE } from "@/shared/protocol";
+import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 export type WirePayload = Record<string, unknown>;
 
@@ -87,3 +87,14 @@ export function wireRoundEnd(waitId: number | null): WirePayload {
 export function wireSessionError(code: string): WirePayload {
     return { code, message: `server said ${code}`, type: "session_error" };
 }
+
+/** A game error refusing the seat's action, `code` one of the server's game error codes (`GameErrorCode`). */
+export function wireGameError(code: string): WirePayload {
+    return { cd: code, msg: `server said ${code}`, t: EVENT_TYPE.ERROR };
+}
+
+/** The engine's refusal of a call on a rule judgment, a refusal that is not stale. */
+export const WIRE_RULE_REFUSAL: WirePayload = wireGameError("invalid_pon");
+
+/** A presence notice the server broadcasts when another player's socket leaves. */
+export const WIRE_PLAYER_LEFT: WirePayload = { player_name: "Bob", type: "player_left" };

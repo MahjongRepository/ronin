@@ -30,6 +30,7 @@ from scripts.replay_fixtures.staged_game import (
     cut_after,
     require_outcome,
     require_reproduces,
+    tile,
 )
 
 if TYPE_CHECKING:
@@ -44,14 +45,6 @@ BACKEND_FULL_GAME_ID = "fixture-fg"
 EAGER_GAME_SEED = "09" * 96
 EAGER_DOUBLE_RON_SEED = "033c" * 48
 GAME_ENDS = (WireEventType.GAME_END, {})
-
-
-def tile(copy: int, **suit: str) -> int:
-    """
-    Return the tile id of one copy of one tile, named as tile_copies names tiles (man="5", honors="7").
-    """
-    (tile_id,) = tile_copies(copy, **suit)
-    return tile_id
 
 
 def riichi() -> Recording:

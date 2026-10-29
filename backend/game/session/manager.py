@@ -47,7 +47,7 @@ from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import Callable, Coroutine
 
     from game.logic.runtime import GameRuntime
     from game.logic.service import Awaiting, GameService
@@ -82,7 +82,8 @@ class SessionManager:
 
     The registry holds only pending and playing games, their participants by game ticket, the registered connections and
     which participant each authenticated connection is bound to. A game's end is claimed once (`_end_game`), which
-    releases it from the registry at once; its effects then run in one finalizer task the manager owns.
+    releases it from the registry at once; its effects then run in one finalizer task the manager owns. Every monotonic
+    time it reads comes from its clock, the participants' turn timers (`TurnTimer`) included.
     """
 
     def __init__(
@@ -92,11 +93,13 @@ class SessionManager:
         game_repository: GameRepository,
         replay_collector: ReplayCollector,
         timer_config: TimerConfig | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._game_service = game_service
         self._game_repository = game_repository
         self._replay_collector = replay_collector
         self._timer_config = timer_config if timer_config is not None else TimerConfig()
+        self._clock = clock
 
         self._games: dict[str, GameSession] = {}
         self._withdrawn_game_ids: dict[str, float] = {}
@@ -220,7 +223,7 @@ class SessionManager:
 
         game = GameSession(game_id=game_id, timer_config=self._timer_config)
         for spec in player_specs:
-            participant = Participant(spec=spec, game=game, timer=TurnTimer(self._timer_config))
+            participant = Participant(spec=spec, game=game, timer=TurnTimer(self._timer_config, clock=self._clock))
             game.participants.append(participant)
             self._participants_by_ticket[spec.game_ticket] = participant
 
@@ -236,7 +239,7 @@ class SessionManager:
         arrives after the withdrawal never registers. Withdrawn ids are kept for as long as a game ticket lives: an
         older creation fails its ticket check anyway. A game someone joined, or one already playing, is kept.
         """
-        now = time.monotonic()
+        now = self._clock()
         self._withdrawn_game_ids = {
             withdrawn_id: expires_at
             for withdrawn_id, expires_at in self._withdrawn_game_ids.items()

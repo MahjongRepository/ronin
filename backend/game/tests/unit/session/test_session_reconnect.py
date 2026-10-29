@@ -157,7 +157,7 @@ class TestReconnectTakeover:
     async def test_reconnect__when_the_turn_seat_is_still_connected__should_take_over_its_turn_without_resetting_it(
         self, seeded_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
         old_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice = participant_of(manager, old_conn)
         runtime = runtime_of(manager)
@@ -205,7 +205,7 @@ class TestReconnectTakeover:
     async def test_reconnect__when_a_seat_with_an_unanswered_call_prompt_is_still_connected__should_resend_its_prompt(
         self, seeded_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn) for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(
@@ -244,7 +244,7 @@ class TestReconnectTakeover:
     async def test_reconnect__when_taken_over_in_the_round_advance__should_send_the_owed_confirmation_and_its_wait(
         self, seeded_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
         alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
         arrange_exhaustive_draw(runtime_of(manager))

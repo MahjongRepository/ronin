@@ -7,5 +7,5 @@
     "singleQuote": false,
     "sortImports": {},
     "embeddedLanguageFormatting": "off",
-    "ignorePatterns": ["*.md", "coverage/**", "src/assets/**"]
+    "ignorePatterns": ["*.md", "coverage/**", "src/assets/**", "tests/fixtures/seat-scenarios/**"]
 }

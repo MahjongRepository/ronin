@@ -7,7 +7,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 FRONTEND_APPS := lobby game game_v2
 CHECKED_FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check profile profile-games measure-wall
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -66,6 +66,12 @@ generate-replay-fixtures:
 
 replay-fixtures-check:
 	cd backend && uv run python -m scripts.generate_replay_fixtures --check
+
+generate-seat-scenarios:
+	cd backend && uv run python -m scripts.generate_seat_scenarios
+
+seat-scenarios-check:
+	cd backend && uv run python -m scripts.generate_seat_scenarios --check
 
 profile:
 	$(BE_RUN) python bin/profile_replay.py

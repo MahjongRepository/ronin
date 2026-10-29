@@ -14,6 +14,7 @@ from game.logic.tiles import hand_to_34_array
 from game.replay import run_replay
 from game.replay.loader import load_replay_from_string
 from game.session.replay_collector import ReplayCollector, ReplayRecord
+from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
 from game.wire.enums import WireEventType
@@ -176,6 +177,14 @@ def cut_after(recording: Recording, *, event_type: WireEventType, occurrence: in
     )
     cut.run()
     return cut
+
+
+def tile(copy: int, **suit: str) -> int:
+    """
+    Return the tile id of one copy of one tile, named as tile_copies names tiles (man="5", honors="7").
+    """
+    (tile_id,) = tile_copies(copy, **suit)
+    return tile_id
 
 
 @dataclass(frozen=True)

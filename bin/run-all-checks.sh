@@ -29,6 +29,7 @@ run_check "Lint" "make lint"
 run_check "Typecheck" "make typecheck"
 run_check "Test" "make test"
 run_check "Replay fixtures" "make replay-fixtures-check"
+run_check "Seat scenarios" "make seat-scenarios-check"
 
 # --- Frontend Checks ---
 run_check "Frontend format" "make format-frontend"

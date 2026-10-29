@@ -1,0 +1,28 @@
+{
+  "game_id": "seat-reconnect",
+  "scenario": "reconnect",
+  "seat": 1,
+  "events": [
+    {"at": 0, "kind": "opened"},
+    {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
+    {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-reconnect", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}}},
+    {"at": 3000, "kind": "received", "payload": {"cp": 0, "dc": [1, 1], "di": [121], "dl": 0, "h": 0, "mt": [4, 8, 12, 53, 57, 61, 89, 90, 96, 100, 120, 124, 125], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "s": 1, "t": 9, "w": 0}},
+    {"at": 3000, "kind": "received", "payload": {"d": 670, "t": 2}},
+    {"at": 3000, "kind": "received", "label": "prompt", "payload": {"ac": [{"clt": 0}], "clt": 1, "cs": 1, "frs": 0, "t": 3, "ti": 126, "wi": 1}},
+    {"at": 4500, "code": 1006, "kind": "closed", "label": "dropped", "reason": ""},
+    {"at": 5500, "kind": "opened", "label": "reopened"},
+    {"at": 5500, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 6}},
+    {"at": 5500, "kind": "received", "label": "reconnected", "payload": {"cp": 0, "dc": [1, 1], "dd": [[1, 1], [1, 1]], "di": [121], "dl": 0, "f": false, "gid": "seat-reconnect", "h": 0, "mt": [4, 8, 12, 53, 57, 61, 89, 90, 96, 100, 120, 124, 125], "n": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "pst": [{"dsc": [{"rd": false, "tg": true, "ti": 126}], "ml": [], "ri": false, "s": 0, "sc": 250, "tc": 13}, {"dsc": [], "ml": [], "ri": false, "s": 1, "sc": 250, "tc": 13}, {"dsc": [], "ml": [], "ri": false, "s": 2, "sc": 250, "tc": 13}, {"dsc": [], "ml": [], "ri": false, "s": 3, "sc": 250, "tc": 13}], "r": 0, "rh": [], "s": 1, "tm": {"bk": 30.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}, "tr": 69, "type": "game_reconnected", "w": 0, "wi": 1}},
+    {"at": 5500, "kind": "received", "label": "prompt re-sent", "payload": {"ac": [{"clt": 0}], "clt": 1, "cs": 1, "el": 2.5, "frs": 0, "t": 3, "ti": 126, "wi": 1}},
+    {"at": 6500, "kind": "sent", "label": "pon chosen", "message": {"a": 4, "t": 3, "ti": 126, "wi": 1}},
+    {"at": 6500, "kind": "received", "payload": {"m": 20733, "t": 0}},
+    {"at": 6500, "kind": "received", "label": "turn", "payload": {"bk": 30, "kt": [31], "t": 12, "wi": 2}},
+    {"at": 8000, "kind": "sent", "label": "discarded", "message": {"a": 0, "t": 3, "ti": 120, "wi": 2}},
+    {"at": 8000, "kind": "received", "payload": {"d": 256, "t": 2}},
+    {"at": 8000, "kind": "received", "payload": {"d": 908, "t": 2}},
+    {"at": 8000, "kind": "received", "label": "ron prompt", "payload": {"clt": 0, "cs": 1, "frs": 2, "t": 3, "ti": 92, "wi": 3}},
+    {"at": 10000, "kind": "sent", "label": "ron chosen", "message": {"a": 3, "t": 3, "wi": 3}},
+    {"at": 10000, "kind": "received", "label": "round end", "payload": {"ct": [4, 8, 12, 53, 57, 61, 89, 90, 96, 100], "hr": {"fu": 30, "han": 1, "pt": 10, "yk": [{"han": 1, "yi": 15}]}, "ls": 2, "ml": [20733], "rc": 0, "rt": 1, "sch": {"0": 0, "1": 10, "2": -10, "3": 0}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "wi": 4, "ws": 1, "wt": 92}},
+    {"at": 10500, "code": 4002, "kind": "closed", "reason": "replaced_by_new_connection"}
+  ]
+}

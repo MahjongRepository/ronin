@@ -38,11 +38,14 @@ class TurnTimer:
     Manage action timers for a player in a game.
 
     Uses a two-phase timer: base time (free, resets each turn) followed by bank time
-    (drains only when base time expires). Meld decisions use a separate fixed timer.
+    (drains only when base time expires). Meld decisions use a separate fixed timer. The clock (monotonic seconds)
+    times the bank and the elapsed time, and must agree with the event loop's clock, which times the sleeps: a harness
+    that runs the loop on virtual time passes the loop's.
     """
 
-    def __init__(self, config: TimerConfig) -> None:
+    def __init__(self, config: TimerConfig, *, clock: Callable[[], float] = time.monotonic) -> None:
         self._config = config
+        self._clock = clock
         self._bank_seconds: float = config.initial_bank_seconds
         self._active_task: asyncio.Task[None] | None = None
         self._turn_start_time: float | None = None
@@ -70,7 +73,7 @@ class TurnTimer:
         if self._active_task is None or self._started_at is None:
             return None
 
-        return time.monotonic() - self._started_at
+        return self._clock() - self._started_at
 
     def add_round_bonus(self) -> None:
         """
@@ -86,7 +89,7 @@ class TurnTimer:
         Start the turn timer using base time + bank time.
         """
         self.cancel()
-        self._turn_start_time = self._started_at = time.monotonic()
+        self._turn_start_time = self._started_at = self._clock()
         total = self._config.base_turn_seconds + self._bank_seconds
         self._active_task = asyncio.create_task(self._run_timer(total, on_timeout))
 
@@ -102,7 +105,7 @@ class TurnTimer:
         """
         self.cancel()
         self._turn_start_time = None  # don't consume bank time
-        self._started_at = time.monotonic()
+        self._started_at = self._clock()
         self._active_task = asyncio.create_task(self._run_timer(duration, on_timeout))
 
     def stop(self) -> None:
@@ -123,7 +126,7 @@ class TurnTimer:
 
     def _deduct_bank_time(self) -> None:
         if self._turn_start_time is not None:
-            elapsed = time.monotonic() - self._turn_start_time
+            elapsed = self._clock() - self._turn_start_time
             bank_used = max(0, elapsed - self._config.base_turn_seconds)
             self._bank_seconds = max(0, self._bank_seconds - bank_used)
             self._turn_start_time = None

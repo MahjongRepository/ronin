@@ -1,0 +1,180 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from game.logic.enums import KanType
+from game.messaging.types import SessionMessageType
+from game.tests.helpers.hands import tile_copies
+from game.wire.enums import WireEventType
+from scripts.replay_fixtures.staged_game import StagedWall, tile
+from scripts.seat_scenarios.harness import seated_game
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from scripts.seat_scenarios.harness import SeatTranscript
+
+PLAYER = "Alice"
+
+
+def call_prompt() -> tuple[SeatTranscript, ...]:
+    """
+    Offer Alice, the one human at the table (seat 1), a pon, an open kan and a chi two ways on the dealer's 3m; she
+    calls chi, and her turn after it opens with the tile types kuikae forbids.
+
+    She passes a pon of 7s from seat 2, and her next draw opens her next turn with what is left of her bank.
+    """
+    called_tile = tile(0, man="3")
+    ponnable_tile = tile(2, sou="7")
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="1245689", pin="13579", sou="1"),
+            (
+                *tile_copies(0, man="12"),
+                *(tile(copy, man="3") for copy in range(1, 4)),
+                *tile_copies(0, man="4", pin="678", sou="2"),
+                *tile_copies(0, sou="7"),
+                tile(1, sou="7"),
+                tile(0, honors="3"),
+            ),
+            tile_copies(2, man="1245689", pin="24689", sou="2"),
+            tile_copies(1, man="12456", pin="1359", sou="4569"),
+        ),
+        draws=(
+            (0, called_tile),
+            (2, ponnable_tile),
+            (3, tile(0, honors="7")),
+            (0, tile(0, honors="6")),
+            (1, tile(0, sou="1")),
+        ),
+    )
+
+    with seated_game("seat-call-prompt", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("dealt", WireEventType.ROUND_STARTED)
+        alice.label("prompt", WireEventType.CALL_PROMPT)
+        alice.chi(called_tile, (tile(0, man="1"), tile(0, man="2")), at=5, label="chi chosen")
+        alice.label("turn", WireEventType.TURN)
+        alice.discard(tile(0, honors="3"), at=12, label="discarded")
+        alice.label("pon prompt", WireEventType.CALL_PROMPT)
+        alice.pass_(at=14, label="passed")
+        alice.label("next turn", WireEventType.DRAW)
+
+        return game.transcripts("call_prompt", PLAYER)
+
+
+def own_turn() -> tuple[SeatTranscript, ...]:
+    """
+    Deal Alice (seat 1) three 1m and draw her the fourth, which offers a closed kan and riichi.
+
+    Her socket dies unseen during the turn, and her reconnect takes it over: the snapshot, then the draw re-sent with
+    the time its timer has run. She declares the kan and riichi on its rinshan draw.
+
+    She passes a ron on seat 2's 6s, which leaves her furiten, wins by tsumo on her next draw, and confirms the round
+    end a second after it, as the client does on its own, after which she deals the next round from the seed.
+    """
+    rinshan_tile = tile(0, honors="4")
+    passed_ron_tile = tile(0, sou="6")
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="2456789", pin="19", sou="1234"),
+            (
+                *(tile(copy, man="1") for copy in range(3)),
+                *tile_copies(0, pin="234"),
+                *tile_copies(1, pin="567"),
+                *tile_copies(0, sou="78"),
+                tile(1, sou="5"),
+                tile(2, sou="5"),
+            ),
+            tile_copies(2, man="2345678", pin="123", sou="123"),
+            tile_copies(1, man="2345678", pin="189", sou="123"),
+        ),
+        draws=(
+            (0, tile(0, honors="2")),
+            (1, tile(3, man="1")),
+            (2, passed_ron_tile),
+            (3, tile(0, honors="3")),
+            (0, tile(0, honors="6")),
+            (1, tile(0, sou="9")),
+        ),
+        rinshan=(rinshan_tile,),
+    )
+
+    with seated_game("seat-own-turn", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.drop_unseen(at=3.5, label="dropped")
+        alice.label("first draw", WireEventType.DRAW)
+        alice.reconnect(at=4.5, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.label("draw re-sent", WireEventType.DRAW)
+        alice.kan(tile(0, man="1"), KanType.CLOSED, at=5, label="kan chosen")
+        alice.label("rinshan", WireEventType.DRAW)
+        alice.riichi(rinshan_tile, at=11, label="riichi chosen")
+        alice.label("ron prompt", WireEventType.CALL_PROMPT)
+        alice.pass_(at=13, label="passed")
+        alice.label("furiten", WireEventType.FURITEN)
+        alice.label("tsumo draw", WireEventType.DRAW)
+        alice.tsumo(at=15, label="tsumo chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+        alice.confirm_round(at=16, label="confirmed")
+        alice.label("next round", WireEventType.ROUND_STARTED)
+        alice.label("dealer draw", WireEventType.DRAW)
+
+        return game.transcripts("own_turn", PLAYER)
+
+
+def reconnect() -> tuple[SeatTranscript, ...]:
+    """
+    Offer Alice (seat 1) a pon of the dealer's haku; her socket dies unseen, so the server keeps her seat and the wait,
+    and her reconnect takes the half-open connection over: the snapshot, then the prompt re-sent with the time its timer
+    has run. She pons, discards into a ready hand and rons seat 2's 6s; during the round advance another tab of hers
+    takes the seat over, closing her socket with 4002.
+    """
+    haku = tile(2, honors="5")
+    junk = tile(0, honors="4")
+    staged = StagedWall(
+        hands=(
+            tile_copies(3, man="156789", pin="1234", sou="123"),
+            (
+                *tile_copies(0, honors="5"),
+                tile(1, honors="5"),
+                *tile_copies(0, man="234", sou="78"),
+                *tile_copies(1, pin="567"),
+                tile(1, sou="5"),
+                tile(2, sou="5"),
+                junk,
+            ),
+            tile_copies(2, man="156789", pin="1234", sou="123"),
+            tile_copies(1, man="156789", pin="1234", sou="123"),
+        ),
+        draws=((0, haku), (2, tile(0, sou="6"))),
+    )
+
+    with seated_game("seat-reconnect", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("prompt", WireEventType.CALL_PROMPT)
+        alice.drop_unseen(at=4.5, label="dropped")
+        alice.reconnect(at=5.5, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.label("prompt re-sent", WireEventType.CALL_PROMPT)
+        alice.pon(haku, at=6.5, label="pon chosen")
+        alice.label("turn", WireEventType.TURN)
+        alice.discard(junk, at=8, label="discarded")
+        alice.label("ron prompt", WireEventType.CALL_PROMPT)
+        alice.ron(at=10, label="ron chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+        alice.be_replaced_by_another_tab(at=10.5)
+
+        return game.transcripts("reconnect", PLAYER)
+
+
+SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
+    "call_prompt": call_prompt,
+    "own_turn": own_turn,
+    "reconnect": reconnect,
+}

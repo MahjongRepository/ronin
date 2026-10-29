@@ -1,0 +1,551 @@
+from __future__ import annotations
+
+import asyncio
+import dataclasses
+import json
+import selectors
+from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any, override
+
+from game.logic.mahjong_service import MahjongGameService
+from game.logic.settings import GameSettings
+from game.messaging.encoder import decode, encode
+from game.messaging.event_payload import WAIT_ID_KEY
+from game.messaging.protocol import ConnectionProtocol
+from game.messaging.types import SessionMessageType
+from game.messaging.wire_enums import WireClientMessageType, WireGameAction
+from game.server.router import MessageRouter
+from game.session.manager import SessionManager
+from game.session.models import PlayerSpec
+from game.session.replay_collector import ReplayCollector
+from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
+from game.tests.mocks import FakeGameRepository, FakeReplayStorage
+from game.wire.enums import WireEventType
+from scripts.replay_fixtures.staged_game import STAGED_SEED, ScenarioError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Mapping, Sequence
+    from concurrent.futures import Executor
+    from contextvars import Context
+
+    from game.logic.enums import KanType
+    from game.logic.service import GameStart
+    from scripts.replay_fixtures.staged_game import StagedWall
+
+TIME_GRAIN_SECONDS = 0.25
+UNSEEN_DROP_CODE = 1006
+GAME_TICKET_PLACEHOLDER = "<game ticket>"
+
+
+class VirtualTimeLoop(asyncio.SelectorEventLoop):
+    """
+    An event loop on virtual time: whenever it would wait, for a timer or for I/O, it jumps its clock to the moment the
+    wait ends instead, so sleeps take no real time and every timer fires at its exact virtual moment.
+
+    It keeps the timers it was asked for, so a scripted step can refuse to fall on the moment one fires, and it runs no
+    thread: a call into an executor raises.
+    """
+
+    def __init__(self) -> None:
+        self._now = 0.0
+        self._timers: list[asyncio.TimerHandle] = []
+        super().__init__(selector=_AdvancingSelector(self))
+
+    @override
+    def time(self) -> float:
+        return self._now
+
+    def advance(self, seconds: float) -> None:
+        self._now += seconds
+
+    @override
+    def call_at(
+        self,
+        when: float,
+        callback: Callable[..., object],
+        *args: Any,
+        context: Context | None = None,
+    ) -> asyncio.TimerHandle:
+        handle = super().call_at(when, callback, *args, context=context)
+        self._timers.append(handle)
+        return handle
+
+    def has_timer_at(self, when: float) -> bool:
+        """
+        Whether a timer still armed falls due exactly at `when`, a moment ahead of the clock.
+        """
+        self._timers = [timer for timer in self._timers if not timer.cancelled() and timer.when() >= self._now]
+        return when > self._now and any(timer.when() == when for timer in self._timers)
+
+    @override
+    def run_in_executor(self, executor: Executor | None, func: Callable[..., Any], *args: Any) -> asyncio.Future[Any]:
+        raise ScenarioError("the harness runs no thread, but something asked the loop for an executor")
+
+
+class _AdvancingSelector(selectors.SelectSelector):
+    """
+    A selector that never blocks: asked to wait up to a timeout, it moves its loop's clock on by the timeout and reports
+    no I/O, since the harness's sockets are in memory.
+    """
+
+    def __init__(self, loop: VirtualTimeLoop) -> None:
+        super().__init__()
+        self._loop = loop
+
+    @override
+    def select(self, timeout: float | None = None) -> list[tuple[selectors.SelectorKey, int]]:
+        if timeout is None:
+            raise ScenarioError("the loop would wait forever: no step is pending and no timer is armed")
+
+        self._loop.advance(timeout)
+        return []
+
+
+class _StagedEngine(MahjongGameService):
+    """
+    The real engine, dealing every game it starts from the staged seed and wall, as the session starts one with neither.
+    """
+
+    def __init__(self, wall: tuple[int, ...], settings: GameSettings) -> None:
+        super().__init__()
+        self._wall = wall
+        self._settings = settings
+
+    @override
+    def start_game(
+        self,
+        game_id: str,
+        player_names: list[str],
+        *,
+        seed: str | None = None,
+        settings: GameSettings | None = None,
+        wall: list[int] | None = None,
+    ) -> GameStart:
+        if seed is not None or settings is not None or wall is not None:
+            raise ScenarioError(f"{game_id}: the session started a game with its own seed, settings or wall")
+
+        return super().start_game(
+            game_id, player_names, seed=STAGED_SEED, settings=self._settings, wall=list(self._wall)
+        )
+
+
+class _ClientSocket(ConnectionProtocol):
+    """
+    One socket of a seat's client, in memory: what the server sends it and its close go to the client, decoded.
+
+    A close the server queues ends the socket as the endpoint's would: the router's disconnect runs once, on the loop's
+    next turn, as the endpoint's receive loop ends.
+    """
+
+    def __init__(self, client: SeatClient, connection_id: str) -> None:
+        self._client = client
+        self._connection_id = connection_id
+        self._closed = False
+
+    @property
+    @override
+    def connection_id(self) -> str:
+        return self._connection_id
+
+    @property
+    @override
+    def game_id(self) -> str:
+        return self._client.game_id
+
+    @override
+    def send_bytes(self, data: bytes) -> None:
+        if not self._closed:
+            self._client.receive(self, decode(data))
+
+    @override
+    async def receive_bytes(self) -> bytes:
+        raise ConnectionError("the harness hands client messages to the router itself")
+
+    @override
+    def close(self, code: int = 1000, reason: str = "") -> None:
+        if self._closed:
+            return
+
+        self._closed = True
+        self._client.lose(self, code=code, reason=reason)
+        asyncio.get_running_loop().call_soon(self._client.router.handle_disconnect, self)
+
+
+class EventKind(StrEnum):
+    OPENED = "opened"
+    RECEIVED = "received"
+    SENT = "sent"
+    CLOSED = "closed"
+
+
+@dataclass(frozen=True)
+class TranscriptEvent:
+    """
+    One event of a seat's transcript at its logical time in milliseconds: its kind's fields (a received payload, a sent
+    message, a close's code and reason) and the label a scenario named it by.
+    """
+
+    at: int
+    kind: EventKind
+    fields: Mapping[str, Any]
+    label: str | None = None
+
+    def as_json(self) -> dict[str, Any]:
+        label = {} if self.label is None else {"label": self.label}
+        return {"at": self.at, "kind": self.kind.value, **self.fields, **label}
+
+
+def _is_refusal(payload: Mapping[str, Any]) -> bool:
+    return payload.get("t") == WireEventType.ERROR or payload.get("type") == SessionMessageType.ERROR
+
+
+def _matches(payload: Mapping[str, Any], kind: WireEventType | SessionMessageType) -> bool:
+    if isinstance(kind, SessionMessageType):
+        return payload.get("type") == kind
+
+    return payload.get("t") == kind and "type" not in payload
+
+
+def _as_wire(message: Mapping[str, Any]) -> dict[str, Any]:
+    """
+    Return a client message as the router gets it from a socket: through MessagePack, plain integers and strings.
+    """
+    return decode(encode(dict(message)))
+
+
+class SeatClient:
+    """
+    One player's game client as the server meets it: it opens sockets, identifies, and answers the waits it is sent,
+    each at a scripted virtual time, echoing the wait id it last received as a client does.
+
+    Its transcript is what the client met, in order, with the logical time in milliseconds: each socket it opened, each
+    message its current socket received (decoded exactly as sent), each message it sent (its JOIN_GAME or RECONNECT with
+    the ticket replaced by GAME_TICKET_PLACEHOLDER), and each close it saw. A socket the client lost is dead to it: the
+    server may still send to it or close it, unseen.
+    """
+
+    def __init__(self, game: SeatedGame, *, name: str, ticket: str) -> None:
+        self.name = name
+        self.ticket = ticket
+        self.seat: int | None = None
+        self._game = game
+        self._events: list[TranscriptEvent] = []
+        self._socket: _ClientSocket | None = None
+        self._sockets_opened = 0
+        self._wait_id: int | None = None
+        self._refusals: list[Mapping[str, Any]] = []
+
+    @property
+    def game_id(self) -> str:
+        return self._game.game_id
+
+    @property
+    def router(self) -> MessageRouter:
+        return self._game.router
+
+    @property
+    def events(self) -> tuple[TranscriptEvent, ...]:
+        return tuple(self._events)
+
+    def refusals(self) -> list[Mapping[str, Any]]:
+        return list(self._refusals)
+
+    def receive(self, socket: _ClientSocket, payload: dict[str, Any]) -> None:
+        if socket is not self._socket:
+            return
+
+        self._record(EventKind.RECEIVED, {"payload": payload})
+        if _is_refusal(payload):
+            self._refusals.append(payload)
+
+        if WAIT_ID_KEY in payload:
+            self._wait_id = payload[WAIT_ID_KEY]
+
+        if payload.get("t") == WireEventType.GAME_STARTED or payload.get("type") == SessionMessageType.GAME_RECONNECTED:
+            self.seat = payload["s"]
+
+    def lose(self, socket: _ClientSocket, *, code: int, reason: str) -> None:
+        if socket is not self._socket:
+            return
+
+        self._socket = None
+        self._record(EventKind.CLOSED, {"code": code, "reason": reason})
+
+    def join(self, *, at: float, label: str | None = None) -> None:
+        self._game.run_at(at, lambda: self._open(WireClientMessageType.JOIN_GAME, label=label))
+
+    def reconnect(self, *, at: float, label: str | None = None) -> None:
+        """
+        Open a new socket and RECONNECT on it, after a drop the server may or may not have seen.
+        """
+        self._game.run_at(at, lambda: self._open(WireClientMessageType.RECONNECT, label=label))
+
+    def drop_unseen(self, *, at: float, label: str | None = None) -> None:
+        """
+        Lose the socket as a half-open connection does: the client sees it close with the code a browser reports for a
+        socket that died without a close frame, while the server sees nothing and keeps the seat bound to it.
+        """
+
+        def drop() -> None:
+            socket = self._require_socket()
+            self.lose(socket, code=UNSEEN_DROP_CODE, reason="")
+            self._label_last(label)
+
+        self._game.run_at(at, drop)
+
+    def be_replaced_by_another_tab(self, *, at: float) -> None:
+        """
+        Let another client of the same player, unrecorded, RECONNECT and take the seat over from this one's socket.
+        """
+
+        def replace() -> None:
+            self._sockets_opened += 1
+            rival = _ClientSocket(self, f"{self.name}-rival-{self._sockets_opened}")
+            self.router.handle_connect(rival)
+            self.router.handle_message(rival, _as_wire(self._identity(WireClientMessageType.RECONNECT)))
+
+        self._game.run_at(at, replace)
+
+    def discard(self, tile_id: int, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.DISCARD, {"ti": tile_id}, at=at, label=label)
+
+    def riichi(self, tile_id: int, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.DECLARE_RIICHI, {"ti": tile_id}, at=at, label=label)
+
+    def tsumo(self, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.DECLARE_TSUMO, {}, at=at, label=label)
+
+    def ron(self, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.CALL_RON, {}, at=at, label=label)
+
+    def pon(self, tile_id: int, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.CALL_PON, {"ti": tile_id}, at=at, label=label)
+
+    def chi(self, tile_id: int, sequence: tuple[int, int], *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.CALL_CHI, {"ti": tile_id, "sequence_tiles": list(sequence)}, at=at, label=label)
+
+    def kan(self, tile_id: int, kan_type: KanType, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.CALL_KAN, {"ti": tile_id, "kan_type": kan_type.value}, at=at, label=label)
+
+    def pass_(self, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.PASS, {}, at=at, label=label)
+
+    def confirm_round(self, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.CONFIRM_ROUND, {}, at=at, label=label)
+
+    def label(self, name: str, kind: WireEventType | SessionMessageType) -> None:
+        """
+        Name the last message of the kind the client received, which must carry no name yet.
+        """
+        for index in range(len(self._events) - 1, -1, -1):
+            event = self._events[index]
+            if event.kind != EventKind.RECEIVED or not _matches(event.fields["payload"], kind):
+                continue
+
+            if event.label is not None:
+                raise ScenarioError(f"{self.name}: the last {kind!r} is already labelled {event.label}")
+
+            self._events[index] = dataclasses.replace(event, label=name)
+            return
+
+        raise ScenarioError(f"{self.name}: received no {kind!r} to label {name}")
+
+    def _identity(self, message_type: WireClientMessageType) -> dict[str, Any]:
+        return {"t": message_type, "game_ticket": self.ticket}
+
+    def _open(self, identity: WireClientMessageType, *, label: str | None) -> None:
+        if self._socket is not None:
+            raise ScenarioError(f"{self.name}: opened a socket while one is open")
+
+        self._sockets_opened += 1
+        self._socket = _ClientSocket(self, f"{self.name}-{self._sockets_opened}")
+        self._record(EventKind.OPENED, {})
+        self._label_last(label)
+        self.router.handle_connect(self._socket)
+
+        message = _as_wire(self._identity(identity))
+        self._record(EventKind.SENT, {"message": {**message, "game_ticket": GAME_TICKET_PLACEHOLDER}})
+        self.router.handle_message(self._socket, message)
+
+    def _act(self, action: WireGameAction, fields: dict[str, object], *, at: float, label: str | None) -> None:
+        def send() -> None:
+            socket = self._require_socket()
+            if self._wait_id is None:
+                raise ScenarioError(f"{self.name}: {action.name} before any wait was opened")
+
+            message = _as_wire({"t": WireClientMessageType.GAME_ACTION, "a": action, **fields, "wi": self._wait_id})
+            self._record(EventKind.SENT, {"message": message})
+            self._label_last(label)
+            self.router.handle_message(socket, message)
+
+        self._game.run_at(at, send)
+
+    def _require_socket(self) -> _ClientSocket:
+        if self._socket is None:
+            raise ScenarioError(f"{self.name}: acted without an open socket")
+
+        return self._socket
+
+    def _record(self, kind: EventKind, fields: Mapping[str, Any]) -> None:
+        self._events.append(TranscriptEvent(at=self._game.now_ms(), kind=kind, fields=fields))
+
+    def _label_last(self, label: str | None) -> None:
+        if label is not None:
+            self._events[-1] = dataclasses.replace(self._events[-1], label=label)
+
+
+@dataclass(frozen=True)
+class SeatTranscript:
+    """
+    What one seat's client met in a scenario (`SeatClient`), as the committed fixture holds it.
+    """
+
+    scenario: str
+    game_id: str
+    seat: int
+    events: tuple[TranscriptEvent, ...]
+
+    @property
+    def file_name(self) -> str:
+        return f"{self.scenario}_seat_{self.seat}.json"
+
+    @property
+    def text(self) -> str:
+        """
+        The transcript as JSON with one event per line, every object's keys sorted.
+        """
+        header = {"game_id": self.game_id, "scenario": self.scenario, "seat": self.seat}
+        fields = [f"  {json.dumps(key)}: {json.dumps(value, allow_nan=False)}," for key, value in header.items()]
+        events = ",\n".join(
+            f"    {json.dumps(event.as_json(), sort_keys=True, allow_nan=False)}" for event in self.events
+        )
+        return "\n".join(["{", *fields, '  "events": [', events, "  ]", "}"]) + "\n"
+
+
+class SeatedGame:
+    """
+    A game the real session manager runs, from its pending registration on, for scripted human clients over in-memory
+    sockets, on virtual time; the engine deals it from a staged wall and seats AI players in the seats no player takes.
+
+    Client messages go through the real message router, and the session's own pacing runs as in production: the default
+    timer settings, the game start pause before the deal, the turn, call and round advance timers with their banks, all
+    timed by the loop's virtual clock. A refusal any client receives (a game error or a session error) fails the
+    scenario at once. Open one with `seated_game`, which stops it and closes its loop.
+    """
+
+    def __init__(
+        self,
+        loop: VirtualTimeLoop,
+        game_id: str,
+        staged: StagedWall,
+        *,
+        players: Sequence[str],
+        settings: GameSettings | None = None,
+    ) -> None:
+        self.game_id = game_id
+        self._loop = loop
+        self._manager = SessionManager(
+            _StagedEngine(staged.tiles(), settings if settings is not None else GameSettings()),
+            game_repository=FakeGameRepository(),
+            replay_collector=ReplayCollector(FakeReplayStorage()),
+            clock=loop.time,
+        )
+        self.router = MessageRouter(self._manager, game_ticket_secret=TEST_TICKET_SECRET)
+
+        self.clients = {
+            name: SeatClient(self, name=name, ticket=make_test_game_ticket(username=name, room_id=game_id))
+            for name in players
+        }
+        specs = [
+            PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=client.ticket)
+            for name, client in self.clients.items()
+        ]
+        self.run_at(0, lambda: self._manager.create_pending_game(game_id=game_id, player_specs=specs))
+
+    def now_ms(self) -> int:
+        return round(self._loop.time() * 1000)
+
+    def run_at(self, at: float, step: Callable[[], None]) -> None:
+        """
+        Run the game on virtual time up to `at` seconds, every server timer due by then firing at its moment, then take
+        the step; raise ScenarioError when any client was refused meanwhile.
+
+        `at` is a multiple of TIME_GRAIN_SECONDS, so with the whole-second pacing of the timer settings every time, bank
+        and elapsed time the server computes is exact in binary and prints the same on every run. It never falls on the
+        moment a server timer fires, which would leave their order to the loop's scheduling.
+        """
+        if at < self._loop.time():
+            raise ScenarioError(f"{self.game_id}: a step at {at}s after the clock reached {self._loop.time()}s")
+
+        if (at / TIME_GRAIN_SECONDS) % 1:
+            raise ScenarioError(f"{self.game_id}: a step at {at}s, not a multiple of {TIME_GRAIN_SECONDS}s")
+
+        if self._loop.has_timer_at(at):
+            raise ScenarioError(f"{self.game_id}: a step at {at}s, the moment a server timer fires")
+
+        self._loop.run_until_complete(self._step_at(at, step))
+        self._require_no_refusal()
+
+    def wait_until(self, at: float) -> None:
+        """
+        Run the game on virtual time up to `at` seconds with no client step, so its timers' messages arrive first.
+        """
+        self.run_at(at, lambda: None)
+
+    def transcripts(self, scenario: str, *names: str) -> tuple[SeatTranscript, ...]:
+        """
+        Return the named clients' transcripts.
+        """
+        self._require_no_refusal()
+
+        transcripts = []
+        for name in names:
+            client = self.clients[name]
+            if client.seat is None:
+                raise ScenarioError(f"{self.game_id}: {name} never learned its seat")
+
+            transcripts.append(
+                SeatTranscript(scenario=scenario, game_id=self.game_id, seat=client.seat, events=client.events)
+            )
+
+        return tuple(transcripts)
+
+    def stop(self) -> None:
+        """
+        Stop every timer and wait for every task the session manager owns.
+        """
+        self._loop.run_until_complete(self._manager.shutdown())
+
+    async def _step_at(self, at: float, step: Callable[[], None]) -> None:
+        await asyncio.sleep(at - self._loop.time())
+        step()
+
+    def _require_no_refusal(self) -> None:
+        for client in self.clients.values():
+            refusals = client.refusals()
+            if refusals:
+                raise ScenarioError(f"{self.game_id}: {client.name} was refused: {refusals[0]}")
+
+
+@contextmanager
+def seated_game(
+    game_id: str,
+    staged: StagedWall,
+    *,
+    players: Sequence[str],
+    settings: GameSettings | None = None,
+) -> Generator[SeatedGame]:
+    """
+    Open a SeatedGame on a loop of its own; on the way out stop the game and close the loop, whatever happened.
+    """
+    loop = VirtualTimeLoop()
+    try:
+        game = SeatedGame(loop, game_id, staged, players=players, settings=settings)
+        try:
+            yield game
+        finally:
+            game.stop()
+    finally:
+        loop.close()

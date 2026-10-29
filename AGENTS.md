@@ -66,6 +66,10 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make generate-replay-fixtures` — regenerate the v2 game client's replay test fixtures by playing
   the scenarios of `backend/scripts/replay_fixtures/` through the engine; `make replay-fixtures-check`
   (a `run-all-checks` gate) fails when a committed fixture no longer matches what the engine records.
+* `make generate-seat-scenarios` — regenerate the v2 game client's seat transcripts by playing the
+  scenarios of `backend/scripts/seat_scenarios/` through the real session manager and router on virtual
+  time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
+  longer matches what the server sends a seat.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final
   `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.

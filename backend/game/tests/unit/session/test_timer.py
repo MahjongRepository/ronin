@@ -67,7 +67,7 @@ class TestTurnTimerBank:
     async def test_turn_timer__when_stopped__should_drain_only_the_time_past_base_from_the_bank(
         self, fake_clock, held_sleep, elapsed, bank_after
     ):
-        timer = TurnTimer(BASE_AND_BANK)
+        timer = TurnTimer(BASE_AND_BANK, clock=fake_clock.monotonic)
 
         timer.start_turn_timer(_noop)
         fake_clock.advance(elapsed)
@@ -75,7 +75,7 @@ class TestTurnTimerBank:
         assert timer._bank_seconds == bank_after
 
     async def test_meld_timer__when_cancelled__should_keep_bank_unchanged(self, fake_clock, held_sleep):
-        timer = TurnTimer(BASE_AND_BANK)
+        timer = TurnTimer(BASE_AND_BANK, clock=fake_clock.monotonic)
 
         timer.start_meld_timer(_noop)
         fake_clock.advance(4)
