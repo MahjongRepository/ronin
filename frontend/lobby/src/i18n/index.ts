@@ -175,12 +175,24 @@ function tParts(key: MessageKey, params: PartParams): Part[] {
     return lookupParts(key, params);
 }
 
+function applyStaticText(root: ParentNode): void {
+    for (const element of root.querySelectorAll<HTMLElement>("[data-i18n]")) {
+        element.textContent = lookupParts(element.dataset.i18n ?? "", {}).join("");
+    }
+    for (const element of root.querySelectorAll<HTMLElement>("[data-i18n-aria-label]")) {
+        const key = element.dataset.i18nAriaLabel ?? "";
+        element.setAttribute("aria-label", lookupParts(key, {}).join(""));
+    }
+}
+
 export {
     I18nError,
+    applyStaticText,
     formatDateTime,
     formatList,
     formatNumber,
     formatTime,
+    isLocale,
     isMessageKey,
     pageLocale,
     reportI18nError,

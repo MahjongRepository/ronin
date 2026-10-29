@@ -135,7 +135,7 @@ function buildMessageHandlers(
 
     function endPage(code: string, seatedRoomId?: string): void {
         cancelJoinRetry(state);
-        state.pageError = { code, seatedRoomId, text: describeRoomError(code) };
+        state.pageError = { code, seatedRoomId };
         render();
     }
 

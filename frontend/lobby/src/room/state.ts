@@ -19,7 +19,6 @@ type ConnectionStatus = SocketStatus | "connecting";
 interface PageError {
     code: string;
     seatedRoomId?: string;
-    text: string;
 }
 
 const LOG_TYPE_SYSTEM = "system";

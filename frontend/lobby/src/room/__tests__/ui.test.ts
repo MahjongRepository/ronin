@@ -63,12 +63,12 @@ describe("renderRoom", () => {
     test("shows a refused join as a page alert with a way out and no seat controls", () => {
         const state = createRoomState();
         state.connectionStatus = "disconnected";
-        state.pageError = { code: "already_in_queue", text: "Cancel the search first." };
+        state.pageError = { code: "already_in_queue" };
 
         const container = mount(state);
 
         const alert = container.querySelector(".lobby-alert");
-        expect(alert?.textContent).toContain("Cancel the search first.");
+        expect(alert?.textContent).toContain("Cancel that search first.");
         const links = [...(alert?.querySelectorAll("a") ?? [])].map((link) =>
             link.getAttribute("href"),
         );

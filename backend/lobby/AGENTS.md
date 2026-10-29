@@ -24,8 +24,10 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
   `lang` cookie, else `Accept-Language`, else en, resolved once per request onto `request.state`; templates get
   `t()` and `locale` from the `create_templates()` context processor. Every user-visible page string is a catalog
   key: views pass keys (error pages, notices) or codes (`AuthErrorCode`), never English prose; bot JSON, plain-text
-  and protocol answers stay English. Only an explicit choice writes the cookie (the lobby's `POST /lang`;
-  auto-detection never does), and every writer uses the same name, path and attributes (`docs/i18n.md`).
+  and protocol answers stay English. Template text the lobby scripts rewrite in place on a language switch
+  names its key in a `data-i18n` attribute, so that key is in both lobby catalogs. Only an explicit choice writes the
+  cookie (the lobby's `POST /lang`; auto-detection never does), and every writer uses the same name, path and
+  attributes (`docs/i18n.md`).
 * `rooms/` and `matchmaking/` — managers and WebSocket handlers. Matchmaking is a FIFO queue that
   starts a 4-human game once 4 players wait; its client sends nothing, so it needs no rate limit.
   The two never import each other: they share `start_game` and `LobbyPlayer`, and each gets the
