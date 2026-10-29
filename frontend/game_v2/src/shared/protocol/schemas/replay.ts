@@ -1,33 +1,35 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { REPLAY_LINE_TYPE, SEAT_CONTROL_REASON } from "@/shared/protocol/constants";
 
 import { seatSchema } from "./common";
 import { type ParsedServerMessage, parseServerMessage } from "./message";
 
-const aiReplacementSchema = z
-    .object({
+const aiReplacementSchema = z.pipe(
+    z.object({
         ai: z.literal(1),
         r: z.union([z.literal(SEAT_CONTROL_REASON.LEFT), z.literal(SEAT_CONTROL_REASON.ABSENT)]),
         s: seatSchema,
         t: z.literal(REPLAY_LINE_TYPE.SEAT_CONTROL),
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         reason: raw.r,
         seat: raw.s,
         type: "ai_replacement" as const,
-    }));
+    })),
+);
 
-const humanReturnSchema = z
-    .object({
+const humanReturnSchema = z.pipe(
+    z.object({
         ai: z.literal(0),
         s: seatSchema,
         t: z.literal(REPLAY_LINE_TYPE.SEAT_CONTROL),
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         seat: raw.s,
         type: "human_return" as const,
-    }));
+    })),
+);
 
 export type AiReplacementLine = z.output<typeof aiReplacementSchema>;
 export type HumanReturnLine = z.output<typeof humanReturnSchema>;

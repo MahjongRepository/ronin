@@ -18,7 +18,16 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the client's own links, so open each page with it by hand.
 * `npm run sprite` (Node runs the TypeScript script directly) rebuilds the tile sprite from the
   tile SVGs after one changes; the sprite is committed. `entities/tile/lib/tile-config.ts` is the
-  single source for the active tile set.
+  single source for the active tile set. The sprite ships as an asset of its own, cached apart from the
+  code: `index.html` preloads it, `index.ts` fetches and injects it before the first route mounts, retrying
+  a failed fetch with backoff and again when the browser comes back online (`loadTileSprite`, IO the
+  entry owns), and a face drawn before it lands shows once it does. Until then each face shows its short
+  name (`5m`, `E`), so a tile is never blank; the live game's board says so with a reload while a load
+  has failed (`PlayUi`'s sprite status, which the driver keeps from the loader, never the dispatcher).
+* `package.json`'s `sideEffects` names the only modules with an import-time effect (the stylesheets,
+  `zod-setup.ts`), so the build drops a module none of a route's code uses even when a barrel
+  re-exports it: the replay's and the scenarios' modules stay out of the entry. A new module with such
+  an effect is added there, or the build drops it.
 * UI text is English literals; the app has no catalogs, so `bin/check_i18n.py` does not cover it.
 
 ## App
@@ -179,7 +188,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
   expiry (the seat back after a snapshot of such a drop, which a second drop replaces, and a refused
   move); and a server message the client cannot read, on the console too, shown until a reconnect's
-  snapshot rebuilds the table, which may be wrong until then. An end that stops the session on the
+  snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
+  a reload, until a retry loads them. An end that stops the session on the
   page blocks the board, and takes the rotate panel's place, with why and a way back. With `?debug` (any value but `0`, `false`, `no` or `off`) the aside adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
   it the view keeps no log at all.
@@ -226,7 +236,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the board or the screen, page overflow, centre text under 10px, local hand tiles under 32x42 or
   decision buttons under 40x40 in landscape, a round end that does not fit its panel, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
-  error, failed request or missing element. It writes a screenshot per page to
+  error, failed request or missing element, and on a tile sprite that never loaded or a face whose
+  symbol it lacks. It writes a screenshot per page to
   `thoughts/screenshots/visual-check/`. `make install-frontend` installs its Chromium and WebKit
   (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host their system
   libraries come from `npx playwright install-deps`, which needs root. A board state worth checking
@@ -239,8 +250,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Budgets**, in the same run: `scripts/bundle-budget.ts` reads the manifest the gate's build alone
   writes (`vite build --manifest`; it deletes it, so `dist/` never serves one) and fails when a
   route loads more JavaScript or CSS than its budget, raw or gzipped (the game route is the entry
-  and its static imports; a lazy route is what it adds), the budgets set about a tenth over the
-  measured sizes, a lazy route's CSS at least 1 KiB over. Then the replay load budget loads the
+  and its static imports; a lazy route is what it adds; the tile sprite has its own, and the cold start,
+  the entry with the sprite, is reported), the budgets set about a tenth over the measured sizes, a lazy
+  route's CSS at least 1 KiB over. Then the replay load budget loads the
   largest engine replay fixture on the same server and Chromium, slowed sixfold
   (`Emulation.setCPUThrottlingRate`), and fails when the median of a few reads of the replay view's
   `replay-load` measure (parse, reduce into the client timeline, steps and navigation index, before
@@ -279,9 +291,11 @@ rather than introducing new FSD layers:
   relax only rules the restored code trips where it is shaped by its domain: the socket's
   replaceable `on*` handlers, the nested Zod tuples of the wire schemas and the long event
   dispatchers.
-* Zod runs jitless (`zod-setup.ts`): its JIT uses `new Function()`, which the game pages' CSP
-  blocks. `zod-setup.ts` stays the first import of `index.ts`, ahead of any module that builds a
-  schema.
+* Zod is `zod/mini` (lint bans classic Zod's specifiers in `src`, storybook views included: it does not
+  tree-shake), with the English messages classic loads by default; the tests load `zod-setup.ts` too, so
+  they read the app's messages. zod/mini's objects have no JIT, so `jitless` (`zod-setup.ts`) only guards
+  against a classic schema slipping in, whose JIT's `new Function()` the game pages' CSP blocks.
+  `zod-setup.ts` stays the first import of `index.ts`, ahead of any module that builds a schema.
 
 ## Tests
 

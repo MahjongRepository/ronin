@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { assertNever } from "@/shared/lib";
 import {
@@ -28,14 +28,10 @@ const TERMINAL_CLOSE_CODES: ReadonlySet<number> = new Set([
     CLOSE_CODE.REPLACED_BY_NEW_CONNECTION,
 ]);
 
-const tileIdSchema = z
-    .number()
-    .int()
-    .min(0)
-    .max(NUM_TILES - 1);
+const tileIdSchema = z.int().check(z.gte(0), z.lte(NUM_TILES - 1));
 const actionBase = {
     t: z.literal(CLIENT_MESSAGE_TYPE.GAME_ACTION),
-    wi: z.number().int().min(0),
+    wi: z.int().check(z.gte(0)),
 };
 
 /**
@@ -76,8 +72,8 @@ const sentIdentitySchema = z.discriminatedUnion("t", [
 type SentAction = z.output<typeof sentActionSchema>;
 type SentIdentity = z.output<typeof sentIdentitySchema>;
 
-const atSchema = z.number().int().min(0);
-const labelSchema = z.string().min(1).optional();
+const atSchema = z.int().check(z.gte(0));
+const labelSchema = z.optional(z.string().check(z.minLength(1)));
 const payloadSchema = z.record(z.string(), z.unknown());
 const sentMessageSchema = z.union([sentIdentitySchema, sentActionSchema]);
 
@@ -85,7 +81,7 @@ const transcriptEventSchema = z.discriminatedUnion("kind", [
     z.strictObject({ at: atSchema, kind: z.literal("opened"), label: labelSchema }),
     z.strictObject({
         at: atSchema,
-        code: z.number().int(),
+        code: z.int(),
         kind: z.literal("closed"),
         label: labelSchema,
         reason: z.string(),
@@ -112,25 +108,25 @@ function inTimeOrder(events: readonly { readonly at: number }[]): boolean {
 
 const transcriptEventsSchema = z
     .array(transcriptEventSchema)
-    .refine(inTimeOrder, "a transcript's times never go back");
+    .check(z.refine(inTimeOrder, "a transcript's times never go back"));
 
-const seatTranscriptSchema = z
-    .strictObject({
+const nameSchema = z.string().check(z.minLength(1));
+const seatSchema = z.int().check(z.gte(0), z.lte(NUM_PLAYERS - 1));
+
+const seatTranscriptSchema = z.pipe(
+    z.strictObject({
         events: transcriptEventsSchema,
-        game_id: z.string().min(1),
-        scenario: z.string().min(1),
-        seat: z
-            .number()
-            .int()
-            .min(0)
-            .max(NUM_PLAYERS - 1),
-    })
-    .transform(({ events, game_id: gameId, scenario, seat }) => ({
+        game_id: nameSchema,
+        scenario: nameSchema,
+        seat: seatSchema,
+    }),
+    z.transform(({ events, game_id: gameId, scenario, seat }) => ({
         events,
         gameId,
         scenario,
         seat,
-    }));
+    })),
+);
 
 /**
  * What the server met of one seat's client in a scenario the backend generated (`make generate-seat-scenarios`),

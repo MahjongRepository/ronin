@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { type GameSessionData } from "@/shared/session";
 
@@ -8,10 +8,10 @@ const HTTP_NOT_FOUND = 404;
 
 /** The lobby's answer (`docs/architecture.md`, Game client contract): the game the player plays and its handoff. */
 const handoffSchema = z.object({
-    game_client_url: z.string().min(1),
-    game_id: z.string().min(1),
-    game_ticket: z.string().min(1),
-    ws_url: z.string().min(1),
+    game_client_url: z.string().check(z.minLength(1)),
+    game_id: z.string().check(z.minLength(1)),
+    game_ticket: z.string().check(z.minLength(1)),
+    ws_url: z.string().check(z.minLength(1)),
 });
 
 /**

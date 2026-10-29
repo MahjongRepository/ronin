@@ -5,9 +5,10 @@ import {
     type PlayAction,
     type PlayCommand,
     type PlayDisplay,
+    type PlayNotice,
     type ResultControls,
 } from "@/entities/client/model/play-display";
-import { GameBoard, type TableState, boardOverlay } from "@/entities/table";
+import { type BoardNotice, GameBoard, type TableState, boardOverlay } from "@/entities/table";
 import { Tile } from "@/entities/tile";
 
 import { countdownAnnouncement } from "./rotate-panel";
@@ -157,6 +158,18 @@ function PlayOverlay(
     });
 }
 
+function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"]): BoardNotice {
+    const { action, text, tone } = notice;
+    if (action === undefined) {
+        return { text, tone };
+    }
+    return {
+        action: { label: action.label, onClick: () => onCommand(action.command) },
+        text,
+        tone,
+    };
+}
+
 /**
  * The live board: the table from the viewer's seat with its decision's controls in their corner, its notices over the
  * table, and a panel over it: an end that blocks the board, the leave question, or the table's own, a round's result
@@ -177,7 +190,7 @@ export function PlayBoard({ display, onCommand, table }: PlayBoardProps): Templa
         debug: false,
         inert: display.failure !== null || display.leave.confirming,
         localHand: { onTile, tileAction: display.tileAction },
-        notices: display.notices,
+        notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         overlay: PlayOverlay(display, table, onCommand),
         state: display.board,
     });

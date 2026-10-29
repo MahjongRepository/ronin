@@ -5,8 +5,8 @@ import { gzipSync } from "node:zlib";
 /**
  * The v2 client's bundle budget: it reads the built `dist/` through the manifest the gate's build writes
  * (`vite build --manifest`), then deletes it so it is never served, and fails when a route loads more JavaScript or
- * CSS than its budget, raw or gzipped. The game route is the entry and everything it imports; a lazy
- * route is what its chunk adds on top of the entry. The budgets sit modestly above the measured sizes, so growth
+ * CSS than its budget, raw or gzipped. The game route is the entry and everything it imports statically; a lazy
+ * route is what its chunk adds on top of the entry; the tile sprite, an asset every page fetches, has its own. The budgets sit modestly above the measured sizes, so growth
  * is a decision made here, not a drift.
  */
 
@@ -32,22 +32,34 @@ interface RouteBudget {
  * on 2026-10-29 at 417.6 / 83.2 JS and 80.4 / 12.5 CSS, and 7.4 / 2.8 JS and 2.3 / 0.8 CSS; the storybook on
  * 2026-10-30 at 34.4 / 8.0 JS (the four seat transcripts its decisions stories run and the sixteen round ends its
  * result stories show among them) and 1.1 / 0.4 CSS, and its JS raised on 2026-10-30 at 39.0 / 8.7, once the
- * decisions stories ran six transcripts (a double ron's and the game's last round's results to confirm). Measured on
- * 2026-10-30: the game 432.6 / 87.5 JS and 82.6 / 12.9 CSS, the replay 5.9 / 2.3 JS and 2.3 / 0.8 CSS.
+ * decisions stories ran six transcripts (a double ron's and the game's last round's results to confirm). Every JS
+ * budget re-set on 2026-10-30 from 444.0 / 91.0 game, 5.9 / 2.3 replay and 40.0 / 9.1 storybook to 161.3 / 48.8,
+ * 10.0 / 3.7 and 45.4 / 11.3: the tile sprite left the entry for an asset of its own (`SPRITE`), Zod is `zod/mini`,
+ * and `sideEffects` lets the replay's and the scenarios' modules leave the entry for their own routes. Every page
+ * still fetches the sprite, so like for like a replay page's JS and sprite came to 386 / 74 where its JS, the sprite
+ * inside, was 450 / 93. The game's CSS then measured 86.4 / 13.3, and the entry's JS 163.5 / 49.7 once it loaded the
+ * sprite with retries and tiles named their faces until it lands: a cold start of 463.3 / 83.6 with the sprite.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 14, raw: 88 }, js: { gzip: 92, raw: 460 } },
+    game: { chunk: "index.html", css: { gzip: 14, raw: 88 }, js: { gzip: 54, raw: 178 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 1.8, raw: 3.3 },
-        js: { gzip: 3.1, raw: 8.2 },
+        js: { gzip: 4.1, raw: 11 },
     },
     storybook: {
         chunk: "src/views/storybook-routes.ts",
         css: { gzip: 1.4, raw: 2.1 },
-        js: { gzip: 9.6, raw: 43 },
+        js: { gzip: 12.4, raw: 50 },
     },
 };
+
+/**
+ * The tile sprite, an asset rather than a chunk: every page fetches it beside the entry (the page preloads it), so it
+ * has a budget of its own and joins the entry in the cold start the script reports. Set on 2026-10-30, about a tenth
+ * over its 213.0 / 20.5.
+ */
+const SPRITE = { budget: { gzip: 23, raw: 235 }, key: "src/assets/tiles/sprites/fluffy-stuff.svg" };
 
 interface ManifestChunk {
     readonly file: string;
@@ -125,6 +137,17 @@ async function main(): Promise<number> {
             ),
         );
     }
+    const sprite = manifest[SPRITE.key];
+    if (sprite === undefined) {
+        throw new Error(`the manifest has no asset ${SPRITE.key}`);
+    }
+    const spriteSize = await measure([sprite.file], ".svg");
+    console.info(`sprite: ${describe(spriteSize, SPRITE.budget)}`);
+    failures.push(...overBudget("sprite", spriteSize, SPRITE.budget));
+    const coldStart = await measure([...entry, sprite.file], "");
+    console.info(
+        `cold start (entry JS and CSS, and the sprite): ${coldStart.raw.toFixed(1)} KiB raw, ${coldStart.gzip.toFixed(1)} KiB gzip`,
+    );
     if (failures.length > 0) {
         console.error(`Bundle budget exceeded:\n${failures.map((line) => `  ${line}`).join("\n")}`);
         return 1;

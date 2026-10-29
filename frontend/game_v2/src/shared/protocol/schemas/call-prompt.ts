@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 
@@ -12,33 +12,31 @@ const meldCallTypeSchema = z.union([
     z.literal(MELD_CALL_TYPE.OPEN_KAN),
 ]);
 
-const availableCallSchema = z
-    .object({
+const availableCallSchema = z.pipe(
+    z.object({
         clt: meldCallTypeSchema,
-        opt: z
-            .array(z.tuple([tileIdSchema, tileIdSchema]))
-            .nullable()
-            .optional(),
-    })
-    .transform((raw) => ({
+        opt: z.optional(z.nullable(z.array(z.tuple([tileIdSchema, tileIdSchema])))),
+    }),
+    z.transform((raw) => ({
         callType: raw.clt,
         options: raw.opt ?? null,
-    }));
+    })),
+);
 
 // --- Ron prompt (clt=0) ---
 
-const ronPromptSchema = z
-    .object({
-        ac: z.array(availableCallSchema).optional(),
+const ronPromptSchema = z.pipe(
+    z.object({
+        ac: z.optional(z.array(availableCallSchema)),
         clt: z.literal(CALL_TYPE.RON),
         cs: seatSchema,
-        el: secondsSchema.optional(),
+        el: z.optional(secondsSchema),
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
-        wi: waitIdSchema.optional(),
-    })
-    .transform((raw) => ({
+        wi: z.optional(waitIdSchema),
+    }),
+    z.transform((raw) => ({
         availableCalls: raw.ac ?? [],
         callType: CALL_TYPE.RON as typeof CALL_TYPE.RON,
         callerSeat: raw.cs,
@@ -47,21 +45,22 @@ const ronPromptSchema = z
         tileId: raw.ti,
         type: "call_prompt" as const,
         waitId: raw.wi ?? null,
-    }));
+    })),
+);
 
 // --- Chankan prompt (clt=2) ---
 
-const chankanPromptSchema = z
-    .object({
+const chankanPromptSchema = z.pipe(
+    z.object({
         clt: z.literal(CALL_TYPE.CHANKAN),
         cs: seatSchema,
-        el: secondsSchema.optional(),
+        el: z.optional(secondsSchema),
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
-        wi: waitIdSchema.optional(),
-    })
-    .transform((raw) => ({
+        wi: z.optional(waitIdSchema),
+    }),
+    z.transform((raw) => ({
         callType: CALL_TYPE.CHANKAN as typeof CALL_TYPE.CHANKAN,
         callerSeat: raw.cs,
         elapsedSeconds: raw.el ?? null,
@@ -69,22 +68,23 @@ const chankanPromptSchema = z
         tileId: raw.ti,
         type: "call_prompt" as const,
         waitId: raw.wi ?? null,
-    }));
+    })),
+);
 
 // --- Meld prompt (clt=1) ---
 
-const meldPromptSchema = z
-    .object({
+const meldPromptSchema = z.pipe(
+    z.object({
         ac: z.array(availableCallSchema),
         clt: z.literal(CALL_TYPE.MELD),
         cs: seatSchema,
-        el: secondsSchema.optional(),
+        el: z.optional(secondsSchema),
         frs: seatSchema,
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
-        wi: waitIdSchema.optional(),
-    })
-    .transform((raw) => ({
+        wi: z.optional(waitIdSchema),
+    }),
+    z.transform((raw) => ({
         availableCalls: raw.ac,
         callType: CALL_TYPE.MELD as typeof CALL_TYPE.MELD,
         callerSeat: raw.cs,
@@ -93,7 +93,8 @@ const meldPromptSchema = z
         tileId: raw.ti,
         type: "call_prompt" as const,
         waitId: raw.wi ?? null,
-    }));
+    })),
+);
 
 // --- Dispatch ---
 

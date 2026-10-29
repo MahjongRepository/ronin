@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import {
     ABORTIVE_DRAW_TYPE,
@@ -12,44 +12,46 @@ import { handResultSchema } from "./events";
 
 // --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
 
-const tenpaiHandSchema = z
-    .object({
+const tenpaiHandSchema = z.pipe(
+    z.object({
         ct: z.array(tileIdSchema),
-        ml: z.array(z.number().int()),
+        ml: z.array(z.int()),
         s: seatSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         closedTiles: raw.ct,
         melds: raw.ml,
         seat: raw.s,
-    }));
+    })),
+);
 
-const robbedKanSchema = z
-    .object({
+const robbedKanSchema = z.pipe(
+    z.object({
         kty: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
         s: seatSchema,
         ti: tileIdSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         kanType: raw.kty,
         seat: raw.s,
         tileId: raw.ti,
-    }));
+    })),
+);
 
 // --- Double ron winner (inside double_ron `wn` array) ---
 
-const doubleRonWinnerSchema = z
-    .object({
+const doubleRonWinnerSchema = z.pipe(
+    z.object({
         ct: z.array(tileIdSchema),
         hr: handResultSchema,
-        ml: z.array(z.number().int()),
-        ps: seatSchema.optional(),
-        rc: z.number().int(),
+        ml: z.array(z.int()),
+        ps: z.optional(seatSchema),
+        rc: z.int(),
         sch: wireScoreMapSchema,
-        ud: z.array(tileIdSchema).optional(),
+        ud: z.optional(z.array(tileIdSchema)),
         ws: seatSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,
         melds: raw.ml,
@@ -58,27 +60,28 @@ const doubleRonWinnerSchema = z
         scoreChanges: raw.sch,
         uraDoraIndicators: raw.ud ?? null,
         winnerSeat: raw.ws,
-    }));
+    })),
+);
 
 // --- Tsumo (rt=0) ---
 
-const tsumoSchema = z
-    .object({
+const tsumoSchema = z.pipe(
+    z.object({
         ct: z.array(tileIdSchema),
         hr: handResultSchema,
-        ml: z.array(z.number().int()),
-        ps: seatSchema.optional(),
-        rc: z.number().int(),
+        ml: z.array(z.int()),
+        ps: z.optional(seatSchema),
+        rc: z.int(),
         rt: z.literal(ROUND_RESULT_TYPE.TSUMO),
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
-        ud: z.array(tileIdSchema).optional(),
-        wi: waitIdSchema.optional(),
+        ud: z.optional(z.array(tileIdSchema)),
+        wi: z.optional(waitIdSchema),
         ws: seatSchema,
         wt: tileIdSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,
         melds: raw.ml,
@@ -92,30 +95,31 @@ const tsumoSchema = z
         waitId: raw.wi ?? null,
         winnerSeat: raw.ws,
         winningTile: raw.wt,
-    }));
+    })),
+);
 
 // --- Ron (rt=1) ---
 
-const ronSchema = z
-    .object({
+const ronSchema = z.pipe(
+    z.object({
         ct: z.array(tileIdSchema),
-        hbs: z.array(seatSchema).optional(),
+        hbs: z.optional(z.array(seatSchema)),
         hr: handResultSchema,
         ls: seatSchema,
-        ml: z.array(z.number().int()),
-        ps: seatSchema.optional(),
-        rc: z.number().int(),
-        rk: robbedKanSchema.optional(),
+        ml: z.array(z.int()),
+        ps: z.optional(seatSchema),
+        rc: z.int(),
+        rk: z.optional(robbedKanSchema),
         rt: z.literal(ROUND_RESULT_TYPE.RON),
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
-        ud: z.array(tileIdSchema).optional(),
-        wi: waitIdSchema.optional(),
+        ud: z.optional(z.array(tileIdSchema)),
+        wi: z.optional(waitIdSchema),
         ws: seatSchema,
         wt: tileIdSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,
         headBumpedSeats: raw.hbs ?? [],
@@ -132,24 +136,25 @@ const ronSchema = z
         waitId: raw.wi ?? null,
         winnerSeat: raw.ws,
         winningTile: raw.wt,
-    }));
+    })),
+);
 
 // --- Double Ron (rt=2) ---
 
-const doubleRonSchema = z
-    .object({
-        hbs: z.array(seatSchema).optional(),
+const doubleRonSchema = z.pipe(
+    z.object({
+        hbs: z.optional(z.array(seatSchema)),
         ls: seatSchema,
-        rk: robbedKanSchema.optional(),
+        rk: z.optional(robbedKanSchema),
         rt: z.literal(ROUND_RESULT_TYPE.DOUBLE_RON),
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
-        wi: waitIdSchema.optional(),
+        wi: z.optional(waitIdSchema),
         wn: z.array(doubleRonWinnerSchema),
         wt: tileIdSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         headBumpedSeats: raw.hbs ?? [],
         loserSeat: raw.ls,
         resultType: ROUND_RESULT_TYPE.DOUBLE_RON as typeof ROUND_RESULT_TYPE.DOUBLE_RON,
@@ -160,12 +165,13 @@ const doubleRonSchema = z
         waitId: raw.wi ?? null,
         winners: raw.wn,
         winningTile: raw.wt,
-    }));
+    })),
+);
 
 // --- Exhaustive Draw (rt=3) ---
 
-const exhaustiveDrawSchema = z
-    .object({
+const exhaustiveDrawSchema = z.pipe(
+    z.object({
         ns: z.array(seatSchema),
         rt: z.literal(ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW),
         sch: wireScoreMapSchema,
@@ -173,9 +179,9 @@ const exhaustiveDrawSchema = z
         t: z.literal(EVENT_TYPE.ROUND_END),
         th: z.array(tenpaiHandSchema),
         ts: z.array(seatSchema),
-        wi: waitIdSchema.optional(),
-    })
-    .transform((raw) => ({
+        wi: z.optional(waitIdSchema),
+    }),
+    z.transform((raw) => ({
         notenSeats: raw.ns,
         resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW as typeof ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
         scoreChanges: raw.sch,
@@ -184,23 +190,24 @@ const exhaustiveDrawSchema = z
         tenpaiSeats: raw.ts,
         type: "round_end" as const,
         waitId: raw.wi ?? null,
-    }));
+    })),
+);
 
 // --- Abortive Draw (rt=4) ---
 
-const abortiveDrawSchema = z
-    .object({
-        rcl: z.array(seatSchema).optional(),
-        rk: robbedKanSchema.optional(),
+const abortiveDrawSchema = z.pipe(
+    z.object({
+        rcl: z.optional(z.array(seatSchema)),
+        rk: z.optional(robbedKanSchema),
         rn: z.enum(ABORTIVE_DRAW_TYPE),
         rt: z.literal(ROUND_RESULT_TYPE.ABORTIVE_DRAW),
-        s: seatSchema.optional(),
+        s: z.optional(seatSchema),
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
-        wi: waitIdSchema.optional(),
-    })
-    .transform((raw) => ({
+        wi: z.optional(waitIdSchema),
+    }),
+    z.transform((raw) => ({
         reason: raw.rn,
         resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW as typeof ROUND_RESULT_TYPE.ABORTIVE_DRAW,
         robbedKan: raw.rk ?? null,
@@ -210,12 +217,13 @@ const abortiveDrawSchema = z
         seat: raw.s ?? null,
         type: "round_end" as const,
         waitId: raw.wi ?? null,
-    }));
+    })),
+);
 
 // --- Nagashi Mangan (rt=5) ---
 
-const nagashiManganSchema = z
-    .object({
+const nagashiManganSchema = z.pipe(
+    z.object({
         ns: z.array(seatSchema),
         qs: z.array(seatSchema),
         rt: z.literal(ROUND_RESULT_TYPE.NAGASHI_MANGAN),
@@ -224,9 +232,9 @@ const nagashiManganSchema = z
         t: z.literal(EVENT_TYPE.ROUND_END),
         th: z.array(tenpaiHandSchema),
         ts: z.array(seatSchema),
-        wi: waitIdSchema.optional(),
-    })
-    .transform((raw) => ({
+        wi: z.optional(waitIdSchema),
+    }),
+    z.transform((raw) => ({
         notenSeats: raw.ns,
         qualifyingSeats: raw.qs,
         resultType: ROUND_RESULT_TYPE.NAGASHI_MANGAN as typeof ROUND_RESULT_TYPE.NAGASHI_MANGAN,
@@ -236,7 +244,8 @@ const nagashiManganSchema = z
         tenpaiSeats: raw.ts,
         type: "round_end" as const,
         waitId: raw.wi ?? null,
-    }));
+    })),
+);
 
 // --- Dispatch ---
 

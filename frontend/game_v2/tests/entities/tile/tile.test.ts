@@ -1,7 +1,7 @@
 import { type TemplateResult, render } from "lit-html";
 import { afterEach, describe, expect, test } from "vitest";
 
-import { Tile, injectSprite } from "@/entities/tile";
+import { Tile, injectTileSprite } from "@/entities/tile";
 
 function renderTo(template: TemplateResult): HTMLElement {
     const el = document.createElement("div");
@@ -9,19 +9,29 @@ function renderTo(template: TemplateResult): HTMLElement {
     return el;
 }
 
-// injectSprite tests run first because the module-level flag is
-// set permanently once called — subsequent describe blocks are unaffected
-// since they only inspect rendered template markup, not the sprite DOM.
-describe("injectSprite", () => {
+const SPRITE =
+    '<svg xmlns="http://www.w3.org/2000/svg"><symbol id="tile-1m" viewBox="0 0 300 400"><path d="M0 0h1"/></symbol></svg>';
+
+describe("injectTileSprite", () => {
     afterEach(() => {
         document.body.innerHTML = "";
+        delete document.documentElement.dataset.tileSprite;
     });
 
-    test("only injects one sprite container when called multiple times", () => {
-        injectSprite();
-        injectSprite();
-        const containers = document.body.querySelectorAll("[aria-hidden='true']");
-        expect(containers).toHaveLength(1);
+    test("puts the sprite's symbols in the document and marks the root, which hides the tiles' names", () => {
+        injectTileSprite(SPRITE);
+
+        expect(document.querySelector("symbol#tile-1m")).not.toBeNull();
+        expect(document.documentElement.dataset.tileSprite).toBe("ready");
+    });
+
+    test("throws on markup with no tile symbol, such as an error page, and leaves the root unmarked", () => {
+        expect(() => injectTileSprite("<html><body>Bad gateway</body></html>")).toThrow(
+            "the tile sprite holds no tile symbol",
+        );
+
+        expect(document.body.childElementCount).toBe(0);
+        expect(document.documentElement.dataset.tileSprite).toBeUndefined();
     });
 });
 
@@ -42,6 +52,20 @@ describe("Tile", () => {
         const el = renderTo(Tile("5p", "face"));
         const svgEl = el.querySelector("svg");
         expect(svgEl?.getAttribute("aria-label")).toBe("5p");
+    });
+
+    test("face tile shows its short name under the sprite, a red five's in red", () => {
+        const names = (["0p", "9s", "1z", "7z"] as const).map((face) => {
+            const name = renderTo(Tile(face, "face")).querySelector("text");
+            return [name?.textContent, name?.classList.contains("tile__name--red")];
+        });
+
+        expect(names).toEqual([
+            ["5p", true],
+            ["9s", false],
+            ["E", false],
+            ["Rd", false],
+        ]);
     });
 
     test("back mode renders tile-back instead of a sprite reference", () => {

@@ -22,6 +22,7 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
+import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
@@ -48,6 +49,8 @@ export interface GameViewDeps {
     readonly sink: GameViewSink;
     /** Keep and show the debug log of every message and transport event (the page's `?debug`). */
     readonly debug: boolean;
+    /** The tile sprite's load, which the board's notice reports while the faces are missing. */
+    readonly tileSprite: TileSprite;
 }
 
 const MAX_LOG_ENTRIES = 500;
@@ -252,7 +255,8 @@ class GameViewController {
     private readonly queue: ClientEvent[] = [];
     private readonly log: LogEntry[] | null;
     private state: GameClientState;
-    private ui: PlayUi = NO_PLAY_UI;
+    private ui: PlayUi;
+    private readonly stopTileSprite: () => void;
     /** The control that opened the leave question, which takes the focus back when the player stays. */
     private leaveOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
@@ -269,6 +273,11 @@ class GameViewController {
         this.gameId = gameId;
         this.deps = deps;
         this.log = deps.debug ? [] : null;
+        this.ui = { ...NO_PLAY_UI, tileSprite: deps.tileSprite.status() };
+        this.stopTileSprite = deps.tileSprite.subscribe((tileSprite) => {
+            this.ui = { ...this.ui, tileSprite };
+            this.draw();
+        });
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
         this.state = state;
         this.settle(effects);
@@ -276,6 +285,7 @@ class GameViewController {
 
     dispose(): void {
         this.disposed = true;
+        this.stopTileSprite();
         this.recovery.abort();
         this.queue.length = 0;
         this.disarm();

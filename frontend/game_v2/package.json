@@ -2,6 +2,10 @@
     "name": "game-v2",
     "private": true,
     "type": "module",
+    "sideEffects": [
+        "*.scss",
+        "./src/zod-setup.ts"
+    ],
     "imports": {
         "#tests/*": "./tests/*.ts"
     },

@@ -1,5 +1,7 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
+import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
+import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
@@ -31,7 +33,30 @@ function openGame(gameId: string, gameClientUrl: string): void {
     window.location.replace(gamePageUrl(gameClientUrl, gameId, window.location.search));
 }
 
-function liveGameDeps(gameId: string): GameViewDeps {
+async function fetchTileSprite(): Promise<string> {
+    const response = await fetch(tileSpriteUrl);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+    return response.text();
+}
+
+function onOnline(listener: () => void): () => void {
+    window.addEventListener("online", listener);
+    return () => window.removeEventListener("online", listener);
+}
+
+function startTileSprite(): TileSprite {
+    return loadTileSprite({
+        fetchSprite: fetchTileSprite,
+        inject: injectTileSprite,
+        onOnline,
+        reportFailure: (error) => console.warn("The tile sprite failed to load:", error),
+        setTimer: browserClock.setTimer,
+    });
+}
+
+function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     return {
         clock: browserClock,
         connect: (url, handlers) => new GameSocket(url, handlers),
@@ -45,6 +70,7 @@ function liveGameDeps(gameId: string): GameViewDeps {
             reload: () => window.location.reload(),
             storeHandoff,
         },
+        tileSprite,
     };
 }
 
@@ -58,6 +84,7 @@ function storybookRoute(
 
 const app = document.getElementById("app");
 if (app) {
+    const tileSprite = startTileSprite();
     startRouter(
         app,
         [
@@ -81,7 +108,7 @@ if (app) {
             storybookRoute(/^\/play\/storybook$/, (routes) => routes.mountStorybookIndex),
             {
                 mount: (host, params) =>
-                    mountGameView(host, params.gameId, liveGameDeps(params.gameId)),
+                    mountGameView(host, params.gameId, liveGameDeps(params.gameId, tileSprite)),
                 pattern: /^\/play\/(?<gameId>[^/]+)$/,
             },
         ],

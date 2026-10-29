@@ -1,44 +1,47 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 
 // --- Session Error ---
 
-const sessionErrorSchema = z
-    .object({
+const sessionErrorSchema = z.pipe(
+    z.object({
         code: z.string(),
         message: z.string(),
         type: z.literal(SESSION_MESSAGE_TYPE.ERROR),
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         code: raw.code,
         message: raw.message,
         type: "session_error" as const,
-    }));
+    })),
+);
 
 // --- Player Reconnected ---
 
-const playerReconnectedSchema = z
-    .object({
+const playerReconnectedSchema = z.pipe(
+    z.object({
         player_name: z.string(),
         type: z.literal(SESSION_MESSAGE_TYPE.PLAYER_RECONNECTED),
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         playerName: raw.player_name,
         type: "player_reconnected" as const,
-    }));
+    })),
+);
 
 // --- Player Left ---
 
-const playerLeftSchema = z
-    .object({
+const playerLeftSchema = z.pipe(
+    z.object({
         player_name: z.string(),
         type: z.literal(SESSION_MESSAGE_TYPE.PLAYER_LEFT),
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         playerName: raw.player_name,
         type: "player_left" as const,
-    }));
+    })),
+);
 
 // --- Dispatch ---
 

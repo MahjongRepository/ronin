@@ -6,3 +6,21 @@
     width: 60px;
     height: 80px;
 }
+
+/* A face's name stands in for it until the sprite is in the document, in the tile's own viewBox units. */
+.tile__name {
+    font-family: var(--ronin-font-mono);
+    font-size: 150px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+    fill: var(--ronin-surface);
+
+    &--red {
+        fill: var(--ronin-danger);
+    }
+
+    :root[data-tile-sprite="ready"] & {
+        display: none;
+    }
+}

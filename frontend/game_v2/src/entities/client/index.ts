@@ -33,6 +33,7 @@ export type {
     PlayAction,
     PlayCommand,
     PlayDisplay,
+    PlayNotice,
     PlayUi,
     ResultControls,
 } from "./model/play-display";

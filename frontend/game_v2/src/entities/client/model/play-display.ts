@@ -8,7 +8,13 @@ import {
     roundEndPageAt,
     tableStateToDisplayState,
 } from "@/entities/table";
-import { type HandTile, type PlayableState, type TileFace, tile136toString } from "@/entities/tile";
+import {
+    type HandTile,
+    type PlayableState,
+    type TileFace,
+    type TileSpriteStatus,
+    tile136toString,
+} from "@/entities/tile";
 import { assertNever } from "@/shared/lib";
 import {
     CLIENT_MESSAGE_TYPE,
@@ -56,19 +62,27 @@ export interface PlayAction {
  * What the view holds beside the client state: that the player is picking riichi's discard, for the decision of
  * this wait id, so a newer decision never inherits it; the page of a round's result the player turned to, for
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
- * and that the player asked to leave mid-game and has yet to confirm it.
+ * that the player asked to leave mid-game and has yet to confirm it; and where the tile sprite's load stands, which the
+ * page's IO owns.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
     readonly resultPage: { readonly round: string; readonly page: number } | null;
     readonly confirmingLeave: boolean;
+    readonly tileSprite: TileSpriteStatus;
 }
 
 export const NO_PLAY_UI: PlayUi = {
     confirmingLeave: false,
     resultPage: null,
     riichiPickWaitId: null,
+    tileSprite: "loading",
 };
+
+/** A notice over the table, with the one control it may offer. */
+export interface PlayNotice extends Omit<BoardNotice, "action"> {
+    readonly action?: { readonly label: string; readonly command: PlayCommand };
+}
 
 /**
  * The way back to the lobby: its command, which asks first while leaving would hand a held seat to an AI and goes
@@ -115,7 +129,7 @@ export interface PlayDisplay {
     /** Whether the game's last result still shows over the standings, until the player dismisses it. */
     readonly resultOverStandings: boolean;
     /** The notices over the table, the connection's first; none while a failure blocks the board. */
-    readonly notices: readonly BoardNotice[];
+    readonly notices: readonly PlayNotice[];
     /** The end that blocks the board with its reason and a way back, or null. */
     readonly failure: FailureDisplay | null;
     readonly leave: LeaveControls;
@@ -506,7 +520,7 @@ export function failureDisplay(session: SessionState | null): FailureDisplay | n
  * same across the retries, so the live region reads them once. A page that only resumes its seat (a reload) shows
  * none.
  */
-function connectionNotice(session: SessionState | null): BoardNotice | null {
+function connectionNotice(session: SessionState | null): PlayNotice | null {
     if (session === null || session.status === "ended" || session.status === "playing") {
         return null;
     }
@@ -532,7 +546,7 @@ function refusalText(code: string): string {
     return "That move was refused";
 }
 
-function timedNotice(notice: TimedNotice | null): BoardNotice | null {
+function timedNotice(notice: TimedNotice | null): PlayNotice | null {
     if (notice?.kind === "reconnected") {
         return { text: "Reconnected", tone: "success" };
     }
@@ -542,7 +556,7 @@ function timedNotice(notice: TimedNotice | null): BoardNotice | null {
     return null;
 }
 
-function unreadNotice(count: number): BoardNotice | null {
+function unreadNotice(count: number): PlayNotice | null {
     if (count === 0) {
         return null;
     }
@@ -550,11 +564,27 @@ function unreadNotice(count: number): BoardNotice | null {
     return { text: `${messages} could not be read; the table may be wrong`, tone: "error" };
 }
 
-function boardNotices(state: GameClientState): BoardNotice[] {
+/**
+ * The tile faces' notice once a load of the sprite failed, until one succeeds: the tiles show their names meanwhile,
+ * and a reload is the player's way to try at once. The words stay the same across the retries.
+ */
+function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
+    if (status !== "retrying" && status !== "failed") {
+        return null;
+    }
+    return {
+        action: { command: { kind: "reload" }, label: "Reload" },
+        text: "Tile images did not load; tiles show their names",
+        tone: "warning",
+    };
+}
+
+function boardNotices(state: GameClientState, ui: PlayUi): PlayNotice[] {
     return [
         connectionNotice(state.session),
         timedNotice(state.notice),
         unreadNotice(state.unreadMessages),
+        tileSpriteNotice(ui.tileSprite),
     ].filter((notice) => notice !== null);
 }
 
@@ -579,7 +609,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         failure,
         furiten: furiten && viewer !== undefined,
         leave: leaveControls(state, ui),
-        notices: failure === null ? boardNotices(state) : [],
+        notices: failure === null ? boardNotices(state, ui) : [],
         result: resultControls(state, resultPage),
         resultOverStandings: state.roundConfirm?.kind === "final",
         resultPage,

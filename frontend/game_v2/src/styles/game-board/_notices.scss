@@ -49,3 +49,12 @@
         border-radius: 0.5rem;
     }
 }
+
+.board-notice__action {
+    width: auto;
+    margin: 0 0 0 0.6em;
+    padding: 0.15em 0.7em;
+    font-size: inherit;
+    line-height: inherit;
+    pointer-events: auto;
+}

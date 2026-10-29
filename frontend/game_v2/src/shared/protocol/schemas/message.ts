@@ -1,4 +1,4 @@
-import { type z } from "zod";
+import { type z } from "zod/mini";
 
 import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 

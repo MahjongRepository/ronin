@@ -15,5 +15,6 @@ export default defineConfig({
         },
         environment: "happy-dom",
         include: ["tests/**/*.test.ts"],
+        setupFiles: ["./src/zod-setup.ts"],
     },
 });

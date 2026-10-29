@@ -15,6 +15,7 @@ import {
     seatScenarioFromTranscript,
     stepGameClient,
 } from "@/entities/client";
+import { type TileSpriteStatus } from "@/entities/tile";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
 import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json";
@@ -47,11 +48,12 @@ interface DecisionStory {
     /** What happens next, stepped on the checkpoint's state: a drop, a refusal, a kick. */
     readonly followUp?: (state: GameClientState) => readonly ClientEvent[];
     readonly confirmingLeave?: boolean;
+    readonly tileSprite?: TileSpriteStatus;
 }
 
 /**
  * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, the round
- * results the player confirms, then the session's notices, a kick and the leave question.
+ * results the player confirms, then the board's notices, a kick and the leave question.
  */
 const STORY_KEYS = [
     "call_prompt",
@@ -70,6 +72,7 @@ const STORY_KEYS = [
     "last_result",
     "connection_lost",
     "move_refused",
+    "faces_missing",
     "kicked",
     "leave_confirm",
 ] as const;
@@ -108,6 +111,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     double_ron_last: {
         ...checkpoint("double_ron_seat_1", "round end", "Double ron 2/2"),
         resultPage: 1,
+    },
+    faces_missing: {
+        ...checkpoint("call_prompt_seat_1", "turn", "Faces missing"),
+        tileSprite: "failed",
     },
     kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
@@ -153,7 +160,7 @@ function checkpointState(transcriptName: TranscriptName, label: string): GameCli
 }
 
 function storyScreen(key: DecisionStoryKey): StoryScreen {
-    const { confirmingLeave, followUp, label, pickRiichi, resultPage, transcript } =
+    const { confirmingLeave, followUp, label, pickRiichi, resultPage, tileSprite, transcript } =
         DECISION_STORIES[key];
     const reached = checkpointState(transcript, label);
     const state = (followUp?.(reached) ?? []).reduce(
@@ -164,6 +171,7 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
         ...NO_PLAY_UI,
         confirmingLeave: confirmingLeave ?? false,
         riichiPickWaitId: pickRiichi ? (state.decision?.waitId ?? null) : null,
+        tileSprite: tileSprite ?? NO_PLAY_UI.tileSprite,
     };
     const ui = nextPlayUi(state, picked, { kind: "show_result_page", page: resultPage });
     return { sent: [], state, story: key, ui };

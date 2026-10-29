@@ -3,7 +3,7 @@
 The client mirror of the game server's wire protocol; `backend/game/messaging/AGENTS.md` routes to
 the protocol's source files, and a protocol change lands here and in the backend in the same change.
 
-- `constants.ts` holds the wire values; `schemas/` parse every server message with Zod from compact
+- `constants.ts` holds the wire values; `schemas/` parse every server message with Zod (`zod/mini`'s functional API) from compact
   wire keys into camelCase objects; `decoders/` unpack the packed integer draw, discard and IMME
   meld values; `builders/` construct every client message.
 - `parseServerMessage` is the single entry for inbound messages and returns an `[error, message]`

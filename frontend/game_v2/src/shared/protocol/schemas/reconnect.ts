@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { SESSION_MESSAGE_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
@@ -15,50 +15,52 @@ import { parseRoundResult } from "./round-results";
 
 // --- Discard info (inside player state `dsc` array) ---
 
-const discardInfoSchema = z
-    .object({
-        rd: z.boolean().optional(),
-        tg: z.boolean().optional(),
+const discardInfoSchema = z.pipe(
+    z.object({
+        rd: z.optional(z.boolean()),
+        tg: z.optional(z.boolean()),
         ti: tileIdSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         isRiichiDiscard: raw.rd ?? false,
         isTsumogiri: raw.tg ?? false,
         tileId: raw.ti,
-    }));
+    })),
+);
 
 // --- Player reconnect state (inside `pst` array) ---
 
-const playerReconnectStateSchema = z
-    .object({
+const playerReconnectStateSchema = z.pipe(
+    z.object({
         dsc: z.array(discardInfoSchema),
-        ml: z.array(z.number().int()),
+        ml: z.array(z.int()),
         ri: z.boolean(),
         s: seatSchema,
         sc: z.number(),
-        tc: z.number().int().min(0),
-    })
-    .transform((raw) => ({
+        tc: z.int().check(z.gte(0)),
+    }),
+    z.transform((raw) => ({
         discards: raw.dsc,
         isRiichi: raw.ri,
         melds: raw.ml,
         score: raw.sc * WIRE_SCORE_DIVISOR,
         seat: raw.s,
         tileCount: raw.tc,
-    }));
+    })),
+);
 
-const roundHistoryEntrySchema = z
-    .object({
+const roundHistoryEntrySchema = z.pipe(
+    z.object({
         dl: seatSchema,
-        h: z.number().int(),
-        ls: seatSchema.optional(),
+        h: z.int(),
+        ls: z.optional(seatSchema),
         rs: z.array(seatSchema),
         sch: wireScoreMapSchema,
-        ts: z.array(seatSchema).optional(),
-        w: z.number().int(),
+        ts: z.optional(z.array(seatSchema)),
+        w: z.int(),
         ws: z.array(seatSchema),
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         dealerSeat: raw.dl,
         honbaSticks: raw.h,
         loserSeat: raw.ls ?? null,
@@ -67,37 +69,38 @@ const roundHistoryEntrySchema = z
         tenpaiSeats: raw.ts ?? null,
         wind: raw.w,
         winnerSeats: raw.ws,
-    }));
+    })),
+);
 
 // --- Game reconnected ---
 
-export const gameReconnectedSchema = z
-    .object({
+export const gameReconnectedSchema = z.pipe(
+    z.object({
         cp: seatSchema,
         dc: z.tuple([z.number(), z.number()]),
         dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
         di: z.array(tileIdSchema),
         dl: seatSchema,
-        el: secondsSchema.optional(),
+        el: z.optional(secondsSchema),
         f: z.boolean(),
         gid: z.string(),
-        h: z.number().int(),
+        h: z.int(),
         mt: z.array(tileIdSchema),
-        n: z.number().int(),
-        oc: z.boolean().optional(),
+        n: z.int(),
+        oc: z.optional(z.boolean()),
         p: z.array(gamePlayerInfoSchema),
         pst: z.array(playerReconnectStateSchema),
-        r: z.number().int(),
-        re: z.record(z.string(), z.unknown()).optional(),
+        r: z.int(),
+        re: z.optional(z.record(z.string(), z.unknown())),
         rh: z.array(roundHistoryEntrySchema),
         s: seatSchema,
         tm: timerSettingsSchema,
-        tr: z.number().int(),
+        tr: z.int(),
         type: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
-        w: z.number().int(),
+        w: z.int(),
         wi: waitIdSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         confirmationOwed: raw.oc ?? false,
         currentPlayerSeat: raw.cp,
         dealerDice: raw.dd,
@@ -121,6 +124,7 @@ export const gameReconnectedSchema = z
         type: "game_reconnected" as const,
         waitId: raw.wi,
         wind: raw.w,
-    }));
+    })),
+);
 
 export type GameReconnectedEvent = z.output<typeof gameReconnectedSchema>;

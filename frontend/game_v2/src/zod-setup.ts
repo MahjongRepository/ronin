@@ -1,3 +1,4 @@
-import { z } from "zod";
+import { en } from "zod/locales";
+import { z } from "zod/mini";
 
-z.config({ jitless: true });
+z.config({ ...en(), jitless: true });

@@ -298,6 +298,7 @@ const PAGES: readonly PageCase[] = [
     decisionCase("last_result", [".round-end-result__confirm"]),
     decisionCase("connection_lost", [".board-notice--warning"]),
     decisionCase("move_refused", [".board-notice--warning", ".hand-tile--selectable"]),
+    decisionCase("faces_missing", [".board-notice__action", ".hand-tile--selectable"]),
     decisionCase("kicked", [".failure-panel__leave"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     {
@@ -942,6 +943,53 @@ async function loadPage(page: Page, pageCase: PageCase, origin: string): Promise
     }
 }
 
+/** The tile faces a page draws: every face's sprite symbol, with content, and whether a shown face drew a box. */
+interface TileFaces {
+    readonly count: number;
+    readonly unresolved: readonly string[];
+    readonly drawn: boolean;
+}
+
+/**
+ * Fail a page whose tile sprite never loaded, or whose faces name a symbol the sprite lacks or holds empty: either
+ * leaves the faces blank, which a layout check alone passes.
+ */
+async function checkTileFaces(page: Page, report: PageReport): Promise<void> {
+    const loaded = await page
+        .waitForFunction(() => document.documentElement.dataset.tileSprite === "ready", null, {
+            timeout: SELECTOR_TIMEOUT_MS,
+        })
+        .then(() => true)
+        .catch(() => false);
+    report.expect(loaded, "the tile sprite did not load");
+    const faces = await page.evaluate((): TileFaces => {
+        const uses = [...document.querySelectorAll(".tile svg use")].filter(
+            (use) => use instanceof SVGUseElement,
+        );
+        const unresolved = uses
+            .map((use) => use.getAttribute("href") ?? "")
+            .filter(
+                (href) => (document.querySelector(`symbol${href}`)?.childElementCount ?? 0) === 0,
+            );
+        const shown = uses.filter((use) => use.closest("svg")?.checkVisibility() === true);
+        const drawn =
+            shown.length === 0 ||
+            shown.some((use) => {
+                const bounds = use.getBBox();
+                return bounds.width > 0 && bounds.height > 0;
+            });
+        return { count: uses.length, drawn, unresolved: [...new Set(unresolved)] };
+    });
+    if (faces.count === 0) {
+        return;
+    }
+    report.expect(
+        faces.unresolved.length === 0,
+        `tile faces with no sprite symbol: ${faces.unresolved.join(", ")}`,
+    );
+    report.expect(faces.drawn, "no tile face drew");
+}
+
 async function runPage(
     { context, origin, shots, viewport }: PageLoad,
     pageCase: PageCase,
@@ -960,6 +1008,7 @@ async function runPage(
         await emulateInsets(page, viewport.insets);
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         await page.waitForTimeout(SETTLE_MS);
+        await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);
         await page.screenshot({ path: join(shots, `${viewport.name}-${pageCase.name}.png`) });
     } catch (error: unknown) {

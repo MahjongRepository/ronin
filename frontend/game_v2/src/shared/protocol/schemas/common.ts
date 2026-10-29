@@ -1,48 +1,53 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import { WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
-export const tileIdSchema = z.number().int().min(0).max(135);
+export const tileIdSchema = z.int().check(z.gte(0), z.lte(135));
 
-export const tileTypeSchema = z.number().int().min(0).max(33);
+export const tileTypeSchema = z.int().check(z.gte(0), z.lte(33));
 
 // Seat: integer 0-3 (4-player game)
-export const seatSchema = z.number().int().min(0).max(3);
+export const seatSchema = z.int().check(z.gte(0), z.lte(3));
 
-export const waitIdSchema = z.number().int().min(0);
+export const waitIdSchema = z.int().check(z.gte(0));
 
-export const secondsSchema = z.number().min(0);
+export const secondsSchema = z.number().check(z.gte(0));
 
-export const wireScoreSchema = z.number().transform((value) => value * WIRE_SCORE_DIVISOR);
+export const wireScoreSchema = z.pipe(
+    z.number(),
+    z.transform((value) => value * WIRE_SCORE_DIVISOR),
+);
 
 // Wire score map: Record of string-keyed scores divided by WIRE_SCORE_DIVISOR.
 // Transforms wire values (e.g. 250) back to real scores (e.g. 25000).
 // Uses plain objects (not Map) so JSON.stringify works correctly.
-export const wireScoreMapSchema = z
-    .record(z.string(), z.number())
-    .transform((rec) =>
+export const wireScoreMapSchema = z.pipe(
+    z.record(z.string(), z.number()),
+    z.transform((rec) =>
         Object.fromEntries(
             Object.entries(rec).map(([key, value]) => [key, value * WIRE_SCORE_DIVISOR]),
         ),
-    );
+    ),
+);
 
 // Player info: shared between game_started and game_reconnected events.
 // Transforms wire-format `ai` integer to boolean and renames aliases to camelCase.
-export const gamePlayerInfoSchema = z
-    .object({
-        ai: z.number().int(),
+export const gamePlayerInfoSchema = z.pipe(
+    z.object({
+        ai: z.int(),
         nm: z.string(),
         s: seatSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         isAiPlayer: raw.ai !== 0,
         name: raw.nm,
         seat: raw.s,
-    }));
+    })),
+);
 
-export const timerSettingsSchema = z
-    .object({
+export const timerSettingsSchema = z.pipe(
+    z.object({
         bk: secondsSchema,
         gp: secondsSchema,
         mb: secondsSchema,
@@ -50,8 +55,8 @@ export const timerSettingsSchema = z
         ra: secondsSchema,
         rb: secondsSchema,
         tb: secondsSchema,
-    })
-    .transform((raw) => ({
+    }),
+    z.transform((raw) => ({
         bankSeconds: raw.bk,
         baseTurnSeconds: raw.tb,
         gameStartPauseSeconds: raw.gp,
@@ -59,4 +64,5 @@ export const timerSettingsSchema = z
         meldDecisionSeconds: raw.md,
         roundAdvanceTimeoutSeconds: raw.ra,
         roundBonusSeconds: raw.rb,
-    }));
+    })),
+);

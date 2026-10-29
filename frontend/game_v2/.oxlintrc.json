@@ -103,6 +103,24 @@
                 "no-restricted-imports": [
                     "error",
                     {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
                         "patterns": [
                             {
                                 "group": ["@/fixtures/*"],
@@ -116,7 +134,29 @@
         {
             "files": ["src/views/storybook-*.ts"],
             "rules": {
-                "no-restricted-imports": "off"
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ]
+                    }
+                ]
             }
         },
         {

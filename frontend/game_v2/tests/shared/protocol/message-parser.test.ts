@@ -252,6 +252,7 @@ describe("parseServerMessage", () => {
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeInstanceOf(Error);
             expect(err!.message).toContain("t=1");
+            expect(err!.message).toContain("expected number, received undefined");
             expect(parsed).toBeNull();
         });
 

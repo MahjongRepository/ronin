@@ -1,10 +1,11 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { ManualClock } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
 import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
+import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
-import { type Clock } from "@/shared/clock";
 import {
     type ClientMessage,
     buildConfirmRoundAction,
@@ -34,41 +35,22 @@ class FakeConnection implements GameConnection {
     }
 }
 
-interface ManualTimer {
-    readonly at: number;
-    readonly callback: () => void;
-    cancelled: boolean;
-}
+/** A tile sprite whose load a test moves by hand. */
+class FakeTileSprite implements TileSprite {
+    private current: TileSpriteStatus = "ready";
+    private readonly listeners = new Set<(status: TileSpriteStatus) => void>();
 
-/** A clock moved by hand; `timers` keeps every callback, cancelled ones too, so a test can fire a stale one. */
-class ManualClock implements Clock {
-    readonly timers: ManualTimer[] = [];
-    private current = 0;
+    status = (): TileSpriteStatus => this.current;
 
-    now = (): number => this.current;
-
-    setTimer = (delayMs: number, callback: () => void): (() => void) => {
-        const timer: ManualTimer = { at: this.current + delayMs, callback, cancelled: false };
-        this.timers.push(timer);
-        return () => {
-            timer.cancelled = true;
-        };
+    subscribe = (listener: (status: TileSpriteStatus) => void): (() => void) => {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
     };
 
-    /** The timer armed last, which a test fires by hand after it was replaced or cancelled. */
-    lastTimer(): ManualTimer {
-        const timer = this.timers.at(-1);
-        if (timer === undefined) {
-            throw new Error("no timer was armed");
-        }
-        return timer;
-    }
-
-    advanceTo(at: number): void {
-        this.current = at;
-        for (const timer of this.timers.filter((t) => !t.cancelled && t.at <= at)) {
-            timer.cancelled = true;
-            timer.callback();
+    moveTo(status: TileSpriteStatus): void {
+        this.current = status;
+        for (const listener of this.listeners) {
+            listener(status);
         }
     }
 }
@@ -81,15 +63,28 @@ interface FakeOverrides {
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
 }
 
+/** A socket factory that keeps every connection it opens. */
+function fakeConnector(): { connections: FakeConnection[]; connect: GameViewDeps["connect"] } {
+    const connections: FakeConnection[] = [];
+    function connect(url: string, handlers: SocketHandlers): FakeConnection {
+        const connection = new FakeConnection(url, handlers);
+        connections.push(connection);
+        return connection;
+    }
+    return { connect, connections };
+}
+
 function mountWithFakes(overrides: FakeOverrides = {}): {
     clock: ManualClock;
     connections: FakeConnection[];
     host: HTMLElement;
     sink: GameViewDeps["sink"];
+    tileSprite: FakeTileSprite;
     dispose: () => void;
 } {
     const clock = new ManualClock();
-    const connections: FakeConnection[] = [];
+    const tileSprite = new FakeTileSprite();
+    const { connect, connections } = fakeConnector();
     const sink = {
         clearHandoff: vi.fn(overrides.clearHandoff),
         leaveToLobby: vi.fn(),
@@ -98,22 +93,18 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         storeHandoff: vi.fn(),
     };
     const host = document.createElement("div");
-    function fakeConnect(url: string, handlers: SocketHandlers): FakeConnection {
-        const connection = new FakeConnection(url, handlers);
-        connections.push(connection);
-        return connection;
-    }
     const dispose = mountGameView(host, GAME_ID, {
         clock,
-        connect: overrides.connect ?? fakeConnect,
+        connect: overrides.connect ?? connect,
         debug: overrides.debug ?? false,
         handoff: overrides.handoff === undefined ? HANDOFF : overrides.handoff,
         recoverHandoff:
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
         sink,
+        tileSprite,
     });
-    return { clock, connections, dispose, host, sink };
+    return { clock, connections, dispose, host, sink, tileSprite };
 }
 
 /** Join a game that already started, then get told to retry the RECONNECT later. */
@@ -147,6 +138,10 @@ function press(host: HTMLElement, selector: string): void {
         throw new Error(`nothing matches ${selector}`);
     }
     element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
+function spriteNotice(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game__play .board-notice--warning")?.textContent;
 }
 
 function secondsLeft(host: HTMLElement): string | null | undefined {
@@ -313,6 +308,24 @@ describe("mountGameView", () => {
 
         const armed = clock.timers.filter((timer) => !timer.cancelled).map((timer) => timer.at);
         expect(armed).toEqual([11_000]);
+    });
+});
+
+describe("mountGameView tile faces", () => {
+    it("tells the player while the tile faces failed to load, with a reload, until a retry loads them", () => {
+        const { host, sink, tileSprite } = mountWithFakes();
+
+        const shown = (["retrying", "failed"] as const).map((status) => {
+            tileSprite.moveTo(status);
+            return spriteNotice(host);
+        });
+        press(host, ".board-notice__action");
+        tileSprite.moveTo("ready");
+
+        const notice = /^Tile images did not load; tiles show their names\s*Reload$/;
+        expect(shown).toEqual([expect.stringMatching(notice), expect.stringMatching(notice)]);
+        expect(sink.reload).toHaveBeenCalledOnce();
+        expect(spriteNotice(host)).toBeUndefined();
     });
 });
 
