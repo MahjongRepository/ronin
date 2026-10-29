@@ -26,9 +26,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   The initial loading screen and its critical styles live inline in the HTML so they appear before
   JavaScript or the board styles arrive. Tile routes decode their images before rendering; the live
   game dismisses the screen after its start event or reconnect snapshot has drawn the table, the
-  replay after its first position (or its error) is shown. With sound on, a loaded replay first
-  waits on the screen's OK button (`waitForStart`), whose press is the user activation the board's
-  sounds need (a wheel step grants none); its board, keys and wheel start only then. The replay's
+  replay after its first position (or its error) is shown. With sound on, a loaded replay instead
+  dismisses it for the board's game start screen with an OK button in its countdown's place
+  (`waitForStart` in `replay/page.js`), whose press is the user activation the board's sounds need
+  (a wheel step grants none); its strip, keys and wheel start only then. The replay's
   error screen (`showProblem` in `replay/page.js`) takes that screen's layout and retypes its brand
   and mark, since the screen is gone by the time a later position fails: a change to the loading
   screen's markup goes there too.

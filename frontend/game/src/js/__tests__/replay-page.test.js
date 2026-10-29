@@ -84,12 +84,12 @@ function addressQuery() {
     return window.location.search;
 }
 
-const START = "#game-loading .loading-start";
+const START = "#board .kaiju-start";
 
 /** Turns of the microtask queue a load may take to offer its OK; waiting on timers would run earlier tests' leftovers. */
 const LOAD_TURNS = 1000;
 
-/** Start showing `text` as the replay, and wait until the loading screen offers its OK or the page settles without it. */
+/** Start showing `text` as the replay, and wait until the game start screen offers its OK or the page settles without it. */
 async function load(text) {
     stubFetch(new Response(text));
     let settled = false;
@@ -98,7 +98,7 @@ async function load(text) {
     });
     for (let turns = 0; !settled && $(START).length === 0; turns += 1) {
         if (turns === LOAD_TURNS) {
-            throw new Error(`the loading screen's OK: not offered after ${LOAD_TURNS} turns`);
+            throw new Error(`the game start screen's OK: not offered after ${LOAD_TURNS} turns`);
         }
         await Promise.resolve();
     }
@@ -246,12 +246,20 @@ describe("showReplay", () => {
         });
     });
 
-    it("holds a loaded replay behind the loading screen's focused OK, ignoring keys and the wheel, unless sound is off", async () => {
+    it("holds a loaded replay behind the game start screen's focused OK, ignoring keys and the wheel, unless sound is off", async () => {
         openAt("?seat=1&round=2&step=5");
         const { shown } = await load(FULL_GAME);
 
         expect(document.activeElement).toBe($(START)[0]);
-        expect($("#game-loading [role=status]").text()).toBe("Replay loaded");
+        expect($("#game-loading")).toHaveLength(0);
+        expect($("#board .kaiju").hasClass("hide")).toBe(false);
+        expect($("#board .kaiju .title").text()).toBe("Hanchan");
+        expect(
+            ["main", "xiajia", "duimian", "shangjia"].map((place) =>
+                $(`#board .kaiju .player .${place}`).text(),
+            ),
+        ).toEqual(["Ojisan", "Ichihime", "Akagi", "Wanjirou"]);
+        expect($("#board .kaiju .countdown").text()).toBe("");
         press("ArrowRight");
         $("#board")[0].dispatchEvent(
             new WheelEvent("wheel", {
@@ -265,6 +273,8 @@ describe("showReplay", () => {
 
         $(START).trigger("click");
         await shown;
+        expect($(START)).toHaveLength(0);
+        expect($("#board .kaiju").hasClass("hide")).toBe(true);
 
         loadPage();
         localStorage.setItem(GAME_PREF_KEY, JSON.stringify({ sound_on: false }));

@@ -13,7 +13,8 @@ import { UnknownRoundResultError, abortiveResults, fenpeiByL, jiejuStandings, ka
          roundInWind, roundResults, seatL, seatOfL, tenpaiByL, WIN_CALL_MS } from './results.js';
 import { replayPath } from '../routes.js';
 import { DRAW_CODE } from './draws.js';
-import { locale, t } from '../../i18n/index.js';
+import { gameTypeName } from './game-types.js';
+import { locale } from '../../i18n/index.js';
 
 /** The seat of the first East dealer, by the server's two-roll rule (nidofuri) over the dealer dice. */
 function firstDealerFromDice(dealerDice) {
@@ -22,15 +23,10 @@ function firstDealerFromDice(dealerDice) {
     return (provisional + second[0] + second[1] - 1) % 4;
 }
 
-const GAME_TYPE_KEYS = {
-    [wire.GAME_TYPE.HANCHAN]:  'game.type.hanchan',
-    [wire.GAME_TYPE.TONPUSEN]: 'game.type.tonpuu',
-};
-
 /** The game start screen's title: the game's length, then on a second line the local time it started. */
 function gameTitle(gameType, startedAt) {
     const time = startedAt.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
-    return t(GAME_TYPE_KEYS[gameType]) + '\n' + time;
+    return gameTypeName(gameType) + '\n' + time;
 }
 
 /**

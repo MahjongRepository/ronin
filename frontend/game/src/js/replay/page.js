@@ -3,7 +3,8 @@ import $ from "jquery";
 import { t } from "../../i18n/index.js";
 import { withoutBlockedPlayback } from "../game-audio.js";
 import { GAME_PREF_KEY } from "../game-prefs.js";
-import { showLoadingStatus, waitForStart } from "../loading.js";
+import { finishLoading, showLoadingStatus } from "../loading.js";
+import { gameTypeName } from "../ronin/game-types.js";
 import { HISTORY_URL, LOBBY_URL, replayPath } from "../routes.js";
 import { BoardLinks } from "./board-links.js";
 import { bindLanguageMenu, reloadInLanguage } from "../language-menu.js";
@@ -134,7 +135,7 @@ function buildBoard(replay, stage, prefs, seat) {
     const pai = Majiang.UI.pai($("#loaddata"));
     const audio = withoutBlockedPlayback(Majiang.UI.audio($("#loaddata")));
     const model = new Majiang.Board({
-        title: "",
+        title: gameTypeName(replay.gameType),
         player: [...replay.players],
         qijia: replay.qijia,
     });
@@ -152,19 +153,43 @@ function buildBoard(replay, stage, prefs, seat) {
 }
 
 /**
- * The viewer at the seat and position the address bar names (by default the recorded first dealer's seat at the first
- * deal), paused, the address bar then following every move and change of seat.
+ * The game start screen, from the seat shown, with a focused OK in its countdown's place, resolving once pressed. The
+ * press is the page's first user activation, without which the browser refuses the board's sounds.
  */
-function startViewer(gameId, replay) {
+function waitForStart(view, root, seat) {
+    view.kaiju(seat);
+    const button = $('<button type="button" class="kaiju-start">').text(t("replay.start"));
+    $("> .kaiju > div", root).append(button);
+    finishLoading();
+    button.trigger("focus");
+    return new Promise((resolve) => {
+        button.one("click", () => {
+            button.remove();
+            resolve();
+        });
+    });
+}
+
+/**
+ * The viewer at the seat and position the address bar names (by default the recorded first dealer's seat at the first
+ * deal), paused, the address bar then following every move and change of seat. With sound on, the game start screen
+ * waits for its OK first; the strip, the keys and the wheel start only then.
+ */
+async function startViewer(gameId, replay) {
     const stage = $("#board");
     const prefs = readReplayPrefs();
     const { seat, round, step } = readPosition(window.location.search, replay);
     const { model, view, root, settings } = buildBoard(replay, stage, prefs, seat);
+    $("#space").remove();
+    $("body").addClass("replay");
+    fitTableToStage(stage);
+    if (ReplaySettings.sound_on(GAME_PREF_KEY)) {
+        await waitForStart(view, root, seat);
+    }
     const positionUrl = new PositionUrl();
     const controls = new ReplayControls(replay, { closeSettings: () => settings.menu(false) });
     const links = new BoardLinks(replay, root, { onStandingsJump: () => controls.focusRounds() });
-    $("#space").remove();
-    $("body").addClass("replay").append(controls.element);
+    $("body").append(controls.element);
     const viewer = new ReplayViewer({
         replay,
         view,
@@ -183,18 +208,12 @@ function startViewer(gameId, replay) {
     bindKeys(viewer, controls);
     bindWheel(viewer, stage);
     viewer.start(round, step);
-    if (viewer.failed) {
-        return;
-    }
-    fitTableToStage(stage);
 }
 
 /**
  * Show a game's replay on the board at the position its address names, with its control strip, or say why it cannot be
  * shown. The replay loads while `tilesLoaded` (the tile images' decoding) runs; only the board waits for it, so a failed
- * decode is the board's failure alone, never an unhandled rejection on a page that shows a problem instead. Once both
- * are ready, with sound on, the loading screen waits for its OK, the user activation the board's sounds need (a wheel
- * step grants none); the board, its keys and its wheel start only then.
+ * decode is the board's failure alone, never an unhandled rejection on a page that shows a problem instead.
  */
 export async function showReplay(gameId, tilesLoaded) {
     document.title = t("replay.page_title");
@@ -204,11 +223,8 @@ export async function showReplay(gameId, tilesLoaded) {
         return;
     }
     await tilesLoaded;
-    if (ReplaySettings.sound_on(GAME_PREF_KEY)) {
-        await waitForStart(t("replay.loading.ready"));
-    }
     try {
-        startViewer(gameId, replay);
+        await startViewer(gameId, replay);
     } catch (error) {
         showViewerFailure(error, gameId, replay);
     }

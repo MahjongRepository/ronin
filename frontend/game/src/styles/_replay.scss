@@ -922,6 +922,11 @@ body.board.replay#{$rounds-open} > #board {
         > .replay-controls {
             flex: 1 0 auto;
         }
+
+        /* The game start screen shows before the strip, so the stage takes the strip's room until it arrives. */
+        &:not(:has(> .replay-controls)) > #board {
+            flex-grow: 1;
+        }
     }
 
     .replay-controls {
@@ -1230,5 +1235,35 @@ body.board.replay#{$rounds-open} > #board {
 
     .replay-controls .replay-round-entry {
         padding: 4px 6px;
+    }
+}
+
+/* The game start screen's OK, in its countdown's place: the start screen's one button, focused on arrival, so focused
+   it fills as on hover to read as the default. A transparent outline keeps a ring where forced colours drop the fill. */
+body.board.replay .kaiju-start {
+    display: block;
+    min-width: 160px;
+    min-height: 48px;
+    margin: 0 auto 40px;
+    padding: 0 32px;
+    border: solid 1px $accent;
+    border-radius: 6px;
+    background: transparent;
+    color: $accent;
+    font-family: $text-font;
+    font-size: 24px;
+    cursor: pointer;
+
+    &:focus-visible {
+        outline: solid 2px transparent;
+        background: $accent;
+        color: $grey-900;
+    }
+
+    @media (hover: hover) {
+        &:hover {
+            background: $accent;
+            color: $grey-900;
+        }
     }
 }
