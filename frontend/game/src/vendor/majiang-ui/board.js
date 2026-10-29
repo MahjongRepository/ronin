@@ -422,11 +422,12 @@ export default class Board {
     }
 
     /* A locale switch, in place: every text of the table follows the new
-     * locale, but an open dialog keeps its text, tagged with previous. */
+     * locale, but an open dialog keeps its text, tagged with the one it shows. */
     relabel(previous) {
         const open = [$('> .hule-dialog', this._root), this._view.summary,
                       this._view.kaiju].filter(node => ! node.hasClass('hide'));
-        open.forEach(node => node.attr('lang', previous));
+        open.filter(node => node.attr('lang') === undefined)
+            .forEach(node => node.attr('lang', previous));
         applyStaticText(this._root[0], { skip: open.map(node => node[0]) });
         if (this._view.shan) this._view.score.redraw().update();
     }
