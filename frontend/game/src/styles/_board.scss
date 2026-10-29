@@ -1,5 +1,15 @@
 @use "theme" as *;
 
+@mixin nameplate-diff {
+    .defen {
+        display: none;
+    }
+
+    .defen-diff {
+        display: inline;
+    }
+}
+
 body.board {
     color: white;
     background: black;
@@ -248,6 +258,12 @@ body.board {
             color: $grey-200;
         }
 
+        .defen-diff {
+            display: none;
+            font-family: $defen-font;
+            color: $accent;
+        }
+
         .badge {
             padding: 0 0.3em;
             border-radius: 3px;
@@ -285,6 +301,24 @@ body.board {
                 background: $highlight;
                 color: black;
             }
+        }
+    }
+
+    .he {
+        pointer-events: none;
+    }
+
+    &.diff-pins > .player {
+        cursor: pointer;
+    }
+
+    &.diffs-pinned > .player:not(.main) {
+        @include nameplate-diff;
+    }
+
+    @media (hover: hover) {
+        &:has(> .player:hover) > .player:not(.main) {
+            @include nameplate-diff;
         }
     }
 

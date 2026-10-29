@@ -26,6 +26,7 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
 
     const player = new RoninPlayer($('#board'), pai, audio);
     player.view  = new Majiang.UI.Board($('#board .board'), pai, audio, player.model);
+    player._view.pin_diffs_on_click();
 
     new Majiang.UI.GameCtl($('#board'), GAME_PREF_KEY, player, player._view);
     bindLanguageMenu(document.getElementById('board'), next => switchLiveLocale(player._view, next));
