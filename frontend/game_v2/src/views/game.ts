@@ -5,20 +5,18 @@ import {
     type ClientEffect,
     type ClientEvent,
     type GameClientState,
+    RotatePanel,
+    describeClientStatus,
     failGameClient,
+    nextCountdownChange,
     nextDeadline,
+    rotatePanelProps,
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
-import { describeSessionStatus } from "@/entities/session";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
-import {
-    CONNECTION_STATUS,
-    EVENT_TYPE,
-    LOG_TYPE_SYSTEM,
-    LOG_TYPE_UNKNOWN,
-} from "@/shared/protocol";
+import { EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
 
@@ -39,7 +37,6 @@ export interface GameViewDeps {
 const CONNECT_FAILED_CLOSE_CODE = 1006;
 const MAX_LOG_ENTRIES = 500;
 const LOG_TYPE_ERROR = "error";
-const NO_SESSION_STATUS = { label: "No session", tone: CONNECTION_STATUS.ERROR } as const;
 
 const EVENT_NAMES: ReadonlyMap<number, string> = new Map(
     Object.entries(EVENT_TYPE).map(([name, type]) => [type, name.toLowerCase()]),
@@ -119,30 +116,42 @@ function logEntryTemplate(entry: LogEntry): TemplateResult {
     `;
 }
 
+/**
+ * The live game: its play area, and the rotate panel the stylesheet shows in its place on an upright phone, both
+ * rendered from the same state so the panel's status and countdown stay current while it is hidden.
+ */
 function gameTemplate({ gameId, log, onLeave, panel, state }: GameViewProps): TemplateResult {
-    const status =
-        state.session === null ? NO_SESSION_STATUS : describeSessionStatus(state.session);
+    const status = describeClientStatus(state);
     return html`
         <div class="game">
-            <div class="game-header">
-                <button class="secondary" @click=${onLeave}>Back to Lobby</button>
-                <h2>Game: ${gameId}</h2>
-                <span class="connection-status status-${status.tone}">${status.label}</span>
-            </div>
-            <div class="log-panel" ${ref(panel)}>
-                <div class="log-entries">${log.map(logEntryTemplate)}</div>
+            <div class="game__rotate">${RotatePanel(rotatePanelProps(state, onLeave))}</div>
+            <div class="game__play">
+                <div class="game-header">
+                    <button class="secondary" @click=${onLeave}>Back to Lobby</button>
+                    <h2>Game: ${gameId}</h2>
+                    <span class="connection-status status-${status.tone}">${status.label}</span>
+                </div>
+                <div class="log-panel" ${ref(panel)}>
+                    <div class="log-entries">${log.map(logEntryTemplate)}</div>
+                </div>
             </div>
         </div>
     `;
+}
+
+/** The next logical time the driver must tick at: a deadline the state holds, or a change of its countdown. */
+function nextWake(state: GameClientState): number | null {
+    const wakes = [nextDeadline(state), nextCountdownChange(state)].filter((at) => at !== null);
+    return wakes.length === 0 ? null : Math.min(...wakes);
 }
 
 /**
  * The live driver of the game client's dispatcher for one mount: it stamps every socket, timer and button event
  * with the clock's time, steps the dispatcher, executes the effects it returns in order and renders the state.
  * Events raised while effects run are queued behind the current one. After each step it arms one timer to the
- * state's next deadline, which comes back as a tick; a timer that was replaced, a socket that was closed, or
- * anything after `dispose` is dropped, so nothing restarts a disposed session. A step that throws ends the
- * client as failed, shown on the page, instead of leaving it stuck.
+ * state's next deadline or countdown change, which comes back as a tick; a timer that was replaced, a socket that
+ * was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step that throws
+ * ends the client as failed, shown on the page, instead of leaving it stuck.
  */
 class GameViewController {
     private readonly host: HTMLElement;
@@ -157,6 +166,8 @@ class GameViewController {
     private socketGeneration = 0;
     private disposed = false;
     private draining = false;
+    private logAppended = 0;
+    private logAppendedAtDraw = 0;
 
     constructor(host: HTMLElement, gameId: string, deps: GameViewDeps) {
         this.host = host;
@@ -232,6 +243,7 @@ class GameViewController {
             return;
         }
         this.log.push(entry);
+        this.logAppended += 1;
         if (this.log.length > MAX_LOG_ENTRIES) {
             this.log.splice(0, this.log.length - MAX_LOG_ENTRIES);
         }
@@ -240,9 +252,10 @@ class GameViewController {
     private draw(): void {
         const { gameId, leave, log, panel, state } = this;
         render(gameTemplate({ gameId, log, onLeave: leave, panel, state }), this.host);
-        if (panel.value) {
+        if (panel.value && this.logAppended !== this.logAppendedAtDraw) {
             panel.value.scrollTop = panel.value.scrollHeight;
         }
+        this.logAppendedAtDraw = this.logAppended;
     }
 
     private runEffects(effects: readonly ClientEffect[]): void {
@@ -353,9 +366,9 @@ class GameViewController {
         };
     }
 
-    /** Keep one timer armed to the state's next deadline; a replaced timer's late callback is dropped. */
+    /** Keep one timer armed to the state's next wake; a replaced timer's late callback is dropped. */
     private armDeadline(): void {
-        const deadline = nextDeadline(this.state);
+        const deadline = nextWake(this.state);
         if (deadline === (this.timer?.deadline ?? null)) {
             return;
         }

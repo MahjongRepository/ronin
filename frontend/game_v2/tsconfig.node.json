@@ -14,5 +14,5 @@
         "types": ["node"],
         "lib": ["ES2023"]
     },
-    "include": ["vite.config.ts", "vitest.config.ts", "scripts"]
+    "include": ["vite.config.ts", "vitest.config.ts"]
 }

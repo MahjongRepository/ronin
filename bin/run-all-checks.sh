@@ -36,6 +36,7 @@ run_check "Frontend format" "make format-frontend"
 run_check "Frontend lint" "make lint-frontend"
 run_check "Frontend typecheck" "make typecheck-frontend"
 run_check "Frontend test" "make test-frontend"
+run_check "Frontend visual check" "make visual-check"
 
 # If the script reaches this line, it's because no check failed and the script never exited.
 echo "🎉 All checks are good, thank you!"

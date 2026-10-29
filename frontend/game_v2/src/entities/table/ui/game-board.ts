@@ -19,18 +19,36 @@ interface GameBoardProps {
     state: BoardDisplayState | null;
 }
 
-function PlayerAreas(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
-    return html`
-        <div class="board-area board-area--${seat}-hand" data-area="${seat}-hand">
-            ${player ? Hand(player.hand, player.drawnTile) : ""}
+function HandArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    return html`<div class="board-area board-area--${seat}-hand" data-area="${seat}-hand">
+        ${player ? Hand(player.hand, player.drawnTile) : ""}
+    </div>`;
+}
+
+function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    return html`<div class="board-area board-melds board-area--${seat}-melds" data-area="${seat}-melds">
+        ${player ? player.melds.toReversed().map((m) => Meld(m)) : ""}
+    </div>`;
+}
+
+function DiscardsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    return html`<div class="board-area board-area--${seat}-disc" data-area="${seat}-discards">
+        ${player ? Discards(player.discards) : ""}
+    </div>`;
+}
+
+/**
+ * The table's areas for a seat: its river, and for another seat its strip along its edge, where the melds share the
+ * hand's track at its right; the bottom seat's hand and melds sit in the local strip instead.
+ */
+function TableAreas(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    if (seat === "bottom") {
+        return DiscardsArea(seat, player);
+    }
+    return html`<div class="board-strip board-strip--${seat}">
+            ${HandArea(seat, player)}${MeldsArea(seat, player)}
         </div>
-        <div class="board-area board-area--${seat}-melds" data-area="${seat}-melds">
-            ${player ? player.melds.toReversed().map((m) => Meld(m)) : ""}
-        </div>
-        <div class="board-area board-area--${seat}-disc" data-area="${seat}-discards">
-            ${player ? Discards(player.discards) : ""}
-        </div>
-    `;
+        ${DiscardsArea(seat, player)}`;
 }
 
 function ScoreEntry(player: BoardPlayerScore, position: SeatPosition): TemplateResult {
@@ -127,15 +145,26 @@ function EmptyCenterArea(): TemplateResult {
     `;
 }
 
+/**
+ * The board, sized from its own box: the table (the other seats, every river and the centre) above the local strip
+ * (the bottom seat's hand and melds), which spans the board's width so its tiles stay large enough to tap, and the
+ * dora in a corner of their own, beside the table on a wide board and above it otherwise.
+ */
 function GameBoard(props: GameBoardProps): TemplateResult {
     const boardClass = props.debug ? "game-board game-board--debug" : "game-board";
     const { state } = props;
+    const bottom = state?.players[0] ?? null;
 
     return html`
         <div class="${boardClass}">
-            ${SEAT_POSITIONS.map((seat, i) => PlayerAreas(seat, state?.players[i] ?? null))}
-            ${state ? CenterInfo(state.center) : EmptyCenterArea()}
-            ${state ? DoraDisplay(state.center.doraIndicators) : ""}
+            <div class="board-layout">
+                <div class="board-table">
+                    ${SEAT_POSITIONS.map((seat, i) => TableAreas(seat, state?.players[i] ?? null))}
+                    ${state ? CenterInfo(state.center) : EmptyCenterArea()}
+                </div>
+                <div class="board-local">${HandArea("bottom", bottom)}${MeldsArea("bottom", bottom)}</div>
+                ${state ? DoraDisplay(state.center.doraIndicators) : ""}
+            </div>
             ${
                 props.overlay
                     ? html`<div class="board-overlay">

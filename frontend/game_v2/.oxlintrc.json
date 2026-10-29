@@ -36,7 +36,10 @@
                     "RoundSelector",
                     "TurnSelector",
                     "GameBoard",
-                    "PlayerAreas",
+                    "HandArea",
+                    "MeldsArea",
+                    "DiscardsArea",
+                    "TableAreas",
                     "CenterInfo",
                     "EmptyCenterArea",
                     "ScoreEntry",
@@ -45,7 +48,8 @@
                     "DebugLabel",
                     "DoraDisplay",
                     "HonbaStickIcon",
-                    "RiichiStickIcon"
+                    "RiichiStickIcon",
+                    "RotatePanel"
                 ]
             }
         ],

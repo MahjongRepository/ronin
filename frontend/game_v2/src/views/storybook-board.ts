@@ -19,9 +19,27 @@ type OverlayMode = "none" | "round_end" | "game_end";
 
 const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
 
+/**
+ * The board's stories: a mid-round table, and the ones that test the fit: the widest local strip, full rivers, and
+ * the worst case of all at once (every seat with four melds, long rivers, five dora).
+ */
+const BOARD_STORIES = ["mid_round", "open_hand", "full_rivers", "worst"] as const;
+
+type BoardStory = (typeof BOARD_STORIES)[number];
+
+const BOARD_STORY_LABELS: Readonly<Record<BoardStory, string>> = {
+    full_rivers: "Full rivers",
+    mid_round: "Mid round",
+    open_hand: "Four kans",
+    worst: "Worst case",
+};
+
+const DEFAULT_STORY: BoardStory = "mid_round";
+
 interface BoardStoryState {
     readonly debug: boolean;
     readonly overlay: OverlayMode;
+    readonly story: BoardStory;
 }
 
 function parseOverlayParam(search: string): OverlayMode {
@@ -29,12 +47,17 @@ function parseOverlayParam(search: string): OverlayMode {
     return OVERLAY_MODES.find((mode) => mode === param) ?? "none";
 }
 
-function syncOverlayParam(overlay: OverlayMode): void {
+function parseStoryParam(search: string): BoardStory {
+    const param = new URLSearchParams(search).get("state");
+    return BOARD_STORIES.find((story) => story === param) ?? DEFAULT_STORY;
+}
+
+function syncQueryParam(name: string, value: string, fallback: string): void {
     const url = new URL(window.location.href);
-    if (overlay === "none") {
-        url.searchParams.delete("overlay");
+    if (value === fallback) {
+        url.searchParams.delete(name);
     } else {
-        url.searchParams.set("overlay", overlay);
+        url.searchParams.set(name, value);
     }
     history.replaceState(null, "", url);
 }
@@ -196,6 +219,128 @@ const mockState: BoardDisplayState = {
     players: [bottomPlayer, rightPlayer, topPlayer, leftPlayer],
 };
 
+const fourKansBottom: BoardPlayerDisplay = {
+    discards: bottomDiscards,
+    drawnTile: { face: "6z", show: "face" },
+    hand: [{ face: "2s", show: "face" }],
+    melds: [
+        {
+            calledTileId: null,
+            callerSeat: 0,
+            fromSeat: null,
+            meldType: "closed_kan",
+            tileIds: [0, 1, 2, 3],
+        },
+        {
+            calledTileId: 39,
+            callerSeat: 0,
+            fromSeat: 1,
+            meldType: "open_kan",
+            tileIds: [36, 37, 38, 39],
+        },
+        {
+            addedTileId: 75,
+            calledTileId: 73,
+            callerSeat: 0,
+            fromSeat: 3,
+            meldType: "added_kan",
+            tileIds: [72, 73, 74, 75],
+        },
+        {
+            calledTileId: 119,
+            callerSeat: 0,
+            fromSeat: 2,
+            meldType: "open_kan",
+            tileIds: [116, 117, 118, 119],
+        },
+    ],
+};
+
+/** Nineteen discards, a long river a drawn round can reach: its third row runs past the other two. */
+const fullRiver: DiscardTile[] = [
+    ...bottomDiscards,
+    ...topDiscards.slice(0, 7),
+    { face: "5s" },
+    { face: "6s", riichi: true },
+    { face: "7s" },
+    { face: "8s" },
+];
+
+const thirteenFaces: HandTile[] = [...bottomHand, ...leftHand.slice(0, 6)];
+
+function withRiver(player: BoardPlayerDisplay, hand: readonly HandTile[]): BoardPlayerDisplay {
+    return { ...player, discards: fullRiver, hand, melds: [] };
+}
+
+/** Twenty-one discards: the longest third row the worst case lays out. */
+const longRiver: DiscardTile[] = [...fullRiver, { face: "9s" }, { face: "1z" }];
+
+/** Four melds for `seat`, the widest kinds: a closed, an open and an added kan, then a pon. */
+function fourMelds(seat: number): MeldInput[] {
+    return [
+        {
+            calledTileId: null,
+            callerSeat: seat,
+            fromSeat: null,
+            meldType: "closed_kan",
+            tileIds: [0, 1, 2, 3],
+        },
+        {
+            calledTileId: 39,
+            callerSeat: seat,
+            fromSeat: (seat + 1) % 4,
+            meldType: "open_kan",
+            tileIds: [36, 37, 38, 39],
+        },
+        {
+            addedTileId: 75,
+            calledTileId: 73,
+            callerSeat: seat,
+            fromSeat: (seat + 2) % 4,
+            meldType: "added_kan",
+            tileIds: [72, 73, 74, 75],
+        },
+        {
+            calledTileId: 117,
+            callerSeat: seat,
+            fromSeat: (seat + 3) % 4,
+            meldType: "pon",
+            tileIds: [116, 117, 118],
+        },
+    ];
+}
+
+function worstSeat(seat: number): BoardPlayerDisplay {
+    return {
+        discards: longRiver,
+        drawnTile: { face: "6z", show: "face" },
+        hand: [{ face: "2s", show: "face" }],
+        melds: fourMelds(seat),
+    };
+}
+
+const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
+    full_rivers: {
+        center: { ...mockCenter, tilesRemaining: 2 },
+        players: [
+            withRiver(bottomPlayer, thirteenFaces),
+            withRiver(rightPlayer, thirteenFaces),
+            withRiver(topPlayer, thirteenFaces),
+            withRiver(leftPlayer, thirteenFaces),
+        ],
+    },
+    mid_round: mockState,
+    open_hand: { ...mockState, players: [fourKansBottom, rightPlayer, topPlayer, leftPlayer] },
+    worst: {
+        center: {
+            ...mockCenter,
+            doraIndicators: ["5m", "3p", "7s", "2z", "9m"],
+            tilesRemaining: 0,
+        },
+        players: [worstSeat(0), worstSeat(1), worstSeat(2), worstSeat(3)],
+    },
+};
+
 // Mock players for overlay displays
 const mockPlayers: readonly PlayerState[] = [
     createInitialPlayerState({ isAiPlayer: false, name: "You", score: 33_000, seat: 0 }),
@@ -260,6 +405,7 @@ function buildOverlay(overlay: OverlayMode): TemplateResult | undefined {
 }
 
 interface BoardStoryHandlers {
+    readonly showStory: (story: BoardStory) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
 }
@@ -272,13 +418,20 @@ function storybookBoardTemplate(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
 ): TemplateResult {
+    const state = BOARD_STATES[story.story];
     return html`
-        <div class="board-storybook">
-            <div class="board-storybook__viewport">
-                ${GameBoard({ debug: story.debug, overlay: buildOverlay(story.overlay), state: mockState })}
+        <div class="board-page board-storybook">
+            <div class="board-page__board">
+                ${GameBoard({ debug: story.debug, overlay: buildOverlay(story.overlay), state })}
             </div>
-            <div class="board-storybook__overlay">
+            <div class="board-page__aside">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>
+                ${BOARD_STORIES.map(
+                    (key) => html`<button
+                        class="board-storybook__btn ${activeClass(story.story === key)}"
+                        @click=${() => handlers.showStory(key)}
+                    >${BOARD_STORY_LABELS[key]}</button>`,
+                )}
                 <button
                     class="board-storybook__btn ${activeClass(story.debug)}"
                     @click=${handlers.toggleDebug}
@@ -296,11 +449,12 @@ function storybookBoardTemplate(
     `;
 }
 
-/** Mount the board storybook into `host`; its overlay choice is kept in the page's `?overlay=` query. */
+/** Mount the board storybook into `host`; its story and overlay are kept in the page's `?state=` and `?overlay=`. */
 export function mountStorybookBoard(host: HTMLElement): () => void {
     let story: BoardStoryState = {
         debug: true,
         overlay: parseOverlayParam(window.location.search),
+        story: parseStoryParam(window.location.search),
     };
 
     function show(next: BoardStoryState): void {
@@ -309,10 +463,14 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     }
 
     const handlers: BoardStoryHandlers = {
+        showStory(key) {
+            syncQueryParam("state", key, DEFAULT_STORY);
+            show({ ...story, story: key });
+        },
         toggleDebug: () => show({ ...story, debug: !story.debug }),
         toggleOverlay(mode) {
             const overlay = story.overlay === mode ? "none" : mode;
-            syncOverlayParam(overlay);
+            syncQueryParam("overlay", overlay, "none");
             show({ ...story, overlay });
         },
     };

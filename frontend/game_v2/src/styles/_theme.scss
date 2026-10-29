@@ -53,6 +53,10 @@
     --ronin-font-display: "Space Grotesk", sans-serif;
     --ronin-font-body: "DM Sans", sans-serif;
     --ronin-font-mono: "JetBrains Mono", "SF Mono", monospace;
+    --ronin-safe-top: env(safe-area-inset-top, 0px);
+    --ronin-safe-right: env(safe-area-inset-right, 0px);
+    --ronin-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --ronin-safe-left: env(safe-area-inset-left, 0px);
 }
 
 // Sticky footer layout

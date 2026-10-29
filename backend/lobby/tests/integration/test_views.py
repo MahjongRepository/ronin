@@ -162,7 +162,7 @@ class TestLobbyViews:
         assert response.text == _GAME_CLIENT_V2_INDEX
 
     @pytest.mark.parametrize(
-        "page", ["board", "discards", "hand", "melds", "decisions", "table", "win", "draw", "standings"]
+        "page", ["board", "discards", "hand", "melds", "rotate", "decisions", "table", "win", "draw", "standings"]
     )
     def test_storybook_page__when_visited__should_serve_game_client_index(self, client, page):
         response = client.get(f"/play/storybook/{page}")

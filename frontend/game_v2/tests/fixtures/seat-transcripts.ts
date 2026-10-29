@@ -56,3 +56,16 @@ export function receivedPayload(
     }
     return event.payload;
 }
+
+/** The payloads of every message the transcript's seat received, up to and including the one labelled `label`. */
+export function receivedThrough(
+    transcript: SeatTranscript,
+    label: string,
+): readonly Readonly<Record<string, unknown>>[] {
+    const received = transcript.events.filter((event) => event.kind === "received");
+    const last = received.findIndex((event) => event.label === label);
+    if (last === -1) {
+        throw new Error(`${transcript.scenario} has no received message labelled ${label}`);
+    }
+    return received.slice(0, last + 1).map((event) => event.payload);
+}

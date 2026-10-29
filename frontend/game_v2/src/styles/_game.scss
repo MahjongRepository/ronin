@@ -4,9 +4,12 @@
 // ─── Layout & Container ──────────────────────────────────────
 
 #app {
+    width: 100%;
+    min-width: 0;
     max-width: 1000px;
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    padding: max(2rem, var(--ronin-safe-top)) max(1.5rem, var(--ronin-safe-right))
+        max(2rem, var(--ronin-safe-bottom)) max(1.5rem, var(--ronin-safe-left));
     display: flex;
     flex-direction: column;
     gap: 2.5rem;
@@ -42,6 +45,7 @@ section {
 
 .game-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 1.5rem;
     padding: 1.5rem;
@@ -54,6 +58,8 @@ section {
 
     h2 {
         flex: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
         font-size: 1.3rem;
         margin-bottom: 0;
         font-weight: 600;

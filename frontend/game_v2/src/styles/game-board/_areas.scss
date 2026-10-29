@@ -1,5 +1,3 @@
-// Player area base class and placements for all 4 positions
-
 .board-area {
     display: flex;
     justify-content: center;
@@ -8,18 +6,33 @@
     min-height: 0;
 }
 
-// ─── Bottom Player (self) — no rotation ─────────────────────
+.board-melds {
+    align-items: flex-end;
+}
 
 .board-area--bottom-hand {
-    grid-area: bottom-hand;
-    justify-self: center;
-    width: var(--board-hand-width);
+    grid-column: 2;
+    align-items: flex-end;
 }
 
 .board-area--bottom-melds {
-    grid-area: bottom-meld-r;
-    justify-content: flex-end;
-    overflow: visible;
+    grid-column: 3;
+    justify-self: end;
+}
+
+.board-strip--top {
+    grid-area: top-strip;
+    transform: rotate(180deg);
+}
+
+.board-strip--right {
+    grid-area: right-strip;
+    transform: rotate(270deg);
+}
+
+.board-strip--left {
+    grid-area: left-strip;
+    transform: rotate(90deg);
 }
 
 .board-area--bottom-disc {
@@ -29,22 +42,6 @@
     align-items: flex-start;
     width: var(--board-disc-width);
     height: var(--board-disc-height);
-}
-
-// ─── Top Player (opposite) — rotated 180° ───────────────────
-
-.board-area--top-hand {
-    grid-area: top-hand;
-    transform: rotate(180deg);
-    justify-self: center;
-    width: var(--board-hand-width);
-}
-
-.board-area--top-melds {
-    grid-area: top-meld-l;
-    justify-content: flex-end;
-    transform: rotate(180deg);
-    overflow: visible;
 }
 
 .board-area--top-disc {
@@ -57,23 +54,6 @@
     transform: rotate(180deg);
 }
 
-// ─── Right Player — rotated 90° ─────────────────────────────
-
-.board-area--right-hand {
-    grid-area: right-hand;
-    transform: rotate(270deg);
-    place-self: center;
-    width: var(--board-hand-width);
-    height: var(--board-hand-depth);
-}
-
-.board-area--right-melds {
-    grid-area: top-meld-r;
-    justify-content: flex-end;
-    transform: rotate(270deg);
-    overflow: visible;
-}
-
 .board-area--right-disc {
     grid-area: right-disc;
     place-self: center start;
@@ -83,23 +63,6 @@
     height: var(--board-disc-height);
     transform: translateX(calc((var(--board-disc-height) - var(--board-disc-width)) / 2))
         rotate(270deg);
-}
-
-// ─── Left Player — rotated 270° ─────────────────────────────
-
-.board-area--left-hand {
-    grid-area: left-hand;
-    transform: rotate(90deg);
-    place-self: center;
-    width: var(--board-hand-width);
-    height: var(--board-hand-depth);
-}
-
-.board-area--left-melds {
-    grid-area: bottom-meld-l;
-    justify-content: flex-end;
-    transform: rotate(90deg);
-    overflow: visible;
 }
 
 .board-area--left-disc {

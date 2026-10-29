@@ -4,9 +4,9 @@ The earlier game client SPA, restored as the foundation of a future client: the 
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
 `/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
 but the views act on far less of it than v1 does: the client state tracks decisions and their
-deadlines, but no view shows them yet, and robbed kans are not applied. Adapt the client to the
-server rather than the server to it. `src/shared/protocol/` and `src/entities/table/` have their
-own `AGENTS.md`.
+deadlines, but only the rotate panel shows them (as a countdown), and robbed kans are not applied.
+Adapt the client to the server rather than the server to it. `src/shared/protocol/` and
+`src/entities/table/` have their own `AGENTS.md`.
 
 ## Build
 
@@ -108,6 +108,53 @@ own `AGENTS.md`.
   (`backend/game/session/AGENTS.md`, Pacing) plus a margin for late timers; re-derive it when the
   pacing changes.
 
+## Layout
+
+* **Browser floor: iOS Safari 16.4** (range media syntax; container queries need 16.0, `dvh` 15.4),
+  and the smallest supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320
+  phones never got iOS 16.4, so they are below the floor.
+* **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than
+  600px (`(orientation: portrait) and (width < 600px) and (pointer: coarse)`, so a narrow desktop
+  window is never told to rotate a phone), the game view shows the rotate panel (`entities/client`) in
+  place of its play area. A media query alone chooses it: no Screen Orientation lock, which iOS Safari
+  lacks. Both are rendered from the same state, so the socket, the session and its timers run on
+  underneath. The panel shows the session's status in a player's terms, a way back to the lobby and,
+  while a decision awaits the viewer, that play and its countdown go on, with the seconds left. Only
+  the status line and the countdown's thresholds (10 s, 5 s, expiry) are live regions, never each
+  second. The server's timer never pauses for it, so a decision left unrotated can time out: an
+  accepted cost. The countdown reads the decision's deadline against the state's `now`, never the wall
+  clock; the driver also wakes at each change of the shown second (`nextCountdownChange`) so `now`
+  moves. Replay and storybook pages take no timed input: they allow portrait and scroll rather than
+  clip.
+* **The board sizes itself from its own box.** `.game-board` is a size container and every length in it
+  derives from its width and height (container query units), never the viewport or a fixed tile size.
+  The local strip (the bottom seat's hand, its melds smaller) spans the bottom edge and takes its share
+  of the height first; the dora take a corner of their own, beside the table on a wide board and above
+  it otherwise; the table fits what is left in both directions. Each other seat has one strip along its
+  edge, its melds sharing the hand's track, so a hand shrinks as its melds grow and the two never
+  overlap. Inside the table, lengths are counted in board units (a tile is 60 x 80); the Sass constants
+  in `game-board/_grid.scss` give every track in those units and the spans the unit is fitted to, and
+  `--board-unit` is the length of one unit, the smaller of the table's width and height over those
+  spans. The local strip, the dora and the overlay set their own unit the same way. Breakpoints, as
+  container queries, change density only. Text the board scales keeps a 10px floor.
+* **Pages never clip the board.** `.board-page` gives it a definite box, sized with `dvh` and the
+  safe-area insets (the theme's `--ronin-safe-*`, which a test can set), and puts its aside (controls,
+  story switches) below it upright, or beside it in landscape as a compact column that scrolls when the
+  window is too short for it.
+* **Visual gate:** `make visual-check` builds the app, serves `dist/` with a replay fixture and a
+  seat transcript over a mocked socket (no backend), and loads every storybook page (the board's worst
+  case among them: every seat with four melds, long rivers, five dora), the replay and the live game at
+  1280x800 (Chromium), iPhone 13 portrait and landscape, the landscape with a notch's insets and the
+  667x375 floor (WebKit), and a short window (Chromium). It fails on content that is hidden or empty,
+  tiles of different areas overlapping, anything outside the board or the screen, page overflow,
+  centre text under 10px, local hand tiles under 32x42 in landscape at a supported size, a round end
+  that does not fit its panel, an aside that hides its controls, a rotate panel missing on an upright
+  phone or shown elsewhere, and any console error, failed request or missing element. It writes a
+  screenshot per page to `thoughts/screenshots/visual-check/`. `make install-frontend` installs its
+  Chromium and WebKit (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux
+  host their system libraries come from `npx playwright install-deps`, which needs root. A board state
+  or page worth checking at phone size is a storybook state and a case there.
+
 ## Structure
 
 Imports use the `@/` alias for `src/`. Layers depend downward only, and follow the existing tree
@@ -116,7 +163,8 @@ rather than introducing new FSD layers:
 * `views/` — route views; they compose entities and shared code.
 * `entities/` — domain UI and models (`tile`: tiles, hands, melds, discards and the tile-id helpers;
   `table`: the game table model, the replay file reader and the board UI; `session`: the session
-  machine; `client`: the dispatcher over client events, its state, timelines and seat scenarios),
+  machine; `client`: the dispatcher over client events, its state, timelines and seat scenarios, and the
+  rotate panel drawn from that state),
   imported through each slice's `index.ts`. A slice uses only slices below it: `client` may use
   `session` and `table`, `table` may use `tile`, never the reverse.
 * `shared/` — protocol, handoff storage, the socket adapter, the replay fetch, the clock, config and

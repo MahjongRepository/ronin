@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
+import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
 import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
 import { type Clock } from "@/shared/clock";
 import { type ClientMessage, buildJoinGameMessage, buildReconnectMessage } from "@/shared/protocol";
@@ -92,6 +93,19 @@ function waitOutRetryLater(socket: FakeConnection): void {
     socket.handlers.onMessage(wireSessionError("reconnect_retry_later"));
 }
 
+/** Join, then receive what the generated call prompt scenario's seat did up to its prompt (a 5 s meld timer). */
+function openCallPrompt(socket: FakeConnection): void {
+    const { transcript } = loadSeatScenario("call_prompt_seat_1");
+    socket.handlers.onOpen();
+    for (const payload of receivedThrough(transcript, "prompt")) {
+        socket.handlers.onMessage(payload);
+    }
+}
+
+function secondsLeft(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game__rotate .rotate-panel__seconds")?.textContent;
+}
+
 const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
 const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
@@ -105,10 +119,27 @@ describe("mountGameView", () => {
         socket.handlers.onMessage(WIRE_GAME_STARTED);
 
         expect(socket.sent).toEqual([JOIN]);
-        expect(host.querySelector(".connection-status")?.textContent).toBe("playing (open)");
+        expect(host.querySelector(".game-header .connection-status")?.textContent).toBe(
+            "playing (open)",
+        );
         expect(host.querySelector(".log-entry:last-child .log-type")?.textContent).toBe(
             "game_started",
         );
+    });
+
+    it("counts the open prompt down on the rotate panel as the clock reaches each second, sending nothing", () => {
+        const { clock, connections, host } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        const shown = [0, 999, 1000, 2000, 3000, 4000].map((at) => {
+            clock.advanceTo(at);
+            return secondsLeft(host);
+        });
+        clock.advanceTo(5000);
+
+        expect(shown).toEqual(["5", "5", "4", "3", "2", "1"]);
+        expect(host.querySelector(".game__rotate .rotate-panel__decision--expired")).not.toBeNull();
+        expect(connections[0].sent).toEqual([JOIN]);
     });
 
     it("reopens a dropped socket when its retry comes due and resumes the seat on it", () => {
@@ -195,7 +226,7 @@ describe("mountGameView", () => {
         connections[0].handlers.onOpen();
 
         connections[0].handlers.onMessage(wireSessionError("reconnect_no_session"));
-        expect(host.querySelector(".connection-status")?.textContent).toBe(
+        expect(host.querySelector(".game-header .connection-status")?.textContent).toBe(
             "failed: navigation blocked",
         );
 

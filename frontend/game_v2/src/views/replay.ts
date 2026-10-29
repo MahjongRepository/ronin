@@ -141,10 +141,10 @@ function loadedTemplate(
     const totalSteps = replay.actionSteps.length;
     const inRound = displayState?.phase === "in_round" || displayState?.phase === "round_ended";
     return html`
-        <div class="replay-board-layout__board">
+        <div class="board-page__board">
             ${displayState ? buildBoardContent(displayState, replay.perspective) : ""}
         </div>
-        <div class="replay-controls">
+        <div class="board-page__aside replay-controls">
             ${
                 replay.parseErrors.length > 0
                     ? html`<div class="replay-state__warning">
@@ -189,7 +189,7 @@ function loadedTemplate(
 function replayTemplate(screen: ReplayScreen, handlers: ReplayHandlers): TemplateResult {
     return html`
         <div
-            class="replay-board-mode"
+            class="board-page replay-board-mode"
             tabindex="0"
             ${ref(handlers.root)}
             @keydown=${handlers.keydown}

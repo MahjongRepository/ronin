@@ -7,7 +7,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 FRONTEND_APPS := lobby game game_v2
 CHECKED_FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend visual-check run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -36,6 +36,7 @@ typecheck:
 
 install-frontend:
 	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm ci) || exit 1; done
+	cd frontend/game_v2 && npx playwright install chromium webkit
 
 typecheck-frontend:
 	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run typecheck) || exit 1; done
@@ -48,6 +49,9 @@ lint-frontend:
 
 test-frontend:
 	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run test) || exit 1; done
+
+visual-check:
+	cd frontend/game_v2 && npm run visual-check
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

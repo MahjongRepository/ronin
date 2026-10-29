@@ -1,6 +1,11 @@
 .storybook {
-    width: 960px;
+    width: 100%;
+    max-width: 960px;
     padding: 1rem;
+
+    .hand {
+        flex-wrap: wrap;
+    }
 
     section {
         margin-block: 2rem;
@@ -8,6 +13,7 @@
 }
 
 .storybook-nav {
+    flex-wrap: wrap;
     justify-content: flex-start;
     gap: 0.5rem;
     margin-block-end: 1.5rem;
@@ -58,4 +64,5 @@
     flex-wrap: wrap;
     gap: 2rem;
     align-items: flex-end;
+    overflow-x: auto;
 }

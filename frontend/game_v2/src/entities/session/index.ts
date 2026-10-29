@@ -1,3 +1,4 @@
 export type { SessionEffect, SessionInput, SessionState } from "./model/types";
 export { failSession, sessionDeadline, startSession, stepSession } from "./model/transition";
-export { describeSessionStatus } from "./lib/session-status";
+export type { SessionStatusDisplay } from "./lib/session-status";
+export { describePlayerSessionStatus, describeSessionStatus } from "./lib/session-status";

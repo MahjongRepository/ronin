@@ -1,11 +1,25 @@
-// Board overlay — positioning context and overlay panel
+@use "grid" as *;
 
-// Positioning context for overlay and dora indicator (both use position: absolute)
-.game-board {
-    position: relative;
-}
+/* The overlay sizes its tiles from the board's box like the board does; a wide short board lays the round end out
+   in two columns so it fits without scrolling. */
+
+$overlay-unit-min: 0.3px;
+$overlay-unit-max: 0.55px;
+$overlay-hand-units: 1700;
+$overlay-height-units: 900;
+$compact-scores-min: 13rem;
+$compact-reserved: 18rem;
+$compact-hand-units: 1000;
 
 .board-overlay {
+    --board-unit: clamp(
+        #{$overlay-unit-min},
+        min(100cqw / #{$overlay-hand-units}, 100cqh / #{$overlay-height-units}),
+        #{$overlay-unit-max}
+    );
+    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
+
     position: absolute;
     inset: 0;
     display: flex;
@@ -13,30 +27,66 @@
     align-items: center;
     background: rgb(0 0 0 / 60%);
     z-index: 20;
-    padding: 1rem;
-
-    // Fixed tile scale inside overlays so hand tiles always fit the panel.
-    // Must re-derive tile vars here because --board-tile-w/h are computed
-    // on .game-board and inherited as resolved values.
-    --board-scale: 0.35;
-    --board-tile-w: calc(60px * var(--board-scale));
-    --board-tile-h: calc(80px * var(--board-scale));
-
-    @media (width >= 640px) {
-        --board-scale: 0.55;
-    }
+    padding: 0.5rem;
 }
 
 .board-overlay__panel {
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
-    padding: 1rem;
-    max-width: min(94%, 560px);
-    max-height: 90%;
+    padding: 0.75rem;
+    max-width: min(96%, 560px);
+    max-height: 100%;
     overflow-y: auto;
 
-    @media (width >= 640px) {
+    @container (width >= 640px) and (height >= 480px) {
         padding: 1.5rem;
+    }
+
+    @container (aspect-ratio >= #{$wide-board}) and (height < 560px) {
+        max-width: min(96%, 760px);
+        padding: 0.5rem 1rem;
+    }
+}
+
+@container (aspect-ratio >= #{$wide-board}) and (height < 560px) {
+    .board-overlay {
+        --board-unit: min(
+            #{$overlay-unit-max},
+            (100cqw - #{$compact-reserved}) / #{$compact-hand-units}
+        );
+    }
+
+    .board-overlay .round-end-result {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax($compact-scores-min, 2fr);
+        column-gap: 1rem;
+        align-items: start;
+
+        > * {
+            grid-column: 1;
+        }
+
+        > .round-end-result__indicators,
+        > .round-end-result__scores {
+            grid-column: 2;
+        }
+    }
+
+    .board-overlay .round-end-result__header {
+        padding: 0.25rem 0;
+    }
+
+    .board-overlay .round-end-result__points {
+        font-size: 1.2rem;
+    }
+
+    .board-overlay .round-end-result__winner {
+        gap: 0.35rem;
+        padding: 0.4rem 0;
+    }
+
+    .board-overlay .round-end-result__score-delta {
+        min-width: 3.5rem;
     }
 }

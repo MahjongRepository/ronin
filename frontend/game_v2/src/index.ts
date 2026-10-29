@@ -13,6 +13,7 @@ import { mountStorybookBoard } from "@/views/storybook-board";
 import { storybookDiscardsView } from "@/views/storybook-discards";
 import { storybookHandView } from "@/views/storybook-hand";
 import { storybookMeldsView } from "@/views/storybook-melds";
+import { mountStorybookRotate } from "@/views/storybook-rotate";
 
 function leaveToLobby(): void {
     window.location.replace(getLobbyUrl());
@@ -41,6 +42,7 @@ if (app) {
             staticRoute(/^\/play\/storybook\/discards$/, storybookDiscardsView),
             staticRoute(/^\/play\/storybook\/hand$/, storybookHandView),
             staticRoute(/^\/play\/storybook\/melds$/, storybookMeldsView),
+            { mount: mountStorybookRotate, pattern: /^\/play\/storybook\/rotate$/ },
             staticRoute(/^\/play\/storybook$/, storybookView),
             {
                 mount: (host, params) =>

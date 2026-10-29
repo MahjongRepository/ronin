@@ -35,7 +35,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make install-frontend` — `npm ci` in each frontend app.
+* `make install-frontend` — `npm ci` in each frontend app, then the Playwright browsers the v2 client's
+  `make visual-check` drives.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
   frontend app (`:5173` lobby, `:5174` game client, `:5175` game client v2) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
@@ -70,6 +71,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   scenarios of `backend/scripts/seat_scenarios/` through the real session manager and router on virtual
   time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
   longer matches what the server sends a seat.
+* `make visual-check` — the v2 game client's layout gate (`frontend/game_v2/AGENTS.md`, Layout):
+  Playwright's Chromium and WebKit, which `make install-frontend` installs; no backend. It writes
+  screenshots to `thoughts/screenshots/visual-check/`.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final
   `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.

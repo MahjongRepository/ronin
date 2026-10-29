@@ -1,49 +1,80 @@
-// Board storybook and replay page layouts
+/* A page around a board: the board fills what its aside (controls, story switches) leaves, beside it in
+   landscape as a compact column bounded to the viewport's height, below it upright, where the page may scroll. */
 
-// Override #app constraints for full-viewport board layouts
-#app:has(.board-storybook, .replay-board-mode) {
+#app:has(.board-page) {
     max-width: none;
     padding: 0;
+    gap: 0;
 }
 
-.board-storybook {
+.board-page {
     position: relative;
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden;
+    display: grid;
+    grid-template:
+        "board" minmax(20rem, 1fr)
+        "aside" auto
+        / minmax(0, 1fr);
+    gap: 0.25rem;
+    min-height: 100dvh;
+    padding: max(0.25rem, var(--ronin-safe-top)) max(0.25rem, var(--ronin-safe-right))
+        max(0.25rem, var(--ronin-safe-bottom)) max(0.25rem, var(--ronin-safe-left));
+
+    @media (orientation: landscape) {
+        grid-template: "board aside" minmax(0, 1fr) / minmax(0, 1fr) auto;
+        height: 100dvh;
+    }
 }
 
-.board-storybook__overlay {
-    position: absolute;
-    bottom: 100px;
-    right: 0.5rem;
-    z-index: 20;
+.board-page__board {
+    position: relative;
+    grid-area: board;
+    min-width: 0;
+    min-height: 0;
+}
+
+.board-page__aside {
+    grid-area: aside;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.35rem 0.75rem;
-    background: rgb(0 0 0 / 60%);
-    border-radius: 0.375rem;
-    backdrop-filter: blur(4px);
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.4rem;
+    background: color-mix(in srgb, var(--ronin-surface-elevated) 90%, transparent);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+
+    @media (orientation: landscape) {
+        flex-flow: column nowrap;
+        align-self: end;
+        align-items: stretch;
+        gap: 0.25rem;
+        max-height: 100%;
+        padding: 0.25rem;
+        overflow-y: auto;
+    }
 }
 
 .board-storybook__btn {
     font-size: 0.8rem;
     padding: 0.25rem 0.5rem;
+    margin: 0;
     background: transparent;
     color: var(--ronin-text-secondary);
     border: 1px solid var(--ronin-border);
     border-radius: 0.25rem;
     cursor: pointer;
+    text-align: center;
     text-decoration: none;
+    white-space: nowrap;
 
     &--active {
         background: var(--ronin-border);
         color: var(--ronin-text-primary);
     }
-}
 
-.board-storybook__viewport {
-    height: 100%;
-    padding: 8px;
+    @media (orientation: landscape) {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.35rem;
+    }
 }

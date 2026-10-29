@@ -1,0 +1,876 @@
+import { readFile } from "node:fs/promises";
+import { type IncomingMessage, type Server, type ServerResponse, createServer } from "node:http";
+import { extname, join, resolve, sep } from "node:path";
+import { parseArgs } from "node:util";
+
+import { encode } from "@msgpack/msgpack";
+import {
+    type Browser,
+    type BrowserContext,
+    type BrowserContextOptions,
+    type BrowserType,
+    type Page,
+    chromium,
+    devices,
+    webkit,
+} from "playwright";
+
+/**
+ * The v2 client's layout gate. It builds nothing itself: it serves the built `dist/` (the app page for every
+ * `/play/` path, as the lobby does), a replay fixture under the replay API and a seat transcript over a mocked
+ * game socket, then loads every storybook page, the replay and the live game at each viewport and asserts what a
+ * player would see: content visible, nothing overlapping, everything inside the board and the screen, readable
+ * text and tappable tiles. Any console error, failed request or missing element fails it. It writes a screenshot
+ * of each page for review.
+ */
+
+const APP_ROOT = resolve(import.meta.dirname, "..");
+const DIST = join(APP_ROOT, "dist");
+const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
+const ASSET_PREFIX = "/game-assets/v2/";
+const REPLAY_FIXTURE = join(APP_ROOT, "tests/fixtures/replays/four_kans.txt");
+const TRANSCRIPT_FIXTURE = join(APP_ROOT, "tests/fixtures/seat-scenarios/call_prompt_seat_1.json");
+const TRANSCRIPT_LAST_LABEL = "turn";
+const GAME_ID = "visual-check";
+
+/** The smallest local hand tile a landscape table may draw on a supported size, in CSS pixels: a tap target. */
+const MIN_TAP_WIDTH = 32;
+const MIN_TAP_HEIGHT = 42;
+/** The smallest computed font size of the board's centre text and dora label, in CSS pixels. */
+const MIN_TEXT_PX = 10;
+/** Sub-pixel slack for comparing layout boxes. */
+const EPSILON = 1;
+const REPLAY_MAX_STEPS = 300;
+const REPLAY_LOCAL_MELDS = 2;
+const SETTLE_MS = 150;
+const SELECTOR_TIMEOUT_MS = 5000;
+
+const CONTENT_TYPES: Readonly<Record<string, string>> = {
+    ".css": "text/css",
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+};
+
+/** Safe-area insets to emulate, which Playwright reports as zero: set through the theme's `--ronin-safe-*`. */
+interface Insets {
+    readonly left: number;
+    readonly right: number;
+    readonly bottom: number;
+}
+
+interface Viewport {
+    readonly name: string;
+    readonly engine: BrowserType;
+    readonly context: BrowserContextOptions;
+    readonly portrait: boolean;
+    /** The live game shows its rotate panel here (an upright phone). */
+    readonly rotates: boolean;
+    /** A supported device size, where the tap minimum holds and the round end fits without scrolling. */
+    readonly supported: boolean;
+    readonly insets?: Insets;
+}
+
+interface Required {
+    /** Selectors that must match an element a player can see. */
+    readonly visible: readonly string[];
+    /** Selectors that must match an element, shown or not (the game's hidden half of its rotate split). */
+    readonly attached?: readonly string[];
+}
+
+type PageKind =
+    | { readonly kind: "document" }
+    | { readonly kind: "board"; readonly prepare?: (page: Page) => Promise<void> }
+    | { readonly kind: "panel"; readonly countdown: boolean }
+    | { readonly kind: "game" };
+
+type PageCase = PageKind & {
+    readonly name: string;
+    readonly path: string;
+    readonly required: Required;
+};
+
+interface Box {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+}
+
+interface Size {
+    readonly width: number;
+    readonly height: number;
+}
+
+/** A box on the board and the area it belongs to; boxes of different areas must not intersect. */
+interface GroupedBox {
+    readonly group: string;
+    readonly box: Box;
+}
+
+interface BoardMeasure {
+    readonly board: Box;
+    readonly boardScroll: Size;
+    readonly boardClient: Size;
+    readonly aside: { readonly box: Box; readonly scroll: Size; readonly overflowY: string } | null;
+    readonly overlay: { readonly box: Box; readonly scroll: Size; readonly client: Size } | null;
+    readonly tiles: readonly Box[];
+    readonly hiddenTiles: number;
+    readonly grouped: readonly GroupedBox[];
+    readonly localTiles: readonly Box[];
+    readonly fonts: readonly { readonly name: string; readonly px: number }[];
+    readonly centerTexts: readonly GroupedBox[];
+}
+
+interface PageMeasure {
+    readonly innerWidth: number;
+    readonly innerHeight: number;
+    readonly scrollWidth: number;
+    readonly scrollHeight: number;
+}
+
+/** What one page's checks found: the failures, and how many checks ran so a page that checked nothing fails. */
+class PageReport {
+    readonly failures: string[] = [];
+    checks = 0;
+
+    expect(ok: boolean, failure: string): void {
+        this.checks += 1;
+        if (!ok) {
+            this.failures.push(failure);
+        }
+    }
+}
+
+/** One page under check: the viewport it was loaded at, what its document measured, and its report. */
+interface PageRun {
+    readonly page: Page;
+    readonly viewport: Viewport;
+    readonly measure: PageMeasure;
+    readonly report: PageReport;
+}
+
+/** The fixture server's origin and the socket frames its mocked game server sends. */
+interface Fixtures {
+    readonly origin: string;
+    readonly frames: readonly Uint8Array[];
+}
+
+function deviceOptions(name: string): BrowserContextOptions {
+    const { defaultBrowserType: _engine, ...options } = devices[name];
+    return options;
+}
+
+const VIEWPORTS: readonly Viewport[] = [
+    {
+        context: { viewport: { height: 800, width: 1280 } },
+        engine: chromium,
+        name: "desktop",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: deviceOptions("iPhone 13"),
+        engine: webkit,
+        name: "phone-portrait",
+        portrait: true,
+        rotates: true,
+        supported: true,
+    },
+    {
+        context: deviceOptions("iPhone 13 landscape"),
+        engine: webkit,
+        name: "phone-landscape",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: deviceOptions("iPhone 13 landscape"),
+        engine: webkit,
+        insets: { bottom: 21, left: 47, right: 47 },
+        name: "phone-notch-landscape",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: deviceOptions("iPhone SE (3rd gen) landscape"),
+        engine: webkit,
+        name: "phone-se-landscape",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 260, width: 667 } },
+        engine: chromium,
+        name: "short-window",
+        portrait: false,
+        rotates: false,
+        supported: false,
+    },
+];
+
+const BOARD_VISIBLE = [
+    ".game-board .board-table .tile",
+    ".board-local .board-area--bottom-hand .tile",
+];
+
+function boardCase(name: string, query: string, extra: readonly string[] = []): PageCase {
+    return {
+        kind: "board",
+        name,
+        path: `/play/storybook/board${query}`,
+        prepare: hideBoardDebug,
+        required: { visible: [...BOARD_VISIBLE, ...extra] },
+    };
+}
+
+function documentCase(name: string, path: string, content: string): PageCase {
+    return { kind: "document", name, path, required: { visible: [content] } };
+}
+
+const PAGES: readonly PageCase[] = [
+    documentCase("storybook", "/play/storybook", ".storybook .tile"),
+    documentCase("storybook-hand", "/play/storybook/hand", ".storybook .hand .tile"),
+    documentCase("storybook-discards", "/play/storybook/discards", ".storybook .discards .tile"),
+    documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
+    boardCase("board-mid-round", ""),
+    boardCase("board-four-kans", "?state=open_hand", [".board-local .meld"]),
+    boardCase("board-full-rivers", "?state=full_rivers"),
+    boardCase("board-worst", "?state=worst", [".board-strip .meld", ".board-dora .tile"]),
+    boardCase("board-round-end", "?overlay=round_end", [".board-overlay__panel"]),
+    {
+        countdown: false,
+        kind: "panel",
+        name: "rotate-waiting",
+        path: "/play/storybook/rotate?state=waiting",
+        required: { visible: [".rotate-panel", ".rotate-panel .connection-status"] },
+    },
+    {
+        countdown: true,
+        kind: "panel",
+        name: "rotate-countdown",
+        path: "/play/storybook/rotate?state=countdown",
+        required: { visible: [".rotate-panel", ".rotate-panel__seconds"] },
+    },
+    {
+        kind: "board",
+        name: "replay",
+        path: `/play/history/${GAME_ID}`,
+        prepare: stepReplayToLocalMelds,
+        required: { visible: [...BOARD_VISIBLE, ".board-local .meld", ".replay-controls"] },
+    },
+    {
+        kind: "game",
+        name: "game",
+        path: `/play/${GAME_ID}`,
+        required: {
+            attached: [".game__rotate .rotate-panel__seconds", ".game__play .log-entry"],
+            visible: [],
+        },
+    },
+];
+
+function contains(outer: Box, inner: Box): boolean {
+    return (
+        inner.left >= outer.left - EPSILON &&
+        inner.top >= outer.top - EPSILON &&
+        inner.left + inner.width <= outer.left + outer.width + EPSILON &&
+        inner.top + inner.height <= outer.top + outer.height + EPSILON
+    );
+}
+
+function intersects(first: Box, second: Box): boolean {
+    return (
+        first.left + EPSILON < second.left + second.width &&
+        second.left + EPSILON < first.left + first.width &&
+        first.top + EPSILON < second.top + second.height &&
+        second.top + EPSILON < first.top + first.height
+    );
+}
+
+function describeSize(size: Size): string {
+    return `${Math.round(size.width)}x${Math.round(size.height)}`;
+}
+
+function describeBox(box: Box): string {
+    return `${describeSize(box)}@${Math.round(box.left)},${Math.round(box.top)}`;
+}
+
+/** The board storybook opens with its debug outlines; the check measures the board a player sees. */
+async function hideBoardDebug(page: Page): Promise<void> {
+    await page.locator(".board-storybook__btn", { hasText: "Debug" }).click();
+    if ((await page.locator(".game-board--debug").count()) !== 0) {
+        throw new Error("the board storybook kept its debug outlines");
+    }
+}
+
+async function stepReplayToLocalMelds(page: Page): Promise<void> {
+    await page.waitForSelector(".replay-controls", { timeout: SELECTOR_TIMEOUT_MS });
+    for (let step = 0; step < REPLAY_MAX_STEPS; step += 1) {
+        if ((await page.locator(".board-local .meld").count()) >= REPLAY_LOCAL_MELDS) {
+            return;
+        }
+        await page.keyboard.press("ArrowRight");
+    }
+    throw new Error(`the replay never showed ${REPLAY_LOCAL_MELDS} local melds`);
+}
+
+interface ReceivedEvent {
+    readonly kind: "received";
+    readonly label?: string;
+    readonly payload: Readonly<Record<string, unknown>>;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isReceivedEvent(event: unknown): event is ReceivedEvent {
+    return isRecord(event) && event.kind === "received" && isRecord(event.payload);
+}
+
+/** The frames the server sent the transcript's seat, MessagePack-encoded, up to its decision under test. */
+async function transcriptFrames(): Promise<readonly Uint8Array[]> {
+    const transcript: unknown = JSON.parse(await readFile(TRANSCRIPT_FIXTURE, "utf8"));
+    if (!isRecord(transcript) || !Array.isArray(transcript.events)) {
+        throw new Error(`${TRANSCRIPT_FIXTURE} has no event list`);
+    }
+    const received = transcript.events.filter(isReceivedEvent);
+    const last = received.findIndex((event) => event.label === TRANSCRIPT_LAST_LABEL);
+    if (last === -1) {
+        throw new Error(`${TRANSCRIPT_FIXTURE} has no message labelled ${TRANSCRIPT_LAST_LABEL}`);
+    }
+    return received.slice(0, last + 1).map((event) => encode(event.payload));
+}
+
+function assetPath(pathname: string): string | null {
+    const file = resolve(DIST, `.${pathname.slice(ASSET_PREFIX.length - 1)}`);
+    return file.startsWith(DIST + sep) ? file : null;
+}
+
+async function respond(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const { pathname } = new URL(request.url ?? "/", "http://visual-check");
+    let file: string | null = null;
+    if (pathname.startsWith(ASSET_PREFIX)) {
+        file = assetPath(pathname);
+    } else if (pathname.startsWith("/api/replays/")) {
+        file = REPLAY_FIXTURE;
+    } else if (pathname.startsWith("/play/")) {
+        file = join(DIST, "index.html");
+    }
+    if (file === null) {
+        response.writeHead(404).end();
+        return;
+    }
+    try {
+        const body = await readFile(file);
+        const type = CONTENT_TYPES[extname(file)] ?? "text/plain";
+        response.writeHead(200, { "Content-Type": type }).end(body);
+    } catch {
+        response.writeHead(404).end();
+    }
+}
+
+async function startServer(): Promise<{ server: Server; origin: string }> {
+    const server = createServer((request, response) => {
+        void respond(request, response);
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const address = server.address();
+    if (address === null || typeof address === "string") {
+        throw new Error("the fixture server has no TCP port");
+    }
+    return { origin: `http://127.0.0.1:${address.port}`, server };
+}
+
+/** A context that keeps the run offline and deterministic: no web fonts, the handoff set, the socket mocked. */
+async function openContext(
+    browser: Browser,
+    viewport: Viewport,
+    { frames, origin }: Fixtures,
+): Promise<BrowserContext> {
+    const context = await browser.newContext(viewport.context);
+    await context.route(
+        (url) => url.origin !== origin,
+        (route) => route.fulfill({ body: "", contentType: "text/css", status: 200 }),
+    );
+    const wsUrl = `${origin.replace("http", "ws")}/ws/${GAME_ID}`;
+    const handoff = JSON.stringify({ gameTicket: "visual-check", wsUrl });
+    await context.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [
+        `game_session:${GAME_ID}`,
+        handoff,
+    ] as const);
+    await context.routeWebSocket(wsUrl, (socket) => {
+        let joined = false;
+        socket.onMessage(() => {
+            if (joined) {
+                return;
+            }
+            joined = true;
+            for (const frame of frames) {
+                socket.send(Buffer.from(frame));
+            }
+        });
+    });
+    return context;
+}
+
+async function emulateInsets(page: Page, insets: Insets | undefined): Promise<void> {
+    if (insets === undefined) {
+        return;
+    }
+    const { bottom, left, right } = insets;
+    await page.addStyleTag({
+        content: `:root { --ronin-safe-left: ${left}px; --ronin-safe-right: ${right}px; --ronin-safe-bottom: ${bottom}px; }`,
+    });
+}
+
+function measurePage(page: Page): Promise<PageMeasure> {
+    return page.evaluate(() => ({
+        innerHeight: window.innerHeight,
+        innerWidth: window.innerWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+    }));
+}
+
+/** Every element `selector` matches must be shown (not hidden, transparent or zero-sized), and one must match. */
+function countHidden(page: Page, selector: string): Promise<{ matched: number; hidden: number }> {
+    return page.evaluate((query) => {
+        const elements = [...document.querySelectorAll(query)];
+        const hidden = elements.filter((element) => {
+            const rect = element.getBoundingClientRect();
+            const shown = element.checkVisibility({
+                opacityProperty: true,
+                visibilityProperty: true,
+            });
+            return !shown || rect.width === 0 || rect.height === 0;
+        });
+        return { hidden: hidden.length, matched: elements.length };
+    }, selector);
+}
+
+async function checkVisible(
+    page: Page,
+    selectors: readonly string[],
+    report: PageReport,
+): Promise<void> {
+    for (const selector of selectors) {
+        const { hidden, matched } = await countHidden(page, selector);
+        report.expect(matched > 0, `nothing matches ${selector}`);
+        report.expect(hidden === 0, `${hidden} of ${matched} ${selector} hidden or empty`);
+    }
+}
+
+function measureBoard(page: Page): Promise<BoardMeasure> {
+    return page.evaluate(({ centerTextSelectors, fontSelectors }) => {
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function box(element: Element): Box {
+            const rect = element.getBoundingClientRect();
+            return {
+                height: rect.height,
+                left: rect.left + window.scrollX,
+                top: rect.top + window.scrollY,
+                width: rect.width,
+            };
+        }
+        const board = document.querySelector(".game-board");
+        if (board === null) {
+            throw new Error("no .game-board");
+        }
+        const tableTiles = [...board.querySelectorAll(".tile")].filter(
+            (tile) => tile.closest(".board-overlay") === null,
+        );
+        const grouped: GroupedBox[] = [];
+        for (const tile of tableTiles) {
+            const area = tile.closest("[data-area], .board-dora");
+            grouped.push({ box: box(tile), group: area?.getAttribute("data-area") ?? "dora" });
+        }
+        for (const center of board.querySelectorAll(".board-center")) {
+            grouped.push({ box: box(center), group: "center" });
+        }
+        for (const dora of board.querySelectorAll(".board-dora")) {
+            grouped.push({ box: box(dora), group: "dora" });
+        }
+        const aside = document.querySelector(".board-page__aside");
+        const overlay = board.querySelector(".board-overlay__panel");
+        const centerTexts = [...board.querySelectorAll(centerTextSelectors)].map(
+            (element, index) => ({
+                box: box(element),
+                group: `${element.className.split(" ")[0]}#${index}`,
+            }),
+        );
+        const fonts = [...board.querySelectorAll(fontSelectors)].map((element) => ({
+            name: element.className.split(" ")[0],
+            px: Number.parseFloat(getComputedStyle(element).fontSize),
+        }));
+        return {
+            aside:
+                aside === null
+                    ? null
+                    : {
+                          box: box(aside),
+                          overflowY: getComputedStyle(aside).overflowY,
+                          scroll: { height: aside.scrollHeight, width: aside.scrollWidth },
+                      },
+            board: box(board),
+            boardClient: { height: board.clientHeight, width: board.clientWidth },
+            boardScroll: { height: board.scrollHeight, width: board.scrollWidth },
+            centerTexts,
+            fonts,
+            grouped,
+            hiddenTiles: tableTiles.filter(
+                (tile) =>
+                    !tile.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+            ).length,
+            localTiles: [
+                ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
+            ].map(box),
+            overlay:
+                overlay === null
+                    ? null
+                    : {
+                          box: box(overlay),
+                          client: { height: overlay.clientHeight, width: overlay.clientWidth },
+                          scroll: { height: overlay.scrollHeight, width: overlay.scrollWidth },
+                      },
+            tiles: tableTiles.map(box),
+        };
+    }, BOARD_TEXT);
+}
+
+/** The text whose size has a floor, and the centre's pieces of text, which must not overlap one another. */
+const BOARD_TEXT = {
+    centerTextSelectors: [
+        ".board-center__points",
+        ".board-center__round",
+        ".board-center__wall",
+        ".board-center__stick",
+        ".board-center__wind-badge",
+        ".board-center__riichi-stick",
+    ].join(", "),
+    fontSelectors: [
+        ".board-center__round",
+        ".board-center__sticks",
+        ".board-center__points",
+        ".board-dora__label",
+    ].join(", "),
+} as const;
+
+function viewportBox(page: Page): Promise<Box> {
+    return page.evaluate(() => ({
+        height: window.innerHeight,
+        left: window.scrollX,
+        top: window.scrollY,
+        width: window.innerWidth,
+    }));
+}
+
+/** Pairs of boxes from different areas that intersect, named by their areas. */
+function findOverlaps(grouped: readonly GroupedBox[]): string[] {
+    const overlaps = new Set<string>();
+    for (const [index, first] of grouped.entries()) {
+        for (const second of grouped.slice(index + 1)) {
+            if (first.group !== second.group && intersects(first.box, second.box)) {
+                overlaps.add([first.group, second.group].toSorted().join(" x "));
+            }
+        }
+    }
+    return [...overlaps];
+}
+
+function checkBoardContent(board: BoardMeasure, report: PageReport): void {
+    const { boardClient: client, boardScroll: scroll } = board;
+    report.expect(
+        scroll.width <= client.width + EPSILON && scroll.height <= client.height + EPSILON,
+        `board content overflows its box: scroll ${describeSize(scroll)} > client ${describeSize(client)}`,
+    );
+    report.expect(
+        board.tiles.length > 0 && board.hiddenTiles === 0,
+        `${board.hiddenTiles} hidden tile(s)`,
+    );
+    const outside = board.tiles.filter((tile) => !contains(board.board, tile));
+    report.expect(outside.length === 0, `${outside.length} tile(s) outside the board`);
+    const overlaps = findOverlaps(board.grouped);
+    report.expect(overlaps.length === 0, `areas overlap: ${overlaps.join(", ")}`);
+
+    const small = board.fonts.filter((font) => font.px < MIN_TEXT_PX);
+    report.expect(board.fonts.length > 0, "no centre text measured");
+    report.expect(
+        small.length === 0,
+        `text under ${MIN_TEXT_PX}px: ${small.map((font) => `${font.name} ${font.px}px`).join(", ")}`,
+    );
+}
+
+function checkAside(board: BoardMeasure, frame: Box, report: PageReport): void {
+    const { aside } = board;
+    if (aside === null) {
+        return;
+    }
+    report.expect(!intersects(aside.box, board.board), "the aside overlaps the board");
+    report.expect(
+        contains(frame, aside.box),
+        `the aside ${describeBox(aside.box)} leaves the page`,
+    );
+    const scrolls = aside.scroll.height > aside.box.height + EPSILON;
+    report.expect(
+        !scrolls || aside.overflowY === "auto" || aside.overflowY === "scroll",
+        "the aside's controls overflow it with no way to scroll to them",
+    );
+}
+
+function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
+    const { overlay } = board;
+    if (overlay === null) {
+        return;
+    }
+    report.expect(contains(board.board, overlay.box), "the overlay panel leaves the board");
+    if (viewport.supported) {
+        report.expect(
+            overlay.scroll.height <= overlay.client.height + EPSILON &&
+                overlay.scroll.width <= overlay.client.width + EPSILON,
+            `the overlay panel's content overflows it: ${describeSize(overlay.scroll)} > ${describeSize(overlay.client)}`,
+        );
+    }
+}
+
+function checkLocalHand(board: BoardMeasure, screen: Box, report: PageReport): void {
+    const hidden = board.localTiles.filter((tile) => !contains(screen, tile));
+    report.expect(hidden.length === 0, `${hidden.length} local hand tile(s) outside the viewport`);
+    const small = board.localTiles.filter(
+        (tile) => tile.width < MIN_TAP_WIDTH - EPSILON || tile.height < MIN_TAP_HEIGHT - EPSILON,
+    );
+    report.expect(
+        small.length === 0,
+        `local hand tiles under ${MIN_TAP_WIDTH}x${MIN_TAP_HEIGHT}: ${small.map(describeBox).join(", ")}`,
+    );
+}
+
+function describeLocalTile(tiles: readonly Box[]): string {
+    const [tile] = tiles;
+    return tile ? `${tile.width.toFixed(1)}x${tile.height.toFixed(1)}` : "none";
+}
+
+async function checkBoard({ measure, page, report, viewport }: PageRun): Promise<string> {
+    const board = await measureBoard(page);
+    const screen = await viewportBox(page);
+    checkBoardContent(board, report);
+    if (viewport.supported) {
+        const crowded = findOverlaps(board.centerTexts);
+        report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
+    }
+    checkOverlay(board, viewport, report);
+    const pageExtent = { height: measure.scrollHeight, left: 0, top: 0, width: measure.innerWidth };
+    if (viewport.portrait) {
+        report.expect(
+            contains(pageExtent, board.board),
+            "the board is outside the scrollable page",
+        );
+        checkAside(board, pageExtent, report);
+    } else {
+        report.expect(
+            contains(screen, board.board),
+            `the board ${describeBox(board.board)} leaves the viewport`,
+        );
+        checkAside(board, screen, report);
+    }
+    if (viewport.supported && !viewport.portrait) {
+        checkLocalHand(board, screen, report);
+    }
+    const fonts = Math.min(...board.fonts.map((font) => font.px));
+    const scroll = `scroll ${describeSize(board.boardScroll)}`;
+    return `board ${describeSize(board.boardClient)} ${scroll}, local tile ${describeLocalTile(board.localTiles)}, min text ${fonts}px`;
+}
+
+async function isShown(page: Page, selector: string): Promise<boolean> {
+    return page.locator(selector).first().isVisible();
+}
+
+async function checkPanel(page: Page, countdown: boolean, report: PageReport): Promise<string> {
+    await checkVisible(page, [".rotate-panel__title", ".rotate-panel__leave"], report);
+    const seconds = page.locator(".rotate-panel__seconds");
+    report.expect(
+        (await seconds.count()) === (countdown ? 1 : 0),
+        countdown ? "no countdown on the panel" : "a countdown on a panel with no decision",
+    );
+    return countdown ? `countdown ${await seconds.first().textContent()}` : "no countdown";
+}
+
+async function checkGame({ measure, page, report, viewport }: PageRun): Promise<string> {
+    const seconds = Number(
+        await page.locator(".game__rotate .rotate-panel__seconds").textContent(),
+    );
+    report.expect(seconds > 0, `the open decision's countdown reads ${seconds}`);
+    const { rotates } = viewport;
+    report.expect(
+        (await isShown(page, ".game__rotate")) === rotates,
+        rotates ? "the rotate panel is hidden on an upright phone" : "the rotate panel shows",
+    );
+    report.expect(
+        (await isShown(page, ".game__play")) === !rotates,
+        rotates ? "the table shows on an upright phone" : "the table is hidden",
+    );
+    if (!rotates) {
+        await checkVisible(page, [".game__play .log-entry"], report);
+        return `countdown ${seconds}, table shown`;
+    }
+    await checkVisible(
+        page,
+        [".game__rotate .rotate-panel__seconds", ".game__rotate .rotate-panel__leave"],
+        report,
+    );
+    const panel = await page.evaluate(() => {
+        const element = document.querySelector(".game__rotate");
+        if (element === null) {
+            return null;
+        }
+        const { height, left, top, width } = element.getBoundingClientRect();
+        return {
+            clientHeight: element.clientHeight,
+            rect: { height, left, top, width },
+            scrollHeight: element.scrollHeight,
+        };
+    });
+    report.expect(panel !== null, "no .game__rotate");
+    if (panel !== null) {
+        const screen = { height: measure.innerHeight, left: 0, top: 0, width: measure.innerWidth };
+        report.expect(
+            contains(panel.rect, screen) && contains(screen, panel.rect),
+            `the rotate panel ${describeBox(panel.rect)} does not cover the viewport`,
+        );
+        report.expect(
+            panel.scrollHeight <= panel.clientHeight + EPSILON,
+            "the rotate panel's content needs scrolling",
+        );
+    }
+    return `countdown ${seconds}, rotate panel shown`;
+}
+
+async function checkPage(
+    { page, report, viewport }: Omit<PageRun, "measure">,
+    pageCase: PageCase,
+): Promise<string> {
+    const measure = await measurePage(page);
+    const run = { measure, page, report, viewport };
+    report.expect(
+        measure.scrollWidth <= measure.innerWidth,
+        `horizontal page overflow: ${measure.scrollWidth} > ${measure.innerWidth}`,
+    );
+    await checkVisible(page, pageCase.required.visible, report);
+    switch (pageCase.kind) {
+        case "document": {
+            return `page ${measure.scrollWidth}x${measure.scrollHeight}`;
+        }
+        case "board": {
+            return checkBoard(run);
+        }
+        case "panel": {
+            return checkPanel(page, pageCase.countdown, report);
+        }
+        case "game": {
+            return checkGame(run);
+        }
+    }
+}
+
+interface PageLoad {
+    readonly context: BrowserContext;
+    readonly viewport: Viewport;
+    readonly origin: string;
+    readonly shots: string;
+}
+
+async function loadPage(page: Page, pageCase: PageCase, origin: string): Promise<void> {
+    await page.goto(origin + pageCase.path);
+    if (pageCase.kind === "board" && pageCase.prepare) {
+        await pageCase.prepare(page);
+    }
+    const { attached = [], visible } = pageCase.required;
+    for (const selector of visible) {
+        await page.waitForSelector(selector, { state: "visible", timeout: SELECTOR_TIMEOUT_MS });
+    }
+    for (const selector of attached) {
+        await page.waitForSelector(selector, { state: "attached", timeout: SELECTOR_TIMEOUT_MS });
+    }
+}
+
+async function runPage(
+    { context, origin, shots, viewport }: PageLoad,
+    pageCase: PageCase,
+): Promise<PageReport> {
+    const report = new PageReport();
+    const page = await context.newPage();
+    page.on("console", (message) => {
+        if (message.type() === "error") {
+            report.failures.push(`console error: ${message.text()}`);
+        }
+    });
+    page.on("pageerror", (error) => report.failures.push(`page error: ${error.message}`));
+    page.on("requestfailed", (request) => report.failures.push(`request failed: ${request.url()}`));
+    try {
+        await loadPage(page, pageCase, origin);
+        await emulateInsets(page, viewport.insets);
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        await page.waitForTimeout(SETTLE_MS);
+        const summary = await checkPage({ page, report, viewport }, pageCase);
+        console.info(`${viewport.name} ${pageCase.name}: ${summary}`);
+        await page.screenshot({ path: join(shots, `${viewport.name}-${pageCase.name}.png`) });
+    } catch (error: unknown) {
+        report.failures.push(error instanceof Error ? error.message : String(error));
+    } finally {
+        await page.close();
+    }
+    if (report.checks === 0 && report.failures.length === 0) {
+        report.failures.push("no check ran");
+    }
+    return report;
+}
+
+async function main(): Promise<number> {
+    const { values } = parseArgs({
+        options: { shots: { default: DEFAULT_SHOTS, type: "string" } },
+    });
+    const shots = resolve(values.shots);
+    const frames = await transcriptFrames();
+    const { origin, server } = await startServer();
+    const fixtures = { frames, origin };
+    const failures: string[] = [];
+    try {
+        for (const viewport of VIEWPORTS) {
+            const browser = await viewport.engine.launch();
+            try {
+                for (const pageCase of PAGES) {
+                    const context = await openContext(browser, viewport, fixtures);
+                    const report = await runPage({ context, origin, shots, viewport }, pageCase);
+                    await context.close();
+                    failures.push(
+                        ...report.failures.map(
+                            (failure) => `${viewport.name} ${pageCase.name}: ${failure}`,
+                        ),
+                    );
+                }
+            } finally {
+                await browser.close();
+            }
+        }
+    } finally {
+        server.close();
+    }
+    if (failures.length > 0) {
+        console.error(
+            `Visual check failed:\n${failures.map((failure) => `  ${failure}`).join("\n")}`,
+        );
+        return 1;
+    }
+    const pages = VIEWPORTS.length * PAGES.length;
+    console.info(`Visual check passed: ${pages} pages; screenshots in ${shots}`);
+    return 0;
+}
+
+process.exitCode = await main();

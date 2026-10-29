@@ -1,49 +1,161 @@
-// Board container, CSS custom properties, grid template, and responsive breakpoints
+/* Every board length derives from the board's own box (container query units). Lengths are counted in board
+   units, a tile being 60 x 80 of them; the constants below give the tracks and the spans the unit is fitted to. */
+
+$tile-w: 60;
+$tile-h: 80;
+$tile-gap: 1;
+$strip-pad: 8;
+$strip-depth: $tile-h + $strip-pad;
+$river-tiles: 6;
+$river-rows: 3;
+$river-row-gap: 2;
+$river-pad: 8;
+$river-depth: $river-rows * $tile-h + ($river-rows - 1) * $river-row-gap + $river-pad;
+$river-length: $river-tiles * $tile-w + ($river-tiles - 1) * $tile-gap;
+$center-size: $river-tiles * $tile-w;
+$track: 2 * $river-depth + $center-size;
+$table-width: 2 * $strip-depth + $track;
+$table-height: $strip-depth + $track;
+$table-column-gaps: 4;
+$table-row-gaps: 3;
+$meld-scale: 0.62;
+$local-span: 15;
+$local-height-share: 15cqh;
+$local-tile-max: 72px;
+$dora-scale: 0.55;
+$dora-slots: 5;
+$dora-gap: 2px;
+$dora-pad: 6px;
+$dora-label-line: 12px;
+$dora-border: 1px;
+$dora-chrome-w: ($dora-slots - 1) * $dora-gap + 2 * $dora-pad + 2 * $dora-border;
+$dora-chrome-h: $dora-label-line + 3 * $dora-pad + 2 * $dora-border;
+$wide-board: "4 / 3";
+$wide-columns: var(--board-info-w) minmax(0, 1fr) var(--board-info-w);
+$table-columns: var(--board-strip-depth) var(--board-disc-height) var(--board-center-size)
+    var(--board-disc-height) var(--board-strip-depth);
 
 .game-board {
-    --board-scale-base: 0.64;
-    --board-scale-multiplier: 1;
-    --board-scale: calc(var(--board-scale-base) * var(--board-scale-multiplier));
-    --board-tile-w: calc(60px * var(--board-scale));
-    --board-tile-h: calc(80px * var(--board-scale));
-    --board-hand-depth: calc(var(--board-tile-h) + 8px * var(--board-scale));
-    --board-hand-width: calc(14 * var(--board-tile-w) + 21px * var(--board-scale));
-    --board-disc-width: calc(6 * var(--board-tile-w) + 5 * 1px * var(--board-scale));
-    --board-disc-height: calc(
-        3 * var(--board-tile-h) + 2 * 2px * var(--board-scale) + 8px * var(--board-scale)
-    );
-    --board-center-size: calc(6 * var(--board-tile-w));
+    container-type: size;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--ronin-surface);
+    border-radius: 0.5rem;
+}
+
+.board-layout {
+    --board-pad: 4px;
     --board-gap: 2px;
+    --board-local-tile-w: min(
+        (100cqw - 2 * var(--board-pad)) / #{$local-span},
+        #{$local-height-share},
+        #{$local-tile-max}
+    );
+    --board-local-tile-h: calc(var(--board-local-tile-w) * #{$tile-h} / #{$tile-w});
+    --board-local-depth: calc(var(--board-local-tile-h) + 2 * var(--board-pad));
+    --board-dora-tile-w: calc(var(--board-local-tile-w) * #{$dora-scale});
+    --board-dora-tile-h: calc(var(--board-local-tile-h) * #{$dora-scale});
+    --board-frame: calc(2 * var(--board-pad));
+    --board-info-w: calc(
+        #{$dora-slots} * var(--board-dora-tile-w) + #{$dora-chrome-w} + var(--board-frame)
+    );
+    --board-info-h: calc(var(--board-dora-tile-h) + #{$dora-chrome-h} + var(--board-frame));
+    --board-reserved-w: calc(var(--board-frame) + #{$table-column-gaps} * var(--board-gap));
+    --board-reserved-h: calc(
+        var(--board-local-depth) + var(--board-frame) + #{$table-row-gaps} * var(--board-gap)
+    );
+    --board-table-width: calc(100cqw - var(--board-reserved-w));
+    --board-table-height: calc(100cqh - var(--board-reserved-h) - var(--board-info-h));
+    --board-table-unit: min(
+        var(--board-table-width) / #{$table-width},
+        var(--board-table-height) / #{$table-height}
+    );
+    --board-unit: var(--board-table-unit);
+    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
+    --board-strip-depth: calc(#{$strip-depth} * var(--board-unit));
+    --board-track: calc(#{$track} * var(--board-unit) + 2 * var(--board-gap));
+    --board-disc-width: calc(#{$river-length} * var(--board-unit));
+    --board-disc-height: calc(#{$river-depth} * var(--board-unit));
+    --board-center-size: calc(#{$center-size} * var(--board-unit));
 
     display: grid;
     grid-template:
-        "top-meld-l     top-hand     top-hand     top-hand     top-meld-r" var(--board-hand-depth)
-        "left-hand      top-disc     top-disc     top-disc     right-hand" minmax(
-            var(--board-disc-height),
-            1fr
-        )
-        "left-hand      left-disc    center       right-disc   right-hand" var(--board-center-size)
-        "left-hand      bottom-disc  bottom-disc  bottom-disc  right-hand" minmax(
-            var(--board-disc-height),
-            1fr
-        )
-        "bottom-meld-l  bottom-hand  bottom-hand  bottom-hand  bottom-meld-r"
-        var(--board-hand-depth) / var(--board-hand-depth) minmax(var(--board-disc-height), 1fr) var(
-            --board-center-size
-        )
-        minmax(var(--board-disc-height), 1fr) var(--board-hand-depth);
-    gap: var(--board-gap);
+        "info" var(--board-info-h)
+        "table" auto
+        "local" var(--board-local-depth) / minmax(0, 1fr);
+    align-content: center;
     width: 100%;
     height: 100%;
-    min-height: 0;
-    background: var(--ronin-surface);
-    border-radius: 0.5rem;
 
-    @media (width >= 640px) {
-        --board-scale-multiplier: 1.5;
+    @container (aspect-ratio >= #{$wide-board}) {
+        --board-table-width: calc(100cqw - var(--board-reserved-w) - 2 * var(--board-info-w));
+        --board-table-height: calc(100cqh - var(--board-reserved-h));
+
+        grid-template:
+            "info table ." auto
+            "local local local" var(--board-local-depth) / #{$wide-columns};
     }
 
-    @media (width >= 1024px) {
-        --board-scale-multiplier: 2;
+    @container (width >= 1024px) and (height >= 600px) {
+        --board-pad: 8px;
     }
+}
+
+.board-table {
+    display: grid;
+    grid-area: table;
+    grid-template:
+        ".           top-strip   top-strip    top-strip    ." var(--board-strip-depth)
+        "left-strip  top-disc    top-disc     top-disc     right-strip" var(--board-disc-height)
+        "left-strip  left-disc   center       right-disc   right-strip" var(--board-center-size)
+        "left-strip  bottom-disc bottom-disc  bottom-disc  right-strip" var(--board-disc-height) /
+            #{$table-columns};
+    gap: var(--board-gap);
+    place-self: center;
+    padding-top: var(--board-pad);
+}
+
+.board-strip {
+    display: flex;
+    align-items: flex-end;
+    width: var(--board-track);
+    height: var(--board-strip-depth);
+    place-self: center;
+
+    > .board-area:first-child {
+        margin-inline: auto;
+    }
+}
+
+.board-strip .board-area,
+.board-local .board-area {
+    flex: none;
+    min-width: auto;
+}
+
+.board-strip .board-melds {
+    --board-unit: calc(var(--board-table-unit) * #{$meld-scale});
+    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
+}
+
+.board-local {
+    --board-unit: calc(var(--board-local-tile-w) / #{$tile-w});
+    --board-tile-w: var(--board-local-tile-w);
+    --board-tile-h: var(--board-local-tile-h);
+
+    display: grid;
+    grid-area: local;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    height: var(--board-local-depth);
+    padding: var(--board-pad);
+}
+
+.board-local .board-melds {
+    --board-unit: calc(var(--board-local-tile-w) * #{$meld-scale} / #{$tile-w});
+    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
 }

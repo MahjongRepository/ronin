@@ -17,6 +17,10 @@ export {
     startReplayClient,
     stepGameClient,
 } from "./model/dispatch";
+export type { DecisionCountdown } from "./model/countdown";
+export { decisionCountdown, nextCountdownChange } from "./model/countdown";
+export type { RotatePanelProps } from "./ui/rotate-panel";
+export { RotatePanel, describeClientStatus, rotatePanelProps } from "./ui/rotate-panel";
 export type { ClientTimeline, TimelineEntry } from "./model/timeline";
 export { buildClientTimeline, timelineStates } from "./model/timeline";
 export type { ReplayTimelineRead } from "./model/replay";

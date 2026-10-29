@@ -17,12 +17,13 @@ describe("storybookNav", () => {
     test("renders badge links for all storybook pages", () => {
         const el = renderTo(storybookNav("/play/storybook"));
         const badges = el.querySelectorAll(".storybook-badge");
-        expect(badges).toHaveLength(5);
+        expect(badges).toHaveLength(6);
         expect(badges[0].textContent).toBe("Index");
         expect(badges[1].textContent).toBe("Board");
         expect(badges[2].textContent).toBe("Discards");
         expect(badges[3].textContent).toBe("Hand");
         expect(badges[4].textContent).toBe("Melds");
+        expect(badges[5].textContent).toBe("Rotate");
     });
 
     test("marks the current page badge as active", () => {

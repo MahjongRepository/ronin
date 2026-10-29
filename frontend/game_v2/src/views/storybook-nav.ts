@@ -11,6 +11,7 @@ const STORYBOOK_PAGES: StorybookPage[] = [
     { path: "/play/storybook/discards", title: "Discards" },
     { path: "/play/storybook/hand", title: "Hand" },
     { path: "/play/storybook/melds", title: "Melds" },
+    { path: "/play/storybook/rotate", title: "Rotate" },
 ];
 
 /** Renders the storybook header with a row of badge links.

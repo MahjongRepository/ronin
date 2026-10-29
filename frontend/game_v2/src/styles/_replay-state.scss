@@ -75,7 +75,7 @@
     left: 0;
     z-index: 10;
     min-width: 100%;
-    max-height: 16rem;
+    max-height: min(16rem, 60dvh);
     overflow-y: auto;
     margin-bottom: 0.25rem;
     padding: 0.25rem 0;
@@ -113,47 +113,37 @@
 
 // ─── Replay Board Mode ─────────────────────────────────────
 
-// The #app:has() override for .replay-board-mode is in game-board/_pages.scss
-// (combined selector: #app:has(.board-storybook, .replay-board-mode))
-
-.replay-board-mode {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-
-    &:focus {
-        outline: none;
-    }
+.replay-board-mode:focus {
+    outline: none;
 }
 
-.replay-board-layout__board {
-    width: 100%;
-    height: 100%;
-}
-
-// ─── Replay Controls Overlay ───────────────────────────────
-
-.replay-controls {
-    position: absolute;
-    bottom: 4rem;
-    right: 1rem;
-    z-index: 30;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.6rem 0.75rem;
-    background: color-mix(in srgb, var(--ronin-surface-elevated) 90%, transparent);
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
+/* The replay's few controls always fit; its aside keeps no scroller, which would clip the dropdown panels. */
+.board-page__aside.replay-controls {
+    overflow: visible;
 }
 
 .replay-controls__nav {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+
+    @media (orientation: landscape) {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.25rem;
+
+        .replay-state__nav-btn,
+        .dropdown-select__trigger {
+            width: 100%;
+            padding: 0.25rem 0.4rem;
+            font-size: 0.7rem;
+        }
+
+        .dropdown-select__panel {
+            left: auto;
+            right: 0;
+        }
+    }
 }
 
 // ─── Game-Start Result Panel ──────────────────────────────────
