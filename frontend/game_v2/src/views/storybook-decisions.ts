@@ -22,6 +22,7 @@ import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json"
 import FINAL_ROUND_SEAT_1 from "@/fixtures/seat-scenarios/final_round_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
+import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
 const TRANSCRIPTS = {
@@ -31,6 +32,7 @@ const TRANSCRIPTS = {
     final_round_seat_1: FINAL_ROUND_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
+    seat_left_seat_1: SEAT_LEFT_SEAT_1,
 } as const satisfies Readonly<Record<string, unknown>>;
 
 type TranscriptName = keyof typeof TRANSCRIPTS;
@@ -53,7 +55,8 @@ interface DecisionStory {
 
 /**
  * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, the round
- * results the player confirms, then the board's notices, a kick and the leave question.
+ * results the player confirms, then another player's seat left to an AI, the board's notices, a kick and the leave
+ * question.
  */
 const STORY_KEYS = [
     "call_prompt",
@@ -70,6 +73,7 @@ const STORY_KEYS = [
     "waiting",
     "reconnect_owed",
     "last_result",
+    "player_left",
     "connection_lost",
     "move_refused",
     "faces_missing",
@@ -128,6 +132,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         followUp: refusedDiscard,
     },
     own_turn: checkpoint("own_turn_seat_1", "first draw", "Own turn"),
+    player_left: checkpoint("seat_left_seat_1", "player left", "Player left"),
     reconnect_owed: checkpoint("double_ron_seat_1", "reconnected", "Reconnect owed"),
     riichi_pick: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Riichi pick"),

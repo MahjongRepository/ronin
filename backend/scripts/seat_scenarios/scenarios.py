@@ -378,6 +378,47 @@ def final_round() -> tuple[SeatTranscript, ...]:
         return game.transcripts("final_round", PLAYER)
 
 
+def seat_left() -> tuple[SeatTranscript, ...]:
+    """
+    Bob (seat 3) loses his connection during Alice's (seat 1) first turn, and the server notices: Alice is told he left,
+    and an AI player plays his seat. Alice then loses her own connection unseen, and her reconnect's snapshot marks his
+    seat as an AI player's. Bob reconnects, which Alice is told, and his snapshot marks the AI players' seats, his own
+    no longer among them; Alice discards her draw.
+
+    No hand can call another's discard (no hand holds two copies of a tile type, and no two of Alice's tiles make a chi
+    shape), so nothing prompts either of them.
+    """
+    alice_draw = tile(0, honors="6")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="258", pin="258", sou="258", honors="1234"),
+            tile_copies(0, man="147", pin="147", sou="147", honors="1234"),
+            tile_copies(3, man="369", pin="369", sou="369", honors="1234"),
+            tile_copies(1, man="258", pin="369", sou="147", honors="1234"),
+        ),
+        draws=((0, tile(0, honors="5")), (1, alice_draw)),
+    )
+
+    with seated_game("seat-left", staged, players=(PLAYER, ROBBER)) as game:
+        alice = game.clients[PLAYER]
+        bob = game.clients[ROBBER]
+        alice.join(at=0)
+        bob.join(at=0)
+        game.wait_until(4)
+        alice.label("first draw", WireEventType.DRAW)
+        bob.drop_seen(at=4.5, label="dropped")
+        alice.label("player left", SessionMessageType.PLAYER_LEFT)
+        alice.drop_unseen(at=4.5, label="dropped")
+        alice.reconnect(at=5.5, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        bob.reconnect(at=5.5, label="reopened")
+        bob.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.label("player back", SessionMessageType.PLAYER_RECONNECTED)
+        alice.discard(alice_draw, at=5.75, label="discarded")
+
+        return game.transcripts("seat_left", PLAYER, ROBBER)
+
+
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
@@ -387,4 +428,5 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "chankan_passed": chankan_passed,
     "double_ron": double_ron,
     "final_round": final_round,
+    "seat_left": seat_left,
 }

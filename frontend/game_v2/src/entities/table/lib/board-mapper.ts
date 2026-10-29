@@ -1,14 +1,16 @@
 import { roundName } from "@/entities/table/lib/round-name";
-import { windLetter } from "@/entities/table/lib/wind-name";
+import { windLetter, windName } from "@/entities/table/lib/wind-name";
 import {
     type BoardDisplayState,
+    type BoardNameplate,
     type BoardPerspective,
     type BoardPlayerDisplay,
-    type BoardPlayerScore,
+    type NameplateAiMark,
 } from "@/entities/table/model/board-types";
 import { roundInWind } from "@/entities/table/model/helpers";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
 import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
+import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 const REQUIRED_PLAYERS = 4;
 
@@ -73,15 +75,6 @@ const EMPTY_PLAYER: BoardPlayerDisplay = {
     melds: [],
 };
 
-const EMPTY_SCORE: BoardPlayerScore = {
-    aiStandIn: false,
-    isCurrent: false,
-    isDealer: false,
-    isRiichi: false,
-    score: "0",
-    wind: "",
-};
-
 function mapPlayerDisplay(
     player: PlayerState,
     atBottom: boolean,
@@ -98,14 +91,65 @@ function mapPlayerDisplay(
     };
 }
 
-function mapPlayerScore(player: PlayerState, state: TableState): BoardPlayerScore {
+/** How far `score` is from `from`, signed: `+1000`, `-3000`, or `±0`. */
+function formatScoreDiff(score: number, from: number): string {
+    const diff = score - from;
+    if (diff === 0) {
+        return "±0";
+    }
+    return diff > 0 ? `+${formatScore(diff)}` : formatScore(diff);
+}
+
+/**
+ * Why an AI player marks the seat: one holding it for its human, as the seat control lines and session messages say,
+ * else one the source names as AI. A reconnect's snapshot names an AI player whether it was seated from the start or
+ * stands in for a human, so its word says only that one plays the seat.
+ */
+function aiMark(player: PlayerState): NameplateAiMark | null {
+    if (player.aiStandIn === SEAT_CONTROL_REASON.LEFT) {
+        return { tag: "Away", words: "Disconnected: an AI player plays this seat" };
+    }
+    if (player.aiStandIn === SEAT_CONTROL_REASON.ABSENT) {
+        return { tag: "Away", words: "Absent: an AI player plays this seat" };
+    }
+    return player.isAiPlayer ? { tag: "AI", words: "An AI player plays this seat" } : null;
+}
+
+const EMPTY_NAMEPLATE: BoardNameplate = {
+    aiMark: null,
+    isCurrent: false,
+    isDealer: false,
+    isRiichi: false,
+    name: "",
+    score: "",
+    scoreDiffs: { bottom: "", left: "", right: "", top: "" },
+    wind: "",
+    windName: "",
+};
+
+function mapNameplate(player: PlayerState, slots: SeatSlots, state: TableState): BoardNameplate {
+    function diffFrom(other: PlayerState | undefined): string {
+        return other === undefined || other === player
+            ? ""
+            : formatScoreDiff(player.score, other.score);
+    }
+    const [bottom, right, top, left] = slots;
+    const wind = (player.seat - state.dealerSeat + 4) % 4;
     return {
-        aiStandIn: player.aiStandIn !== null,
-        isCurrent: player.seat === state.currentPlayerSeat,
+        aiMark: aiMark(player),
+        isCurrent: state.phase === "in_round" && player.seat === state.currentPlayerSeat,
         isDealer: player.seat === state.dealerSeat,
         isRiichi: player.isRiichi,
+        name: player.name,
         score: formatScore(player.score),
-        wind: windLetter((player.seat - state.dealerSeat + 4) % 4),
+        scoreDiffs: {
+            bottom: diffFrom(bottom),
+            left: diffFrom(left),
+            right: diffFrom(right),
+            top: diffFrom(top),
+        },
+        wind: windLetter(wind),
+        windName: windName(wind),
     };
 }
 
@@ -131,12 +175,13 @@ function tableStateToDisplayState(
         return null;
     }
 
-    const [bottom, right, top, left] = slotsFrom(state.players, perspective.bottomSeat);
+    const slots = slotsFrom(state.players, perspective.bottomSeat);
+    const [bottom, right, top, left] = slots;
     function display(player: PlayerState | undefined, atBottom: boolean): BoardPlayerDisplay {
         return player ? mapPlayerDisplay(player, atBottom, perspective) : EMPTY_PLAYER;
     }
-    function score(player: PlayerState | undefined): BoardPlayerScore {
-        return player ? mapPlayerScore(player, state) : EMPTY_SCORE;
+    function nameplate(player: PlayerState | undefined): BoardNameplate {
+        return player ? mapNameplate(player, slots, state) : EMPTY_NAMEPLATE;
     }
 
     return {
@@ -145,9 +190,9 @@ function tableStateToDisplayState(
             honbaSticks: state.honbaSticks,
             riichiSticks: state.riichiSticks,
             roundDisplay: roundName(state.roundWind, roundInWind(state)),
-            scores: [score(bottom), score(right), score(top), score(left)],
             tilesRemaining: state.tilesRemaining,
         },
+        nameplates: [nameplate(bottom), nameplate(right), nameplate(top), nameplate(left)],
         players: [
             display(bottom, true),
             display(right, false),

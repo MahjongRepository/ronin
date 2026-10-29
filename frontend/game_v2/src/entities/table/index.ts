@@ -35,6 +35,7 @@ export { GameBoard } from "./ui/game-board";
 export { BoardNotices } from "./ui/board-notices";
 export type { BoardNotice } from "./ui/board-notices";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
+export type { ScoreDiffPin } from "./ui/nameplate";
 export { boardOverlay } from "./ui/board-overlay";
 export type { ResultPaging } from "./ui/board-overlay";
 export { SEAT_POSITIONS } from "./model/board-types";
@@ -42,8 +43,8 @@ export type {
     BoardCenterInfo,
     BoardDisplayState,
     BoardPerspective,
+    BoardNameplate,
     BoardPlayerDisplay,
-    BoardPlayerScore,
     SeatPosition,
 } from "./model/board-types";
 export { tableStateToDisplayState } from "./lib/board-mapper";

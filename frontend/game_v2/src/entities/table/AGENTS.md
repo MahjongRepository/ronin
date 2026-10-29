@@ -66,7 +66,12 @@ replay view, the live game and the storybook read the tables it produces.
   the table keeps from the game start or, on a reconnect, the snapshot's first listed round.
 - Seat marks: `aiStandIn` says an AI player holds the seat for its human, from a replay's seat
   control lines or the live `player_left` / `player_reconnected` (which name the player, not the
-  seat). The snapshot's AI flag cannot tell a bot from a stand-in, so it rebuilds no mark.
+  seat, so the table finds the seat by name). The snapshot's AI flag cannot tell a bot from a
+  stand-in, so it rebuilds no `aiStandIn`, only `isAiPlayer`; a `player_reconnected` clears both,
+  since the named human controls the seat again whatever the snapshot said. The nameplate marks a
+  stand-in the source named as one ("Away": left or absent) apart from an AI player ("AI"): after
+  a reconnect a stand-in reads as an AI player, and a live seat never hears of a participant absent
+  at the first deal (no `player_left` is sent for one that never joined) until a snapshot.
 - `buildActionSteps` picks the replay's stop points from the timeline's step events, folding
   bookkeeping events (a new dora, game start, the first draw of a round) into the step before; an
   entry with no replay event (a seat control line, a line that did not parse) folds into the step
@@ -77,8 +82,12 @@ replay view, the live game and the storybook read the tables it produces.
   known hand shows face up (a replay) or only the bottom seat's. A known tile keeps its id;
   concealed tiles render as backs from the count; melds are laid out as faces; a riichi
   declaration's discard lies sideways, or when called, the declarer's next discard left in the
-  river; a seat an AI player holds for its human is marked (in its wind badge). The board marks no
-  tile playable: that is the client's mapper's, from a decision this slice does not know.
+  river. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer, turn
+  (only while a round plays), riichi and AI marks, and its signed difference from every other seat's score; the board shows
+  the differences from a hovered or pinned plate by stylesheet alone, and the pin is the view's
+  state (`ScoreDiffPin`), never the table's. The centre keeps the round, the wall, the sticks, each
+  riichi stick and the turn's side. The board marks no tile playable: that is the client's
+  mapper's, from a decision this slice does not know.
   `ui/board-overlay.ts` picks the panel a table shows over its board (the seating, a round's
   result, the standings) for every board that shows a table.
 - `model/replay-file.ts` reads a replay file: it refuses one whose version line is not

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { loadEngineReplay } from "#tests/fixtures/replays";
 import { formatScore, tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { type BoardPerspective } from "@/entities/table/model/board-types";
 import {
@@ -10,6 +11,7 @@ import { type PlayerState, type TableState } from "@/entities/table/model/types"
 import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 const SEAT_0_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "bottom" };
+const REPLAY_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 
 function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
@@ -233,72 +235,112 @@ describe("tableStateToDisplayState", () => {
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.roundDisplay).toBe("South 4");
         });
+    });
+});
 
-        test("player scores formatted as plain numbers", () => {
-            const state = makeTableState({
-                players: [
-                    makePlayer({ score: 32_100, seat: 0 }),
-                    makePlayer({ score: 25_000, seat: 1 }),
-                    makePlayer({ score: 18_900, seat: 2 }),
-                    makePlayer({ score: 24_000, seat: 3 }),
-                ],
-            });
-            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            expect(result.center.scores[0].score).toBe("32100");
-            expect(result.center.scores[1].score).toBe("25000");
-        });
+describe("tableStateToDisplayState nameplates", () => {
+    test("seats the perspective's seat at the bottom whoever deals, its wind still from the dealer", () => {
+        const state = makeTableState({ dealerSeat: 0 });
+        const result = tableStateToDisplayState(state, { bottomSeat: 2, reveal: "bottom" })!;
+        expect(result.nameplates.map((plate) => [plate.name, plate.wind, plate.isDealer])).toEqual([
+            ["P2", "W", false],
+            ["P3", "N", false],
+            ["P0", "E", true],
+            ["P1", "S", false],
+        ]);
+    });
 
-        test("seats the perspective's seat at the bottom whoever deals, its wind still from the dealer", () => {
-            const state = makeTableState({ dealerSeat: 0 });
-            const result = tableStateToDisplayState(state, { bottomSeat: 2, reveal: "bottom" })!;
-            expect(result.center.scores.map((score) => [score.wind, score.isDealer])).toEqual([
-                ["W", false],
-                ["N", false],
-                ["E", true],
-                ["S", false],
-            ]);
+    test("gives each plate its signed difference from every other seat's score, by board position", () => {
+        const state = makeTableState({
+            players: [
+                makePlayer({ score: 32_100, seat: 0 }),
+                makePlayer({ score: 25_000, seat: 1 }),
+                makePlayer({ score: 18_900, seat: 2 }),
+                makePlayer({ score: 25_000, seat: 3 }),
+            ],
         });
+        const [bottom, right] = tableStateToDisplayState(state, SEAT_0_VIEW)!.nameplates;
+        expect(bottom.score).toBe("32100");
+        expect(bottom.scoreDiffs).toEqual({
+            bottom: "",
+            left: "+7100",
+            right: "+7100",
+            top: "+13200",
+        });
+        expect(right.scoreDiffs).toEqual({ bottom: "-7100", left: "±0", right: "", top: "+6100" });
+    });
 
-        test("current player marked based on currentPlayerSeat", () => {
-            const state = makeTableState({ currentPlayerSeat: 1 });
-            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            expect(result.center.scores[1].isCurrent).toBe(true);
-            expect(result.center.scores[0].isCurrent).toBe(false);
+    test("marks an AI player seated from the start apart from one standing in for a human who left or never came", () => {
+        const state = makeTableState({
+            players: [
+                makePlayer({ seat: 0 }),
+                makePlayer({ isAiPlayer: true, seat: 1 }),
+                makePlayer({ aiStandIn: SEAT_CONTROL_REASON.LEFT, seat: 2 }),
+                makePlayer({ aiStandIn: SEAT_CONTROL_REASON.ABSENT, seat: 3 }),
+            ],
         });
+        const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
+        expect(result.nameplates.map((plate) => plate.aiMark)).toEqual([
+            null,
+            { tag: "AI", words: "An AI player plays this seat" },
+            { tag: "Away", words: "Disconnected: an AI player plays this seat" },
+            { tag: "Away", words: "Absent: an AI player plays this seat" },
+        ]);
+    });
+});
 
-        test("seat-to-position mapping: 0=bottom, 1=right, 2=top, 3=left", () => {
-            const state = makeTableState({ dealerSeat: 0 });
-            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            // Seat 0 is dealer, wind relative to dealer is East
-            expect(result.center.scores[0].wind).toBe("E");
-            expect(result.center.scores[1].wind).toBe("S");
-            expect(result.center.scores[2].wind).toBe("W");
-            expect(result.center.scores[3].wind).toBe("N");
-        });
+describe("tableStateToDisplayState nameplates on a replay", () => {
+    function platesAfter(name: string, type: string, nth = 0): readonly string[] {
+        const replay = loadEngineReplay(name);
+        const indices = replay.events.flatMap((event, index) =>
+            event?.type === type ? [index] : [],
+        );
+        const index = indices[nth];
+        if (index === undefined) {
+            throw new Error(`${name} has no ${type} #${nth}`);
+        }
+        const display = tableStateToDisplayState(replay.tables[index + 1], REPLAY_VIEW)!;
+        return display.nameplates.map(
+            (plate) =>
+                `${plate.name} ${plate.wind}${plate.isDealer ? " dealer" : ""}${plate.isCurrent ? " turn" : ""}` +
+                `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.aiMark === null ? "" : ` [${plate.aiMark.tag}]`}`,
+        );
+    }
 
-        test("marks the seats an AI player holds for their humans, by board position", () => {
-            const state = makeTableState({
-                players: [
-                    makePlayer({ seat: 0 }),
-                    makePlayer({ seat: 1 }),
-                    makePlayer({ aiStandIn: SEAT_CONTROL_REASON.LEFT, seat: 2 }),
-                    makePlayer({ seat: 3 }),
-                ],
-            });
-            const result = tableStateToDisplayState(state, { bottomSeat: 1, reveal: "bottom" })!;
-            expect(result.center.scores.map((score) => score.aiStandIn)).toEqual([
-                false,
-                true,
-                false,
-                false,
-            ]);
-        });
+    test("names every seat with its wind and marks the dealer, the turn while a round plays and the seats AI players hold, stop by stop", () => {
+        expect(platesAfter("ai_replacements", "draw")).toEqual([
+            "Diana E dealer turn 25000",
+            "Alice S 25000",
+            "Charlie W 25000",
+            "Bob N 25000 [Away]",
+        ]);
+        expect(platesAfter("ai_replacements", "round_end")).toEqual([
+            "Diana E dealer 25000",
+            "Alice S 33000",
+            "Charlie W 17000 [Away]",
+            "Bob N 25000 [Away]",
+        ]);
+        expect(platesAfter("ai_replacements", "discard", 3)).toEqual([
+            "Diana N 25000 [Away]",
+            "Alice E dealer turn 33000",
+            "Charlie S 17000",
+            "Bob W 25000",
+        ]);
+    });
 
-        test("scores tuple has exactly 4 entries", () => {
-            const state = makeTableState();
-            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            expect(result.center.scores).toHaveLength(4);
-        });
+    test("marks each riichi once its stick is down, the score less the deposit", () => {
+        expect(platesAfter("riichi", "riichi_declared")).toEqual([
+            "Diana E dealer 25000",
+            "Alice S turn riichi 24000",
+            "Charlie W 25000",
+            "Bob N 25000",
+        ]);
+        expect(platesAfter("riichi", "riichi_declared", 1)).toEqual([
+            "Diana E dealer 25000",
+            "Alice S riichi 24000",
+            "Charlie W 25000",
+            "Bob N turn riichi 24000",
+        ]);
     });
 });
 

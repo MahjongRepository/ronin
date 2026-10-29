@@ -206,6 +206,7 @@ function applySeatControl(state: TableState, line: SeatControlLine): TableState 
 
 /**
  * The live socket's word that a seat's human left (an AI player takes the seat while the game plays) or came back.
+ * A return puts the human in control, whatever AI flag a reconnect's snapshot gave the seat while they were away.
  * It names the player, not the seat; a name the table does not hold changes nothing.
  */
 function applyPlayerPresence(
@@ -216,8 +217,11 @@ function applyPlayerPresence(
     if (player === undefined) {
         return state;
     }
-    const aiStandIn = message.type === "player_left" ? SEAT_CONTROL_REASON.LEFT : null;
-    return { ...state, players: updatePlayer(state.players, player.seat, { aiStandIn }) };
+    const update =
+        message.type === "player_left"
+            ? { aiStandIn: SEAT_CONTROL_REASON.LEFT }
+            : { aiStandIn: null, isAiPlayer: false };
+    return { ...state, players: updatePlayer(state.players, player.seat, update) };
 }
 
 /**

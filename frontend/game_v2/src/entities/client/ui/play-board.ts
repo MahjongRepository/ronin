@@ -192,6 +192,10 @@ export function PlayBoard({ display, onCommand, table }: PlayBoardProps): Templa
         localHand: { onTile, tileAction: display.tileAction },
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         overlay: PlayOverlay(display, table, onCommand),
+        scoreDiff: {
+            onPin: (seat) => onCommand({ kind: "pin_nameplate", seat }),
+            pinned: display.pinnedNameplate,
+        },
         state: display.board,
     });
 }

@@ -10,22 +10,36 @@ interface BoardCenterInfo {
     readonly riichiSticks: number;
     readonly tilesRemaining: number;
     readonly doraIndicators: readonly TileFace[];
-    readonly scores: readonly [
-        BoardPlayerScore,
-        BoardPlayerScore,
-        BoardPlayerScore,
-        BoardPlayerScore,
-    ];
 }
 
-interface BoardPlayerScore {
+/**
+ * An AI player marked on a seat: the plate's short tag, `AI` for one playing the seat as far as the source says or
+ * `Away` for one holding it while its human is out (left, or never came), and the words for why.
+ */
+interface NameplateAiMark {
+    readonly tag: "AI" | "Away";
+    readonly words: string;
+}
+
+/**
+ * A seat's nameplate: who plays it, its seat wind and score, and its marks. `scoreDiffs` gives, by board position, how
+ * far this seat's score is from that seat's, signed (`+1000`, `-3000`, `±0`): what the plate shows while that seat's
+ * plate is hovered or pinned; its own position's is empty.
+ */
+interface BoardNameplate {
+    readonly name: string;
+    /** The seat wind's letter (`E`) and name (`East`). */
     readonly wind: string;
+    readonly windName: string;
     readonly score: string;
+    readonly scoreDiffs: Readonly<Record<SeatPosition, string>>;
     readonly isDealer: boolean;
+    /** Whose turn it is, while a round plays. */
     readonly isCurrent: boolean;
+    /** The seat declared riichi and its stick is down. */
     readonly isRiichi: boolean;
-    /** An AI player holds the seat for its human, who left or was replaced. */
-    readonly aiStandIn: boolean;
+    /** The AI player marked on the seat; null when none is known to play it. */
+    readonly aiMark: NameplateAiMark | null;
 }
 
 interface BoardPlayerDisplay {
@@ -44,6 +58,8 @@ interface BoardDisplayState {
         BoardPlayerDisplay,
     ];
     readonly center: BoardCenterInfo;
+    /** Each seat's nameplate, by board position like `players`. */
+    readonly nameplates: readonly [BoardNameplate, BoardNameplate, BoardNameplate, BoardNameplate];
 }
 
 /**
@@ -60,7 +76,8 @@ export type {
     BoardCenterInfo,
     BoardPerspective,
     BoardDisplayState,
+    BoardNameplate,
     BoardPlayerDisplay,
-    BoardPlayerScore,
+    NameplateAiMark,
     SeatPosition,
 };

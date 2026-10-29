@@ -1,12 +1,8 @@
-// Center info display — scores, wind badges, riichi sticks, round info
-
 $center-text-min: 10px;
-$score-line: 1.3;
 
 .board-center {
-    --board-score-size: max(#{$center-text-min}, calc(40 * var(--board-unit)));
-    --board-score-row: calc(var(--board-score-size) * #{$score-line} + 2px);
-    --board-stick-inset: calc(var(--board-score-row) + var(--board-score-size) * 0.25);
+    --board-stick-size: max(#{$center-text-min}, calc(40 * var(--board-unit)));
+    --board-stick-inset: calc(var(--board-stick-size) * 0.75);
 
     grid-area: center;
     background: var(--ronin-surface-elevated);
@@ -18,33 +14,22 @@ $score-line: 1.3;
     position: relative;
 }
 
-.board-center__content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-}
-
 .board-center__info {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: max(2px, calc(16 * var(--board-unit)));
-    flex: 1;
     width: 100%;
     min-width: 0;
-    padding: calc(var(--board-score-size) * 0.5)
-        calc(var(--board-score-row) + var(--board-score-size) * 0.5);
+    padding: calc(var(--board-stick-size) * 1.5);
 }
 
 .board-center__round {
     font-family: var(--ronin-font-mono);
     font-weight: 700;
     color: var(--pico-color);
-    font-size: max(#{$center-text-min}, calc(24 * var(--board-unit)));
+    font-size: max(#{$center-text-min}, calc(36 * var(--board-unit)));
     white-space: nowrap;
 }
 
@@ -54,7 +39,7 @@ $score-line: 1.3;
     justify-content: center;
     gap: 2px 0.5em;
     font-family: var(--ronin-font-mono);
-    font-size: max(#{$center-text-min}, calc(14 * var(--board-unit)));
+    font-size: max(#{$center-text-min}, calc(22 * var(--board-unit)));
     white-space: nowrap;
 }
 
@@ -80,34 +65,31 @@ $score-line: 1.3;
     color: var(--ronin-text-muted);
 }
 
-.board-center__score {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: calc(16 * var(--board-unit));
-    font-family: var(--ronin-font-mono);
-    font-size: var(--board-score-size);
-    line-height: $score-line;
-    color: var(--ronin-text-secondary);
-    white-space: nowrap;
-    position: relative;
-    border-radius: 3px;
+.board-center__turn {
+    position: absolute;
+    background: var(--pico-primary);
+    border-radius: 1px;
 
-    // Top & bottom scores span full width horizontally
-    &--top,
-    &--bottom {
-        width: 100%;
-        padding: 1px calc(16 * var(--board-unit));
+    &--bottom,
+    &--top {
+        left: 20%;
+        right: 20%;
+        height: max(2px, calc(6 * var(--board-unit)));
     }
 
-    // Left & right scores: absolute, full height of center
     &--left,
     &--right {
-        position: absolute;
-        top: 0;
+        top: 20%;
+        bottom: 20%;
+        width: max(2px, calc(6 * var(--board-unit)));
+    }
+
+    &--bottom {
         bottom: 0;
-        writing-mode: vertical-rl;
-        padding: calc(16 * var(--board-unit)) 1px;
+    }
+
+    &--top {
+        top: 0;
     }
 
     &--left {
@@ -116,49 +98,7 @@ $score-line: 1.3;
 
     &--right {
         right: 0;
-        transform: rotate(180deg);
     }
-
-    // Top score rotated to face outward
-    &--top {
-        transform: rotate(180deg);
-    }
-
-    &--current {
-        background: rgb(123 184 138 / 12%);
-
-        // Horizontal bar for top & bottom
-        &::after {
-            content: "";
-            position: absolute;
-            bottom: 0;
-            left: 20%;
-            right: 20%;
-            height: 2px;
-            background: var(--pico-primary);
-            border-radius: 1px;
-        }
-    }
-
-    // Vertical bar on outward edge for left & right
-    &--left.board-center__score--current::after,
-    &--right.board-center__score--current::after {
-        inset: 20% auto 20% 0;
-        height: auto;
-        width: 2px;
-    }
-}
-
-.board-center__points {
-    font-weight: 700;
-}
-
-/* A seat an AI player holds for its human: marked inside its wind badge, which keeps its corner and size. */
-.board-center__mark {
-    font-size: max(#{$center-text-min}, calc(18 * var(--board-unit)));
-    line-height: 1;
-    letter-spacing: 0.05em;
-    color: var(--ronin-warning);
 }
 
 // Riichi stick laid on the table between edge and score
@@ -168,7 +108,7 @@ $score-line: 1.3;
     line-height: 0;
 
     .board-center__stick-icon {
-        height: calc(var(--board-score-size) * 1.2);
+        height: calc(var(--board-stick-size) * 1.2);
         width: auto;
         filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
     }
@@ -195,57 +135,5 @@ $score-line: 1.3;
         right: var(--board-stick-inset);
         top: 50%;
         transform: translate(50%, -50%);
-    }
-}
-
-// Wind letter badges in the four corners of the center area
-.board-center__wind-badge {
-    position: absolute;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: calc(80 * var(--board-unit));
-    height: calc(80 * var(--board-unit));
-    font-family: var(--ronin-font-mono);
-    font-size: calc(48 * var(--board-unit));
-    font-weight: 700;
-    color: hsl(220deg 30% 90%);
-    background: hsl(225deg 40% 35%);
-    border-radius: 4px 0 0;
-    line-height: 1;
-
-    &--top-left {
-        top: 0;
-        left: 0;
-        transform: rotate(90deg);
-    }
-
-    &--top-right {
-        top: 0;
-        right: 0;
-        transform: rotate(180deg);
-    }
-
-    &--bottom-left {
-        bottom: 0;
-        left: 0;
-    }
-
-    &--bottom-right {
-        bottom: 0;
-        right: 0;
-        transform: rotate(270deg);
-    }
-
-    &--dealer {
-        background: hsl(0deg 55% 45%);
-        color: hsl(0deg 30% 90%);
-    }
-
-    &--ai {
-        flex-direction: column;
-        font-size: calc(36 * var(--board-unit));
-        box-shadow: inset 0 0 0 2px var(--ronin-warning);
     }
 }

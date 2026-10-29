@@ -1,0 +1,188 @@
+@use "grid" as *;
+
+/* Each plate sits upright in the table corner on its seat's left, clear of the sideways riichi tile a neighbouring
+   river's row may push in; only once that river's third row runs past the corner's edge does it step out of its band. */
+$plate-band: $tile-h + $river-pad + 2;
+$plate-overflow: $tile-h - $tile-w + 4;
+$plate-long: $river-depth - $plate-overflow;
+$plate-short: $river-depth - $plate-band;
+$plate-text-min: 10px;
+$plate-line: 1.15;
+$plate-seats: bottom, right, top, left;
+
+/* Each seat's plate: its corner (row, column), the corner's outer edge it hugs, the neighbouring river whose third row
+   runs into that corner (from its own side), and the plate's length that row takes, then the other. */
+$plate-corners:
+    (bottom, 4, 2, end start, left, width, height), (right, 4, 4, end end, bottom, height, width),
+    (top, 2, 4, start end, right, width, height), (left, 2, 2, start start, top, height, width);
+
+.nameplate {
+    --plate-text: max(#{$plate-text-min}, calc(20 * var(--board-unit)));
+
+    z-index: 1;
+    display: grid;
+    grid-template:
+        "wind name" auto
+        "mark name" auto
+        "info info" auto / auto minmax(0, 1fr);
+    align-items: start;
+    gap: 1px 2px;
+    min-width: 0;
+    width: max-content;
+    margin: 0;
+    padding: 1px 2px;
+    overflow: hidden;
+    font-family: var(--ronin-font-body);
+    font-size: var(--plate-text);
+    font-weight: 400;
+    line-height: $plate-line;
+    text-align: left;
+    color: var(--pico-color);
+    background: var(--ronin-surface-overlay);
+    border: 1px solid var(--ronin-border);
+    border-radius: 4px;
+    cursor: pointer;
+
+    &--current {
+        border-color: var(--pico-primary);
+        box-shadow: inset 0 0 0 1px var(--pico-primary);
+    }
+
+    &[aria-pressed="true"] {
+        border-color: var(--ronin-gold);
+    }
+
+    &:focus-visible {
+        outline: 3px solid var(--ronin-gold);
+        outline-offset: 2px;
+    }
+}
+
+@each $seat, $row, $column, $anchor, $river, $along, $across in $plate-corners {
+    .nameplate--#{$seat} {
+        grid-area: #{$row} / #{$column};
+        place-self: $anchor;
+        max-#{$across}: calc(#{$plate-long} * var(--board-unit));
+        max-#{$along}: calc(#{$river-depth} * var(--board-unit));
+    }
+
+    .board-table:has(.board-area--#{$river}-disc .discard-row:nth-child(3) > :nth-child(7))
+        .nameplate--#{$seat} {
+        @if $along == width {
+            --plate-name-lines: 3;
+        }
+
+        max-#{$along}: calc(#{$plate-short} * var(--board-unit));
+        margin-#{$river}: calc(#{$plate-band} * var(--board-unit));
+    }
+}
+
+.nameplate__info {
+    grid-area: info;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1px 3px;
+}
+
+.nameplate__wind {
+    grid-area: wind;
+    justify-self: center;
+    padding: 0 2px;
+    font-family: var(--ronin-font-mono);
+    font-weight: 700;
+    color: hsl(220deg 30% 90%);
+    background: hsl(225deg 40% 35%);
+    border-radius: 3px;
+
+    .nameplate--dealer & {
+        color: hsl(0deg 30% 90%);
+        background: hsl(0deg 55% 45%);
+    }
+}
+
+.nameplate__name {
+    grid-area: name;
+    max-height: calc(var(--plate-name-lines, 2) * #{$plate-line}em);
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+
+.nameplate__points {
+    font-family: var(--ronin-font-mono);
+    font-weight: 700;
+    color: var(--ronin-text-secondary);
+    white-space: nowrap;
+}
+
+.nameplate__diff {
+    display: none;
+    color: var(--ronin-gold);
+}
+
+.nameplate__riichi {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 1.4em;
+    height: 1em;
+
+    .board-center__stick-icon {
+        flex: none;
+        width: auto;
+        height: 1.4em;
+        transform: rotate(90deg);
+    }
+}
+
+.nameplate__ai {
+    grid-area: mark;
+    justify-self: center;
+    display: flex;
+    padding: 0 1px;
+    color: var(--ronin-warning);
+    border: 1px solid currentcolor;
+    border-radius: 3px;
+
+    &--away {
+        color: var(--ronin-danger);
+    }
+
+    svg {
+        width: 1em;
+        height: 1em;
+    }
+}
+
+@mixin diffs-from($seat) {
+    .nameplate:not(.nameplate--#{$seat}) {
+        .nameplate__score {
+            display: none;
+        }
+
+        .nameplate__diff--#{$seat} {
+            display: inline;
+        }
+    }
+
+    .nameplate--#{$seat} {
+        border-color: var(--ronin-gold);
+    }
+}
+
+/* A hovered plate wins over the pinned one where a pointer hovers; a touch screen's tap, which may leave its plate
+   hovered, only pins. */
+@each $seat in $plate-seats {
+    @media (hover: hover) {
+        .board-table:has(.nameplate--#{$seat}:hover),
+        .game-board--diff-#{$seat} .board-table:not(:has(.nameplate:hover)) {
+            @include diffs-from($seat);
+        }
+    }
+
+    @media (hover: none) {
+        .game-board--diff-#{$seat} .board-table {
+            @include diffs-from($seat);
+        }
+    }
+}

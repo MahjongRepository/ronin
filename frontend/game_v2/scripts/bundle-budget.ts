@@ -39,9 +39,11 @@ interface RouteBudget {
  * still fetches the sprite, so like for like a replay page's JS and sprite came to 386 / 74 where its JS, the sprite
  * inside, was 450 / 93. The game's CSS then measured 86.4 / 13.3, and the entry's JS 163.5 / 49.7 once it loaded the
  * sprite with retries and tiles named their faces until it lands: a cold start of 463.3 / 83.6 with the sprite.
+ * The game's CSS budget re-set on 2026-10-30 from 88 / 14 to 81 / 13.5 at 73.0 / 12.3, the nameplates in it: Pico
+ * now emits only the dark scheme and the modules the pages use (`styles/_pico.scss`), 18 KiB less.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 14, raw: 88 }, js: { gzip: 54, raw: 178 } },
+    game: { chunk: "index.html", css: { gzip: 13.5, raw: 81 }, js: { gzip: 54, raw: 178 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 1.8, raw: 3.3 },

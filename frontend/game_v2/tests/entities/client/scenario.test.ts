@@ -111,6 +111,8 @@ describe("seatScenarioFromTranscript", () => {
             "own_turn_seat_1",
             "reconnect_seat_1",
             "riichi_reconnect_seat_1",
+            "seat_left_seat_1",
+            "seat_left_seat_3",
         ]);
         for (const name of SEAT_TRANSCRIPTS.keys()) {
             expect(runSeatScenario(loadSeatScenario(name).scenario).mismatches).toEqual([]);

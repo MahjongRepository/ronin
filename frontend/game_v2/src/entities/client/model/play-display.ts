@@ -4,6 +4,7 @@ import {
     type BoardNotice,
     type BoardPlayerDisplay,
     type PlayerState,
+    type SeatPosition,
     type TableState,
     roundEndPageAt,
     tableStateToDisplayState,
@@ -39,12 +40,14 @@ import {
 
 /**
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, turn the
- * round result's panel to a page, ask to leave mid-game or take that back, or reload the page after a failure.
+ * round result's panel to a page, pin a nameplate (or none) for the others' score differences, ask to leave mid-game
+ * or take that back, or reload the page after a failure.
  */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
     | { readonly kind: "toggle_riichi_pick" }
     | { readonly kind: "show_result_page"; readonly page: number }
+    | { readonly kind: "pin_nameplate"; readonly seat: SeatPosition | null }
     | { readonly kind: "ask_leave" }
     | { readonly kind: "cancel_leave" }
     | { readonly kind: "reload" };
@@ -62,18 +65,21 @@ export interface PlayAction {
  * What the view holds beside the client state: that the player is picking riichi's discard, for the decision of
  * this wait id, so a newer decision never inherits it; the page of a round's result the player turned to, for
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
- * that the player asked to leave mid-game and has yet to confirm it; and where the tile sprite's load stands, which the
- * page's IO owns.
+ * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
+ * viewer's seat stays at the bottom; that the player asked to leave mid-game and has yet to confirm it; and where the
+ * tile sprite's load stands, which the page's IO owns.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
     readonly resultPage: { readonly round: string; readonly page: number } | null;
+    readonly pinnedNameplate: SeatPosition | null;
     readonly confirmingLeave: boolean;
     readonly tileSprite: TileSpriteStatus;
 }
 
 export const NO_PLAY_UI: PlayUi = {
     confirmingLeave: false,
+    pinnedNameplate: null,
     resultPage: null,
     riichiPickWaitId: null,
     tileSprite: "loading",
@@ -124,6 +130,8 @@ export interface PlayDisplay {
     readonly furiten: boolean;
     /** The page of the round's result the panel shows, clamped to its pages; 0 with no result. */
     readonly resultPage: number;
+    /** The nameplate pinned for the others' score differences, or null. */
+    readonly pinnedNameplate: SeatPosition | null;
     /** The result panel's controls while the viewer has a round result to confirm or waits on one; else null. */
     readonly result: ResultControls | null;
     /** Whether the game's last result still shows over the standings, until the player dismisses it. */
@@ -610,6 +618,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         furiten: furiten && viewer !== undefined,
         leave: leaveControls(state, ui),
         notices: failure === null ? boardNotices(state, ui) : [],
+        pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
         resultOverStandings: state.roundConfirm?.kind === "final",
         resultPage,
@@ -620,7 +629,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
 
 /**
  * The view's `ui` after a command: picking riichi's discard turns on or off for the open decision; the result's panel
- * turns to a page of the result showing.
+ * turns to a page of the result showing; a nameplate is pinned, or none.
  */
 export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
@@ -641,6 +650,9 @@ export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayComm
         case "show_result_page": {
             const round = resultRound(state.table);
             return { ...ui, resultPage: round === null ? null : { page: command.page, round } };
+        }
+        case "pin_nameplate": {
+            return { ...ui, pinnedNameplate: command.seat };
         }
         default: {
             return assertNever(command);

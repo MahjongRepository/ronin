@@ -4,8 +4,8 @@ The earlier game client SPA, restored as the foundation of a future client: the 
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
 `/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
 but the views act on less of it than v1 does: the live game plays its decisions on the board (the
-discard, the offers, pass, the countdown and furiten) and the round results the player confirms, while
-player names on the board are not there yet.
+discard, the offers, pass, the countdown and furiten) and the round results the player confirms, with
+each seat's nameplate around the table.
 Adapt the client to the server rather than the server to it. `src/shared/protocol/` and
 `src/entities/table/` have their own `AGENTS.md`.
 
@@ -144,8 +144,12 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the riichi toggle, keyed by the decision's wait id so a newer decision never inherits it, and the
   round result's page, keyed by the round the result ends (its wind, dealer and honba, which a
   reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
-  keeps the page. A new prop on the board is added to these mappers when a scenario shows the need,
-  never computed in a view.
+  keeps the page; and the nameplate pinned for score differences. One gesture serves every board
+  (live, replay, storybook): hovering a nameplate, or tapping it (a button, so a key too), shows the
+  other seats' scores as differences from its own; a tap pins it until it is tapped again, another
+  part of the board is tapped or Escape is pressed. A replay viewpoint switch, when it comes, is a
+  control of its own, never the nameplate's tap. A new prop on the board is added to these mappers
+  when a scenario shows the need, never computed in a view.
 * **Session** (`entities/session`): one machine owns finding the handoff, joining, playing,
   reconnecting and the end. It joins with the lobby's ticket (`shared/session` holds the handoff) and
   resumes the seat with the same ticket. A tab that holds no ticket asks the lobby
@@ -215,7 +219,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   overlap. Inside the table, lengths are counted in board units (a tile is 60 x 80); the Sass constants
   in `game-board/_grid.scss` give every track in those units and the spans the unit is fitted to, and
   `--board-unit` is the length of one unit, the smaller of the table's width and height over those
-  spans. The local strip, the dora and the overlay set their own unit the same way. Breakpoints, as
+  spans. The local strip, the dora and the overlay set their own unit the same way. Each nameplate
+  sits upright in the table corner on its seat's left and takes the whole corner, until the
+  neighbouring river's third row runs past six tiles into it and the plate steps out of that band
+  (`game-board/_nameplates.scss`); a name wraps before it is cut, and the component shortens a long
+  one in the middle so its end, which tells AI players apart, always shows. Breakpoints, as
   container queries, change density only. Text the board scales keeps a 10px floor. The decision's
   corner is the board's own grid area, beside the table opposite the dora on a wide board (its
   buttons wrapping down toward the hand, for the thumb) and beside the dora above the table
@@ -228,12 +236,12 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
-  dora, AI marks; the dense round results; and the decisions stories), the replay and the live game, at its call prompt and at
-  its turn, at 1280x800 (Chromium),
+  dora, long names, AI marks and a pinned nameplate; the dense round results; and the decisions
+  stories), the replay and the live game, at its call prompt and at its turn, at 1280x800 (Chromium),
   iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context. It
-  fails on content that is hidden or empty, tiles of different areas overlapping, anything outside
-  the board or the screen, page overflow, centre text under 10px, local hand tiles under 32x42 or
+  fails on content that is hidden or empty, tiles of different areas or a nameplate overlapping,
+  anything outside the board or the screen, page overflow, board text under 10px, local hand tiles under 32x42 or
   decision buttons under 40x40 in landscape, a round end that does not fit its panel, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, and on a tile sprite that never loaded or a face whose
@@ -282,8 +290,10 @@ rather than introducing new FSD layers:
 
 * lit-html templates, not React: components are functions returning a `TemplateResult`.
 * Styles: Pico CSS v2 (`styles/_pico.scss`) styles semantic HTML; add classes only for
-  project-specific components. Use the `--ronin-*` tokens from `styles/_theme.scss` rather than
-  literal colors and fonts. `styles/game-app.scss` is the one entry stylesheet; board layout lives
+  project-specific components. The page is always dark (`index.html`), so `_pico.scss` assembles
+  Pico's modules itself with only the dark scheme; a page using an element of a module it leaves
+  out (a table, a dialog, a form control) enables that module there. Use the `--ronin-*` tokens
+  from `styles/_theme.scss` rather than literal colors and fonts. `styles/game-app.scss` is the one entry stylesheet; board layout lives
   in `styles/game-board/`.
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.

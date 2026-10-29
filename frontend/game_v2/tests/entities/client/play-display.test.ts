@@ -331,6 +331,67 @@ describe("playDisplay notices", () => {
     });
 });
 
+function plates(display: PlayDisplay): string[] {
+    return (display.board?.nameplates ?? []).map(
+        (plate) =>
+            `${plate.name} ${plate.wind}${plate.isDealer ? " dealer" : ""}${plate.isCurrent ? " turn" : ""}` +
+            `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.aiMark === null ? "" : ` [${plate.aiMark.tag}]`}`,
+    );
+}
+
+const AI_PLAYER = "[AI]";
+
+describe("playDisplay nameplates", () => {
+    it("marks the AI players the game seated, and another player's seat while an AI holds it for them", () => {
+        const dealt = playDisplay(checkpointState("seat_left_seat_1", "first draw"), NO_PLAY_UI);
+        expect(plates(dealt)).toEqual([
+            "Alice S turn 25000",
+            `Tsumogiri 2 W 25000 ${AI_PLAYER}`,
+            "Bob N 25000",
+            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+        ]);
+        const left = playDisplay(checkpointState("seat_left_seat_1", "player left"), NO_PLAY_UI);
+        expect(plates(left)[2]).toBe("Bob N 25000 [Away]");
+    });
+
+    it("clears the AI mark of a player who comes back after the viewer's own reconnect saw an AI in their seat", () => {
+        const snapshot = playDisplay(
+            checkpointState("seat_left_seat_1", "reconnected"),
+            NO_PLAY_UI,
+        );
+        expect(plates(snapshot)[2]).toBe(`Bob N 25000 ${AI_PLAYER}`);
+        const back = playDisplay(checkpointState("seat_left_seat_1", "player back"), NO_PLAY_UI);
+        expect(plates(back).slice(1)).toEqual([
+            `Tsumogiri 2 W 25000 ${AI_PLAYER}`,
+            "Bob N 25000",
+            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+        ]);
+    });
+
+    it("rebuilds every plate from a reconnect's snapshot, its riichi and deposit included, from the viewer's seat", () => {
+        const riichi = playDisplay(
+            checkpointState("riichi_reconnect_seat_1", "reconnected"),
+            NO_PLAY_UI,
+        );
+        expect(plates(riichi)).toEqual([
+            "Alice S riichi 24000",
+            `Tsumogiri 2 W turn 25000 ${AI_PLAYER}`,
+            `Tsumogiri 3 N 25000 ${AI_PLAYER}`,
+            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+        ]);
+        const returned = playDisplay(
+            checkpointState("seat_left_seat_3", "reconnected"),
+            NO_PLAY_UI,
+        );
+        expect(plates(returned)).toEqual([
+            "Bob N 25000",
+            `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,
+            "Alice S turn 25000",
+            `Tsumogiri 2 W 25000 ${AI_PLAYER}`,
+        ]);
+    });
+});
+
 describe("playDisplay leave", () => {
     it("asks before leaving a held seat, and the player can take the question back", () => {
         const { state } = playingScenario();

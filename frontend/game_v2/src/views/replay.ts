@@ -17,6 +17,8 @@ import {
     type NavigationIndex,
     type ResultPaging,
     RoundSelector,
+    type ScoreDiffPin,
+    type SeatPosition,
     type StepEvent,
     type TableState,
     TurnSelector,
@@ -52,6 +54,8 @@ type ReplayScreen =
           readonly openDropdown: Dropdown | null;
           /** The page of a round result's panel shown at the current step: a double ron has one per winner. */
           readonly resultPage: number;
+          /** The nameplate pinned for the others' score differences, kept from step to step until unpinned. */
+          readonly pinnedNameplate: SeatPosition | null;
       };
 
 interface ReplayHandlers {
@@ -62,6 +66,7 @@ interface ReplayHandlers {
     readonly prev: () => void;
     readonly toggleDropdown: (which: Dropdown) => void;
     readonly showResultPage: (page: number) => void;
+    readonly pinNameplate: (seat: SeatPosition | null) => void;
     readonly wheel: { handleEvent: (event: WheelEvent) => void; passive: false };
 }
 
@@ -99,6 +104,7 @@ function loadedScreen(timeline: ClientTimeline, parseErrors: readonly string[]):
         currentStep: 0,
         kind: "loaded",
         openDropdown: null,
+        pinnedNameplate: null,
         replay: {
             actionSteps,
             navigationIndex: buildNavigationIndex(events, actionSteps, states),
@@ -141,22 +147,31 @@ function elementOf(target: EventTarget | null): Element | null {
     return target instanceof Element ? target : null;
 }
 
-function buildBoardContent(
-    tableState: TableState,
-    perspective: BoardPerspective,
-    paging: ResultPaging,
-): TemplateResult {
-    if (tableState.phase === "pre_game" && tableState.players.length > 0) {
+interface BoardContent {
+    readonly table: TableState;
+    readonly perspective: BoardPerspective;
+    readonly paging: ResultPaging;
+    readonly scoreDiff: ScoreDiffPin;
+}
+
+function buildBoardContent({
+    paging,
+    perspective,
+    scoreDiff,
+    table,
+}: BoardContent): TemplateResult {
+    if (table.phase === "pre_game" && table.players.length > 0) {
         return html`<div class="board-overlay">
             <div class="board-overlay__panel">
-                ${GameStartDisplay(tableState.players, tableState.firstDealerSeat)}
+                ${GameStartDisplay(table.players, table.firstDealerSeat)}
             </div>
         </div>`;
     }
     return GameBoard({
         debug: false,
-        overlay: boardOverlay(tableState, paging),
-        state: tableStateToDisplayState(tableState, perspective),
+        overlay: boardOverlay(table, paging),
+        scoreDiff,
+        state: tableStateToDisplayState(table, perspective),
     });
 }
 
@@ -164,7 +179,7 @@ function loadedTemplate(
     screen: Extract<ReplayScreen, { kind: "loaded" }>,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { currentStep, openDropdown, replay, resultPage } = screen;
+    const { currentStep, openDropdown, pinnedNameplate, replay, resultPage } = screen;
     const step = replay.actionSteps[currentStep];
     const displayState = step ? replay.states[step.stateIndex] : undefined;
     const totalSteps = replay.actionSteps.length;
@@ -173,9 +188,11 @@ function loadedTemplate(
         <div class="board-page__board">
             ${
                 displayState
-                    ? buildBoardContent(displayState, replay.perspective, {
-                          onPage: handlers.showResultPage,
-                          page: resultPage,
+                    ? buildBoardContent({
+                          paging: { onPage: handlers.showResultPage, page: resultPage },
+                          perspective: replay.perspective,
+                          scoreDiff: { onPin: handlers.pinNameplate, pinned: pinnedNameplate },
+                          table: displayState,
                       })
                     : ""
             }
@@ -262,6 +279,7 @@ class ReplayViewController {
         jumpTo: (stepIndex) => this.moveTo(stepIndex, null),
         keydown: (event) => this.onKeydown(event),
         next: () => this.stepBy(1),
+        pinNameplate: (seat) => this.pinNameplate(seat),
         prev: () => this.stepBy(-1),
         root: createRef<HTMLElement>(),
         showResultPage: (page) => this.showResultPage(page),
@@ -354,6 +372,12 @@ class ReplayViewController {
     private showResultPage(page: number): void {
         if (this.screen.kind === "loaded") {
             this.show({ ...this.screen, resultPage: page });
+        }
+    }
+
+    private pinNameplate(seat: SeatPosition | null): void {
+        if (this.screen.kind === "loaded") {
+            this.show({ ...this.screen, pinnedNameplate: seat });
         }
     }
 

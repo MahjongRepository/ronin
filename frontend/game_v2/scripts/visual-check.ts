@@ -42,7 +42,7 @@ const MIN_TAP_WIDTH = 32;
 const MIN_TAP_HEIGHT = 42;
 /** The smallest decision button, in CSS pixels: a tap target. */
 const MIN_ACTION_SIZE = 40;
-/** The smallest computed font size of the board's centre text and dora label, in CSS pixels. */
+/** The smallest computed font size of the board's centre text, dora label and nameplates, in CSS pixels. */
 const MIN_TEXT_PX = 10;
 /** Sub-pixel slack for comparing layout boxes. */
 const EPSILON = 1;
@@ -153,6 +153,7 @@ interface BoardMeasure {
     readonly actions: readonly Box[];
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
+    readonly nameplates: readonly Box[];
 }
 
 interface PageMeasure {
@@ -238,6 +239,7 @@ const VIEWPORTS: readonly Viewport[] = [
 const BOARD_VISIBLE = [
     ".game-board .board-table .tile",
     ".board-local .board-area--bottom-hand .tile",
+    ".board-table .nameplate",
 ];
 
 function boardCase(name: string, query: string, extra: readonly string[] = []): PageCase {
@@ -281,7 +283,12 @@ const PAGES: readonly PageCase[] = [
     documentCase("storybook-discards", "/play/storybook/discards", ".storybook .discards .tile"),
     documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
     boardCase("board-full-rivers", "?state=full_rivers"),
-    boardCase("board-worst", "?state=worst", [".board-strip .meld", ".board-dora .tile"]),
+    boardCase("board-worst", "?state=worst&pin=right", [
+        ".board-strip .meld",
+        ".board-dora .tile",
+        ".nameplate--left .nameplate__diff--right",
+        ".nameplate__ai",
+    ]),
     resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
     resultCase("sanbaiman", "", [".round-end-result__hand .meld"]),
     resultCase("pao", "", [".round-end-result__notes"]),
@@ -597,6 +604,11 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const dora of board.querySelectorAll(".board-dora")) {
             grouped.push({ box: box(dora), group: "dora" });
         }
+        const nameplates = [...board.querySelectorAll(".nameplate")].map((plate) => ({
+            box: box(plate),
+            group: plate.className.split(" ")[1] ?? "nameplate",
+        }));
+        grouped.push(...nameplates);
         const decisionActions = [
             ...board.querySelectorAll(".board-actions .decision-controls__action"),
         ].map(box);
@@ -642,6 +654,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             localTiles: [
                 ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
             ].map(box),
+            nameplates: nameplates.map((plate) => plate.box),
             overlay:
                 overlay === null
                     ? null
@@ -655,22 +668,25 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
     }, BOARD_TEXT);
 }
 
-/** The text whose size has a floor, and the centre's pieces of text, which must not overlap one another. */
+/**
+ * The text whose size has a floor, and the centre's pieces of text, which must not overlap one another. Each
+ * nameplate is an area of its own, so it must not overlap a tile, another plate or the centre.
+ */
 const BOARD_TEXT = {
     centerTextSelectors: [
-        ".board-center__points",
         ".board-center__round",
         ".board-center__wall",
         ".board-center__stick",
-        ".board-center__wind-badge",
         ".board-center__riichi-stick",
     ].join(", "),
     fontSelectors: [
         ".board-center__round",
         ".board-center__sticks",
-        ".board-center__points",
-        ".board-center__mark",
         ".board-dora__label",
+        ".nameplate__name",
+        ".nameplate__wind",
+        ".nameplate__points",
+        ".nameplate__ai",
     ].join(", "),
 } as const;
 
@@ -708,11 +724,13 @@ function checkBoardContent(board: BoardMeasure, report: PageReport): void {
     );
     const outside = board.tiles.filter((tile) => !contains(board.board, tile));
     report.expect(outside.length === 0, `${outside.length} tile(s) outside the board`);
+    const strayPlates = board.nameplates.filter((plate) => !contains(board.board, plate));
+    report.expect(strayPlates.length === 0, `${strayPlates.length} nameplate(s) outside the board`);
     const overlaps = findOverlaps(board.grouped);
     report.expect(overlaps.length === 0, `areas overlap: ${overlaps.join(", ")}`);
 
     const small = board.fonts.filter((font) => font.px < MIN_TEXT_PX);
-    report.expect(board.fonts.length > 0, "no centre text measured");
+    report.expect(board.fonts.length > 0, "no board text measured");
     report.expect(
         small.length === 0,
         `text under ${MIN_TEXT_PX}px: ${small.map((font) => `${font.name} ${font.px}px`).join(", ")}`,

@@ -9,8 +9,12 @@ import {
     type GameEndResult,
     type PlayerState,
     RoundEndDisplay,
+    SEAT_POSITIONS,
+    type SeatPosition,
     createInitialPlayerState,
+    createInitialTableState,
     roundEndDisplay,
+    tableStateToDisplayState,
 } from "@/entities/table";
 import {
     type DiscardTile,
@@ -19,6 +23,7 @@ import {
     type MeldTile,
     meldTiles,
 } from "@/entities/tile";
+import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 import {
     RESULT_STORIES,
@@ -49,6 +54,8 @@ const DEFAULT_STORY: BoardStory = "full_rivers";
 
 interface BoardStoryState {
     readonly debug: boolean;
+    /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
+    readonly pinned: SeatPosition | null;
     readonly overlay: OverlayMode;
     readonly story: BoardStory;
     readonly result: ResultStory;
@@ -70,6 +77,11 @@ function parsePageParam(search: string): number {
 function parseOverlayParam(search: string): OverlayMode {
     const param = new URLSearchParams(search).get("overlay");
     return OVERLAY_MODES.find((mode) => mode === param) ?? "none";
+}
+
+function parsePinParam(search: string): SeatPosition | null {
+    const param = new URLSearchParams(search).get("pin");
+    return SEAT_POSITIONS.find((seat) => seat === param) ?? null;
 }
 
 function parseStoryParam(search: string): BoardStory {
@@ -202,42 +214,60 @@ const mockCenter: BoardCenterInfo = {
     honbaSticks: 0,
     riichiSticks: 1,
     roundDisplay: "East 1",
-    scores: [
-        {
-            aiStandIn: false,
-            isCurrent: false,
-            isDealer: true,
-            isRiichi: true,
-            score: "25000",
-            wind: "E",
-        },
-        {
-            aiStandIn: false,
-            isCurrent: true,
-            isDealer: false,
-            isRiichi: true,
-            score: "25000",
-            wind: "S",
-        },
-        {
-            aiStandIn: false,
-            isCurrent: false,
-            isDealer: false,
-            isRiichi: true,
-            score: "25000",
-            wind: "W",
-        },
-        {
-            aiStandIn: false,
-            isCurrent: false,
-            isDealer: false,
-            isRiichi: true,
-            score: "24000",
-            wind: "N",
-        },
-    ],
     tilesRemaining: 42,
 };
+
+type SeatPlayers = readonly [PlayerState, PlayerState, PlayerState, PlayerState];
+
+/** The nameplates the board mapper gives four mock players, seat 0 at the bottom, the seat named current to play. */
+function mockNameplates(
+    players: SeatPlayers,
+    currentPlayerSeat: number,
+): BoardDisplayState["nameplates"] {
+    const table = { ...createInitialTableState(), currentPlayerSeat, players };
+    const display = tableStateToDisplayState(table, { bottomSeat: 0, reveal: "all" });
+    if (display === null) {
+        throw new Error("mock nameplates need four players");
+    }
+    return display.nameplates;
+}
+
+function mockRiichiPlayer(seat: number, name: string, score: number): PlayerState {
+    return {
+        ...createInitialPlayerState({ isAiPlayer: false, name, score, seat }),
+        isRiichi: true,
+    };
+}
+
+const riverPlates = mockNameplates(
+    [
+        mockRiichiPlayer(0, "Alice", 25_000),
+        { ...mockRiichiPlayer(1, "Bob", 32_300), isRiichi: false },
+        mockRiichiPlayer(2, "Charlie", 18_700),
+        mockRiichiPlayer(3, "Diana", 24_000),
+    ],
+    1,
+);
+
+/**
+ * The worst case's plates: names too long for any plate, an AI player seated from the start, one standing in for a
+ * human who left and one for a human who never came, every seat in riichi, and scores far apart.
+ */
+const worstPlates = mockNameplates(
+    [
+        mockRiichiPlayer(0, "Bartholomew Featherstonehaugh", 41_300),
+        {
+            ...mockRiichiPlayer(1, "Wolfeschlegelsteinhausenberger", -2600),
+            aiStandIn: SEAT_CONTROL_REASON.LEFT,
+        },
+        { ...mockRiichiPlayer(2, "Tsumogiri 2", 7000), isAiPlayer: true },
+        {
+            ...mockRiichiPlayer(3, "Maximiliana Ostrogradskaya", 54_300),
+            aiStandIn: SEAT_CONTROL_REASON.ABSENT,
+        },
+    ],
+    3,
+);
 
 function laid(melds: readonly MeldInput[]): MeldTile[][] {
     return melds.map(meldTiles);
@@ -337,6 +367,7 @@ function worstSeat(seat: number): BoardPlayerDisplay {
 const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
     full_rivers: {
         center: { ...mockCenter, tilesRemaining: 2 },
+        nameplates: riverPlates,
         players: [
             withRiver(bottomPlayer, thirteenFaces),
             withRiver(rightPlayer, thirteenFaces),
@@ -348,14 +379,10 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
         center: {
             ...mockCenter,
             doraIndicators: ["5m", "3p", "7s", "2z", "9m"],
-            scores: [
-                mockCenter.scores[0],
-                { ...mockCenter.scores[1], aiStandIn: true },
-                mockCenter.scores[2],
-                { ...mockCenter.scores[3], aiStandIn: true },
-            ],
+            riichiSticks: 4,
             tilesRemaining: 0,
         },
+        nameplates: worstPlates,
         players: [worstSeat(0), worstSeat(1), worstSeat(2), worstSeat(3)],
     },
 };
@@ -409,6 +436,7 @@ interface BoardStoryHandlers {
     readonly showStory: (story: BoardStory) => void;
     readonly showResult: (result: ResultStory) => void;
     readonly showPage: (page: number) => void;
+    readonly pin: (seat: SeatPosition | null) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
 }
@@ -425,7 +453,12 @@ function storybookBoardTemplate(
     return html`
         <div class="board-page board-storybook">
             <div class="board-page__board">
-                ${GameBoard({ debug: story.debug, overlay: buildOverlay(story, handlers), state })}
+                ${GameBoard({
+                    debug: story.debug,
+                    overlay: buildOverlay(story, handlers),
+                    scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
+                    state,
+                })}
             </div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>
@@ -485,6 +518,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         debug: true,
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
+        pinned: parsePinParam(window.location.search),
         result: parseResultParam(window.location.search),
         story: parseStoryParam(window.location.search),
     };
@@ -495,6 +529,10 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     }
 
     const handlers: BoardStoryHandlers = {
+        pin(seat) {
+            syncQueryParam("pin", seat ?? "", "");
+            show({ ...story, pinned: seat });
+        },
         showPage(page) {
             syncQueryParam("page", String(page), "0");
             show({ ...story, page });

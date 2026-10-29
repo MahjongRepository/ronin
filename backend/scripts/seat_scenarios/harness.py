@@ -306,13 +306,14 @@ class SeatClient:
         Lose the socket as a half-open connection does: the client sees it close with the code a browser reports for a
         socket that died without a close frame, while the server sees nothing and keeps the seat bound to it.
         """
+        self._drop(at=at, label=label, server_sees=False)
 
-        def drop() -> None:
-            socket = self._require_socket()
-            self.lose(socket, code=UNSEEN_DROP_CODE, reason="")
-            self._label_last(label)
-
-        self._game.run_at(at, drop)
+    def drop_seen(self, *, at: float, label: str | None = None) -> None:
+        """
+        Lose the socket as a dropped connection the server notices does: the client sees it close as `drop_unseen` does,
+        and the server takes the participant out of its game, an AI player taking the seat while it plays.
+        """
+        self._drop(at=at, label=label, server_sees=True)
 
     def be_replaced_by_another_tab(self, *, at: float) -> None:
         """
@@ -387,6 +388,16 @@ class SeatClient:
         message = _as_wire(self._identity(identity))
         self._record(EventKind.SENT, {"message": {**message, "game_ticket": GAME_TICKET_PLACEHOLDER}})
         self.router.handle_message(self._socket, message)
+
+    def _drop(self, *, at: float, label: str | None, server_sees: bool) -> None:
+        def drop() -> None:
+            socket = self._require_socket()
+            self.lose(socket, code=UNSEEN_DROP_CODE, reason="")
+            self._label_last(label)
+            if server_sees:
+                self.router.handle_disconnect(socket)
+
+        self._game.run_at(at, drop)
 
     def _act(self, action: WireGameAction, fields: dict[str, object], *, at: float, label: str | None) -> None:
         def send() -> None:
