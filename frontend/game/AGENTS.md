@@ -238,8 +238,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
 ## Conventions
 
 * Upstream code (`src/vendor/`, `majiang.js`, `ronin.js`, `src/js/ronin/`, `index.html`) keeps
-  its own style: oxfmt ignores it (`.oxfmtrc.json`) and ESLint relaxes the rules it trips
-  (`eslint.config.js`). Code written for ronin is formatted by oxfmt and linted in full.
+  its own style: oxfmt ignores it (`.oxfmtrc.json`) and oxlint relaxes the rules it trips
+  (`.oxlintrc.json` overrides). Code written for ronin is formatted by oxfmt and linted in full:
+  oxlint's correctness rules are errors and its suspicious ones warnings, which `lint` fails on.
 * Styles: `styles/game-app.scss` is the one entry stylesheet; partials load with `@use`, never
   `@import`. Use the colour and font variables of `styles/_theme.scss` rather than literals; only
   colour keywords and translucent `rgb(… / alpha)` overlays stay inline. Divide with `math.div`, never `/`.

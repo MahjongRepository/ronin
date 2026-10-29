@@ -8,8 +8,8 @@
         "dev": "vite",
         "build": "vite build",
         "typecheck": "echo 'plain JavaScript app: nothing to typecheck'",
-        "lint": "eslint --max-warnings 0 . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --no-source-map --style=compressed src/styles/game-app.scss:/dev/null",
-        "lint:fix": "eslint --fix . && stylelint --fix 'src/**/*.scss'",
+        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --no-source-map --style=compressed src/styles/game-app.scss:/dev/null",
+        "lint:fix": "oxlint --fix . && stylelint --fix 'src/**/*.scss'",
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
         "test": "vitest run",
@@ -20,11 +20,9 @@
         "jquery": "4.0.0"
     },
     "devDependencies": {
-        "@eslint/js": "10.0.1",
-        "eslint": "10.13.0",
-        "globals": "17.13.0",
         "happy-dom": "21.0.4",
         "oxfmt": "0.74.0",
+        "oxlint": "1.89.0",
         "sass": "1.106.1",
         "stylelint": "17.16.0",
         "stylelint-config-standard-scss": "17.0.0",

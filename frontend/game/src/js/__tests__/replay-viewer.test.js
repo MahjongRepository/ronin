@@ -112,12 +112,12 @@ function handTiles(selector) {
 function riverMarks() {
     return $("#board .board > .he")
         .map((i, he) => {
-            const tiles = $(".dapai .pai", he);
+            const discards = $(".dapai .pai", he);
             return [
                 [
                     !$(".chouma", he).hasClass("hide"),
-                    tiles.index($(".pai.dapai", he)),
-                    tiles.index($(".lizhi .pai", he)),
+                    discards.index($(".pai.dapai", he)),
+                    discards.index($(".lizhi .pai", he)),
                 ],
             ];
         })

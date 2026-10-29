@@ -1,0 +1,41 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "categories": {
+        "correctness": "error",
+        "suspicious": "warn"
+    },
+    "env": {
+        "browser": true,
+        "es2024": true
+    },
+    "globals": {
+        "Majiang": "readonly",
+        "$": "readonly",
+        "jQuery": "readonly"
+    },
+    "rules": {
+        "no-new": "off",
+        "no-underscore-dangle": "off",
+        "unicorn/consistent-function-scoping": "off"
+    },
+    "overrides": [
+        {
+            "files": ["src/js/majiang.js", "src/js/ronin.js", "src/js/ronin/**", "src/vendor/**"],
+            "rules": {
+                "no-shadow": "off",
+                "no-unused-expressions": "off",
+                "no-unused-vars": "off",
+                "no-useless-concat": "off",
+                "no-useless-escape": "off",
+                "unicorn/no-array-reverse": "off",
+                "unicorn/no-array-sort": "off",
+                "unicorn/prefer-add-event-listener": "off"
+            }
+        },
+        {
+            "files": ["vite.config.js"],
+            "env": { "node": true }
+        }
+    ],
+    "ignorePatterns": ["dist/**", "public/**"]
+}
