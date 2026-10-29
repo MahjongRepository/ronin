@@ -73,7 +73,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   update `docs/game-rules.md`. Keep `AGENTS.md` to architecture, invariants and rules the code
   cannot show: no route or message tables, enum value lists, env var lists or exhaustive file
   inventories — the code is their reference.
-* Commit subjects use `feat:` / `bug:` / `chore:` prefixes (the `release` skill groups by them); a
+* Commit subjects use `feat:` / `bug:` / `chore:` prefixes (`bin/release-notes.sh` groups by them); a
   performance change also carries a trailing `!perf` (`optimize-engine` searches for it).
 
 ## Project rules
