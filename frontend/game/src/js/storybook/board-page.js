@@ -36,6 +36,7 @@ export function showBoardPage(header, pai, model, { viewpoint = 0, dealt = true 
     const audio = Majiang.UI.audio($("#loaddata"));
     const board = new Majiang.UI.Board($("#board .board"), pai, audio, model);
     board.viewpoint = viewpoint;
+    board.pin_diffs_on_click();
     if (dealt) {
         board.redraw();
     }

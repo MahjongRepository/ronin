@@ -33,6 +33,13 @@ function format_defen(defen) {
     return formatNumber(defen);
 }
 
+/* How far player id's score is ahead of the viewpoint's, signed: the points
+ * the viewpoint must make up to pass them, or may lose before they pass it. */
+function format_diff(model, id, viewpoint) {
+    const diff = model.defen[id] - model.defen[viewpoint];
+    return diff > 0 ? '+' + format_defen(diff) : format_defen(diff);
+}
+
 /**
  * What a seat's nameplate may be marked with, each its class: the live game's
  * disconnected player, whose seat is played for them, and the replay's seat an
@@ -47,15 +54,16 @@ export const SEAT_MARK_KEY = Object.freeze({
                                     [SEAT_MARK.DISCONNECTED]: 'game.seat.disconnected',
                                     [SEAT_MARK.AI]:           'game.seat.ai' });
 
-/* A seat's nameplate: its wind, name and score, the dealer's 親, and its
- * mark (SEAT_MARK) or null. */
-function nameplate(plate, l, name, defen, mark) {
+/* A seat's nameplate: its wind, name, score and its difference from the
+ * viewpoint's, the dealer's 親, and its mark (SEAT_MARK) or null. */
+function nameplate(plate, l, name, defen, diff, mark) {
     plate.toggleClass('zhuangjia', l == 0)
          .empty()
          .append($('<span class="feng">').text(feng_hanzi[l]),
                  $('<span class="name">').text(name).attr('title', name),
                  $('<span class="info">').append(
                     $('<span class="defen">').text(format_defen(defen)),
+                    $('<span class="defen-diff">').text(diff),
                     l == 0 ? dealer_badge() : null));
     return mark_plate(plate, mark);
 }
@@ -123,6 +131,8 @@ class Score {
             if (l == this._model.lunban) this._view.defen[l].addClass('lunban');
             this._view.player[l] = $(`> .player.${c}`, this._board);
             $('.defen', this._view.player[l]).text(defen);
+            $('.defen-diff', this._view.player[l])
+                .text(format_diff(this._model, id, this._viewpoint));
         }
         return this;
     }
@@ -205,7 +215,9 @@ export default class Board {
 
             let name = this._model.player[id].replace(/\n.*$/,'');
             show(nameplate($(`> .player.${c}`, this._root), l, name,
-                           this._model.defen[id], this._seat_marks[id]));
+                           this._model.defen[id],
+                           format_diff(this._model, id, this.viewpoint),
+                           this._seat_marks[id]));
 
             let open = this._model.player_id[l] == this.viewpoint;
             this._view.shoupai[l]
@@ -435,6 +447,14 @@ export default class Board {
     /* The table's root element, which a page relabels apart from the rest. */
     get root() {
         return this._root[0];
+    }
+
+    /* A click or tap on any nameplate pins every other seat's difference
+     * from the viewpoint's score in its score's place, until the next one. */
+    pin_diffs_on_click() {
+        this._root.addClass('diff-pins');
+        $('> .player', this._root).on('click',
+                                ()=>this._root.toggleClass('diffs-pinned'));
     }
 
     /* Whether each player is connected: those who are not marked so. */

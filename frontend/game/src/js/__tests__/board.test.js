@@ -79,6 +79,24 @@ describe("Majiang.UI.Board nameplates", () => {
         expect(plate("xiajia").hasClass("lunban")).toBe(false);
         expect(plate("duimian").hasClass("lunban")).toBe(true);
         expect(plate("duimian").find(".defen").text()).toBe("24,000");
+        expect(plate("duimian").find(".defen-diff").text()).toBe("-1,000");
+    });
+
+    it("give each other seat its score's lead over the viewpoint's, signed, all pinned by a click on any", () => {
+        const { board } = drawBoard();
+        board.pin_diffs_on_click();
+        const table = $("#board .board");
+
+        expect(plate("xiajia").find(".defen-diff").text()).toBe("+7,000");
+        expect(plate("duimian").find(".defen-diff").text()).toBe("-7,000");
+        expect(plate("shangjia").find(".defen-diff").text()).toBe("0");
+
+        plate("main").trigger("click");
+        expect(table.hasClass("diffs-pinned")).toBe(true);
+
+        board.redraw();
+        plate("xiajia").trigger("click");
+        expect(table.hasClass("diffs-pinned")).toBe(false);
     });
 
     it("mark a dropped player's seat through a redraw until they reconnect, its meaning in text too", () => {
