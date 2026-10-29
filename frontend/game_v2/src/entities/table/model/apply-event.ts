@@ -14,6 +14,7 @@ import {
     type SeatControlLine,
 } from "@/shared/protocol";
 
+import { applyKanDeclared } from "./handlers/kan-declared";
 import { applyMeld } from "./handlers/meld";
 import { applyGameReconnected } from "./handlers/reconnect";
 import { applyRoundEnd } from "./handlers/round-end";
@@ -221,8 +222,8 @@ function applyPlayerPresence(
 }
 
 /**
- * The table transition: the next table after one event, never changing the one it was given. The draw, discard and
- * meld handlers throw on an impossible state (a missing tile, player or caller).
+ * The table transition: the next table after one event, never changing the one it was given. The draw, discard,
+ * meld and kan declaration handlers throw on an impossible state (a missing tile, player or caller).
  */
 export function applyEvent(state: TableState, event: TableEvent): TableState {
     switch (event.type) {
@@ -240,6 +241,9 @@ export function applyEvent(state: TableState, event: TableEvent): TableState {
         }
         case "meld": {
             return applyMeld(state, event);
+        }
+        case "kan_declared": {
+            return applyKanDeclared(state, event);
         }
         case "riichi_declared": {
             return applyRiichiDeclared(state, event);

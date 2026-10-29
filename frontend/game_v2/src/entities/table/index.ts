@@ -7,9 +7,11 @@ export type {
     RoundEndResult,
     GameEndResult,
     GamePhase,
+    KanDeclaredEvent,
 } from "./model/types";
 export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
 export { applyEvent } from "./model/apply-event";
+export { chankanKanDeclared, robbedKanDeclared } from "./model/handlers/kan-declared";
 export { isReplayEvent, readReplayFile, replayLineTableEvent } from "./model/replay-file";
 export type {
     ReplayFileLine,

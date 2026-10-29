@@ -15,7 +15,20 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import { boardOverlay } from "@/entities/table";
-import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
+import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
+import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
+import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
+import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
+
+/** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
+const TRANSCRIPTS = {
+    call_prompt_seat_1: CALL_PROMPT_SEAT_1,
+    chankan_robbed_seat_3: CHANKAN_ROBBED_SEAT_3,
+    own_turn_seat_1: OWN_TURN_SEAT_1,
+    reconnect_seat_1: RECONNECT_SEAT_1,
+} as const satisfies Readonly<Record<string, unknown>>;
+
+type TranscriptName = keyof typeof TRANSCRIPTS;
 
 /**
  * A board at a checkpoint of a generated seat transcript: the client state after the step its label names, as the
@@ -23,7 +36,7 @@ import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
  */
 interface DecisionStory {
     readonly title: string;
-    readonly transcript: string;
+    readonly transcript: TranscriptName;
     readonly label: string;
     readonly pickRiichi: boolean;
 }
@@ -32,6 +45,7 @@ interface DecisionStory {
 const STORY_KEYS = [
     "call_prompt",
     "ron_prompt",
+    "chankan_prompt",
     "kuikae_turn",
     "own_turn",
     "riichi_pick",
@@ -43,13 +57,14 @@ const STORY_KEYS = [
 type DecisionStoryKey = (typeof STORY_KEYS)[number];
 
 /** A story at the step labelled `label` of the transcript named `transcript`. */
-function checkpoint(transcript: string, label: string, title: string): DecisionStory {
+function checkpoint(transcript: TranscriptName, label: string, title: string): DecisionStory {
     return { label, pickRiichi: false, title, transcript };
 }
 
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
+    chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
     own_turn: checkpoint("own_turn_seat_1", "first draw", "Own turn"),
     riichi_pick: {
@@ -72,8 +87,8 @@ interface StoryScreen {
 }
 
 /** The client state after the transcript's step labelled `label`, run as the live driver would run it. */
-function checkpointState(transcriptName: string, label: string): GameClientState {
-    const [error, transcript] = parseSeatTranscript(SEAT_TRANSCRIPTS.get(transcriptName));
+function checkpointState(transcriptName: TranscriptName, label: string): GameClientState {
+    const [error, transcript] = parseSeatTranscript(TRANSCRIPTS[transcriptName]);
     if (error) {
         throw new Error(`${transcriptName}: ${error.message}`);
     }

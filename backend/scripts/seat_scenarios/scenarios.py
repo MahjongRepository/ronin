@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType
+from game.logic.settings import GameSettings
 from game.messaging.types import SessionMessageType
 from game.tests.helpers.hands import tile_copies
 from game.wire.enums import WireEventType
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
     from scripts.seat_scenarios.harness import SeatTranscript
 
 PLAYER = "Alice"
+ROBBER = "Bob"
 OWN_TURN_RINSHAN = tile(0, honors="4")
 
 
@@ -203,9 +205,110 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
         return game.transcripts("riichi_reconnect", PLAYER)
 
 
+def chankan_robbed() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1) declares a closed kan of 9m that Bob (seat 3), a kokushi musou hand waiting on 9m, robs: his chankan
+    prompt shows the kan, her round end names it. Tobi is off, so the yakuman she pays leaves the game going.
+
+    Her socket dies unseen during the round advance, before her client confirms it, and her reconnect takes it over: the
+    snapshot carries the result and the kan it robbed, and she confirms a second after it as the client does on its own;
+    Bob confirms a second after the round end. She deals the next round from the seed.
+    """
+    kan_tile = tile(0, man="9")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="357", pin="357", sou="35789", honors="12"),
+            (*(tile(copy, man="9") for copy in range(3)), *tile_copies(1, man="246", pin="2468", sou="246")),
+            tile_copies(3, man="357", pin="357", sou="35789", honors="12"),
+            tile_copies(0, man="11", pin="19", sou="19", honors="1234567"),
+        ),
+        draws=(
+            (0, tile(1, honors="3")),
+            (1, tile(1, honors="4")),
+            (2, tile(1, honors="5")),
+            (3, tile(1, honors="6")),
+            (0, tile(1, honors="7")),
+            (1, tile(3, man="9")),
+        ),
+    )
+
+    settings = GameSettings(tobi_enabled=False)
+    with seated_game("seat-chankan-robbed", staged, players=(PLAYER, ROBBER), settings=settings) as game:
+        alice = game.clients[PLAYER]
+        bob = game.clients[ROBBER]
+        alice.join(at=0)
+        bob.join(at=0)
+        game.wait_until(4)
+        alice.discard(tile(1, honors="4"), at=5, label="discarded")
+        bob.discard(tile(1, honors="6"), at=6, label="discarded")
+        alice.label("kan draw", WireEventType.DRAW)
+        alice.kan(kan_tile, KanType.CLOSED, at=7, label="kan chosen")
+        bob.label("chankan prompt", WireEventType.CALL_PROMPT)
+        bob.ron(at=8, label="ron chosen")
+        bob.label("round end", WireEventType.ROUND_END)
+        alice.label("round end", WireEventType.ROUND_END)
+        alice.drop_unseen(at=8.25, label="dropped")
+        bob.confirm_round(at=9, label="confirmed")
+        alice.reconnect(at=9.25, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.confirm_round(at=10.25, label="confirmed")
+        alice.label("next round", WireEventType.ROUND_STARTED)
+
+        return game.transcripts("chankan_robbed", PLAYER, ROBBER)
+
+
+def chankan_passed() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1) pons the dealer's 6p and raises it to an added kan that Bob (seat 3), waiting on 6p, may rob: his
+    chankan prompt shows the kan.
+
+    His socket dies unseen during the prompt, and his reconnect takes it over: the snapshot, where Alice's hand still
+    holds the kan's tile, then the prompt re-sent. He passes, and the server's meld completes the kan before Alice's
+    rinshan draw.
+    """
+    ponned_tile = tile(2, pin="6")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="258", pin="17", sou="369", honors="12345"),
+            (*tile_copies(0, pin="66"), *tile_copies(1, man="147", pin="19", sou="258", honors="123")),
+            tile_copies(3, man="258", pin="17", sou="369", honors="12345"),
+            tile_copies(0, man="123456789", pin="45", sou="19"),
+        ),
+        draws=(
+            (0, ponned_tile),
+            (2, tile(0, honors="7")),
+            (3, tile(1, sou="1")),
+            (0, tile(1, honors="7")),
+            (1, tile(3, pin="6")),
+        ),
+    )
+
+    with seated_game("seat-chankan-passed", staged, players=(PLAYER, ROBBER)) as game:
+        alice = game.clients[PLAYER]
+        bob = game.clients[ROBBER]
+        alice.join(at=0)
+        bob.join(at=0)
+        game.wait_until(4)
+        alice.pon(ponned_tile, at=5, label="pon chosen")
+        alice.discard(tile(1, honors="1"), at=6, label="discarded")
+        bob.discard(tile(0, sou="9"), at=7, label="discarded")
+        alice.kan(tile(3, pin="6"), KanType.ADDED, at=8, label="kan chosen")
+        bob.label("chankan prompt", WireEventType.CALL_PROMPT)
+        bob.drop_unseen(at=8.25, label="dropped")
+        bob.reconnect(at=9.25, label="reopened")
+        bob.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        bob.label("prompt re-sent", WireEventType.CALL_PROMPT)
+        bob.pass_(at=9.75, label="passed")
+        bob.label("kan", WireEventType.MELD)
+
+        return game.transcripts("chankan_passed", ROBBER)
+
+
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
     "reconnect": reconnect,
     "riichi_reconnect": riichi_reconnect,
+    "chankan_robbed": chankan_robbed,
+    "chankan_passed": chankan_passed,
 }

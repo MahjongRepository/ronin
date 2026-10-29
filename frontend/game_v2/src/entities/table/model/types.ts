@@ -5,6 +5,7 @@ import {
     type GameEndEvent,
     type GameReconnectedEvent,
     type GameStartedEvent,
+    type KanType,
     type MeldEvent,
     type MeldType,
     type PlayerLeftMessage,
@@ -123,11 +124,27 @@ export type ReplayEvent =
     | GameEndEvent;
 
 /**
+ * A closed or added kan its declarer declared on its own turn and that a ron may rob (chankan), shown before the
+ * chankan resolves. No message carries it as such: a chankan prompt names its tile and declarer, a robbed kan's round
+ * end names it, its type too; a kan nobody robs completes as the server's meld event. `kanType` is null when the
+ * source names none (a prompt): the kan is then added when the declarer holds a pon of the tile, else closed, as the
+ * server decides.
+ */
+export interface KanDeclaredEvent {
+    readonly type: "kan_declared";
+    readonly seat: number;
+    readonly tileId: number;
+    readonly kanType: Extract<KanType, "added" | "closed"> | null;
+}
+
+/**
  * Everything that changes the table: the events a replay stores, the replay-only seat control lines, the reconnect
- * snapshot that rebuilds the table, and the session messages that mark a seat's human leaving and returning.
+ * snapshot that rebuilds the table, the session messages that mark a seat's human leaving and returning, and a kan
+ * declared open to chankan.
  */
 export type TableEvent =
     | ReplayEvent
+    | KanDeclaredEvent
     | SeatControlLine
     | GameReconnectedEvent
     | PlayerLeftMessage

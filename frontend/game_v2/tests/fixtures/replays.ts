@@ -20,7 +20,7 @@ export const ENGINE_REPLAYS: ReadonlyMap<string, string> = new Map(
 );
 
 /**
- * An engine replay read through the dispatcher: `events[i]` is entry i's replay event, `tables[i + 1]` the table
+ * An engine replay read through the dispatcher: `events[i]` is entry i's step event, `tables[i + 1]` the table
  * after it.
  */
 export interface EngineReplay {

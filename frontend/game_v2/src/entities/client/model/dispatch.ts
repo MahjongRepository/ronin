@@ -9,13 +9,17 @@ import {
 import {
     type TableEvent,
     applyEvent,
+    chankanKanDeclared,
     createInitialTableState,
     replayLineTableEvent,
+    robbedKanDeclared,
 } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
+    CALL_TYPE,
     type ClientMessage,
     type ParsedServerMessage,
+    type ReplayLine,
     buildConfirmRoundAction,
     parseReplayLine,
     parseServerMessage,
@@ -35,11 +39,16 @@ import {
 const ROUND_CONFIRM_DELAY_MS = 1000;
 
 function untraced(step: ClientStep): TracedStep {
-    return { ...step, parsed: null };
+    return { ...step, parsed: null, partial: false };
 }
 
 function reportParseError(state: GameClientState, detail: string): TracedStep {
-    return { effects: [{ detail, type: "report_parse_error" }], parsed: null, state };
+    return {
+        effects: [{ detail, type: "report_parse_error" }],
+        parsed: null,
+        partial: false,
+        state,
+    };
 }
 
 function canSend(session: SessionState | null): boolean {
@@ -77,7 +86,10 @@ function withSession(state: GameClientState, input: SessionInput): ClientStep {
     };
 }
 
-/** The table change a server message carries, or null for one that only speaks to the seat or the session. */
+/**
+ * The table change a server message carries, or null for one that only speaks to the seat or the session. A chankan
+ * prompt shows the kan it offers to rob as declared.
+ */
 function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
     switch (message.type) {
         case "game_started":
@@ -94,7 +106,9 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "player_reconnected": {
             return message;
         }
-        case "call_prompt":
+        case "call_prompt": {
+            return message.callType === CALL_TYPE.CHANKAN ? chankanKanDeclared(message) : null;
+        }
         case "turn":
         case "furiten":
         case "error":
@@ -176,10 +190,29 @@ function onServerMessage(state: GameClientState, raw: Record<string, unknown>): 
             ? step.state
             : { ...step.state, table: applyEvent(step.state.table, tableEvent) };
     const next = withPendingConfirm(withDecision(withViewer(tabled, message), message), message);
-    return { effects: step.effects, parsed: message, state: next };
+    return { effects: step.effects, parsed: message, partial: false, state: next };
 }
 
-/** A replay file's line: a replay event or seat control line moves the table; any other is reported. */
+/**
+ * The first part of a replay's round end that robbed a kan the table does not show yet: the kan declared, as a part
+ * of its own, since the replay records no line for the declaration. Null for any other line.
+ */
+function robbedKanPart(state: GameClientState, line: ReplayLine): TracedStep | null {
+    const declared = line.type === "round_end" ? robbedKanDeclared(line) : null;
+    if (declared === null) {
+        return null;
+    }
+    const table = applyEvent(state.table, declared);
+    if (table === state.table) {
+        return null;
+    }
+    return { effects: [], parsed: declared, partial: true, state: { ...state, table } };
+}
+
+/**
+ * A replay file's line: a replay event or seat control line moves the table; any other is reported. A round end that
+ * robbed a kan is taken in two parts, the kan declared and then the result, so a replay stops on the kan.
+ */
 function onReplayLine(state: GameClientState, raw: Record<string, unknown>): TracedStep {
     const [error, line] = parseReplayLine(raw);
     if (error) {
@@ -189,11 +222,14 @@ function onReplayLine(state: GameClientState, raw: Record<string, unknown>): Tra
     if (tableEvent === null) {
         return reportParseError(state, `Non-replay event type: ${line.type}`);
     }
-    return {
-        effects: [],
-        parsed: line,
-        state: { ...state, table: applyEvent(state.table, tableEvent) },
-    };
+    return (
+        robbedKanPart(state, line) ?? {
+            effects: [],
+            parsed: line,
+            partial: false,
+            state: { ...state, table: applyEvent(state.table, tableEvent) },
+        }
+    );
 }
 
 function onTick(state: GameClientState): ClientStep {
@@ -275,7 +311,7 @@ function stepEvent(timed: GameClientState, event: ClientEvent): TracedStep {
             return untraced(withSession(timed, { at, code, kind: "transport_closed", reason }));
         }
         case "transport_error": {
-            return { effects: [], parsed: null, state: timed };
+            return { effects: [], parsed: null, partial: false, state: timed };
         }
         case "tick": {
             return untraced(onTick(timed));
@@ -338,12 +374,22 @@ export function failGameClient(state: GameClientState, detail: string): GameClie
     return { ...state, decision: null, pendingConfirm: null, session };
 }
 
-/** The dispatcher's step with what its event carried, as parsed, for a timeline to index by. */
-export function traceGameClient(state: GameClientState, event: ClientEvent): TracedStep {
+/** One part of the dispatcher's step with what it took of its event, as parsed. */
+function traceGameClientPart(state: GameClientState, event: ClientEvent): TracedStep {
     const step = stepEvent({ ...state, now: event.at }, event);
     const { decision } = step.state;
     const current = decision === null ? null : expireDecision(decision, event.at);
     return current === decision ? step : { ...step, state: { ...step.state, decision: current } };
+}
+
+/**
+ * The dispatcher's step as the parts it took, each with what it took of the event, as parsed, for a timeline to
+ * index by: one part, but two for a replay's round end that robbed a kan (the kan declared, then the result). The
+ * second part finds the kan shown, so the parts always end.
+ */
+export function traceGameClient(state: GameClientState, event: ClientEvent): readonly TracedStep[] {
+    const step = traceGameClientPart(state, event);
+    return step.partial ? [step, ...traceGameClient(step.state, event)] : [step];
 }
 
 /**
@@ -352,6 +398,9 @@ export function traceGameClient(state: GameClientState, event: ClientEvent): Tra
  * starts a timer; the effects are descriptions only a live driver executes, and the time is the event's `at`.
  */
 export function stepGameClient(state: GameClientState, event: ClientEvent): ClientStep {
-    const { effects, state: next } = traceGameClient(state, event);
-    return { effects, state: next };
+    const parts = traceGameClient(state, event);
+    return {
+        effects: parts.flatMap((part) => part.effects),
+        state: parts.at(-1)?.state ?? state,
+    };
 }

@@ -8,6 +8,8 @@ import {
 import { tile136toString } from "@/entities/tile";
 import { type MeldEvent } from "@/shared/protocol";
 
+import { kanDescription, shownKanIndex } from "./kan-declared";
+
 function markLastDiscardClaimed(discards: readonly DiscardRecord[]): readonly DiscardRecord[] {
     if (discards.length === 0) {
         return discards;
@@ -135,13 +137,47 @@ function applyAddedKan(state: TableState, event: MeldEvent): TableState {
     return meldFromHand(state, event, { fromHand: [match.addedTileId], melds });
 }
 
+const CALLED_MELD_NAMES = { chi: "chi", open_kan: "an open kan", pon: "pon" } as const;
+
 function meldDescription(state: TableState, event: MeldEvent): string {
-    const caller = state.players.find((p) => p.seat === event.callerSeat);
-    const tileName = event.calledTileId !== null ? tile136toString(event.calledTileId) : "unknown";
-    return `${caller?.name ?? `Seat ${event.callerSeat}`} called ${event.meldType} on ${tileName}`;
+    const caller = findCaller(state, event);
+    const { calledTileId, meldType } = event;
+    if (meldType === "closed_kan" || meldType === "added_kan") {
+        return kanDescription(caller, meldType, event.tileIds[0]);
+    }
+    if (calledTileId === null) {
+        throw new Error(`No called tile for ${meldType} at seat ${event.callerSeat}`);
+    }
+    return `${caller.name} called ${CALLED_MELD_NAMES[meldType]} on ${tile136toString(calledTileId)}`;
+}
+
+/**
+ * Complete a kan its chankan prompt already showed as declared: the server's meld takes the shown kan's place, and
+ * nothing more leaves the hand, which gave its tiles at the declaration.
+ */
+function completeShownKan(state: TableState, event: MeldEvent, shownIndex: number): TableState {
+    const caller = findCaller(state, event);
+    const shown = caller.melds[shownIndex];
+    const kan = buildMeldRecord(event, shown.addedTileId);
+    return {
+        ...state,
+        players: updatePlayer(state.players, event.callerSeat, {
+            melds: caller.melds.map((meld, index) => (index === shownIndex ? kan : meld)),
+        }),
+    };
 }
 
 function applyMeldByType(state: TableState, event: MeldEvent): TableState {
+    if (event.meldType === "closed_kan" || event.meldType === "added_kan") {
+        const shownIndex = shownKanIndex(
+            findCaller(state, event),
+            event.meldType,
+            event.tileIds[0],
+        );
+        if (shownIndex !== -1) {
+            return completeShownKan(state, event, shownIndex);
+        }
+    }
     switch (event.meldType) {
         case "chi":
         case "pon":

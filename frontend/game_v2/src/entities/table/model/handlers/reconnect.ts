@@ -7,7 +7,7 @@ import {
 } from "@/entities/table/model/types";
 import { type GameReconnectedEvent, decodeMeldCompact } from "@/shared/protocol";
 
-import { extractRoundEndResult } from "./round-end";
+import { extractRoundEndResult, showRobbedKan } from "./round-end";
 
 type SnapshotSeat = GameReconnectedEvent["playerStates"][number];
 
@@ -66,8 +66,9 @@ function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
 
 /**
  * Rebuild the table from a reconnect snapshot. It opens no wait: when the game awaits the seat, the server re-sends
- * the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result. Its
- * scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
+ * the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result, and
+ * the kan its win robbed as declared: the server never completes a robbed kan, so the snapshot's hand still holds its
+ * tiles. Its scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
  */
 export function applyGameReconnected(
     state: TableState,
@@ -76,7 +77,7 @@ export function applyGameReconnected(
     const allMelds = snapshot.playerStates.flatMap((seat) => seat.melds.map(decodeMeldCompact));
     const claimed = claimedDiscardKeys(allMelds);
     const { roundResult } = snapshot;
-    return {
+    const rebuilt: TableState = {
         ...state,
         currentPlayerSeat: snapshot.currentPlayerSeat,
         dealerSeat: snapshot.dealerSeat,
@@ -96,4 +97,8 @@ export function applyGameReconnected(
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,
     };
+    if (roundResult === null) {
+        return rebuilt;
+    }
+    return { ...showRobbedKan(rebuilt, roundResult), lastEventDescription: "Reconnected" };
 }

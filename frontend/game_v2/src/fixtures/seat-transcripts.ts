@@ -4,9 +4,9 @@ const TRANSCRIPT_FILES: Record<string, unknown> = import.meta.glob("./seat-scena
 });
 
 /**
- * The generated seat transcripts by file name without its extension (`call_prompt_seat_1`), unparsed: data for the
- * tests and the storybook, which parse each at its boundary. Only storybook views import this module, so the
- * transcripts ship in the storybook's own chunk, never the game's.
+ * Every generated seat transcript by file name without its extension (`call_prompt_seat_1`), unparsed: data for the
+ * tests, which parse each at its boundary. The storybook imports only the transcripts its stories run, one by one,
+ * so its chunk carries no other.
  */
 export const SEAT_TRANSCRIPTS: ReadonlyMap<string, unknown> = new Map(
     Object.entries(TRANSCRIPT_FILES).map(([path, raw]) => [

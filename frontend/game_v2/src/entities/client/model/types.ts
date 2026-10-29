@@ -1,5 +1,5 @@
 import { type SessionEffect, type SessionState } from "@/entities/session";
-import { type TableState } from "@/entities/table";
+import { type KanDeclaredEvent, type TableState } from "@/entities/table";
 import {
     type CallType,
     type ClientMessage,
@@ -137,7 +137,12 @@ export interface ClientStep {
     readonly effects: readonly ClientEffect[];
 }
 
-/** A step plus what its event carried, as parsed: a server message or replay line, or null for any other. */
+/**
+ * A step plus what it took of its event, as parsed: a server message or replay line, the kan a replay's round end
+ * robbed as declared, or null for any other. A partial step took only part of its event: the dispatcher steps the
+ * same event again for the rest.
+ */
 export interface TracedStep extends ClientStep {
-    readonly parsed: ReplayLine | null;
+    readonly parsed: ReplayLine | KanDeclaredEvent | null;
+    readonly partial: boolean;
 }

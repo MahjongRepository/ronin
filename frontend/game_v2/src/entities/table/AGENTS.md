@@ -12,17 +12,30 @@ replay view, the live game and the storybook read the tables it produces.
   tiles (the deal's `myTiles`, the snapshot's), so every other hand is a count. Other seats' draws
   go only to the drawing seat, so they reach the table through the public event that follows them:
   a hidden hand of 3n+1 that discards or declares its own kan drew unseen first, and a round that
-  ends on a seat's own draw (its tsumo, its kyuushu, its robbed kan) settles that draw at the round
-  end; a hand already holding it (a snapshot's 3n+2) is not counted twice. The wall shrinks then,
-  and the turn moves to that seat. Between a hidden seat's draw and its first public event the
-  wall reads one high and the hand shows 13: the protocol sends nothing to infer the draw from, and
-  that lag is accepted. A replay shows every hand, so its counts stay 0. A draw of a tile the hand
-  already holds is the one a reconnect re-sends: it marks the drawn tile and takes nothing from the
-  wall. A round end writes the hands it reveals (its winners', a draw's tenpai hands) into the
-  table as known tiles.
-- The draw, discard, meld and riichi handlers throw on an impossible state (a tile neither shown nor
-  covered by the count, a missing player or caller); a new check throws the same way rather than
-  returning the state unchanged. The other handlers tolerate a missing player or result.
+  ends on a seat's own draw (its tsumo, its kyuushu) settles that draw at the round end; a hand
+  already holding it (a snapshot's 3n+2) is not counted twice. The wall shrinks then, and the turn
+  moves to that seat. Between a hidden seat's draw and its first public event the wall reads one
+  high and the hand shows 13: the protocol sends nothing to infer the draw from, and that lag is
+  accepted. A replay shows every hand, so its counts stay 0. A draw of a tile the hand already
+  holds is the one a reconnect re-sends: it marks the drawn tile and takes nothing from the wall. A
+  round end writes the hands it reveals (its winners', a draw's tenpai hands) into the table as
+  known tiles.
+- A closed or added kan open to chankan shows as declared (`kan_declared`, a table event no message
+  carries as such) before it resolves: its tiles leave the hand for the kan once, after the
+  declarer's unseen draw joins its count, with no replacement draw or dora, since the server
+  completes the kan only once nobody robs it. A live seat sees it from its chankan prompt (the kan
+  type then follows the declarer's pon or the added kan already shown, as the server decides), and
+  a round end or reconnect snapshot whose win robbed a kan shows it from `robbedKan` unless it is
+  shown already; the snapshot still holds the robbed tiles in the hand, since the server never
+  completes the kan. A meld that completes a shown kan replaces it and takes nothing more from the
+  hand. A replay records no line for the declaration, so the dispatcher takes a replay's round end
+  that robbed a kan in two steps, the kan declared and then the result, and the replay stops on
+  the kan. A seat control line between the declarer's draw and that round end therefore shows from
+  the kan's stop: the replay cannot tell whether the seat changed before the declaration or after.
+- The draw, discard, meld, kan declaration and riichi handlers throw on an impossible state (a tile
+  neither shown nor covered by the count, a missing player or caller); a new check throws the same
+  way rather than returning the state unchanged. The other handlers tolerate a missing player or
+  result.
 - Riichi deposits on `riichi_declared`, which the server sends only once the declaration's discard
   passes without a ron (a ronned declaration discard deposits nothing): one stick onto the table,
   1000 (the server's `riichi_cost` default, which no live message carries) off the declarer. The
@@ -39,7 +52,7 @@ replay view, the live game and the storybook read the tables it produces.
 - Seat marks: `aiStandIn` says an AI player holds the seat for its human, from a replay's seat
   control lines or the live `player_left` / `player_reconnected` (which name the player, not the
   seat). The snapshot's AI flag cannot tell a bot from a stand-in, so it rebuilds no mark.
-- `buildActionSteps` picks the replay's stop points from the timeline's replay events, folding
+- `buildActionSteps` picks the replay's stop points from the timeline's step events, folding
   bookkeeping events (a new dora, game start, the first draw of a round) into the step before; an
   entry with no replay event (a seat control line, a line that did not parse) folds into the step
   after, so a seat's AI replacement shows from the move after its line. `buildNavigationIndex` maps

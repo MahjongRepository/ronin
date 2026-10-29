@@ -7,6 +7,7 @@ import {
     describePlayerSessionStatus,
     describeSessionStatus,
 } from "@/entities/session";
+import { assertNever } from "@/shared/lib";
 import { CONNECTION_STATUS } from "@/shared/protocol";
 
 const NO_SESSION_STATUS: SessionStatusDisplay = {
@@ -49,7 +50,20 @@ export function rotatePanelProps(state: GameClientState, onLeave: () => void): R
 }
 
 function moveName(move: DecisionCountdown["move"]): string {
-    return move === "turn" ? "It is your turn" : "You can call the last discard";
+    switch (move) {
+        case "turn": {
+            return "It is your turn";
+        }
+        case "call": {
+            return "You can call the last discard";
+        }
+        case "chankan": {
+            return "You can rob the kan";
+        }
+        default: {
+            return assertNever(move);
+        }
+    }
 }
 
 /**

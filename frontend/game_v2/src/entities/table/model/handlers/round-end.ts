@@ -15,6 +15,8 @@ import {
     type TsumoRoundEnd,
 } from "@/shared/protocol";
 
+import { applyKanDeclared, robbedKanDeclared } from "./kan-declared";
+
 function playerName(state: TableState, seat: number): string {
     return state.players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`;
 }
@@ -170,21 +172,19 @@ export function extractRoundEndResult(
 }
 
 /**
- * The seats whose own draw the round ended on, before any discard: the tsumo winner, the kyuushu declarer, and the
- * declarer of a kan the win robbed.
+ * The seats whose own draw the round ended on, before any discard or kan: the tsumo winner and the kyuushu declarer.
+ * A robbed kan's declarer took its draw at the declaration.
  */
 function seatsEndingOnOwnDraw(event: RoundEndEvent): number[] {
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.TSUMO: {
             return [event.winnerSeat];
         }
-        case ROUND_RESULT_TYPE.RON:
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return event.robbedKan === null ? [] : [event.robbedKan.seat];
-        }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return [event.seat, event.robbedKan?.seat ?? null].filter((seat) => seat !== null);
+            return event.seat === null ? [] : [event.seat];
         }
+        case ROUND_RESULT_TYPE.RON:
+        case ROUND_RESULT_TYPE.DOUBLE_RON:
         case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
             return [];
@@ -294,8 +294,18 @@ function riichiSticksCollected(event: RoundEndEvent): number {
     }
 }
 
+/** The table with the kan the round end's win robbed shown as declared, unless a chankan prompt showed it already. */
+export function showRobbedKan(state: TableState, event: RoundEndEvent): TableState {
+    const declared = robbedKanDeclared(event);
+    return declared === null ? state : applyKanDeclared(state, declared);
+}
+
+/**
+ * End the round: the kan a win robbed shows as declared first, then the unseen draws settle, the scores pay out and
+ * the hands the result reveals show.
+ */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
-    const drawn = settleUnseenDraws(state, event);
+    const drawn = settleUnseenDraws(showRobbedKan(state, event), event);
     return {
         ...drawn,
         lastEventDescription: roundEndDescription(state, event),

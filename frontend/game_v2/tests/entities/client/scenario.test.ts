@@ -21,6 +21,7 @@ import {
     parseSeatTranscript,
     runSeatScenario,
     scenarioStateIndex,
+    stepGameClient,
     timelineStates,
 } from "@/entities/client";
 import { tableStateToDisplayState } from "@/entities/table";
@@ -43,6 +44,10 @@ const CALL_PROMPT = loadSeatScenario("call_prompt_seat_1");
 const OWN_TURN = loadSeatScenario("own_turn_seat_1");
 const RECONNECT = loadSeatScenario("reconnect_seat_1");
 const RIICHI_RECONNECT = loadSeatScenario("riichi_reconnect_seat_1");
+const CHANKAN_ROBBED_DECLARER = loadSeatScenario("chankan_robbed_seat_1");
+const CHANKAN_ROBBED_ROBBER = loadSeatScenario("chankan_robbed_seat_3");
+const CHANKAN_PASSED = loadSeatScenario("chankan_passed_seat_3");
+const NINE_MAN_COPIES = [32, 33, 34, 35];
 const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
 
 const CALLED_THREE_MAN = 8;
@@ -91,6 +96,9 @@ describe("seatScenarioFromTranscript", () => {
     it("runs every generated transcript with exactly the effects the client's policy adds to it", () => {
         expect([...SEAT_TRANSCRIPTS.keys()].toSorted()).toEqual([
             "call_prompt_seat_1",
+            "chankan_passed_seat_3",
+            "chankan_robbed_seat_1",
+            "chankan_robbed_seat_3",
             "own_turn_seat_1",
             "reconnect_seat_1",
             "riichi_reconnect_seat_1",
@@ -582,5 +590,90 @@ describe("stepGameClient - generated reconnect", () => {
             at: 6900,
             kind: "submitted",
         });
+    });
+});
+
+/** The wall, then the kan declarer's (seat 1's) closed hand size, its melds' types and tile ids. */
+function declarerAt(state: GameClientState): unknown[] {
+    const [, declarer] = state.table.players;
+    return [
+        state.table.tilesRemaining,
+        declarer.tiles.length + declarer.concealedCount,
+        declarer.melds.map((meld) => [meld.meldType, meld.tileIds]),
+    ];
+}
+
+/** The state after the step labelled `label`, stepped once more with the same event, as no transcript sends it. */
+function steppedAgain(scenario: SeatScenario, run: ScenarioRun, label: string): GameClientState {
+    const index = scenarioStateIndex(scenario, label);
+    return stepGameClient(timelineStates(run.timeline)[index], scenario.steps[index - 1].event)
+        .state;
+}
+
+describe("stepGameClient - generated chankan", () => {
+    it("robber: the prompt shows the closed kan declared, and the ron that robs it takes nothing more", () => {
+        const { scenario } = CHANKAN_ROBBED_ROBBER;
+        const run = runClean(scenario);
+        const prompt = stateAt(scenario, run, "chankan prompt");
+        const roundEnd = stateAt(scenario, run, "round end");
+        const kan = [10, [["closed_kan", NINE_MAN_COPIES]]];
+
+        expect(declarerAt(stateAt(scenario, run, "discarded"))).toEqual([66, 13, []]);
+        expect(declarerAt(prompt)).toEqual([64, ...kan]);
+        expect(prompt.decision).toMatchObject({
+            callType: CALL_TYPE.CHANKAN,
+            offers: [{ kind: "ron" }],
+        });
+        expect(declarerAt(roundEnd)).toEqual([64, ...kan]);
+        expect(roundEnd.table.roundEndResult?.winners).toMatchObject([
+            { seat: 3, winningTile: 32 },
+        ]);
+    });
+
+    it("declarer: the round end takes the robbed kan's four tiles out of the known hand once", () => {
+        const { scenario } = CHANKAN_ROBBED_DECLARER;
+        const run = runClean(scenario);
+        const kanDraw = stateAt(scenario, run, "kan draw");
+        const roundEnd = stateAt(scenario, run, "round end");
+
+        expect(declarerAt(kanDraw)).toEqual([64, 14, []]);
+        expect(kanDraw.decision?.offers).toEqual([
+            { kanType: KAN_TYPE.CLOSED, kind: "kan", tileId: 32 },
+        ]);
+        expect(declarerAt(roundEnd)).toEqual([64, 10, [["closed_kan", NINE_MAN_COPIES]]]);
+        expect(roundEnd.table.players[1].tiles).not.toContain(35);
+    });
+
+    it("declarer: the snapshot of the round advance shows the kan its result robbed, as the round end did", () => {
+        const { scenario } = CHANKAN_ROBBED_DECLARER;
+        const run = runClean(scenario);
+        const roundEnd = stateAt(scenario, run, "round end");
+        const reconnected = stateAt(scenario, run, "reconnected");
+
+        expect(reconnected.table.phase).toBe("round_ended");
+        expect(declarerAt(reconnected)).toEqual(declarerAt(roundEnd));
+        expect(reconnected.table.players[1].tiles).toEqual(roundEnd.table.players[1].tiles);
+        expect(reconnected.pendingConfirm?.dueAt).toBe(10_250);
+    });
+
+    it("robber who passes: the prompt shows the added kan, a reconnect re-shows it once, the meld completes it", () => {
+        const { scenario } = CHANKAN_PASSED;
+        const run = runClean(scenario);
+        const kan = [65, 10, [["added_kan", [56, 57, 58, 59]]]];
+
+        expect([
+            declarerAt(stateAt(scenario, run, "chankan prompt")),
+            declarerAt(steppedAgain(scenario, run, "chankan prompt")),
+        ]).toEqual([kan, kan]);
+        expect(declarerAt(stateAt(scenario, run, "reconnected"))).toEqual([
+            65,
+            11,
+            [["pon", [56, 57, 58]]],
+        ]);
+        expect(declarerAt(stateAt(scenario, run, "prompt re-sent"))).toEqual(kan);
+        const completed = stateAt(scenario, run, "kan");
+        expect(declarerAt(completed)).toEqual(kan);
+        expect(completed.table.players[1].melds[0]).toMatchObject({ addedTileId: 59 });
+        expect(completed.decision).toBeNull();
     });
 });

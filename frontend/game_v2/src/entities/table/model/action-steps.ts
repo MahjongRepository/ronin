@@ -1,10 +1,13 @@
-import { type ReplayEvent } from "./types";
+import { type KanDeclaredEvent, type ReplayEvent } from "./types";
 
 /**
- * The replay event of each timeline entry, or null for an entry that moves no step: a seat control line or a line
- * that did not parse. A null entry folds into the next step, so a seat's AI replacement shows from the move after it.
+ * The replay event of each timeline entry, the kan a round end's win robbed as declared before it, or null for an
+ * entry that moves no step: a seat control line or a line that did not parse. A null entry folds into the next step,
+ * so a seat's AI replacement shows from the move after it.
  */
-export type StepEvent = ReplayEvent | null;
+export type StepEvent = ReplayEvent | KanDeclaredEvent | null;
+
+type ShownEvent = NonNullable<StepEvent>;
 
 export interface ActionStep {
     /** Timeline state index of the primary stopping event (used for lastEventDescription).
@@ -15,10 +18,10 @@ export interface ActionStep {
     readonly stateIndex: number;
 }
 
-const TRAILING_TYPES: ReadonlySet<ReplayEvent["type"]> = new Set(["dora_revealed", "game_started"]);
+const TRAILING_TYPES: ReadonlySet<ShownEvent["type"]> = new Set(["dora_revealed", "game_started"]);
 
 /** The replay event before index `at`, skipping the entries that move no step. */
-function previousEvent(events: readonly StepEvent[], at: number): ReplayEvent | null {
+function previousEvent(events: readonly StepEvent[], at: number): ShownEvent | null {
     for (let index = at - 1; index >= 0; index--) {
         const event = events[index];
         if (event !== null) {

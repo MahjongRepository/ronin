@@ -4,8 +4,8 @@ The earlier game client SPA, restored as the foundation of a future client: the 
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
 `/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
 but the views act on less of it than v1 does: the live game plays its decisions on the board (the
-discard, the offers, pass, the countdown and furiten), while player names on the board, a round
-result the player confirms and robbed kans are not there yet.
+discard, the offers, pass, the countdown and furiten), while player names on the board and a round
+result the player confirms are not there yet.
 Adapt the client to the server rather than the server to it. `src/shared/protocol/` and
 `src/entities/table/` have their own `AGENTS.md`.
 
@@ -73,8 +73,12 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Timelines, not history in the driver.** `buildClientTimeline` steps any event sequence into
   the state after each event; stepping back selects an earlier state, never an inverse event, and
   nothing in a timeline executes an effect, so revisiting a prompt sends nothing and arms no
-  timer. The replay view reads its file into such a timeline. A live game's own history review,
-  if ever wanted, keeps the authoritative state moving forward apart from its cursor.
+  timer. The replay view reads its file into such a timeline, and each of its stops is one of the
+  timeline's states. The dispatcher takes one event in one step, except a replay's round end that
+  robbed a kan, which the replay records no declaration line for: it takes that in two steps, the
+  kan declared and then the result, each an entry of the timeline (`stepGameClient` returns both
+  as one). A live game's own history review, if ever wanted, keeps the authoritative state moving
+  forward apart from its cursor.
 * **Scenarios.** A `SeatScenario` (`entities/client`) is one seat's scripted run as plain data:
   the lobby handoff, then ordered client events, each step naming exactly the effects it must
   describe (none when omitted), so every send is asserted and never fed in. `runSeatScenario`
@@ -226,8 +230,8 @@ rather than introducing new FSD layers:
   `session` and `table`, `table` may use `tile`, never the reverse.
 * `shared/` — protocol, handoff storage, the socket adapter, the replay fetch, the clock, config and
   small helpers; imports nothing above it.
-* `fixtures/` — generated data (the seat transcripts) and a loader that hands it over unparsed; it
-  imports nothing, and only storybook views and tests import it.
+* `fixtures/` — generated data (the seat transcripts) and a loader that hands all of it over
+  unparsed for the tests; it imports nothing, and only storybook views and tests import it.
 
 ## Conventions
 
@@ -267,16 +271,18 @@ The seat transcripts under `src/fixtures/seat-scenarios/` are generated too, nev
 one to a labelled checkpoint (`scenarioCheckpoint`, which the tests use too) and show the live board
 there, its controls stepping the dispatcher with no socket. A lint rule bans importing
 `@/fixtures/*` from `src` outside the storybook views, so the transcripts ship in the storybook's
-chunk alone. `make generate-seat-scenarios` plays each scenario of `backend/scripts/seat_scenarios/`
-through the real session manager, router and engine on virtual time, and the checks fail when one
-drifts from what the server sends now. A new interaction case is a new scenario there, labelling the
-messages and actions its tests look up. Every transcript runs through `runSeatScenario` with no
-mismatch, and the tests assert named checkpoints apart from the effects (the open decision with its
-offers, wait id and deadline, the table, the result), since matching effects alone passes with a
-wrong hand or decision. What the server cannot produce is a hand-written branch on a generated
-scenario: the client's own intents and ticks (a kuikae or riichi discard it refuses, an expired
-prompt), an answer racing a newer wait or the endpoint's rate limit (the harness skips the endpoint,
-and a transcript keeps the server's order), and a payload edited to a shape the server never sends.
+chunk alone, and the decisions storybook imports each transcript its stories run by name, never
+the loader, so its chunk carries no other. `make generate-seat-scenarios` plays each scenario of
+`backend/scripts/seat_scenarios/` through the real session manager, router and engine on virtual
+time, and the checks fail when one drifts from what the server sends now. A new interaction case
+is a new scenario there, labelling the messages and actions its tests look up. Every transcript
+runs through `runSeatScenario` with no mismatch, and the tests assert named checkpoints apart from
+the effects (the open decision with its offers, wait id and deadline, the table, the result), since
+matching effects alone passes with a wrong hand or decision. What the server cannot produce is a
+hand-written branch on a generated scenario: the client's own intents and ticks (a kuikae or
+riichi discard it refuses, an expired prompt), an answer racing a newer wait or the endpoint's rate
+limit (the harness skips the endpoint, and a transcript keeps the server's order), and a payload
+edited to a shape the server never sends.
 
 The replay files under `tests/fixtures/replays/` are generated, never edited by hand:
 `make generate-replay-fixtures` records each from a game the engine plays

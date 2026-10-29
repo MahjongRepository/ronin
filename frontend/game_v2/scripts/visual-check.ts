@@ -274,6 +274,7 @@ const PAGES: readonly PageCase[] = [
     boardCase("board-full-rivers", "?state=full_rivers"),
     boardCase("board-worst", "?state=worst", [".board-strip .meld", ".board-dora .tile"]),
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
+    decisionCase("chankan_prompt", [ACTION, ".board-strip .meld"]),
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
     decisionCase("riichi_turn", [ACTION, ".decision-controls__furiten", ".hand-tile--selectable"]),
     decisionCase("answered", [".hand-tile--selected"]),

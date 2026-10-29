@@ -35,6 +35,18 @@ describe("RotatePanel", () => {
         expect(host.querySelector(".rotate-panel__seconds")?.textContent).toBe("5");
     });
 
+    it("names a chankan prompt as the chance to rob the kan, not a call on the last discard", () => {
+        const { scenario } = loadSeatScenario("chankan_robbed_seat_3");
+        const run = runSeatScenario(scenario);
+        const prompt = timelineStates(run.timeline)[scenarioStateIndex(scenario, "chankan prompt")];
+
+        const host = renderPanel(rotatePanelProps(prompt, () => {}));
+
+        expect(host.querySelector(".rotate-panel__decision p")?.textContent).toMatch(
+            /^You can rob the kan\./,
+        );
+    });
+
     it("announces the countdown only when it crosses 10 and 5 seconds and when it expires", () => {
         const status = { label: "Connected", tone: CONNECTION_STATUS.CONNECTED };
         const countdowns = [12, 10, 6, 5, 1].map(running);

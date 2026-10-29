@@ -12,6 +12,7 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import {
+    type ActionStep,
     type BoardPerspective,
     type PlayerState,
     type ReplayEvent,
@@ -45,6 +46,16 @@ function readLines(...lines: string[]): { errors: readonly string[]; types: (str
 }
 
 describe("readReplayTimeline - lines", () => {
+    test("names the file's line of an error after a round end the dispatcher took in two parts", () => {
+        const text = `${ENGINE_REPLAYS.get("chankan_added")?.trimEnd()}\n{"t": 99}`;
+        const read = readReplayTimeline(text);
+        assert(read.ok);
+
+        expect(read.errors).toEqual([
+            `Line ${text.split("\n").length}: Parse error: Failed to parse game event t=99: Unknown game event type: t=99`,
+        ]);
+    });
+
     test("parses each event line in order through the dispatcher, blank lines skipped", () => {
         const { errors, types } = readLines(drawLine, "", "   ", discardLine);
         expect(errors).toEqual([]);
@@ -87,6 +98,19 @@ function findRoundEnd(timeline: EngineReplay): { event: RoundEndEvent; index: nu
     const event = timeline.events[index];
     assert(event?.type === "round_end");
     return { event, index };
+}
+
+/** A stop's event type, phase, wall, and the given seat's closed hand size and meld types. */
+function kanStop({ events, tables }: EngineReplay, step: ActionStep, seat: number): unknown[] {
+    const table = tables[step.stateIndex];
+    const player = table.players[seat];
+    return [
+        events[step.descriptionStateIndex - 1]?.type,
+        table.phase,
+        table.tilesRemaining,
+        player.tiles.length + player.concealedCount,
+        player.melds.map((meld) => meld.meldType),
+    ];
 }
 
 function rightRiverSideways(state: TableState): boolean[] {
@@ -219,6 +243,15 @@ describe("readReplayTimeline - engine replays", () => {
         });
         expect(end.players.map((player) => player.tiles.length)).toEqual([13, 10, 10, 11]);
         expect(end.doraIndicators).toEqual([102, 103, 104, 107]);
+        const kanDescriptions = timeline.events.flatMap((event, index) =>
+            event?.type === "meld" ? [stateAfter(timeline, index).lastEventDescription] : [],
+        );
+        expect(kanDescriptions).toEqual([
+            "Charlie called an open kan on 6z",
+            "Alice called pon on 5z",
+            "Alice declared an added kan of 5z",
+            "Bob declared a closed kan of 1s",
+        ]);
     });
 
     test("kans: the tsumo wins on the rinshan draw after the last kan", () => {
@@ -234,6 +267,41 @@ describe("readReplayTimeline - engine replays", () => {
         expect(end.roundEndResult?.winners).toMatchObject([
             { handResult: event.handResult, seat: 3, winningTile: rinshanDraw.tileId },
         ]);
+    });
+
+    test("chankan: stops on the robbed added kan as declared, then on the ron; its tile leaves the hand once", () => {
+        const replay = loadEngineReplay("chankan_added");
+        const { tables } = replay;
+        const lastStops = buildActionSteps(replay.events).slice(-3);
+
+        expect(lastStops.map((step) => kanStop(replay, step, 1))).toEqual([
+            ["draw", "in_round", 65, 11, ["pon"]],
+            ["kan_declared", "in_round", 65, 10, ["added_kan"]],
+            ["round_end", "round_ended", 65, 10, ["added_kan"]],
+        ]);
+        const end = tables.at(-1);
+        expect(end?.players[1].melds[0]).toMatchObject({
+            addedTileId: 59,
+            tileIds: [56, 57, 58, 59],
+        });
+        expect(end?.players[1].tiles).not.toContain(59);
+        expect(end?.roundEndResult?.winners).toMatchObject([{ seat: 2, winningTile: 59 }]);
+    });
+
+    test("chankan: stops on the closed kan a kokushi robs as declared, all four copies out of the hand", () => {
+        const replay = loadEngineReplay("chankan_closed_kokushi");
+        const { tables } = replay;
+        const lastStops = buildActionSteps(replay.events).slice(-4);
+
+        expect(lastStops.map((step) => kanStop(replay, step, 1))).toEqual([
+            ["draw", "in_round", 64, 14, []],
+            ["kan_declared", "in_round", 64, 10, ["closed_kan"]],
+            ["round_end", "round_ended", 64, 10, ["closed_kan"]],
+            ["game_end", "game_ended", 64, 10, ["closed_kan"]],
+        ]);
+        const end = tables.at(-1);
+        expect(end?.players[1].melds[0].tileIds).toEqual([32, 33, 34, 35]);
+        expect(end?.players[1].tiles.filter((tileId) => tileId >> 2 === 8)).toEqual([]);
     });
 
     test("double ron: shows both winners of one discard, who dealt it and the settled scores", () => {
@@ -513,7 +581,7 @@ function seatKnowledge(state: GameClientState, seat: number): unknown {
 
 function projectedEntry(entry: TimelineEntry, seat: number): WireLine | null {
     const { event, parsed } = entry;
-    if (event.kind !== "replay_line" || parsed === null) {
+    if (event.kind !== "replay_line" || parsed === null || parsed.type === "kan_declared") {
         return null;
     }
     return projectLine(event.raw, parsed, seat);
