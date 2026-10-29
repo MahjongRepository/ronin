@@ -47,7 +47,7 @@ function huleMessage({ l, shoupai, baojia, hr, fenpei, fubaopai, pao = null, hea
             l,
             shoupai,
             baojia,
-            ...yaku.buildHupai(hr),
+            ...yaku.buildHupai(hr, shoupai),
             defen:    hr.pt * wire.SCORE_DIV,
             fenpei,
             fubaopai: fubaopai && fubaopai.length ? fubaopai : null,

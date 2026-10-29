@@ -118,7 +118,7 @@ export default class HuleDialog {
         if (hule.hupai) {
             for (let h of hule.hupai) {
                 let r_hupai = this._r_hupai.clone();
-                $('.name',   r_hupai).text(yakuName(h.yi));
+                $('.name',   r_hupai).text(yakuName(h.yi, h.variant));
                 $('.fanshu', r_hupai).text(fanshu_text(h.fanshu));
                 hupai.append(show(r_hupai));
             }
