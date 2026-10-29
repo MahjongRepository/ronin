@@ -70,7 +70,7 @@ function WindBadge(player: BoardPlayerScore, corner: CornerPosition): TemplateRe
     return html`<span class="${classes}">${player.wind}</span>`;
 }
 
-function DoraDisplay(indicators: TileFace[]): TemplateResult {
+function DoraDisplay(indicators: readonly TileFace[]): TemplateResult {
     if (indicators.length === 0) {
         return html``;
     }

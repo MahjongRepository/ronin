@@ -1,5 +1,6 @@
 import { type z } from "zod";
 
+import { type timerSettingsSchema } from "./schemas/common";
 import {
     type discardSchema,
     type doraRevealedSchema,
@@ -27,6 +28,7 @@ export type ErrorEvent = z.output<typeof errorEventSchema>;
 export type FuritenEvent = z.output<typeof furitenSchema>;
 export type GameEndEvent = z.output<typeof gameEndSchema>;
 export type TurnEvent = z.output<typeof turnSchema>;
+export type TimerSettings = z.output<typeof timerSettingsSchema>;
 
 // --- Call prompt types ---
 

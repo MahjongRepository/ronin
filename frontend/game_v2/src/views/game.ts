@@ -13,7 +13,12 @@ import {
 import { describeSessionStatus } from "@/entities/session";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
-import { EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
+import {
+    CONNECTION_STATUS,
+    EVENT_TYPE,
+    LOG_TYPE_SYSTEM,
+    LOG_TYPE_UNKNOWN,
+} from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
 
@@ -34,6 +39,7 @@ export interface GameViewDeps {
 const CONNECT_FAILED_CLOSE_CODE = 1006;
 const MAX_LOG_ENTRIES = 500;
 const LOG_TYPE_ERROR = "error";
+const NO_SESSION_STATUS = { label: "No session", tone: CONNECTION_STATUS.ERROR } as const;
 
 const EVENT_NAMES: ReadonlyMap<number, string> = new Map(
     Object.entries(EVENT_TYPE).map(([name, type]) => [type, name.toLowerCase()]),
@@ -92,6 +98,7 @@ function logEntryFor(event: ClientEvent): LogEntry | null {
         case "transport_error": {
             return { at, kind: LOG_TYPE_SYSTEM, text: `Transport error: ${event.detail}` };
         }
+        case "replay_line":
         case "tick":
         case "intent": {
             return null;
@@ -113,7 +120,8 @@ function logEntryTemplate(entry: LogEntry): TemplateResult {
 }
 
 function gameTemplate({ gameId, log, onLeave, panel, state }: GameViewProps): TemplateResult {
-    const status = describeSessionStatus(state.session);
+    const status =
+        state.session === null ? NO_SESSION_STATUS : describeSessionStatus(state.session);
     return html`
         <div class="game">
             <div class="game-header">

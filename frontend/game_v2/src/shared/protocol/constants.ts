@@ -206,6 +206,14 @@ export const SESSION_ERROR_CODE = {
 
 export type SessionErrorCode = (typeof SESSION_ERROR_CODE)[keyof typeof SESSION_ERROR_CODE];
 
+/**
+ * The game `error` event codes the client tells apart (`backend/game/logic/enums.py` `GameErrorCode`): every code
+ * refuses the action and changes nothing, and `stale_action` answers one that echoed the id of a wait that ended.
+ */
+export const GAME_ERROR_CODE = {
+    STALE_ACTION: "stale_action",
+} as const;
+
 /** The WebSocket close codes the client acts on, as `backend/game/session/manager.py` sends them. */
 export const CLOSE_CODE = {
     INVALID_GAME_ACTION: 1008,

@@ -1,5 +1,5 @@
-import { type ActionStep } from "./action-steps";
-import { type ReplayEvent, type TableState } from "./types";
+import { type ActionStep, type StepEvent } from "./action-steps";
+import { type TableState } from "./types";
 
 export interface RoundInfo {
     /** Index into the actionSteps array where this round's round_started lands */
@@ -34,7 +34,7 @@ export interface NavigationIndex {
 }
 
 /** Builds a map from event index to action step index. */
-function buildEventToStepMap(actionSteps: ActionStep[]): Map<number, number> {
+function buildEventToStepMap(actionSteps: readonly ActionStep[]): Map<number, number> {
     const map = new Map<number, number>();
     for (let stepIdx = 1; stepIdx < actionSteps.length; stepIdx++) {
         const eventIndex = actionSteps[stepIdx].descriptionStateIndex - 1;
@@ -45,19 +45,20 @@ function buildEventToStepMap(actionSteps: ActionStep[]): Map<number, number> {
 
 /** Scans ahead from a round_started event to find the result description from the next round_end. */
 function findRoundResultDescription(
-    events: readonly ReplayEvent[],
-    states: TableState[],
+    events: readonly StepEvent[],
+    states: readonly TableState[],
     startIdx: number,
 ): string {
     for (let idx = startIdx + 1; idx < events.length; idx++) {
-        if (events[idx].type === "round_end") {
+        const type = events[idx]?.type;
+        if (type === "round_end") {
             const roundEndStateIdx = idx + 1;
             if (roundEndStateIdx < states.length) {
                 return states[roundEndStateIdx].lastEventDescription;
             }
             return "";
         }
-        if (events[idx].type === "round_started") {
+        if (type === "round_started") {
             return "";
         }
     }
@@ -66,15 +67,15 @@ function findRoundResultDescription(
 
 /** Collects all rounds from the event stream. */
 function collectRounds(
-    events: readonly ReplayEvent[],
-    states: TableState[],
+    events: readonly StepEvent[],
+    states: readonly TableState[],
     eventToStepIndex: Map<number, number>,
 ): RoundInfo[] {
     const rounds: RoundInfo[] = [];
 
     for (let eventIdx = 0; eventIdx < events.length; eventIdx++) {
         const event = events[eventIdx];
-        if (event.type === "round_started") {
+        if (event?.type === "round_started") {
             const stepIdx = eventToStepIndex.get(eventIdx);
             if (stepIdx !== undefined) {
                 rounds.push({
@@ -92,7 +93,7 @@ function collectRounds(
 }
 
 /** Resolves player name from the state after a draw event. */
-function resolvePlayerName(states: TableState[], stateIdx: number, seat: number): string {
+function resolvePlayerName(states: readonly TableState[], stateIdx: number, seat: number): string {
     if (stateIdx >= states.length) {
         return `Seat ${seat}`;
     }
@@ -106,8 +107,8 @@ interface EventRange {
 
 interface TurnCollectionContext {
     eventToStepIndex: Map<number, number>;
-    events: readonly ReplayEvent[];
-    states: TableState[];
+    events: readonly StepEvent[];
+    states: readonly TableState[];
 }
 
 /** Collects all turns (draw events) within a range of events for a single round. */
@@ -117,7 +118,7 @@ function collectTurnsForRange(ctx: TurnCollectionContext, range: EventRange): Tu
 
     for (let eventIdx = range.startEventIdx; eventIdx < range.endEventIdx; eventIdx++) {
         const event = ctx.events[eventIdx];
-        if (event.type === "draw") {
+        if (event?.type === "draw") {
             const stepIdx = ctx.eventToStepIndex.get(eventIdx);
             if (stepIdx !== undefined) {
                 turns.push({
@@ -136,21 +137,21 @@ function collectTurnsForRange(ctx: TurnCollectionContext, range: EventRange): Tu
 /** Checks whether a given action step corresponds to a game_end event. */
 function isGameEndStep(
     stepIdx: number,
-    actionSteps: ActionStep[],
-    events: readonly ReplayEvent[],
+    actionSteps: readonly ActionStep[],
+    events: readonly StepEvent[],
 ): boolean {
     if (stepIdx <= 0) {
         return false;
     }
     const eventIdx = actionSteps[stepIdx].descriptionStateIndex - 1;
-    return eventIdx >= 0 && eventIdx < events.length && events[eventIdx].type === "game_end";
+    return eventIdx >= 0 && eventIdx < events.length && events[eventIdx]?.type === "game_end";
 }
 
 /** Builds turnsByRound: for each round, collects draw events mapped to TurnInfo. */
 function buildTurnsByRound(
     ctx: TurnCollectionContext,
     rounds: RoundInfo[],
-    actionSteps: ActionStep[],
+    actionSteps: readonly ActionStep[],
 ): TurnInfo[][] {
     return rounds.map((_round, roundIdx) => {
         const startEventIdx =
@@ -166,8 +167,8 @@ function buildTurnsByRound(
 /** Maps each action step to its parent round index (-1 for steps outside any round). */
 function buildStepToRoundIndex(
     rounds: RoundInfo[],
-    actionSteps: ActionStep[],
-    events: readonly ReplayEvent[],
+    actionSteps: readonly ActionStep[],
+    events: readonly StepEvent[],
 ): number[] {
     const stepToRoundIndex: number[] = Array.from({ length: actionSteps.length }, () => -1);
 
@@ -195,9 +196,9 @@ function buildStepToRoundIndex(
  * then maps each action step to its parent round for O(1) lookup.
  */
 export function buildNavigationIndex(
-    events: readonly ReplayEvent[],
-    actionSteps: ActionStep[],
-    states: TableState[],
+    events: readonly StepEvent[],
+    actionSteps: readonly ActionStep[],
+    states: readonly TableState[],
 ): NavigationIndex {
     const eventToStepIndex = buildEventToStepMap(actionSteps);
     const rounds = collectRounds(events, states, eventToStepIndex);

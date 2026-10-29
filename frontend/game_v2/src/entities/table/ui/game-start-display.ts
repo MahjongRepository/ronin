@@ -7,13 +7,13 @@ function windIndex(seat: number, dealerSeat: number): number {
     return (seat - dealerSeat + 4) % 4;
 }
 
-function sortByWind(players: PlayerState[], dealerSeat: number): PlayerState[] {
+function sortByWind(players: readonly PlayerState[], dealerSeat: number): PlayerState[] {
     return players.toSorted(
         (p1, p2) => windIndex(p1.seat, dealerSeat) - windIndex(p2.seat, dealerSeat),
     );
 }
 
-function GameStartDisplay(players: PlayerState[], dealerSeat: number): TemplateResult {
+function GameStartDisplay(players: readonly PlayerState[], dealerSeat: number): TemplateResult {
     const sorted = sortByWind(players, dealerSeat);
     return html`<div class="game-start-result">
         <div class="game-start-result__title">Game Start</div>

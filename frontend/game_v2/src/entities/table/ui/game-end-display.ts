@@ -13,7 +13,7 @@ function formatFinalScore(finalScore: number): string {
     return finalScore.toFixed(1);
 }
 
-function GameEndDisplay(result: GameEndResult, players: PlayerState[]): TemplateResult {
+function GameEndDisplay(result: GameEndResult, players: readonly PlayerState[]): TemplateResult {
     return html`<div class="game-end-result">
         <div class="game-end-result__title">Final Standings</div>
         ${result.standings.map((standing, index) => {

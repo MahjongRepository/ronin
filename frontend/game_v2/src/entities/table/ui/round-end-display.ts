@@ -81,7 +81,7 @@ function deltaModifier(delta: number): string {
 
 function WinnerSection(
     winner: WinnerResult,
-    players: PlayerState[],
+    players: readonly PlayerState[],
     dealerSeat: number,
 ): TemplateResult {
     const player = players.find((p) => p.seat === winner.seat);
@@ -114,7 +114,7 @@ function WinnerSection(
     </div>`;
 }
 
-function indicatorGroup(label: string, tileIds: number[]): TemplateResult | string {
+function indicatorGroup(label: string, tileIds: readonly number[]): TemplateResult | string {
     if (tileIds.length === 0) {
         return "";
     }
@@ -126,7 +126,10 @@ function indicatorGroup(label: string, tileIds: number[]): TemplateResult | stri
     </div>`;
 }
 
-function doraIndicatorSection(doraIds: number[], uraDoraIds: number[]): TemplateResult | string {
+function doraIndicatorSection(
+    doraIds: readonly number[],
+    uraDoraIds: readonly number[],
+): TemplateResult | string {
     if (doraIds.length === 0 && uraDoraIds.length === 0) {
         return "";
     }
@@ -139,7 +142,7 @@ function doraIndicatorSection(doraIds: number[], uraDoraIds: number[]): Template
 
 function RoundEndDisplay(
     result: RoundEndResult,
-    players: PlayerState[],
+    players: readonly PlayerState[],
     dealerSeat: number,
 ): TemplateResult {
     const points = winnerPoints(result);

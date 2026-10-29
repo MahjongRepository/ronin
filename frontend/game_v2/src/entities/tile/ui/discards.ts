@@ -14,7 +14,7 @@ const ROW_SIZE = 6;
 const MAX_FULL_ROWS = 2;
 
 /** Render a player's discard pile as rows of tiles (6 per row, 3 rows max, row 3 overflows). */
-function Discards(tiles: DiscardTile[]) {
+function Discards(tiles: readonly DiscardTile[]) {
     const rows: DiscardTile[][] = [];
 
     for (let i = 0; i < tiles.length; i++) {

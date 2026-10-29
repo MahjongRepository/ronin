@@ -6,12 +6,12 @@ import { type MeldType } from "@/shared/protocol/constants";
 import { Tile } from "./tile";
 
 interface MeldInput {
-    tileIds: number[];
-    meldType: MeldType;
-    callerSeat: number;
-    fromSeat: number | null;
-    calledTileId: number | null;
-    addedTileId?: number;
+    readonly tileIds: readonly number[];
+    readonly meldType: MeldType;
+    readonly callerSeat: number;
+    readonly fromSeat: number | null;
+    readonly calledTileId: number | null;
+    readonly addedTileId?: number;
 }
 
 type MeldTileDisplay =

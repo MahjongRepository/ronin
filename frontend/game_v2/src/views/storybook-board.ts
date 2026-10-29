@@ -10,6 +10,7 @@ import {
     type PlayerState,
     RoundEndDisplay,
     type RoundEndResult,
+    createInitialPlayerState,
 } from "@/entities/table";
 import { type DiscardTile, type HandTile, type MeldInput } from "@/entities/tile";
 import { ROUND_RESULT_TYPE } from "@/shared/protocol";
@@ -196,50 +197,18 @@ const mockState: BoardDisplayState = {
 };
 
 // Mock players for overlay displays
-const mockPlayers: PlayerState[] = [
+const mockPlayers: readonly PlayerState[] = [
+    createInitialPlayerState({ isAiPlayer: false, name: "You", score: 33_000, seat: 0 }),
+    createInitialPlayerState({ isAiPlayer: true, name: "Bot South", score: 21_000, seat: 1 }),
+    createInitialPlayerState({ isAiPlayer: true, name: "Bot West", score: 25_000, seat: 2 }),
     {
-        discards: [],
-        drawnTileId: null,
-        isAiPlayer: false,
-        isRiichi: false,
-        melds: [],
-        name: "You",
-        score: 33_000,
-        seat: 0,
-        tiles: [],
-    },
-    {
-        discards: [],
-        drawnTileId: null,
-        isAiPlayer: true,
-        isRiichi: false,
-        melds: [],
-        name: "Bot South",
-        score: 21_000,
-        seat: 1,
-        tiles: [],
-    },
-    {
-        discards: [],
-        drawnTileId: null,
-        isAiPlayer: true,
-        isRiichi: false,
-        melds: [],
-        name: "Bot West",
-        score: 25_000,
-        seat: 2,
-        tiles: [],
-    },
-    {
-        discards: [],
-        drawnTileId: null,
-        isAiPlayer: true,
+        ...createInitialPlayerState({
+            isAiPlayer: true,
+            name: "Bot North",
+            score: 21_000,
+            seat: 3,
+        }),
         isRiichi: true,
-        melds: [],
-        name: "Bot North",
-        score: 21_000,
-        seat: 3,
-        tiles: [],
     },
 ];
 

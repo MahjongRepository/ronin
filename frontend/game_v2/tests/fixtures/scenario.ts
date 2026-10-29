@@ -1,3 +1,5 @@
+import { vi } from "vitest";
+
 import { type WirePayload } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
@@ -94,3 +96,29 @@ export const clientEvent = {
     opened: (at: number): ClientEvent => ({ at, kind: "transport_opened" }),
     tick: (at: number): ClientEvent => ({ at, kind: "tick" }),
 };
+
+function forbidIo(): never {
+    throw new Error("the dispatcher ran IO");
+}
+
+/**
+ * Run `work` with the socket and fetch globals throwing, and the timer, storage and clock functions spied on,
+ * the clocks throwing too; return its result and how often each spy was called.
+ */
+export function forbiddingIo<Result>(work: () => Result): { calls: number[]; result: Result } {
+    vi.stubGlobal("WebSocket", forbidIo);
+    vi.stubGlobal("fetch", forbidIo);
+    const spies = [
+        vi.spyOn(globalThis, "setTimeout"),
+        vi.spyOn(Storage.prototype, "removeItem"),
+        vi.spyOn(Date, "now").mockImplementation(forbidIo),
+        vi.spyOn(performance, "now").mockImplementation(forbidIo),
+    ];
+    try {
+        const result = work();
+        return { calls: spies.map((spy) => spy.mock.calls.length), result };
+    } finally {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    }
+}

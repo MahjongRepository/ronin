@@ -3,8 +3,10 @@
 The earlier game client SPA, restored as the foundation of a future client: the lobby serves it
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
 `/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
-but the views act on far less of it than v1 does: no countdowns, decisions or robbed kans yet.
-Adapt the client to the server rather than the server to it. `src/shared/protocol/` and `src/entities/table/` have their own `AGENTS.md`.
+but the views act on far less of it than v1 does: the client state tracks decisions and their
+deadlines, but no view shows them yet, and robbed kans are not applied. Adapt the client to the
+server rather than the server to it. `src/shared/protocol/` and `src/entities/table/` have their
+own `AGENTS.md`.
 
 ## Build
 
@@ -34,20 +36,47 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   and clears its host, and a callback that still fires afterwards is dropped. The game view's
   driver ends the client as failed, on the page, when a step or an effect throws, rather than
   leaving its queue stuck, and reports a socket factory that throws as a failed connection.
-* **One dispatcher over client events.** The live game runs on `entities/client`'s dispatcher, a
-  pure `(state, event) → { state, effects }` over an explicit client event union: the raw wire
-  payload of a server message (parsed inside, through `parseServerMessage`), the transport's open,
-  close (with code and reason) and error, a logical time tick, and a local user intent. Every event
-  carries the logical time its source stamped, and the state keeps the last one as its `now`, so a
-  state kept at a historical cursor keeps its time. The transitions never run IO, read a clock or
-  start a timer: they return effect descriptions of real IO only (open or close the socket, send,
-  clear the handoff, leave for the lobby, report an unparseable message), and only the live driver
-  (`views/game.ts`) executes them, so a scripted scenario steps the same dispatcher and asserts its
-  effects. Timers are not effects: the state holds its pending deadlines, `nextDeadline` derives
-  the earliest, and the driver keeps one timer armed to it that comes back as a tick. A tick before
-  a deadline, or with none, does nothing, so a stale timer cannot act. Table and decision state
-  join this dispatcher, not a second one; display-only data (the game view's debug log) stays in
-  the view, out of the state.
+* **One dispatcher over client events.** The live game, the replay and scripted scenarios all run
+  on `entities/client`'s dispatcher, a pure `(state, event) → { state, effects }` over an explicit
+  client event union (`ClientEvent`): server messages arrive as raw wire payloads and replay lines
+  as raw JSON objects, both parsed inside, beside the transport's events, logical time ticks and
+  local user intents. Every event carries the logical time its source stamped, and the state keeps
+  the last one as its `now`, so a state kept at a historical cursor keeps its time. The transitions
+  never run IO, read a clock or start a timer: they return descriptions of real IO only
+  (`ClientEffect`), and only the live driver (`views/game.ts`) executes them. Timers are not
+  effects: the state holds its pending deadlines, `nextDeadline` derives the earliest, and the
+  driver keeps one timer armed to it that comes back as a tick. A tick before a deadline, or with
+  none, does nothing, so a stale timer cannot act. Display-only data (the game view's debug log)
+  stays in the view, out of the state.
+* **One client state.** The dispatcher composes the session, the table (`entities/table`) and the
+  viewer's interaction into one immutable state: the viewer's seat, its open decision, its
+  furiten, the timer settings and the round confirm it owes. A replay is the same state with no
+  session and no viewer; visibility (a replay's every hand, a live seat's own) is what the source
+  showed and how the board is drawn, never a second model, and the seat at the bottom is the
+  view's choice (the replay's is the recorded first dealer's, `docs/architecture.md`, Replays).
+* **Decisions.** A decision opens only from a message carrying a wait id to the viewer's seat (its
+  draw, its `turn` event, its call prompt), with the offers the server listed and nothing the
+  client judged but the discard rule (kuikae, riichi's drawn tile). Its deadline is the client's
+  estimate of the server's timer, in logical time from the timer settings and the bank the opening
+  message names (none when it names no bank), backdated by a re-sent wait's elapsed time, so a
+  countdown reads from `now`, never the wall clock. Past it the decision shows as expired, for
+  display only: the server alone decides by the wait id whether an answer counts, so an expired
+  decision still takes one answer, and the client never answers on its own. Answering sends the
+  action with the decision's wait id once and marks it submitted; the server's next move closes
+  it, a refusal while its wait goes on (a game error but a stale one, or the socket's rate limit)
+  reopens it, and a dropped socket drops it, since the reconnect re-sends a wait the server still
+  owes the seat.
+* **Timelines, not history in the driver.** `buildClientTimeline` steps any event sequence into
+  the state after each event; stepping back selects an earlier state, never an inverse event, and
+  nothing in a timeline executes an effect, so revisiting a prompt sends nothing and arms no
+  timer. The replay view reads its file into such a timeline. A live game's own history review,
+  if ever wanted, keeps the authoritative state moving forward apart from its cursor.
+* **Scenarios.** A `SeatScenario` (`entities/client`) is one seat's scripted run as plain data:
+  the lobby handoff, then ordered client events, each step naming exactly the effects it must
+  describe (none when omitted), so every send is asserted and never fed in. `runSeatScenario`
+  builds its timeline and reports every step whose effects part from the scenario, a payload that
+  does not parse included. The tests run the hand-written ones under `tests/fixtures/scenarios/`;
+  nothing in the app runs one yet.
 * **Session** (`entities/session`): one machine owns joining, playing, reconnecting and the end.
   It joins with the lobby's ticket (`shared/session` holds the handoff) and resumes the seat with
   the same ticket. Two retries stay distinct, each with its own backoff and budget: a transport
@@ -74,11 +103,11 @@ Imports use the `@/` alias for `src/`. Layers depend downward only, and follow t
 rather than introducing new FSD layers:
 
 * `views/` — route views; they compose entities and shared code.
-* `entities/` — domain UI and models (`tile`: tiles, hands, melds, discards and the tile-id
-  helpers; `table`: the game table model, the replay file reader and the board UI; `session`: the
-  session machine; `client`: the dispatcher over client events), imported through each slice's
-  `index.ts`. A slice uses only slices below it: `client` may use `session` and `table`, `table`
-  may use `tile`, never the reverse.
+* `entities/` — domain UI and models (`tile`: tiles, hands, melds, discards and the tile-id helpers;
+  `table`: the game table model, the replay file reader and the board UI; `session`: the session
+  machine; `client`: the dispatcher over client events, its state, timelines and seat scenarios),
+  imported through each slice's `index.ts`. A slice uses only slices below it: `client` may use
+  `session` and `table`, `table` may use `tile`, never the reverse.
 * `shared/` — protocol, handoff storage, the socket adapter, the replay fetch, the clock, config and
   small helpers; imports nothing above it.
 
@@ -105,22 +134,26 @@ Vitest. UI tests render lit templates into a DOM element and assert on the resul
 the module directly. Tests live in `tests/`, outside `src/`, at the path of the module they cover
 (`tests/entities/tile/hand.test.ts` for `src/entities/tile/hand.ts`), and import it through `@/`; a
 module whose tests need different file-level `vi.mock`s gets a second, suffixed file.
-`tsconfig.json` includes `tests`, so `npm run typecheck` checks them like `src`. Test helpers live in `tests/fixtures/` and are imported
-through the `#tests/` subpath import (`package.json` `imports`), since a relative parent import
-fails lint. Build protocol events with the event factories there, typed by the schemas' output,
-rather than as literals repeated across tests, so a schema change fails the typecheck and is fixed
-in one place. Raw wire payloads for the dispatcher live there too, as does the scenario stepper:
-session and dispatcher tests are written as sequences of client events with the effects each step
-returns, never through the DOM, and a view's own tests inject fakes for its socket factory, loader
-and clock rather than mocking modules.
+`tsconfig.json` includes `tests`, so `npm run typecheck` checks them like `src`. Test helpers live
+in `tests/fixtures/` and are imported through the `#tests/` subpath import (`package.json`
+`imports`), since a relative parent import fails lint. Build protocol events with the event
+factories there, typed by the schemas' output, rather than as literals repeated across tests, so a
+schema change fails the typecheck and is fixed in one place. Raw wire payloads for the dispatcher
+live there too, as do the scenario stepper and the hand-written seat scenarios
+(`tests/fixtures/scenarios/`): session and dispatcher tests are written as sequences of client
+events with the effects each step returns, never through the DOM, and a view's own tests inject
+fakes for its socket factory, loader and clock rather than mocking modules. A seat scenario's
+payloads must parse, which its run checks.
 
 The replay files under `tests/fixtures/replays/` are generated, never edited by hand:
 `make generate-replay-fixtures` records each from a game the engine plays
 (`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
 records now. A new replay case is a new scenario there. Tests load them through the fixtures'
-loader, which parses them as the replay view does, and the model's tests assert outcomes on them,
-not only that they run: literals for what the model computes, and a field the model passes through
-compared with the event it came from.
+loader, which reads them into the dispatcher's timeline as the replay view does, and the model's
+tests assert outcomes on them, not only that they run: literals for what the model computes, and a
+field the model passes through compared with the event it came from. Each is also projected per
+seat, as that seat's socket would receive it, to check that a seat's view keeps every hand size,
+its own tiles, the wall and the turn the replay shows.
 
 The `describe` block names the subject (the module or function under test) and the `it` title says
 what it pins; tests carry no doc comments, and source files carry no file-header comment.

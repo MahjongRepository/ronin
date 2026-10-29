@@ -27,6 +27,12 @@ function injectSprite(): void {
     spriteInjected = true;
 }
 
+/** Render the back of a tile: a hidden tile, or one whose face the view does not know. */
+function TileBack() {
+    return html`<span class="tile tile-back" aria-label="back"
+          .innerHTML=${backSvg}></span>`;
+}
+
 /**
  * Render a mahjong tile with a face identity and a display mode.
  *
@@ -35,11 +41,10 @@ function injectSprite(): void {
  */
 function Tile(face: TileFace, show: "face" | "back") {
     if (show === "back") {
-        return html`<span class="tile tile-back" aria-label="back"
-          .innerHTML=${backSvg}></span>`;
+        return TileBack();
     }
     injectSprite();
     return html`<span class="tile">${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}"><use href="#tile-${face}"/></svg>`}</span>`;
 }
 
-export { Tile, injectSprite };
+export { Tile, TileBack, injectSprite };

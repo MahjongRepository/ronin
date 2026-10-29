@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { clientEvent, clientScenario } from "#tests/fixtures/scenario";
+import { clientEvent, clientScenario, forbiddingIo } from "#tests/fixtures/scenario";
 import {
     WIRE_DRAW,
     WIRE_GAME_RECONNECTED,
@@ -12,32 +12,6 @@ import { type ClientEffect, type ClientEvent, nextDeadline } from "@/entities/cl
 import { buildConfirmRoundAction } from "@/shared/protocol";
 
 const { closed, message, opened, tick } = clientEvent;
-
-function forbidIo(): never {
-    throw new Error("the dispatcher ran IO");
-}
-
-/**
- * Run `work` with the socket and fetch globals throwing, and the timer, storage and clock functions spied on,
- * the clocks throwing too; return its result and how often each spy was called.
- */
-function forbiddingIo<Result>(work: () => Result): { calls: number[]; result: Result } {
-    vi.stubGlobal("WebSocket", forbidIo);
-    vi.stubGlobal("fetch", forbidIo);
-    const spies = [
-        vi.spyOn(globalThis, "setTimeout"),
-        vi.spyOn(Storage.prototype, "removeItem"),
-        vi.spyOn(Date, "now").mockImplementation(forbidIo),
-        vi.spyOn(performance, "now").mockImplementation(forbidIo),
-    ];
-    try {
-        const result = work();
-        return { calls: spies.map((spy) => spy.mock.calls.length), result };
-    } finally {
-        vi.restoreAllMocks();
-        vi.unstubAllGlobals();
-    }
-}
 
 function collectEffects(events: readonly ClientEvent[]): {
     effects: ClientEffect[];
@@ -96,6 +70,32 @@ describe("stepGameClient", () => {
         expect(scenario.step(closed(500, 1006))).toEqual([]);
         expect(nextDeadline(scenario.state)).toBe(1500);
         expect(scenario.step(tick(1100))).toEqual([]);
+    });
+
+    it("confirms by the snapshot's wait id a round advance a reconnect says the seat still owes", () => {
+        const scenario = clientScenario();
+        scenario.step(opened(0));
+        const owed = { ...WIRE_GAME_RECONNECTED, oc: true, re: wireRoundEnd(null), wi: 9 };
+
+        expect(scenario.step(message(100, owed))).toEqual([]);
+        expect(scenario.state.table.phase).toBe("round_ended");
+        expect(scenario.step(tick(1100))).toEqual([
+            { message: buildConfirmRoundAction(9), type: "send" },
+        ]);
+    });
+
+    it("keeps the furiten last reported to the seat until a new deal clears it", () => {
+        const scenario = playingScenario();
+        function furitenAfter(event: ClientEvent): boolean {
+            scenario.step(event);
+            return scenario.state.furiten;
+        }
+
+        expect([
+            furitenAfter(message(100, { f: true, t: 11 })),
+            furitenAfter(message(200, WIRE_DRAW)),
+            furitenAfter(message(300, WIRE_ROUND_STARTED)),
+        ]).toEqual([true, true, false]);
     });
 
     it("reports a message it cannot parse and leaves the session as it was", () => {

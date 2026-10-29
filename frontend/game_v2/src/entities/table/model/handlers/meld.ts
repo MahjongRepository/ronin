@@ -1,4 +1,4 @@
-import { updatePlayer } from "@/entities/table/model/helpers";
+import { drewUnseen, takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DiscardRecord,
     type MeldRecord,
@@ -8,96 +8,97 @@ import {
 import { tile136toString } from "@/entities/tile";
 import { type MeldEvent } from "@/shared/protocol";
 
-function markLastDiscardClaimed(discards: DiscardRecord[]): DiscardRecord[] {
+function markLastDiscardClaimed(discards: readonly DiscardRecord[]): readonly DiscardRecord[] {
     if (discards.length === 0) {
         return discards;
     }
     return discards.map((d, idx) => (idx === discards.length - 1 ? { ...d, claimed: true } : d));
 }
 
-function removeTilesFromHand(hand: number[], tilesToRemove: number[]): number[] {
-    const result = [...hand];
-    for (const tileId of tilesToRemove) {
-        const idx = result.indexOf(tileId);
-        if (idx === -1) {
-            throw new Error(`Tile ${tileId} not found in hand during meld`);
-        }
-        result.splice(idx, 1);
-    }
-    return result;
-}
-
-function buildMeldRecord(event: MeldEvent): MeldRecord {
-    return {
+function buildMeldRecord(event: MeldEvent, addedTileId?: number): MeldRecord {
+    const record: MeldRecord = {
         calledTileId: event.calledTileId,
         callerSeat: event.callerSeat,
         fromSeat: event.fromSeat,
         meldType: event.meldType,
         tileIds: [...event.tileIds],
     };
+    return addedTileId === undefined ? record : { ...record, addedTileId };
 }
 
-interface CallerUpdate {
-    melds: MeldRecord[];
-    tiles: number[];
+/** The caller's melds once the meld lands, and the tiles it takes from the caller's hand. */
+interface MeldMove {
+    readonly melds: readonly MeldRecord[];
+    readonly fromHand: readonly number[];
 }
 
-function updateCallerWithMeld(
-    players: PlayerState[],
-    callerSeat: number,
-    update: CallerUpdate,
-): PlayerState[] {
-    return updatePlayer(players, callerSeat, {
-        drawnTileId: null,
-        melds: update.melds,
-        tiles: update.tiles,
-    });
-}
-
-function markFromSeatDiscard(players: PlayerState[], fromSeat: number | null): PlayerState[] {
-    if (fromSeat === null) {
-        return players;
+function findCaller(state: TableState, event: MeldEvent): PlayerState {
+    const caller = state.players.find((p) => p.seat === event.callerSeat);
+    if (!caller) {
+        throw new Error(`Caller not found for seat ${event.callerSeat}`);
     }
-    const fromPlayer = players.find((p) => p.seat === fromSeat);
+    return caller;
+}
+
+/**
+ * Move the caller's tiles from hand into its melds. A kan the caller declares on its own turn follows its draw,
+ * which a hidden hand took unseen: that draw joins its concealed count first and leaves the wall.
+ */
+function meldFromHand(
+    state: TableState,
+    event: MeldEvent,
+    { fromHand, melds }: MeldMove,
+): TableState {
+    const caller = findCaller(state, event);
+    const ownTurn = event.meldType === "closed_kan" || event.meldType === "added_kan";
+    const unseen = ownTurn && drewUnseen(caller) ? 1 : 0;
+    const hand = takeFromHand(
+        { concealedCount: caller.concealedCount + unseen, tiles: caller.tiles },
+        fromHand,
+    );
+    if (hand === null) {
+        throw new Error(`Tiles ${fromHand.join(", ")} not found in hand during meld`);
+    }
+    return {
+        ...state,
+        players: updatePlayer(state.players, event.callerSeat, {
+            concealedCount: hand.concealedCount,
+            drawnTileId: null,
+            melds,
+            tiles: hand.tiles,
+        }),
+        tilesRemaining: state.tilesRemaining - unseen,
+    };
+}
+
+function markFromSeatDiscard(state: TableState, fromSeat: number | null): TableState {
+    if (fromSeat === null) {
+        return state;
+    }
+    const fromPlayer = state.players.find((p) => p.seat === fromSeat);
     if (!fromPlayer) {
         throw new Error(`fromSeat player not found for seat ${fromSeat}`);
     }
-    return updatePlayer(players, fromSeat, {
-        discards: markLastDiscardClaimed(fromPlayer.discards),
-    });
+    return {
+        ...state,
+        players: updatePlayer(state.players, fromSeat, {
+            discards: markLastDiscardClaimed(fromPlayer.discards),
+        }),
+    };
 }
 
 function applyOpenMeld(state: TableState, event: MeldEvent): TableState {
-    const caller = state.players.find((p) => p.seat === event.callerSeat);
-    if (!caller) {
-        throw new Error(`Caller not found for seat ${event.callerSeat}`);
-    }
-
+    const caller = findCaller(state, event);
     const tilesFromHand = event.tileIds.filter((id) => id !== event.calledTileId);
-    const callerUpdate: CallerUpdate = {
-        melds: [...caller.melds, buildMeldRecord(event)],
-        tiles: removeTilesFromHand(caller.tiles, tilesFromHand),
-    };
-    let players = updateCallerWithMeld(state.players, event.callerSeat, callerUpdate);
-    players = markFromSeatDiscard(players, event.fromSeat);
-
-    return { ...state, players };
+    const melds = [...caller.melds, buildMeldRecord(event)];
+    const moved = meldFromHand(state, event, { fromHand: tilesFromHand, melds });
+    return markFromSeatDiscard(moved, event.fromSeat);
 }
 
 function applyClosedKan(state: TableState, event: MeldEvent): TableState {
-    const caller = state.players.find((p) => p.seat === event.callerSeat);
-    if (!caller) {
-        throw new Error(`Caller not found for seat ${event.callerSeat}`);
-    }
-
-    const callerUpdate: CallerUpdate = {
-        melds: [...caller.melds, buildMeldRecord(event)],
-        tiles: removeTilesFromHand(caller.tiles, event.tileIds),
-    };
-    return {
-        ...state,
-        players: updateCallerWithMeld(state.players, event.callerSeat, callerUpdate),
-    };
+    const caller = findCaller(state, event);
+    const melds = [...caller.melds, buildMeldRecord(event)];
+    return meldFromHand(state, event, { fromHand: event.tileIds, melds });
 }
 
 /** Find the existing pon matching the event's tile type and derive which tile was added from hand. */
@@ -124,53 +125,20 @@ function findPonAndAddedTile(
 }
 
 function applyAddedKan(state: TableState, event: MeldEvent): TableState {
-    const caller = state.players.find((p) => p.seat === event.callerSeat);
-    if (!caller) {
-        throw new Error(`Caller not found for seat ${event.callerSeat}`);
-    }
-
+    const caller = findCaller(state, event);
     const match = findPonAndAddedTile(caller, event);
     if (!match) {
         throw new Error(`No matching pon found for added_kan at seat ${event.callerSeat}`);
     }
-
-    const updatedMelds = caller.melds.map((m): MeldRecord => {
-        if (m === match.ponMeld) {
-            return {
-                addedTileId: match.addedTileId,
-                calledTileId: event.calledTileId,
-                callerSeat: event.callerSeat,
-                fromSeat: event.fromSeat,
-                meldType: event.meldType,
-                tileIds: [...event.tileIds],
-            };
-        }
-        return m;
-    });
-
-    const callerUpdate: CallerUpdate = {
-        melds: updatedMelds,
-        tiles: removeTilesFromHand(caller.tiles, [match.addedTileId]),
-    };
-    return {
-        ...state,
-        players: updateCallerWithMeld(state.players, event.callerSeat, callerUpdate),
-    };
+    const kan = buildMeldRecord(event, match.addedTileId);
+    const melds = caller.melds.map((m) => (m === match.ponMeld ? kan : m));
+    return meldFromHand(state, event, { fromHand: [match.addedTileId], melds });
 }
 
 function meldDescription(state: TableState, event: MeldEvent): string {
     const caller = state.players.find((p) => p.seat === event.callerSeat);
     const tileName = event.calledTileId !== null ? tile136toString(event.calledTileId) : "unknown";
     return `${caller?.name ?? `Seat ${event.callerSeat}`} called ${event.meldType} on ${tileName}`;
-}
-
-export function applyMeld(state: TableState, event: MeldEvent): TableState {
-    const nextState = applyMeldByType(state, event);
-    return {
-        ...nextState,
-        currentPlayerSeat: event.callerSeat,
-        lastEventDescription: meldDescription(state, event),
-    };
 }
 
 function applyMeldByType(state: TableState, event: MeldEvent): TableState {
@@ -191,4 +159,13 @@ function applyMeldByType(state: TableState, event: MeldEvent): TableState {
             throw new Error(`Unhandled meld type: ${String(unhandled)}`);
         }
     }
+}
+
+export function applyMeld(state: TableState, event: MeldEvent): TableState {
+    const nextState = applyMeldByType(state, event);
+    return {
+        ...nextState,
+        currentPlayerSeat: event.callerSeat,
+        lastEventDescription: meldDescription(state, event),
+    };
 }

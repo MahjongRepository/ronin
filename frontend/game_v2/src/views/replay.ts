@@ -2,20 +2,25 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
+    type ClientTimeline,
+    readReplayTimeline,
+    timelineStates,
+    timelineStepEvents,
+} from "@/entities/client";
+import {
     type ActionStep,
+    type BoardPerspective,
     GameBoard,
     GameEndDisplay,
     GameStartDisplay,
     type NavigationIndex,
-    type ParsedReplay,
     RoundEndDisplay,
     RoundSelector,
+    type StepEvent,
     type TableState,
     TurnSelector,
     buildActionSteps,
     buildNavigationIndex,
-    buildTimeline,
-    parseReplayLines,
     roundForStep,
     tableStateToDisplayState,
     turnsForStep,
@@ -30,6 +35,7 @@ type Dropdown = "round" | "turn";
 
 interface LoadedReplay {
     readonly actionSteps: readonly ActionStep[];
+    readonly perspective: BoardPerspective;
     readonly navigationIndex: NavigationIndex;
     readonly parseErrors: readonly string[];
     readonly states: readonly TableState[];
@@ -56,13 +62,27 @@ interface ReplayHandlers {
 
 const IGNORED_KEY_TARGETS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
+/** The seat at the bottom when the replay records no game start to name its first dealer. */
+const FALLBACK_BOTTOM_SEAT = 0;
+
 function messageScreen(text: string): ReplayScreen {
     return { kind: "message", text };
 }
 
-function loadedScreen(parsed: ParsedReplay): ReplayScreen {
-    const { events } = parsed;
-    const states = buildTimeline(events);
+/**
+ * A replay is seen from the recorded first dealer's seat for its whole length (`docs/architecture.md`, Replays),
+ * with every hand it records face up.
+ */
+function replayPerspective(events: readonly StepEvent[]): BoardPerspective {
+    const gameStart = events.find((event) => event?.type === "game_started");
+    const bottomSeat =
+        gameStart?.type === "game_started" ? gameStart.dealerSeat : FALLBACK_BOTTOM_SEAT;
+    return { bottomSeat, reveal: "all" };
+}
+
+function loadedScreen(timeline: ClientTimeline, parseErrors: readonly string[]): ReplayScreen {
+    const events = timelineStepEvents(timeline);
+    const states = timelineStates(timeline).map((state) => state.table);
     const actionSteps = buildActionSteps(events);
     return {
         currentStep: 0,
@@ -71,7 +91,8 @@ function loadedScreen(parsed: ParsedReplay): ReplayScreen {
         replay: {
             actionSteps,
             navigationIndex: buildNavigationIndex(events, actionSteps, states),
-            parseErrors: parsed.errors,
+            parseErrors,
+            perspective: replayPerspective(events),
             states,
         },
     };
@@ -95,7 +116,7 @@ function buildOverlay(tableState: TableState): TemplateResult | undefined {
     return undefined;
 }
 
-function buildBoardContent(tableState: TableState): TemplateResult {
+function buildBoardContent(tableState: TableState, perspective: BoardPerspective): TemplateResult {
     if (tableState.phase === "pre_game" && tableState.players.length > 0) {
         return html`<div class="board-overlay">
             <div class="board-overlay__panel">
@@ -106,7 +127,7 @@ function buildBoardContent(tableState: TableState): TemplateResult {
     return GameBoard({
         debug: false,
         overlay: buildOverlay(tableState),
-        state: tableStateToDisplayState(tableState, { allOpen: true }),
+        state: tableStateToDisplayState(tableState, perspective),
     });
 }
 
@@ -121,7 +142,7 @@ function loadedTemplate(
     const inRound = displayState?.phase === "in_round" || displayState?.phase === "round_ended";
     return html`
         <div class="replay-board-layout__board">
-            ${displayState ? buildBoardContent(displayState) : ""}
+            ${displayState ? buildBoardContent(displayState, replay.perspective) : ""}
         </div>
         <div class="replay-controls">
             ${
@@ -188,8 +209,9 @@ function describeRefusedFetch(status: number): string {
 }
 
 /**
- * The replay viewer for one mount: it loads the replay through the injected `loadReplay`, then steps through its
- * precomputed timeline from the controls, the arrow keys and the wheel, rendering the whole view into its host.
+ * The replay viewer for one mount: it loads the replay through the injected `loadReplay`, reads it into the game
+ * client's timeline through the dispatcher, then steps through that timeline's states from the controls, the
+ * arrow keys and the wheel, rendering the whole view into its host.
  * Its input is its own: the keys reach it only while focus is inside its focusable root, which it focuses on
  * mount unless something else holds focus, and an outside click closes only its own dropdown. Disposing aborts
  * the load, removes its listeners and clears its host; a load that settles afterwards renders nothing.
@@ -265,8 +287,10 @@ class ReplayViewController {
                 this.show(messageScreen(describeRefusedFetch(fetched.status)));
                 return;
             }
-            const parsed = parseReplayLines(fetched.text);
-            this.show(parsed.ok ? loadedScreen(parsed) : messageScreen(parsed.refusal));
+            const read = readReplayTimeline(fetched.text);
+            this.show(
+                read.ok ? loadedScreen(read.timeline, read.errors) : messageScreen(read.refusal),
+            );
         } catch (error: unknown) {
             if (!isAbortError(error)) {
                 this.show(messageScreen("Failed to load replay"));

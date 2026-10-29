@@ -9,17 +9,21 @@ import {
 } from "#tests/fixtures/events";
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import { buildActionSteps } from "@/entities/table/model/action-steps";
+import { applyEvent } from "@/entities/table/model/apply-event";
+import { createInitialTableState } from "@/entities/table/model/initial-state";
 import {
     type NavigationIndex,
     buildNavigationIndex,
     roundForStep,
     turnsForStep,
 } from "@/entities/table/model/navigation-index";
-import { buildTimeline } from "@/entities/table/model/timeline";
-import { type ReplayEvent } from "@/entities/table/model/types";
+import { type ReplayEvent, type TableState } from "@/entities/table/model/types";
 
 function buildNavInputs(events: readonly ReplayEvent[]) {
-    const states = buildTimeline(events);
+    const states: TableState[] = [createInitialTableState()];
+    for (const event of events) {
+        states.push(applyEvent(states[states.length - 1], event));
+    }
     const actionSteps = buildActionSteps(events);
     return { actionSteps, events, states };
 }
@@ -248,9 +252,8 @@ describe("turnsForStep", () => {
 
 describe("buildNavigationIndex - engine replays", () => {
     test("lists every round of a played-out game with its honba and result", () => {
-        const events = loadEngineReplay("eager_game");
-        const { actionSteps, states } = buildNavInputs(events);
-        const navIndex = buildNavigationIndex(events, actionSteps, states);
+        const { events, tables } = loadEngineReplay("eager_game");
+        const navIndex = buildNavigationIndex(events, buildActionSteps(events), tables);
 
         expect(
             navIndex.rounds.map((round) => [

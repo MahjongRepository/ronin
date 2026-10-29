@@ -20,14 +20,16 @@ export function createInitialTableState(): TableState {
 }
 
 interface InitialPlayerParams {
-    isAiPlayer: boolean;
-    name: string;
-    score: number;
-    seat: number;
+    readonly isAiPlayer: boolean;
+    readonly name: string;
+    readonly score: number;
+    readonly seat: number;
 }
 
 export function createInitialPlayerState(params: InitialPlayerParams): PlayerState {
     return {
+        aiStandIn: null,
+        concealedCount: 0,
         discards: [],
         drawnTileId: null,
         isAiPlayer: params.isAiPlayer,

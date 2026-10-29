@@ -1,11 +1,14 @@
 import { describe, expect, test } from "vitest";
 
 import { formatScore, tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
+import { type BoardPerspective } from "@/entities/table/model/board-types";
 import {
     createInitialPlayerState,
     createInitialTableState,
 } from "@/entities/table/model/initial-state";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
+
+const SEAT_0_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "bottom" };
 
 function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
     return {
@@ -31,14 +34,14 @@ describe("tableStateToDisplayState", () => {
     describe("incomplete state handling", () => {
         test("returns null when players array is empty", () => {
             const state = makeTableState({ players: [] });
-            expect(tableStateToDisplayState(state)).toBeNull();
+            expect(tableStateToDisplayState(state, SEAT_0_VIEW)).toBeNull();
         });
 
         test("returns null when players array has fewer than 4 entries", () => {
             const state = makeTableState({
                 players: [makePlayer({ seat: 0 }), makePlayer({ seat: 1 })],
             });
-            expect(tableStateToDisplayState(state)).toBeNull();
+            expect(tableStateToDisplayState(state, SEAT_0_VIEW)).toBeNull();
         });
     });
 
@@ -52,7 +55,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             // Bottom player (index 0) should have show: "face"
             expect(result.players[0].hand[0].show).toBe("face");
             expect(result.players[0].hand[1].show).toBe("face");
@@ -67,10 +70,34 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3, tiles: [8] }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[1].hand[0].show).toBe("back");
             expect(result.players[2].hand[0].show).toBe("back");
             expect(result.players[3].hand[0].show).toBe("back");
+        });
+
+        test("keeps each known tile's id and shows a concealed count as backs, under either reveal", () => {
+            const state = makeTableState({
+                players: [
+                    makePlayer({ seat: 0 }),
+                    makePlayer({ concealedCount: 2, seat: 1, tiles: [8] }),
+                    makePlayer({ seat: 2 }),
+                    makePlayer({ seat: 3 }),
+                ],
+            });
+            const concealed = { show: "concealed" };
+
+            expect(tableStateToDisplayState(state, SEAT_0_VIEW)?.players[1].hand).toEqual([
+                { face: "3m", show: "back", tileId: 8 },
+                concealed,
+                concealed,
+            ]);
+            const allOpen = tableStateToDisplayState(state, { bottomSeat: 0, reveal: "all" });
+            expect(allOpen?.players[1].hand).toEqual([
+                { face: "3m", show: "face", tileId: 8 },
+                concealed,
+                concealed,
+            ]);
         });
 
         test("drawn tile separated from base hand", () => {
@@ -82,7 +109,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             // 2 base tiles, 1 drawn tile
             expect(result.players[0].hand).toHaveLength(2);
             expect(result.players[0].drawnTile).toBeDefined();
@@ -98,7 +125,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             // 2 base tiles (one 4 + the 8) + 1 drawn tile (the other 4)
             expect(result.players[0].hand).toHaveLength(2);
             expect(result.players[0].drawnTile).toBeDefined();
@@ -113,7 +140,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[0].hand).toHaveLength(3);
             expect(result.players[0].drawnTile).toBeUndefined();
         });
@@ -127,7 +154,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[0].hand).toHaveLength(3);
             expect(result.players[0].drawnTile).toBeUndefined();
         });
@@ -152,7 +179,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[0].melds).toHaveLength(1);
             expect(result.players[0].melds[0].meldType).toBe("pon");
             expect(result.players[0].melds[0].tileIds).toEqual([0, 1, 2]);
@@ -174,7 +201,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[0].discards).toHaveLength(3);
             expect(result.players[0].discards[1].grayed).toBe(true);
             expect(result.players[0].discards[2].riichi).toBe(true);
@@ -189,7 +216,7 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ name: "P2", seat: 2 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             // Seat 0 = bottom (index 0) should be face-up
             expect(result.players[0].hand[0].show).toBe("face");
         });
@@ -198,7 +225,7 @@ describe("tableStateToDisplayState", () => {
     describe("center info mapping", () => {
         test("round display formatted as wind name + number", () => {
             const state = makeTableState({ roundNumber: 2, roundWind: 1 });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.roundDisplay).toBe("South 2");
         });
 
@@ -211,42 +238,33 @@ describe("tableStateToDisplayState", () => {
                     makePlayer({ score: 24_000, seat: 3 }),
                 ],
             });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.scores[0].score).toBe("32100");
             expect(result.center.scores[1].score).toBe("25000");
         });
 
-        test("dealer always at bottom (position 0)", () => {
-            const state = makeTableState({ dealerSeat: 2 });
-            const result = tableStateToDisplayState(state)!;
-            // Dealer rotates to position 0 (bottom)
-            expect(result.center.scores[0].isDealer).toBe(true);
-            expect(result.center.scores[1].isDealer).toBe(false);
-            expect(result.center.scores[2].isDealer).toBe(false);
-            expect(result.center.scores[3].isDealer).toBe(false);
+        test("seats the perspective's seat at the bottom whoever deals, its wind still from the dealer", () => {
+            const state = makeTableState({ dealerSeat: 0 });
+            const result = tableStateToDisplayState(state, { bottomSeat: 2, reveal: "bottom" })!;
+            expect(result.center.scores.map((score) => [score.wind, score.isDealer])).toEqual([
+                ["W", false],
+                ["N", false],
+                ["E", true],
+                ["S", false],
+            ]);
         });
 
         test("current player marked based on currentPlayerSeat", () => {
             const state = makeTableState({ currentPlayerSeat: 1 });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.scores[1].isCurrent).toBe(true);
             expect(result.center.scores[0].isCurrent).toBe(false);
         });
 
         test("seat-to-position mapping: 0=bottom, 1=right, 2=top, 3=left", () => {
             const state = makeTableState({ dealerSeat: 0 });
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             // Seat 0 is dealer, wind relative to dealer is East
-            expect(result.center.scores[0].wind).toBe("E");
-            expect(result.center.scores[1].wind).toBe("S");
-            expect(result.center.scores[2].wind).toBe("W");
-            expect(result.center.scores[3].wind).toBe("N");
-        });
-
-        test("wind letters computed relative to dealer, dealer at bottom", () => {
-            // Dealer at seat 2 rotates to bottom: position 0=E, 1=S, 2=W, 3=N
-            const state = makeTableState({ dealerSeat: 2 });
-            const result = tableStateToDisplayState(state)!;
             expect(result.center.scores[0].wind).toBe("E");
             expect(result.center.scores[1].wind).toBe("S");
             expect(result.center.scores[2].wind).toBe("W");
@@ -255,7 +273,7 @@ describe("tableStateToDisplayState", () => {
 
         test("scores tuple has exactly 4 entries", () => {
             const state = makeTableState();
-            const result = tableStateToDisplayState(state)!;
+            const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.scores).toHaveLength(4);
         });
     });

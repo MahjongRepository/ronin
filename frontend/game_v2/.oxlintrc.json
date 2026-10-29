@@ -23,6 +23,8 @@
             {
                 "capIsNewExceptions": [
                     "Tile",
+                    "TileBack",
+                    "HandTileView",
                     "Meld",
                     "Hand",
                     "Discards",

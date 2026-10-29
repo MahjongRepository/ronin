@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { assert, describe, expect, test } from "vitest";
 
 import {
     makeAbortiveDrawRoundEnd,
@@ -17,10 +17,11 @@ import {
     makeRoundStartedEvent,
     makeTsumoRoundEnd,
 } from "#tests/fixtures/events";
+import { WIRE_GAME_RECONNECTED } from "#tests/fixtures/wire";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type ReplayEvent } from "@/entities/table/model/types";
-import { ROUND_RESULT_TYPE } from "@/shared/protocol";
+import { MELD_TYPE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
     test("sets phase to pre_game with 4 players at score 0", () => {
@@ -178,22 +179,21 @@ describe("applyEvent - round_started", () => {
         }
     });
 
-    test("handles null tiles in player view (null-guard)", () => {
+    test("deals a live seat its own tiles and every other seat a face-down count of 13", () => {
         const state = stateAfterGameStarted();
         const event = makeRoundStartedEvent({
-            players: [
-                { score: 25_000, seat: 0, tiles: null },
-                { score: 25_000, seat: 1, tiles: [1, 2, 3] },
-                { score: 25_000, seat: 2, tiles: null },
-                { score: 25_000, seat: 3, tiles: [4, 5, 6] },
-            ],
+            myTiles: [1, 2, 3],
+            players: [0, 1, 2, 3].map((seat) => ({ score: 25_000, seat, tiles: null })),
+            seat: 2,
         });
         const next = applyEvent(state, event);
 
-        expect(next.players[0].tiles).toEqual([]);
-        expect(next.players[1].tiles).toEqual([1, 2, 3]);
-        expect(next.players[2].tiles).toEqual([]);
-        expect(next.players[3].tiles).toEqual([4, 5, 6]);
+        expect(next.players.map((p) => [p.tiles, p.concealedCount])).toEqual([
+            [[], 13],
+            [[], 13],
+            [[1, 2, 3], 0],
+            [[], 13],
+        ]);
     });
 
     test("sets dealerSeat and currentPlayerSeat from event", () => {
@@ -301,6 +301,63 @@ describe("applyEvent - draw", () => {
 
         expect(state.players[0].tiles).toEqual(originalTiles);
         expect(state.players[0].drawnTileId).toBeNull();
+    });
+});
+
+describe("applyEvent - hidden hands", () => {
+    function liveDeal(): ReturnType<typeof applyEvent> {
+        const dealt = makeRoundStartedEvent({
+            myTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            players: [0, 1, 2, 3].map((seat) => ({ score: 25_000, seat, tiles: null })),
+            seat: 0,
+        });
+        return applyEvent(applyEvent(createInitialTableState(), makeGameStartedEvent()), dealt);
+    }
+
+    test("a draw re-sent after a reconnect, of a tile the hand holds, only marks it drawn", () => {
+        const next = applyEvent(liveDeal(), makeDrawEvent({ seat: 0, tileId: 12 }));
+
+        expect(next.players[0].tiles).toHaveLength(13);
+        expect(next.players[0].drawnTileId).toBe(12);
+        expect(next.tilesRemaining).toBe(70);
+    });
+
+    test("a hidden hand discarding without a draw this view saw drew one unseen from the wall", () => {
+        const next = applyEvent(liveDeal(), makeDiscardEvent({ seat: 1, tileId: 100 }));
+
+        expect(next.players[1].concealedCount).toBe(13);
+        expect(next.players[1].discards.map((d) => d.tileId)).toEqual([100]);
+        expect(next.tilesRemaining).toBe(69);
+    });
+
+    test("a hidden hand calls pon from its count and its discard after the call draws nothing", () => {
+        const afterDiscard = applyEvent(liveDeal(), makeDiscardEvent({ seat: 1, tileId: 100 }));
+        const pon = makeMeldEvent({
+            calledTileId: 100,
+            callerSeat: 2,
+            fromSeat: 1,
+            tileIds: [100, 101, 102],
+        });
+        const afterPon = applyEvent(afterDiscard, pon);
+        const next = applyEvent(afterPon, makeDiscardEvent({ seat: 2, tileId: 120 }));
+
+        expect(afterPon.players[2].concealedCount).toBe(11);
+        expect(next.players[2].concealedCount).toBe(10);
+        expect(next.tilesRemaining).toBe(69);
+    });
+
+    test("a hidden hand's closed kan follows its unseen draw, so four tiles leave a hand of 14", () => {
+        const kan = makeMeldEvent({
+            calledTileId: null,
+            callerSeat: 3,
+            fromSeat: null,
+            meldType: MELD_TYPE.CLOSED_KAN,
+            tileIds: [104, 105, 106, 107],
+        });
+        const next = applyEvent(liveDeal(), kan);
+
+        expect(next.players[3].concealedCount).toBe(10);
+        expect(next.tilesRemaining).toBe(69);
     });
 });
 
@@ -443,6 +500,51 @@ describe("applyEvent - dora_revealed", () => {
         applyEvent(state, makeDoraRevealedEvent({ tileId: 20 }));
 
         expect(state.doraIndicators).toEqual(originalDora);
+    });
+});
+
+describe("applyEvent - seat presence", () => {
+    test("marks the seat of a player who left as held by an AI player until the player reconnects", () => {
+        const state = stateAfterRoundStarted();
+        const left = applyEvent(state, { playerName: "Bob", type: "player_left" });
+        const back = applyEvent(left, { playerName: "Bob", type: "player_reconnected" });
+
+        expect(left.players.map((p) => p.aiStandIn)).toEqual([null, null, null, 0]);
+        expect(back.players.map((p) => p.aiStandIn)).toEqual([null, null, null, null]);
+    });
+});
+
+describe("applyEvent - game_reconnected", () => {
+    test("rebuilds the seat's own hand by its tiles, every other by its count, and claimed river tiles", () => {
+        const [error, snapshot] = parseServerMessage({
+            ...WIRE_GAME_RECONNECTED,
+            pst: [
+                {
+                    dsc: [{ ti: 100 }, { rd: true, ti: 33 }],
+                    ml: [],
+                    ri: true,
+                    s: 0,
+                    sc: 240,
+                    tc: 13,
+                },
+                { dsc: [], ml: [17_409], ri: false, s: 1, sc: 250, tc: 11 },
+            ],
+            s: 1,
+        });
+        assert(error === null && snapshot.type === "game_reconnected");
+        const next = applyEvent(createInitialTableState(), snapshot);
+
+        expect(next.players.map((p) => [p.name, p.tiles, p.concealedCount])).toEqual([
+            ["P1", [], 13],
+            ["P2", [0, 1, 2], 0],
+            ["B1", [], 0],
+            ["B2", [], 0],
+        ]);
+        expect(next.players[0].discards).toEqual([
+            { claimed: false, isRiichi: false, isTsumogiri: false, tileId: 100 },
+            { claimed: true, isRiichi: true, isTsumogiri: false, tileId: 33 },
+        ]);
+        expect(next.tilesRemaining).toBe(70);
     });
 });
 

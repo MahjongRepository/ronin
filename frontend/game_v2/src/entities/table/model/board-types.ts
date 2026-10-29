@@ -5,37 +5,57 @@ type SeatPosition = "bottom" | "right" | "top" | "left";
 const SEAT_POSITIONS: SeatPosition[] = ["bottom", "right", "top", "left"];
 
 interface BoardCenterInfo {
-    roundDisplay: string;
-    honbaSticks: number;
-    riichiSticks: number;
-    tilesRemaining: number;
-    doraIndicators: TileFace[];
-    scores: [BoardPlayerScore, BoardPlayerScore, BoardPlayerScore, BoardPlayerScore];
+    readonly roundDisplay: string;
+    readonly honbaSticks: number;
+    readonly riichiSticks: number;
+    readonly tilesRemaining: number;
+    readonly doraIndicators: readonly TileFace[];
+    readonly scores: readonly [
+        BoardPlayerScore,
+        BoardPlayerScore,
+        BoardPlayerScore,
+        BoardPlayerScore,
+    ];
 }
 
 interface BoardPlayerScore {
-    wind: string;
-    score: string;
-    isDealer: boolean;
-    isCurrent: boolean;
-    isRiichi: boolean;
+    readonly wind: string;
+    readonly score: string;
+    readonly isDealer: boolean;
+    readonly isCurrent: boolean;
+    readonly isRiichi: boolean;
 }
 
 interface BoardPlayerDisplay {
-    hand: HandTile[];
-    drawnTile?: HandTile;
-    melds: MeldInput[];
-    discards: DiscardTile[];
+    readonly hand: readonly HandTile[];
+    readonly drawnTile?: HandTile;
+    readonly melds: readonly MeldInput[];
+    readonly discards: readonly DiscardTile[];
 }
 
 interface BoardDisplayState {
-    players: [BoardPlayerDisplay, BoardPlayerDisplay, BoardPlayerDisplay, BoardPlayerDisplay];
-    center: BoardCenterInfo;
+    readonly players: readonly [
+        BoardPlayerDisplay,
+        BoardPlayerDisplay,
+        BoardPlayerDisplay,
+        BoardPlayerDisplay,
+    ];
+    readonly center: BoardCenterInfo;
+}
+
+/**
+ * How a board is seen: which seat sits at the bottom, whoever deals, and whose known tiles show face up. A replay
+ * may show every hand it knows (`all`); a seat sees only its own (`bottom`). Concealed tiles are backs either way.
+ */
+interface BoardPerspective {
+    readonly bottomSeat: number;
+    readonly reveal: "all" | "bottom";
 }
 
 export { SEAT_POSITIONS };
 export type {
     BoardCenterInfo,
+    BoardPerspective,
     BoardDisplayState,
     BoardPlayerDisplay,
     BoardPlayerScore,

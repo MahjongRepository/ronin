@@ -2,17 +2,22 @@ export type {
     TableState,
     PlayerState,
     ReplayEvent,
+    TableEvent,
     WinnerResult,
     RoundEndResult,
     GameEndResult,
     GamePhase,
 } from "./model/types";
-export { createInitialTableState } from "./model/initial-state";
+export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
 export { applyEvent } from "./model/apply-event";
-export { buildTimeline } from "./model/timeline";
-export { isReplayEvent, parseReplayLines } from "./model/replay-file";
-export type { ParsedReplay } from "./model/replay-file";
-export type { ActionStep } from "./model/action-steps";
+export { isReplayEvent, readReplayFile, replayLineTableEvent } from "./model/replay-file";
+export type {
+    ReplayFileLine,
+    ReplayFileLines,
+    ReplayFileRead,
+    ReplayLineError,
+} from "./model/replay-file";
+export type { ActionStep, StepEvent } from "./model/action-steps";
 export { buildActionSteps } from "./model/action-steps";
 export type { RoundInfo, TurnInfo, NavigationIndex } from "./model/navigation-index";
 export { buildNavigationIndex, roundForStep, turnsForStep } from "./model/navigation-index";
@@ -24,6 +29,7 @@ export { SEAT_POSITIONS } from "./model/board-types";
 export type {
     BoardCenterInfo,
     BoardDisplayState,
+    BoardPerspective,
     BoardPlayerDisplay,
     BoardPlayerScore,
     SeatPosition,
