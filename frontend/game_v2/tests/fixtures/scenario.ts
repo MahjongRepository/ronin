@@ -15,7 +15,9 @@ import {
     startSession,
     stepSession,
 } from "@/entities/session";
+import { type HandoffRecovery } from "@/shared/api";
 import { type ParsedServerMessage, parseServerMessage } from "@/shared/protocol";
+import { type GameSessionData } from "@/shared/session";
 
 export const GAME_ID = "g1";
 export const HANDOFF = { gameTicket: "ticket-1", wsUrl: "ws://game/ws/g1" } as const;
@@ -51,12 +53,18 @@ export class Scenario<State, Input, Effect> {
     }
 }
 
-export function sessionScenario(): Scenario<SessionState, SessionInput, SessionEffect> {
-    return new Scenario(startSession(GAME_ID, HANDOFF), stepSession);
+/** A session begun at 0 from the lobby's handoff, or from none when `handoff` is null. */
+export function sessionScenario(
+    handoff: GameSessionData | null = HANDOFF,
+): Scenario<SessionState, SessionInput, SessionEffect> {
+    return new Scenario(startSession(GAME_ID, handoff, 0), stepSession);
 }
 
-export function clientScenario(): Scenario<GameClientState, ClientEvent, ClientEffect> {
-    return new Scenario(startGameClient(GAME_ID, HANDOFF, 0), stepGameClient);
+/** A client begun at 0 from the lobby's handoff, or from none when `handoff` is null. */
+export function clientScenario(
+    handoff: GameSessionData | null = HANDOFF,
+): Scenario<GameClientState, ClientEvent, ClientEffect> {
+    return new Scenario(startGameClient(GAME_ID, handoff, 0), stepGameClient);
 }
 
 function parsed(raw: WirePayload): ParsedServerMessage {
@@ -81,6 +89,11 @@ export const sessionInput = {
         message: parsed(raw),
     }),
     opened: (at: number): SessionInput => ({ at, kind: "transport_opened" }),
+    recovered: (at: number, recovery: HandoffRecovery): SessionInput => ({
+        at,
+        kind: "handoff_recovered",
+        recovery,
+    }),
     tick: (at: number): SessionInput => ({ at, kind: "tick" }),
 };
 

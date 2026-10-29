@@ -32,7 +32,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   game page path with its login policy (`backend/lobby/server/app.py`) and 404s any other, so a new
   route needs its path added there.
 * **Views are controller instances, one per mount.** A view is given its host, its sources and
-  sinks (the socket factory, the replay loader, the handoff and the navigation) and its clock;
+  sinks (the socket factory, the replay loader, the handoff, its lookup and the navigation) and its clock;
   `index.ts` is the one place that wires the browser's. A view keeps no module state, looks up no
   element by id and renders one top-level template into its host. Its input is its own: keys reach
   it only through its own focusable root, and a click outside closes only its own dropdown, so two
@@ -105,8 +105,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   transcript and the contract, never from the client logic under test: each recorded send at its
   recorded time (an answer or a round confirm as the intent choosing it, a send the client makes on
   its own, a resent identity, as a tick then, the identity after an open as that open's effect), a
-  reopened socket asked for at its recorded open, the lobby after a close the contract makes
-  terminal (its own copy of the codes), and nothing from any other tick, so an automatic send that is
+  reopened socket asked for at its recorded open, the handoff forgotten after a close the contract
+  makes terminal (its own copy of the codes), and nothing from any other tick, so an automatic send that is
   early, late or missing is a mismatch. Because sent messages parse strictly, an expected send also
   pins the builders' wire shape to what the server accepted. The tests run the generated ones;
   nothing in the app runs one yet.
@@ -137,20 +137,29 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
   keeps the page. A new prop on the board is added to these mappers when a scenario shows the need,
   never computed in a view.
-* **Session** (`entities/session`): one machine owns joining, playing, reconnecting and the end.
-  It joins with the lobby's ticket (`shared/session` holds the handoff) and resumes the seat with
-  the same ticket. Two retries stay distinct, each with its own backoff and budget: a transport
+* **Session** (`entities/session`): one machine owns finding the handoff, joining, playing,
+  reconnecting and the end. It joins with the lobby's ticket (`shared/session` holds the handoff) and
+  resumes the seat with the same ticket. A tab that holds no ticket asks the lobby
+  (`GET /api/game-session`) through an effect the driver runs and cancels on dispose: this game's
+  handoff is kept and joined with, another game's kept and its page opened (the query, so `?v=2`,
+  carried over), none sends the player to the lobby, and a failed lookup is asked once more after a
+  short wait (`policy.ts`), then stays on the page with a reload. Two retries stay distinct, each with its own backoff and budget: a transport
   retry reopens a dropped socket, a session retry resends RECONNECT on the open socket after
   `reconnect_retry_later` (honoured only while reconnecting) or a rate limit on its JOIN_GAME or
   RECONNECT (only before the seat is held). A drop supersedes a waiting session retry, since the
-  reopened socket sends RECONNECT itself. The stop policy follows the server: the 4002 and 1008 closes, a
-  refusal that means the ticket will never hold the seat again, and a spent retry budget end the
-  session, cancel its retry and send the player to the lobby; a game end ends it on the page; any
-  other close is retried, 1000 included (`docs/architecture.md`, Game client contract). An ended
-  session ignores everything after, except that leaving still goes to the lobby from an end that
-  stayed on the page (a game end or a failure).
+  reopened socket sends RECONNECT itself. A socket that has not opened by its connect deadline (a
+  state deadline like the others) is closed and retried as a drop. The stop policy follows the
+  server: the 4002 and 1008 closes, a refusal that means the ticket will never hold the seat again,
+  and a spent retry budget end the session, cancel its retry and forget the handoff, and stay on the
+  page, whose board says why with a way back; a game end ends it on the page; any other close is
+  retried, 1000 included (`docs/architecture.md`, Game client contract). An ended session ignores
+  everything after, except that leaving still goes to the lobby from an end that stayed on the page.
+  Leaving while the session holds or works for the seat hands it to an AI, so the page asks first
+  (`PlayUi`), modally: the rest of the page is inert, Stay is the primary action and takes the focus,
+  Escape stays, and staying returns the focus to the control that asked; after an end it leaves at
+  once.
 * **Silence watchdog:** the client sends nothing on its own, so a socket whose peer vanished never
-  fires `onclose`. `GameSocket`, the socket's thin IO adapter (one connection attempt per
+  fires `onclose` (one that never opens is the session's connect deadline instead). `GameSocket`, the socket's thin IO adapter (one connection attempt per
   instance; it never reconnects), therefore reports a server silent longer than any legitimate
   wait as a close, measured on the wall clock so the first check after a device wake sees the whole
   gap. The limit is hand-derived from the session `TimerConfig` defaults
@@ -163,9 +172,15 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   and the smallest supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320
   phones never got iOS 16.4, so they are below the floor.
 * **The live game's page** is the board beside an aside holding the way back and the session's
-  status in a player's terms, as the rotate panel words it. A server message the client cannot read
-  is always reported, on the console and as a notice in the aside, since the table may be wrong from
-  then on. With `?debug` (any value but `0`, `false`, `no` or `off`) the aside adds the debug log, a
+  status in a player's terms, as the rotate panel words it. The board carries the notices
+  (`playDisplay`'s, in the table's own area so they never cover the hand or the decision's corner): a
+  seat this page held and lost to a drop while it reconnects, or a connection failing since the page
+  opened, each worded the same across its retries so it is announced once (a page that only resumes
+  its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
+  expiry (the seat back after a snapshot of such a drop, which a second drop replaces, and a refused
+  move); and a server message the client cannot read, on the console too, shown until a reconnect's
+  snapshot rebuilds the table, which may be wrong until then. An end that stops the session on the
+  page blocks the board, and takes the rotate panel's place, with why and a way back. With `?debug` (any value but `0`, `false`, `no` or `off`) the aside adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
   it the view keeps no log at all.
 * **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than

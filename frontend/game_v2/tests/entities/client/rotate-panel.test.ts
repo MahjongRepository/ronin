@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { loadSeatScenario } from "#tests/fixtures/seat-transcripts";
 import {
     type DecisionCountdown,
+    type LeaveControls,
+    NO_PLAY_UI,
     RotatePanel,
     type RotatePanelProps,
     rotatePanelProps,
@@ -12,6 +14,8 @@ import {
     timelineStates,
 } from "@/entities/client";
 import { CONNECTION_STATUS } from "@/shared/protocol";
+
+const LEAVE: LeaveControls = { command: { kind: "ask_leave" }, confirming: false };
 
 function running(secondsLeft: number): DecisionCountdown {
     return { kind: "running", move: "turn", secondsLeft };
@@ -29,7 +33,7 @@ describe("RotatePanel", () => {
         const run = runSeatScenario(scenario);
         const prompt = timelineStates(run.timeline)[scenarioStateIndex(scenario, "prompt")];
 
-        const host = renderPanel(rotatePanelProps(prompt, () => {}));
+        const host = renderPanel(rotatePanelProps(prompt, NO_PLAY_UI, () => {}));
 
         expect(host.querySelector("[role=status]")?.textContent).toBe("Connected");
         expect(host.querySelector(".rotate-panel__seconds")?.textContent).toBe("5");
@@ -40,7 +44,7 @@ describe("RotatePanel", () => {
         const run = runSeatScenario(scenario);
         const prompt = timelineStates(run.timeline)[scenarioStateIndex(scenario, "chankan prompt")];
 
-        const host = renderPanel(rotatePanelProps(prompt, () => {}));
+        const host = renderPanel(rotatePanelProps(prompt, NO_PLAY_UI, () => {}));
 
         expect(host.querySelector(".rotate-panel__decision p")?.textContent).toMatch(
             /^You can rob the kan\./,
@@ -52,7 +56,7 @@ describe("RotatePanel", () => {
         const run = runSeatScenario(scenario);
         const roundEnd = timelineStates(run.timeline)[scenarioStateIndex(scenario, "round end")];
 
-        const host = renderPanel(rotatePanelProps(roundEnd, () => {}));
+        const host = renderPanel(rotatePanelProps(roundEnd, NO_PLAY_UI, () => {}));
 
         expect(host.querySelector(".rotate-panel__decision p")?.textContent).toMatch(
             /^The round's result awaits your OK\./,
@@ -67,9 +71,13 @@ describe("RotatePanel", () => {
 
         const announced = [...countdowns, expired].map(
             (countdown) =>
-                renderPanel({ countdown, onLeave: () => {}, status }).querySelector(
-                    "[aria-live=polite]",
-                )?.textContent,
+                renderPanel({
+                    countdown,
+                    failure: null,
+                    leave: LEAVE,
+                    onCommand: () => {},
+                    status,
+                }).querySelector("[aria-live=polite]")?.textContent,
         );
 
         expect(announced).toEqual([

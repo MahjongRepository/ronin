@@ -214,7 +214,9 @@ export function openDecision(
  * Whether a message refuses the submitted answer while its wait goes on: the game refused it (but as stale, since
  * a stale answer's wait already ended), or the socket's rate limit dropped it before it reached the game.
  */
-function refusesSubmission(message: ParsedServerMessage): boolean {
+export function refusesSubmission(
+    message: ParsedServerMessage,
+): message is Extract<ParsedServerMessage, { type: "error" | "session_error" }> {
     if (message.type === "error") {
         return message.code !== GAME_ERROR_CODE.STALE_ACTION;
     }

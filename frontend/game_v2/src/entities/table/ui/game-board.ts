@@ -10,6 +10,7 @@ import {
 } from "@/entities/table/model/board-types";
 import { Discards, Hand, Meld, Tile, type TileFace } from "@/entities/tile";
 
+import { type BoardNotice, BoardNotices } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
@@ -26,6 +27,10 @@ interface GameBoardProps {
     /** The decision's controls (its countdown, offers and pass), in the board's own corner beside the table. */
     readonly actions?: TemplateResult;
     readonly localHand?: LocalHandInput;
+    /** The notices over the table; given, even empty, the board keeps their live region for the next one. */
+    readonly notices?: readonly BoardNotice[];
+    /** The overlay's panel blocks the board: everything under it takes no input, by keyboard or pointer. */
+    readonly inert?: boolean;
 }
 
 function HandArea(
@@ -175,10 +180,11 @@ function GameBoard(props: GameBoardProps): TemplateResult {
 
     return html`
         <div class="${boardClass}">
-            <div class="board-layout">
+            <div class="board-layout" ?inert=${props.inert ?? false}>
                 <div class="board-table">
                     ${SEAT_POSITIONS.map((seat, i) => TableAreas(seat, state?.players[i] ?? null))}
                     ${state ? CenterInfo(state.center) : EmptyCenterArea()}
+                    ${props.notices ? BoardNotices(props.notices) : ""}
                 </div>
                 <div class="board-local">${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}</div>
                 ${state ? DoraDisplay(state.center.doraIndicators) : ""}

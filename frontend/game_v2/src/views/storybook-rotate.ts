@@ -1,6 +1,12 @@
 import { type TemplateResult, html, nothing, render } from "lit-html";
 
-import { type DecisionCountdown, RotatePanel, type RotatePanelProps } from "@/entities/client";
+import {
+    type DecisionCountdown,
+    type LeaveControls,
+    RotatePanel,
+    type RotatePanelProps,
+    failureDisplay,
+} from "@/entities/client";
 import { type SessionState, describePlayerSessionStatus } from "@/entities/session";
 
 const HANDOFF = { gameTicket: "story", wsUrl: "ws://story" } as const;
@@ -8,9 +14,11 @@ const NO_ATTEMPTS = { session: 0, transport: 0 } as const;
 
 const PLAYING: SessionState = {
     attempts: NO_ATTEMPTS,
+    connectDeadline: null,
     gameId: "story",
     handoff: HANDOFF,
     link: "open",
+    lostSeat: false,
     retry: null,
     status: "playing",
 };
@@ -19,13 +27,20 @@ const RECONNECTING: SessionState = {
     ...PLAYING,
     attempts: { session: 0, transport: 1 },
     link: "down",
+    lostSeat: true,
     retry: { dueAt: 0, kind: "transport" },
     status: "reconnecting",
 };
 
+const RETRIES_SPENT: SessionState = {
+    gameId: "story",
+    reason: { gameStarted: true, kind: "retries_exhausted", retry: "transport" },
+    status: "ended",
+};
+
 /**
  * The rotate panel's stories: a seat waiting on others, one whose decision counts down, one owing a round result's
- * confirm, and the edge cases.
+ * confirm, the edge cases, the question leaving mid-game asks, and an end that stopped the session on the page.
  */
 const ROTATE_STORIES = [
     "waiting",
@@ -34,19 +49,35 @@ const ROTATE_STORIES = [
     "untimed",
     "expired",
     "reconnecting",
+    "leave",
+    "ended",
 ] as const;
 
 type RotateStory = (typeof ROTATE_STORIES)[number];
 
 const DEFAULT_STORY: RotateStory = "waiting";
 
-function storyProps(session: SessionState, countdown: DecisionCountdown | null): RotatePanelProps {
-    return { countdown, onLeave: () => {}, status: describePlayerSessionStatus(session) };
+const ASKS_TO_LEAVE: LeaveControls = { command: { kind: "ask_leave" }, confirming: false };
+
+function storyProps(
+    session: SessionState,
+    countdown: DecisionCountdown | null,
+    leave: LeaveControls = ASKS_TO_LEAVE,
+): RotatePanelProps {
+    return {
+        countdown,
+        failure: failureDisplay(session),
+        leave,
+        onCommand: () => {},
+        status: describePlayerSessionStatus(session),
+    };
 }
 
 const STORY_PROPS: Readonly<Record<RotateStory, RotatePanelProps>> = {
     countdown: storyProps(PLAYING, { kind: "running", move: "turn", secondsLeft: 17 }),
+    ended: storyProps(RETRIES_SPENT, null),
     expired: storyProps(PLAYING, { kind: "expired", move: "call" }),
+    leave: storyProps(PLAYING, null, { ...ASKS_TO_LEAVE, confirming: true }),
     reconnecting: storyProps(RECONNECTING, null),
     result: storyProps(PLAYING, { kind: "running", move: "result", secondsLeft: 8 }),
     untimed: storyProps(PLAYING, { kind: "untimed", move: "turn" }),

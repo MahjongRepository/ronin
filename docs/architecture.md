@@ -399,8 +399,10 @@ honours this contract can replace it.
 * **Closes:** the client reconnects after any close but two terminal ones, after which it stops
   reconnecting and cancels any scheduled retry: 4002 `replaced_by_new_connection` (another socket
   of the seat took it over) and 1008 `invalid_game_action` (the seat was kicked). A 1000
-  `game_ended` close keeps reconnecting, so a client that missed the game end is refused into the
-  lobby.
+  `game_ended` close keeps reconnecting, so a client that missed the game end is refused on the
+  reconnect. After a terminal close or a refusal, the v1 client goes back to the lobby; the v2
+  client forgets the handoff and stays on the page, saying why, with a way back to the lobby and,
+  where it may help, a reload (which recovers the handoff afresh).
 * **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required;
   `GET /api/replays/{game_id}/tenhou.xml` downloads the same game as a tenhou.net XML log. The lobby
   cannot import the engine's converter, so it asks the game server, which converts the stored

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { lazyRoute } from "@/router";
+import { type Route, lazyRoute, startRouter } from "@/router";
 
 const PATTERN = /^\/lazy$/;
 
@@ -34,5 +34,21 @@ describe("lazyRoute", () => {
             "This page failed to load: mount broke",
         ]);
         error.mockRestore();
+    });
+});
+
+describe("startRouter", () => {
+    it("hands a route its parameters decoded, and treats a path that does not decode as unmatched", () => {
+        const mount = vi.fn<Route["mount"]>(() => () => {});
+        const unmatched = vi.fn();
+        const routes = [{ mount, pattern: /^\/play\/(?<gameId>[^/]+)$/ }];
+
+        for (const path of ["/play/g%202", "/play/%E0%A4%A"]) {
+            history.replaceState(null, "", path);
+            startRouter(document.createElement("div"), routes, unmatched);
+        }
+
+        expect(mount.mock.calls.map(([, params]) => params)).toEqual([{ gameId: "g 2" }]);
+        expect(unmatched).toHaveBeenCalledOnce();
     });
 });

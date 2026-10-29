@@ -7,23 +7,16 @@ import {
     WIRE_GAME_STARTED,
     wireSessionError,
 } from "#tests/fixtures/wire";
-import {
-    type SessionEffect,
-    type SessionInput,
-    sessionDeadline,
-    startSession,
-} from "@/entities/session";
+import { type SessionEffect, type SessionInput, sessionDeadline } from "@/entities/session";
 import { buildJoinGameMessage, buildReconnectMessage } from "@/shared/protocol";
 
-const { closed, leave, message, opened, tick } = sessionInput;
+const { closed, leave, message, opened, recovered, tick } = sessionInput;
 
 const JOIN = { message: buildJoinGameMessage(HANDOFF.gameTicket), type: "send" } as const;
 const RECONNECT = { message: buildReconnectMessage(HANDOFF.gameTicket), type: "send" } as const;
 const OPEN = { type: "open_socket", url: HANDOFF.wsUrl } as const;
-const LEAVE_FOR_LOBBY = [
-    { gameId: "g1", type: "clear_handoff" },
-    { type: "redirect_to_lobby" },
-] as const;
+const FORGET_HANDOFF = { gameId: "g1", type: "clear_handoff" } as const;
+const LEAVE_FOR_LOBBY = [FORGET_HANDOFF, { type: "redirect_to_lobby" }] as const;
 
 type SessionScenario = ReturnType<typeof sessionScenario>;
 
@@ -117,7 +110,7 @@ describe("stepSession", () => {
     });
 
     describe("retries", () => {
-        it("resends RECONNECT on the open socket after each reconnect_retry_later, backing off to 15 s, and leaves after 15 tries", () => {
+        it("resends RECONNECT on the open socket after each reconnect_retry_later, backing off to 15 s, and gives up after 15 tries", () => {
             const scenario = resumingAtJoin();
 
             const { delays, now } = backOff(scenario, 15, {
@@ -134,10 +127,10 @@ describe("stepSession", () => {
             ]);
             expect(scenario.step(retryLater(now))).toEqual([
                 { type: "close_socket" },
-                ...LEAVE_FOR_LOBBY,
+                FORGET_HANDOFF,
             ]);
             expect(scenario.state).toMatchObject({
-                reason: { kind: "retries_exhausted", retry: "session" },
+                reason: { gameStarted: true, kind: "retries_exhausted", retry: "session" },
             });
         });
 
@@ -151,7 +144,7 @@ describe("stepSession", () => {
             expect(scenario.step(opened(1300))).toEqual([RECONNECT]);
         });
 
-        it("reopens a socket that keeps dropping, backing off to 30 s, and leaves after 10 tries", () => {
+        it("reopens a socket that keeps dropping, backing off to 30 s, and gives up on the page after 10 tries", () => {
             const scenario = sessionScenario();
 
             const { delays, now } = backOff(scenario, 10, { cause: dropped, onDue: [OPEN] });
@@ -159,10 +152,27 @@ describe("stepSession", () => {
             expect(delays).toEqual([
                 1000, 2000, 4000, 8000, 16_000, 30_000, 30_000, 30_000, 30_000, 30_000,
             ]);
-            expect(scenario.step(dropped(now))).toEqual(LEAVE_FOR_LOBBY);
+            expect(scenario.step(dropped(now))).toEqual([FORGET_HANDOFF]);
             expect(scenario.state).toMatchObject({
-                reason: { kind: "retries_exhausted", retry: "transport" },
+                reason: { gameStarted: false, kind: "retries_exhausted", retry: "transport" },
             });
+        });
+
+        it("closes a socket that has not opened 10 s after it was asked for and retries it like a drop", () => {
+            const scenario = playing();
+            scenario.step(dropped(100));
+            expect(scenario.step(tick(1100))).toEqual([OPEN]);
+            expect(sessionDeadline(scenario.state)).toBe(11_100);
+
+            const steps = [tick(11_099), tick(11_100)].map((input) => scenario.step(input));
+            expect(steps).toEqual([[], [{ type: "close_socket" }]]);
+            expect(scenario.state).toMatchObject({ link: "down", status: "reconnecting" });
+            expect(sessionDeadline(scenario.state)).toBe(13_100);
+            expect([scenario.step(tick(13_100)), scenario.step(opened(13_200))]).toEqual([
+                [OPEN],
+                [RECONNECT],
+            ]);
+            expect(sessionDeadline(scenario.state)).toBeNull();
         });
 
         it("retries a 1000 close when no game end arrived, so the server's answer to RECONNECT decides", () => {
@@ -193,12 +203,12 @@ describe("stepSession", () => {
 
     describe("ends", () => {
         it.each([4002, 1008])(
-            "on a %i close drops the pending retry, leaves for the lobby, and ignores everything after",
+            "on a %i close drops the pending retry, forgets the handoff, stays on the page and ignores all but a leave",
             (code) => {
                 const scenario = waitingOutRetryLater();
                 expect(sessionDeadline(scenario.state)).toBe(1000);
 
-                expect(scenario.step(closed(500, code))).toEqual(LEAVE_FOR_LOBBY);
+                expect(scenario.step(closed(500, code))).toEqual([FORGET_HANDOFF]);
                 expect(sessionDeadline(scenario.state)).toBeNull();
                 expect(scenario.step(tick(1000))).toEqual([]);
                 expect(scenario.step(opened(1100))).toEqual([]);
@@ -206,6 +216,10 @@ describe("stepSession", () => {
                     reason: { code, kind: "closed" },
                     status: "ended",
                 });
+                expect(scenario.step(leave(1200))).toEqual([
+                    { type: "close_socket" },
+                    { type: "redirect_to_lobby" },
+                ]);
             },
         );
 
@@ -226,16 +240,13 @@ describe("stepSession", () => {
         });
 
         it.each(["reconnect_no_session", "internal_error"])(
-            "closes the socket and leaves for the lobby on a %s refusal",
+            "closes the socket, forgets the handoff and stays on the page on a %s refusal",
             (code) => {
                 const scenario = sessionScenario();
                 scenario.step(opened(0));
 
                 const refusal = message(10, wireSessionError(code));
-                expect(scenario.step(refusal)).toEqual([
-                    { type: "close_socket" },
-                    ...LEAVE_FOR_LOBBY,
-                ]);
+                expect(scenario.step(refusal)).toEqual([{ type: "close_socket" }, FORGET_HANDOFF]);
                 expect(scenario.state).toMatchObject({ reason: { code, kind: "refused" } });
             },
         );
@@ -252,11 +263,63 @@ describe("stepSession", () => {
     });
 });
 
-describe("startSession", () => {
-    it("leaves for the lobby at once when the tab holds no handoff", () => {
-        expect(startSession("g1", null)).toEqual({
-            effects: LEAVE_FOR_LOBBY,
-            state: { gameId: "g1", reason: { kind: "no_handoff" }, status: "ended" },
+describe("handoff recovery", () => {
+    const OTHER_HANDOFF = { gameTicket: "ticket-2", wsUrl: "ws://game/ws/g2" } as const;
+
+    it("asks the lobby for the game when the tab holds no handoff, then keeps the one it finds and joins with it", () => {
+        const scenario = sessionScenario(null);
+        expect(scenario.startEffects).toEqual([{ type: "recover_handoff" }]);
+        expect(scenario.step(tick(100))).toEqual([]);
+
+        const found = recovered(200, {
+            gameClientUrl: "/play",
+            gameId: "g1",
+            handoff: HANDOFF,
+            kind: "found",
         });
+        expect(scenario.step(found)).toEqual([
+            { gameId: "g1", handoff: HANDOFF, type: "store_handoff" },
+            OPEN,
+        ]);
+        expect(sessionDeadline(scenario.state)).toBe(10_200);
+        expect(scenario.step(opened(300))).toEqual([JOIN]);
+    });
+
+    it("keeps another game's handoff and goes to that game's page", () => {
+        const scenario = sessionScenario(null);
+
+        const found = recovered(200, {
+            gameClientUrl: "/play",
+            gameId: "g2",
+            handoff: OTHER_HANDOFF,
+            kind: "found",
+        });
+        expect(scenario.step(found)).toEqual([
+            { gameId: "g2", handoff: OTHER_HANDOFF, type: "store_handoff" },
+            { gameClientUrl: "/play", gameId: "g2", type: "redirect_to_game" },
+        ]);
+        expect(scenario.step(leave(300))).toEqual([]);
+    });
+
+    it("leaves for the lobby when the player plays no game", () => {
+        const scenario = sessionScenario(null);
+
+        expect(scenario.step(recovered(200, { kind: "missing" }))).toEqual(LEAVE_FOR_LOBBY);
+        expect(scenario.state).toMatchObject({ reason: { kind: "no_handoff" }, status: "ended" });
+    });
+
+    it("asks the lobby again 2 s after a failed lookup, stays on the page once that fails too, and leaves on request", () => {
+        const scenario = sessionScenario(null);
+        const failed = recovered(200, { detail: "HTTP 503", kind: "failed" });
+
+        expect(scenario.step(failed)).toEqual([]);
+        expect(sessionDeadline(scenario.state)).toBe(2200);
+        expect([scenario.step(tick(2199)), scenario.step(tick(2200))]).toEqual([
+            [],
+            [{ type: "recover_handoff" }],
+        ]);
+        expect(scenario.step({ ...failed, at: 2300 })).toEqual([]);
+        expect(scenario.state).toMatchObject({ reason: { kind: "recovery_failed" } });
+        expect(scenario.step(leave(2400))).toEqual([{ type: "close_socket" }, ...LEAVE_FOR_LOBBY]);
     });
 });

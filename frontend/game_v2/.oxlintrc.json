@@ -68,7 +68,11 @@
                     "ActionButton",
                     "ResultTime",
                     "ResultControlsView",
-                    "ScoreFoot"
+                    "ScoreFoot",
+                    "BoardNotices",
+                    "LeaveConfirm",
+                    "FailurePanel",
+                    "PlayOverlay"
                 ]
             }
         ],

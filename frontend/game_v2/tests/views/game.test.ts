@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
 import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
+import { type HandoffRecovery } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
 import {
     type ClientMessage,
@@ -54,6 +55,15 @@ class ManualClock implements Clock {
         };
     };
 
+    /** The timer armed last, which a test fires by hand after it was replaced or cancelled. */
+    lastTimer(): ManualTimer {
+        const timer = this.timers.at(-1);
+        if (timer === undefined) {
+            throw new Error("no timer was armed");
+        }
+        return timer;
+    }
+
     advanceTo(at: number): void {
         this.current = at;
         for (const timer of this.timers.filter((t) => !t.cancelled && t.at <= at)) {
@@ -66,7 +76,9 @@ class ManualClock implements Clock {
 interface FakeOverrides {
     readonly connect?: GameViewDeps["connect"];
     readonly debug?: boolean;
-    readonly leaveToLobby?: () => void;
+    readonly clearHandoff?: () => void;
+    readonly handoff?: GameViewDeps["handoff"];
+    readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
 }
 
 function mountWithFakes(overrides: FakeOverrides = {}): {
@@ -78,7 +90,13 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
 } {
     const clock = new ManualClock();
     const connections: FakeConnection[] = [];
-    const sink = { clearHandoff: vi.fn(), leaveToLobby: vi.fn(overrides.leaveToLobby) };
+    const sink = {
+        clearHandoff: vi.fn(overrides.clearHandoff),
+        leaveToLobby: vi.fn(),
+        openGame: vi.fn(),
+        reload: vi.fn(),
+        storeHandoff: vi.fn(),
+    };
     const host = document.createElement("div");
     function fakeConnect(url: string, handlers: SocketHandlers): FakeConnection {
         const connection = new FakeConnection(url, handlers);
@@ -89,7 +107,10 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         clock,
         connect: overrides.connect ?? fakeConnect,
         debug: overrides.debug ?? false,
-        handoff: HANDOFF,
+        handoff: overrides.handoff === undefined ? HANDOFF : overrides.handoff,
+        recoverHandoff:
+            overrides.recoverHandoff ??
+            (() => Promise.reject(new Error("the tab holds a handoff"))),
         sink,
     });
     return { clock, connections, dispose, host, sink };
@@ -193,7 +214,7 @@ describe("mountGameView", () => {
         const { clock, connections, dispose, host } = mountWithFakes();
         connections[0].handlers.onOpen();
         connections[0].handlers.onClose(1006, "");
-        const [retry] = clock.timers;
+        const retry = clock.lastTimer();
 
         dispose();
         retry.callback();
@@ -205,7 +226,7 @@ describe("mountGameView", () => {
         const { clock, connections, sink } = mountWithFakes();
         const [socket] = connections;
         waitOutRetryLater(socket);
-        const [retry] = clock.timers;
+        const retry = clock.lastTimer();
 
         socket.handlers.onClose(4002, "replaced_by_new_connection");
         retry.callback();
@@ -216,7 +237,6 @@ describe("mountGameView", () => {
             1,
         ]);
         expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);
-        expect(sink.leaveToLobby).toHaveBeenCalledOnce();
     });
 
     it("on Back to Lobby after the game ended closes the socket, clears the handoff and leaves", () => {
@@ -252,20 +272,23 @@ describe("mountGameView", () => {
     });
 
     it("ends as failed, shown on the page, when running an effect throws, and keeps taking input", () => {
-        const leaveToLobby = vi.fn(() => {
-            throw new Error("navigation blocked");
+        const { connections, host, sink } = mountWithFakes({
+            clearHandoff: () => {
+                throw new Error("storage blocked");
+            },
         });
-        const { connections, host } = mountWithFakes({ leaveToLobby });
         connections[0].handlers.onOpen();
 
         connections[0].handlers.onMessage(wireSessionError("reconnect_no_session"));
         expect(host.querySelector(".game-aside__status")?.textContent).toBe("Something went wrong");
 
-        host.querySelector("button")?.click();
-        expect(leaveToLobby).toHaveBeenCalledTimes(2);
+        press(host, ".failure-panel__reload");
+        host.querySelector<HTMLElement>(".game__rotate .failure-panel__leave")?.click();
+        expect(sink.reload).toHaveBeenCalledOnce();
+        expect(sink.clearHandoff).toHaveBeenCalledTimes(2);
     });
 
-    it("reports a server message it cannot read on the console and the page, without the debug log", () => {
+    it("reports a server message it cannot read on the console and the board, without the debug log", () => {
         const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
         const { connections, host } = mountWithFakes();
         connections[0].handlers.onOpen();
@@ -273,8 +296,8 @@ describe("mountGameView", () => {
         connections[0].handlers.onMessage({ t: 999 });
 
         expect(consoleError).toHaveBeenCalledOnce();
-        expect(host.querySelector(".game-aside__warning")?.textContent).toContain(
-            "1 server message(s) could not be read",
+        expect(host.querySelector(".game__play .board-notice--error")?.textContent).toBe(
+            "A server message could not be read; the table may be wrong",
         );
         expect(host.querySelector(".log-entry")).toBeNull();
         consoleError.mockRestore();
@@ -288,7 +311,264 @@ describe("mountGameView", () => {
 
         first.handlers.onClose(1006, "");
 
-        expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
+        const armed = clock.timers.filter((timer) => !timer.cancelled).map((timer) => timer.at);
+        expect(armed).toEqual([11_000]);
+    });
+});
+
+describe("mountGameView connection", () => {
+    it("gives up on a socket that never opens after 10 s and opens another on the retry", () => {
+        const { clock, connections, host } = mountWithFakes();
+
+        clock.advanceTo(9999);
+        expect(connections[0].disconnected).toBe(false);
+        clock.advanceTo(10_000);
+        expect(connections[0].disconnected).toBe(true);
+        expect(host.querySelector(".game__play .board-notice")?.textContent).toBe(
+            "Cannot reach the game. Retrying…",
+        );
+        clock.advanceTo(11_000);
+
+        expect(connections).toHaveLength(2);
+    });
+
+    it("shows a dropped connection on the board while it reconnects", () => {
+        const { connections, host } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+
+        connections[0].handlers.onClose(1006, "");
+
+        expect(host.querySelector(".game__play .board-notice--warning")?.textContent).toBe(
+            "Connection lost. Reconnecting…",
+        );
+    });
+
+    it("blocks the board with why a terminal close ended the session, and leaves only on its button", () => {
+        const { connections, host, sink } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+
+        connections[0].handlers.onClose(4002, "replaced_by_new_connection");
+        expect(sink.leaveToLobby).not.toHaveBeenCalled();
+        const titles = [".game__play", ".game__rotate"].map(
+            (place) => host.querySelector(`${place} .failure-panel__title`)?.textContent,
+        );
+        expect(titles).toEqual(["Opened elsewhere", "Opened elsewhere"]);
+
+        press(host, ".failure-panel__leave");
+        expect(sink.leaveToLobby).toHaveBeenCalledOnce();
+    });
+});
+
+/** A lobby answer the test settles by hand, keeping the signal the view asked with. */
+class PendingLookup {
+    signal: AbortSignal | null = null;
+    private resolve: (recovery: HandoffRecovery) => void = () => {};
+    private readonly answer = new Promise<HandoffRecovery>((done) => {
+        this.resolve = done;
+    });
+
+    readonly recoverHandoff = (signal: AbortSignal): Promise<HandoffRecovery> => {
+        this.signal = signal;
+        return this.answer;
+    };
+
+    async settle(recovery: HandoffRecovery): Promise<void> {
+        this.resolve(recovery);
+        await this.answer;
+        await Promise.resolve();
+    }
+}
+
+const OTHER_HANDOFF = { gameTicket: "ticket-2", wsUrl: "ws://game/ws/g2" } as const;
+
+/** Let a lookup the view started settle and its answer reach the dispatcher. */
+async function settleLookup(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+}
+
+describe("mountGameView handoff recovery", () => {
+    it("asks the lobby when the tab holds no handoff, keeps the one it finds and joins with it", async () => {
+        const lobby = new PendingLookup();
+        const { connections, host, sink } = mountWithFakes({
+            handoff: null,
+            recoverHandoff: lobby.recoverHandoff,
+        });
+        expect(connections).toHaveLength(0);
+        expect(host.querySelector(".game__play .board-notice")?.textContent).toBe(
+            "Finding your game…",
+        );
+
+        await lobby.settle({
+            gameClientUrl: "/play",
+            gameId: GAME_ID,
+            handoff: HANDOFF,
+            kind: "found",
+        });
+        connections[0].handlers.onOpen();
+
+        expect(sink.storeHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID, HANDOFF);
+        expect(connections[0].url).toBe(HANDOFF.wsUrl);
+        expect(connections[0].sent).toEqual([JOIN]);
+    });
+
+    it("goes to the lobby when the player plays no game", async () => {
+        const lobby = new PendingLookup();
+        const { sink } = mountWithFakes({ handoff: null, recoverHandoff: lobby.recoverHandoff });
+
+        await lobby.settle({ kind: "missing" });
+
+        expect(sink.leaveToLobby).toHaveBeenCalledOnce();
+    });
+
+    it("goes to the page of the game the player plays when it is another one", async () => {
+        const lobby = new PendingLookup();
+        const { connections, sink } = mountWithFakes({
+            handoff: null,
+            recoverHandoff: lobby.recoverHandoff,
+        });
+
+        await lobby.settle({
+            gameClientUrl: "/play",
+            gameId: "g2",
+            handoff: OTHER_HANDOFF,
+            kind: "found",
+        });
+
+        expect(sink.storeHandoff).toHaveBeenCalledExactlyOnceWith("g2", OTHER_HANDOFF);
+        expect(sink.openGame).toHaveBeenCalledExactlyOnceWith("g2", "/play");
+        expect(connections).toHaveLength(0);
+        expect(sink.leaveToLobby).not.toHaveBeenCalled();
+    });
+
+    it("asks the lobby once more after a failed lookup, then stays on the page with a reload", async () => {
+        const recoverHandoff = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
+        const { clock, host, sink } = mountWithFakes({ handoff: null, recoverHandoff });
+        await settleLookup();
+        expect(host.querySelector(".game__play .board-notice")?.textContent).toBe(
+            "Finding your game…",
+        );
+
+        clock.advanceTo(2000);
+        await settleLookup();
+
+        expect(recoverHandoff).toHaveBeenCalledTimes(2);
+        expect(host.querySelector(".game__play .failure-panel__title")?.textContent).toBe(
+            "Can't reach the lobby",
+        );
+        press(host, ".failure-panel__reload");
+        expect(sink.reload).toHaveBeenCalledOnce();
+    });
+
+    it("cancels the lookup on dispose and drops its late answer", async () => {
+        const lobby = new PendingLookup();
+        const { connections, dispose, sink } = mountWithFakes({
+            handoff: null,
+            recoverHandoff: lobby.recoverHandoff,
+        });
+
+        dispose();
+        await lobby.settle({
+            gameClientUrl: "/play",
+            gameId: GAME_ID,
+            handoff: HANDOFF,
+            kind: "found",
+        });
+
+        expect(lobby.signal?.aborted).toBe(true);
+        expect(connections).toHaveLength(0);
+        expect(sink.storeHandoff).not.toHaveBeenCalled();
+    });
+});
+
+/** Mount into the document, where focus works, at the call prompt; the test's end disposes it and takes it out. */
+function mountInDocumentAtCallPrompt(): {
+    connections: FakeConnection[];
+    host: HTMLElement;
+    lobby: HTMLElement;
+} {
+    const { connections, dispose, host } = mountWithFakes();
+    document.body.append(host);
+    onTestFinished(() => {
+        dispose();
+        host.remove();
+    });
+    openCallPrompt(connections[0]);
+    const lobby = host.querySelector<HTMLElement>(".game__play .game-aside__leave");
+    if (lobby === null) {
+        throw new Error("no Lobby button");
+    }
+    return { connections, host, lobby };
+}
+
+/** Whether the board and the aside under the leave question are inert. */
+function inertAreas(host: HTMLElement): (boolean | undefined)[] {
+    return [".board-layout", ".game-aside"].map((selector) =>
+        host.querySelector(`.game__play ${selector}`)?.hasAttribute("inert"),
+    );
+}
+
+describe("mountGameView leaving", () => {
+    it("asks before handing a held seat to an AI, and Stay takes the question back, leaving nothing", () => {
+        const { connections, host, sink } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        press(host, ".game-aside__leave");
+        expect(host.querySelector(".game__play .leave-confirm__detail")?.textContent).toBe(
+            "An AI will play your seat.",
+        );
+        press(host, ".leave-confirm__stay");
+
+        expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
+        expect(host.querySelector(".game__play .decision-controls__action")).not.toBeNull();
+        expect(connections[0].disconnected).toBe(false);
+        expect(sink.leaveToLobby).not.toHaveBeenCalled();
+    });
+
+    it("closes the socket and leaves for the lobby once the player confirms leaving", () => {
+        const { connections, host, sink } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        press(host, ".game-aside__leave");
+        press(host, ".leave-confirm__leave");
+
+        expect(connections[0].disconnected).toBe(true);
+        expect(sink.leaveToLobby).toHaveBeenCalledOnce();
+    });
+
+    it("asks on the rotate panel too, in place of its way back", () => {
+        const { connections, host } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        host.querySelector<HTMLElement>(".game__rotate .rotate-panel__leave")?.click();
+
+        expect(host.querySelector(".game__rotate .leave-confirm")).not.toBeNull();
+        expect(host.querySelector<HTMLElement>(".game__rotate .rotate-panel__leave")?.hidden).toBe(
+            true,
+        );
+    });
+
+    it("keeps the question modal: Stay takes the focus, the page under it is inert, and Escape stays and refocuses Lobby", async () => {
+        const { connections, host, lobby } = mountInDocumentAtCallPrompt();
+        lobby.focus();
+
+        lobby.click();
+        await Promise.resolve();
+        const opened = [inertAreas(host), document.activeElement?.className];
+        document.activeElement?.dispatchEvent(
+            new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+        );
+        const closed = [
+            inertAreas(host),
+            host.querySelector(".game__play .leave-confirm"),
+            document.activeElement === lobby,
+            connections[0].disconnected,
+        ];
+
+        expect(opened).toEqual([[true, true], "leave-confirm__stay"]);
+        expect(closed).toEqual([[false, false], null, true, false]);
     });
 });
 

@@ -8,6 +8,7 @@ import {
     NO_PLAY_UI,
     PlayBoard,
     type PlayCommand,
+    type PlayDisplay,
     type PlayUi,
     RotatePanel,
     describeClientStatus,
@@ -21,29 +22,34 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
+import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type CancelTimer, type Clock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
-import { EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
+import { CLOSE_CODE, EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
 
 /** Where the game view's effects outside the socket land: the lobby's handoff storage and the page's location. */
 export interface GameViewSink {
     readonly clearHandoff: (gameId: string) => void;
+    readonly storeHandoff: (gameId: string, handoff: GameSessionData) => void;
     readonly leaveToLobby: () => void;
+    /** Go to another game's page, under the game client's URL the lobby named, keeping this page's query. */
+    readonly openGame: (gameId: string, gameClientUrl: string) => void;
+    readonly reload: () => void;
 }
 
 export interface GameViewDeps {
     readonly clock: Clock;
     readonly connect: ConnectSocket;
+    /** The lobby's handoff from this tab's storage, or null, when the view asks `recoverHandoff` for it. */
     readonly handoff: GameSessionData | null;
+    readonly recoverHandoff: RecoverHandoff;
     readonly sink: GameViewSink;
     /** Keep and show the debug log of every message and transport event (the page's `?debug`). */
     readonly debug: boolean;
 }
 
-/** The close the driver reports when the socket factory throws: what a browser reports for a failed connection. */
-const CONNECT_FAILED_CLOSE_CODE = 1006;
 const MAX_LOG_ENTRIES = 500;
 const LOG_TYPE_ERROR = "error";
 const LOG_TYPE_SENT = "sent";
@@ -53,7 +59,10 @@ const EVENT_NAMES: ReadonlyMap<number, string> = new Map(
 );
 
 type SocketEffect = Extract<ClientEffect, { type: "open_socket" | "close_socket" | "send" }>;
-type SinkEffect = Extract<ClientEffect, { type: "clear_handoff" | "redirect_to_lobby" }>;
+type SinkEffect = Extract<
+    ClientEffect,
+    { type: "clear_handoff" | "redirect_to_lobby" | "store_handoff" | "redirect_to_game" }
+>;
 
 interface ArmedTimer {
     readonly cancel: CancelTimer;
@@ -73,9 +82,7 @@ interface GameViewProps {
     readonly log: readonly LogEntry[] | null;
     readonly state: GameClientState;
     readonly ui: PlayUi;
-    readonly parseErrors: number;
     readonly panel: Ref<HTMLElement>;
-    readonly onLeave: () => void;
     readonly onCommand: (command: PlayCommand) => void;
 }
 
@@ -90,6 +97,50 @@ function wireTypeName(raw: Readonly<Record<string, unknown>>): string {
     return typeof raw.t === "number" ? (EVENT_NAMES.get(raw.t) ?? `t=${raw.t}`) : LOG_TYPE_UNKNOWN;
 }
 
+/** What the lobby's answer for the player's game says, without the ticket it carries. */
+function describeRecovery(recovery: HandoffRecovery): string {
+    switch (recovery.kind) {
+        case "found": {
+            return `Game session found: ${recovery.gameId}`;
+        }
+        case "missing": {
+            return "No game session";
+        }
+        case "failed": {
+            return `Game session lookup failed: ${recovery.detail}`;
+        }
+        default: {
+            return assertNever(recovery);
+        }
+    }
+}
+
+/** The system line of the debug log for the transport's events and the lobby's answer for the handoff. */
+function systemLogText(
+    event: Extract<
+        ClientEvent,
+        { kind: "transport_opened" | "transport_closed" | "transport_error" | "handoff_recovered" }
+    >,
+): string {
+    switch (event.kind) {
+        case "transport_opened": {
+            return "Connection opened";
+        }
+        case "transport_closed": {
+            return `Connection closed (${event.code} ${event.reason})`;
+        }
+        case "transport_error": {
+            return `Transport error: ${event.detail}`;
+        }
+        case "handoff_recovered": {
+            return describeRecovery(event.recovery);
+        }
+        default: {
+            return assertNever(event);
+        }
+    }
+}
+
 /** The log line an event adds, or null for one that only moves time or carries an intent. */
 function logEntryFor(event: ClientEvent): LogEntry | null {
     const { at } = event;
@@ -98,15 +149,11 @@ function logEntryFor(event: ClientEvent): LogEntry | null {
             const text = JSON.stringify(event.raw, null, 2);
             return { at, kind: wireTypeName(event.raw), text };
         }
-        case "transport_opened": {
-            return { at, kind: LOG_TYPE_SYSTEM, text: "Connection opened" };
-        }
-        case "transport_closed": {
-            const text = `Connection closed (${event.code} ${event.reason})`;
-            return { at, kind: LOG_TYPE_SYSTEM, text };
-        }
-        case "transport_error": {
-            return { at, kind: LOG_TYPE_SYSTEM, text: `Transport error: ${event.detail}` };
+        case "transport_opened":
+        case "transport_closed":
+        case "transport_error":
+        case "handoff_recovered": {
+            return { at, kind: LOG_TYPE_SYSTEM, text: systemLogText(event) };
         }
         case "replay_line":
         case "tick":
@@ -142,42 +189,45 @@ function logTemplate(
     </details>`;
 }
 
-/** The page's notice of server messages the client could not read: the game may be off from here on. */
-function parseErrorNotice(count: number): TemplateResult | string {
-    if (count === 0) {
-        return "";
-    }
-    return html`<p class="game-aside__warning" role="alert">
-        ${count} server message(s) could not be read; the table may be wrong.
-    </p>`;
-}
-
 /**
  * The live game: its board, played from the viewer's seat, beside its controls (the way back, the session's status
  * and, under `?debug`, the log), and the rotate panel the stylesheet shows in their place on an upright phone, all
- * rendered from the same state so the panel's status and countdown stay current while it is hidden.
+ * rendered from the same state so the panel's status and countdown stay current while it is hidden. While the leave
+ * question is open the controls are inert with the board, so the question is modal.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { gameId, log, onCommand, onLeave, panel, parseErrors, state, ui } = props;
+    const { gameId, log, onCommand, panel, state, ui } = props;
     const status = describePlayerClientStatus(state);
+    const display: PlayDisplay = playDisplay(state, ui);
     return html`
         <div class="game">
-            <div class="game__rotate">${RotatePanel(rotatePanelProps(state, onLeave))}</div>
+            <div class="game__rotate">${RotatePanel(rotatePanelProps(state, ui, onCommand))}</div>
             <div class="game__play board-page">
-                <div class="board-page__board">
-                    ${PlayBoard({ display: playDisplay(state, ui), onCommand, table: state.table })}
-                </div>
-                <aside class="board-page__aside game-aside" aria-label="Game ${gameId}">
-                    <button class="secondary game-aside__leave" @click=${onLeave}>Lobby</button>
+                <div class="board-page__board">${PlayBoard({ display, onCommand, table: state.table })}</div>
+                <aside class="board-page__aside game-aside" aria-label="Game ${gameId}" ?inert=${display.leave.confirming}>
+                    <button
+                        class="secondary game-aside__leave"
+                        aria-haspopup=${display.leave.command.kind === "ask_leave" ? "dialog" : nothing}
+                        @click=${() => onCommand(display.leave.command)}
+                    >
+                        Lobby
+                    </button>
                     <span class="connection-status game-aside__status status-${status.tone}" role="status"
                         >${status.label}</span
                     >
-                    ${parseErrorNotice(parseErrors)}
                     ${log === null ? "" : logTemplate(log, panel, state)}
                 </aside>
             </div>
         </div>
     `;
+}
+
+/** A lookup of the handoff that failed, as the lobby's answer; null for one that dispose cancelled. */
+function failedRecovery(error: unknown, signal: AbortSignal): HandoffRecovery | null {
+    if (signal.aborted || isAbortError(error)) {
+        return null;
+    }
+    return { detail: describeError(error), kind: "failed" };
 }
 
 /** The next logical time the driver must tick at: a deadline the state holds, or a change of its countdown. */
@@ -203,7 +253,9 @@ class GameViewController {
     private readonly log: LogEntry[] | null;
     private state: GameClientState;
     private ui: PlayUi = NO_PLAY_UI;
-    private parseErrors = 0;
+    /** The control that opened the leave question, which takes the focus back when the player stays. */
+    private leaveOpener: HTMLElement | null = null;
+    private readonly recovery = new AbortController();
     private timer: ArmedTimer | null = null;
     private socket: GameConnection | null = null;
     private socketGeneration = 0;
@@ -224,25 +276,45 @@ class GameViewController {
 
     dispose(): void {
         this.disposed = true;
+        this.recovery.abort();
         this.queue.length = 0;
         this.disarm();
         this.closeSocket();
         render(nothing, this.host);
     }
 
-    private readonly leave = (): void => {
-        this.dispatch({ at: this.deps.clock.now(), intent: { type: "leave" }, kind: "intent" });
-    };
-
-    /** A board control: an intent goes to the dispatcher; picking riichi's discard or a result page only changes the view's `ui`. */
+    /**
+     * A page control: an intent goes to the dispatcher, a reload to the page; picking riichi's discard, a result page
+     * or asking to leave only changes the view's `ui`. Staying returns the focus to the control that asked.
+     */
     private readonly command = (command: PlayCommand): void => {
         if (command.kind === "intent") {
             this.dispatch({ at: this.deps.clock.now(), intent: command.intent, kind: "intent" });
             return;
         }
+        if (command.kind === "reload") {
+            this.deps.sink.reload();
+            return;
+        }
+        this.changeUi(command);
+    };
+
+    private changeUi(command: Exclude<PlayCommand, { kind: "intent" | "reload" }>): void {
+        if (command.kind === "ask_leave") {
+            this.leaveOpener = this.focusedControl();
+        }
         this.ui = nextPlayUi(this.state, this.ui, command);
         this.draw();
-    };
+        if (command.kind === "cancel_leave") {
+            this.leaveOpener?.focus();
+            this.leaveOpener = null;
+        }
+    }
+
+    private focusedControl(): HTMLElement | null {
+        const focused = this.host.ownerDocument.activeElement;
+        return focused instanceof HTMLElement && this.host.contains(focused) ? focused : null;
+    }
 
     private dispatch(event: ClientEvent): void {
         if (this.disposed) {
@@ -310,17 +382,8 @@ class GameViewController {
         if (this.disposed) {
             return;
         }
-        const { command, gameId, leave, log, panel, parseErrors, state, ui } = this;
-        const props = {
-            gameId,
-            log,
-            onCommand: command,
-            onLeave: leave,
-            panel,
-            parseErrors,
-            state,
-            ui,
-        };
+        const { command, gameId, log, panel, state, ui } = this;
+        const props = { gameId, log, onCommand: command, panel, state, ui };
         render(gameTemplate(props), this.host);
         if (panel.value && this.logAppended !== this.logAppendedAtDraw) {
             panel.value.scrollTop = panel.value.scrollHeight;
@@ -346,8 +409,14 @@ class GameViewController {
                 return;
             }
             case "clear_handoff":
-            case "redirect_to_lobby": {
+            case "store_handoff":
+            case "redirect_to_lobby":
+            case "redirect_to_game": {
                 this.runSinkEffect(effect);
+                return;
+            }
+            case "recover_handoff": {
+                void this.recover();
                 return;
             }
             case "report_parse_error": {
@@ -386,21 +455,39 @@ class GameViewController {
     }
 
     /**
-     * A server message the client could not read: always on the console and counted on the page, whatever the log,
-     * since the table may be wrong from here on.
+     * A server message the client could not read: always on the console, whatever the log; the state counts it for
+     * the board's notice, since the table may be wrong from here on.
      */
     private reportParseError(detail: string): void {
         const text = `Parse error: ${detail}`;
         console.error(text);
-        this.parseErrors += 1;
         this.appendLog({ at: this.state.now, kind: LOG_TYPE_UNKNOWN, text });
     }
 
     private runSinkEffect(effect: SinkEffect): void {
+        const { sink } = this.deps;
         if (effect.type === "clear_handoff") {
-            this.deps.sink.clearHandoff(effect.gameId);
+            sink.clearHandoff(effect.gameId);
+        } else if (effect.type === "store_handoff") {
+            sink.storeHandoff(effect.gameId, effect.handoff);
+        } else if (effect.type === "redirect_to_lobby") {
+            sink.leaveToLobby();
         } else {
-            this.deps.sink.leaveToLobby();
+            sink.openGame(effect.gameId, effect.gameClientUrl);
+        }
+    }
+
+    /**
+     * Ask the lobby for the player's game and hand its answer to the dispatcher; a request that fails is an answer
+     * too, but one cancelled by dispose is dropped.
+     */
+    private async recover(): Promise<void> {
+        const { signal } = this.recovery;
+        const recovery = await this.deps
+            .recoverHandoff(signal)
+            .catch((error: unknown) => failedRecovery(error, signal));
+        if (recovery !== null) {
+            this.dispatch({ at: this.deps.clock.now(), kind: "handoff_recovered", recovery });
         }
     }
 
@@ -414,7 +501,7 @@ class GameViewController {
             const at = this.deps.clock.now();
             this.dispatch({
                 at,
-                code: CONNECT_FAILED_CLOSE_CODE,
+                code: CLOSE_CODE.ABNORMAL,
                 kind: "transport_closed",
                 reason,
             });

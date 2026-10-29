@@ -1,0 +1,68 @@
+/* The question leaving mid-game asks and the panel of an end that blocks the board: a title, a line of why, and
+   its buttons, the safe one first and primary. */
+
+.leave-confirm,
+.failure-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 22rem;
+    text-align: center;
+
+    p {
+        margin: 0;
+    }
+}
+
+.leave-confirm__title,
+.failure-panel__title {
+    font-family: var(--ronin-font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--pico-color);
+}
+
+.failure-panel__title {
+    color: var(--ronin-danger);
+}
+
+.leave-confirm__detail,
+.failure-panel__detail {
+    font-size: 0.9rem;
+    color: var(--ronin-text-secondary);
+}
+
+.leave-confirm__actions,
+.failure-panel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+
+    button {
+        width: auto;
+        min-width: 6rem;
+        min-height: 2.75rem;
+        margin: 0;
+        padding: 0.25rem 1rem;
+        touch-action: manipulation;
+    }
+}
+
+.leave-confirm__actions button.leave-confirm__leave {
+    &,
+    &:hover,
+    &:focus,
+    &:active {
+        --pico-background-color: transparent;
+        --pico-border-color: var(--ronin-danger);
+        --pico-color: var(--ronin-danger);
+    }
+
+    &:hover,
+    &:focus-visible {
+        --pico-background-color: color-mix(in srgb, var(--ronin-danger) 15%, transparent);
+    }
+}

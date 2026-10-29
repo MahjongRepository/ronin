@@ -1,10 +1,15 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
 import { type Route, lazyRoute, startRouter } from "@/router";
-import { fetchReplay } from "@/shared/api";
+import { fetchGameHandoff, fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
-import { getLobbyUrl, isDebugRequested } from "@/shared/config";
-import { clearSessionData, getGameSession } from "@/shared/session";
+import { gamePageUrl, getLobbyUrl, isDebugRequested } from "@/shared/config";
+import {
+    type GameSessionData,
+    clearSessionData,
+    getGameSession,
+    storeGameSession,
+} from "@/shared/session";
 import { GameSocket } from "@/shared/websocket";
 import { type GameViewDeps, mountGameView } from "@/views/game";
 import type * as StorybookRoutes from "@/views/storybook-routes";
@@ -13,13 +18,33 @@ function leaveToLobby(): void {
     window.location.replace(getLobbyUrl());
 }
 
+/** Keep a recovered handoff for a reload, as the lobby would have; storage that refuses it only costs a refetch. */
+function storeHandoff(gameId: string, handoff: GameSessionData): void {
+    try {
+        storeGameSession(gameId, handoff.wsUrl, handoff.gameTicket);
+    } catch (error: unknown) {
+        console.warn("The recovered game session holds for this page only:", error);
+    }
+}
+
+function openGame(gameId: string, gameClientUrl: string): void {
+    window.location.replace(gamePageUrl(gameClientUrl, gameId, window.location.search));
+}
+
 function liveGameDeps(gameId: string): GameViewDeps {
     return {
         clock: browserClock,
         connect: (url, handlers) => new GameSocket(url, handlers),
         debug: isDebugRequested(window.location.search),
         handoff: getGameSession(gameId),
-        sink: { clearHandoff: clearSessionData, leaveToLobby },
+        recoverHandoff: fetchGameHandoff,
+        sink: {
+            clearHandoff: clearSessionData,
+            leaveToLobby,
+            openGame,
+            reload: () => window.location.reload(),
+            storeHandoff,
+        },
     };
 }
 

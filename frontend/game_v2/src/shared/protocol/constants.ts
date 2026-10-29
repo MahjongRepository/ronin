@@ -211,11 +211,16 @@ export type SessionErrorCode = (typeof SESSION_ERROR_CODE)[keyof typeof SESSION_
  * refuses the action and changes nothing, and `stale_action` answers one that echoed the id of a wait that ended.
  */
 export const GAME_ERROR_CODE = {
+    NOT_YOUR_TURN: "not_your_turn",
     STALE_ACTION: "stale_action",
 } as const;
 
-/** The WebSocket close codes the client acts on, as `backend/game/session/manager.py` sends them. */
+/**
+ * The WebSocket close codes the client acts on, as `backend/game/session/manager.py` sends them, and 1006, what a
+ * browser reports for a connection lost without a close frame, which the client reports for its own failed connects.
+ */
 export const CLOSE_CODE = {
+    ABNORMAL: 1006,
     INVALID_GAME_ACTION: 1008,
     REPLACED_BY_NEW_CONNECTION: 4002,
 } as const;

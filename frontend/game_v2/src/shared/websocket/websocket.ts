@@ -1,7 +1,7 @@
 import { decode, encode } from "@msgpack/msgpack";
 
 import { type CancelTimer, type Clock, browserClock } from "@/shared/clock";
-import { type ClientMessage } from "@/shared/protocol";
+import { CLOSE_CODE, type ClientMessage } from "@/shared/protocol";
 
 /** What one socket reports; after `onClose` it reports nothing more. */
 export interface SocketHandlers {
@@ -19,8 +19,8 @@ export interface GameConnection {
 
 export type ConnectSocket = (url: string, handlers: SocketHandlers) => GameConnection;
 
-/** The close the silence watchdog reports: 1006, what a browser reports for a connection lost without a close frame. */
-const SERVER_SILENT_CLOSE = { code: 1006, reason: "server_silent" } as const;
+/** The close the silence watchdog reports: what a browser reports for a connection lost without a close frame. */
+const SERVER_SILENT_CLOSE = { code: CLOSE_CODE.ABNORMAL, reason: "server_silent" } as const;
 
 const SERVER_SILENCE_LIMIT_MS = 90_000;
 const SILENCE_CHECK_INTERVAL_MS = 5000;

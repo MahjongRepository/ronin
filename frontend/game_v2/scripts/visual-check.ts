@@ -296,12 +296,30 @@ const PAGES: readonly PageCase[] = [
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("last_result", [".round-end-result__confirm"]),
+    decisionCase("connection_lost", [".board-notice--warning"]),
+    decisionCase("move_refused", [".board-notice--warning", ".hand-tile--selectable"]),
+    decisionCase("kicked", [".failure-panel__leave"]),
+    decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     {
         countdown: false,
         kind: "panel",
         name: "rotate-waiting",
         path: "/play/storybook/rotate?state=waiting",
         required: { visible: [".rotate-panel", ".rotate-panel .connection-status"] },
+    },
+    {
+        countdown: false,
+        kind: "panel",
+        name: "rotate-leave",
+        path: "/play/storybook/rotate?state=leave",
+        required: { visible: [".rotate-panel", ".rotate-panel .leave-confirm__leave"] },
+    },
+    {
+        countdown: false,
+        kind: "panel",
+        name: "rotate-ended",
+        path: "/play/storybook/rotate?state=ended",
+        required: { visible: [".rotate-panel", ".rotate-panel .failure-panel__reload"] },
     },
     {
         countdown: true,
@@ -806,7 +824,13 @@ async function isShown(page: Page, selector: string): Promise<boolean> {
 }
 
 async function checkPanel(page: Page, countdown: boolean, report: PageReport): Promise<string> {
-    await checkVisible(page, [".rotate-panel__title", ".rotate-panel__leave"], report);
+    const title = ".rotate-panel__title, .rotate-panel .failure-panel__title";
+    const wayBack = [
+        ".rotate-panel__leave:not([hidden])",
+        ".rotate-panel .leave-confirm__leave",
+        ".rotate-panel .failure-panel__leave",
+    ].join(", ");
+    await checkVisible(page, [title, wayBack], report);
     const seconds = page.locator(".rotate-panel__seconds");
     report.expect(
         (await seconds.count()) === (countdown ? 1 : 0),

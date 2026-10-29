@@ -226,13 +226,16 @@ function sentStep(
     return { effects, event: { at, intent: answeringIntent(message), kind: "intent" }, label };
 }
 
-/** A close as the step the client takes it in: one the contract makes terminal leaves for the lobby. */
+/**
+ * A close as the step the client takes it in: after one the contract makes terminal the client stops reconnecting and
+ * forgets the handoff, staying on the page to say why.
+ */
 function closedStep(
     { at, code, label, reason }: Extract<TranscriptEvent, { kind: "closed" }>,
     gameId: string,
 ): ScenarioStep {
     const effects: ClientEffect[] = TERMINAL_CLOSE_CODES.has(code)
-        ? [{ gameId, type: "clear_handoff" }, { type: "redirect_to_lobby" }]
+        ? [{ gameId, type: "clear_handoff" }]
         : [];
     return { effects, event: { at, code, kind: "transport_closed", reason }, label };
 }
@@ -364,7 +367,7 @@ function drivenSteps(transcript: SeatTranscript, handoff: GameSessionData): Scen
  * transcript and the contract, never from the client under test: every message the transcript records sent, at its
  * recorded time (an answer or a round confirm as the intent choosing it, a message the client sends on its own as a
  * tick then, a JOIN_GAME or RECONNECT as the effect of the open before it), a socket reopened at its recorded open,
- * the lobby after a terminal close, and nothing else. An automatic send the client makes early, late or never is a
+ * the handoff forgotten after a terminal close, and nothing else. An automatic send the client makes early, late or never is a
  * mismatch.
  */
 export function seatScenarioFromTranscript(

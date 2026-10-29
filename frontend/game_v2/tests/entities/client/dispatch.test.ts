@@ -157,7 +157,6 @@ describe("stepGameClient", () => {
             "open_socket",
             "send",
             "clear_handoff",
-            "redirect_to_lobby",
         ]);
         expect(result.deadline).toBeNull();
     });

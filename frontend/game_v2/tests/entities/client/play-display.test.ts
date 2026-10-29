@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 
+import { clientEvent, clientScenario } from "#tests/fixtures/scenario";
 import { checkpointState } from "#tests/fixtures/seat-transcripts";
+import {
+    WIRE_GAME_RECONNECTED,
+    WIRE_GAME_STARTED,
+    wireGameError,
+    wireSessionError,
+} from "#tests/fixtures/wire";
 import {
     type GameClientState,
     NO_PLAY_UI,
     type PlayDisplay,
     nextCountdownChange,
+    nextDeadline,
     nextPlayUi,
     playDisplay,
     stepGameClient,
@@ -191,6 +199,169 @@ describe("playDisplay", () => {
             0,
             [],
             null,
+        ]);
+    });
+});
+
+function noticeTexts(state: GameClientState): string[] {
+    return playDisplay(state, NO_PLAY_UI).notices.map((notice) => notice.text);
+}
+
+function playingScenario(): ReturnType<typeof clientScenario> {
+    const scenario = clientScenario();
+    scenario.step(clientEvent.opened(0));
+    scenario.step(clientEvent.message(0, WIRE_GAME_STARTED));
+    return scenario;
+}
+
+describe("playDisplay notices", () => {
+    it("shows a dropped connection until the snapshot, then that the seat is back for 3 s", () => {
+        const scenario = playingScenario();
+        const shown: string[][] = [];
+        for (const event of [
+            clientEvent.closed(100, 1006),
+            clientEvent.tick(1100),
+            clientEvent.opened(1200),
+            clientEvent.message(1300, WIRE_GAME_RECONNECTED),
+            clientEvent.tick(4299),
+            clientEvent.tick(4300),
+        ]) {
+            scenario.step(event);
+            shown.push(noticeTexts(scenario.state));
+        }
+
+        const lost = ["Connection lost. Reconnecting…"];
+        expect(shown).toEqual([lost, lost, lost, ["Reconnected"], ["Reconnected"], []]);
+    });
+
+    it("replaces that the seat is back with the loss when the socket drops again within its 3 s", () => {
+        const scenario = playingScenario();
+        scenario.step(clientEvent.closed(100, 1006));
+        scenario.step(clientEvent.tick(1100));
+        scenario.step(clientEvent.opened(1200));
+        scenario.step(clientEvent.message(1300, WIRE_GAME_RECONNECTED));
+
+        scenario.step(clientEvent.closed(2000, 1006));
+
+        expect(noticeTexts(scenario.state)).toEqual(["Connection lost. Reconnecting…"]);
+    });
+
+    it("shows no loss and no return when a page only resumes its seat, as after a reload", () => {
+        const scenario = clientScenario();
+        const shown: string[][] = [];
+        for (const event of [
+            clientEvent.opened(100),
+            clientEvent.message(200, wireSessionError("join_game_already_started")),
+            clientEvent.message(300, WIRE_GAME_RECONNECTED),
+        ]) {
+            scenario.step(event);
+            shown.push(noticeTexts(scenario.state));
+        }
+
+        expect(shown).toEqual([[], [], []]);
+    });
+
+    it("says the game cannot be reached from the first failed connect, steadily across the retries", () => {
+        const scenario = clientScenario();
+        const shown: string[][] = [noticeTexts(scenario.state)];
+        for (const event of [
+            clientEvent.tick(10_000),
+            clientEvent.tick(11_000),
+            clientEvent.closed(11_500, 1006),
+            clientEvent.tick(13_500),
+            clientEvent.opened(13_600),
+        ]) {
+            scenario.step(event);
+            shown.push(noticeTexts(scenario.state));
+        }
+
+        const unreachable = ["Cannot reach the game. Retrying…"];
+        expect(shown).toEqual([[], ...Array.from({ length: 5 }, () => unreachable)]);
+    });
+
+    it("shows a refused move or a rate-limited one until it expires, but never a stale one", () => {
+        const scenario = playingScenario();
+
+        scenario.step(clientEvent.message(100, wireGameError("stale_action")));
+        expect(noticeTexts(scenario.state)).toEqual([]);
+        scenario.step(clientEvent.message(200, wireGameError("invalid_discard")));
+        expect([noticeTexts(scenario.state), nextDeadline(scenario.state)]).toEqual([
+            ["That move was refused"],
+            4200,
+        ]);
+        scenario.step(clientEvent.message(300, wireSessionError("rate_limited")));
+        expect(noticeTexts(scenario.state)).toEqual(["Too fast. Try that again"]);
+        scenario.step(clientEvent.tick(4300));
+        expect([noticeTexts(scenario.state), nextDeadline(scenario.state)]).toEqual([[], null]);
+    });
+
+    it("keeps a server message it cannot read on the board until a reconnect's snapshot rebuilds the table", () => {
+        const scenario = playingScenario();
+
+        scenario.step(clientEvent.message(100, { t: 999 }));
+        scenario.step(clientEvent.message(200, { t: 999 }));
+        expect(noticeTexts(scenario.state)).toEqual([
+            "2 server messages could not be read; the table may be wrong",
+        ]);
+        scenario.step(clientEvent.closed(300, 1006));
+        scenario.step(clientEvent.tick(1300));
+        scenario.step(clientEvent.opened(1400));
+        scenario.step(clientEvent.message(1500, WIRE_GAME_RECONNECTED));
+
+        expect(noticeTexts(scenario.state)).toEqual(["Reconnected"]);
+    });
+
+    it("blocks the board with why a kick ended the session, dropping its notices, and leaves without asking", () => {
+        const scenario = playingScenario();
+        scenario.step(clientEvent.message(100, wireGameError("invalid_discard")));
+
+        scenario.step(clientEvent.closed(200, 1008));
+        const display = playDisplay(scenario.state, { ...NO_PLAY_UI, confirmingLeave: true });
+
+        expect(display.failure).toEqual({
+            detail: "The server ended your session after a move it could not accept.",
+            reload: false,
+            title: "Removed from the game",
+        });
+        expect(display.notices).toEqual([]);
+        expect(display.leave).toEqual({
+            command: { intent: { type: "leave" }, kind: "intent" },
+            confirming: false,
+        });
+    });
+});
+
+describe("playDisplay leave", () => {
+    it("asks before leaving a held seat, and the player can take the question back", () => {
+        const { state } = playingScenario();
+        const asked = nextPlayUi(state, NO_PLAY_UI, { kind: "ask_leave" });
+
+        expect(playDisplay(state, NO_PLAY_UI).leave).toEqual({
+            command: { kind: "ask_leave" },
+            confirming: false,
+        });
+        expect(playDisplay(state, asked).leave.confirming).toBe(true);
+        expect(nextPlayUi(state, asked, { kind: "cancel_leave" })).toEqual(NO_PLAY_UI);
+    });
+});
+
+describe("playDisplay failure", () => {
+    it("tells a seat taken over by another connection from a refused resume, offering a reload only where it helps", () => {
+        const failures = [
+            clientEvent.closed(100, 4002),
+            clientEvent.message(100, wireSessionError("reconnect_already_active")),
+            clientEvent.message(100, wireSessionError("reconnect_no_session")),
+        ].map((event) => {
+            const scenario = playingScenario();
+            scenario.step(event);
+            const { failure } = playDisplay(scenario.state, NO_PLAY_UI);
+            return [failure?.title, failure?.reload];
+        });
+
+        expect(failures).toEqual([
+            ["Opened elsewhere", false],
+            ["Session error", true],
+            ["Game unavailable", true],
         ]);
     });
 });

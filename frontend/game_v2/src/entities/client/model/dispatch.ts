@@ -28,7 +28,13 @@ import {
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
-import { answerDecision, expireDecision, followDecision, openDecision } from "./decision";
+import {
+    answerDecision,
+    expireDecision,
+    followDecision,
+    openDecision,
+    refusesSubmission,
+} from "./decision";
 import {
     type ClientEvent,
     type ClientStep,
@@ -37,15 +43,22 @@ import {
     type LocalIntent,
     type PlayIntent,
     type RoundConfirm,
+    type TimedNotice,
     type TracedStep,
 } from "./types";
 
 const MS_PER_SECOND = 1000;
 const CONFIRMED: RoundConfirm = { kind: "confirmed" };
 const FINAL: RoundConfirm = { kind: "final" };
+const RECONNECTED_NOTICE_MS = 3000;
+const REFUSED_NOTICE_MS = 4000;
 
 function untraced(step: ClientStep): TracedStep {
     return { ...step, parsed: null, partial: false };
+}
+
+function reportUnreadMessage(state: GameClientState, detail: string): TracedStep {
+    return reportParseError({ ...state, unreadMessages: state.unreadMessages + 1 }, detail);
 }
 
 function reportParseError(state: GameClientState, detail: string): TracedStep {
@@ -61,10 +74,26 @@ function canSend(session: SessionState | null): boolean {
     return session !== null && session.status === "playing" && session.link === "open";
 }
 
+function isLinked(session: SessionState): boolean {
+    return session.status !== "ended" && session.status !== "recovering" && session.link !== "down";
+}
+
+/**
+ * The timed notice a session keeps: none once it ended, and the seat's return only while the seat is held, so a
+ * second drop replaces it with its own notice.
+ */
+function keptNotice(notice: TimedNotice | null, session: SessionState): TimedNotice | null {
+    if (session.status === "ended") {
+        return null;
+    }
+    return notice?.kind === "reconnected" && session.status !== "playing" ? null : notice;
+}
+
 /**
  * Step the session, then drop what the session can no longer send: a round confirm (but the game's last result, which
  * sends nothing), and the open decision once the socket drops, since the reconnect re-sends any wait the server still
- * owes the seat and its snapshot says whether the round confirm is still owed. A replay has no session.
+ * owes the seat and its snapshot says whether the round confirm is still owed; and the notices it outdates. A replay
+ * has no session.
  */
 function withSession(state: GameClientState, input: SessionInput): ClientStep {
     if (state.session === null) {
@@ -72,12 +101,12 @@ function withSession(state: GameClientState, input: SessionInput): ClientStep {
     }
     const step = stepSession(state.session, input);
     const sendable = canSend(step.state);
-    const linked = step.state.status !== "ended" && step.state.link !== "down";
     return {
         effects: step.effects,
         state: {
             ...state,
-            decision: linked ? state.decision : null,
+            decision: isLinked(step.state) ? state.decision : null,
+            notice: keptNotice(state.notice, step.state),
             roundConfirm:
                 sendable || state.roundConfirm?.kind === "final" ? state.roundConfirm : null,
             session: step.state,
@@ -249,10 +278,45 @@ function withRoundConfirm(state: GameClientState, message: ParsedServerMessage):
     return { ...state, roundConfirm: followRoundConfirm(roundConfirm, message) };
 }
 
+/**
+ * The notice a message raises, from the session it found (`before`) and the one it left (`state`'s): the seat is back
+ * after a reconnect's snapshot, when this page lost it to a drop; a move refused while the seat plays, as the
+ * decision reads a refusal. Null for any other message.
+ */
+function messageNotice(
+    before: SessionState | null,
+    state: GameClientState,
+    message: ParsedServerMessage,
+): TimedNotice | null {
+    const { now, session } = state;
+    if (message.type === "game_reconnected") {
+        const lostSeat = before?.status === "reconnecting" && before.lostSeat;
+        return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
+    }
+    if (session?.status !== "playing" || !refusesSubmission(message)) {
+        return null;
+    }
+    return { code: message.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
+}
+
+/**
+ * The notices a message leaves: the one it raises, if any; and a snapshot rebuilds the table, so the messages read
+ * wrong before it no longer count.
+ */
+function withNotice(
+    before: SessionState | null,
+    state: GameClientState,
+    message: ParsedServerMessage,
+): GameClientState {
+    const notice = messageNotice(before, state, message);
+    const unreadMessages = message.type === "game_reconnected" ? 0 : state.unreadMessages;
+    return { ...state, notice: notice ?? state.notice, unreadMessages };
+}
+
 function onServerMessage(state: GameClientState, raw: Record<string, unknown>): TracedStep {
     const [error, message] = parseServerMessage(raw);
     if (error) {
-        return reportParseError(state, error.message);
+        return reportUnreadMessage(state, error.message);
     }
     const step = withSession(state, { at: state.now, kind: "message", message });
     const tableEvent = serverTableEvent(message);
@@ -260,7 +324,8 @@ function onServerMessage(state: GameClientState, raw: Record<string, unknown>): 
         tableEvent === null
             ? step.state
             : { ...step.state, table: applyEvent(step.state.table, tableEvent) };
-    const next = withRoundConfirm(withDecision(withViewer(tabled, message), message), message);
+    const decided = withDecision(withViewer(tabled, message), message);
+    const next = withNotice(state.session, withRoundConfirm(decided, message), message);
     return { effects: step.effects, parsed: message, partial: false, state: next };
 }
 
@@ -381,6 +446,30 @@ function onIntent(state: GameClientState, intent: LocalIntent): ClientStep {
     }
 }
 
+/** The session's own input a transport event or the lobby's answer for the handoff is. */
+function sessionInput(
+    event: Extract<
+        ClientEvent,
+        { kind: "transport_opened" | "transport_closed" | "handoff_recovered" }
+    >,
+): SessionInput {
+    switch (event.kind) {
+        case "transport_opened": {
+            return { at: event.at, kind: "transport_opened" };
+        }
+        case "transport_closed": {
+            const { at, code, reason } = event;
+            return { at, code, kind: "transport_closed", reason };
+        }
+        case "handoff_recovered": {
+            return { at: event.at, kind: "handoff_recovered", recovery: event.recovery };
+        }
+        default: {
+            return assertNever(event);
+        }
+    }
+}
+
 function stepEvent(timed: GameClientState, event: ClientEvent): TracedStep {
     switch (event.kind) {
         case "server_message": {
@@ -389,12 +478,10 @@ function stepEvent(timed: GameClientState, event: ClientEvent): TracedStep {
         case "replay_line": {
             return onReplayLine(timed, event.raw);
         }
-        case "transport_opened": {
-            return untraced(withSession(timed, { at: event.at, kind: "transport_opened" }));
-        }
-        case "transport_closed": {
-            const { at, code, reason } = event;
-            return untraced(withSession(timed, { at, code, kind: "transport_closed", reason }));
+        case "transport_opened":
+        case "transport_closed":
+        case "handoff_recovered": {
+            return untraced(withSession(timed, sessionInput(event)));
         }
         case "transport_error": {
             return { effects: [], parsed: null, partial: false, state: timed };
@@ -415,22 +502,27 @@ function emptyClient(at: number, session: SessionState | null): GameClientState 
     return {
         decision: null,
         furiten: false,
+        notice: null,
         now: at,
         roundConfirm: null,
         session,
         table: createInitialTableState(),
         timer: null,
+        unreadMessages: 0,
         viewerSeat: null,
     };
 }
 
-/** Begin the game client at logical time `at` from the lobby's handoff, or null when the tab holds none. */
+/**
+ * Begin the game client at logical time `at` from the lobby's handoff, or, when the tab holds none, by asking the
+ * lobby for it.
+ */
 export function startGameClient(
     gameId: string,
     handoff: GameSessionData | null,
     at: number,
 ): ClientStep {
-    const step = startSession(gameId, handoff);
+    const step = startSession(gameId, handoff, at);
     return { effects: step.effects, state: emptyClient(at, step.state) };
 }
 
@@ -440,30 +532,42 @@ export function startReplayClient(at: number): GameClientState {
 }
 
 /**
- * When the client next needs a tick: the earlier of its pending retry and its open decision's deadline, or null. A
- * round confirm's deadline needs none: the client never confirms on its own, and its countdown reads `now`.
+ * When the client next needs a tick: the earliest of its session's deadline, its open decision's and its notice's
+ * expiry, or null. A round confirm's deadline needs none: the client never confirms on its own, and its countdown
+ * reads `now`.
  */
 export function nextDeadline(state: GameClientState): number | null {
-    const { decision, session } = state;
+    const { decision, notice, session } = state;
     const decisionDue = decision?.status.kind === "open" ? decision.deadline : null;
-    const deadlines = [session === null ? null : sessionDeadline(session), decisionDue].filter(
-        (deadline) => deadline !== null,
-    );
+    const deadlines = [
+        session === null ? null : sessionDeadline(session),
+        decisionDue,
+        notice?.until ?? null,
+    ].filter((deadline) => deadline !== null);
     return deadlines.length === 0 ? null : Math.min(...deadlines);
 }
 
 /** End the client because its driver failed while stepping it; nothing is pending afterwards. */
 export function failGameClient(state: GameClientState, detail: string): GameClientState {
     const session = state.session === null ? null : failSession(state.session, detail);
-    return { ...state, decision: null, roundConfirm: null, session };
+    return { ...state, decision: null, notice: null, roundConfirm: null, session };
+}
+
+/** The state at logical time `at`: an open decision past its deadline expired, a notice past its time gone. */
+function expireAt(state: GameClientState, at: number): GameClientState {
+    const { decision, notice } = state;
+    const current = decision === null ? null : expireDecision(decision, at);
+    const shown = notice !== null && at >= notice.until ? null : notice;
+    return current === decision && shown === notice
+        ? state
+        : { ...state, decision: current, notice: shown };
 }
 
 /** One part of the dispatcher's step with what it took of its event, as parsed. */
 function traceGameClientPart(state: GameClientState, event: ClientEvent): TracedStep {
     const step = stepEvent({ ...state, now: event.at }, event);
-    const { decision } = step.state;
-    const current = decision === null ? null : expireDecision(decision, event.at);
-    return current === decision ? step : { ...step, state: { ...step.state, decision: current } };
+    const expired = expireAt(step.state, event.at);
+    return expired === step.state ? step : { ...step, state: expired };
 }
 
 /**

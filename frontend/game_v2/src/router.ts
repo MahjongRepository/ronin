@@ -51,6 +51,21 @@ export function lazyRoute(pattern: RegExp, load: () => Promise<Mount>): Route {
     };
 }
 
+/** A route's parameters as the path carries them percent-encoded, decoded; null for one that does not decode. */
+function decodeParams(groups: Record<string, string> | undefined): Record<string, string> | null {
+    try {
+        return Object.fromEntries(
+            Object.entries(groups ?? {}).map(([name, value]) => [name, decodeURIComponent(value)]),
+        );
+    } catch (error: unknown) {
+        if (error instanceof URIError) {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/** The first route matching `path`, with its decoded parameters; none when no route matches or they do not decode. */
 function matchRoute(
     routes: readonly Route[],
     path: string,
@@ -58,7 +73,8 @@ function matchRoute(
     for (const route of routes) {
         const match = path.match(route.pattern);
         if (match) {
-            return { params: { ...match.groups }, route };
+            const params = decodeParams(match.groups);
+            return params === null ? undefined : { params, route };
         }
     }
     return undefined;

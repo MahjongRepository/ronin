@@ -2,6 +2,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import {
     type ClientEffect,
+    type ClientEvent,
     type GameClientState,
     NO_PLAY_UI,
     PlayBoard,
@@ -43,11 +44,14 @@ interface DecisionStory {
     readonly label: string;
     readonly pickRiichi: boolean;
     readonly resultPage: number;
+    /** What happens next, stepped on the checkpoint's state: a drop, a refusal, a kick. */
+    readonly followUp?: (state: GameClientState) => readonly ClientEvent[];
+    readonly confirmingLeave?: boolean;
 }
 
 /**
- * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, then the round
- * results the player confirms.
+ * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, the round
+ * results the player confirms, then the session's notices, a kick and the leave question.
  */
 const STORY_KEYS = [
     "call_prompt",
@@ -64,6 +68,10 @@ const STORY_KEYS = [
     "waiting",
     "reconnect_owed",
     "last_result",
+    "connection_lost",
+    "move_refused",
+    "kicked",
+    "leave_confirm",
 ] as const;
 
 type DecisionStoryKey = (typeof STORY_KEYS)[number];
@@ -73,17 +81,45 @@ function checkpoint(transcript: TranscriptName, label: string, title: string): D
     return { label, pickRiichi: false, resultPage: 0, title, transcript };
 }
 
+/** The kuikae turn's first tile the player may discard, discarded, and the game's refusal of it. */
+function refusedDiscard(state: GameClientState): readonly ClientEvent[] {
+    const [intent] = playDisplay(state, NO_PLAY_UI).tileIntents.values();
+    const at = state.now + 500;
+    const refusal = { cd: "invalid_discard", msg: "invalid discard", t: 7 };
+    return [
+        { at, intent, kind: "intent" },
+        { at: at + 100, kind: "server_message", raw: refusal },
+    ];
+}
+
+function closedWith(code: number): (state: GameClientState) => readonly ClientEvent[] {
+    return (state) => [{ at: state.now + 500, code, kind: "transport_closed", reason: "" }];
+}
+
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
     chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),
+    connection_lost: {
+        ...checkpoint("call_prompt_seat_1", "turn", "Connection lost"),
+        followUp: closedWith(1006),
+    },
     double_ron_first: checkpoint("double_ron_seat_1", "round end", "Double ron 1/2"),
     double_ron_last: {
         ...checkpoint("double_ron_seat_1", "round end", "Double ron 2/2"),
         resultPage: 1,
     },
+    kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
+    leave_confirm: {
+        ...checkpoint("call_prompt_seat_1", "turn", "Leave?"),
+        confirmingLeave: true,
+    },
+    move_refused: {
+        ...checkpoint("call_prompt_seat_1", "turn", "Move refused"),
+        followUp: refusedDiscard,
+    },
     own_turn: checkpoint("own_turn_seat_1", "first draw", "Own turn"),
     reconnect_owed: checkpoint("double_ron_seat_1", "reconnected", "Reconnect owed"),
     riichi_pick: {
@@ -117,11 +153,18 @@ function checkpointState(transcriptName: TranscriptName, label: string): GameCli
 }
 
 function storyScreen(key: DecisionStoryKey): StoryScreen {
-    const { label, pickRiichi, resultPage, transcript } = DECISION_STORIES[key];
-    const state = checkpointState(transcript, label);
-    const picked = pickRiichi
-        ? { ...NO_PLAY_UI, riichiPickWaitId: state.decision?.waitId ?? null }
-        : NO_PLAY_UI;
+    const { confirmingLeave, followUp, label, pickRiichi, resultPage, transcript } =
+        DECISION_STORIES[key];
+    const reached = checkpointState(transcript, label);
+    const state = (followUp?.(reached) ?? []).reduce(
+        (current, event) => stepGameClient(current, event).state,
+        reached,
+    );
+    const picked = {
+        ...NO_PLAY_UI,
+        confirmingLeave: confirmingLeave ?? false,
+        riichiPickWaitId: pickRiichi ? (state.decision?.waitId ?? null) : null,
+    };
     const ui = nextPlayUi(state, picked, { kind: "show_result_page", page: resultPage });
     return { sent: [], state, story: key, ui };
 }

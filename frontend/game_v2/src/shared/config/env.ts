@@ -12,3 +12,11 @@ export function isDebugRequested(search: string): boolean {
     const value = new URLSearchParams(search).get("debug");
     return value !== null && !DEBUG_OFF_VALUES.has(value.toLowerCase());
 }
+
+/**
+ * A game's page under the game client's URL the lobby named, with the current page's query, so the v2 client
+ * (`?v=2`) and `?debug` carry over; the router decodes the id back.
+ */
+export function gamePageUrl(gameClientUrl: string, gameId: string, search: string): string {
+    return `${gameClientUrl}/${encodeURIComponent(gameId)}${search}`;
+}

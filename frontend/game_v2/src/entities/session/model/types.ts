@@ -1,3 +1,4 @@
+import { type HandoffRecovery } from "@/shared/api";
 import { type ClientMessage, type ParsedServerMessage } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
@@ -32,15 +33,37 @@ export interface ActiveSession {
     readonly link: LinkState;
     readonly retry: PendingRetry | null;
     readonly attempts: RetryAttempts;
+    /** While the socket opens: when the attempt counts as failed if it has not opened by then; else null. */
+    readonly connectDeadline: number | null;
+    /** The seat this page held dropped with its socket and is not held again yet: what the player sees as lost. */
+    readonly lostSeat: boolean;
+}
+
+/**
+ * A page whose tab held no handoff, asking the lobby for the player's game before it can join: the lookup is in
+ * flight, or, after `failedLookups` failed, waits until `retryAt` to ask again.
+ */
+export interface RecoveringSession {
+    readonly status: "recovering";
+    readonly gameId: string;
+    readonly failedLookups: number;
+    readonly retryAt: number | null;
 }
 
 export type EndReason =
     | { readonly kind: "game_ended" }
     | { readonly kind: "no_handoff" }
+    | { readonly kind: "recovery_failed"; readonly detail: string }
+    | { readonly kind: "moved"; readonly gameId: string }
     | { readonly kind: "left" }
     | { readonly kind: "closed"; readonly code: number; readonly reason: string }
     | { readonly kind: "refused"; readonly code: string }
-    | { readonly kind: "retries_exhausted"; readonly retry: RetryKind }
+    | {
+          readonly kind: "retries_exhausted";
+          readonly retry: RetryKind;
+          /** The game had started with the seat (the session was reconnecting), so an AI plays it meanwhile. */
+          readonly gameStarted: boolean;
+      }
     | { readonly kind: "failed"; readonly detail: string };
 
 /**
@@ -53,7 +76,7 @@ export interface EndedSession {
     readonly reason: EndReason;
 }
 
-export type SessionState = ActiveSession | EndedSession;
+export type SessionState = RecoveringSession | ActiveSession | EndedSession;
 
 /** What the session is driven by; `at` is the logical time the driver stamped from its clock. */
 export type SessionInput =
@@ -66,7 +89,12 @@ export type SessionInput =
           readonly reason: string;
       }
     | { readonly kind: "tick"; readonly at: number }
-    | { readonly kind: "leave"; readonly at: number };
+    | { readonly kind: "leave"; readonly at: number }
+    | {
+          readonly kind: "handoff_recovered";
+          readonly at: number;
+          readonly recovery: HandoffRecovery;
+      };
 
 /**
  * A description of IO for the live driver to run in order; the transition never runs one. Timers are not
@@ -77,7 +105,14 @@ export type SessionEffect =
     | { readonly type: "close_socket" }
     | { readonly type: "send"; readonly message: ClientMessage }
     | { readonly type: "clear_handoff"; readonly gameId: string }
-    | { readonly type: "redirect_to_lobby" };
+    | { readonly type: "redirect_to_lobby" }
+    | { readonly type: "recover_handoff" }
+    | { readonly type: "store_handoff"; readonly gameId: string; readonly handoff: GameSessionData }
+    | {
+          readonly type: "redirect_to_game";
+          readonly gameId: string;
+          readonly gameClientUrl: string;
+      };
 
 export interface SessionStep {
     readonly state: SessionState;

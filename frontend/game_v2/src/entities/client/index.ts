@@ -29,13 +29,14 @@ export {
     roundConfirmCountdown,
 } from "./model/countdown";
 export type {
+    LeaveControls,
     PlayAction,
     PlayCommand,
     PlayDisplay,
     PlayUi,
     ResultControls,
 } from "./model/play-display";
-export { NO_PLAY_UI, nextPlayUi, playDisplay } from "./model/play-display";
+export { NO_PLAY_UI, failureDisplay, nextPlayUi, playDisplay } from "./model/play-display";
 export type { PlayBoardProps } from "./ui/play-board";
 export { PlayBoard } from "./ui/play-board";
 export type { RotatePanelProps } from "./ui/rotate-panel";

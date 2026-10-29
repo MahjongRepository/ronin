@@ -1,5 +1,6 @@
 import { type SessionEffect, type SessionState } from "@/entities/session";
 import { type KanDeclaredEvent, type TableState } from "@/entities/table";
+import { type HandoffRecovery } from "@/shared/api";
 import {
     type CallType,
     type ClientMessage,
@@ -105,7 +106,20 @@ export type ClientEvent =
       }
     | { readonly kind: "transport_error"; readonly at: number; readonly detail: string }
     | { readonly kind: "tick"; readonly at: number }
-    | { readonly kind: "intent"; readonly at: number; readonly intent: LocalIntent };
+    | { readonly kind: "intent"; readonly at: number; readonly intent: LocalIntent }
+    | {
+          readonly kind: "handoff_recovered";
+          readonly at: number;
+          readonly recovery: HandoffRecovery;
+      };
+
+/**
+ * A short-lived notice to the viewer, shown until `until` in logical time: its seat is back after a reconnect, or the
+ * server refused its last move (by the game's error code, or the socket's rate limit) while the move stays open.
+ */
+export type TimedNotice =
+    | { readonly kind: "reconnected"; readonly until: number }
+    | { readonly kind: "refused"; readonly code: string; readonly until: number };
 
 /**
  * Where the viewer stands with the round result it reads before the next deal. Owed: the server waits on the seat's
@@ -138,6 +152,10 @@ export interface GameClientState {
     readonly furiten: boolean;
     readonly timer: TimerSettings | null;
     readonly roundConfirm: RoundConfirm | null;
+    /** The latest short-lived notice, until it expires or a newer one replaces it. */
+    readonly notice: TimedNotice | null;
+    /** How many server messages the client could not read: the table may be wrong from the first. */
+    readonly unreadMessages: number;
 }
 
 /** The session's IO plus a report of a message or replay line the client could not parse, for the driver to show. */

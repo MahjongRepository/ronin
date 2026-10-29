@@ -11,6 +11,7 @@ import { GameBoard, type TableState, boardOverlay } from "@/entities/table";
 import { Tile } from "@/entities/tile";
 
 import { countdownAnnouncement } from "./rotate-panel";
+import { FailurePanel, LeaveConfirm } from "./session-panels";
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
@@ -134,10 +135,35 @@ function ResultControlsView(
 }
 
 /**
- * The live board: the table from the viewer's seat with its decision's controls in their corner and the table's
- * panel over it, a round's result at the page the display picked with its controls, or the game's last result over
- * the standings until the player dismisses it. A tap on one of the viewer's tiles sends the intent the display gives
- * it, and a tile with none sends nothing; turning the result's page is a command too.
+ * The panel over the board: an end that blocks it, else the question leaving mid-game asks, else the table's own
+ * (seating, a result, the standings).
+ */
+function PlayOverlay(
+    display: PlayDisplay,
+    table: TableState,
+    onCommand: PlayBoardProps["onCommand"],
+): TemplateResult | undefined {
+    if (display.failure !== null) {
+        return FailurePanel(display.failure, onCommand);
+    }
+    if (display.leave.confirming) {
+        return LeaveConfirm(onCommand);
+    }
+    return boardOverlay(table, {
+        controls: ResultControlsView(display.result, onCommand),
+        onPage: (page) => onCommand({ kind: "show_result_page", page }),
+        overStandings: display.resultOverStandings,
+        page: display.resultPage,
+    });
+}
+
+/**
+ * The live board: the table from the viewer's seat with its decision's controls in their corner, its notices over the
+ * table, and a panel over it: an end that blocks the board, the leave question, or the table's own, a round's result
+ * at the page the display picked with its controls, or the game's last result over the standings until the player
+ * dismisses it. A tap on one of the viewer's tiles sends the intent the display gives it, and a tile with none sends
+ * nothing; turning the result's page is a command too. While an end or the leave question blocks the board, the board
+ * under it is inert.
  */
 export function PlayBoard({ display, onCommand, table }: PlayBoardProps): TemplateResult {
     function onTile(tileId: number): void {
@@ -149,13 +175,10 @@ export function PlayBoard({ display, onCommand, table }: PlayBoardProps): Templa
     return GameBoard({
         actions: DecisionControls(display, onCommand),
         debug: false,
+        inert: display.failure !== null || display.leave.confirming,
         localHand: { onTile, tileAction: display.tileAction },
-        overlay: boardOverlay(table, {
-            controls: ResultControlsView(display.result, onCommand),
-            onPage: (page) => onCommand({ kind: "show_result_page", page }),
-            overStandings: display.resultOverStandings,
-            page: display.resultPage,
-        }),
+        notices: display.notices,
+        overlay: PlayOverlay(display, table, onCommand),
         state: display.board,
     });
 }
