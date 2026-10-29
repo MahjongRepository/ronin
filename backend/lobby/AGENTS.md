@@ -51,7 +51,9 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 
 * Every attempt creates the game under a fresh game id (a room's id is not its game's id): a failed
   call may mean the game server created the game anyway, and a retry under the same id would
-  collide with that orphan.
+  collide with that orphan. A call that got no answer withdraws its id before raising (best
+  effort), so the orphan, created or still in flight, does not hold the players as playing until
+  its pending timeout.
 * A failure before the game server confirms creation raises `GameStartError` with a fixed reason
   code; the game server's own text goes only to the log. Each caller recovers its own way: a room
   sends the code, matchmaking `match_failed`. A 409 from the game server is its occupancy backstop

@@ -413,6 +413,26 @@ class TestGameTransition:
             assert ws.receive_json() == {"type": "error", "message": "internal_error"}
             assert room.transitioning is False
 
+    def test_room_websocket__when_the_withdrawal_breaks_too__should_still_clear_transitioning_and_resync(
+        self, client, app, game_server
+    ):
+        room = app.state.room_manager.create_room("broken-client-room")
+        requested_methods: list[str] = []
+
+        def break_every_request(request: httpx.Request) -> httpx.Response:
+            requested_methods.append(request.method)
+            raise RuntimeError("client broken")
+
+        game_server.respond = break_every_request
+
+        with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
+            ws.receive_json()
+            ws.send_text(json.dumps({"type": "start_game"}))
+            assert ws.receive_json()["type"] == "player_ready_changed"
+            assert ws.receive_json() == {"type": "error", "message": "internal_error"}
+            assert room.transitioning is False
+        assert requested_methods == ["POST", "DELETE"]
+
     @pytest.mark.parametrize(
         ("status", "reason"),
         [(500, "game_server_error"), (503, "game_server_full"), (409, "player_in_game")],
@@ -445,24 +465,32 @@ class TestGameTransition:
             assert ws.receive_json()["type"] == "player_ready_changed"
             assert ws.receive_json() == {"type": "error", "message": "game_server_unavailable"}
 
-    def test_room_websocket__when_start_retried_after_ambiguous_failure__should_start_under_a_fresh_game_id(
+    def test_room_websocket__when_start_retried_after_ambiguous_failure__should_withdraw_the_orphan_and_start_anew(
         self, client, app, game_server
     ):
         room = app.state.room_manager.create_room("retry-room")
         created_game_ids: list[str] = []
+        live_game_ids: set[str] = set()
+        bearer = f"Bearer {app.state.settings.internal_api_secret}"
 
-        def create_game(request: httpx.Request) -> httpx.Response:
+        def handle(request: httpx.Request) -> httpx.Response:
+            if request.method == "DELETE":
+                assert request.headers["authorization"] == bearer
+                live_game_ids.discard(request.url.path.removeprefix("/games/"))
+                return httpx.Response(204)
+
+            if live_game_ids:
+                return httpx.Response(409, text="Player already in a game")
+
             game_id = json.loads(request.content)["game_id"]
-            if game_id in created_game_ids:
-                return httpx.Response(409, text="Game already exists")
-
             created_game_ids.append(game_id)
+            live_game_ids.add(game_id)
             if len(created_game_ids) == 1:
                 raise httpx.ReadTimeout("timed out after the game server created the game")
 
             return httpx.Response(201)
 
-        game_server.respond = create_game
+        game_server.respond = handle
 
         with client.websocket_connect(f"/ws/rooms/{room.room_id}") as ws:
             ws.receive_json()

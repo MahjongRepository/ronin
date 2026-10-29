@@ -74,6 +74,7 @@ class _LiveSeat(BaseModel):
 
 
 _PLAYING_LOOKUP_TIMEOUT_SECONDS = 2.0
+_WITHDRAW_TIMEOUT_SECONDS = 2.0
 _HANDOFF_LOOKUP_TIMEOUT_SECONDS = 2.0
 _REPLAY_EXPORT_TIMEOUT_SECONDS = 10.0
 _START_REQUEST_TIMEOUT = httpx.Timeout(10.0)
@@ -132,12 +133,14 @@ async def start_game(  # noqa: PLR0913
 
     Rooms and matchmaking both start games here, each keeping its own recovery. Every attempt gets a fresh game id: a
     failure may mean the game server created the game anyway (a timeout after the POST arrived), and a retry under the
-    same id would collide with that orphan. The same fresh id makes a 409 the occupancy backstop, never a duplicate
-    game. The attempt hands the players to the game whatever its outcome, before the caller releases their seats or
-    queue places. Before the game server's 201 any failure (a cancellation, which only server shutdown causes, aside) is
-    logged and raised as ``GameStartError`` with a fixed reason; the game server's own text goes only to the log. After
-    it the game exists with every signed ticket, so delivery only enqueues: a slow player delays nobody else, and one
-    whose handler has ended gets nothing (the game server replaces a seat nobody joins with AI).
+    same id would collide with that orphan. So a failure without an answer withdraws the id before it is raised, or the
+    orphan would hold the players as playing until its pending timeout. The same fresh id makes a 409 the occupancy
+    backstop, never a duplicate game. The attempt hands the players to the game whatever its outcome, before the caller
+    releases their seats or queue places. Before the game server's 201 any failure (a cancellation, which only server
+    shutdown causes, aside) is logged and raised as ``GameStartError`` with a fixed reason; the game server's own text
+    goes only to the log. After it the game exists with every signed ticket, so delivery only enqueues: a slow player
+    delays nobody else, and one whose handler has ended gets nothing (the game server replaces a seat nobody joins with
+    AI).
     """
     game_id = str(uuid.uuid4())
     log = logger.bind(game_id=game_id)
@@ -164,9 +167,11 @@ async def start_game(  # noqa: PLR0913
         )
     except httpx.RequestError as e:
         log.exception("failed to create game")
+        await _withdraw_game(game_id, settings=settings, game_server=game_server)
         raise GameStartError(_GAME_SERVER_UNAVAILABLE) from e
     except Exception as e:
         log.exception("unexpected error creating game")
+        await _withdraw_game(game_id, settings=settings, game_server=game_server)
         raise GameStartError(_INTERNAL_ERROR) from e
     finally:
         occupancy.hand_to_game(player.user_id for player in players)
@@ -182,6 +187,38 @@ async def start_game(  # noqa: PLR0913
 
     log.info("game transition complete")
     return game_id
+
+
+async def _withdraw_game(game_id: str, *, settings: LobbyServerSettings, game_server: httpx.AsyncClient) -> None:
+    """
+    Ask the game server to drop a game whose creation went unanswered, whether or not the creation landed.
+
+    Best effort, within ``_WITHDRAW_TIMEOUT_SECONDS``: a failure is logged and leaves an orphan, if any, to its pending
+    timeout. The game server keeps a game a player already joined.
+    """
+    log = logger.bind(game_id=game_id)
+    try:
+        async with asyncio.timeout(_WITHDRAW_TIMEOUT_SECONDS):
+            response = await game_server.delete(
+                f"/games/{quote(game_id, safe='')}",
+                headers={"Authorization": f"Bearer {settings.internal_api_secret}"},
+            )
+    except (httpx.HTTPError, TimeoutError) as e:
+        log.warning("game withdrawal failed, an orphan holds its players until its pending timeout", error=repr(e))
+        return
+    except Exception:
+        log.exception("unexpected error withdrawing game, an orphan holds its players until its pending timeout")
+        return
+
+    if response.status_code == HTTPStatus.UNAUTHORIZED:
+        log.error("game server refused the internal API secret: AUTH_INTERNAL_API_SECRET differs between the servers")
+        return
+
+    if response.status_code != HTTPStatus.NO_CONTENT:
+        log.warning("game server kept the withdrawn game", status=response.status_code)
+        return
+
+    log.info("game withdrawn")
 
 
 async def is_user_playing(user_id: str, *, game_server: httpx.AsyncClient) -> bool:

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -41,6 +42,7 @@ from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
 from game.wire.replay_format import ReplaySeatControlReason
+from shared.auth.game_ticket import TICKET_TTL_SECONDS
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
 
@@ -97,6 +99,7 @@ class SessionManager:
         self._timer_config = timer_config if timer_config is not None else TimerConfig()
 
         self._games: dict[str, GameSession] = {}
+        self._withdrawn_game_ids: dict[str, float] = {}
         self._participants_by_ticket: dict[str, Participant] = {}
         self._connections: dict[str, ConnectionProtocol] = {}
         self._bound: dict[str, Participant] = {}
@@ -212,6 +215,9 @@ class SessionManager:
         if game_id in self._games:
             raise ValueError(f"Game {game_id} already exists")
 
+        if game_id in self._withdrawn_game_ids:
+            raise ValueError(f"Game {game_id} was withdrawn")
+
         game = GameSession(game_id=game_id, timer_config=self._timer_config)
         for spec in player_specs:
             participant = Participant(spec=spec, game=game, timer=TurnTimer(self._timer_config))
@@ -221,6 +227,33 @@ class SessionManager:
         self._games[game_id] = game
         game.pending_timeout = self._spawn(self._pending_game_timeout(game))
         logger.info("pending game created", game_id=game_id, expected_count=len(player_specs))
+
+    def withdraw_game(self, game_id: str) -> bool:
+        """
+        Drop a game its creator gave up on, whether or not its creation has arrived; return False when it is kept.
+
+        A pending game nobody has joined is abandoned at once, and the id is refused from then on, so a creation that
+        arrives after the withdrawal never registers. Withdrawn ids are kept for as long as a game ticket lives: an
+        older creation fails its ticket check anyway. A game someone joined, or one already playing, is kept.
+        """
+        now = time.monotonic()
+        self._withdrawn_game_ids = {
+            withdrawn_id: expires_at
+            for withdrawn_id, expires_at in self._withdrawn_game_ids.items()
+            if expires_at > now
+        }
+
+        game = self._games.get(game_id)
+        if game is not None and (game.lifecycle is not GameLifecycle.PENDING or game.connected()):
+            logger.warning("withdrawn game kept, a player already joined it", game_id=game_id)
+            return False
+
+        self._withdrawn_game_ids[game_id] = now + TICKET_TTL_SECONDS
+        if game is not None:
+            logger.info("pending game withdrawn", game_id=game_id)
+            self._end_game(game, GameEndReason.ABANDONED)
+
+        return True
 
     def join_game(self, connection: ConnectionProtocol, *, session_token: str) -> None:
         """

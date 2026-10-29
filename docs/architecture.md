@@ -240,7 +240,7 @@ sequenceDiagram
 * The join that completes the match resolves it, inside that player's handler; the other three are
   only written to.
 * A failed creation is terminal: nobody is requeued, because the game may exist on the game server
-  anyway.
+  anyway (until withdrawn, below).
 * A matched player who disconnects before the game starts keeps the seat; the game server gives a
   no-show seat to AI.
 
@@ -264,6 +264,10 @@ sequenceDiagram
     GS->>GS: verify tickets, refuse user already playing (409), capacity (503)
     GS->>SM: create_pending_game (pending timeout armed)
     GS-->>T: 201
+    opt no answer (timeout, transport error)
+        T->>GS: DELETE /games/{game_id} (internal secret, 2s, best effort)
+        GS->>SM: withdraw_game (abandon if nobody joined, refuse the id from now on)
+    end
     T->>O: hand_to_game(user_ids) (always, success or failure)
     T-->>P: game_starting {ws_url, game_ticket, game_id, game_client_url}
     T-->>P: close 1000
@@ -272,7 +276,11 @@ sequenceDiagram
 
 A failure before the 201 raises `GameStartError` and the caller recovers (room reopens, match
 fails). A fresh id per attempt means a timed-out request that did create the game leaves an orphan
-that times out on its own instead of colliding with a retry.
+instead of colliding with a retry. The orphan would hold its players as playing until its pending
+timeout (a room's retry refused as `player_in_game`, a matchmaking rejoin handed into the orphan),
+so a failure that got no answer withdraws the id first: the game server abandons the game if it
+exists and nobody joined it, and refuses a creation under that id that arrives later. A failed
+withdrawal leaves the orphan to its pending timeout.
 
 ## Game server: a game's life
 
