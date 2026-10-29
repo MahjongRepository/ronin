@@ -184,8 +184,8 @@ function chosenOffer(action: ChosenAction): Offer {
     }
 }
 
-/** The intent that answers a decision by sending `action`, or null for the round confirm the client sends itself. */
-function answeringIntent(action: SentAction): LocalIntent | null {
+/** The intent that sends `action`: the answer to a decision, or the player's confirm of a round result. */
+function answeringIntent(action: SentAction): LocalIntent {
     switch (action.a) {
         case GAME_ACTION.DISCARD: {
             return { tileId: action.ti, type: "discard" };
@@ -194,7 +194,7 @@ function answeringIntent(action: SentAction): LocalIntent | null {
             return { type: "pass" };
         }
         case GAME_ACTION.CONFIRM_ROUND: {
-            return null;
+            return { type: "confirm_result" };
         }
         default: {
             return { offer: chosenOffer(action), type: "choose" };
@@ -211,20 +211,19 @@ function sentEffect(message: SentIdentity | SentAction, handoff: GameSessionData
 }
 
 /**
- * A sent message as the step that makes the client send it: the intent answering the decision with it, or, for a
- * message the client sends on its own (a round confirm, a JOIN_GAME or RECONNECT resent on its open socket), the
- * tick at its recorded time.
+ * A sent message as the step that makes the client send it: the intent choosing it (an answer, a round confirm), or,
+ * for a message the client sends on its own (a JOIN_GAME or RECONNECT resent on its open socket), the tick at its
+ * recorded time.
  */
 function sentStep(
     { at, label, message }: Extract<TranscriptEvent, { kind: "sent" }>,
     handoff: GameSessionData,
 ): ScenarioStep {
     const effects = [sentEffect(message, handoff)];
-    const intent = isIdentity(message) ? null : answeringIntent(message);
-    if (intent === null) {
+    if (isIdentity(message)) {
         return { effects, event: { at, kind: "tick" }, label };
     }
-    return { effects, event: { at, intent, kind: "intent" }, label };
+    return { effects, event: { at, intent: answeringIntent(message), kind: "intent" }, label };
 }
 
 /** A close as the step the client takes it in: one the contract makes terminal leaves for the lobby. */
@@ -363,9 +362,10 @@ function drivenSteps(transcript: SeatTranscript, handoff: GameSessionData): Scen
  * The seat scenario a transcript describes. The converter drives the client as the live driver does, ticking at
  * each deadline the client holds before the transcript's next event; the effects it expects come only from the
  * transcript and the contract, never from the client under test: every message the transcript records sent, at its
- * recorded time (an answer as the intent choosing it, a message the client sends on its own as a tick then, a
- * JOIN_GAME or RECONNECT as the effect of the open before it), a socket reopened at its recorded open, the lobby
- * after a terminal close, and nothing else. An automatic send the client makes early, late or never is a mismatch.
+ * recorded time (an answer or a round confirm as the intent choosing it, a message the client sends on its own as a
+ * tick then, a JOIN_GAME or RECONNECT as the effect of the open before it), a socket reopened at its recorded open,
+ * the lobby after a terminal close, and nothing else. An automatic send the client makes early, late or never is a
+ * mismatch.
  */
 export function seatScenarioFromTranscript(
     transcript: SeatTranscript,

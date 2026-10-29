@@ -47,6 +47,19 @@ describe("RotatePanel", () => {
         );
     });
 
+    it("names a round result awaiting the player's OK, with the seconds to the round advance", () => {
+        const { scenario } = loadSeatScenario("own_turn_seat_1");
+        const run = runSeatScenario(scenario);
+        const roundEnd = timelineStates(run.timeline)[scenarioStateIndex(scenario, "round end")];
+
+        const host = renderPanel(rotatePanelProps(roundEnd, () => {}));
+
+        expect(host.querySelector(".rotate-panel__decision p")?.textContent).toMatch(
+            /^The round's result awaits your OK\./,
+        );
+        expect(host.querySelector(".rotate-panel__seconds")?.textContent).toBe("10");
+    });
+
     it("announces the countdown only when it crosses 10 and 5 seconds and when it expires", () => {
         const status = { label: "Connected", tone: CONNECTION_STATUS.CONNECTED };
         const countdowns = [12, 10, 6, 5, 1].map(running);

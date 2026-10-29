@@ -10,7 +10,7 @@ import { type HandTile, type PlayableState, type TileFace, tile136toString } fro
 import { assertNever } from "@/shared/lib";
 import { CLIENT_MESSAGE_TYPE, GAME_ACTION } from "@/shared/protocol";
 
-import { type DecisionCountdown, decisionCountdown } from "./countdown";
+import { type DecisionCountdown, decisionCountdown, roundConfirmCountdown } from "./countdown";
 import { takesIntent } from "./dispatch";
 import {
     type Decision,
@@ -18,6 +18,8 @@ import {
     type GameClientState,
     type LocalIntent,
     type Offer,
+    type PlayIntent,
+    type RoundConfirm,
 } from "./types";
 
 /**
@@ -51,6 +53,17 @@ export interface PlayUi {
 export const NO_PLAY_UI: PlayUi = { resultPage: null, riichiPickWaitId: null };
 
 /**
+ * The round result's controls in its panel: its one primary button (the next page of a result the player still has
+ * to confirm, then the confirm on its last page, or the game's last result's way to the standings), whether the seat
+ * waits for the others after confirming, and the countdown to the server's round advance while the confirm is owed.
+ */
+export interface ResultControls {
+    readonly action: PlayAction | null;
+    readonly waiting: boolean;
+    readonly countdown: DecisionCountdown | null;
+}
+
+/**
  * The live board as the viewer plays it: the table from its seat, its own hand's tiles marked by the open decision
  * (with the intent tapping each selectable one sends), the decision's buttons, its countdown and the seat's furiten.
  */
@@ -63,6 +76,10 @@ export interface PlayDisplay {
     readonly furiten: boolean;
     /** The page of the round's result the panel shows, clamped to its pages; 0 with no result. */
     readonly resultPage: number;
+    /** The result panel's controls while the viewer has a round result to confirm or waits on one; else null. */
+    readonly result: ResultControls | null;
+    /** Whether the game's last result still shows over the standings, until the player dismisses it. */
+    readonly resultOverStandings: boolean;
 }
 
 /** How each tile of the viewer's hand plays now: its mark, and what tapping it sends when selectable. */
@@ -85,6 +102,12 @@ const OFFER_LABELS: Readonly<Record<Offer["kind"], string>> = {
 };
 
 const PASS: DecisionIntent = { type: "pass" };
+const CONFIRM_RESULT: PlayIntent = { type: "confirm_result" };
+
+const CONFIRM_LABELS: Readonly<Record<"owed" | "final", string>> = {
+    final: "Standings",
+    owed: "OK",
+};
 
 function choose(offer: Offer): DecisionIntent {
     return { offer, type: "choose" };
@@ -275,6 +298,45 @@ function shownResultPage(table: TableState, ui: PlayUi): number {
     return roundEndPageAt(table.roundEndResult, ui.resultPage.page).index;
 }
 
+function pageAction(page: number): PlayAction {
+    return { command: { kind: "show_result_page", page }, label: "Next", pressed: null, tiles: [] };
+}
+
+/** The confirm's button, when the dispatcher takes the confirm now. */
+function confirmAction(state: GameClientState, confirm: RoundConfirm): PlayAction | null {
+    if (
+        (confirm.kind !== "owed" && confirm.kind !== "final") ||
+        !takesIntent(state, CONFIRM_RESULT)
+    ) {
+        return null;
+    }
+    return {
+        command: intentCommand(CONFIRM_RESULT),
+        label: CONFIRM_LABELS[confirm.kind],
+        pressed: null,
+        tiles: [],
+    };
+}
+
+/**
+ * The round result's controls: while the confirm is owed (or the game's last result unread), Next through every page
+ * but the last and the confirm on the last, so the player reads each winner of a double ron before confirming; once
+ * the seat confirmed, that it waits for the others, with no button.
+ */
+function resultControls(state: GameClientState, page: number): ResultControls | null {
+    const { roundConfirm, table } = state;
+    if (roundConfirm === null || table.roundEndResult === null) {
+        return null;
+    }
+    const countdown = roundConfirmCountdown(state);
+    if (roundConfirm.kind === "sent" || roundConfirm.kind === "confirmed") {
+        return { action: null, countdown, waiting: true };
+    }
+    const { count, index } = roundEndPageAt(table.roundEndResult, page);
+    const action = index < count - 1 ? pageAction(index + 1) : confirmAction(state, roundConfirm);
+    return { action, countdown, waiting: false };
+}
+
 /**
  * The live board a client state shows its viewer, with the view's `ui` beside it: the table from the viewer's seat
  * with only its own hand face up, and the open decision as the hand's playable tiles and the buttons around them.
@@ -287,12 +349,15 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
     const picking = pickingRiichi(state, ui);
     const plays =
         viewer === undefined ? new Map<number, TilePlay>() : tilePlays(state, viewer, picking);
+    const resultPage = shownResultPage(table, ui);
     return {
         actions: decisionActions(state, picking),
         board: viewerBoard(state, plays),
         countdown: decisionCountdown(state),
         furiten: furiten && viewer !== undefined,
-        resultPage: shownResultPage(table, ui),
+        result: resultControls(state, resultPage),
+        resultOverStandings: state.roundConfirm?.kind === "final",
+        resultPage,
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
         tileIntents: intentsOf(plays),
     };

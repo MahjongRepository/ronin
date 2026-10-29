@@ -15,6 +15,8 @@ export interface RoundEndDisplayProps {
     readonly display: RoundEndDisplayState;
     /** Called with the page to show; without it the panel offers no paging, only says which page it shows. */
     readonly onPage?: (page: number) => void;
+    /** The viewer's controls at the panel's foot, toward the thumb (the live game's confirm): its primary action. */
+    readonly controls?: TemplateResult;
 }
 
 function deltaModifier(delta: number): string {
@@ -66,10 +68,15 @@ function IndicatorGroup(
     </div>`;
 }
 
-function PagerControls(
-    display: RoundEndDisplayState,
-    onPage?: (page: number) => void,
-): TemplateResult | typeof nothing {
+/**
+ * The page label, with buttons to turn the page given `onPage`. Beside the viewer's controls they are secondary, an
+ * outline, since the controls hold the panel's one primary button (the live game's Next, then its confirm).
+ */
+function PagerControls({
+    controls,
+    display,
+    onPage,
+}: RoundEndDisplayProps): TemplateResult | typeof nothing {
     const { page, pageCount } = display;
     if (pageCount < 2) {
         return nothing;
@@ -78,16 +85,17 @@ function PagerControls(
     if (onPage === undefined) {
         return label;
     }
+    const buttonClass = `round-end-result__page-btn${controls === undefined ? "" : " outline secondary"}`;
     return html`<span class="round-end-result__pager">
         <button
-            class="round-end-result__page-btn"
+            class=${buttonClass}
             aria-label="Previous winner"
             ?disabled=${page === 0}
             @click=${() => onPage(page - 1)}
         >&lsaquo;</button>
         ${label}
         <button
-            class="round-end-result__page-btn"
+            class=${buttonClass}
             aria-label="Next winner"
             ?disabled=${page >= pageCount - 1}
             @click=${() => onPage(page + 1)}
@@ -125,6 +133,14 @@ function WinValue(page: WinPageDisplay): TemplateResult {
     </div>`;
 }
 
+/** The panel's foot: the scores, and the viewer's controls beside them when it has any. */
+function ScoreFoot(
+    rows: readonly ResultScoreRow[],
+    controls: TemplateResult | undefined,
+): TemplateResult {
+    return html`<div class="round-end-result__foot">${ScoreGrid(rows)}${controls ?? nothing}</div>`;
+}
+
 function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
     return html`<ol class="round-end-result__scores">
         ${rows.map(
@@ -142,7 +158,7 @@ function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
 }
 
 function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateResult {
-    const { display, onPage } = props;
+    const { display } = props;
     return html`<div class="round-end-result round-end-result--win">
         <div class="round-end-result__head">
             <span class="round-end-result__kind">${page.title}</span>
@@ -151,16 +167,17 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
                 <span class="round-end-result__wind">${page.winnerWind}</span>
             </span>
             ${page.fromName === null ? nothing : html`<span class="round-end-result__from">from ${page.fromName}</span>`}
-            ${PagerControls(display, onPage)}
+            ${PagerControls(props)}
         </div>
         ${WinHand(page)}
         ${YakuList(page)}
         ${WinValue(page)}
-        ${ScoreGrid(display.scores)}
+        ${ScoreFoot(display.scores, props.controls)}
     </div>`;
 }
 
-function DrawPage(display: RoundEndDisplayState, page: DrawPageDisplay): TemplateResult {
+function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateResult {
+    const { controls, display } = props;
     return html`<div class="round-end-result round-end-result--draw">
         <div class="round-end-result__head">
             <span class="round-end-result__kind">Draw</span>
@@ -174,7 +191,7 @@ function DrawPage(display: RoundEndDisplayState, page: DrawPageDisplay): Templat
                       ${page.tenpaiHands.map((tenpai) => TenpaiHand(tenpai.name, tenpai.hand))}
                   </ul>`
         }
-        ${ScoreGrid(display.scores)}
+        ${ScoreFoot(display.scores, controls)}
     </div>`;
 }
 
@@ -184,7 +201,7 @@ function DrawPage(display: RoundEndDisplayState, page: DrawPageDisplay): Templat
  */
 function RoundEndDisplay(props: RoundEndDisplayProps): TemplateResult {
     const { body } = props.display;
-    return body.kind === "draw" ? DrawPage(props.display, body) : WinPage(props, body);
+    return body.kind === "draw" ? DrawPage(props, body) : WinPage(props, body);
 }
 
 export { RoundEndDisplay };

@@ -291,7 +291,11 @@ const PAGES: readonly PageCase[] = [
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
     decisionCase("riichi_turn", [ACTION, ".decision-controls__furiten", ".hand-tile--selectable"]),
     decisionCase("answered", [".hand-tile--selected"]),
-    decisionCase("round_end", [".board-overlay__panel"]),
+    decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
+    decisionCase("double_ron_first", [".round-end-result__pager", ".round-end-result__confirm"]),
+    decisionCase("waiting", [".round-end-result__waiting"]),
+    decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
+    decisionCase("last_result", [".round-end-result__confirm"]),
     {
         countdown: false,
         kind: "panel",
@@ -574,12 +578,16 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const dora of board.querySelectorAll(".board-dora")) {
             grouped.push({ box: box(dora), group: "dora" });
         }
-        const actions = [
+        const decisionActions = [
             ...board.querySelectorAll(".board-actions .decision-controls__action"),
         ].map(box);
-        for (const action of actions) {
+        for (const action of decisionActions) {
             grouped.push({ box: action, group: "actions" });
         }
+        const resultActions = [
+            ...board.querySelectorAll(".board-overlay .round-end-result__confirm"),
+        ].map(box);
+        const actions = [...decisionActions, ...resultActions];
         const aside = document.querySelector(".board-page__aside");
         const overlay = board.querySelector(".board-overlay__panel");
         const centerTexts = [...board.querySelectorAll(centerTextSelectors)].map(
@@ -736,7 +744,7 @@ function checkLocalHand(board: BoardMeasure, screen: Box, report: PageReport): v
     );
 }
 
-/** Decision buttons must sit wholly on the board and the screen, each large enough to tap. */
+/** Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap. */
 function checkActions(board: BoardMeasure, screen: Box, report: PageReport): void {
     const outside = board.actions.filter(
         (action) => !contains(board.board, action) || !contains(screen, action),

@@ -9,6 +9,7 @@ import {
 import {
     WIRE_PLAYER_LEFT,
     WIRE_RULE_REFUSAL,
+    type WirePayload,
     wireGameError,
     wireSessionError,
 } from "#tests/fixtures/wire";
@@ -47,6 +48,8 @@ const RIICHI_RECONNECT = loadSeatScenario("riichi_reconnect_seat_1");
 const CHANKAN_ROBBED_DECLARER = loadSeatScenario("chankan_robbed_seat_1");
 const CHANKAN_ROBBED_ROBBER = loadSeatScenario("chankan_robbed_seat_3");
 const CHANKAN_PASSED = loadSeatScenario("chankan_passed_seat_3");
+const DOUBLE_RON = loadSeatScenario("double_ron_seat_1");
+const FINAL_ROUND = loadSeatScenario("final_round_seat_1");
 const NINE_MAN_COPIES = [32, 33, 34, 35];
 const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
 
@@ -79,6 +82,10 @@ function branchAfter(
     return { ...scenario, steps: [...kept, ...steps] };
 }
 
+function lateError(at: number, raw: WirePayload, label: string): ScenarioStep {
+    return { event: { at, kind: "server_message", raw }, label };
+}
+
 function discardAt(at: number, tileId: number): ScenarioStep["event"] {
     return { at, intent: { tileId, type: "discard" }, kind: "intent" };
 }
@@ -100,6 +107,7 @@ describe("seatScenarioFromTranscript", () => {
             "chankan_robbed_seat_1",
             "chankan_robbed_seat_3",
             "double_ron_seat_1",
+            "final_round_seat_1",
             "own_turn_seat_1",
             "reconnect_seat_1",
             "riichi_reconnect_seat_1",
@@ -126,17 +134,19 @@ describe("seatScenarioFromTranscript", () => {
         expect(parseSeatTranscript(raw)[0]).toBeInstanceOf(Error);
     });
 
-    it("reports a round confirm the transcript sent later than the client sends it on its own", () => {
+    it("reports a round confirm the client would not send: one for a round end the server waits on for nothing", () => {
         const { transcript } = OWN_TURN;
-        const confirmAt = 16_000;
-        const late = transcript.events.map((event) =>
-            event.at >= confirmAt ? { ...event, at: event.at + 500 } : event,
-        );
-        const { scenario } = scenarioFromTranscript({ ...transcript, events: late });
+        const unawaited = transcript.events.map((event) => {
+            if (event.kind !== "received" || event.label !== "round end") {
+                return event;
+            }
+            const { wi: _waitId, ...payload } = event.payload;
+            return { ...event, payload };
+        });
+        const { scenario } = scenarioFromTranscript({ ...transcript, events: unawaited });
         const confirm = { message: buildConfirmRoundAction(5), type: "send" } as const;
 
         expect(runSeatScenario(scenario).mismatches).toMatchObject([
-            { actual: [confirm], expected: [], kind: "effects", label: null },
             { actual: [], expected: [confirm], kind: "effects", label: "confirmed" },
         ]);
     });
@@ -423,7 +433,7 @@ describe("stepGameClient - generated own turn", () => {
         );
     });
 
-    it("settles the tsumo at the round end and confirms it on its own a second later", () => {
+    it("settles the tsumo at the round end and owes its confirm, counted down, until the player presses OK", () => {
         const run = runClean(scenario);
         const roundEnd = stateAt(scenario, run, "round end");
 
@@ -433,11 +443,14 @@ describe("stepGameClient - generated own turn", () => {
         expect(roundEnd.table.players.map((player) => player.score)).toEqual([
             21_000, 33_000, 23_000, 23_000,
         ]);
-        expect(roundEnd.pendingConfirm).toEqual({
-            dueAt: 16_000,
-            waitId: receivedPayload(transcript, "round end").wi,
+        const waitId = receivedPayload(transcript, "round end").wi;
+        expect(roundEnd.roundConfirm).toEqual({ deadline: 15_000 + 10_000, kind: "owed", waitId });
+        expect(stateAt(scenario, run, "confirmed").roundConfirm).toEqual({
+            deadline: 25_000,
+            kind: "sent",
+            waitId,
         });
-        expect(stateAt(scenario, run, "confirmed").pendingConfirm).toBeNull();
+        expect(stateAt(scenario, run, "next round").roundConfirm).toBeNull();
     });
 
     it("deals the next round to the winner as dealer, furiten cleared and the round bonus in the bank", () => {
@@ -499,6 +512,90 @@ describe("stepGameClient - generated riichi reconnect", () => {
     });
 });
 
+describe("stepGameClient - generated round advance", () => {
+    it("closes an unconfirmed result when the server's timeout deals the next round, having sent nothing", () => {
+        const { scenario } = RIICHI_RECONNECT;
+        const run = runClean(scenario);
+        const nextRound = stateAt(scenario, run, "next round");
+
+        expect(stateAt(scenario, run, "round end").roundConfirm).toMatchObject({
+            deadline: 7000 + 10_000,
+            kind: "owed",
+        });
+        expect([nextRound.roundConfirm, nextRound.table.phase]).toEqual([null, "in_round"]);
+    });
+
+    it("counts a double ron's confirm down for both results, and a reconnect's snapshot keeps that deadline", () => {
+        const { scenario, transcript } = DOUBLE_RON;
+        const run = runClean(scenario);
+        const owed = {
+            deadline: 5500 + 2 * 10_000,
+            kind: "owed",
+            waitId: receivedPayload(transcript, "round end").wi,
+        };
+
+        expect(stateAt(scenario, run, "round end").roundConfirm).toEqual(owed);
+        expect(stateAt(scenario, run, "dropped").roundConfirm).toBeNull();
+        expect(stateAt(scenario, run, "reconnected").roundConfirm).toEqual(owed);
+    });
+
+    it("keeps an owed confirm through late errors for an earlier move, then sends it once and waits", () => {
+        const { scenario, transcript } = OWN_TURN;
+        const waitId = 5;
+        const confirm = { at: 15_300, intent: { type: "confirm_result" }, kind: "intent" } as const;
+        const branch = branchAfter(scenario, "round end", [
+            lateError(15_100, wireGameError(GAME_ERROR_CODE.STALE_ACTION), "late stale"),
+            lateError(15_200, WIRE_RULE_REFUSAL, "late refusal"),
+            {
+                effects: [{ message: buildConfirmRoundAction(waitId), type: "send" }],
+                event: confirm,
+            },
+            lateError(15_400, wireGameError(GAME_ERROR_CODE.STALE_ACTION), "stale after confirm"),
+            lateError(15_500, WIRE_RULE_REFUSAL, "refusal after confirm"),
+            { event: { ...confirm, at: 15_600 } },
+        ]);
+        const run = runClean(branch);
+        const owed = { deadline: 25_000, kind: "owed", waitId };
+
+        expect(receivedPayload(transcript, "round end").wi).toBe(waitId);
+        expect(stateAt(branch, run, "late stale").roundConfirm).toEqual(owed);
+        expect(stateAt(branch, run, "late refusal").roundConfirm).toEqual(owed);
+        expect(stateAt(branch, run, "refusal after confirm").roundConfirm).toEqual({
+            ...owed,
+            kind: "sent",
+        });
+    });
+
+    it("waits for the others once the player confirmed, until the last confirm deals the next round", () => {
+        const { scenario } = CHANKAN_ROBBED_ROBBER;
+        const run = runClean(scenario);
+
+        expect(stateAt(scenario, run, "confirmed").roundConfirm).toMatchObject({ kind: "sent" });
+        expect(lastState(run).roundConfirm).toBeNull();
+    });
+
+    it("keeps the game's last result over the standings until the player dismisses it, sending nothing", () => {
+        const { scenario } = FINAL_ROUND;
+        const run = runClean(scenario);
+        const roundEnd = stateAt(scenario, run, "round end");
+        const gameEnd = stateAt(scenario, run, "game end");
+        const dismissed = stepGameClient(lastState(run), {
+            at: 6000,
+            intent: { type: "confirm_result" },
+            kind: "intent",
+        });
+
+        expect(roundEnd.roundConfirm).toBeNull();
+        expect([gameEnd.roundConfirm, gameEnd.table.phase]).toEqual([
+            { kind: "final" },
+            "game_ended",
+        ]);
+        expect(gameEnd.table.roundEndResult).toBe(roundEnd.table.roundEndResult);
+        expect(lastState(run).session?.status).toBe("ended");
+        expect([dismissed.effects, dismissed.state.roundConfirm]).toEqual([[], null]);
+    });
+});
+
 describe("stepGameClient - generated reconnect", () => {
     const { scenario, transcript } = RECONNECT;
 
@@ -538,7 +635,7 @@ describe("stepGameClient - generated reconnect", () => {
         expect(roundEnd.table.players.map((player) => player.score)).toEqual([
             25_000, 26_000, 24_000, 25_000,
         ]);
-        expect(roundEnd.pendingConfirm?.dueAt).toBe(11_000);
+        expect(roundEnd.roundConfirm).toMatchObject({ deadline: 20_000, kind: "owed" });
     });
 
     it("ends on a newer tab's 4002 takeover: no confirm, retry or deadline left pending", () => {
@@ -548,11 +645,7 @@ describe("stepGameClient - generated reconnect", () => {
             reason: { code: 4002, kind: "closed", reason: "replaced_by_new_connection" },
             status: "ended",
         });
-        expect([last.decision, last.pendingConfirm, nextDeadline(last)]).toEqual([
-            null,
-            null,
-            null,
-        ]);
+        expect([last.decision, last.roundConfirm, nextDeadline(last)]).toEqual([null, null, null]);
     });
 
     it("reopens an answer the game refused or the rate limit dropped, not one refused as stale", () => {
@@ -654,7 +747,7 @@ describe("stepGameClient - generated chankan", () => {
         expect(reconnected.table.phase).toBe("round_ended");
         expect(declarerAt(reconnected)).toEqual(declarerAt(roundEnd));
         expect(reconnected.table.players[1].tiles).toEqual(roundEnd.table.players[1].tiles);
-        expect(reconnected.pendingConfirm?.dueAt).toBe(10_250);
+        expect(reconnected.roundConfirm).toEqual(roundEnd.roundConfirm);
     });
 
     it("robber who passes: the prompt shows the added kan, a reconnect re-shows it once, the meld completes it", () => {

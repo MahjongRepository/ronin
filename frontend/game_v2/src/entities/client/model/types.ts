@@ -65,15 +65,19 @@ export interface CallDecision extends DecisionBase {
 
 export type Decision = TurnDecision | CallDecision;
 
-/** A local user intent: leave for the lobby, or answer the open decision. */
+/** A local user intent: leave for the lobby, answer the open decision, or confirm the round result read. */
 export type LocalIntent =
     | { readonly type: "leave" }
     | { readonly type: "discard"; readonly tileId: number }
     | { readonly type: "choose"; readonly offer: Offer }
-    | { readonly type: "pass" };
+    | { readonly type: "pass" }
+    | { readonly type: "confirm_result" };
 
 /** An intent that answers the open decision. */
-export type DecisionIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
+export type DecisionIntent = Exclude<LocalIntent, { readonly type: "leave" | "confirm_result" }>;
+
+/** An intent the board offers: an answer to the open decision, or the round result's confirm. */
+export type PlayIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
 
 /**
  * The one input of the game client's dispatcher, from any source: the live socket, a scripted scenario, or a
@@ -103,11 +107,20 @@ export type ClientEvent =
     | { readonly kind: "tick"; readonly at: number }
     | { readonly kind: "intent"; readonly at: number; readonly intent: LocalIntent };
 
-/** A round end the client confirms by itself once `dueAt` passes, standing in for the result screen. */
-export interface PendingConfirm {
-    readonly waitId: number;
-    readonly dueAt: number;
-}
+/**
+ * Where the viewer stands with the round result it reads before the next deal. Owed: the server waits on the seat's
+ * confirm by this wait id until the round's one advance deadline, the timeout times the result's pages, when the
+ * client can estimate it (logical time, backdated by a snapshot's elapsed time; null when unknown). It is for display
+ * only: the server's timeout advances the game, and the client never confirms on its own. Sent: the player confirmed
+ * it once and waits for the others, unless the rate limit reopens it as owed. Confirmed: a reconnect's snapshot owes
+ * no confirm, so the seat waits too. Final: the game's last result, which the game end follows at once; the player
+ * dismisses it to read the standings, which sends nothing.
+ */
+export type RoundConfirm =
+    | { readonly kind: "owed"; readonly waitId: number; readonly deadline: number | null }
+    | { readonly kind: "sent"; readonly waitId: number; readonly deadline: number | null }
+    | { readonly kind: "confirmed" }
+    | { readonly kind: "final" };
 
 /**
  * The game client's state at logical time `now`, the `at` of the last event it took, so a state kept at a
@@ -124,7 +137,7 @@ export interface GameClientState {
     /** The furiten the server last reported to the viewer's seat; a new deal clears it. */
     readonly furiten: boolean;
     readonly timer: TimerSettings | null;
-    readonly pendingConfirm: PendingConfirm | null;
+    readonly roundConfirm: RoundConfirm | null;
 }
 
 /** The session's IO plus a report of a message or replay line the client could not parse, for the driver to show. */

@@ -913,13 +913,12 @@ describe("applyEvent - result clearing", () => {
         expect(nextRoundState.roundEndResult).toBeNull();
     });
 
-    test("game_end clears stale roundEndResult", () => {
+    test("game_end keeps the last round's result beside the standings", () => {
         const state = stateAfterRoundStarted();
         const roundEndState = applyEvent(state, makeTsumoRoundEnd());
-        expect(roundEndState.roundEndResult).not.toBeNull();
 
         const gameEndState = applyEvent(roundEndState, makeGameEndEvent());
-        expect(gameEndState.roundEndResult).toBeNull();
+        expect(gameEndState.roundEndResult).toBe(roundEndState.roundEndResult);
         expect(gameEndState.gameEndResult).not.toBeNull();
     });
 
@@ -927,7 +926,6 @@ describe("applyEvent - result clearing", () => {
         const state = stateAfterRoundStarted();
         const roundEndState = applyEvent(state, makeTsumoRoundEnd());
         const gameEndState = applyEvent(roundEndState, makeGameEndEvent());
-        expect(gameEndState.roundEndResult).toBeNull();
         expect(gameEndState.gameEndResult).not.toBeNull();
 
         const newGameState = applyEvent(gameEndState, makeGameStartedEvent());

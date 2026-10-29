@@ -195,7 +195,6 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
         phase: "game_ended",
         players,
         riichiSticks: 0,
-        roundEndResult: null,
     };
 }
 

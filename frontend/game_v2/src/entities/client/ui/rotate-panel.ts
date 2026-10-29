@@ -1,6 +1,6 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { type DecisionCountdown, decisionCountdown } from "@/entities/client/model/countdown";
+import { type DecisionCountdown, pendingCountdown } from "@/entities/client/model/countdown";
 import { type GameClientState } from "@/entities/client/model/types";
 import {
     type SessionStatusDisplay,
@@ -43,7 +43,7 @@ export function describePlayerClientStatus(state: GameClientState): SessionStatu
 
 export function rotatePanelProps(state: GameClientState, onLeave: () => void): RotatePanelProps {
     return {
-        countdown: decisionCountdown(state),
+        countdown: pendingCountdown(state),
         onLeave,
         status: describePlayerClientStatus(state),
     };
@@ -60,10 +60,25 @@ function moveName(move: DecisionCountdown["move"]): string {
         case "chankan": {
             return "You can rob the kan";
         }
+        case "result": {
+            return "The round's result awaits your OK";
+        }
         default: {
             return assertNever(move);
         }
     }
+}
+
+/** What runs on while the phone is upright: play and its timer, or the round advance's timer. */
+function runningNote(move: DecisionCountdown["move"]): string {
+    return move === "result"
+        ? "Its timer goes on while the phone is upright."
+        : "Play and its timer go on while the phone is upright.";
+}
+
+/** What the server does once the move's time is up. */
+function expiryNote(move: DecisionCountdown["move"]): string {
+    return move === "result" ? "the server deals the next round" : "the server makes the move";
 }
 
 /**
@@ -84,7 +99,7 @@ export function countdownAnnouncement(countdown: DecisionCountdown | null): stri
 function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
     if (countdown.kind === "expired") {
         return html`<div class="rotate-panel__decision rotate-panel__decision--expired">
-            <p>${moveName(countdown.move)}, and its time is up: the server makes the move.</p>
+            <p>${moveName(countdown.move)}, and its time is up: ${expiryNote(countdown.move)}.</p>
         </div>`;
     }
     const left =
@@ -94,7 +109,7 @@ function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
               </p>`
             : "";
     return html`<div class="rotate-panel__decision">
-        <p>${moveName(countdown.move)}. Play and its timer go on while the phone is upright.</p>
+        <p>${moveName(countdown.move)}. ${runningNote(countdown.move)}</p>
         ${left}
     </div>`;
 }
@@ -109,8 +124,8 @@ function rotateIcon(): TemplateResult {
 
 /**
  * The full-screen notice the live game shows instead of the table on an upright phone: it asks to turn the phone,
- * shows the session's status for a player, and while a decision awaits the viewer, that the game and its countdown
- * go on. Only the status line and the countdown's thresholds are live regions.
+ * shows the session's status for a player, and while a decision or a round result's confirm awaits the viewer, that
+ * the game and its countdown go on. Only the status line and the countdown's thresholds are live regions.
  */
 export function RotatePanel({ countdown, onLeave, status }: RotatePanelProps): TemplateResult {
     return html`<div class="rotate-panel">

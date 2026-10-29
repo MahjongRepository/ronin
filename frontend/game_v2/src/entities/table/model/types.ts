@@ -168,6 +168,7 @@ export interface TableState {
     readonly tilesRemaining: number;
     readonly phase: GamePhase;
     readonly lastEventDescription: string;
+    /** The ended round's result, kept through the game end that follows the last round's, until a new deal. */
     readonly roundEndResult: RoundEndResult | null;
     readonly gameEndResult: GameEndResult | null;
 }

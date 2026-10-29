@@ -69,6 +69,52 @@ $indicator-scale: 0.6;
     }
 }
 
+/* On a narrow board the controls beside the scores leave each score little width, so the controls tighten and each
+   score's wind moves down beside its score after the payments, its name taking the whole line. */
+@container (width < 800px) {
+    .board-overlay .round-end-result__foot:has(.round-end-result__controls) {
+        gap: 0.5rem;
+
+        .round-end-result__confirm {
+            min-width: 4.5rem;
+            padding-inline: 0.6rem;
+        }
+
+        .round-end-result__wait {
+            max-width: 5rem;
+        }
+
+        .round-end-result__score {
+            flex-flow: row wrap;
+            align-items: baseline;
+            column-gap: 0.25rem;
+        }
+
+        .round-end-result__score-wind {
+            letter-spacing: 0.04em;
+        }
+
+        .round-end-result__score-who {
+            display: contents;
+        }
+
+        .round-end-result__score-name,
+        .round-end-result__score-tag,
+        .round-end-result__delta {
+            flex-basis: 100%;
+        }
+
+        .round-end-result__score-name {
+            order: -1;
+        }
+
+        .round-end-result__score-wind,
+        .round-end-result__score-after {
+            order: 1;
+        }
+    }
+}
+
 @container (height >= 560px) {
     .board-overlay .round-end-result {
         font-size: 0.95rem;

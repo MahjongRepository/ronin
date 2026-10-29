@@ -4,8 +4,8 @@ The earlier game client SPA, restored as the foundation of a future client: the 
 instead of `frontend/game/` on any game page whose query has `v=2` (`/play/{game_id}?v=2`,
 `/play/history/{game_id}?v=2`). Its protocol layer parses the current protocol and replay format,
 but the views act on less of it than v1 does: the live game plays its decisions on the board (the
-discard, the offers, pass, the countdown and furiten), while player names on the board and a round
-result the player confirms are not there yet.
+discard, the offers, pass, the countdown and furiten) and the round results the player confirms, while
+player names on the board are not there yet.
 Adapt the client to the server rather than the server to it. `src/shared/protocol/` and
 `src/entities/table/` have their own `AGENTS.md`.
 
@@ -70,6 +70,20 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   it, a refusal while its wait goes on (a game error but a stale one, or the socket's rate limit)
   reopens it, and a dropped socket drops it, since the reconnect re-sends a wait the server still
   owes the seat.
+* **Round confirm.** A round end's wait, or a reconnect's snapshot of a round advance that says the
+  seat still owes it, opens the round confirm like a decision: one confirm intent sends it once with
+  that wait id, then the seat waits for the others. Only the next deal (the last confirm's or the
+  timeout's) closes it, and only the socket's rate limit reopens a sent one; a game error never
+  touches it, since a late reply to an earlier move names no wait and the confirm's own stale reply
+  follows the deal that closed it. A dropped socket drops it, since the snapshot says again whether
+  it is owed. Its deadline is one per round, armed at the round end: the round advance timeout times
+  the result's pages (the server's `results_shown`, a double ron's winners), backdated by the
+  snapshot's elapsed time, and none when the snapshot names none: never a fresh full timeout. It is
+  display only, shown labelled and kept while the seat waits: the client never confirms on its own
+  and arms no timer for it. A double ron's pages each show Next until the last, which alone
+  confirms, so the player has seen every winner before confirming. The game's last round end
+  carries no wait and its game end follows at once: the table keeps that result and the live board
+  shows it over the standings until the player dismisses it, which sends nothing.
 * **Timelines, not history in the driver.** `buildClientTimeline` steps any event sequence into
   the state after each event; stepping back selects an earlier state, never an inverse event, and
   nothing in a timeline executes an effect, so revisiting a prompt sends nothing and arms no
@@ -89,8 +103,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   it arrives as JSON). It drives the client as the live driver does, ticking at each deadline the
   client holds before the next recorded event, but takes the effects it expects only from the
   transcript and the contract, never from the client logic under test: each recorded send at its
-  recorded time (an answer as the intent choosing it, a send the client makes on its own, a round
-  confirm or a resent identity, as a tick then, the identity after an open as that open's effect), a
+  recorded time (an answer or a round confirm as the intent choosing it, a send the client makes on
+  its own, a resent identity, as a tick then, the identity after an open as that open's effect), a
   reopened socket asked for at its recorded open, the lobby after a close the contract makes
   terminal (its own copy of the codes), and nothing from any other tick, so an automatic send that is
   early, late or missing is a mismatch. Because sent messages parse strictly, an expected send also
@@ -111,7 +125,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   perspective; `playDisplay` (`entities/client`) maps a whole client state for the live board: the
   table from the viewer's seat with only its hand face up, each of its tiles marked by the open
   decision, the intent each selectable tile sends, the decision's buttons (riichi as one toggle,
-  then each other offer, then a pass), the countdown and furiten. What may be played is never
+  then each other offer, then a pass), the countdown and furiten, and the round result's controls
+  (its one primary button, the result's pager only secondary beside it, the countdown, waiting for
+  the others). What may be played is never
   restated there: every tile intent and button is one the dispatcher's own `takesIntent` takes (the
   decision's answer on a socket it can send on), so the board offers exactly what stepping the
   intent would send. `PlayBoard` only renders that, with the table's panel over it, and routes a
@@ -158,10 +174,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   place of its play area. A media query alone chooses it: no Screen Orientation lock, which iOS Safari
   lacks. Both are rendered from the same state, so the socket, the session and its timers run on
   underneath. The panel shows the session's status in a player's terms, a way back to the lobby and,
-  while a decision awaits the viewer, that play and its countdown go on, with the seconds left. Only
-  the status line and the countdown's thresholds (10 s, 5 s, expiry) are live regions, never each
-  second. The server's timer never pauses for it, so a decision left unrotated can time out: an
-  accepted cost. The countdown reads the decision's deadline against the state's `now`, never the wall
+  while a decision or a round result's confirm awaits the viewer, that play and its countdown go on,
+  with the seconds left. Only the status line and the countdown's thresholds (10 s, 5 s, expiry) are
+  live regions, never each second. The server's timer never pauses for it, so a decision left unrotated can time out: an
+  accepted cost. The countdown reads the deadline against the state's `now`, never the wall
   clock; the driver also wakes at each change of the shown second (`nextCountdownChange`) so `now`
   moves. Replay and storybook pages take no timed input: they allow portrait and scroll rather than
   clip.

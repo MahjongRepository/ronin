@@ -5,6 +5,7 @@ import {
     type PlayAction,
     type PlayCommand,
     type PlayDisplay,
+    type ResultControls,
 } from "@/entities/client/model/play-display";
 import { GameBoard, type TableState, boardOverlay } from "@/entities/table";
 import { Tile } from "@/entities/tile";
@@ -13,7 +14,7 @@ import { countdownAnnouncement } from "./rotate-panel";
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
-    /** The table the display was mapped from, whose panel (the seating, the round's result, the standings) shows over the board. */
+    /** The table the display was mapped from, whose panel (seating, result, standings) shows over the board. */
     readonly table: TableState;
     readonly onCommand: (command: PlayCommand) => void;
 }
@@ -85,10 +86,58 @@ function DecisionControls(
     </div>`;
 }
 
+/** The time left to the round advance, as words on the panel itself, since a touch screen shows no tooltip. */
+function ResultTime(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
+    if (countdown?.kind === "running") {
+        return html`<span class="round-end-result__countdown">${countdown.secondsLeft}s left</span>`;
+    }
+    if (countdown?.kind === "expired") {
+        return html`<span class="round-end-result__countdown round-end-result__countdown--expired"
+            >Time up</span
+        >`;
+    }
+    return nothing;
+}
+
+/**
+ * The round result's controls at the panel's foot, beside the scores: its primary button with the time left to the
+ * round advance under its label, or, once the seat confirmed, that it waits for the others with the time still
+ * counting down. Only the countdown's thresholds are announced.
+ */
+function ResultControlsView(
+    result: ResultControls | null,
+    onCommand: PlayBoardProps["onCommand"],
+): TemplateResult | undefined {
+    if (result === null) {
+        return undefined;
+    }
+    const { action, countdown, waiting } = result;
+    const control =
+        action === null
+            ? html`<span class="round-end-result__wait">
+                  ${waiting ? html`<span class="round-end-result__waiting">Waiting for others</span>` : nothing}
+                  ${ResultTime(countdown)}
+              </span>`
+            : html`<button
+                  type="button"
+                  class="round-end-result__confirm"
+                  aria-label=${action.label}
+                  @click=${() => onCommand(action.command)}
+              >
+                  <span class="round-end-result__confirm-label">${action.label}</span>
+                  ${ResultTime(countdown)}
+              </button>`;
+    return html`<span class="round-end-result__controls">
+        ${control}
+        <span class="round-end-result__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>
+    </span>`;
+}
+
 /**
  * The live board: the table from the viewer's seat with its decision's controls in their corner and the table's
- * panel over it, a round's result at the page the display picked. A tap on one of the viewer's tiles sends the intent
- * the display gives it, and a tile with none sends nothing; turning the result's page is a command too.
+ * panel over it, a round's result at the page the display picked with its controls, or the game's last result over
+ * the standings until the player dismisses it. A tap on one of the viewer's tiles sends the intent the display gives
+ * it, and a tile with none sends nothing; turning the result's page is a command too.
  */
 export function PlayBoard({ display, onCommand, table }: PlayBoardProps): TemplateResult {
     function onTile(tileId: number): void {
@@ -102,7 +151,9 @@ export function PlayBoard({ display, onCommand, table }: PlayBoardProps): Templa
         debug: false,
         localHand: { onTile, tileAction: display.tileAction },
         overlay: boardOverlay(table, {
+            controls: ResultControlsView(display.result, onCommand),
             onPage: (page) => onCommand({ kind: "show_result_page", page }),
+            overStandings: display.resultOverStandings,
             page: display.resultPage,
         }),
         state: display.board,

@@ -23,8 +23,18 @@ const RECONNECTING: SessionState = {
     status: "reconnecting",
 };
 
-/** The rotate panel's stories: a seat waiting on others, one whose decision counts down, and the edge cases. */
-const ROTATE_STORIES = ["waiting", "countdown", "untimed", "expired", "reconnecting"] as const;
+/**
+ * The rotate panel's stories: a seat waiting on others, one whose decision counts down, one owing a round result's
+ * confirm, and the edge cases.
+ */
+const ROTATE_STORIES = [
+    "waiting",
+    "countdown",
+    "result",
+    "untimed",
+    "expired",
+    "reconnecting",
+] as const;
 
 type RotateStory = (typeof ROTATE_STORIES)[number];
 
@@ -38,6 +48,7 @@ const STORY_PROPS: Readonly<Record<RotateStory, RotatePanelProps>> = {
     countdown: storyProps(PLAYING, { kind: "running", move: "turn", secondsLeft: 17 }),
     expired: storyProps(PLAYING, { kind: "expired", move: "call" }),
     reconnecting: storyProps(RECONNECTING, null),
+    result: storyProps(PLAYING, { kind: "running", move: "result", secondsLeft: 8 }),
     untimed: storyProps(PLAYING, { kind: "untimed", move: "turn" }),
     waiting: storyProps(PLAYING, null),
 };

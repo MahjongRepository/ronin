@@ -5,6 +5,7 @@ import {
     type GameClientState,
     NO_PLAY_UI,
     type PlayDisplay,
+    nextCountdownChange,
     nextPlayUi,
     playDisplay,
     stepGameClient,
@@ -125,6 +126,59 @@ describe("playDisplay", () => {
         expect(reconnected.table.roundEndResult).not.toBe(roundEnd.table.roundEndResult);
         expect(playDisplay(reconnected, secondPage).resultPage).toBe(1);
         expect(playDisplay(nextRound, secondPage).resultPage).toBe(0);
+    });
+
+    it("pages a double ron's owed result with Next, then confirms it on the last page, counting down", () => {
+        const roundEnd = checkpointState("double_ron_seat_1", "round end");
+        const lastPage = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
+        const first = playDisplay(roundEnd, NO_PLAY_UI).result;
+        const last = playDisplay(roundEnd, lastPage).result;
+
+        expect(first).toEqual({
+            action: {
+                command: { kind: "show_result_page", page: 1 },
+                label: "Next",
+                pressed: null,
+                tiles: [],
+            },
+            countdown: { kind: "running", move: "result", secondsLeft: 20 },
+            waiting: false,
+        });
+        expect(last?.action).toMatchObject({
+            command: { intent: { type: "confirm_result" }, kind: "intent" },
+            label: "OK",
+        });
+    });
+
+    it("once the result is confirmed shows that the seat waits for the others, still counting down", () => {
+        const confirmed = checkpointState("chankan_robbed_seat_3", "confirmed");
+
+        expect(playDisplay(confirmed, NO_PLAY_UI).result).toEqual({
+            action: null,
+            countdown: { kind: "running", move: "result", secondsLeft: 9 },
+            waiting: true,
+        });
+        expect(nextCountdownChange(confirmed)).toBeGreaterThan(confirmed.now);
+    });
+
+    it("shows the game's last result over the standings with the way to them, then the standings", () => {
+        const gameEnd = checkpointState("final_round_seat_1", "game end");
+        const display = playDisplay(gameEnd, NO_PLAY_UI);
+        const dismissed = stepGameClient(gameEnd, {
+            at: gameEnd.now,
+            intent: { type: "confirm_result" },
+            kind: "intent",
+        }).state;
+
+        expect([display.resultOverStandings, display.result?.action?.label]).toEqual([
+            true,
+            "Standings",
+        ]);
+        expect(display.result?.countdown).toBeNull();
+        expect([
+            playDisplay(dismissed, NO_PLAY_UI).resultOverStandings,
+            playDisplay(dismissed, NO_PLAY_UI).result,
+        ]).toEqual([false, null]);
     });
 
     it("once a discard is sent marks the tile it played and offers nothing more", () => {

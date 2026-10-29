@@ -7,11 +7,12 @@ import {
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
     wireRoundEnd,
+    wireSessionError,
 } from "#tests/fixtures/wire";
 import { type ClientEffect, type ClientEvent, nextDeadline } from "@/entities/client";
-import { buildConfirmRoundAction } from "@/shared/protocol";
+import { SESSION_ERROR_CODE, buildConfirmRoundAction } from "@/shared/protocol";
 
-const { closed, message, opened, tick } = clientEvent;
+const { closed, confirm, message, opened, tick } = clientEvent;
 
 function collectEffects(events: readonly ClientEvent[]): {
     effects: ClientEffect[];
@@ -32,58 +33,76 @@ function playingScenario(): ReturnType<typeof clientScenario> {
     return scenario;
 }
 
-describe("stepGameClient", () => {
-    it("confirms a round end by its wait id once a second has passed", () => {
+describe("stepGameClient - round confirm", () => {
+    it("confirms a round end by its wait id once, on the player's intent, never on its own", () => {
         const scenario = playingScenario();
-
         const roundEnd = message(100, wireRoundEnd(5));
-        expect(scenario.step(roundEnd)).toEqual([]);
-        expect(nextDeadline(scenario.state)).toBe(1100);
-        expect(scenario.step(tick(1099))).toEqual([]);
-        expect(scenario.step(tick(1100))).toEqual([
-            { message: buildConfirmRoundAction(5), type: "send" },
-        ]);
-        expect(nextDeadline(scenario.state)).toBeNull();
+        const sent = { message: buildConfirmRoundAction(5), type: "send" } as const;
+
+        expect([scenario.step(roundEnd), nextDeadline(scenario.state)]).toEqual([[], null]);
+        expect(scenario.step(tick(60_000))).toEqual([]);
+        expect(scenario.step(confirm(60_100))).toEqual([sent]);
+        expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "sent", waitId: 5 });
+        expect(scenario.step(confirm(60_200))).toEqual([]);
     });
 
-    it("confirms nothing for the game's last round end, which carries no wait id", () => {
-        const scenario = playingScenario();
-
-        const lastRoundEnd = message(100, wireRoundEnd(null));
-        expect(scenario.step(lastRoundEnd)).toEqual([]);
-        expect(nextDeadline(scenario.state)).toBeNull();
-    });
-
-    it("drops a pending confirm once the next round starts, so its due tick sends nothing", () => {
+    it("closes the round confirm when the server deals the next round, so a late press sends nothing", () => {
         const scenario = playingScenario();
         scenario.step(message(100, wireRoundEnd(5)));
 
-        expect(scenario.step(message(600, WIRE_ROUND_STARTED))).toEqual([]);
-        expect(nextDeadline(scenario.state)).toBeNull();
-        expect(scenario.step(tick(1100))).toEqual([]);
+        scenario.step(message(600, WIRE_ROUND_STARTED));
+        expect([scenario.state.roundConfirm, scenario.state.table.phase]).toEqual([
+            null,
+            "in_round",
+        ]);
+        expect(scenario.step(confirm(700))).toEqual([]);
     });
 
-    it("drops a pending confirm when the socket drops, so only the retry is due", () => {
+    it("drops an owed confirm with the socket, so a press sends nothing and only the retry is due", () => {
         const scenario = playingScenario();
         scenario.step(message(100, wireRoundEnd(5)));
 
         expect(scenario.step(closed(500, 1006))).toEqual([]);
+        expect(scenario.step(confirm(600))).toEqual([]);
         expect(nextDeadline(scenario.state)).toBe(1500);
-        expect(scenario.step(tick(1100))).toEqual([]);
     });
 
-    it("confirms by the snapshot's wait id a round advance a reconnect says the seat still owes", () => {
+    it("reopens a sent confirm the rate limit dropped, so the player can confirm again", () => {
+        const scenario = playingScenario();
+        scenario.step(message(100, wireRoundEnd(5)));
+        scenario.step(confirm(200));
+
+        scenario.step(message(300, wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED)));
+        expect(scenario.step(confirm(400))).toEqual([
+            { message: buildConfirmRoundAction(5), type: "send" },
+        ]);
+    });
+
+    it("owes the confirm a reconnect's snapshot names, untimed when the snapshot says nothing of its timer", () => {
         const scenario = clientScenario();
         scenario.step(opened(0));
         const owed = { ...WIRE_GAME_RECONNECTED, oc: true, re: wireRoundEnd(null), wi: 9 };
 
         expect(scenario.step(message(100, owed))).toEqual([]);
         expect(scenario.state.table.phase).toBe("round_ended");
-        expect(scenario.step(tick(1100))).toEqual([
+        expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "owed", waitId: 9 });
+        expect(scenario.step(confirm(200))).toEqual([
             { message: buildConfirmRoundAction(9), type: "send" },
         ]);
     });
 
+    it("waits for the others when a reconnect's snapshot of a round advance owes no confirm", () => {
+        const scenario = clientScenario();
+        scenario.step(opened(0));
+        const confirmed = { ...WIRE_GAME_RECONNECTED, oc: false, re: wireRoundEnd(null), wi: 9 };
+
+        scenario.step(message(100, confirmed));
+        expect(scenario.state.roundConfirm).toEqual({ kind: "confirmed" });
+        expect(scenario.step(confirm(200))).toEqual([]);
+    });
+});
+
+describe("stepGameClient", () => {
     it("keeps the furiten last reported to the seat until a new deal clears it", () => {
         const scenario = playingScenario();
         function furitenAfter(event: ClientEvent): boolean {

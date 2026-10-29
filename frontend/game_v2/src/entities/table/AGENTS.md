@@ -47,7 +47,9 @@ replay view, the live game and the storybook read the tables it produces.
   the result panel shows a page's deltas and the scores after every payment through that page: a
   double ron's first page ends at the scores after its first winner alone, its last at the scores
   the table settled. A game end's standings already hold
-  the leftover sticks paid to the winner (`lb`); the table takes them and empties the sticks.
+  the leftover sticks paid to the winner (`lb`); the table takes them and empties the sticks, and
+  keeps the last round's result, which `boardOverlay` shows over the standings only when the view
+  asks (the live game, until the player dismisses it).
 - A round end's result (`RoundEndResult`) keeps what the panel shows: per winner its hand, value
   (`handResult.points`, the hand alone), dora kinds, ura indicators, its own payments, honba bonus
   (its gain beyond hand value and sticks), sticks and pao seat; for a draw its kind and the seats it

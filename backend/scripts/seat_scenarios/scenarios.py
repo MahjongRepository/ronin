@@ -106,8 +106,8 @@ def own_turn() -> tuple[SeatTranscript, ...]:
     Her socket dies unseen during the turn, and her reconnect takes it over: the snapshot, then the draw re-sent with
     the time its timer has run. She declares the kan and riichi on its rinshan draw.
 
-    She passes a ron on seat 2's 6s, which leaves her furiten, wins by tsumo on her next draw, and confirms the round
-    end a second after it, as the client does on its own, after which she deals the next round from the seed.
+    She passes a ron on seat 2's 6s, which leaves her furiten, wins by tsumo on her next draw, and presses OK on the
+    round end a second after it, after which she deals the next round from the seed.
     """
     with seated_game("seat-own-turn", _own_turn_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
@@ -185,7 +185,8 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
     Declare riichi for Alice (seat 1) on her first draw, discarding a 1m; it passes, so the server takes her stick.
 
     Her socket dies unseen at seat 2's 6s, and her reconnect takes it over: the snapshot, with her stick already taken,
-    then the ron prompt re-sent. She rons it.
+    then the ron prompt re-sent. She rons it and never confirms the round end, so the server's round advance timeout
+    deals the next round while her result is still open.
     """
     with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
@@ -201,6 +202,8 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
         alice.label("ron prompt re-sent", WireEventType.CALL_PROMPT)
         alice.ron(at=7, label="ron chosen")
         alice.label("round end", WireEventType.ROUND_END)
+        game.wait_until(18)
+        alice.label("next round", WireEventType.ROUND_STARTED)
 
         return game.transcripts("riichi_reconnect", PLAYER)
 
@@ -211,8 +214,8 @@ def chankan_robbed() -> tuple[SeatTranscript, ...]:
     prompt shows the kan, her round end names it. Tobi is off, so the yakuman she pays leaves the game going.
 
     Her socket dies unseen during the round advance, before her client confirms it, and her reconnect takes it over: the
-    snapshot carries the result and the kan it robbed, and she confirms a second after it as the client does on its own;
-    Bob confirms a second after the round end. She deals the next round from the seed.
+    snapshot carries the result and the kan it robbed, and she presses OK a second after it; Bob presses OK a second
+    after the round end and waits for her. She deals the next round from the seed.
     """
     kan_tile = tile(0, man="9")
     staged = StagedWall(
@@ -310,8 +313,8 @@ def double_ron() -> tuple[SeatTranscript, ...]:
     double ron with a result page per winner, Alice's first.
 
     Her socket dies unseen during the round advance, and her reconnect takes it over: the snapshot carries the same
-    result, and she confirms a second after it as the client does on its own; Bob confirms a second after the round end.
-    Tobi is off, so what the dealer pays leaves the game going.
+    result with the time its timer has run, and she presses OK a second after it; Bob confirms a second after the round
+    end. Tobi is off, so what the dealer pays leaves the game going.
     """
     winning_tile = tile(2, pin="4")
     staged = StagedWall(
@@ -345,6 +348,36 @@ def double_ron() -> tuple[SeatTranscript, ...]:
         return game.transcripts("double_ron", PLAYER)
 
 
+def final_round() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1), waiting on 9m with kokushi musou, rons the dealer's first discard: the AI dealer pays a yakuman and
+    busts, so the game ends with this round.
+
+    Its round end carries no wait id, and the game end follows it at once.
+    """
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="258", pin="258", sou="258", honors="1234"),
+            tile_copies(0, man="11", pin="19", sou="19", honors="1234567"),
+            tile_copies(3, man="258", pin="258", sou="258", honors="1234"),
+            (*tile_copies(1, man="345678", sou="234"), *tile_copies(0, pin="568"), tile(1, pin="8")),
+        ),
+        draws=((0, tile(0, man="9")),),
+    )
+
+    with seated_game("seat-final-round", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("ron prompt", WireEventType.CALL_PROMPT)
+        alice.ron(at=5, label="ron chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+        alice.label("game end", WireEventType.GAME_END)
+        game.wait_until(6)
+
+        return game.transcripts("final_round", PLAYER)
+
+
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
@@ -353,4 +386,5 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "chankan_robbed": chankan_robbed,
     "chankan_passed": chankan_passed,
     "double_ron": double_ron,
+    "final_round": final_round,
 }

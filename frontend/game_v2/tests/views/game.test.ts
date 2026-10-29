@@ -6,6 +6,7 @@ import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtu
 import { type Clock } from "@/shared/clock";
 import {
     type ClientMessage,
+    buildConfirmRoundAction,
     buildDiscardAction,
     buildJoinGameMessage,
     buildPassAction,
@@ -136,6 +137,7 @@ const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
 const FIRST_FREE_TILE = 12;
 const TURN_WAIT_ID = 2;
 const PROMPT_WAIT_ID = 1;
+const ROUND_END_WAIT_ID = 2;
 const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
 describe("mountGameView", () => {
@@ -306,6 +308,31 @@ describe("mountGameView board", () => {
         expect(
             host.querySelectorAll('.game__play button.hand-tile:not([aria-disabled="true"])'),
         ).toHaveLength(0);
+    });
+
+    it("pages a double ron with Next, sends one confirm on OK, then waits for the others, counting down", () => {
+        const { connections, host } = mountWithFakes();
+        const { transcript } = loadSeatScenario("double_ron_seat_1");
+        connections[0].handlers.onOpen();
+        for (const payload of receivedThrough(transcript, "round end")) {
+            connections[0].handlers.onMessage(payload);
+        }
+
+        const labels = [0, 1].map(() => {
+            const label = host.querySelector(
+                ".game__play .round-end-result__confirm-label",
+            )?.textContent;
+            press(host, ".round-end-result__confirm");
+            return label?.trim();
+        });
+
+        expect(labels).toEqual(["Next", "OK"]);
+        expect(connections[0].sent).toEqual([JOIN, buildConfirmRoundAction(ROUND_END_WAIT_ID)]);
+        expect(host.querySelector(".game__play .round-end-result__confirm")).toBeNull();
+        expect([
+            host.querySelector(".game__play .round-end-result__waiting")?.textContent,
+            host.querySelector(".game__play .round-end-result__countdown")?.textContent,
+        ]).toEqual(["Waiting for others", expect.stringMatching(/^\d+s left$/)]);
     });
 
     it("sends a pass with the prompt's wait id when the call prompt's Pass is pressed", () => {

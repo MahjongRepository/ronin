@@ -112,6 +112,77 @@
     gap: 0.4rem;
 }
 
+/* The live game's controls sit beside the scores, toward the thumb, no taller than them and as narrow as their button,
+   the time left to the round advance under its label (or under the note that the seat waits for the others). */
+.round-end-result__controls {
+    flex: none;
+    display: flex;
+    align-items: center;
+    padding-top: 0.4rem;
+}
+
+.round-end-result__confirm {
+    width: auto;
+    min-width: 5.5rem;
+    min-height: 2.75rem;
+    margin: 0;
+    padding: 0.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    touch-action: manipulation;
+
+    &:focus-visible {
+        outline: 3px solid var(--ronin-gold);
+        outline-offset: 2px;
+    }
+}
+
+.round-end-result__countdown {
+    font-family: var(--ronin-font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+
+    &--expired {
+        color: var(--ronin-danger);
+    }
+}
+
+.round-end-result__wait {
+    max-width: 6.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+    text-align: right;
+
+    .round-end-result__countdown {
+        font-size: 0.85rem;
+        color: var(--ronin-gold);
+    }
+}
+
+.round-end-result__waiting {
+    color: var(--ronin-text-secondary);
+    font-style: italic;
+}
+
+.round-end-result__announce {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 .round-end-result__page {
     font-family: var(--ronin-font-mono);
     color: var(--ronin-text-secondary);
@@ -281,15 +352,23 @@
     list-style: none;
 }
 
-.round-end-result__scores {
+.round-end-result__foot {
     grid-area: scores;
+    display: flex;
+    gap: 0.75rem;
+    min-width: 0;
+    border-top: 1px solid var(--ronin-border);
+}
+
+.round-end-result__scores {
+    flex: 1;
+    min-width: 0;
     list-style: none;
     margin: 0;
     padding: 0.4rem 0 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.5rem;
-    border-top: 1px solid var(--ronin-border);
     font-family: var(--ronin-font-mono);
 }
 

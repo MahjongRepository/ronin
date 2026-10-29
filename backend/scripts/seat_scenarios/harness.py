@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import functools
 import json
 import selectors
 from contextlib import contextmanager
@@ -45,7 +46,8 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
     wait ends instead, so sleeps take no real time and every timer fires at its exact virtual moment.
 
     It keeps the timers it was asked for, so a scripted step can refuse to fall on the moment one fires, and it runs no
-    thread: a call into an executor raises.
+    thread: the one executor call it allows, a finished game's replay save into the in-memory storage, runs inline at
+    once, and any other raises, so a blocking call new on the server's path cannot slip past the scenarios unseen.
     """
 
     def __init__(self) -> None:
@@ -81,7 +83,24 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
 
     @override
     def run_in_executor(self, executor: Executor | None, func: Callable[..., Any], *args: Any) -> asyncio.Future[Any]:
-        raise ScenarioError("the harness runs no thread, but something asked the loop for an executor")
+        if not _is_replay_save(func):
+            raise ScenarioError(
+                "the harness runs no thread, but a call other than the replay save asked for an executor"
+            )
+        future: asyncio.Future[Any] = self.create_future()
+        future.set_result(func(*args))
+        return future
+
+
+def _is_replay_save(func: Callable[..., Any]) -> bool:
+    """
+    Whether an executor call is `asyncio.to_thread`'s wrapper (a partial of a context's `run`) around the in-memory
+    replay storage's save.
+    """
+    if not isinstance(func, functools.partial) or not func.args:
+        return False
+    target = func.args[0]
+    return isinstance(getattr(target, "__self__", None), FakeReplayStorage) and target.__name__ == "save_replay"
 
 
 class _AdvancingSelector(selectors.SelectSelector):

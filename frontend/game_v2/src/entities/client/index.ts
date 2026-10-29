@@ -9,6 +9,8 @@ export type {
     GameClientState,
     LocalIntent,
     Offer,
+    PlayIntent,
+    RoundConfirm,
     TurnDecision,
 } from "./model/types";
 export {
@@ -20,8 +22,19 @@ export {
     stepGameClient,
 } from "./model/dispatch";
 export type { DecisionCountdown } from "./model/countdown";
-export { decisionCountdown, nextCountdownChange } from "./model/countdown";
-export type { PlayAction, PlayCommand, PlayDisplay, PlayUi } from "./model/play-display";
+export {
+    decisionCountdown,
+    nextCountdownChange,
+    pendingCountdown,
+    roundConfirmCountdown,
+} from "./model/countdown";
+export type {
+    PlayAction,
+    PlayCommand,
+    PlayDisplay,
+    PlayUi,
+    ResultControls,
+} from "./model/play-display";
 export { NO_PLAY_UI, nextPlayUi, playDisplay } from "./model/play-display";
 export type { PlayBoardProps } from "./ui/play-board";
 export { PlayBoard } from "./ui/play-board";

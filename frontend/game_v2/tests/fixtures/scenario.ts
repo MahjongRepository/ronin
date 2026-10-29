@@ -91,6 +91,11 @@ export const clientEvent = {
         kind: "transport_closed",
         reason: "",
     }),
+    confirm: (at: number): ClientEvent => ({
+        at,
+        intent: { type: "confirm_result" },
+        kind: "intent",
+    }),
     leave: (at: number): ClientEvent => ({ at, intent: { type: "leave" }, kind: "intent" }),
     message: (at: number, raw: WirePayload): ClientEvent => ({ at, kind: "server_message", raw }),
     opened: (at: number): ClientEvent => ({ at, kind: "transport_opened" }),

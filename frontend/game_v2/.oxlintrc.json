@@ -65,7 +65,10 @@
                     "PlayBoard",
                     "DecisionControls",
                     "CountdownView",
-                    "ActionButton"
+                    "ActionButton",
+                    "ResultTime",
+                    "ResultControlsView",
+                    "ScoreFoot"
                 ]
             }
         ],

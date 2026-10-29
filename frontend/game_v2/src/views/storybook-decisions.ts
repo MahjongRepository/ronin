@@ -16,6 +16,8 @@ import {
 } from "@/entities/client";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
+import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json";
+import FINAL_ROUND_SEAT_1 from "@/fixtures/seat-scenarios/final_round_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 
@@ -23,6 +25,8 @@ import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 const TRANSCRIPTS = {
     call_prompt_seat_1: CALL_PROMPT_SEAT_1,
     chankan_robbed_seat_3: CHANKAN_ROBBED_SEAT_3,
+    double_ron_seat_1: DOUBLE_RON_SEAT_1,
+    final_round_seat_1: FINAL_ROUND_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
 } as const satisfies Readonly<Record<string, unknown>>;
@@ -31,16 +35,20 @@ type TranscriptName = keyof typeof TRANSCRIPTS;
 
 /**
  * A board at a checkpoint of a generated seat transcript: the client state after the step its label names, as the
- * live game reaches it, with the view's riichi pick on or off.
+ * live game reaches it, with the view's riichi pick on or off and its round result at a page.
  */
 interface DecisionStory {
     readonly title: string;
     readonly transcript: TranscriptName;
     readonly label: string;
     readonly pickRiichi: boolean;
+    readonly resultPage: number;
 }
 
-/** The stories in the order the page lists them: the call prompts, the turns, then what follows an answer. */
+/**
+ * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, then the round
+ * results the player confirms.
+ */
 const STORY_KEYS = [
     "call_prompt",
     "ron_prompt",
@@ -51,21 +59,33 @@ const STORY_KEYS = [
     "riichi_turn",
     "answered",
     "round_end",
+    "double_ron_first",
+    "double_ron_last",
+    "waiting",
+    "reconnect_owed",
+    "last_result",
 ] as const;
 
 type DecisionStoryKey = (typeof STORY_KEYS)[number];
 
 /** A story at the step labelled `label` of the transcript named `transcript`. */
 function checkpoint(transcript: TranscriptName, label: string, title: string): DecisionStory {
-    return { label, pickRiichi: false, title, transcript };
+    return { label, pickRiichi: false, resultPage: 0, title, transcript };
 }
 
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
     chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),
+    double_ron_first: checkpoint("double_ron_seat_1", "round end", "Double ron 1/2"),
+    double_ron_last: {
+        ...checkpoint("double_ron_seat_1", "round end", "Double ron 2/2"),
+        resultPage: 1,
+    },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
+    last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
     own_turn: checkpoint("own_turn_seat_1", "first draw", "Own turn"),
+    reconnect_owed: checkpoint("double_ron_seat_1", "reconnected", "Reconnect owed"),
     riichi_pick: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Riichi pick"),
         pickRiichi: true,
@@ -73,6 +93,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     riichi_turn: checkpoint("own_turn_seat_1", "tsumo draw", "In riichi"),
     ron_prompt: checkpoint("reconnect_seat_1", "ron prompt", "Ron prompt"),
     round_end: checkpoint("own_turn_seat_1", "round end", "Round end"),
+    waiting: checkpoint("chankan_robbed_seat_3", "confirmed", "Waiting"),
 };
 
 const DEFAULT_STORY: DecisionStoryKey = "call_prompt";
@@ -96,11 +117,12 @@ function checkpointState(transcriptName: TranscriptName, label: string): GameCli
 }
 
 function storyScreen(key: DecisionStoryKey): StoryScreen {
-    const { label, pickRiichi, transcript } = DECISION_STORIES[key];
+    const { label, pickRiichi, resultPage, transcript } = DECISION_STORIES[key];
     const state = checkpointState(transcript, label);
-    const ui = pickRiichi
+    const picked = pickRiichi
         ? { ...NO_PLAY_UI, riichiPickWaitId: state.decision?.waitId ?? null }
         : NO_PLAY_UI;
+    const ui = nextPlayUi(state, picked, { kind: "show_result_page", page: resultPage });
     return { sent: [], state, story: key, ui };
 }
 
