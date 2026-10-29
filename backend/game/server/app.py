@@ -238,6 +238,22 @@ async def create_game(request: Request) -> JSONResponse:
     )
 
 
+async def withdraw_game(request: Request) -> Response:
+    """
+    Answer 204 once a game the lobby gave up on is withdrawn, or 409 when a player already joined it (internal: the
+    lobby's cleanup after a start whose outcome it never learned).
+    """
+    settings: GameServerSettings = request.app.state.settings
+    if not _is_internal_caller(request, settings.internal_api_secret):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    session_manager: SessionManager = request.app.state.session_manager
+    if not session_manager.withdraw_game(request.path_params["game_id"]):
+        return JSONResponse({"error": "Game already joined"}, status_code=409)
+
+    return Response(status_code=204)
+
+
 def create_app(
     settings: GameServerSettings | None = None,
     game_service: GameService | None = None,
@@ -276,6 +292,7 @@ def create_app(
         Route("/health", health, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
         Route("/games", create_game, methods=["POST"]),
+        Route("/games/{game_id}", withdraw_game, methods=["DELETE"]),
         Route("/players/{user_id}", player_game, methods=["GET"]),
         Route("/players/{user_id}/game-session", player_game_session, methods=["GET"]),
         Route("/replays/{game_id}/tenhou", tenhou_replay, methods=["GET"]),

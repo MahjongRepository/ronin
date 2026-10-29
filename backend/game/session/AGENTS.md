@@ -46,7 +46,8 @@ interleave.
   and a disconnected participant still counts, deliberately: the lobby keeps that user out of rooms
   and matchmaking until the game ends. The lobby's per-user lookup, its recovery of the participant's
   own ticket for a lost handoff, and `POST /games`' refusal of a user already playing all answer from
-  this rule.
+  this rule. A pending game nobody joined ends early when the lobby withdraws it; a withdrawn id is
+  refused for a ticket's lifetime, so a creation that arrives after its withdrawal never registers.
 * **Evicted sockets stay silent.** A connection the server closes leaves the registry in the same
   step, and a message that then arrives on it gets no answer: its close is queued or follows from
   the finalizer, and an error ahead of it would read as a permanent error to the client.

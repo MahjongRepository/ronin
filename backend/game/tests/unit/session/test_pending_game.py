@@ -207,6 +207,35 @@ class TestPendingGameTimeout:
         assert manager._game_repository.finishes == []
 
 
+class TestWithdrawGame:
+    async def test_withdraw_game__when_nobody_joined__should_abandon_it_and_free_its_players(self, manager):
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        game = game_of(manager)
+
+        assert manager.withdraw_game("game1") is True
+        assert manager.get_game("game1") is None
+        assert game.lifecycle in (GameLifecycle.ENDING, GameLifecycle.CLOSED)
+        assert manager.get_playing_game_id("user-0") is None
+        assert manager.get_playing_game_id("user-1") is None
+        await wait_for_background_tasks(manager)
+        assert manager._game_repository.finishes == []
+
+    async def test_withdraw_game__when_creation_arrives_after_it__should_refuse_the_creation(self, manager):
+        assert manager.withdraw_game("game1") is True
+
+        with pytest.raises(ValueError, match="withdrawn"):
+            manager.create_pending_game(game_id="game1", player_specs=_make_specs(1))
+        assert manager.get_playing_game_id("user-0") is None
+
+    async def test_withdraw_game__when_a_player_joined__should_keep_the_game(self, manager):
+        manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
+        _join(manager, "ticket-0")
+
+        assert manager.withdraw_game("game1") is False
+        assert game_of(manager).lifecycle is GameLifecycle.PENDING
+        assert manager.get_playing_game_id("user-1") == "game1"
+
+
 class TestGameStartPause:
     async def test_game_start_pause__when_every_player_joined__should_show_each_seat_the_start_then_deal_after_it(
         self, seeded_engine
@@ -487,6 +516,34 @@ class TestPostGamesEndpoint:
         )
         assert response.status_code == 400
         assert "identity mismatch" in response.json()["error"]
+
+    def test_delete_game__when_caller_has_the_internal_secret__should_withdraw_the_pending_game(self, client):
+        body = {
+            "game_id": "test-game",
+            "num_ai_players": 3,
+            "players": [self._signed_player(name="Alice", user_id="u1", game_id="test-game")],
+        }
+        client.post("/games", json=body)
+        secret = client.app.state.settings.internal_api_secret
+
+        response = client.delete("/games/test-game", headers={"Authorization": f"Bearer {secret}"})
+        assert response.status_code == 204
+        assert client.get("/players/u1").status_code == 404
+        assert client.post("/games", json=body).status_code == 409
+
+    def test_delete_game__when_caller_lacks_the_internal_secret__should_answer_401_and_keep_the_game(self, client):
+        client.post(
+            "/games",
+            json={
+                "game_id": "test-game",
+                "num_ai_players": 3,
+                "players": [self._signed_player(name="Alice", user_id="u1", game_id="test-game")],
+            },
+        )
+
+        response = client.delete("/games/test-game", headers={"Authorization": "Bearer wrong"})
+        assert response.status_code == 401
+        assert client.get("/players/u1").json() == {"game_id": "test-game"}
 
 
 class TestJoinGameViaRouter:
