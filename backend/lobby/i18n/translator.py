@@ -23,7 +23,7 @@ _RU_TEENS = range(11, 15)
 
 class I18nError(Exception):
     """
-    A lookup the catalog cannot answer as asked: a missing key, a param mismatch, or a wrong plural call.
+    A lookup the catalog cannot answer as asked: a missing key or translation, a param mismatch, or a wrong plural call.
     """
 
     def __init__(self, key: str, reason: str) -> None:
@@ -121,7 +121,10 @@ class Translator:
         if extra:
             raise I18nError(key, f"unexpected params {sorted(extra)}")
 
-        message = self.catalogs[locale][key]
+        message = self.catalogs[locale].get(key)
+        if message is None:
+            raise I18nError(key, f"missing {locale.value} translation")
+
         if isinstance(message, str):
             return _substitute(message, params, locale=locale, convert=convert)
 

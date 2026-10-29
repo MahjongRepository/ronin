@@ -136,8 +136,11 @@ function renderParts(key, params, localeName) {
         throw new I18nError(key, "missing key");
     }
     checkParams(key, en[key], params);
-    const message = CATALOGS[localeName][key] ?? en[key];
-    return splitText(pickText(message, localeName, params), params);
+    const catalog = CATALOGS[localeName];
+    if (!Object.hasOwn(catalog, key)) {
+        throw new I18nError(key, `missing ${localeName} translation`);
+    }
+    return splitText(pickText(catalog[key], localeName, params), params);
 }
 
 function renderFallback(key, params) {

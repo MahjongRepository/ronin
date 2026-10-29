@@ -10,6 +10,15 @@ import {
     writeLangCookie,
 } from "../../i18n/index.js";
 
+const { UNTRANSLATED_KEY } = vi.hoisted(() => ({ UNTRANSLATED_KEY: "game.auto.label" }));
+
+vi.mock("../../i18n/locales/ru.json", async (importOriginal) => {
+    const { default: ru } = await importOriginal();
+    return {
+        default: Object.fromEntries(Object.entries(ru).filter(([key]) => key !== UNTRANSLATED_KEY)),
+    };
+});
+
 function clearCookies() {
     for (const entry of document.cookie.split(";")) {
         const name = entry.split("=")[0].trim();
@@ -32,6 +41,7 @@ function resolvedLocale({ cookie = null, languages = [] }) {
 
 afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     clearCookies();
 });
 
@@ -107,9 +117,26 @@ describe("t and tNodes", () => {
         expect(nodes.map((node) => node.textContent).join("")).toBe("Sticks: <b>3</b>");
     });
 
-    it("throws in strict mode on a missing key, a missing param and an extra param", () => {
+    it("throws in strict mode on a missing key, a missing param, an extra param and a missing translation", () => {
         expect(() => t("game.no_such_key")).toThrow(I18nError);
         expect(() => t("game.board.kyotaku")).toThrow(/missing params sticks/);
         expect(() => t("game.call.pon", { name: "Alice" })).toThrow(/unexpected params name/);
+        setLocale("ru");
+        expect(() => t(UNTRANSLATED_KEY)).toThrow(/missing ru translation/);
+    });
+
+    it("shows English for a key the page's locale lacks in production, reported once", () => {
+        vi.stubEnv("DEV", false);
+        setLocale("ru");
+        const report = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        expect(t(UNTRANSLATED_KEY)).toBe("Auto play");
+        expect(t(UNTRANSLATED_KEY)).toBe("Auto play");
+
+        expect(report).toHaveBeenCalledExactlyOnceWith("i18n error", {
+            key: UNTRANSLATED_KEY,
+            locale: "ru",
+            reason: "missing ru translation",
+        });
     });
 });
