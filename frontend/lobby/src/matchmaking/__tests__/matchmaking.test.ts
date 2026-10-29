@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import type * as LobbySocketModule from "@/lobby-socket";
 import { type SocketStatus } from "@/lobby-socket";
 import { type PageLifetime } from "@/page-lifetime";
 
@@ -11,7 +12,7 @@ const mockConnect = vi.fn();
 const mockDisconnect = vi.fn();
 
 vi.mock("@/lobby-socket", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/lobby-socket")>()),
+    ...(await importOriginal<typeof LobbySocketModule>()),
     LobbySocket: class MockLobbySocket {
         constructor(
             onMessage: (message: Record<string, unknown>) => void,

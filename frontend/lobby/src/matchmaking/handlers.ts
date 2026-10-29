@@ -22,6 +22,16 @@ function endSearch(state: MatchmakingState, end: MatchmakingEnd, render: RenderM
     render();
 }
 
+function onQueueUpdate(
+    state: MatchmakingState,
+    message: Record<string, unknown>,
+    render: RenderMatchmaking,
+): void {
+    state.phase = "searching";
+    state.queueSize = readQueueSize(message);
+    render();
+}
+
 function onGameStarting(
     state: MatchmakingState,
     message: Record<string, unknown>,
@@ -64,17 +74,18 @@ function handleMessage(
     }
     switch (message.type) {
         case "queue_joined":
-        case "queue_update":
-            state.phase = "searching";
-            state.queueSize = readQueueSize(message);
-            render();
+        case "queue_update": {
+            onQueueUpdate(state, message, render);
             break;
-        case "game_starting":
+        }
+        case "game_starting": {
             onGameStarting(state, message, render);
             break;
-        case "error":
+        }
+        case "error": {
             onError(state, message, render);
             break;
+        }
     }
 }
 

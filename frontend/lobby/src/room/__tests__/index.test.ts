@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import type * as LobbySocketModule from "@/lobby-socket";
 import { type SocketStatus } from "@/lobby-socket";
 import { type PageLifetime } from "@/page-lifetime";
 import { JOIN_RETRY_DELAY_MS } from "@/room/handlers";
@@ -13,7 +14,7 @@ const mockDisconnect = vi.fn();
 const mockSocketCreated = vi.fn();
 
 vi.mock("@/lobby-socket", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/lobby-socket")>()),
+    ...(await importOriginal<typeof LobbySocketModule>()),
     LobbySocket: class MockLobbySocket {
         constructor(
             onMessage: (message: Record<string, unknown>) => void,
@@ -78,6 +79,41 @@ function statusText(container: HTMLElement): string | null | undefined {
 
 function alertText(container: HTMLElement): string {
     return container.querySelector(".lobby-alert")?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function stubLanguageSave() {
+    const save = vi.fn(async () => ({ ok: false, status: 0, type: "opaqueredirect" }));
+    vi.stubGlobal("fetch", save);
+    return save;
+}
+
+function chooseLanguage(locale: string): void {
+    document.querySelector<HTMLButtonElement>(`.footer-lang button[value="${locale}"]`)?.click();
+}
+
+function readChrome(): Record<string, unknown> {
+    return {
+        activeLanguages: [...document.querySelectorAll(".footer-lang [aria-current='true']")].map(
+            (button) => button.textContent,
+        ),
+        history: document.querySelector("[data-i18n='nav.history']")?.textContent,
+        lang: document.documentElement.lang,
+        languageLabel: document.querySelector(".footer-lang")?.getAttribute("aria-label"),
+        navLabel: document.querySelector("nav")?.getAttribute("aria-label"),
+        title: document.title,
+    };
+}
+
+function readRoom(container: HTMLElement): Record<string, unknown> {
+    return {
+        chat: [...container.querySelectorAll(".room-chat-text")].map((line) => line.textContent),
+        seats: [...container.querySelectorAll(".room-player-item")].map((seat) => [
+            seat.querySelector(".room-player-name")?.textContent,
+            seat.querySelector(".room-player-status")?.getAttribute("aria-label"),
+        ]),
+        start: container.querySelector(".room-start-btn")?.textContent?.trim(),
+        status: statusText(container),
+    };
 }
 
 beforeEach(() => {
@@ -224,45 +260,6 @@ describe("initRoomPage language switch", () => {
             type: "room_joined",
         });
         return container;
-    }
-
-    function stubLanguageSave() {
-        const save = vi.fn(async () => ({ ok: false, status: 0, type: "opaqueredirect" }));
-        vi.stubGlobal("fetch", save);
-        return save;
-    }
-
-    function chooseLanguage(locale: string): void {
-        document
-            .querySelector<HTMLButtonElement>(`.footer-lang button[value="${locale}"]`)
-            ?.click();
-    }
-
-    function readChrome(): Record<string, unknown> {
-        return {
-            activeLanguages: [
-                ...document.querySelectorAll(".footer-lang [aria-current='true']"),
-            ].map((button) => button.textContent),
-            history: document.querySelector("[data-i18n='nav.history']")?.textContent,
-            lang: document.documentElement.lang,
-            languageLabel: document.querySelector(".footer-lang")?.getAttribute("aria-label"),
-            navLabel: document.querySelector("nav")?.getAttribute("aria-label"),
-            title: document.title,
-        };
-    }
-
-    function readRoom(container: HTMLElement): Record<string, unknown> {
-        return {
-            chat: [...container.querySelectorAll(".room-chat-text")].map(
-                (line) => line.textContent,
-            ),
-            seats: [...container.querySelectorAll(".room-player-item")].map((seat) => [
-                seat.querySelector(".room-player-name")?.textContent,
-                seat.querySelector(".room-player-status")?.getAttribute("aria-label"),
-            ]),
-            start: container.querySelector(".room-start-btn")?.textContent?.trim(),
-            status: statusText(container),
-        };
     }
 
     test("switches the page and its chrome in place, keeping the socket, the seats and the chat", async () => {

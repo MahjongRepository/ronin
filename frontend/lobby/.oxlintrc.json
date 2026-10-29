@@ -6,7 +6,7 @@
         "perf": "warn",
         "style": "warn"
     },
-    "plugins": ["import"],
+    "plugins": ["typescript", "unicorn", "oxc", "import"],
     "rules": {
         "import/no-relative-parent-imports": "error",
         "import/no-named-export": "off",
