@@ -2,18 +2,15 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { LobbySocket } from "@/lobby-socket";
 
-class FakeWebSocket {
+class FakeWebSocket extends EventTarget {
     static readonly OPEN = 1;
     static instances: FakeWebSocket[] = [];
     readyState = 0;
-    onopen: (() => void) | null = null;
-    onmessage: ((event: MessageEvent) => void) | null = null;
-    onclose: (() => void) | null = null;
-    onerror: (() => void) | null = null;
     send = vi.fn();
     close = vi.fn();
 
     constructor() {
+        super();
         FakeWebSocket.instances.push(this);
     }
 }
@@ -34,8 +31,8 @@ describe("LobbySocket", () => {
         socket.connect("ws://test");
         const [ws] = FakeWebSocket.instances;
 
-        ws.onerror?.();
-        ws.onclose?.();
+        ws.dispatchEvent(new Event("error"));
+        ws.dispatchEvent(new Event("close"));
 
         expect(statuses).toEqual(["error"]);
     });
@@ -49,7 +46,7 @@ describe("LobbySocket", () => {
         ws.readyState = FakeWebSocket.OPEN;
         expect(socket.send({ type: "chat" })).toBe(true);
 
-        ws.onclose?.();
+        ws.dispatchEvent(new Event("close"));
         expect(socket.send({ type: "chat" })).toBe(false);
         expect(ws.send).toHaveBeenCalledTimes(1);
     });

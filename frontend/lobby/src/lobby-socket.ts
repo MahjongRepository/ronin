@@ -18,19 +18,19 @@ export class LobbySocket {
     }
 
     connect(url: string): void {
-        this.disconnectExisting();
+        this.disconnect();
         const ws = new WebSocket(url);
         this.ws = ws;
         let failed = false;
 
-        ws.onopen = () => {
+        ws.addEventListener("open", () => {
             if (this.ws !== ws) {
                 return;
             }
             this.onStatusChange("connected");
-        };
+        });
 
-        ws.onmessage = (event: MessageEvent) => {
+        ws.addEventListener("message", (event) => {
             if (this.ws !== ws) {
                 return;
             }
@@ -42,9 +42,9 @@ export class LobbySocket {
                     this.onMessage({ message: "Failed to parse server message", type: "error" });
                 }
             }
-        };
+        });
 
-        ws.onclose = () => {
+        ws.addEventListener("close", () => {
             if (this.ws !== ws) {
                 return;
             }
@@ -52,15 +52,15 @@ export class LobbySocket {
             if (!failed) {
                 this.onStatusChange("disconnected");
             }
-        };
+        });
 
-        ws.onerror = () => {
+        ws.addEventListener("error", () => {
             if (this.ws !== ws) {
                 return;
             }
             failed = true;
             this.onStatusChange("error");
-        };
+        });
     }
 
     send(message: Record<string, unknown>): boolean {
@@ -76,17 +76,5 @@ export class LobbySocket {
             this.ws.close();
             this.ws = null;
         }
-    }
-
-    private disconnectExisting(): void {
-        if (!this.ws) {
-            return;
-        }
-        this.ws.onopen = null;
-        this.ws.onmessage = null;
-        this.ws.onclose = null;
-        this.ws.onerror = null;
-        this.ws.close();
-        this.ws = null;
     }
 }

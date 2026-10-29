@@ -57,17 +57,20 @@ function recoveryLinks({ code, seatedRoomId }: PageError): RecoveryLink[] {
         ];
     }
     switch (code) {
-        case OCCUPANCY.ALREADY_IN_QUEUE:
+        case OCCUPANCY.ALREADY_IN_QUEUE: {
             return [
                 { href: "/matchmaking", label: t("common.go_to_matchmaking") },
                 backToLobbyLink(),
             ];
+        }
         case PAGE_ERROR.GAME_START_INVALID:
         case PAGE_ERROR.JOIN_RETRIES_EXHAUSTED:
-        case PAGE_ERROR.PAGE_SETUP_FAILED:
+        case PAGE_ERROR.PAGE_SETUP_FAILED: {
             return [reloadLink(), backToLobbyLink()];
-        default:
+        }
+        default: {
             return [backToLobbyLink()];
+        }
     }
 }
 

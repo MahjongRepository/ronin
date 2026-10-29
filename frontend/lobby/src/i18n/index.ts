@@ -23,6 +23,7 @@ const CATALOGS: Readonly<Record<Locale, Catalog>> = { en, ja, ru };
 const reportedKeys = new Set<string>();
 
 class I18nError extends Error {
+    override readonly name = "I18nError";
     readonly key: string;
     readonly reason: string;
 
