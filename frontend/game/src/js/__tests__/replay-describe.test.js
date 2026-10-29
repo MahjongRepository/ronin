@@ -81,7 +81,7 @@ describe("outcomeParts", () => {
     });
 
     it("names a draw and the seats it names before its Japanese name", () => {
-        expect(outcomes(EAGER_GAME)[3]).toBe("Exhaustive draw: tenpai Alice, Bob (荒牌平局)");
+        expect(outcomes(EAGER_GAME)[3]).toBe("Exhaustive draw: Alice, Bob tenpai (荒牌平局)");
         expect(outcomes(NAGASHI)).toEqual(["Nagashi Mangan: Alice (流し満貫)"]);
         expect(outcomes(KYUUSHU)).toEqual(["Kyuushu Kyuuhai: Alice (九種九牌)"]);
         expect(outcomes(FOUR_KANS).at(-1)).toBe("Four kans (四槓散了)");
@@ -90,7 +90,7 @@ describe("outcomeParts", () => {
     });
 
     it("says where the replay cuts a round off", () => {
-        expect(outcomes(TRUNCATED_MID_ROUND)).toEqual(["Cut off: the server stopped the game"]);
+        expect(outcomes(TRUNCATED_MID_ROUND)).toEqual(["Ended early: the server stopped the game"]);
     });
 });
 

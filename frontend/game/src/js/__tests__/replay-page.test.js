@@ -415,7 +415,7 @@ describe("showReplay", () => {
 
         expect(label()).toMatchObject({
             round: "East 2, 1 honba",
-            ended: "Cut off: the server stopped the game",
+            ended: "Ended early: the server stopped the game",
         });
         expect(label().step).toMatch(/^Step (\d+)\u00a0\/\u00a0\1$/);
         expect(disabled()).toMatchObject({ play: true, next: true, nextRound: true, last: true });
@@ -646,7 +646,7 @@ describe("ReplayControls", () => {
         ]);
         expect(document.activeElement).toBe($(".replay-help-body")[0]);
         expect($(".replay-help dt").first().text()).toBe("← →");
-        expect($(".replay-help").text()).toContain("Rounds");
+        expect($(".replay-help").text()).toContain("Round list:");
 
         press("Escape", { repeat: true });
         expect(helpOpen()).toBe(true);

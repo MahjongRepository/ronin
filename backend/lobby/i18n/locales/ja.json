@@ -85,7 +85,6 @@
     "nav.language_menu": "言語：{language}",
     "nav.log_in": "ログイン",
     "nav.log_out": "ログアウト",
-    "nav.logo_label": "Ronin ロゴ",
     "nav.register": "登録",
     "page.title.default": "Ronin 麻雀",
     "page.title.with_page": "{page} · Ronin 麻雀"

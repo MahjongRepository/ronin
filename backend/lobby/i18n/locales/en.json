@@ -1,10 +1,10 @@
 {
     "auth.error.account_not_saved": "The account could not be created. Try again.",
     "auth.error.human_account": "Username '{username}' belongs to a human account.",
-    "auth.error.password_bytes": "Password must not exceed {max} bytes when encoded.",
+    "auth.error.password_bytes": "Password is too long (the limit is {max} bytes).",
     "auth.error.password_length": "Password must be between {min} and {max} characters.",
     "auth.error.username_length": "Username must be between {min} and {max} characters.",
-    "auth.error.username_pattern": "Username must contain only letters, numbers and underscores.",
+    "auth.error.username_pattern": "Username can only contain letters, numbers and underscores.",
     "auth.error.username_taken": "Username '{username}' is already taken.",
     "auth.error.wrong_credentials": "Wrong username or password.",
     "auth.field.confirm_password": "Confirm password",
@@ -90,7 +90,6 @@
     "nav.language_menu": "Language: {language}",
     "nav.log_in": "Log in",
     "nav.log_out": "Log out",
-    "nav.logo_label": "Ronin logo",
     "nav.register": "Register",
     "page.title.default": "Ronin Mahjong",
     "page.title.with_page": "{page} · Ronin Mahjong"

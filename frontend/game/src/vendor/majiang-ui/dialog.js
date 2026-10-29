@@ -128,7 +128,7 @@ export default class HuleDialog {
                                         { fu: hule.fu, han: hule.fanshu }),
                 score_name(manguan),
                 t('game.result.points', { count: hule.defen }),
-            ].filter(part => part != null).join(' ');
+            ].filter(part => part != null).join(' · ');
             let r_defen = this._r_defen.clone();
             $('.defen', r_defen).text(text);
             hupai.append(r_defen);

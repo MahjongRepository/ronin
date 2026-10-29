@@ -82,7 +82,7 @@ describe("switchLiveLocale", () => {
         vi.advanceTimersByTime(2000);
         expect(timer.text()).toBe(String(CALL_SECONDS - 3));
         expect($("#board .score .jushu").text()).toBe("East 1");
-        expect($("#board .shoupai.main .bingpai .pai").first().attr("alt")).toMatch(/ of /);
+        expect($("#board .shoupai.main .bingpai .pai").first().attr("alt")).toBe("2-man");
         expect(document.documentElement.lang).toBe("en");
         expect(document.title).toBe("Ronin - Game");
     });

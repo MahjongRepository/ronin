@@ -94,7 +94,7 @@ describe("initRoomPage", () => {
     test("shows a reload alert instead of a blank page when the page lacks its settings", () => {
         const container = renderPage(`data-room-name="Jade Crane" data-ws-url="${WS_URL}"`);
 
-        expect(alertText(container)).toContain("This table could not be loaded.");
+        expect(alertText(container)).toContain("This table couldn't be loaded.");
         expect(container.querySelector(".lobby-alert a")?.textContent).toBe("Reload");
         expect(mockConnect).not.toHaveBeenCalled();
     });
@@ -143,7 +143,7 @@ describe("initRoomPage", () => {
         receive({ game_ticket: "ticket-1", type: "game_starting", ws_url: "ws://game/ws" });
 
         expect(replace).not.toHaveBeenCalled();
-        expect(alertText(container)).toContain("The game started, but it could not be opened.");
+        expect(alertText(container)).toContain("The game started, but it couldn't be opened.");
         expect(container.querySelector(".lobby-alert a")?.textContent).toBe("Reload");
     });
 });

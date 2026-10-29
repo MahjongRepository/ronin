@@ -120,8 +120,8 @@ Applies when the game type and winning score threshold settings allow the game t
 
 - Tenhou (Blessing of Heaven): Dealer yakuman on initial 14-tile draw
 - Chiihou (Blessing of Earth): Non-dealer yakuman on first self-draw. Any call (meld) by any player interrupts.
-- Haitei Raoyue (Under the Sea): 1-han, win on last wall tile (tsumo)
-- Houtei Raoyui (Under the River): 1-han, win on last discard (ron)
+- Haitei (Haitei Raoyue, Under the Sea): 1-han, win on last wall tile (tsumo)
+- Houtei (Houtei Raoyui, Under the River): 1-han, win on last discard (ron)
 - Rinshan Kaihou: Win on replacement tile after any quad type
 - Ryuuiisou (All Green): Yakuman; green tiles only (2, 3, 4, 6, 8 sou and/or hatsu). Hatsu not required.
 - Double Riichi: Riichi on very first uninterrupted discard (2 han). Interrupted by any call (chii, pon, kan, including concealed kan) by any player before the declaration.
