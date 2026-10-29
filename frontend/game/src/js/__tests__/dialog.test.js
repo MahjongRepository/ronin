@@ -139,7 +139,7 @@ describe("Majiang.UI.HuleDialog", () => {
         const dialog = new HuleDialog(root, renderTile, createModel([25000, 25000, 25000, 25000]));
 
         dialog.hule({ ...DAISANGEN_WIN, fenpei: [0, 32000, -32000, 0], pao: 2 });
-        expect(root.find(".hule .note").text()).toBe("責任払い: Bot 3");
+        expect(root.find(".hule .note").text()).toBe("パオ: Bot 3");
 
         dialog.hule(DAISANGEN_WIN);
         expect(root.find(".hule .note").text()).toBe("");

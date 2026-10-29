@@ -16,11 +16,11 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 ### Calls & Turn Order
 
-- Call precedence: Ron > Pon/Kan > Chi; among same-type calls, closer counter-clockwise to discarder wins (for chankan, to the kan caller)
-- A player who can both ron and call a meld (chi, pon or kan) on the same discard is offered all of them and may choose either. Calling the meld instead declines the ron, with the same temporary furiten as passing; any other player's ron still takes precedence over the meld.
-- Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chi, pon, or kan — only ron is allowed.
-- Four kans restriction: The replacement discard of a fourth kan that makes a Four Kans abortive draw cannot be called for chi, pon, or kan — only ron is allowed. (No meld arises on the discard declaring a fourth riichi either: the other three players are in riichi and cannot call.)
-- Tsumo wins on a self-drawn tile, including a kan replacement draw and the dealer's initial hand. Claiming a discard for chi or pon does not provide a tsumo opportunity.
+- Call precedence: Ron > Pon/Kan > Chii; among same-type calls, closer counter-clockwise to discarder wins (for chankan, to the kan caller)
+- A player who can both ron and call a meld (chii, pon or kan) on the same discard is offered all of them and may choose either. Calling the meld instead declines the ron, with the same temporary furiten as passing; any other player's ron still takes precedence over the meld.
+- Last discard restriction: The final discard of a hand (when no tiles remain in the live wall after the draw) cannot be called for chii, pon, or kan — only ron is allowed.
+- Four kans restriction: The replacement discard of a fourth kan that makes a Four Kans abortive draw cannot be called for chii, pon, or kan — only ron is allowed. (No meld arises on the discard declaring a fourth riichi either: the other three players are in riichi and cannot call.)
+- Tsumo wins on a self-drawn tile, including a kan replacement draw and the dealer's initial hand. Claiming a discard for chii or pon does not provide a tsumo opportunity.
 
 ### Riichi
 
@@ -45,12 +45,12 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 
 ### Ippatsu
 
-- Any call (chi, pon, or kan) by any player clears Ippatsu for all riichi players.
+- Any call (chii, pon, or kan) by any player clears Ippatsu for all riichi players.
 
 ### Kan (Quads)
 
 - Minimum wall tiles for kan: 2
-- Kan after pon/chi on same turn: Not allowed (kan requires a drawn tile)
+- Kan after pon/chii on same turn: Not allowed (kan requires a drawn tile)
 - Consecutive concealed quads: Allowed without discarding between them (each reveals a new Dora indicator immediately)
 - Four quads by same player: Play continues (does NOT trigger abortive draw)
 - Four quads by different players (2+): Abortive draw (Four Kans, below)
@@ -63,7 +63,7 @@ Rules fundamental to Riichi Mahjong that cannot be configured via settings.
 | Claimed (Daiminkan)   | After replacement discard passes (not ron'd) | Dora not revealed | Dora not revealed    |
 | Extended (Shouminkan) | After replacement discard passes (not ron'd) | Dora not revealed | Dora not revealed    |
 
-Deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chi); the reveal triggers once the Ron check passes.
+Deferred Dora reveal applies even if the discard is subsequently claimed for a meld (Pon/Chii); the reveal triggers once the Ron check passes.
 
 #### Chankan (Robbing a Quad)
 
@@ -124,7 +124,7 @@ Applies when the game type and winning score threshold settings allow the game t
 - Houtei Raoyui (Under the River): 1-han, win on last discard (ron)
 - Rinshan Kaihou: Win on replacement tile after any quad type
 - Ryuuiisou (All Green): Yakuman; green tiles only (2, 3, 4, 6, 8 sou and/or hatsu). Hatsu not required.
-- Double Riichi: Riichi on very first uninterrupted discard (2 han). Interrupted by any call (chi, pon, kan, including concealed kan) by any player before the declaration.
+- Double Riichi: Riichi on very first uninterrupted discard (2 han). Interrupted by any call (chii, pon, kan, including concealed kan) by any player before the declaration.
 - Nagashi Mangan: Treated as special draw; requires all discards are terminals/honors with none claimed. Only opponent's claiming of player's discards invalidates — player may call others' tiles and still qualify. Payment equivalent to mangan tsumo: if non-dealer achieves it, 4,000 from dealer and 2,000 from each non-dealer; if dealer achieves it, 4,000 from each non-dealer. No honba bonus is paid during settlement, but the honba counter increments by 1 for the next hand (same as exhaustive draw). Riichi sticks on the table are not collected (carry to next hand). Dealer rotation follows exhaustive draw rules (dealer keeps seat if tenpai).
 
 ---
@@ -156,10 +156,10 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 ### Call Rules
 
 - Kuikae (swap-calling): Not allowed
-  - Same-tile restriction: For the discard immediately after pon or chi, cannot discard the same tile type that was claimed
-  - Suji restriction: For the discard immediately after chi, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
+  - Same-tile restriction: For the discard immediately after pon or chii, cannot discard the same tile type that was claimed
+  - Suji restriction: For the discard immediately after chii, also forbid the tile that would complete a sequence with the two tiles contributed from hand: calling 1m with 23m forbids discarding 4m; calling 4m with 23m forbids 1m. Calling the middle tile (2m with 13m) adds no suji restriction.
   - Red and ordinary fives share a tile type for kuikae.
-  - A chi is legal only if at least one legal discard remains after the meld is formed; a chi shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
+  - A chii is legal only if at least one legal discard remains after the meld is formed; a chii shape that would leave only kuikae-forbidden tiles is not offered and is rejected. A pon can never leave such a hand.
 - Multiple Ron (Double Ron): Allowed (2 players win simultaneously); riichi sticks from previous rounds go to the winner closest counter-clockwise to the discarder. Both winners receive the honba bonus (+300 per counter each) — the discarder pays the honba bonus to each winner separately. When disabled, Head Bump (Atama Hane) applies: only the player closest counter-clockwise to the discarder wins, and only they receive riichi sticks. For chankan the kan caller takes the discarder's role in both rules.
 
 ### Dora
@@ -172,7 +172,7 @@ Rules that could theoretically be adjusted through game settings. Current Ronin 
 
 ### Abortive Draws
 
-- Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chi, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
+- Kyuushu Kyuuhai (player choice): Any player may declare kyuushu kyuuhai with at least nine distinct terminal/honor types among their 14 tiles on their initial turn, before discarding, provided no player has made a chii, pon, or kan (including concealed kan). Other players' ordinary discards do not end eligibility, and the drawn tile counts toward the nine types. Not automatic — the server must offer this as an action.
 - Four Winds: All four players discard the same wind on first turn. A riichi declared on the fourth wind discard is not established: the hand ends before the bet is taken, so no stick is deposited.
 - Four Riichi: After fourth riichi succeeds (if no one wins on the discard). A ron on the declaration discard stands, and the fourth riichi stick is not deposited.
 - Four Kans: Four kans declared by two or more players. The fourth kan completes as usual: its declarer draws the replacement tile and may win by rinshan kaihou, or discards. If that discard is ronned, the ron stands; otherwise the hand ends in an abortive draw once the discard passes (it cannot be called for a meld, and any deferred kan dora is revealed first). A fourth kan that is robbed (an added kan by chankan, or a closed kan by kokushi musou) never completes, so the ron stands. If the replacement discard also declares the fourth riichi, the abort is reported as Four Riichi. One player holding all four kans plays on, and no fifth kan can be declared.

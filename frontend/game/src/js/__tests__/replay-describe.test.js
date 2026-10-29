@@ -10,6 +10,7 @@ import AI_REPLACEMENTS from "./fixtures/replays/ai_replacements.txt?raw";
 import DOUBLE_RON from "./fixtures/replays/double_ron.txt?raw";
 import DOUBLE_RON_ON_HONBA from "./fixtures/replays/double_ron_on_honba.txt?raw";
 import EAGER_GAME from "./fixtures/replays/eager_game.txt?raw";
+import FOUR_KANS from "./fixtures/replays/four_kans.txt?raw";
 import KYUUSHU from "./fixtures/replays/kyuushu.txt?raw";
 import NAGASHI from "./fixtures/replays/nagashi.txt?raw";
 import PAO from "./fixtures/replays/pao.txt?raw";
@@ -67,9 +68,9 @@ describe("outcomeParts", () => {
             "Double ron from Bob: Alice 1,600, Diana 1,600 (+1,200 honba)",
         );
         setLocale("ru");
-        expect(outcomes(EAGER_GAME)[2]).toBe("Рон: Charlie от Alice 1\u00a0300 (+300 за хонбу)");
+        expect(outcomes(EAGER_GAME)[2]).toBe("Рон: Charlie от Alice 1\u00a0300 (хонба +300)");
         expect(outcomes(DOUBLE_RON_ON_HONBA)[2]).toBe(
-            "Двойной рон от Bob: Alice 1\u00a0600, Diana 1\u00a0600 (+1\u00a0200 за хонбу)",
+            "Двойной рон от Bob: Alice 1\u00a0600, Diana 1\u00a0600 (хонба +1\u00a0200)",
         );
     });
 
@@ -83,6 +84,7 @@ describe("outcomeParts", () => {
         expect(outcomes(EAGER_GAME)[3]).toBe("Exhaustive draw: tenpai Alice, Bob (荒牌平局)");
         expect(outcomes(NAGASHI)).toEqual(["Nagashi Mangan: Alice (流し満貫)"]);
         expect(outcomes(KYUUSHU)).toEqual(["Kyuushu Kyuuhai: Alice (九種九牌)"]);
+        expect(outcomes(FOUR_KANS).at(-1)).toBe("Four kans (四槓散了)");
         setLocale("ja");
         expect(outcomes(EAGER_GAME)[3]).toBe("荒牌平局: テンパイ Alice・Bob");
     });

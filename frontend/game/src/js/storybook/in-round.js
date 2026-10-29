@@ -63,7 +63,7 @@ export const DECISION_VARIANTS = Object.freeze([
     },
     {
         key: "call",
-        title: "Chi, pon or kan on a discard",
+        title: "Chii, pon or kan on a discard",
         hand: "m234p23334s678z11",
         events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "p3")],
         offer: { chi: ["p23-4"], peng: ["p333-"], gang: ["p3333-"] },
@@ -77,14 +77,14 @@ export const DECISION_VARIANTS = Object.freeze([
     },
     {
         key: "ron-chi",
-        title: "Ron or chi on a discard",
+        title: "Ron or chii on a discard",
         hand: "m234p23456s678s55",
         events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "p4")],
         offer: { ron: true, chi: ["p234-", "p34-5", "p4-56"] },
     },
     {
         key: "chi",
-        title: "Choosing a chi",
+        title: "Choosing a chii",
         hand: "m3467p234s567z223",
         events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "m5")],
         offer: { chi: ["m345-", "m45-6", "m5-67"] },
@@ -92,7 +92,7 @@ export const DECISION_VARIANTS = Object.freeze([
     },
     {
         key: "open-chi",
-        title: "Choosing a chi on an open hand",
+        title: "Choosing a chii on an open hand",
         hand: "m3467s55z2,p2-34,s777=",
         events: [...OPENING, ...ownTurn("p9"), ...hiddenTurns("z6", "s1", "m5")],
         offer: { chi: ["m345-", "m45-6", "m5-67"] },

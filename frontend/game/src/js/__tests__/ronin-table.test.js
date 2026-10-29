@@ -1332,7 +1332,7 @@ describe("the ronin table (Translate and Reply)", () => {
         vi.setSystemTime(new Date(2026, 9, 25, 14, 30));
         const table = startTable(BASE_HAND, {}, { gid: "3f2b6c1e", gt: 1 });
 
-        expect(shownOf(table, "kaiju")[0].data.title).toBe("東風\n2026/10/25 14:30");
+        expect(shownOf(table, "kaiju")[0].data.title).toBe("東風戦\n2026/10/25 14:30");
     });
 
     it("calls out a riichi as it is discarded and a win before its result", () => {
