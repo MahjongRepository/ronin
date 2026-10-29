@@ -1,7 +1,7 @@
 {
     "auth.error.account_not_saved": "アカウントを作成できませんでした。もう一度お試しください。",
     "auth.error.human_account": "ユーザー名「{username}」は人間のプレイヤーのアカウントです。",
-    "auth.error.password_bytes": "パスワードが長すぎます。エンコード後{max}バイト以内にしてください。",
+    "auth.error.password_bytes": "パスワードが長すぎます（上限{max}バイト）。",
     "auth.error.password_length": "パスワードは{min}～{max}文字にしてください。",
     "auth.error.username_length": "ユーザー名は{min}～{max}文字にしてください。",
     "auth.error.username_pattern": "ユーザー名には英数字とアンダースコアのみ使えます。",
