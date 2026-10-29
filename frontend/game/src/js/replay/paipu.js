@@ -527,6 +527,7 @@ class ReplayBuilder {
             this.pushRound(this.round.closeTruncated());
         }
         return {
+            gameType: this.gameType,
             players: this.players,
             qijia: this.qijia,
             rounds: this.rounds,

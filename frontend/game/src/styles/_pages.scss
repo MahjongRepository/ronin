@@ -64,38 +64,6 @@ body.storybook {
     }
 }
 
-.game-loading .loading-start {
-    min-width: 120px;
-    min-height: 44px;
-    padding: 0 32px;
-    border: solid 1px $accent;
-    border-radius: 6px;
-    background: transparent;
-    color: $accent;
-    font: inherit;
-    cursor: pointer;
-
-    /* Focused, it fills as on hover: the screen's one button, focused on arrival, reads as the default. A transparent
-       outline keeps a ring where forced colours drop the fill. */
-    &:focus-visible {
-        outline: solid 2px transparent;
-        background: $accent;
-        color: $felt;
-    }
-
-    @media (hover: hover) {
-        &:hover {
-            background: $accent;
-            color: $felt;
-        }
-    }
-
-    @media (pointer: coarse) and (height > 450px) {
-        min-width: 240px;
-        min-height: 96px;
-    }
-}
-
 .storybook-header {
     h1 {
         font-size: 24px;

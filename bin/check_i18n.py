@@ -94,7 +94,7 @@ APPS = (
             "yaku.",
         ),
         identical_keys=frozenset(
-            {"game.settings.off", "game.settings.on", "list.separator", "loading.start", "replay.seat_option"}
+            {"game.settings.off", "game.settings.on", "list.separator", "replay.seat_option", "replay.start"}
         ),
         literals_in_namespaces_are_keys=True,
     ),
