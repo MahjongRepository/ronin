@@ -68,7 +68,7 @@ describe("buildMessageHandlers", () => {
     });
 
     test.each([
-        ["already_in_queue", "You are searching for a match. Cancel the search first."],
+        ["already_in_queue", "You're already searching for a match. Cancel that search first."],
         ["room_full", "This table filled up before you joined."],
     ])("ends the page on a %s refusal with its reason instead of a chat line", (code, text) => {
         const { handlers, rejoin, state } = buildRoom();
@@ -99,7 +99,7 @@ describe("buildMessageHandlers", () => {
 
         expect(rejoin).toHaveBeenCalledTimes(MAX_JOIN_RETRIES);
         expect(state.pageError?.text).toBe(
-            "The game did not start in time. Reload the page to try again.",
+            "The game didn't start in time. Reload the page to try again.",
         );
     });
 

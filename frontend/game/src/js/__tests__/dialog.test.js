@@ -192,7 +192,7 @@ describe("Majiang.UI.HuleDialog", () => {
                 .map((i, cell) => $(cell).text())
                 .get(),
         ).toEqual(["Riichi", "Pinfu", "Tanyao", "Ura Dora"]);
-        expect(root.find(".hupai .row-defen").text()).toBe("30 fu 4 han Mangan 8,000 points");
+        expect(root.find(".hupai .row-defen").text()).toBe("4 han 30 fu · Mangan · 8,000 points");
     });
 
     it("names a daisharin by the suit it is made in", () => {

@@ -112,7 +112,7 @@ describe("initMatchmakingPage", () => {
         capturedStatusHandler?.("disconnected");
 
         expect(text(container, "h2")).toBe("Couldn't start the match");
-        expect(text(container, ".lobby-alert")).toContain("the game could not be started");
+        expect(text(container, ".lobby-alert")).toContain("the game couldn't be started");
         expect(actionLabels(container)).toEqual(["Search again", "Back to lobby"]);
     });
 

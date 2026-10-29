@@ -100,7 +100,6 @@
     "nav.language_menu": "Язык: {language}",
     "nav.log_in": "Войти",
     "nav.log_out": "Выйти",
-    "nav.logo_label": "Логотип Ronin",
     "nav.register": "Регистрация",
     "page.title.default": "Ronin Маджонг",
     "page.title.with_page": "{page} · Ronin Маджонг"
