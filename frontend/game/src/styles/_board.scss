@@ -210,7 +210,7 @@ body.board {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
         align-items: center;
-        column-gap: 0.4em;
+        gap: 2px 0.4em;
         background: rgb(0 0 0 / 55%);
         border: solid 1px rgb(255 255 255 / 15%);
         color: $grey-50;
@@ -252,7 +252,8 @@ body.board {
             padding: 0 0.3em;
             border-radius: 3px;
             font-family: $menu-font;
-            line-height: 1.35;
+            font-size: 0.85em;
+            line-height: 1.25;
 
             &.dealer {
                 background: $accent;
