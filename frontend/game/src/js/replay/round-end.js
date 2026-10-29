@@ -81,22 +81,19 @@ const OUTCOME_OF_TYPE = {
         const loser = seatField(roundEnd, "ls");
         return { kind: OUTCOME.DOUBLE_RON, winners: doubleRonWinners(roundEnd, loser), loser };
     },
-    [wire.RT.EXHAUSTIVE]: (roundEnd, { code, name }) => ({
+    [wire.RT.EXHAUSTIVE]: (roundEnd, { code }) => ({
         kind: OUTCOME.EXHAUSTIVE,
         code,
-        name,
         tenpai: seatsField(roundEnd, "ts"),
     }),
-    [wire.RT.NAGASHI]: (roundEnd, { code, name }) => ({
+    [wire.RT.NAGASHI]: (roundEnd, { code }) => ({
         kind: OUTCOME.NAGASHI,
         code,
-        name,
         players: seatsField(roundEnd, "qs"),
     }),
-    [wire.RT.ABORTIVE]: (roundEnd, { code, name }) => ({
+    [wire.RT.ABORTIVE]: (roundEnd, { code }) => ({
         kind: OUTCOME.ABORT,
         code,
-        name,
         declarer: optionalSeatField(roundEnd, "s"),
     }),
 };

@@ -4,6 +4,7 @@ import Majiang from "../../vendor/majiang-core/index.js";
 import { parseReplay } from "../replay/load.js";
 import { MalformedReplayError, NOTE, POSITION, toReplay } from "../replay/paipu.js";
 import { OUTCOME } from "../replay/round-end.js";
+import { DRAW_CODE } from "../ronin/draws.js";
 import wire from "../ronin/wire.js";
 import { firstLineOf } from "./replay-edits.js";
 import AI_DEALER_ABSENT from "./fixtures/replays/ai_dealer_absent.txt?raw";
@@ -500,7 +501,7 @@ describe("toReplay round ends", () => {
         });
         expect(round.outcome).toMatchObject({
             kind: OUTCOME.NAGASHI,
-            name: "流し満貫",
+            code: DRAW_CODE.NAGASHI,
             players: [1],
         });
     });

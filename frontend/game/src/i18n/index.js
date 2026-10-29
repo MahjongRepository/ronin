@@ -131,13 +131,13 @@ function splitText(text, params) {
     });
 }
 
-function renderParts(key, params) {
+function renderParts(key, params, localeName) {
     if (!hasKey(key)) {
         throw new I18nError(key, "missing key");
     }
     checkParams(key, en[key], params);
-    const message = CATALOGS[locale()][key] ?? en[key];
-    return splitText(pickText(message, locale(), params), params);
+    const message = CATALOGS[localeName][key] ?? en[key];
+    return splitText(pickText(message, localeName, params), params);
 }
 
 function renderFallback(key, params) {
@@ -148,9 +148,9 @@ function renderFallback(key, params) {
 }
 
 /** A key's parts, strict under the dev server and Vitest; in production a broken lookup falls back to English. */
-function lookupParts(key, params) {
+function lookupParts(key, params, localeName = locale()) {
     try {
-        return renderParts(key, params);
+        return renderParts(key, params, localeName);
     } catch (error) {
         if (!(error instanceof I18nError) || import.meta.env.DEV) {
             throw error;
@@ -160,11 +160,18 @@ function lookupParts(key, params) {
     }
 }
 
+function joinParts(parts) {
+    return parts.map((part) => (typeof part === "string" ? part : part.textContent)).join("");
+}
+
 /** A key's text in the page's locale, its `{name}` placeholders filled from `params`. */
 export function t(key, params = {}) {
-    return lookupParts(key, params)
-        .map((part) => (typeof part === "string" ? part : part.textContent))
-        .join("");
+    return joinParts(lookupParts(key, params));
+}
+
+/** A key's text in another locale than the page's: the Japanese name a line in another language quotes. */
+export function tIn(localeName, key, params = {}) {
+    return joinParts(lookupParts(key, params, localeName));
 }
 
 /**

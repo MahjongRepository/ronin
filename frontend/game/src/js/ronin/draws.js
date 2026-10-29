@@ -21,8 +21,8 @@ const ABORTIVE_CODES = Object.freeze([
 ]);
 
 /**
- * Each draw's Japanese name, which majiang-core's model reads (its board matches 三家和 on it) and the replay shows
- * beside a translated name; never looked up for display otherwise.
+ * Each draw's Japanese name, which majiang-core's model reads (its board matches 三家和 on it); never shown: every
+ * display, the replay's Japanese name beside a translated one included, reads the catalog's `draw.<code>`.
  */
 const DRAW_MODEL_NAMES = Object.freeze({
     [DRAW_CODE.EXHAUSTIVE]:     '荒牌平局',

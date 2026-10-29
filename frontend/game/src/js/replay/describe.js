@@ -1,4 +1,4 @@
-import { formatNumber, locale, t, tileVisible } from "../../i18n/index.js";
+import { formatNumber, locale, t, tIn, tileVisible } from "../../i18n/index.js";
 import { DIR } from "../ronin/mianzi.js";
 import { seatL, seatOfL } from "../ronin/results.js";
 import { drawName, roundWithHonba, windName } from "../ronin/terms.js";
@@ -196,7 +196,7 @@ function drawText(outcome, nameOfSeat) {
 /** A draw's text, its Japanese name after it, marked as such, when the page is in another language. */
 function drawParts(outcome, nameOfSeat) {
     const text = drawText(outcome, nameOfSeat);
-    return locale() === "ja" ? [text] : [`${text} (`, ja(outcome.name), ")"];
+    return locale() === "ja" ? [text] : [`${text} (`, ja(tIn("ja", `draw.${outcome.code}`)), ")"];
 }
 
 /**

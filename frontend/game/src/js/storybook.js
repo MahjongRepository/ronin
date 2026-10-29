@@ -35,7 +35,7 @@ const HAND_SAMPLES = Object.freeze([
 ]);
 
 const MELD_SAMPLES = Object.freeze([
-    { title: "Chi from the left", hand: "p456s789z1122,m1-23" },
+    { title: "Chii from the left", hand: "p456s789z1122,m1-23" },
     { title: "Pon from the right, across and left", hand: "s789z1,p555+,z666=,s777-" },
     { title: "Open kan with a red five, closed kan", hand: "p456s789z1,m5550=,z1111" },
     { title: "Added kan", hand: "p456s789z1122,p333+3" },
