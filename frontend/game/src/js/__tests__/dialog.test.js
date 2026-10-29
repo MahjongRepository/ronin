@@ -194,4 +194,26 @@ describe("Majiang.UI.HuleDialog", () => {
         ).toEqual(["Riichi", "Pinfu", "Tanyao", "Ura Dora"]);
         expect(root.find(".hupai .row-defen").text()).toBe("30 fu 4 han Mangan 8,000 points");
     });
+
+    it("names a daisharin by the suit it is made in", () => {
+        const root = renderDialog();
+        const dialog = new HuleDialog(root, renderTile, createModel([25000, 25000, 25000, 25000]));
+        const daisharin = (shoupai) =>
+            huleMessage({
+                l: 1,
+                shoupai,
+                baojia: null,
+                hr: { han: 13, fu: 0, pt: 320, yk: [{ yi: 109, han: 13 }] },
+                fenpei: [-16000, 32000, -8000, -8000],
+                fubaopai: null,
+            }).hule;
+        const yakuOf = (shoupai) => {
+            dialog.hule(daisharin(shoupai));
+            return root.find(".hupai .row-hupai .name").text();
+        };
+
+        expect(yakuOf("p2233445566778p8")).toBe("大車輪");
+        expect(yakuOf("m2233445566778m8")).toBe("大数隣");
+        expect(yakuOf("s2233445566778s8")).toBe("大竹林");
+    });
 });
