@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# Group commits between two refs by prefix (feat/bug/chore).
-# Usage: bin/group-commits.sh <from-ref> <to-ref>
-# Output: markdown-formatted grouped commit list to stdout.
-
 set -euo pipefail
 
-from_ref="${1:?Usage: bin/group-commits.sh <from-ref> <to-ref>}"
-to_ref="${2:-HEAD}"
+version="${1:?Usage: bin/release-notes.sh <version> <from-ref> <summary-file> [to-ref]}"
+from_ref="${2:?Usage: bin/release-notes.sh <version> <from-ref> <summary-file> [to-ref]}"
+summary_file="${3:?Usage: bin/release-notes.sh <version> <from-ref> <summary-file> [to-ref]}"
+to_ref="${4:-HEAD}"
 
 repo_url="https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 
@@ -16,12 +14,9 @@ maintenance=()
 other=()
 
 while IFS= read -r line; do
-    # Split into short hash and message
     sha="${line%% *}"
     msg="${line#* }"
-    full_sha=$(git rev-parse "$sha")
-    link="${repo_url}/commit/${full_sha}"
-    entry="${msg} (${link})"
+    entry="${msg} (${repo_url}/commit/${sha})"
 
     if [[ "$msg" =~ ^feat:\ (.+) ]]; then
         features+=("$entry")
@@ -32,7 +27,7 @@ while IFS= read -r line; do
     else
         other+=("$entry")
     fi
-done < <(git log "${from_ref}..${to_ref}" --oneline)
+done < <(git log "${from_ref}..${to_ref}" --format='%H %s')
 
 print_section() {
     local title="$1"
@@ -47,7 +42,19 @@ print_section() {
     fi
 }
 
+echo "# Release ${version}"
+echo
+echo "## Summary"
+echo
+cat "$summary_file"
+echo
+
 print_section "Features" "${features[@]}"
 print_section "Bug Fixes" "${bugs[@]}"
 print_section "Maintenance" "${maintenance[@]}"
 print_section "Other" "${other[@]}"
+
+stats=$(git diff "${from_ref}..${to_ref}" --shortstat -- ':!*.lock' ':!bun.lock' ':!*.svg' | sed 's/^ *//')
+echo "## Stats"
+echo
+echo "- Code changes (lock files and SVG assets excluded): ${stats}"

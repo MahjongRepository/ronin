@@ -1,0 +1,146 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release (X.Y.Z)
+        type: string
+        required: true
+      summary:
+        description: Summary section of the release notes (markdown)
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: create-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and Publish Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ inputs.version }}
+      SUMMARY: ${{ inputs.summary }}
+
+    steps:
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this workflow from main, not ${GITHUB_REF}"
+          exit 1
+
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Validate version
+        id: validate
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Version must be X.Y.Z, got: $VERSION"
+          [[ -n "${SUMMARY//[[:space:]]/}" ]] || fail "Summary is empty"
+          latest=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          [[ -n "$latest" ]] || fail "No previous release tag found"
+          ! git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null || fail "Version $VERSION was already released"
+          [[ "$(printf '%s\n%s\n' "$latest" "$VERSION" | sort -V | tail -1)" == "$VERSION" ]] \
+            || fail "Version $VERSION is lower than the latest release $latest"
+          [[ -n "$(git log "$latest..HEAD" --oneline)" ]] || fail "No commits since $latest"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Set release version
+        run: |
+          bash bin/set-version.sh "$VERSION"
+          if ! git diff --quiet; then
+            git add backend/pyproject.toml backend/uv.lock
+            git commit -m "chore: set version to $VERSION"
+          fi
+
+      - name: Build release notes
+        id: commit
+        env:
+          LATEST: ${{ steps.validate.outputs.latest }}
+        run: |
+          printf '%s\n' "$SUMMARY" > "$RUNNER_TEMP/summary.md"
+          bash bin/release-notes.sh "$VERSION" "$LATEST" "$RUNNER_TEMP/summary.md" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push main and release
+        run: git push --atomic origin HEAD:refs/heads/main HEAD:refs/heads/release
+
+      - name: Create GitHub release
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: gh release create "$VERSION" --target "$SHA" --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+  bump:
+    name: Bump Version for Next Cycle
+    needs: release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - uses: astral-sh/setup-uv@v10
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        run: |
+          IFS=. read -r major minor _ <<< "$VERSION"
+          next="${major}.$((minor + 1)).0"
+          current=$(sed -n 's/^version = "\(.*\)"$/\1/p' backend/pyproject.toml)
+          if [[ "$current" == "$next" ]]; then
+            echo "main is already at $next"
+            exit 0
+          fi
+          if [[ "$current" != "$VERSION" ]]; then
+            echo "::error::main is at $current, expected $VERSION; bump it by hand"
+            exit 1
+          fi
+          bash bin/set-version.sh "$next"
+          git add backend/pyproject.toml backend/uv.lock
+          git commit -m "chore: bump version to $next"
+          git push origin HEAD:refs/heads/main
+
+  build:
+    name: Build Docker Image
+    needs: release
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      ref: ${{ needs.release.outputs.sha }}

@@ -10,6 +10,10 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
 * `.github/workflows/release.yml` is the **only** path that builds the image (`Dockerfile`) and
   pushes it to GHCR as a public package. The deploy Makefiles have no build or push target, and the
   deploy has no `docker login`.
+* `.github/workflows/create-release.yml` cuts a release from a version and a summary: it pushes
+  `release`, tags and publishes the GitHub release, bumps `main` to the next minor, then calls
+  `release.yml` for the image. A push made with `GITHUB_TOKEN` starts no workflow, so the call is
+  the only thing that builds a release cut this way.
 * `Makefile` wraps spot: one-time bootstrap and provisioning tasks, the deploy, service control,
   an error-log grep, and backup, restore and download-backup tasks.
 * `Makefile.server` is uploaded to `/opt/ronin/Makefile` on every deploy for manual control on the
