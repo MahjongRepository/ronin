@@ -47,7 +47,7 @@ http:
       service: lobby
       tls:
         certResolver: letsencrypt
-      middlewares: ["security-headers", "replay-ratelimit"]
+      middlewares: ["security-headers", "replay-ratelimit", "compress-text"]
       priority: 15
 
     # Game assets — aggressive caching headers + HSTS
@@ -57,7 +57,7 @@ http:
       service: lobby
       tls:
         certResolver: letsencrypt
-      middlewares: ["security-headers", "game-assets-cache"]
+      middlewares: ["security-headers", "game-assets-cache", "compress-text"]
       priority: 15
 
     # Lobby catch-all (all other paths) — lowest priority
@@ -67,7 +67,7 @@ http:
       service: lobby
       tls:
         certResolver: letsencrypt
-      middlewares: ["security-headers"]
+      middlewares: ["security-headers", "compress-text"]
       priority: 1
 
   services:
@@ -114,3 +114,15 @@ http:
       headers:
         customResponseHeaders:
           Cache-Control: "public, max-age=31536000, immutable"
+
+    compress-text:
+      compress:
+        encodings: ["br", "zstd", "gzip"]
+        minResponseBodyBytes: 1024
+        includedContentTypes:
+          - text/css
+          - text/javascript
+          - application/javascript
+          - image/svg+xml
+          - application/xml
+          - text/xml

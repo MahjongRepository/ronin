@@ -48,6 +48,11 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   `--ws-per-message-deflate false`: frames average about 13 bytes, so deflate costs CPU per frame
   and saves nothing, and with it off browsers get what the bot client (which never offers it) gets,
   so bot runs measure production's send path.
+* **HTTP compression is Traefik's.** The `compress-text` middleware (`config/traefik-dynamic.yml`)
+  compresses an allowlist of static text types (JS, CSS, SVG, XML) and sits only on the routers
+  serving them, never the WebSocket ones; the apps add no GZip middleware. HTML and JSON stay out of
+  the allowlist (BREACH): pages carry a CSRF token beside reflected input, bot API answers carry keys.
+  A response the app already encodes (the gzip replay files) passes through as is.
 * Per-service settings live in compose `environment:`, secrets only in `.env`. A deployment-specific
   setting has no default (`backend/AGENTS.md`), so a new one must be added here or the service fails
   to start and the deploy's health gate stops. A release that adds, renames or removes a required
