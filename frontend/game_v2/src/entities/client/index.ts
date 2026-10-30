@@ -40,6 +40,8 @@ export type {
     DecisionAction,
     DecisionStanding,
     LeaveControls,
+    NoticeKind,
+    NoticeSheetDisplay,
     PlayAction,
     PlayCommand,
     PlayDisplay,
@@ -49,7 +51,13 @@ export type {
     SwitchControl,
     TileChoiceKind,
 } from "./model/play-display";
-export { NO_PLAY_UI, failureDisplay, nextPlayUi, playDisplay } from "./model/play-display";
+export {
+    NO_PLAY_UI,
+    failureDisplay,
+    nextPlayUi,
+    playDisplay,
+    settledPlayUi,
+} from "./model/play-display";
 export type { DecisionView, PlayBoardProps, StandingsLinks } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
 export type { RotatePanelProps } from "./ui/rotate-panel";

@@ -6,6 +6,7 @@ import {
     type GameClientState,
     type LocalIntent,
     NO_PLAY_UI,
+    type NoticeKind,
     PLAY_SWITCHES,
     PlayBoard,
     type PlayCommand,
@@ -18,6 +19,7 @@ import {
     playDisplay,
     scenarioCheckpoint,
     seatScenarioFromTranscript,
+    settledPlayUi,
     stepGameClient,
 } from "@/entities/client";
 import { CALLOUT_MS, type StandingsRenderer } from "@/entities/table";
@@ -75,6 +77,8 @@ interface DecisionStory {
     readonly followUp?: (state: GameClientState) => readonly ClientEvent[];
     readonly confirmingLeave?: boolean;
     readonly tileSprite?: TileSpriteStatus;
+    /** The notice opened whole in its sheet. */
+    readonly noticeSheet?: NoticeKind;
 }
 
 /**
@@ -83,8 +87,9 @@ interface DecisionStory {
  * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
  * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou, chiihou), the round results the
  * player confirms, the standings and the last result reopened from them, a game ended out of step, then another
- * player's seat left to an AI and back, the viewer's own seat back, the board's notices, the ends (a kick, another
- * tab) and the leave question.
+ * player's seat left to an AI and back, the viewer's own seat back, the board's notices (alone, stacked, long, over a
+ * panel and opened whole over a decision, over the round confirm and under the leave question), the ends (a kick,
+ * another tab) and the leave question.
  */
 const STORY_KEYS = [
     "anchor_turn",
@@ -127,6 +132,12 @@ const STORY_KEYS = [
     "connection_lost",
     "move_refused",
     "faces_missing",
+    "notices_stacked",
+    "notice_long",
+    "notice_over_confirm",
+    "notice_sheet_decision",
+    "notice_sheet_confirm",
+    "notice_sheet_leave",
     "kicked",
     "replaced",
     "leave_confirm",
@@ -205,6 +216,11 @@ function endedOutOfStep(
         }));
         return [unreadable, ...ends, ...intentsAfterCall(...picked)(state)];
     };
+}
+
+/** A message the client cannot read, `ms` after the checkpoint: the long notice of a client out of step. */
+function unreadableAfter(ms: number): (state: GameClientState) => readonly ClientEvent[] {
+    return (state) => [{ at: state.now + ms, kind: "server_message", raw: { t: 999 } }];
 }
 
 function closedWith(code: number): (state: GameClientState) => readonly ClientEvent[] {
@@ -293,6 +309,36 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "turn", "Move refused"),
         followUp: refusedDiscard,
     },
+    notice_long: {
+        ...checkpoint("call_prompt_seat_1", "turn", "A long notice"),
+        followUp: unreadableAfter(500),
+    },
+    notice_over_confirm: {
+        ...checkpoint("own_turn_seat_1", "round end", "A notice over the round confirm"),
+        tileSprite: "failed",
+    },
+    notice_sheet_confirm: {
+        ...checkpoint("own_turn_seat_1", "round end", "A notice opened over the round confirm"),
+        noticeSheet: "tile_sprite",
+        tileSprite: "failed",
+    },
+    notice_sheet_decision: {
+        ...checkpoint("call_prompt_seat_1", "turn", "A notice opened over a decision"),
+        followUp: refusedDiscard,
+        noticeSheet: "tile_sprite",
+        tileSprite: "failed",
+    },
+    notice_sheet_leave: {
+        ...checkpoint("call_prompt_seat_1", "turn", "The leave question over a notice's sheet"),
+        confirmingLeave: true,
+        noticeSheet: "tile_sprite",
+        tileSprite: "failed",
+    },
+    notices_stacked: {
+        ...checkpoint("call_prompt_seat_1", "turn", "Notices stacked"),
+        followUp: refusedDiscard,
+        tileSprite: "failed",
+    },
     out_of_step_result: {
         ...checkpoint("final_round_seat_1", "ron chosen", "Out of step: last result"),
         followUp: endedOutOfStep(),
@@ -362,6 +408,7 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
         confirmingLeave,
         followUp,
         label,
+        noticeSheet,
         pickRiichi,
         resultPage,
         tileSprite,
@@ -376,6 +423,7 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
     const picked = {
         ...NO_PLAY_UI,
         confirmingLeave: confirmingLeave ?? false,
+        noticeSheet: noticeSheet ?? null,
         riichiPickWaitId: pickRiichi ? waitId : null,
         tileChoice:
             chooseTiles === undefined || waitId === null ? null : { kind: chooseTiles, waitId },
@@ -496,7 +544,7 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
                 ...screen,
                 sent: step.effects,
                 state: step.state,
-                ui: nextPlayUi(state, ui, command),
+                ui: settledPlayUi(step.state, nextPlayUi(state, ui, command)),
             };
         } else {
             screen = { ...screen, ui: nextPlayUi(state, ui, command) };

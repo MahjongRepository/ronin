@@ -26,12 +26,6 @@ import { checkVisible } from "../page-checks.ts";
 import { MIN_TEXT_PX } from "../text.ts";
 import { SMALL_WINDOWS } from "../viewports.ts";
 
-/**
- * The phones whose reserve under the right strip's end cannot hold the out-of-step notice over a panel: a known cut
- * until Step 4.2 clamps a notice to whole lines with "Show all".
- */
-const PHONES_CUTTING_NOTICES = ["phone-se-landscape", "phone-notch-landscape"];
-
 /** The least room between two names on a line of a result's scores, so each name and its end read as one. */
 const MIN_RESULT_NAME_GAP = 12;
 
@@ -228,12 +222,8 @@ const PAGES: readonly PageCase[] = [
             ".round-end-result__indicator-tiles .tile",
         ]),
         alsoAt: SMALL_WINDOWS,
-        noticeCutAt: PHONES_CUTTING_NOTICES,
     },
-    {
-        ...decisionCase("out_of_step_standings", [".standings__incomplete"]),
-        noticeCutAt: PHONES_CUTTING_NOTICES,
-    },
+    decisionCase("out_of_step_standings", [".standings__incomplete"]),
     decisionCase("kicked", [".failure-panel__leave", ".game-menu__status:not(.status-connected)"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     decisionCase("leave_after_win", [".leave-confirm__stay"]),

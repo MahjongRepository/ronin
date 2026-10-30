@@ -15,7 +15,7 @@ import {
 } from "@/entities/table/model/board-types";
 import { Discards, Hand, Meld, type MeldTile, Tile, TileBack } from "@/entities/tile";
 
-import { type BoardNotice, BoardNotices } from "./board-notices";
+import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type ScoreDiffPin } from "./nameplate";
 import { RiichiStickIcon } from "./riichi-stick-icon";
@@ -43,6 +43,8 @@ interface GameBoardProps {
     readonly menu?: TemplateResult;
     /** The calls shown by their seats for a moment, over the table and never over the local hand; they take no input. */
     readonly callouts?: BoardCallouts | null;
+    /** Each new showing of calls is read out once, by its seats' names (a live board's; a replay's narration tells them). */
+    readonly announceCalls?: boolean;
     /** The overlay's panel is a round's result, which waits until a win's call has been seen; any other shows at once. */
     readonly overlayIsResult?: boolean;
     /** The bottom seat is furiten: its mark shows in the slot by the hand that a played board keeps for it. */
@@ -384,10 +386,35 @@ function Callouts(callouts: BoardCallouts, state: BoardDisplayState | null): Tem
     const players = state?.players ?? null;
     return html`${keyed(
         callouts.key,
-        html`<div class="board-callouts" style="--callout-ms: ${CALLOUT_MS}ms">${callouts.items.map(
+        html`<div class="board-callouts" style="--callout-ms: ${CALLOUT_MS}ms" aria-hidden="true">${callouts.items.map(
             (item) => Callout(item, players),
         )}</div>`,
     )}`;
+}
+
+/** What a showing of calls reads out: each caller's name and call, `Bob: Pon`. */
+function calloutWords(callouts: BoardCallouts, state: BoardDisplayState | null): string {
+    return callouts.items
+        .map(({ label, position }) => {
+            const name = state?.nameplates[SEAT_POSITIONS.indexOf(position)].name;
+            return name === undefined ? label : `${name}: ${label}`;
+        })
+        .join(", ");
+}
+
+/** The calls as a polite live region of their own, each showing read once: a new showing is a new key, a redraw none. */
+function CalloutAnnouncements(
+    callouts: BoardCallouts | null | undefined,
+    state: BoardDisplayState | null,
+): TemplateResult {
+    return html`<div
+        class="board-announce board-announce--calls"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-relevant="additions"
+    >${
+        callouts ? keyed(callouts.key, html`<p>${calloutWords(callouts, state)}</p>`) : nothing
+    }</div>`;
 }
 
 /** The furiten mark's slot by the hand, kept on a played board so the hand never moves: a dot and the word. */
@@ -476,6 +503,8 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${plates?.bottom ?? ""}${props.localHand ? FuritenSlot(props.furiten ?? false) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
                 </div>
             </div>
+            ${props.notices ? NoticeAnnouncements(props.notices) : ""}
+            ${props.announceCalls === true ? CalloutAnnouncements(props.callouts, state) : ""}
             ${
                 props.overlay
                     ? html`<div class="board-overlay ${props.overlayIsResult === true && callsAWin(props.callouts) ? "board-overlay--after-call" : ""}">

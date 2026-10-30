@@ -1,7 +1,11 @@
 import { assert, describe, expect, it } from "vitest";
 
 import { clientEvent, clientScenario } from "#tests/fixtures/scenario";
-import { checkpointState } from "#tests/fixtures/seat-transcripts";
+import {
+    checkpointState,
+    loadSeatScenario,
+    receivedPayload,
+} from "#tests/fixtures/seat-transcripts";
 import {
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
@@ -17,6 +21,7 @@ import {
     nextDeadline,
     nextPlayUi,
     playDisplay,
+    settledPlayUi,
     stepGameClient,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
@@ -547,7 +552,7 @@ describe("playDisplay notices", () => {
         scenario.step(clientEvent.message(100, { t: 999 }));
         scenario.step(clientEvent.message(200, { t: 999 }));
         expect(noticeTexts(scenario.state)).toEqual([
-            "2 server messages could not be read; the table may be wrong",
+            "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends it again; play goes on.",
         ]);
         scenario.step(clientEvent.closed(300, 1006));
         scenario.step(clientEvent.tick(1300));
@@ -555,6 +560,43 @@ describe("playDisplay notices", () => {
         scenario.step(clientEvent.message(1500, WIRE_GAME_RECONNECTED));
 
         expect(noticeTexts(scenario.state)).toEqual(["Reconnected"]);
+    });
+
+    it("stacks the ongoing conditions before the acknowledgements, whichever came first", () => {
+        const scenario = confirmSentScenario(50);
+        scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
+        const ui = { ...NO_PLAY_UI, tileSprite: "failed" } as const;
+
+        expect(playDisplay(scenario.state, ui).notices.map((notice) => notice.kind)).toEqual([
+            "tile_sprite",
+            "refused",
+        ]);
+    });
+
+    it("opens every notice whole from one's Show all, with the round confirm's seconds, under the leave question, while any notice shows", () => {
+        const scenario = confirmSentScenario(50);
+        scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
+        const ui = nextPlayUi(
+            scenario.state,
+            { ...NO_PLAY_UI, tileSprite: "failed" },
+            { kind: "show_notice", notice: "refused" },
+        );
+        const sheet = playDisplay(scenario.state, ui).noticeSheet;
+        const asking = { ...ui, confirmingLeave: true };
+        scenario.step(clientEvent.tick(4100));
+
+        expect([
+            sheet?.opener,
+            sheet?.notices.map((notice) => notice.kind),
+            sheet?.countdown?.move,
+        ]).toEqual(["refused", ["tile_sprite", "refused"], "result"]);
+        expect([
+            playDisplay(scenario.state, asking).noticeSheet,
+            settledPlayUi(scenario.state, ui) === ui,
+            playDisplay(scenario.state, ui).noticeSheet?.notices.map((notice) => notice.kind),
+            settledPlayUi(scenario.state, { ...ui, tileSprite: "ready" }).noticeSheet,
+            nextPlayUi(scenario.state, ui, { kind: "close_notice" }).noticeSheet,
+        ]).toEqual([null, true, ["tile_sprite"], null, null]);
     });
 
     it("blocks the board with why a kick ended the session, dropping its notices, and leaves without asking", () => {
@@ -702,6 +744,30 @@ describe("playDisplay callouts", () => {
             { kind: "ron", label: "Ron", position: "bottom" },
             { kind: "ron", label: "Ron", position: "top" },
         ]);
+    });
+
+    it("drops the last hand's win call at the next deal, however soon the deal follows it", () => {
+        const { transcript } = loadSeatScenario("first_turn_win_seat_1");
+        const won = checkpointState("first_turn_win_seat_1", "chiihou round end");
+        const dealt = stepGameClient(won, {
+            at: won.now + CALLOUT_MS / 3,
+            kind: "server_message",
+            raw: receivedPayload(transcript, "tenhou deal"),
+        }).state;
+
+        expect(playDisplay(won, NO_PLAY_UI).callouts?.items).toEqual([
+            { kind: "tsumo", label: "Tsumo", position: "top" },
+        ]);
+        expect(playDisplay(dealt, NO_PLAY_UI).callouts).toBeNull();
+    });
+
+    it("drops the wins' calls at a reconnect's snapshot that leaves the hand, however soon it follows them", () => {
+        const won = checkpointState("double_ron_seat_1", "round end");
+        const reconnected = checkpointState("double_ron_seat_1", "reconnected");
+
+        expect(reconnected.now).toBeLessThan(won.now + CALLOUT_MS);
+        expect(playDisplay(won, NO_PLAY_UI).callouts?.items).toHaveLength(2);
+        expect(playDisplay(reconnected, NO_PLAY_UI).callouts).toBeNull();
     });
 
     it("calls a kan open to chankan once: not again for the prompt a reconnect re-sends, nor as nobody robs it", () => {

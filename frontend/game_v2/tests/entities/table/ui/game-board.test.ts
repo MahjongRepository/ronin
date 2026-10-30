@@ -7,6 +7,7 @@ import {
     createInitialPlayerState,
     createInitialTableState,
 } from "@/entities/table/model/initial-state";
+import { type BoardNotice } from "@/entities/table/ui/board-notices";
 import { GameBoard } from "@/entities/table/ui/game-board";
 import { type DiscardTile } from "@/entities/tile";
 
@@ -136,6 +137,69 @@ describe("GameBoard nameplates", () => {
         press(host, ".board-center");
         press(host, ".board-center", { key: "Escape" });
         expect(onPin).not.toHaveBeenCalled();
+    });
+});
+
+describe("GameBoard announcements", () => {
+    const FACES: BoardNotice = { id: "faces", text: "Tile images did not load", tone: "warning" };
+    const REFUSED: BoardNotice = { id: "refused", text: "That move was refused", tone: "warning" };
+    const PON: BoardCallouts = {
+        items: [{ kind: "pon", label: "Pon", position: "top" }],
+        key: "call-2",
+    };
+
+    function draw(
+        host: HTMLElement,
+        notices: readonly BoardNotice[],
+        callouts: BoardCallouts | null,
+    ): void {
+        render(
+            GameBoard({
+                announceCalls: true,
+                callouts,
+                debug: false,
+                notices,
+                scoreDiff: { onPin: vi.fn(), pinned: null },
+                state: null,
+            }),
+            host,
+        );
+    }
+
+    /** What a screen reader hears from the board's live regions: the text each change adds. */
+    async function heardWhile(host: HTMLElement, change: () => void): Promise<string[]> {
+        const heard: string[] = [];
+        const observer = new MutationObserver((records) => {
+            for (const record of records) {
+                heard.push(...[...record.addedNodes].map((node) => node.textContent?.trim() ?? ""));
+            }
+        });
+        for (const region of host.querySelectorAll("[aria-live]")) {
+            observer.observe(region, { characterData: true, childList: true, subtree: true });
+        }
+        change();
+        await Promise.resolve();
+        observer.disconnect();
+        return heard.filter((text) => text !== "");
+    }
+
+    it("reads each notice and each showing of calls once: a redraw reads nothing, a new one only its own words", async () => {
+        const host = document.createElement("div");
+        draw(host, [FACES], null);
+        const redrawn = await heardWhile(host, () => draw(host, [FACES], null));
+        const added = await heardWhile(host, () => draw(host, [FACES, REFUSED], PON));
+        const again = await heardWhile(host, () => draw(host, [FACES, REFUSED], PON));
+
+        expect(redrawn).toEqual([]);
+        expect(added).toEqual(["That move was refused", "Pon"]);
+        expect(again).toEqual([]);
+        expect([
+            host.querySelector(".board-notices [aria-live]"),
+            host.querySelector(".board-callouts")?.getAttribute("aria-hidden"),
+            ...[...host.querySelectorAll("[aria-live]")].map((region) =>
+                ["role", "aria-atomic", "aria-relevant"].map((name) => region.getAttribute(name)),
+            ),
+        ]).toEqual([null, "true", [null, "false", "additions"], [null, "false", "additions"]]);
     });
 });
 

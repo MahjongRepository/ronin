@@ -19,6 +19,7 @@ import {
     nextPlayUi,
     playDisplay,
     rotatePanelProps,
+    settledPlayUi,
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
@@ -419,6 +420,7 @@ class GameViewController {
         if (this.disposed) {
             return;
         }
+        this.ui = settledPlayUi(this.state, this.ui);
         const { command, log, panel, state, ui } = this;
         const props = {
             links: this.deps.links,

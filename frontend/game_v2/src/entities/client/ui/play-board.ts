@@ -5,6 +5,7 @@ import { type DecisionCountdown } from "@/entities/client/model/countdown";
 import {
     type DecisionAction,
     type DecisionStanding,
+    type NoticeSheetDisplay,
     type PlayAction,
     type PlayCommand,
     type PlayDisplay,
@@ -16,6 +17,7 @@ import { type SessionStatusDisplay } from "@/entities/session";
 import {
     type BoardNotice,
     GameBoard,
+    NoticeSheet,
     type StandingsAction,
     type StandingsRenderer,
     type TableState,
@@ -25,7 +27,7 @@ import {
 import { Meld, Tile } from "@/entities/tile";
 
 import { GameMenu } from "./game-menu";
-import { countdownAnnouncement } from "./rotate-panel";
+import { countdownAnnouncement, expiryNote, moveName } from "./rotate-panel";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
 /** Where the standings lead the player once the game ends: this game's replay and the game history. */
@@ -362,9 +364,30 @@ interface PlayPanel {
     readonly isResult: boolean;
 }
 
+const CLOSE_NOTICE: PlayCommand = { kind: "close_notice" };
+
+/** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
+function owedMove(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | typeof nothing {
+    if (countdown?.kind === "running") {
+        return html` ${moveName(countdown.move)}:
+            <span class="notice-sheet__seconds">${countdown.secondsLeft}</span> s
+            left${countdown.turn?.inBank === true ? " in your time bank" : ""}.`;
+    }
+    if (countdown?.kind === "expired") {
+        return html` ${moveName(countdown.move)}, and its time is up: ${expiryNote(countdown.move)}.`;
+    }
+    return nothing;
+}
+
+function SheetNote(countdown: NoticeSheetDisplay["countdown"]): TemplateResult {
+    return html`<p class="notice-sheet__note">Play goes on beneath this sheet.${owedMove(countdown)}</p>
+        <span class="notice-sheet__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>`;
+}
+
 /**
- * The panel over the board: an end that blocks it, else the question leaving mid-game asks, both shown at once, else
- * the table's own (seating, a result, the standings from the viewer's seat).
+ * The panel over the board, in the overlay's precedence: an end that blocks it, else the question leaving mid-game
+ * asks, both shown at once, else a notice the player opened whole, else the table's own (seating, a result, the
+ * standings from the viewer's seat), which comes back as the sheet closes.
  */
 function PlayOverlay(props: PlayBoardProps): PlayPanel {
     const { display, onCommand, table } = props;
@@ -373,6 +396,18 @@ function PlayOverlay(props: PlayBoardProps): PlayPanel {
     }
     if (display.leave.confirming) {
         return { isResult: false, panel: LeaveConfirm(onCommand) };
+    }
+    if (display.noticeSheet !== null) {
+        const { countdown, notices, opener } = display.noticeSheet;
+        return {
+            isResult: false,
+            panel: NoticeSheet({
+                note: SheetNote(countdown),
+                notices: notices.map((notice) => boardNotice(notice, onCommand)),
+                onClose: () => onCommand(CLOSE_NOTICE),
+                openerId: opener,
+            }),
+        };
     }
     return {
         isResult: showsRoundResult(table, display.resultOverStandings),
@@ -403,16 +438,19 @@ function tablePanel({
     });
 }
 
+/** A notice as the board draws it: found by its kind, opened whole by "Show all". */
 function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"]): BoardNotice {
-    const { action, text, tone } = notice;
-    if (action === undefined) {
-        return { text, tone };
-    }
-    return {
-        action: { label: action.label, onClick: () => onCommand(action.command) },
+    const { action, kind, text, tone } = notice;
+    const shown = {
+        id: kind,
+        onShowAll: () => onCommand({ kind: "show_notice", notice: kind }),
         text,
         tone,
     };
+    if (action === undefined) {
+        return shown;
+    }
+    return { ...shown, action: { label: action.label, onClick: () => onCommand(action.command) } };
 }
 
 /**
@@ -420,13 +458,14 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * table, and a panel over it: an end that blocks the board, the leave question, or the table's own, a round's result
  * at the page the display picked with its controls, or the game's last result over the standings until the player
  * dismisses it. A tap on one of the viewer's tiles sends the intent the display gives it, and a tile with none sends
- * nothing; turning the result's page is a command too. While an end or the leave question blocks the board, the board
- * under it is inert.
+ * nothing; turning the result's page is a command too. While an end, the leave question or a notice's sheet blocks
+ * the board, the board under it is inert. Each new showing of calls is read out once.
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {
     const { display, menuExtra, onCommand, status } = props;
     const { escape } = display;
-    const inert = display.failure !== null || display.leave.confirming;
+    const inert =
+        display.failure !== null || display.leave.confirming || display.noticeSheet !== null;
     function onTile(tileId: number): void {
         const intent = display.tileIntents.get(tileId);
         if (intent !== undefined) {
@@ -436,6 +475,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
     const { isResult, panel } = PlayOverlay(props);
     return GameBoard({
         actions: DecisionControls(display, onCommand),
+        announceCalls: true,
         callouts: display.callouts,
         debug: false,
         furiten: display.furiten,

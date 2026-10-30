@@ -70,7 +70,7 @@ export function rotatePanelProps(
     };
 }
 
-function moveName(move: DecisionCountdown["move"]): string {
+export function moveName(move: DecisionCountdown["move"]): string {
     switch (move) {
         case "turn": {
             return "It is your turn";
@@ -98,7 +98,7 @@ function runningNote(move: DecisionCountdown["move"]): string {
 }
 
 /** What the server does once the move's time is up. */
-function expiryNote(move: DecisionCountdown["move"]): string {
+export function expiryNote(move: DecisionCountdown["move"]): string {
     return move === "result" ? "the server deals the next round" : "the server makes the move";
 }
 

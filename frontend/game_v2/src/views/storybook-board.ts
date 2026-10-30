@@ -12,9 +12,11 @@ import {
     type BoardCallouts,
     type BoardCenterInfo,
     type BoardDisplayState,
+    type BoardNotice,
     type BoardPlayerDisplay,
     type CalloutKind,
     GameBoard,
+    NoticeSheet,
     type PlayerState,
     RoundEndDisplay,
     type RoundRecord,
@@ -134,8 +136,16 @@ const EVERY_CALL: readonly CalloutKind[] = ["riichi", "pon", "kan", "chi"];
 /** The seat that discards a triple ron's tile where no river holds the latest discard: the left one. */
 const DEFAULT_DISCARDER = 3;
 
+/** The story's long notice, kept in the page's `?notice=long`: a message the client could not read, worded as the live board words it. */
+const LONG_NOTICE_TEXT =
+    "The game server sent a message this page could not read, so the table may be wrong until the server sends it again; play goes on.";
+
 interface BoardStoryState {
     readonly debug: boolean;
+    /** The long notice shows in the notices' place, kept in the page's `?notice=long`. */
+    readonly notice: boolean;
+    /** The long notice is opened whole in its sheet. */
+    readonly noticeOpen: boolean;
     /** The calls shown, held still, kept in the page's `?callout=`; null for none. */
     readonly callout: StoryCall | null;
     /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
@@ -1053,6 +1063,7 @@ interface BoardStoryHandlers {
     readonly pin: (seat: SeatPosition | null) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
+    readonly openNotice: (open: boolean) => void;
 }
 
 function activeClass(active: boolean): string {
@@ -1113,6 +1124,41 @@ const OFFER_OPTIONS: readonly PickerOption[] = STORY_OFFERS.map((value) => ({
     value,
 }));
 
+/** The story's notices: its long notice, which opens whole in its sheet; none without `?notice=long`. */
+function storyNotices(
+    story: BoardStoryState,
+    handlers: BoardStoryHandlers,
+): BoardNotice[] | undefined {
+    if (!story.notice) {
+        return undefined;
+    }
+    return [
+        {
+            id: "long",
+            onShowAll: () => handlers.openNotice(true),
+            text: LONG_NOTICE_TEXT,
+            tone: "error",
+        },
+    ];
+}
+
+/** The long notice opened whole over the board, which the board's caller makes inert beneath it. */
+function noticeSheetOverlay(
+    notices: readonly BoardNotice[] | undefined,
+    handlers: BoardStoryHandlers,
+): TemplateResult | undefined {
+    const [notice] = notices ?? [];
+    if (notice?.id === undefined) {
+        return undefined;
+    }
+    return NoticeSheet({
+        note: html`<p class="notice-sheet__note">Play goes on beneath this sheet.</p>`,
+        notices: [notice],
+        onClose: () => handlers.openNotice(false),
+        openerId: notice.id,
+    });
+}
+
 function storybookBoardTemplate(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
@@ -1120,6 +1166,8 @@ function storybookBoardTemplate(
 ): TemplateResult {
     const state = BOARD_STATES[story.story];
     const offers = storyOffers(story.offers);
+    const notices = storyNotices(story, handlers);
+    const sheet = story.noticeOpen ? noticeSheetOverlay(notices, handlers) : undefined;
     return html`
         <div class="board-page board-storybook">
             <div class="board-page__board">
@@ -1127,11 +1175,13 @@ function storybookBoardTemplate(
                     actions: offers === null ? undefined : DecisionControls(offers, () => {}),
                     callouts: storyCallouts(story.callout, state),
                     debug: story.debug,
+                    inert: sheet !== undefined,
                     localHand:
                         offers !== null || PLAYED_ROW_STORIES.has(story.story)
                             ? PLAYED_HAND
                             : undefined,
-                    overlay: buildOverlay(story, handlers, standings),
+                    notices,
+                    overlay: sheet ?? buildOverlay(story, handlers, standings),
                     scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
                     state,
                 })}
@@ -1191,6 +1241,8 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         callout: parseStoryCall(query.get("callout")),
         debug: false,
         leftoverLost: query.get("leftover") === "lost",
+        notice: query.get("notice") === "long",
+        noticeOpen: false,
         offers: parseStoryOffers(query.get("offers")),
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
@@ -1205,6 +1257,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     }
 
     const handlers: BoardStoryHandlers = {
+        openNotice: (open) => show({ ...story, noticeOpen: open }),
         pin(seat) {
             syncQueryParam("pin", seat ?? "", "");
             show({ ...story, pinned: seat });

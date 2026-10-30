@@ -174,7 +174,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`entities/table`, which the board hands its stylesheet as `--callout-ms`) or until a newer
   call, never ended by a move that calls nothing, since one may follow at once (an AI player's discard
   after its pon, the viewer's draw after a riichi), nor by the game's end, so the last win shows its call;
-  a failed or left session drops them. Each lies over its caller's river at the first of a few fixed spots
+  a deal, or a reconnect's snapshot that leaves the hand (`snapshotLeftHand`), ends them, since it starts a new board
+  however soon it follows the hand's last call (a snapshot of the same hand keeps them), and a failed or left
+  session drops them. Each lies over its caller's river at the first of a few fixed spots
   (in river tiles and rows, `CALLOUT_SPOTS`) clear of the latest discard's row (top, bottom) or column pair
   (sides), its chip no taller than a river row (its font bounded by the row, its pop never past full size),
   so it never covers the action source, a control or the own hand. A replay line's last until the next move, so each
@@ -255,7 +257,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   never inherits it, each turning the other off; and the
   round result's page, keyed by the round the result ends (its wind, dealer and honba, which a
   reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
-  keeps the page; and the nameplate pinned for score differences. A kind of offer with a choice of tiles
+  keeps the page; the nameplate pinned for score differences; and the notices' sheet (Layout). A kind of offer with a choice of tiles
   (two chi, two kan) is one control that opens its second step, which is that control pressed, each
   choice the dispatcher takes as a tile group laid by `meldTiles` as the meld will lie, the pressed control
   after them (where the first step had it, so pressing it never moves it; a desktop row shows it first), and
@@ -379,8 +381,8 @@ follows holds through the rebuild to it.
   side strips (past the left river's reach while notices show); a
   short board keeps the reserve on the corner's side alone and tops the panel; the overlay's tiles size from the
   width left. An upright board does not keep the corner clear yet. The board carries the notices
-  (`playDisplay`'s, in the table's own area, never over a tile, a plate, a decision control or the panel, however
-  long they stay): a
+  (`playDisplay`'s, in the table's own area, never over a tile, a plate, the centre, a decision control or the panel,
+  however long they stay), stacked ongoing conditions first, then acknowledgements (`NoticeKind`'s order): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
   opened, each worded the same across its retries so it is announced once (a page that only resumes
   its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
@@ -390,11 +392,31 @@ follows holds through the rebuild to it.
   a reload, until a retry loads them. An end that stops the session on the
   page blocks the board, and takes the rotate panel's place, with why and a way back. The notices' place is
   the left field under the left badge, outside every river's capacity and past the left strip as drawn (its second
-  meld line included, from the lengths `sideStripStyle` hands the table), scrolling a stack taller than it
-  (never clipped silently; "Show all" is Step 4's); the notices are one polite live region, and what a page shows in
+  meld line included, from the lengths `sideStripStyle` hands the table), above a panel's dimming; what a page shows in
   their place lies under them (a replay's status); a desktop panel over the board then starts past the left
-  river's reach, and over a short or upright board's panel they move to the reserve under the right strip's end (where
-  the out-of-step notice is cut short until Step 4.2's clamp: the gate's `noticeCutAt` exception). With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
+  river's reach, and over a short or upright board's panel they move to the reserve under the right strip's end, but
+  under a modal panel (their sheet, the leave question) they stay put, hidden, their clamp kept. A notice is never
+  wider than its place, and a stack taller than it is never cut (`entities/table/ui/notice-clamp.ts`): the tallest notices clamp to whole
+  lines, then, where even one line each does not fit, the last notices are left out; a clamped notice ends in "Show
+  all" on a line of its own (the whole notice its target, at least 40px high; "+n" where it stands for notices left
+  out), its way out (Reload) moving to the sheet. A text's overflow is the one thing CSS cannot tell, so the clamp is
+  the board's one script measure: a directive on the place reads each text's whole height (a clamped text's scroll
+  height, so it never undoes a clamp to measure) after each render, as the board's box changes (in the next frame,
+  so a write never loops the observer, watching the board once the render put the place in it) and once the face
+  loads, and writes only attributes, the lines and "Show all"'s name (its "+n" included). "Show all" opens the
+  notices' sheet (`PlayUi.noticeSheet`, the opener's kind): every notice whole with its way out, that play goes on with
+  the decision's or round confirm's seconds (`pendingCountdown`, its thresholds announced as the rotate panel's), over
+  the board as a panel, the board inert, Close focused, Tab kept inside, Escape (handled, so no one else takes it) or
+  Close closing it; it ranks under an end and the leave question (`PlayOverlay`) and over the table's panel, which
+  returns as it closes, and it stays open while any notice shows, closing for good once none does (`settledPlayUi`,
+  which the view runs on each draw). However it closes, once every other focus has settled, a focus that fell to the
+  page's body goes back to the board (`focusBackOnClose`): the opener's "Show all" while a player can reach it, else
+  another, the panel it gave way to, the decision's controls, the hand, else the board itself (made focusable then,
+  never in the Tab order); a focus an end or the leave question took stays. The notices are read by a polite live
+  region of their own outside the inert layout, not atomic and relevant to additions alone (never `role="status"`,
+  which is atomic), one line per notice keyed by its words, so a new notice is read alone, once, and a clamp, a redraw
+  or a notice leaving never; the live board's calls likewise (`announceCalls`, each showing once by its callers'
+  names, the drawn chips `aria-hidden`). With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
   it the view keeps no log at all.
 * **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than
@@ -429,7 +451,7 @@ follows holds through the rebuild to it.
   The perimeter's chrome (badges, counters, the page's corner, callouts) takes a phone's size on a phone,
   upright and on a desktop board under 1100px wide, whose geometry stays the desktop's, and a step larger on
   a board of at least 2000x1200; the top strip's hand starts right of the counters however narrow the board.
-  Nothing is measured in script: what content changes a placement (a strip's hand and meld lengths, in
+  Nothing is measured in script (but the notices' clamp, above): what content changes a placement (a strip's hand and meld lengths, in
   tile widths) the board hands its stylesheet as custom properties from the display state (`stripStyle`).
   The own hand's tiles are always the board's largest. Every tile's box (its 3:4 from `--tile-w`, the
   room around the glyph, the corners) is `styles/_tile.scss`'s; each region sets `--board-tile-w`. A round
@@ -597,8 +619,10 @@ follows holds through the rebuild to it.
   board text under 10px, local hand tiles (their `.hand-tile` slots, so a held-back face's recess does not count but a
   shrunk slot does, and an unmeasurable one fails) under 32x42 on a landscape phone (a desktop's own tile has no separate
   floor) or, in landscape, no larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
-  notice over a tile (only its shown part where a page names a known cut, `noticeCutAt`, until Step 4.2), a plate, a decision button or the panel
-  over the board, two names on a line of a result's scores under 12px apart, a result's score figure wrapped past a line, a decision
+  shown notice over a tile, a plate, the centre, a decision button, the timer or the panel over the board, a notice
+  wider than its place, a notice the board may open whole hiding text with no "Show all", clamped off whole lines or
+  under 40px high, notices left out with no "Show all" on the last one shown, a live board's notices' place that
+  scrolls (the notice stories also at the narrow desktop and the small windows), two names on a line of a result's scores under 12px apart, a result's score figure wrapped past a line, a decision
   button not wholly inside its container (never scrolled or clipped out of it), and decision, leave or replay buttons (its moves, autoplay, its options, the round list's close and shown rows)
   under 40x40 or off the screen, or a round list off the board. In landscape on a supported screen the replay fails
   on a control its board's state asks for not shown (the five moves, either end with the desktop's chrome, every option
@@ -639,7 +663,16 @@ its check exactly while the toggle is pressed, structurally. The table's surface
 under an aside (its box must not meet the aside's), and the board's content-overflow measure leaves it out.
 On the decisions
 story with every switch on beside furiten, Shift+Tab from the hand's first tile must reach a switch, and Space and
-Enter on Auto win must each turn it once, sending nothing. It also fails on a round end that does not scroll inside its panel where it does not fit (its content
+Enter on Auto win must each turn it once, sending nothing. At desktop-1440 and the 667x375 floor (`notices-sheet-keys`),
+the stacked notices must stand ongoing before acknowledgement, each notice and the chi's call once in the live regions,
+both written and (Chromium's accessibility tree) exposed as polite, non-atomic and additions only;
+then over the round confirm (a desktop resized to the floor) the faces' notice must clamp with "Show all", which by
+Enter opens the sheet with Close focused, the board inert, Tab kept inside and the seconds left; Escape must close it
+alone (handled, nothing sent, the confirm still owed) and Close too, each giving the focus back to "Show all" and the
+result back, and none of it may make a live region read (what an additions-only region reads: the text a change
+adds). Closing the sheet after the window grew until its notice shows whole, and by Escape over a decision, must
+leave the focus on a visible element of the board, never the page's body. The leave question asked over an open sheet must show in its
+place, and staying bring the sheet back (`notices-precedence`). It also fails on a round end that does not scroll inside its panel where it does not fit (its content
   past its foot at the scroll's end, its primary button and countdown wholly in view at both ends; a case
   forces a live result's panel short to prove it), a desktop's result that does not fit its panel whole (but the
   forced one), a double ron's result whose winner pager does not page by a click, or whose live primary button does

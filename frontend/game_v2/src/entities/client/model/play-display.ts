@@ -34,6 +34,7 @@ import {
     type DecisionCountdown,
     decisionCountdown,
     firstDealCountdown,
+    pendingCountdown,
     roundConfirmCountdown,
 } from "./countdown";
 import { sameIntent } from "./decision";
@@ -57,8 +58,8 @@ export type TileChoiceKind = "chi" | "kan";
 /**
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
  * a call's choice of tiles, step back from either (Back, Escape), turn the round result's panel to a page, pin a
- * nameplate (or none) for the others' score differences, ask to leave mid-game or take that back, or reload the page
- * after a failure.
+ * nameplate (or none) for the others' score differences, ask to leave mid-game or take that back, open a notice whole
+ * in its sheet or close it, or reload the page after a failure.
  */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
@@ -69,6 +70,8 @@ export type PlayCommand =
     | { readonly kind: "pin_nameplate"; readonly seat: SeatPosition | null }
     | { readonly kind: "ask_leave" }
     | { readonly kind: "cancel_leave" }
+    | { readonly kind: "show_notice"; readonly notice: NoticeKind }
+    | { readonly kind: "close_notice" }
     | { readonly kind: "reload" };
 
 /** A button of the open decision: its label and the tiles that tell it from another of its kind (two chi). */
@@ -125,12 +128,15 @@ export interface PlayUi {
     readonly resultPage: { readonly round: string; readonly page: number } | null;
     readonly pinnedNameplate: SeatPosition | null;
     readonly confirmingLeave: boolean;
+    /** The notice the player opened whole in its sheet, while it shows. */
+    readonly noticeSheet: NoticeKind | null;
     readonly tileSprite: TileSpriteStatus;
     readonly standings: LoadStatus;
 }
 
 export const NO_PLAY_UI: PlayUi = {
     confirmingLeave: false,
+    noticeSheet: null,
     pinnedNameplate: null,
     resultPage: null,
     riichiPickWaitId: null,
@@ -139,9 +145,33 @@ export const NO_PLAY_UI: PlayUi = {
     tileSprite: "loading",
 };
 
-/** A notice over the table, with the one control it may offer. */
-export interface PlayNotice extends Omit<BoardNotice, "action"> {
+/**
+ * What a notice tells, in the stack's order: the ongoing conditions (the connection, messages the client could not
+ * read, tile faces, the standings) that stay until they recover, then the acknowledgements (the seat back, a refused
+ * move) that leave on their own.
+ */
+export type NoticeKind =
+    | "connection"
+    | "unread"
+    | "tile_sprite"
+    | "standings"
+    | "reconnected"
+    | "refused";
+
+/** A notice over the table, with what it tells and the one control it may offer. */
+export interface PlayNotice extends Omit<BoardNotice, "action" | "id" | "onShowAll"> {
+    readonly kind: NoticeKind;
     readonly action?: { readonly label: string; readonly command: PlayCommand };
+}
+
+/**
+ * The notices opened whole from the "Show all" of the one `opener` names, and the countdown of the decision or round
+ * confirm that goes on beneath them.
+ */
+export interface NoticeSheetDisplay {
+    readonly notices: readonly PlayNotice[];
+    readonly opener: NoticeKind;
+    readonly countdown: DecisionCountdown | null;
 }
 
 /**
@@ -206,8 +236,10 @@ export interface PlayDisplay {
     readonly lastResult: PlayAction | null;
     /** The viewer's seat, which the standings mark; null before the seat is known. */
     readonly viewerSeat: number | null;
-    /** The notices over the table, the connection's first; none while a failure blocks the board. */
+    /** The notices over the table, in `NoticeKind`'s order; none while a failure blocks the board. */
     readonly notices: readonly PlayNotice[];
+    /** The notice opened whole in its sheet over the board, while it shows; else null. */
+    readonly noticeSheet: NoticeSheetDisplay | null;
     /** The end that blocks the board with its reason and a way back, or null. */
     readonly failure: FailureDisplay | null;
     readonly leave: LeaveControls;
@@ -875,13 +907,13 @@ function connectionNotice(session: SessionState | null): PlayNotice | null {
         return null;
     }
     if (session.status === "recovering") {
-        return { text: "Finding your game…", tone: "info" };
+        return { kind: "connection", text: "Finding your game…", tone: "info" };
     }
     if (hasLostSeat(session)) {
-        return { text: "Connection lost. Reconnecting…", tone: "warning" };
+        return { kind: "connection", text: "Connection lost. Reconnecting…", tone: "warning" };
     }
     if (session.attempts.transport > 0) {
-        return { text: "Cannot reach the game. Retrying…", tone: "warning" };
+        return { kind: "connection", text: "Cannot reach the game. Retrying…", tone: "warning" };
     }
     return null;
 }
@@ -898,20 +930,25 @@ function refusalText(code: string): string {
 
 function timedNotice(notice: TimedNotice | null): PlayNotice | null {
     if (notice?.kind === "reconnected") {
-        return { text: "Reconnected", tone: "success" };
+        return { kind: "reconnected", text: "Reconnected", tone: "success" };
     }
     if (notice?.kind === "refused") {
-        return { text: refusalText(notice.code), tone: "warning" };
+        return { kind: "refused", text: refusalText(notice.code), tone: "warning" };
     }
     return null;
 }
 
+/** The messages the client could not read since the last snapshot: what that means for the table, and that play goes on. */
 function unreadNotice(count: number): PlayNotice | null {
     if (count === 0) {
         return null;
     }
-    const messages = count === 1 ? "A server message" : `${count} server messages`;
-    return { text: `${messages} could not be read; the table may be wrong`, tone: "error" };
+    const messages = count === 1 ? "a message" : `${count} messages`;
+    return {
+        kind: "unread",
+        text: `The game server sent ${messages} this page could not read, so the table may be wrong until the server sends it again; play goes on.`,
+        tone: "error",
+    };
 }
 
 /**
@@ -924,6 +961,7 @@ function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
     }
     return {
         action: { command: { kind: "reload" }, label: "Reload" },
+        kind: "tile_sprite",
         text: "Tile images did not load; tiles show their names",
         tone: "warning",
     };
@@ -939,19 +977,49 @@ function standingsNotice(table: TableState, status: LoadStatus): PlayNotice | nu
     }
     return {
         action: { command: { kind: "reload" }, label: "Reload" },
+        kind: "standings",
         text: "The final standings did not load",
         tone: "error",
     };
 }
 
+/** The notices over the table, ongoing conditions before acknowledgements (`NoticeKind`); none while a failure blocks it. */
 function boardNotices(state: GameClientState, ui: PlayUi): PlayNotice[] {
+    if (failureDisplay(state.session) !== null) {
+        return [];
+    }
     return [
         connectionNotice(state.session),
-        timedNotice(state.notice),
         unreadNotice(state.unreadMessages),
         tileSpriteNotice(ui.tileSprite),
         standingsNotice(state.table, ui.standings),
+        timedNotice(state.notice),
     ].filter((notice) => notice !== null);
+}
+
+/**
+ * The notices opened whole, while any notice shows and nothing above the sheet in the overlay's precedence (an end,
+ * the leave question) takes its place; with the "Show all" that opened them, where the focus goes back, and the
+ * countdown of the decision or round confirm that goes on beneath it.
+ */
+function noticeSheet(
+    state: GameClientState,
+    ui: PlayUi,
+    notices: readonly PlayNotice[],
+): NoticeSheetDisplay | null {
+    const opener = ui.noticeSheet;
+    if (opener === null || notices.length === 0 || ui.confirmingLeave) {
+        return null;
+    }
+    return { countdown: pendingCountdown(state), notices, opener };
+}
+
+/** The view's `ui` once the client state moved on: a sheet with no notice left closes, so it never reopens. */
+export function settledPlayUi(state: GameClientState, ui: PlayUi): PlayUi {
+    if (ui.noticeSheet === null || boardNotices(state, ui).length > 0) {
+        return ui;
+    }
+    return { ...ui, noticeSheet: null };
 }
 
 /** The live calls as the viewer's board shows them, keyed by when they were made. */
@@ -977,6 +1045,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         viewer === undefined ? new Map<number, TilePlay>() : tilePlays(state, viewer, picking);
     const resultPage = shownResultPage(table, ui);
     const failure = failureDisplay(state.session);
+    const notices = boardNotices(state, ui);
     return {
         actions: decisionActions(state, ui),
         board: viewerBoard(state, plays),
@@ -989,7 +1058,8 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
         lastResult: lastResultAction(state),
         leave: leaveControls(state, ui),
-        notices: failure === null ? boardNotices(state, ui) : [],
+        noticeSheet: noticeSheet(state, ui, notices),
+        notices,
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
         resultOverStandings: state.roundConfirm?.kind === "final",
@@ -1063,7 +1133,7 @@ function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
  * The view's `ui` after a command: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
  * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
  * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
- * result reopens on its first; a nameplate is pinned, or none.
+ * result reopens on its first; a nameplate is pinned, or none; a notice opens whole in its sheet, or the sheet closes.
  */
 export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
@@ -1076,6 +1146,10 @@ export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayComm
         }
         case "cancel_leave": {
             return { ...ui, confirmingLeave: false };
+        }
+        case "show_notice":
+        case "close_notice": {
+            return { ...ui, noticeSheet: command.kind === "show_notice" ? command.notice : null };
         }
         case "toggle_riichi_pick":
         case "toggle_tile_choice":

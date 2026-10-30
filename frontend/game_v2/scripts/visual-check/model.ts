@@ -52,11 +52,6 @@ export interface BoardOptions {
     readonly panelScrolls?: boolean;
     /** Its names are longer than any badge holds, so a badge may shorten them in the middle. */
     readonly longNames?: boolean;
-    /**
-     * The viewports where its notice is known to be taller than its place over the panel, so cut short until Step 4.2's
-     * clamp and "Show all": there only the part its scrolling place shows is held to the notices' rules.
-     */
-    readonly noticeCutAt?: readonly string[];
 }
 
 type PageKind =

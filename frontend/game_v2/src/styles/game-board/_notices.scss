@@ -1,4 +1,5 @@
 @use "grid" as *;
+@use "../type";
 
 @property --left-depth {
     syntax: "<length>";
@@ -50,20 +51,28 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+    max-width: 100%;
 
-    &:not(:empty) {
+    &:not(:empty, :last-child) {
         margin-bottom: 6px;
     }
+}
+
+/* Under a modal panel (their sheet, which lists them all, or the leave question) the notices stay where they were,
+   hidden, their clamp kept, so the "Show all" that opened the sheet is there to take the focus back. */
+.game-board:has(> .board-overlay [aria-modal="true"]) .board-notices__list {
+    visibility: hidden;
 }
 
 /* Over a panel, a short or upright board's notices move to the reserve under the right strip's end; a narrow
    desktop's panel leaves them their own field. */
 @container game-board (height < #{$short-height}) or (aspect-ratio < 1) {
-    .game-board:has(> .board-overlay) .board-notices__list {
+    .game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"])))
+        .board-notices__list {
         align-items: stretch;
     }
 
-    .game-board:has(> .board-overlay) {
+    .game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"]))) {
         .board-notices {
             --notice-top: calc(
                 max(var(--foreground-top), var(--right-origin) - var(--band-shift) * 1000) + 4px
@@ -86,12 +95,16 @@
     }
 }
 
+/* A notice's line height is a length, so its clamp reads its lines in pixels in every engine. */
 .board-notice {
+    position: relative;
+    max-width: 100%;
     margin: 0;
+    overflow-wrap: break-word;
     padding: 0.3em 0.8em;
     font-size: max(11px, 0.92em);
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.3em;
     text-align: left;
     color: var(--ronin-text);
     background: var(--ronin-notice);
@@ -115,11 +128,188 @@
     }
 }
 
+.board-notice__body {
+    display: block;
+}
+
 .board-notice__action {
     width: auto;
     margin: 0 0 0 0.6em;
-    padding: 0.15em 0.7em;
+    padding: 0 0.7em;
     font-size: inherit;
     line-height: inherit;
     pointer-events: auto;
+}
+
+/* A notice taller than its place shows the whole lines its clamp counted (`--notice-lines`), then "Show all" on a line
+   of its own; the whole notice is that control's target, at least 40px high, and its way out moves to the sheet. */
+.board-notice__more {
+    display: none;
+}
+
+/* A notice the place has no room for is left out; the last one shown says how many more its "Show all" opens. */
+.board-notice[data-overflow] {
+    display: none;
+}
+
+.board-notice__more[data-more]::before {
+    content: attr(data-more) " · ";
+    display: inline-block;
+    white-space: pre;
+}
+
+.board-notice[data-clamped] {
+    min-height: 40px;
+
+    .board-notice__body {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: var(--notice-lines);
+    }
+
+    .board-notice__action {
+        visibility: hidden;
+    }
+
+    .board-notice__more {
+        display: block;
+        width: auto;
+        height: auto;
+        margin: 0;
+        padding: 0;
+        font: inherit;
+        line-height: inherit;
+        color: var(--ronin-text);
+        text-decoration: underline;
+        text-underline-offset: 0.15em;
+        background: none;
+        border: 0;
+        box-shadow: none;
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+        }
+
+        &:focus-visible {
+            outline: none;
+        }
+    }
+
+    &:has(.board-notice__more:focus-visible) {
+        outline: 2px solid var(--ronin-accent);
+        outline-offset: 2px;
+    }
+}
+
+/* The board takes the focus only when a closed sheet leaves nothing on it to give the focus to; it is no control. */
+.game-board[tabindex="-1"]:focus {
+    outline: none;
+}
+
+/* What is read out, apart from what is drawn: in the accessibility tree, out of sight. */
+.board-announce {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.notice-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-width: 34rem;
+}
+
+.notice-sheet__title {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.notice-sheet__text {
+    margin: 0;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.notice-sheet__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.notice-sheet__notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.8rem;
+    margin: 0;
+    list-style: none;
+
+    .notice-sheet__text {
+        flex: 1 1 16rem;
+    }
+
+    .notice-sheet__action {
+        width: auto;
+        min-height: 40px;
+        margin: 0;
+    }
+}
+
+.notice-sheet__notice--success .notice-sheet__text {
+    color: var(--ronin-success);
+}
+
+.notice-sheet__notice--warning .notice-sheet__text {
+    color: var(--ronin-warning);
+}
+
+.notice-sheet__notice--error .notice-sheet__text {
+    color: var(--ronin-danger);
+}
+
+.notice-sheet__note {
+    margin: 0;
+    line-height: 1.4;
+}
+
+.notice-sheet__seconds {
+    @include type.figures;
+
+    font-weight: 700;
+}
+
+.notice-sheet__announce {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+.notice-sheet__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+
+    button {
+        width: auto;
+        min-width: 5.5rem;
+        min-height: 40px;
+        margin: 0;
+    }
 }

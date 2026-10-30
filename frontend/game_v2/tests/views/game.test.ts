@@ -173,7 +173,8 @@ function labelsAfter(host: HTMLElement, act: () => void): (string | null)[] {
 }
 
 function spriteNotice(host: HTMLElement): string | null | undefined {
-    return host.querySelector(".game__play .board-notice--warning")?.textContent;
+    return host.querySelector(".game__play .board-notice--warning .board-notice__body")
+        ?.textContent;
 }
 
 function secondsLeft(host: HTMLElement): string | null | undefined {
@@ -333,9 +334,12 @@ describe("mountGameView", () => {
 
         expect(consoleError).toHaveBeenCalledTimes(2);
         expect([
-            host.querySelector(".game__play .board-notice--error")?.textContent,
+            host.querySelector(".game__play .board-notice--error .board-notice__body")?.textContent,
             host.querySelector(".log-entry"),
-        ]).toEqual(["2 server messages could not be read; the table may be wrong", null]);
+        ]).toEqual([
+            "The game server sent 2 messages this page could not read, so the table may be wrong until the server sends it again; play goes on.",
+            null,
+        ]);
         expect([socket.sent, socket.disconnected]).toEqual([[JOIN, buildResyncMessage()], false]);
         consoleError.mockRestore();
     });
@@ -375,7 +379,9 @@ describe("mountGameView tile faces", () => {
 function standingsShown(host: HTMLElement): [boolean, string | undefined] {
     return [
         host.querySelector(".game__play .standings") !== null,
-        host.querySelector(".game__play .board-notice--error")?.textContent?.trim(),
+        host
+            .querySelector(".game__play .board-notice--error .board-notice__body")
+            ?.textContent?.trim(),
     ];
 }
 
@@ -417,9 +423,9 @@ describe("mountGameView connection", () => {
         expect(connections[0].disconnected).toBe(false);
         clock.advanceTo(10_000);
         expect(connections[0].disconnected).toBe(true);
-        expect(host.querySelector(".game__play .board-notice")?.textContent).toBe(
-            "Cannot reach the game. Retrying…",
-        );
+        expect(
+            host.querySelector(".game__play .board-notice .board-notice__body")?.textContent,
+        ).toBe("Cannot reach the game. Retrying…");
         clock.advanceTo(11_000);
 
         expect(connections).toHaveLength(2);
@@ -432,9 +438,10 @@ describe("mountGameView connection", () => {
 
         connections[0].handlers.onClose(1006, "");
 
-        expect(host.querySelector(".game__play .board-notice--warning")?.textContent).toBe(
-            "Connection lost. Reconnecting…",
-        );
+        expect(
+            host.querySelector(".game__play .board-notice--warning .board-notice__body")
+                ?.textContent,
+        ).toBe("Connection lost. Reconnecting…");
     });
 
     it("blocks the board with why a terminal close ended the session, and leaves only on its button", () => {
@@ -490,9 +497,9 @@ describe("mountGameView handoff recovery", () => {
             recoverHandoff: lobby.recoverHandoff,
         });
         expect(connections).toHaveLength(0);
-        expect(host.querySelector(".game__play .board-notice")?.textContent).toBe(
-            "Finding your game…",
-        );
+        expect(
+            host.querySelector(".game__play .board-notice .board-notice__body")?.textContent,
+        ).toBe("Finding your game…");
 
         await lobby.settle({
             gameClientUrl: "/play",
@@ -540,9 +547,9 @@ describe("mountGameView handoff recovery", () => {
         const recoverHandoff = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
         const { clock, host, sink } = mountWithFakes({ handoff: null, recoverHandoff });
         await settleLookup();
-        expect(host.querySelector(".game__play .board-notice")?.textContent).toBe(
-            "Finding your game…",
-        );
+        expect(
+            host.querySelector(".game__play .board-notice .board-notice__body")?.textContent,
+        ).toBe("Finding your game…");
 
         clock.advanceTo(2000);
         await settleLookup();

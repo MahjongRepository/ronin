@@ -224,13 +224,20 @@ function shownCalls(calls: readonly Call[], at: number): ShownCalls {
  * The calls a live board shows after a server message's table event, from the table it found (`state`'s) to the one it
  * left: the calls the event makes, but a kan the calls still showing call already (the declaration a reconnect's re-sent prompt repeats); else
  * those still showing, which only their time ends, since a move that calls nothing may follow a call at once (an AI
- * player's discard after its pon, the viewer's own draw after a riichi).
+ * player's discard after its pon, the viewer's own draw after a riichi). A deal, or a snapshot that leaves the hand,
+ * starts a new board, which shows none of the hand before, however soon it follows that hand's last call.
  */
 function liveCalls(
     state: GameClientState,
     event: TableEvent,
     table: TableState,
 ): ShownCalls | null {
+    const newBoard =
+        event.type === "round_started" ||
+        (event.type === "game_reconnected" && snapshotLeftHand(state.table, table));
+    if (newBoard) {
+        return null;
+    }
     const shown = state.calls;
     const live = shown !== null && shown.until > state.now ? shown.calls : [];
     const calls = (eventCalls(event, state.table, table) ?? []).filter(

@@ -307,12 +307,21 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   badge, beside the left strip and outside every river's capacity, which a panel leaves free, so an
   automatic notice covers no tile, badge, control or panel; worded for a player, and a recoverable
   interruption looks different from an end. Several stack there, ongoing conditions first; in a
-  replay the position and narration share the place, under any notice. A notice never loses its
-  ending silently: one taller than its place shows whole lines and a "Show all" control, which opens
-  the whole message in a sheet. The player chose it, so it covers the board as a panel does, the
-  board inert beneath it, the focus in it and back on "Show all" when it closes, by Close or Escape;
+  replay the position and narration share the place, under any notice; they stand above a panel's
+  dimming. A notice never loses its ending silently: one taller than its place shows whole lines and a
+  "Show all" control, which opens the whole message in a sheet. Decision (step 4.2): "Show all" is the
+  clamped notice's last line and the whole notice its target (at least 40px high); where even one
+  line a notice leaves the stack too tall (a phone's reserve over a panel holds one notice), the last
+  notices are left out and the last one shown says how many more it opens ("+1"); the sheet shows every
+  notice of the stack whole, each with its way out (Reload), so the clamped notice's control moves there.
+  The player chose it, so it covers the board as a panel does, the
+  board inert beneath it, the focus in it and back on "Show all" when it closes, by Close or Escape
+  (Escape closes it alone);
   it says that play goes on, with the seconds left while a decision or the round confirm is open, as
-  the rotate panel does. An ongoing condition (reconnecting, a seat lost, faces that did not load, a
+  the rotate panel does. It ranks under an end and the leave question and over the table's panel, which
+  comes back as it closes; it stays open while any notice remains, and wherever it closes the focus
+  stays on the board. Each notice is announced once, never its clamp; each showing of calls on the
+  live board is announced once too. An ongoing condition (reconnecting, a seat lost, faces that did not load, a
   message the client could not read) stays until it recovers, is rebuilt or ends; an acknowledgement
   (the seat back, a refused move) leaves on its own after a moment. Nothing dismisses a failure that
   goes on. A connection replaced by another tab is an end, with its reason.
