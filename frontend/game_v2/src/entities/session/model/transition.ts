@@ -20,10 +20,15 @@ import {
 } from "./policy";
 import {
     type ActiveSession,
+    type AwaitingRetrySession,
+    type ConnectingSession,
     type EndReason,
     type EndedSession,
+    type IdentifyingSession,
+    type Identity,
     type RecoveringSession,
     type RetryKind,
+    type SeekingSession,
     type SessionEffect,
     type SessionInput,
     type SessionState,
@@ -39,11 +44,19 @@ function unchanged(state: SessionState): SessionStep {
     return { effects: [], state };
 }
 
-function identityMessage(session: ActiveSession): ClientMessage {
-    const { gameTicket } = session.handoff;
-    return session.status === "joining"
-        ? buildJoinGameMessage(gameTicket)
-        : buildReconnectMessage(gameTicket);
+function identityMessage({ handoff, identity }: SeekingSession): ClientMessage {
+    return identity.kind === "join"
+        ? buildJoinGameMessage(handoff.gameTicket)
+        : buildReconnectMessage(handoff.gameTicket);
+}
+
+/** Whether the session has a socket open or opening: connecting, identifying or playing. */
+export function hasSocket(state: SessionState): boolean {
+    return (
+        state.status === "connecting" ||
+        state.status === "identifying" ||
+        state.status === "playing"
+    );
 }
 
 /** Where an end takes the player: it stays on the page to say why, or leaves for the lobby or another game. */
@@ -112,12 +125,17 @@ function endEffects(gameId: string, reason: EndReason): SessionEffect[] {
  */
 function endSession(session: ActiveSession, reason: EndReason): SessionStep {
     const effects: SessionEffect[] = [];
-    if (session.link !== "down" && reason.kind !== "game_ended") {
+    if (hasSocket(session) && reason.kind !== "game_ended") {
         effects.push({ type: "close_socket" });
     }
     effects.push(...endEffects(session.gameId, reason));
     const state: EndedSession = { gameId: session.gameId, reason, status: "ended" };
     return { effects, state };
+}
+
+/** End a session whose socket just dropped, so there is none to close. */
+function endDropped(gameId: string, reason: EndReason): SessionStep {
+    return { effects: endEffects(gameId, reason), state: { gameId, reason, status: "ended" } };
 }
 
 /** Leave for the lobby from an end that stayed on the page; any other end is already leaving. */
@@ -134,83 +152,115 @@ function leaveEnded(ended: EndedSession): SessionStep {
     };
 }
 
-function scheduleRetry(session: ActiveSession, kind: RetryKind, at: number): SessionStep {
-    const attempt = session.attempts[kind] + 1;
-    const delayMs = retryDelayMs(kind, attempt);
-    if (delayMs === null) {
-        const gameStarted = session.status !== "joining";
-        return endSession(session, { gameStarted, kind: "retries_exhausted", retry: kind });
-    }
-    return {
-        effects: [],
-        state: {
-            ...session,
-            attempts: { ...session.attempts, [kind]: attempt },
-            retry: { dueAt: at + delayMs, kind },
-        },
-    };
+/** The end of a spent retry budget: the game had started with the seat when the session claims it with RECONNECT. */
+function retriesExhausted(identity: Identity, retry: RetryKind): EndReason {
+    return { gameStarted: identity.kind === "reconnect", kind: "retries_exhausted", retry };
 }
+
+/** Resend the identity message on the open socket after a session retry's wait, or end once its budget is spent. */
+function scheduleSessionRetry(session: IdentifyingSession, at: number): SessionStep {
+    const attempt = session.attempts.session + 1;
+    const delayMs = retryDelayMs("session", attempt);
+    if (delayMs === null) {
+        return endSession(session, retriesExhausted(session.identity, "session"));
+    }
+    return unchanged({
+        ...session,
+        attempts: { ...session.attempts, session: attempt },
+        sessionRetryAt: at + delayMs,
+    });
+}
+
+/** What any state seeking the seat carries on to the next one. */
+type Seeker = Pick<SeekingSession, "gameId" | "handoff" | "identity" | "attempts">;
 
 /** Open a socket for the session, which counts as a failed connection unless it opens by its connect deadline. */
-function openSocket(session: ActiveSession, at: number): SessionStep {
-    return {
-        effects: [{ type: "open_socket", url: session.handoff.wsUrl }],
-        state: {
-            ...session,
-            connectDeadline: at + CONNECT_TIMEOUT_MS,
-            link: "connecting",
-            retry: null,
-        },
+function openSocket({ attempts, gameId, handoff, identity }: Seeker, at: number): SessionStep {
+    const connecting: ConnectingSession = {
+        attempts,
+        connectDeadline: at + CONNECT_TIMEOUT_MS,
+        gameId,
+        handoff,
+        identity,
+        status: "connecting",
     };
+    return { effects: [{ type: "open_socket", url: handoff.wsUrl }], state: connecting };
 }
 
-function admit(session: ActiveSession): SessionStep {
-    return {
-        effects: [],
-        state: {
-            ...session,
-            attempts: NO_ATTEMPTS,
-            lostSeat: false,
-            retry: null,
-            status: "playing",
-        },
-    };
+/** Hold the seat: the retries spent seeking it no longer count. */
+function admit({ gameId, handoff }: IdentifyingSession): SessionStep {
+    return unchanged({ gameId, handoff, status: "playing" });
 }
 
 function onTransportOpened(session: ActiveSession): SessionStep {
-    if (session.link !== "connecting") {
+    if (session.status !== "connecting") {
         return unchanged(session);
     }
+    const identifying: IdentifyingSession = {
+        attempts: session.attempts,
+        gameId: session.gameId,
+        handoff: session.handoff,
+        identity: session.identity,
+        sessionRetryAt: null,
+        status: "identifying",
+    };
     return {
-        effects: [{ message: identityMessage(session), type: "send" }],
-        state: { ...session, connectDeadline: null, link: "open" },
+        effects: [{ message: identityMessage(identifying), type: "send" }],
+        state: identifying,
     };
 }
 
-/** A drop replaces any session retry with a transport retry: the reopened socket sends RECONNECT itself. */
+/**
+ * A drop of a linked session: a terminal close ends it, any other awaits a transport retry, which replaces a waiting
+ * session retry, since the reopened socket sends the identity message itself. A seat held until now is lost.
+ */
 function onTransportClosed(
     session: ActiveSession,
     { at, code, reason }: Extract<SessionInput, { kind: "transport_closed" }>,
 ): SessionStep {
-    if (session.link === "down") {
+    if (!hasSocket(session)) {
         return unchanged(session);
     }
-    const dropped: ActiveSession = {
-        ...session,
-        connectDeadline: null,
-        link: "down",
-        lostSeat: session.lostSeat || session.status === "playing",
-        retry: null,
-        status: session.status === "playing" ? "reconnecting" : session.status,
-    };
     if (isTerminalClose(code)) {
-        return endSession(dropped, { code, kind: "closed", reason });
+        return endDropped(session.gameId, { code, kind: "closed", reason });
     }
-    return scheduleRetry(dropped, "transport", at);
+    return awaitTransportRetry(seekerAfterDrop(session), at);
+}
+
+/** What a drop leaves seeking the seat: a seat held until now is lost, claimed back with RECONNECT afresh. */
+function seekerAfterDrop(session: ActiveSession): Seeker {
+    if (session.status !== "playing") {
+        return session;
+    }
+    const { gameId, handoff } = session;
+    return {
+        attempts: NO_ATTEMPTS,
+        gameId,
+        handoff,
+        identity: { kind: "reconnect", lostSeat: true },
+    };
+}
+
+/** Reopen the socket after a transport retry's wait, or end once its budget is spent. */
+function awaitTransportRetry(seeker: Seeker, at: number): SessionStep {
+    const attempt = seeker.attempts.transport + 1;
+    const delayMs = retryDelayMs("transport", attempt);
+    if (delayMs === null) {
+        return endDropped(seeker.gameId, retriesExhausted(seeker.identity, "transport"));
+    }
+    const awaiting: AwaitingRetrySession = {
+        attempts: { ...seeker.attempts, transport: attempt },
+        dueAt: at + delayMs,
+        gameId: seeker.gameId,
+        handoff: seeker.handoff,
+        identity: seeker.identity,
+        status: "awaiting_retry",
+    };
+    return unchanged(awaiting);
 }
 
 /** A socket that has not opened by its connect deadline: closed, and taken as a failed connection to retry. */
-function onConnectTimeout(session: ActiveSession, at: number): SessionStep {
+function onConnectTimeout(session: ConnectingSession, at: number): SessionStep {
     const step = onTransportClosed(session, {
         at,
         code: CONNECT_TIMEOUT_CLOSE.code,
@@ -220,72 +270,111 @@ function onConnectTimeout(session: ActiveSession, at: number): SessionStep {
     return { effects: [{ type: "close_socket" }, ...step.effects], state: step.state };
 }
 
-/**
- * Give up on a socket that never opened, or run the retry that came due: reopen the socket after a drop, or resend
- * the identity message on the open one. A session retry only waits on an open socket, since a drop replaces it with
- * a transport retry.
- */
-function onTick(session: ActiveSession, at: number): SessionStep {
-    const { connectDeadline, retry } = session;
-    if (connectDeadline !== null && at >= connectDeadline) {
-        return onConnectTimeout(session, at);
-    }
-    if (retry === null || at < retry.dueAt) {
+/** Resend the identity message on the open socket once the session retry is due. */
+function onIdentifyingTick(session: IdentifyingSession, at: number): SessionStep {
+    if (session.sessionRetryAt === null || at < session.sessionRetryAt) {
         return unchanged(session);
     }
-    if (session.link === "down") {
-        return openSocket(session, at);
-    }
-    const due: ActiveSession = { ...session, retry: null };
+    const due: IdentifyingSession = { ...session, sessionRetryAt: null };
     return { effects: [{ message: identityMessage(due), type: "send" }], state: due };
 }
 
 /**
- * Answer a session error. `reconnect_retry_later` only answers a RECONNECT, and a resendable error only matters
- * before the seat is held; while playing, neither can refer to the identity message, so both are ignored.
+ * Run the state's deadline once it is due: give up on a socket that never opened, resend the identity message after a
+ * session retry's wait, or reopen the socket after a drop's.
+ */
+function onTick(session: ActiveSession, at: number): SessionStep {
+    switch (session.status) {
+        case "connecting": {
+            return at >= session.connectDeadline
+                ? onConnectTimeout(session, at)
+                : unchanged(session);
+        }
+        case "identifying": {
+            return onIdentifyingTick(session, at);
+        }
+        case "awaiting_retry": {
+            return at >= session.dueAt ? openSocket(session, at) : unchanged(session);
+        }
+        case "playing": {
+            return unchanged(session);
+        }
+        default: {
+            return assertNever(session);
+        }
+    }
+}
+
+/**
+ * Answer a session error. A refusal ends the session. The others answer an identity message, so only an identifying
+ * session takes them: `join_game_already_started` turns a JOIN_GAME into RECONNECT, and `reconnect_retry_later` (to a
+ * RECONNECT) or a rate limit resends the identity message after a session retry.
  */
 function onSessionError(session: ActiveSession, code: string, at: number): SessionStep {
-    if (code === SESSION_ERROR_CODE.JOIN_GAME_ALREADY_STARTED) {
-        const resuming: ActiveSession = { ...session, status: "reconnecting" };
-        return { effects: [{ message: identityMessage(resuming), type: "send" }], state: resuming };
-    }
     if (isRefusal(code)) {
         return endSession(session, { code, kind: "refused" });
     }
+    if (session.status !== "identifying") {
+        return unchanged(session);
+    }
+    if (code === SESSION_ERROR_CODE.JOIN_GAME_ALREADY_STARTED) {
+        return session.identity.kind === "join" ? resumeStartedGame(session) : unchanged(session);
+    }
     const retriesIdentity =
-        (code === SESSION_ERROR_CODE.RECONNECT_RETRY_LATER && session.status === "reconnecting") ||
-        (isResendable(code) && session.status !== "playing");
-    return retriesIdentity ? scheduleRetry(session, "session", at) : unchanged(session);
+        (code === SESSION_ERROR_CODE.RECONNECT_RETRY_LATER &&
+            session.identity.kind === "reconnect") ||
+        isResendable(code);
+    return retriesIdentity ? scheduleSessionRetry(session, at) : unchanged(session);
 }
 
+/** A JOIN_GAME refused because the game already started with the seat: claim it with RECONNECT on the same socket. */
+function resumeStartedGame(session: IdentifyingSession): SessionStep {
+    const resuming: IdentifyingSession = {
+        ...session,
+        identity: { kind: "reconnect", lostSeat: false },
+        sessionRetryAt: null,
+    };
+    return { effects: [{ message: identityMessage(resuming), type: "send" }], state: resuming };
+}
+
+/**
+ * Take a server message. Only an open socket carries one, so a session connecting or awaiting a transport retry
+ * ignores it; a session error is answered, and the game's end ends the session.
+ */
 function onMessage(session: ActiveSession, message: ParsedServerMessage, at: number): SessionStep {
+    if (session.status === "connecting" || session.status === "awaiting_retry") {
+        return unchanged(session);
+    }
     if (message.type === "session_error") {
         return onSessionError(session, message.code, at);
     }
+    if (message.type === "game_end") {
+        return endSession(session, { kind: "game_ended" });
+    }
+    return session.status === "playing"
+        ? unchanged(session)
+        : onIdentifyingMessage(session, message);
+}
+
+/**
+ * The snapshot admits an identifying session; a joining one is also admitted by any other message but a seat's change
+ * of control, the first the game sends its seat.
+ */
+function onIdentifyingMessage(
+    session: IdentifyingSession,
+    message: ParsedServerMessage,
+): SessionStep {
     if (message.type === "game_reconnected") {
         return admit(session);
     }
     if (message.type === "ai_replacement" || message.type === "human_return") {
         return unchanged(session);
     }
-    if (message.type === "game_end") {
-        return endSession(session, { kind: "game_ended" });
-    }
-    return session.status === "joining" ? admit(session) : unchanged(session);
+    return session.identity.kind === "join" ? admit(session) : unchanged(session);
 }
 
 function joinWith(gameId: string, handoff: GameSessionData, at: number): SessionStep {
-    const joining: ActiveSession = {
-        attempts: NO_ATTEMPTS,
-        connectDeadline: null,
-        gameId,
-        handoff,
-        link: "down",
-        lostSeat: false,
-        retry: null,
-        status: "joining",
-    };
-    return openSocket(joining, at);
+    return openSocket({ attempts: NO_ATTEMPTS, gameId, handoff, identity: { kind: "join" } }, at);
 }
 
 /**
@@ -406,18 +495,50 @@ export function startSession(
 }
 
 /**
- * When the session next needs a tick: the earlier of its socket's connect deadline and its pending retry, a failed
+ * When the session next needs a tick: its socket's connect deadline, its session retry, its transport retry, a failed
  * lookup's retry, or null.
  */
 export function sessionDeadline(state: SessionState): number | null {
-    if (state.status === "ended") {
-        return null;
+    switch (state.status) {
+        case "recovering": {
+            return state.retryAt;
+        }
+        case "connecting": {
+            return state.connectDeadline;
+        }
+        case "identifying": {
+            return state.sessionRetryAt;
+        }
+        case "awaiting_retry": {
+            return state.dueAt;
+        }
+        case "playing":
+        case "ended": {
+            return null;
+        }
+        default: {
+            return assertNever(state);
+        }
     }
-    if (state.status === "recovering") {
-        return state.retryAt;
+}
+
+/** Whether this page held the seat and lost it to a drop, and has not held it again since. */
+export function hasLostSeat(state: SessionState): boolean {
+    switch (state.status) {
+        case "connecting":
+        case "identifying":
+        case "awaiting_retry": {
+            return state.identity.kind === "reconnect" && state.identity.lostSeat;
+        }
+        case "recovering":
+        case "playing":
+        case "ended": {
+            return false;
+        }
+        default: {
+            return assertNever(state);
+        }
     }
-    const due = [state.connectDeadline, state.retry?.dueAt ?? null].filter((at) => at !== null);
-    return due.length === 0 ? null : Math.min(...due);
 }
 
 /**
@@ -429,9 +550,10 @@ export function failSession(state: SessionState, detail: string): SessionState {
 }
 
 /**
- * The session transition: the next state and the effects it asks for, with no IO, timer or clock read inside.
- * A tick before the pending retry's due time, or with none pending, changes nothing, so a stale timer cannot
- * restart anything; an ended session ignores every input but a leave from an end that stayed on the page.
+ * The session transition: the next state and the effects it asks for, with no IO, timer or clock read inside. An
+ * input a state has no rule for leaves it as it is and emits nothing: a tick before its deadline, a socket opening or
+ * closing the state is not waiting on, a message while no socket is open, the lobby's answer outside recovering. An
+ * ended session ignores every input but a leave from an end that stayed on the page.
  */
 export function stepSession(state: SessionState, input: SessionInput): SessionStep {
     if (state.status === "ended") {

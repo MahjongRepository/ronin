@@ -407,7 +407,7 @@ describe("stepGameClient - generated own turn", () => {
         const resent = stateAt(scenario, run, "draw re-sent");
         const [, alice] = resent.table.players;
 
-        expect([dropped.decision, dropped.session?.status]).toEqual([null, "reconnecting"]);
+        expect([dropped.decision, dropped.session?.status]).toEqual([null, "awaiting_retry"]);
         expect(stateAt(scenario, run, "reconnected").decision).toBeNull();
         expect(resent.decision).toMatchObject({
             deadline: 3000 + (5 + 30) * 1000,
@@ -709,7 +709,7 @@ describe("stepGameClient - generated reconnect", () => {
         const resent = stateAt(scenario, run, "prompt re-sent");
 
         expect(stateAt(scenario, run, "prompt").decision?.deadline).toBe(8000);
-        expect([dropped.decision, dropped.session?.status]).toEqual([null, "reconnecting"]);
+        expect([dropped.decision, dropped.session?.status]).toEqual([null, "awaiting_retry"]);
         expect([reconnected.decision, reconnected.session?.status]).toEqual([null, "playing"]);
         expect(seatsAt(reconnected)).toEqual([
             [0, 13, [HAKU]],

@@ -1,4 +1,4 @@
-import { type SessionState } from "@/entities/session";
+import { type SessionState, hasLostSeat } from "@/entities/session";
 import { type ParsedServerMessage } from "@/shared/protocol";
 
 import { refusalOf } from "./decision";
@@ -52,7 +52,7 @@ function messageNotice(
 ): TimedNotice | null {
     const { now, session } = state;
     if (message.type === "game_reconnected") {
-        const lostSeat = before.session?.status === "reconnecting" && before.session.lostSeat;
+        const lostSeat = before.session !== null && hasLostSeat(before.session);
         return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
     }
     const refusal = refusalOf(message);

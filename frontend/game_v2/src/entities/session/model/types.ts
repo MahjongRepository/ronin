@@ -3,18 +3,10 @@ import { type ClientMessage, type ParsedServerMessage } from "@/shared/protocol"
 import { type GameSessionData } from "@/shared/session";
 
 /**
- * Why a retry waits: `transport` reopens a dropped socket, `session` resends RECONNECT on the open socket after
- * the server answered `reconnect_retry_later`. Each has its own attempt budget.
+ * Why a retry waits: `transport` reopens a dropped socket, `session` resends the identity message on the open socket
+ * after a rate limit or `reconnect_retry_later`. Each has its own attempt budget.
  */
 export type RetryKind = "transport" | "session";
-
-/** The socket as the session knows it; `down` means none is open or opening. */
-export type LinkState = "connecting" | "open" | "down";
-
-export interface PendingRetry {
-    readonly kind: RetryKind;
-    readonly dueAt: number;
-}
 
 export interface RetryAttempts {
     readonly transport: number;
@@ -22,22 +14,56 @@ export interface RetryAttempts {
 }
 
 /**
- * A session still working for its seat. `joining` has never been admitted, so it identifies with JOIN_GAME;
- * `reconnecting` was, or was told the game already started, so it identifies with RECONNECT; `playing` holds its
- * seat on the open socket.
+ * How a session seeking its seat claims it: JOIN_GAME until it is admitted, RECONNECT once it was or the server said
+ * the game already started. `lostSeat`: this page held the seat and lost it to a drop, what the player sees as lost.
  */
-export interface ActiveSession {
-    readonly status: "joining" | "playing" | "reconnecting";
+export type Identity =
+    | { readonly kind: "join" }
+    | { readonly kind: "reconnect"; readonly lostSeat: boolean };
+
+/** What every active session knows: its game and the lobby's handoff. */
+interface SessionBase {
     readonly gameId: string;
     readonly handoff: GameSessionData;
-    readonly link: LinkState;
-    readonly retry: PendingRetry | null;
-    readonly attempts: RetryAttempts;
-    /** While the socket opens: when the attempt counts as failed if it has not opened by then; else null. */
-    readonly connectDeadline: number | null;
-    /** The seat this page held dropped with its socket and is not held again yet: what the player sees as lost. */
-    readonly lostSeat: boolean;
 }
+
+/** What a session seeking its seat adds: how it claims it, and the retries it spent since it last held it. */
+interface SeekingBase extends SessionBase {
+    readonly identity: Identity;
+    readonly attempts: RetryAttempts;
+}
+
+/** A socket asked for and not open yet; past `connectDeadline` the attempt counts as a failed connection. */
+export interface ConnectingSession extends SeekingBase {
+    readonly status: "connecting";
+    readonly connectDeadline: number;
+}
+
+/**
+ * An open socket that sent its identity message and awaits the admission, or, refused for now (a rate limit, a
+ * `reconnect_retry_later`), resends it at `sessionRetryAt`.
+ */
+export interface IdentifyingSession extends SeekingBase {
+    readonly status: "identifying";
+    readonly sessionRetryAt: number | null;
+}
+
+/** The seat held on the open socket. */
+export interface PlayingSession extends SessionBase {
+    readonly status: "playing";
+}
+
+/** No socket since a drop: its transport retry opens one at `dueAt`. */
+export interface AwaitingRetrySession extends SeekingBase {
+    readonly status: "awaiting_retry";
+    readonly dueAt: number;
+}
+
+/** A session working for its seat: connecting, identifying or awaiting a transport retry. */
+export type SeekingSession = ConnectingSession | IdentifyingSession | AwaitingRetrySession;
+
+/** A session holding or working for its seat; only `playing` holds it, and only it may send game messages. */
+export type ActiveSession = SeekingSession | PlayingSession;
 
 /**
  * A page whose tab held no handoff, asking the lobby for the player's game before it can join: the lookup is in

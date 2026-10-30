@@ -159,7 +159,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   wait is never answered twice. The requests are counted for the page, never reset by a snapshot or
   the session's admission, so one past `MAX_RESYNC_REQUESTS` ends the page as failed, as does a
   snapshot that does not parse or that it cannot take, or a game's end it cannot take. A server
-  message that arrives once the session ended or while it recovers its handoff is dropped. An error
+  message or an undecodable frame that arrives while the session has no open socket (it recovers
+  its handoff, connects, awaits a transport retry or ended) is dropped, as the session drops it. An error
   that is not a `DesyncError` is a bug and propagates to the driver.
 * **Game start and calls.** Before the first deal the board's panel is the seating (`gameStartDisplay`):
   the game's length and first round, each seat's wind and player, the dealer, AI players and the viewer
@@ -308,12 +309,26 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`GET /api/game-session`) through an effect the driver runs and cancels on dispose: this game's
   handoff is kept and joined with, another game's kept and its page opened (the query, so `?v=2`,
   carried over), none sends the player to the lobby, and a failed lookup is asked once more after a
-  short wait (`policy.ts`), then stays on the page with a reload. Two retries stay distinct, each with its own backoff and budget: a transport
-  retry reopens a dropped socket, a session retry resends RECONNECT on the open socket after
-  `reconnect_retry_later` (honoured only while reconnecting) or a rate limit on its JOIN_GAME or
-  RECONNECT (only before the seat is held). A drop supersedes a waiting session retry, since the
-  reopened socket sends RECONNECT itself. A socket that has not opened by its connect deadline (a
-  state deadline like the others) is closed and retried as a drop. The stop policy follows the
+  short wait (`policy.ts`), then stays on the page with a reload. An active session is one of four
+  states, each a variant of its own carrying only its own facts, so no combination of flags implies
+  one: connecting (a socket asked for, with its connect deadline), identifying (the socket open and
+  the identity message sent, JOIN_GAME or RECONNECT, with a session retry's due time or none),
+  playing (the seat held: the only state that sends game messages, and the only one without an
+  identity or retry count) and awaiting a transport retry (no socket, with its due time). Whether
+  this page lost the seat it held belongs to the RECONNECT identity alone, so a join never has lost
+  one. Only an open socket carries a message, so connecting and awaiting a retry ignore every one.
+  A refusal ends any active session; only identifying schedules identity retries:
+  `join_game_already_started` turns a JOIN_GAME into RECONNECT and is ignored once the session
+  reconnects or plays, and `reconnect_retry_later` (to a RECONNECT) and a rate limit schedule a
+  session retry. Any other handling of a session error (a rate limit or `game_not_started` answering
+  a resync request or an action) is the client's. Two retries stay distinct, each with its own
+  backoff and budget: a transport retry reopens a dropped socket, a session retry resends the
+  identity message on the open socket. A drop supersedes a waiting session retry, since the reopened
+  socket sends the identity message itself. A socket that has not opened by its connect deadline is
+  closed and retried as a drop. Being out of step
+  (Desync) is the client state's, not the session's: it concerns the table the session's messages
+  build, its resync requests are counted for the page across the session's admissions, and it ends
+  by a snapshot the session takes like any other. The stop policy follows the
   server: the 4002 and 1008 closes, a refusal that means the ticket will never hold the seat again,
   and a spent retry budget end the session, cancel its retry and forget the handoff, and stay on the
   page, whose board says why with a way back; a game end ends it on the page and forgets the handoff,

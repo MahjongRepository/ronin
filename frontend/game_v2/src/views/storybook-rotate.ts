@@ -10,26 +10,14 @@ import {
 import { type SessionState, describePlayerSessionStatus } from "@/entities/session";
 
 const HANDOFF = { gameTicket: "story", wsUrl: "ws://story" } as const;
-const NO_ATTEMPTS = { session: 0, transport: 0 } as const;
-
-const PLAYING: SessionState = {
-    attempts: NO_ATTEMPTS,
-    connectDeadline: null,
-    gameId: "story",
-    handoff: HANDOFF,
-    link: "open",
-    lostSeat: false,
-    retry: null,
-    status: "playing",
-};
+const PLAYING: SessionState = { gameId: "story", handoff: HANDOFF, status: "playing" };
 
 const RECONNECTING: SessionState = {
     ...PLAYING,
     attempts: { session: 0, transport: 1 },
-    link: "down",
-    lostSeat: true,
-    retry: { dueAt: 0, kind: "transport" },
-    status: "reconnecting",
+    dueAt: 0,
+    identity: { kind: "reconnect", lostSeat: true },
+    status: "awaiting_retry",
 };
 
 const RETRIES_SPENT: SessionState = {

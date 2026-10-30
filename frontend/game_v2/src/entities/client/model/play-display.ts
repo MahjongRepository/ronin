@@ -1,4 +1,4 @@
-import { type EndReason, type SessionState } from "@/entities/session";
+import { type EndReason, type SessionState, hasLostSeat } from "@/entities/session";
 import {
     type BoardCallouts,
     type BoardDisplayState,
@@ -877,7 +877,7 @@ function connectionNotice(session: SessionState | null): PlayNotice | null {
     if (session.status === "recovering") {
         return { text: "Finding your game…", tone: "info" };
     }
-    if (session.lostSeat) {
+    if (hasLostSeat(session)) {
         return { text: "Connection lost. Reconnecting…", tone: "warning" };
     }
     if (session.attempts.transport > 0) {

@@ -1,6 +1,7 @@
 import {
     type SessionInput,
     type SessionState,
+    hasSocket,
     sessionDeadline,
     startSession,
     stepSession,
@@ -42,7 +43,6 @@ import {
     deferredUntilDeal,
     desyncDeadline,
     desyncStep,
-    isLinked,
     isSnapshotPayload,
     recoveryFailedStep,
     resynced,
@@ -108,7 +108,7 @@ function withSession(state: GameClientState, input: SessionInput): ClientStep {
         state: {
             ...state,
             calls: endedEarly(step.state) ? null : state.calls,
-            decision: isLinked(step.state) ? state.decision : null,
+            decision: hasSocket(step.state) ? state.decision : null,
             notice: keptNotice(state.notice, step.state),
             roundConfirm:
                 sendable || state.roundConfirm?.kind === "final" ? state.roundConfirm : null,

@@ -277,7 +277,10 @@ describe("stepGameClient - play switches", () => {
         ]);
         const state = stateAt(early, runClean(early), "early prompt");
 
-        expect(state.session).toMatchObject({ link: "open", status: "reconnecting" });
+        expect(state.session).toMatchObject({
+            identity: { kind: "reconnect" },
+            status: "identifying",
+        });
         expect([state.switches.no_calls, state.decision?.waitId, bySwitch(state)]).toEqual([
             true,
             unseen.wi,

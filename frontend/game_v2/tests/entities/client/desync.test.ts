@@ -244,7 +244,7 @@ describe("stepGameClient - desync", () => {
             { message: buildReconnectMessage("ticket-1"), type: "send" },
         ]);
         expect([reconnected.state.desync, reconnected.state.resyncRequests]).toEqual([null, 1]);
-        expect(reconnected.state.session).toMatchObject({ link: "open", status: "playing" });
+        expect(reconnected.state.session).toMatchObject({ status: "playing" });
     });
 });
 

@@ -1,4 +1,10 @@
-import { type EndReason, type LinkState, type SessionState } from "@/entities/session/model/types";
+import { hasLostSeat } from "@/entities/session/model/transition";
+import {
+    type ActiveSession,
+    type EndReason,
+    type Identity,
+    type SessionState,
+} from "@/entities/session/model/types";
 import { assertNever } from "@/shared/lib";
 import { CONNECTION_STATUS, type ConnectionStatus } from "@/shared/protocol";
 
@@ -7,10 +13,12 @@ export interface SessionStatusDisplay {
     readonly tone: ConnectionStatus;
 }
 
-const LINK_TONES: Readonly<Record<LinkState, ConnectionStatus>> = {
+/** Each active state's tone, from its socket: opening, open, or down until a transport retry. */
+const ACTIVE_TONES: Readonly<Record<ActiveSession["status"], ConnectionStatus>> = {
+    awaiting_retry: CONNECTION_STATUS.DISCONNECTED,
     connecting: CONNECTION_STATUS.CONNECTING,
-    down: CONNECTION_STATUS.DISCONNECTED,
-    open: CONNECTION_STATUS.CONNECTED,
+    identifying: CONNECTION_STATUS.CONNECTED,
+    playing: CONNECTION_STATUS.CONNECTED,
 };
 
 /** How asking the lobby for the player's game ended the session. */
@@ -68,8 +76,35 @@ export function describeSessionStatus(state: SessionState): SessionStatusDisplay
     if (state.status === "recovering") {
         return { label: "recovering the handoff", tone: CONNECTION_STATUS.CONNECTING };
     }
-    const retry = state.retry === null ? "" : `, ${state.retry.kind} retry pending`;
-    return { label: `${state.status} (${state.link}${retry})`, tone: LINK_TONES[state.link] };
+    return { label: describeActive(state), tone: ACTIVE_TONES[state.status] };
+}
+
+function describeIdentity(identity: Identity): string {
+    if (identity.kind === "join") {
+        return "join";
+    }
+    return identity.lostSeat ? "reconnect, seat lost" : "reconnect";
+}
+
+function describeActive(state: ActiveSession): string {
+    switch (state.status) {
+        case "playing": {
+            return "playing";
+        }
+        case "connecting": {
+            return `connecting (${describeIdentity(state.identity)})`;
+        }
+        case "identifying": {
+            const retry = state.sessionRetryAt === null ? "" : ", session retry pending";
+            return `identifying (${describeIdentity(state.identity)}${retry})`;
+        }
+        case "awaiting_retry": {
+            return `awaiting transport retry (${describeIdentity(state.identity)})`;
+        }
+        default: {
+            return assertNever(state);
+        }
+    }
 }
 
 function describeEndForPlayer(reason: EndReason): string {
@@ -107,10 +142,13 @@ function describeActiveForPlayer(state: Exclude<SessionState, { status: "ended" 
     if (state.status === "recovering") {
         return "Finding your game";
     }
-    if (state.status === "reconnecting" || state.link !== "open") {
-        return state.lostSeat ? "Reconnecting" : "Connecting";
+    if (state.status === "playing") {
+        return "Connected";
     }
-    return state.status === "joining" ? "Joining the game" : "Connected";
+    if (state.status === "identifying" && state.identity.kind === "join") {
+        return "Joining the game";
+    }
+    return hasLostSeat(state) ? "Reconnecting" : "Connecting";
 }
 
 /** The status a player reads for a session: what it means for them, never the machine's internal states. */

@@ -1,4 +1,4 @@
-import { type SessionState, failSession } from "@/entities/session";
+import { type SessionState, failSession, hasSocket } from "@/entities/session";
 import { type TableEvent, applyEvent } from "@/entities/table";
 import {
     type ParsedServerMessage,
@@ -20,22 +20,17 @@ export const MAX_RESYNC_REQUESTS = 5;
 /** How soon a resync refused before the first deal is asked again when the deal's time is unknown or past. */
 const NOT_STARTED_RETRY_MS = 1000;
 
-/** Whether the client can send on its session: it holds the seat on an open socket. */
+/** Whether the client can send on its session: it holds the seat, which only an open socket does. */
 export function canSend(session: SessionState | null): boolean {
-    return session !== null && session.status === "playing" && session.link === "open";
-}
-
-/** Whether the session has a socket open or opening. */
-export function isLinked(session: SessionState): boolean {
-    return session.status !== "ended" && session.status !== "recovering" && session.link !== "down";
+    return session?.status === "playing";
 }
 
 /**
- * Whether the client takes server messages on its session at all: a replay's (none) and an active session's. One that
- * ended or still looks for its handoff has no socket the server writes to, so any message then is dropped.
+ * Whether the client takes server messages on its session at all: a replay's (none) and a session on an open socket,
+ * identifying or playing, as the session itself does. Any other has no open socket, so any message then is dropped.
  */
 export function takesServerMessages(session: SessionState | null): boolean {
-    return session === null || (session.status !== "ended" && session.status !== "recovering");
+    return session === null || session.status === "identifying" || session.status === "playing";
 }
 
 /** End the client because its driver failed while stepping it; nothing is pending afterwards. */
@@ -46,7 +41,7 @@ export function failGameClient(state: GameClientState, detail: string): GameClie
 
 /** End the client as failed from inside a step, on the page as a driver failure does, closing its socket. */
 function failStep(state: GameClientState, detail: string): ClientStep {
-    const linked = state.session !== null && isLinked(state.session);
+    const linked = state.session !== null && hasSocket(state.session);
     return {
         effects: linked ? [{ type: "close_socket" }] : [],
         state: failGameClient(state, detail),
