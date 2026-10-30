@@ -17,6 +17,7 @@ describe("parseServerMessage", () => {
                 code: "invalid_ticket",
                 message: "Ticket expired",
                 type: "session_error",
+                waitId: null,
             });
         });
 
@@ -191,6 +192,7 @@ describe("parseServerMessage", () => {
                 code: "not_your_turn",
                 message: "not your turn",
                 type: "error",
+                waitId: null,
             });
         });
     });

@@ -1,17 +1,6 @@
-import asyncio
-from typing import TYPE_CHECKING
-
-import pytest
-
-from game.logic.enums import TimeoutType, WaitKind
+from game.logic.enums import TimeoutType
 from game.logic.events import EventType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
-from game.server.router import MessageRouter
-from game.server.websocket import websocket_endpoint
-from game.session.models import PlayerSpec
-from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
-from game.tests.helpers.fake_websocket import FakeWebSocketClient
-from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MockConnection
 from game.wire.compact import decode_discard
 from game.wire.events import EVENT_TYPE_INT
@@ -19,91 +8,12 @@ from shared import websocket as shared_websocket
 from shared.dal.models import GameEndReason
 from shared.tests.helpers.fake_websocket import ClosedWith
 
-from .helpers import arrange_final_discard, run_timeout, runtime_of
-
-if TYPE_CHECKING:
-    from game.session.manager import SessionManager
-
-_TIMEOUT_OF_WAIT = {
-    WaitKind.TURN: TimeoutType.TURN,
-    WaitKind.CALL: TimeoutType.MELD,
-    WaitKind.ROUND_ADVANCE: TimeoutType.ROUND_ADVANCE,
-}
-
-
-def _is_round_start(message: dict) -> bool:
-    return message.get("t") == EVENT_TYPE_INT[EventType.ROUND_STARTED]
-
-
-class _Table:
-    def __init__(self, manager: SessionManager) -> None:
-        self.manager = manager
-        self.router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
-        self.tickets = {
-            name: make_test_game_ticket(username=name, room_id="game1", user_id=f"user-{name}")
-            for name in ("Alice", "Bob")
-        }
-        manager.create_pending_game(
-            game_id="game1",
-            player_specs=[
-                PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=ticket)
-                for name, ticket in self.tickets.items()
-            ],
-        )
-        self.clients: list[FakeWebSocketClient] = []
-        self.endpoints: list[asyncio.Task[None]] = []
-
-    def join_over_socket(self, name: str, *, held: bool = False) -> tuple[FakeWebSocketClient, asyncio.Task[None]]:
-        client = FakeWebSocketClient()
-        if held:
-            client.hold_writes()
-
-        endpoint = asyncio.create_task(websocket_endpoint(client.websocket, self.router))
-        client.send({"t": WireClientMessageType.JOIN_GAME, "game_ticket": self.tickets[name]})
-        self.clients.append(client)
-        self.endpoints.append(endpoint)
-        return client, endpoint
-
-    def seat_of(self, name: str) -> int:
-        seat = self.manager._participants_by_ticket[self.tickets[name]].seat
-        assert seat is not None
-        return seat
-
-    def advance_to_turn_of(self, seat: int) -> None:
-        game = self.manager.get_game("game1")
-        while not (game.awaiting.kind == WaitKind.TURN and seat in game.awaiting.seats):
-            waiting_seat = min(game.awaiting.seats)
-            run_timeout(
-                self.manager, game_id="game1", timeout_type=_TIMEOUT_OF_WAIT[game.awaiting.kind], seat=waiting_seat
-            )
-
-    async def close(self) -> None:
-        for client in self.clients:
-            client.release_writes()
-            client.disconnect()
-
-        await asyncio.gather(*self.endpoints)
-        await self.manager.shutdown()
-
-
-@pytest.fixture
-async def table(seeded_engine):
-    table = _Table(make_session_manager(seeded_engine))
-    yield table
-    await table.close()
-
-
-async def _start_over_sockets(table: _Table) -> tuple[FakeWebSocketClient, FakeWebSocketClient]:
-    alice, _ = table.join_over_socket("Alice")
-    bob, _ = table.join_over_socket("Bob")
-    await alice.wait_for_message(_is_round_start)
-    await bob.wait_for_message(_is_round_start)
-    return alice, bob
+from .helpers import arrange_final_discard, run_timeout, runtime_of, start_over_sockets
 
 
 class TestConnectionWriters:
     async def test_slow_reader__when_its_writes_are_held__should_not_delay_another_seats_action(self, table):
-        alice, bob = await _start_over_sockets(table)
+        alice, bob = await start_over_sockets(table)
         bob_seat = table.seat_of("Bob")
         table.advance_to_turn_of(bob_seat)
         alice.hold_writes()
@@ -119,7 +29,7 @@ class TestConnectionWriters:
     async def test_game_end__when_one_reader_is_held__should_close_the_others_after_game_end_without_waiting(
         self, table
     ):
-        alice, bob = await _start_over_sockets(table)
+        alice, bob = await start_over_sockets(table)
         alice_seat = table.seat_of("Alice")
         table.advance_to_turn_of(alice_seat)
         arrange_final_discard(runtime_of(table.manager), seat=alice_seat)

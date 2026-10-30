@@ -8,7 +8,7 @@ from game.logic.mahjong_service import MahjongGameService
 from game.session import timer as timer_module
 from game.tests.helpers.session import make_session_manager
 
-from .helpers import ENGINE_SEED
+from .helpers import ENGINE_SEED, SocketTable
 
 
 @pytest.fixture
@@ -20,6 +20,13 @@ def manager():
 def seeded_engine(monkeypatch):
     monkeypatch.setattr(mahjong_service_module, "generate_seed", lambda: ENGINE_SEED)
     return MahjongGameService()
+
+
+@pytest.fixture
+async def table(seeded_engine):
+    table = SocketTable(make_session_manager(seeded_engine))
+    yield table
+    await table.close()
 
 
 class FakeClock:

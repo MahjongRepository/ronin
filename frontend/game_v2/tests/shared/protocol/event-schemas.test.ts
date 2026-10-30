@@ -390,13 +390,14 @@ describe("doraRevealedSchema", () => {
 });
 
 describe("errorEventSchema", () => {
-    it("parses valid wire payload", () => {
-        const wire = { cd: "not_your_turn", msg: "It's not your turn", t: EVENT_TYPE.ERROR };
+    it("parses valid wire payload, with the wait id the refused action echoed", () => {
+        const wire = { cd: "not_your_turn", msg: "It's not your turn", t: EVENT_TYPE.ERROR, wi: 4 };
         const result = errorEventSchema.parse(wire);
         expect(result).toEqual({
             code: "not_your_turn",
             message: "It's not your turn",
             type: "error",
+            waitId: 4,
         });
     });
 

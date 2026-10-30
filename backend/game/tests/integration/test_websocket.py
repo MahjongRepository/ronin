@@ -140,7 +140,9 @@ class TestWebSocketIntegration:
                 resp = recv_ws(ws)
                 assert resp["code"] == SessionErrorCode.INVALID_MESSAGE
 
-    def test_websocket__when_burst_exceeded__should_return_rate_limited_error(self, client):
+    def test_websocket__when_burst_exceeded_by_a_frame_without_a_readable_wait_id__should_return_rate_limited_unnamed(
+        self, client
+    ):
         with (
             patch.object(ws_module, "_RATE_LIMIT_BURST", 2),
             patch.object(ws_module, "_RATE_LIMIT_RATE", 0.0),
@@ -151,8 +153,8 @@ class TestWebSocketIntegration:
             send_ws(ws, ACTION_OUTSIDE_A_GAME)
             assert recv_ws(ws)["code"] == SessionErrorCode.NOT_IN_GAME
 
-            send_ws(ws, ACTION_OUTSIDE_A_GAME)
-            assert recv_ws(ws)["code"] == SessionErrorCode.RATE_LIMITED
+            send_ws(ws, {**ACTION_OUTSIDE_A_GAME, "wi": "0"})
+            assert recv_ws(ws) == {"type": "session_error", "code": "rate_limited", "message": "Too many messages"}
 
     def test_websocket__when_malformed_after_burst_exhausted__should_drop_replies_and_disconnect_on_decode_strikes(
         self, client

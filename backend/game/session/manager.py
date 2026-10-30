@@ -77,6 +77,13 @@ class _Ending:
     ended_at: datetime
 
 
+def _naming_wait(event: GameEvent, *, wait_id: int) -> GameEvent:
+    """
+    Return an engine event of a player's action, an ErrorEvent refusing it named by the wait id the action echoed.
+    """
+    return event.model_copy(update={"wait_id": wait_id}) if isinstance(event, ErrorEvent) else event
+
+
 class SessionManager:
     """
     The registry of live games and connections, and the transitions of each game's lifecycle.
@@ -210,7 +217,7 @@ class SessionManager:
 
     def _send_error(self, connection: ConnectionProtocol, *, code: SessionErrorCode, message: str) -> None:
         logger.warning("session error sent to client", error_code=code.value, error_message=message)
-        connection.send_message(ErrorMessage(code=code, message=message).model_dump())
+        connection.send_message(ErrorMessage(code=code, message=message).payload())
 
     def create_pending_game(self, *, game_id: str, player_specs: list[PlayerSpec]) -> None:
         """
@@ -554,7 +561,8 @@ class SessionManager:
 
         An action whose wait id is not the current wait's answers to a wait that already ended (it raced its own timeout
         or a newer prompt): the seat gets a `stale_action` ErrorEvent, and neither the engine nor a timer is touched. A
-        rule judgment or race comes back from the engine as an ErrorEvent for the seat. Structurally impossible input
+        rule judgment or race comes back from the engine as an ErrorEvent for the seat. Either ErrorEvent names the wait
+        id the action echoed, so the client matches the refusal to its own request. Structurally impossible input
         (InvalidGameActionError, always the acting seat's) disconnects the player with 1008 and seats an AI player.
         Anything else the engine raises is a server fault and propagates to the caller's boundary, which fails the game.
         """
@@ -579,7 +587,8 @@ class SessionManager:
             self._kick_player(connection, error=e)
             return
 
-        self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+        events = [_naming_wait(event, wait_id=wait_id) for event in update.events]
+        self._follow_engine(game, events=events, awaiting=update.awaiting, actor=seat)
 
     def _bound_participant(self, connection: ConnectionProtocol) -> Participant | None:
         """
@@ -611,6 +620,7 @@ class SessionManager:
             code=GameErrorCode.STALE_ACTION,
             message="the wait this action answers has already ended",
             target=SeatTarget(seat=seat),
+            wait_id=wait_id,
         )
         connection.send_message(game_event_payload(error))
 
@@ -1129,7 +1139,7 @@ class SessionManager:
         message = ErrorMessage(code=SessionErrorCode.INTERNAL_ERROR, message="The game ended on a server error")
         try:
             try:
-                connection.send_message(message.model_dump())
+                connection.send_message(message.payload())
             finally:
                 connection.close(code=1011, reason="internal_error")
         except Exception:

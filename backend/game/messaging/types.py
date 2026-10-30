@@ -43,7 +43,7 @@ class GameActionMessage(BaseModel, frozen=True):
 
     t: Literal[WireClientMessageType.GAME_ACTION] = WireClientMessageType.GAME_ACTION
     a: WireGameAction
-    wait_id: int = Field(ge=0, validation_alias="wi")
+    wait_id: int = Field(ge=0, strict=True, validation_alias="wi")
 
 
 class DiscardMessage(GameActionMessage):
@@ -106,9 +106,32 @@ ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage
 
 
 class ErrorMessage(BaseModel):
+    """
+    A session error.
+
+    A rate limit names the wait id (`wi`) the refused game action echoed, when it had a readable one, so the client
+    matches the refusal to its own request and never to a newer wait.
+    """
+
     type: Literal[SessionMessageType.ERROR] = SessionMessageType.ERROR
     code: SessionErrorCode
     message: str
+    wait_id: int | None = Field(default=None, serialization_alias="wi")
+
+    def payload(self) -> dict[str, Any]:
+        """
+        Return the wire-format dict, without a wait id it does not name.
+        """
+        return self.model_dump(by_alias=True, exclude_none=True)
+
+
+def refused_wait_id(data: dict[str, Any]) -> int | None:
+    """
+    Return the wait id a decoded game action frame echoes, or None for any other frame or an id that is not a wait id.
+    """
+    wait_id = data.get("wi")
+    is_game_action = data.get("t") == WireClientMessageType.GAME_ACTION
+    return wait_id if is_game_action and type(wait_id) is int and wait_id >= 0 else None
 
 
 class TimerSettings(BaseModel):

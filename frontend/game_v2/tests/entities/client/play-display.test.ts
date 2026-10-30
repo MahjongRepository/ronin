@@ -6,6 +6,7 @@ import {
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
     wireGameError,
+    wireRoundEnd,
     wireSessionError,
 } from "#tests/fixtures/wire";
 import {
@@ -433,6 +434,14 @@ function playingScenario(): ReturnType<typeof clientScenario> {
     return scenario;
 }
 
+/** A playing seat that confirmed, at `at`, the round end owed by wait id 5, so a refusal can name that request. */
+function confirmSentScenario(at: number): ReturnType<typeof clientScenario> {
+    const scenario = playingScenario();
+    scenario.step(clientEvent.message(0, wireRoundEnd(5)));
+    scenario.step(clientEvent.confirm(at));
+    return scenario;
+}
+
 describe("playDisplay revealed hands", () => {
     it("shows the hands a result reveals face up on the board, from its round end and a reconnect's snapshot of it", () => {
         expect(handShows(checkpointState("double_ron_seat_1", "round end"))).toEqual([
@@ -515,19 +524,20 @@ describe("playDisplay notices", () => {
         expect(shown).toEqual([[], ...Array.from({ length: 5 }, () => unreachable)]);
     });
 
-    it("shows a refused move or a rate-limited one until it expires, but never a stale one", () => {
-        const scenario = playingScenario();
+    it("shows a refused move or a rate-limited one of the sent request until it expires, but never a stale one", () => {
+        const scenario = confirmSentScenario(2000);
 
-        scenario.step(clientEvent.message(100, wireGameError("stale_action")));
+        scenario.step(clientEvent.message(2100, wireGameError("stale_action", 5)));
         expect(noticeTexts(scenario.state)).toEqual([]);
-        scenario.step(clientEvent.message(200, wireGameError("invalid_discard")));
+        scenario.step(clientEvent.message(2200, wireGameError("invalid_action", 5)));
         expect([noticeTexts(scenario.state), nextDeadline(scenario.state)]).toEqual([
             ["That move was refused"],
-            4200,
+            6200,
         ]);
-        scenario.step(clientEvent.message(300, wireSessionError("rate_limited")));
+        scenario.step(clientEvent.confirm(2250));
+        scenario.step(clientEvent.message(2300, wireSessionError("rate_limited", 5)));
         expect(noticeTexts(scenario.state)).toEqual(["Too fast. Try that again"]);
-        scenario.step(clientEvent.tick(4300));
+        scenario.step(clientEvent.tick(6300));
         expect([noticeTexts(scenario.state), nextDeadline(scenario.state)]).toEqual([[], null]);
     });
 
@@ -548,8 +558,9 @@ describe("playDisplay notices", () => {
     });
 
     it("blocks the board with why a kick ended the session, dropping its notices, and leaves without asking", () => {
-        const scenario = playingScenario();
-        scenario.step(clientEvent.message(100, wireGameError("invalid_discard")));
+        const scenario = confirmSentScenario(50);
+        scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
+        expect(noticeTexts(scenario.state)).toEqual(["That move was refused"]);
 
         scenario.step(clientEvent.closed(200, 1008));
         const display = playDisplay(scenario.state, { ...NO_PLAY_UI, confirmingLeave: true });

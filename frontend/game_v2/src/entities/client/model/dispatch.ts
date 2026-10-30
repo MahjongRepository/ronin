@@ -31,7 +31,7 @@ import {
 import { type GameSessionData } from "@/shared/session";
 
 import { answerDecision, expireDecision, followDecision, openDecision } from "./decision";
-import { keptNotice, withNotice } from "./notices";
+import { keptNotice, submittedWaitId, withNotice } from "./notices";
 import { SWITCHES_OFF, snapshotLeftHand, switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep, withRoundConfirm } from "./round-confirm";
 import {
@@ -258,7 +258,8 @@ function takeMessage(
             : { ...stepped, calls: liveCalls(stepped, tableEvent, table), table };
     const viewed = withSwitches(withViewer(tabled, message), before.table, message);
     const decided = withDecision(viewed, message);
-    const noticed = withNotice(before.session, withRoundConfirm(decided, message), message);
+    const noticeBefore = { session: before.session, submitted: submittedWaitId(viewed) };
+    const noticed = withNotice(noticeBefore, withRoundConfirm(decided, message), message);
     return switchStep(noticed, viewed.highestOpenedWaitId);
 }
 

@@ -56,7 +56,8 @@ interleave.
   the finalizer, and an error ahead of it would read as a permanent error to the client.
 * **Stale actions.** Every game action echoes the wait id the server stamped on the message that
   opened the wait; an action for any other wait gets a stale-action `ErrorEvent` and touches
-  neither the engine nor a timer.
+  neither the engine nor a timer. Every `ErrorEvent` answering an action, stale or the engine's,
+  names the wait id the action echoed (`messaging/AGENTS.md`, Wait identity).
 * **Timers need no generation or lifecycle check.** Every path that supersedes a wait (ending it,
   releasing a seat, leaving PENDING, authenticating or evicting a connection, ending the game)
   cancels the timers it supersedes, so a timer that runs at all runs on the state it was armed for.

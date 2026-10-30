@@ -257,7 +257,7 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(loggedErrors).toEqual([]);
     });
 
-    it("echoes the wait id of the server message that opened each decision", () => {
+    it("echoes the wait id of the server message that opened each decision, never a late refusal's", () => {
         const table = startTable();
 
         table.receive(draw(0, 120, { wi: 5 }));
@@ -265,6 +265,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(discard(0, 120));
         table.receive(discard(1, 124));
         table.receive({ t: 3, clt: 0, ti: 124, frs: 1, cs: 0, wi: 6 });
+        table.receive({ t: 7, cd: "stale_action", msg: "late", wi: 5 });
         table.decide({});
 
         expect(table.sent).toEqual([

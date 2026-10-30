@@ -5,18 +5,21 @@ import { parseSessionMessage } from "@/shared/protocol/schemas/session";
 
 describe("parseSessionMessage", () => {
     describe("session_error", () => {
-        it("parses error with code and message", () => {
+        it("parses error with code and message, and the wait id a rate limit names", () => {
             const wire = {
                 code: "not_in_game",
                 message: "You must join a game first",
                 type: SESSION_MESSAGE_TYPE.ERROR,
             };
-            const result = parseSessionMessage(wire);
-            expect(result).toEqual({
+            const rateLimited = { code: "rate_limited", message: "", type: "session_error", wi: 6 };
+
+            expect(parseSessionMessage(wire)).toEqual({
                 code: "not_in_game",
                 message: "You must join a game first",
                 type: "session_error",
+                waitId: null,
             });
+            expect(parseSessionMessage(rateLimited)).toMatchObject({ waitId: 6 });
         });
 
         it("parses reconnect error code", () => {

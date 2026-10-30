@@ -1,10 +1,7 @@
 import { roundEndPages } from "@/entities/table";
-import {
-    type ParsedServerMessage,
-    SESSION_ERROR_CODE,
-    buildConfirmRoundAction,
-} from "@/shared/protocol";
+import { type ParsedServerMessage, buildConfirmRoundAction } from "@/shared/protocol";
 
+import { refusalOf } from "./decision";
 import { type ClientStep, type GameClientState, type RoundConfirm } from "./types";
 
 const MS_PER_SECOND = 1000;
@@ -73,8 +70,8 @@ function openedRoundConfirm(
 
 /**
  * The round confirm after a message that opens none: closed by the next deal alone, and a sent one reopened as owed
- * by the socket's rate limit alone. A game error never answers it: a late reply to an earlier move names no wait,
- * and the confirm's own stale reply follows the deal that closed it already.
+ * only by a refusal that names its wait id. A late refusal of an earlier move names that move's wait, and the
+ * confirm's own stale reply follows the deal that closed it already.
  */
 function followRoundConfirm(
     confirm: RoundConfirm,
@@ -83,9 +80,7 @@ function followRoundConfirm(
     if (message.type === "round_started" && confirm.kind !== "final") {
         return null;
     }
-    const rateLimited =
-        message.type === "session_error" && message.code === SESSION_ERROR_CODE.RATE_LIMITED;
-    if (confirm.kind === "sent" && rateLimited) {
+    if (confirm.kind === "sent" && refusalOf(message)?.waitId === confirm.waitId) {
         return { deadline: confirm.deadline, kind: "owed", waitId: confirm.waitId };
     }
     return confirm;

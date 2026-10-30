@@ -10,7 +10,7 @@ import {
     receivedPayload,
     switchedOnBefore,
 } from "#tests/fixtures/seat-transcripts";
-import { WIRE_RULE_REFUSAL } from "#tests/fixtures/wire";
+import { wireRuleRefusal } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
     type GameClientState,
@@ -265,9 +265,14 @@ describe("stepGameClient - play switches", () => {
 
     it("never answers again a decision the server's refusal reopened", () => {
         const { scenario, transcript } = loadSeatScenario("anchor_seat_1");
-        const discard = drawnDiscard(receivedPayload(transcript, "own turn"));
+        const ownTurn = receivedPayload(transcript, "own turn");
+        const discard = drawnDiscard(ownTurn);
         const switchedOn = switchedOnBefore(scenario, "own turn", ["auto_discard"]);
-        const refusal = { at: 20_200, kind: "server_message", raw: WIRE_RULE_REFUSAL } as const;
+        const refusal = {
+            at: 20_200,
+            kind: "server_message",
+            raw: wireRuleRefusal(Number(ownTurn.wi)),
+        } as const;
         const switched = insertedAfter(expecting(switchedOn, "own turn", [discard]), "own turn", [
             { event: refusal, label: "refused" },
         ]);

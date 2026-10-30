@@ -3,15 +3,21 @@ from typing import TYPE_CHECKING
 
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import TimeoutType, WaitKind
+from game.logic.events import EventType
 from game.messaging.types import SessionMessageType
+from game.messaging.wire_enums import WireClientMessageType
+from game.server.router import MessageRouter
+from game.server.websocket import websocket_endpoint
 from game.session.models import PlayerSpec
 from game.session.timer import TimerConfig
-from game.tests.helpers.auth import make_test_game_ticket
+from game.tests.helpers.auth import TEST_TICKET_SECRET, make_test_game_ticket
+from game.tests.helpers.fake_websocket import FakeWebSocketClient
 from game.tests.mocks import MockConnection
 from game.tests.unit.helpers import _update_player, _update_round_state
+from game.wire.events import EVENT_TYPE_INT
 
 if TYPE_CHECKING:
-    from game.logic.enums import TimeoutType
     from game.logic.runtime import GameRuntime
     from game.session.manager import SessionManager
     from game.session.models import GameSession, Participant
@@ -150,3 +156,74 @@ def run_timeout(manager: SessionManager, *, game_id: str, timeout_type: TimeoutT
     participant = game_of(manager, game_id).at_seat(seat)
     assert participant is not None
     manager._handle_timeout(participant, timeout_type)
+
+
+_TIMEOUT_OF_WAIT = {
+    WaitKind.TURN: TimeoutType.TURN,
+    WaitKind.CALL: TimeoutType.MELD,
+    WaitKind.ROUND_ADVANCE: TimeoutType.ROUND_ADVANCE,
+}
+
+
+def _is_round_start(message: dict) -> bool:
+    return message.get("t") == EVENT_TYPE_INT[EventType.ROUND_STARTED]
+
+
+class SocketTable:
+    def __init__(self, manager: SessionManager) -> None:
+        self.manager = manager
+        self.router = MessageRouter(manager, game_ticket_secret=TEST_TICKET_SECRET)
+        self.tickets = {
+            name: make_test_game_ticket(username=name, room_id="game1", user_id=f"user-{name}")
+            for name in ("Alice", "Bob")
+        }
+        manager.create_pending_game(
+            game_id="game1",
+            player_specs=[
+                PlayerSpec(name=name, user_id=f"user-{name}", game_ticket=ticket)
+                for name, ticket in self.tickets.items()
+            ],
+        )
+        self.clients: list[FakeWebSocketClient] = []
+        self.endpoints: list[asyncio.Task[None]] = []
+
+    def join_over_socket(self, name: str, *, held: bool = False) -> tuple[FakeWebSocketClient, asyncio.Task[None]]:
+        client = FakeWebSocketClient()
+        if held:
+            client.hold_writes()
+
+        endpoint = asyncio.create_task(websocket_endpoint(client.websocket, self.router))
+        client.send({"t": WireClientMessageType.JOIN_GAME, "game_ticket": self.tickets[name]})
+        self.clients.append(client)
+        self.endpoints.append(endpoint)
+        return client, endpoint
+
+    def seat_of(self, name: str) -> int:
+        seat = self.manager._participants_by_ticket[self.tickets[name]].seat
+        assert seat is not None
+        return seat
+
+    def advance_to_turn_of(self, seat: int) -> None:
+        awaiting = game_of(self.manager).awaiting
+        assert awaiting is not None
+        while not (awaiting.kind == WaitKind.TURN and seat in awaiting.seats):
+            waiting_seat = min(awaiting.seats)
+            run_timeout(self.manager, game_id="game1", timeout_type=_TIMEOUT_OF_WAIT[awaiting.kind], seat=waiting_seat)
+            awaiting = game_of(self.manager).awaiting
+            assert awaiting is not None
+
+    async def close(self) -> None:
+        for client in self.clients:
+            client.release_writes()
+            client.disconnect()
+
+        await asyncio.gather(*self.endpoints)
+        await self.manager.shutdown()
+
+
+async def start_over_sockets(table: SocketTable) -> tuple[FakeWebSocketClient, FakeWebSocketClient]:
+    alice, _ = table.join_over_socket("Alice")
+    bob, _ = table.join_over_socket("Bob")
+    await alice.wait_for_message(_is_round_start)
+    await bob.wait_for_message(_is_round_start)
+    return alice, bob

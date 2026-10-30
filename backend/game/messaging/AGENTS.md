@@ -41,7 +41,12 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   seat an AI player holds for its participant by why (`sr`), never as an AI player's (`ai`).
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
   the reconnect snapshot always carries it. Every game action must echo it, and one for another wait
-  is refused as stale. The replay collector shapes its own payloads, so live-only metadata like the
-  wait id never reaches a replay file.
+  is refused as stale. A refusal of a game action names the wait id that action echoed, never the
+  current wait's: a game error (stale or a rule judgment) always, and the endpoint's rate limit when
+  the frame it drops is a game action with a readable id, since that limit answers before any
+  routing and can refuse an old frame after the game moved on. The client matches it to its own
+  request; this is no request id, and a JOIN_GAME or RECONNECT refusal names none. The replay
+  collector shapes its own payloads, so live-only metadata like the wait id never reaches a replay
+  file.
 * Both game clients mirror this protocol, v1 in `frontend/game/src/js/ronin/` and v2 in
   `frontend/game_v2/src/shared/protocol/`; change them in the same change.

@@ -52,7 +52,7 @@ class MessageRouter:
                 error_count=len(errors),
             )
             connection.send_message(
-                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=_INVALID_MESSAGE_REASON).model_dump(),
+                ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=_INVALID_MESSAGE_REASON).payload(),
             )
             return
 
@@ -96,7 +96,7 @@ class MessageRouter:
         Send an INVALID_TICKET error to the connection.
         """
         connection.send_message(
-            ErrorMessage(code=SessionErrorCode.INVALID_TICKET, message=message).model_dump(),
+            ErrorMessage(code=SessionErrorCode.INVALID_TICKET, message=message).payload(),
         )
 
     def _handle_join_game(

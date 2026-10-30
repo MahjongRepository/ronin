@@ -6,7 +6,7 @@ import structlog
 
 from game.messaging.encoder import DecodeError, decode
 from game.messaging.protocol import ConnectionProtocol
-from game.messaging.types import ErrorMessage, SessionErrorCode
+from game.messaging.types import ErrorMessage, SessionErrorCode, refused_wait_id
 from shared.rate_limit import TokenBucket
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
@@ -112,7 +112,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                 if bucket.consume():
                     logger.warning("decode error", error=str(e), strikes=decode_errors)
                     connection.send_message(
-                        ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).model_dump(),
+                        ErrorMessage(code=SessionErrorCode.INVALID_MESSAGE, message=str(e)).payload(),
                     )
 
                 if decode_errors >= _MAX_DECODE_ERRORS:
@@ -129,7 +129,11 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
 
             if not bucket.consume():
                 connection.send_message(
-                    ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many messages").model_dump(),
+                    ErrorMessage(
+                        code=SessionErrorCode.RATE_LIMITED,
+                        message="Too many messages",
+                        wait_id=refused_wait_id(data),
+                    ).payload(),
                 )
                 continue
 

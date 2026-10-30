@@ -84,17 +84,24 @@ export function wireRoundEnd(waitId: number | null): WirePayload {
     return waitId === null ? roundEnd : { ...roundEnd, wi: waitId };
 }
 
-export function wireSessionError(code: string): WirePayload {
-    return { code, message: `server said ${code}`, type: "session_error" };
+/** A session error; a rate limit names the wait id of the action it refused when that action had one. */
+export function wireSessionError(code: string, waitId: number | null = null): WirePayload {
+    const error: WirePayload = { code, message: `server said ${code}`, type: "session_error" };
+    return waitId === null ? error : { ...error, wi: waitId };
 }
 
-/** A game error refusing the seat's action, `code` one of the server's game error codes (`GameErrorCode`). */
-export function wireGameError(code: string): WirePayload {
-    return { cd: code, msg: `server said ${code}`, t: EVENT_TYPE.ERROR };
+/**
+ * A game error refusing the seat's action, `code` one of the server's game error codes (`GameErrorCode`), named by the
+ * wait id that action echoed.
+ */
+export function wireGameError(code: string, waitId: number): WirePayload {
+    return { cd: code, msg: `server said ${code}`, t: EVENT_TYPE.ERROR, wi: waitId };
 }
 
-/** The engine's refusal of a call on a rule judgment, a refusal that is not stale. */
-export const WIRE_RULE_REFUSAL: WirePayload = wireGameError("invalid_pon");
+/** The engine's refusal of a call on a rule judgment, a refusal that is not stale, of the action on `waitId`. */
+export function wireRuleRefusal(waitId: number): WirePayload {
+    return wireGameError("invalid_pon", waitId);
+}
 
 /** The notice the server broadcasts when an AI player takes another player's seat after its socket left. */
 export const WIRE_SEAT_TO_AI: WirePayload = { r: 0, s: 3, type: "seat_control" };

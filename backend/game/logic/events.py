@@ -184,11 +184,15 @@ class DoraRevealedEvent(GameEvent):
 class ErrorEvent(GameEvent):
     """
     Event sent to a player when an error occurs.
+
+    The session names the wait id the refused action echoed (`wait_id`), so the client matches the refusal to its own
+    request; the engine leaves it unset.
     """
 
     type: Literal[EventType.ERROR] = EventType.ERROR
     code: GameErrorCode = Field(serialization_alias="cd")
     message: str = Field(serialization_alias="msg")
+    wait_id: int | None = Field(default=None, serialization_alias="wi")
 
 
 class GameStartedEvent(GameEvent):

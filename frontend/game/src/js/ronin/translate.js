@@ -94,7 +94,7 @@ class Translate {
 
     handle(msg) {
         if (msg.t == null) return;
-        if (msg[wire.WAIT_ID] != null) this.shadow.waitId = msg[wire.WAIT_ID];
+        if (msg[wire.WAIT_ID] != null && msg.t != wire.E.ERROR) this.shadow.waitId = msg[wire.WAIT_ID];
         try {
             switch (msg.t) {
             case wire.E.GAME_STARTED:  return this.gameStarted(msg);
@@ -119,7 +119,10 @@ class Translate {
         }
     }
 
-    /** A refused answer leaves the server's wait open, so the decision reopens with what is left of its countdown. */
+    /**
+     * A refused answer leaves the server's wait open, so the decision reopens with what is left of its countdown. The
+     * error's wait id names the refused answer's wait, never one to answer, so `handle` never takes it as the current one.
+     */
     gameError(msg) {
         this.onGameError(msg.cd, msg.msg);
         if (msg.cd == wire.GAME_ERROR.STALE_ACTION || ! this.retry) return;

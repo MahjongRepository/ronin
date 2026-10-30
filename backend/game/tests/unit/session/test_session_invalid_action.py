@@ -171,6 +171,23 @@ class TestKickedConnection:
         await manager.shutdown()
 
 
+class TestRuleRefusal:
+    async def test_rule_refusal__when_the_engine_refuses_an_action__should_name_the_wait_id_the_action_echoed(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice"])
+        refused_wait = current_wait_id(manager)
+
+        manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=refused_wait)
+        assert [(m["t"], m["cd"], m["wi"]) for m in conns[0].sent_messages] == [
+            (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.INVALID_PASS, refused_wait)
+        ]
+        assert current_wait_id(manager) == refused_wait
+
+        await manager.shutdown()
+
+
 class TestStaleAction:
     async def test_stale_action__when_a_discard_raced_its_own_turn_timeout__should_be_refused_with_nothing_changed(
         self, seeded_engine
@@ -197,8 +214,8 @@ class TestStaleAction:
                 "ti": timed_out_draw,
             },
         )
-        assert [(m["t"], m["cd"]) for m in alice.sent_messages] == [
-            (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.STALE_ACTION)
+        assert [(m["t"], m["cd"], m["wi"]) for m in alice.sent_messages] == [
+            (EVENT_TYPE_INT[EventType.ERROR], GameErrorCode.STALE_ACTION, timed_out_wait)
         ]
         assert not alice.is_closed
         assert runtime_of(manager).state is state_before

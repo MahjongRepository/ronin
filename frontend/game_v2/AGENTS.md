@@ -89,7 +89,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   action with the decision's wait id once and marks it submitted; the server's next move closes
   it, a refusal while its wait goes on (a game error but a stale one, or the socket's rate limit)
   reopens it, and a dropped socket drops it, since the reconnect re-sends a wait the server still
-  owes the seat.
+  owes the seat. A refusal counts only when it names the decision's wait id (`refusalOf`): the rate
+  limit can answer an older frame after the game moved on, so one naming no wait or another wait
+  reopens nothing and shows no notice.
 * **Play switches** (`model/play-switches.ts`): Auto win, No calls and Auto discard are the player's standing
   answers, a field of the client state. Turning one (the `toggle_switch` intent, taken only on a live seat while a
   round plays) sends nothing; the dispatcher answers for it where a message opens a decision on a wait id above the
@@ -113,10 +115,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Round confirm.** A round end's wait, or a reconnect's snapshot of a round advance that says the
   seat still owes it, opens the round confirm like a decision: one confirm intent sends it once with
   that wait id, then the seat waits for the others. Only the next deal (the last confirm's or the
-  timeout's) closes it, and only the socket's rate limit reopens a sent one; a game error never
-  touches it, since a late reply to an earlier move names no wait and the confirm's own stale reply
-  follows the deal that closed it. A dropped socket drops it, since the snapshot says again whether
-  it is owed. Its deadline is one per round, armed at the round end: the round advance timeout times
+  timeout's) closes it, and only a refusal naming its wait id reopens a sent one, as it does a
+  decision; a late refusal of an earlier move names that move's wait, and the confirm's own stale
+  reply follows the deal that closed it. A dropped socket drops it, since the snapshot says again
+  whether it is owed. Its deadline is one per round, armed at the round end: the round advance timeout times
   the result's pages (the server's `results_shown`, a double ron's winners), backdated by the
   snapshot's elapsed time, and none when the snapshot names none: never a fresh full timeout. It is
   display only, shown labelled and kept while the seat waits: the client never confirms on its own
@@ -320,8 +322,8 @@ follows holds through the rebuild to it.
   opened, each worded the same across its retries so it is announced once (a page that only resumes
   its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
   expiry (the seat back after a snapshot of such a drop, which a second drop replaces, and a refused
-  move); and a server message the client cannot read, on the console too, shown until a reconnect's
-  snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
+  move, shown only for the refusal that reopens the request it names); and a server message the
+  client cannot read, on the console too, shown until a reconnect's snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
   a reload, until a retry loads them. An end that stops the session on the
   page blocks the board, and takes the rotate panel's place, with why and a way back. The notices' place is
   the left field under the left badge, outside every river's capacity, scrolling a stack taller than it

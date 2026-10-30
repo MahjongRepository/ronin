@@ -1,7 +1,7 @@
 import { type SessionState } from "@/entities/session";
 import { type ParsedServerMessage } from "@/shared/protocol";
 
-import { refusesSubmission } from "./decision";
+import { refusalOf } from "./decision";
 import { type GameClientState, type TimedNotice } from "./types";
 
 const RECONNECTED_NOTICE_MS = 3000;
@@ -19,24 +19,47 @@ export function keptNotice(notice: TimedNotice | null, session: SessionState): T
 }
 
 /**
- * The notice a message raises, from the session it found (`before`) and the one it left (`state`'s): the seat is back
- * after a reconnect's snapshot, when this page lost it to a drop; a move refused while the seat plays, as the
- * decision reads a refusal. Null for any other message.
+ * The wait id of the request the client submitted and awaits an answer to, or null: a submitted decision's, else a
+ * sent round confirm's.
+ */
+export function submittedWaitId(state: GameClientState): number | null {
+    const { decision, roundConfirm } = state;
+    if (decision?.status.kind === "submitted") {
+        return decision.waitId;
+    }
+    return roundConfirm?.kind === "sent" ? roundConfirm.waitId : null;
+}
+
+/**
+ * What the client stood on before a message: the session it found, and the wait id of the request it had submitted
+ * (`submittedWaitId`).
+ */
+export interface NoticeBefore {
+    readonly session: SessionState | null;
+    readonly submitted: number | null;
+}
+
+/**
+ * The notice a message raises, from where the client stood before it (`before`) and the session it left (`state`'s):
+ * the seat is back after a reconnect's snapshot, when this page lost it to a drop; a move refused while the seat
+ * plays, only when the refusal names the submitted request's wait id, the match that reopens it. Null for any other
+ * message.
  */
 function messageNotice(
-    before: SessionState | null,
+    before: NoticeBefore,
     state: GameClientState,
     message: ParsedServerMessage,
 ): TimedNotice | null {
     const { now, session } = state;
     if (message.type === "game_reconnected") {
-        const lostSeat = before?.status === "reconnecting" && before.lostSeat;
+        const lostSeat = before.session?.status === "reconnecting" && before.session.lostSeat;
         return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
     }
-    if (session?.status !== "playing" || !refusesSubmission(message)) {
+    const refusal = refusalOf(message);
+    if (session?.status !== "playing" || refusal === null || refusal.waitId !== before.submitted) {
         return null;
     }
-    return { code: message.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
+    return { code: refusal.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
 }
 
 /**
@@ -44,7 +67,7 @@ function messageNotice(
  * wrong before it no longer count.
  */
 export function withNotice(
-    before: SessionState | null,
+    before: NoticeBefore,
     state: GameClientState,
     message: ParsedServerMessage,
 ): GameClientState {

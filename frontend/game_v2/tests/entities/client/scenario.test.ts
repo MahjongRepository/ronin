@@ -8,10 +8,10 @@ import {
     scenarioFromTranscript,
 } from "#tests/fixtures/seat-transcripts";
 import {
-    WIRE_RULE_REFUSAL,
     WIRE_SEAT_TO_AI,
     type WirePayload,
     wireGameError,
+    wireRuleRefusal,
     wireSessionError,
 } from "#tests/fixtures/wire";
 import {
@@ -572,14 +572,22 @@ describe("stepGameClient - generated round advance", () => {
         const waitId = 5;
         const confirm = { at: 15_300, intent: { type: "confirm_result" }, kind: "intent" } as const;
         const branch = branchAfter(scenario, "round end", [
-            lateError(15_100, wireGameError(GAME_ERROR_CODE.STALE_ACTION), "late stale"),
-            lateError(15_200, WIRE_RULE_REFUSAL, "late refusal"),
+            lateError(
+                15_100,
+                wireGameError(GAME_ERROR_CODE.STALE_ACTION, waitId - 1),
+                "late stale",
+            ),
+            lateError(15_200, wireRuleRefusal(waitId - 1), "late refusal"),
             {
                 effects: [{ message: buildConfirmRoundAction(waitId), type: "send" }],
                 event: confirm,
             },
-            lateError(15_400, wireGameError(GAME_ERROR_CODE.STALE_ACTION), "stale after confirm"),
-            lateError(15_500, WIRE_RULE_REFUSAL, "refusal after confirm"),
+            lateError(
+                15_400,
+                wireGameError(GAME_ERROR_CODE.STALE_ACTION, waitId),
+                "stale after confirm",
+            ),
+            lateError(15_500, wireRuleRefusal(waitId - 1), "refusal after confirm"),
             { event: { ...confirm, at: 15_600 } },
         ]);
         const run = runClean(branch);
@@ -591,6 +599,29 @@ describe("stepGameClient - generated round advance", () => {
         expect(stateAt(branch, run, "refusal after confirm").roundConfirm).toEqual({
             ...owed,
             kind: "sent",
+        });
+    });
+
+    it("reopens a sent confirm only for a rate limit naming its wait, never one naming none or an earlier wait", () => {
+        const rateLimited = SESSION_ERROR_CODE.RATE_LIMITED;
+        const confirm = { at: 15_100, intent: { type: "confirm_result" }, kind: "intent" } as const;
+        const sent = { message: buildConfirmRoundAction(5), type: "send" } as const;
+        const branch = branchAfter(OWN_TURN.scenario, "round end", [
+            { effects: [sent], event: confirm },
+            lateError(15_200, wireSessionError(rateLimited), "unnamed"),
+            lateError(15_300, wireSessionError(rateLimited, 4), "earlier"),
+            { event: { ...confirm, at: 15_400 } },
+            lateError(15_500, wireSessionError(rateLimited, 5), "matching"),
+            { effects: [sent], event: { ...confirm, at: 15_600 } },
+        ]);
+        const run = runClean(branch);
+        const confirmSent = { notice: null, roundConfirm: { kind: "sent", waitId: 5 } };
+
+        expect(stateAt(branch, run, "unnamed")).toMatchObject(confirmSent);
+        expect(stateAt(branch, run, "earlier")).toMatchObject(confirmSent);
+        expect(stateAt(branch, run, "matching")).toMatchObject({
+            notice: { code: rateLimited, kind: "refused" },
+            roundConfirm: { kind: "owed", waitId: 5 },
         });
     });
 
@@ -646,6 +677,9 @@ describe("stepGameClient - generated round advance", () => {
 
 describe("stepGameClient - generated reconnect", () => {
     const { scenario, transcript } = RECONNECT;
+    const resentWaitId = Number(receivedPayload(transcript, "prompt re-sent").wi);
+    const ponHaku = { offer: { kind: "pon", tileId: HAKU }, type: "choose" } as const;
+    const ponHakuSent = { message: buildPonAction(HAKU, resentWaitId), type: "send" } as const;
 
     it("drops the prompt with the socket, and the prompt re-sent after the snapshot keeps its deadline", () => {
         const run = runClean(scenario);
@@ -697,40 +731,47 @@ describe("stepGameClient - generated reconnect", () => {
     });
 
     it("reopens an answer the game refused or the rate limit dropped, not one refused as stale", () => {
-        const pon = { offer: { kind: "pon", tileId: HAKU }, type: "choose" } as const;
-        const sent = { message: buildPonAction(HAKU, 1), type: "send" } as const;
+        const rateLimited = wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED, resentWaitId);
         const refused = branchAfter(scenario, "pon chosen", [
-            {
-                event: {
-                    at: 6600,
-                    kind: "server_message",
-                    raw: WIRE_RULE_REFUSAL,
-                },
-            },
-            { effects: [sent], event: { at: 6700, intent: pon, kind: "intent" } },
-            {
-                event: {
-                    at: 6800,
-                    kind: "server_message",
-                    raw: wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED),
-                },
-            },
-            { effects: [sent], event: { at: 6900, intent: pon, kind: "intent" } },
-            {
-                event: {
-                    at: 7000,
-                    kind: "server_message",
-                    raw: wireGameError(GAME_ERROR_CODE.STALE_ACTION),
-                },
-                label: "stale",
-            },
-            { event: { at: 7100, intent: pon, kind: "intent" } },
+            lateError(6600, wireRuleRefusal(resentWaitId), "refused"),
+            { effects: [ponHakuSent], event: { at: 6700, intent: ponHaku, kind: "intent" } },
+            lateError(6800, rateLimited, "dropped"),
+            { effects: [ponHakuSent], event: { at: 6900, intent: ponHaku, kind: "intent" } },
+            lateError(7000, wireGameError(GAME_ERROR_CODE.STALE_ACTION, resentWaitId), "stale"),
+            { event: { at: 7100, intent: ponHaku, kind: "intent" } },
         ]);
         const run = runClean(refused);
 
+        expect(stateAt(refused, run, "refused").notice).toMatchObject({ code: "invalid_pon" });
         expect(stateAt(refused, run, "stale").decision?.status).toMatchObject({
             at: 6900,
             kind: "submitted",
+        });
+    });
+
+    it("reopens nothing and shows nothing for a rate limit naming no wait or another wait than the answer's", () => {
+        const rateLimited = SESSION_ERROR_CODE.RATE_LIMITED;
+        const branch = branchAfter(scenario, "pon chosen", [
+            lateError(6600, wireSessionError(rateLimited), "unnamed"),
+            lateError(6700, wireSessionError(rateLimited, resentWaitId - 1), "another wait"),
+            { event: { at: 6800, intent: ponHaku, kind: "intent" } },
+            lateError(6900, wireSessionError(rateLimited, resentWaitId), "matching"),
+            { effects: [ponHakuSent], event: { at: 7000, intent: ponHaku, kind: "intent" } },
+        ]);
+        const run = runClean(branch);
+        const chosen = stateAt(branch, run, "pon chosen");
+        const unchanged = [chosen.decision?.status, chosen.notice];
+
+        expect(chosen.decision?.status.kind).toBe("submitted");
+        expect(
+            [stateAt(branch, run, "unnamed"), stateAt(branch, run, "another wait")].map((state) => [
+                state.decision?.status,
+                state.notice,
+            ]),
+        ).toEqual([unchanged, unchanged]);
+        expect(stateAt(branch, run, "matching")).toMatchObject({
+            decision: { status: { kind: "open" } },
+            notice: { code: rateLimited, kind: "refused" },
         });
     });
 });

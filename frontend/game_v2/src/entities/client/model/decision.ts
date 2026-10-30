@@ -218,28 +218,39 @@ export function openDecision(
     }
 }
 
+/** A refusal of one of the client's requests: the server's code and the wait id the refused request echoed. */
+export interface Refusal {
+    readonly code: string;
+    readonly waitId: number;
+}
+
 /**
- * Whether a message refuses the submitted answer while its wait goes on: the game refused it (but as stale, since
- * a stale answer's wait already ended), or the socket's rate limit dropped it before it reached the game.
+ * The refusal a message makes of a request whose wait may go on, or null: the game refused it (but as stale, since a
+ * stale answer's wait already ended), or the socket's rate limit dropped it before it reached the game. Either names
+ * the refused frame's own wait id; one that names none (a rate limit of a frame without a readable id) answers no
+ * request, so it is null too.
  */
-export function refusesSubmission(
-    message: ParsedServerMessage,
-): message is Extract<ParsedServerMessage, { type: "error" | "session_error" }> {
-    if (message.type === "error") {
-        return message.code !== GAME_ERROR_CODE.STALE_ACTION;
+export function refusalOf(message: ParsedServerMessage): Refusal | null {
+    const refuses =
+        (message.type === "error" && message.code !== GAME_ERROR_CODE.STALE_ACTION) ||
+        (message.type === "session_error" && message.code === SESSION_ERROR_CODE.RATE_LIMITED);
+    if (!refuses || message.waitId === null) {
+        return null;
     }
-    return message.type === "session_error" && message.code === SESSION_ERROR_CODE.RATE_LIMITED;
+    return { code: message.code, waitId: message.waitId };
 }
 
 /**
  * The decision after a message that opens none: closed when the server moved on; reopened for another answer
- * when the server refused the submitted one and still waits; otherwise as it was.
+ * when the server refused the submitted one by its wait id and still waits; otherwise as it was, so a refusal of an
+ * older request, or of one it cannot name, reopens nothing.
  */
 export function followDecision(decision: Decision, message: ParsedServerMessage): Decision | null {
     if (CLOSING_TYPES.has(message.type)) {
         return null;
     }
-    const reopened = decision.status.kind === "submitted" && refusesSubmission(message);
+    const reopened =
+        decision.status.kind === "submitted" && refusalOf(message)?.waitId === decision.waitId;
     return reopened ? { ...decision, status: OPEN } : decision;
 }
 

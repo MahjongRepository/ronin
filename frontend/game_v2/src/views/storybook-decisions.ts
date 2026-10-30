@@ -120,11 +120,19 @@ function checkpoint(transcript: TranscriptName, label: string, title: string): D
     return { label, pickRiichi: false, resultPage: 0, title, transcript };
 }
 
-/** The kuikae turn's first tile the player may discard, discarded, and the game's refusal of it. */
+/**
+ * The kuikae turn's first tile the player may discard, discarded, and the game's refusal of it, named by the turn's
+ * wait id as the server names it.
+ */
 function refusedDiscard(state: GameClientState): readonly ClientEvent[] {
     const [intent] = playDisplay(state, NO_PLAY_UI).tileIntents.values();
     const at = state.now + 500;
-    const refusal = { cd: "invalid_discard", msg: "invalid discard", t: 7 };
+    const refusal = {
+        cd: "invalid_discard",
+        msg: "invalid discard",
+        t: 7,
+        wi: state.decision?.waitId,
+    };
     return [
         { at, intent, kind: "intent" },
         { at: at + 100, kind: "server_message", raw: refusal },

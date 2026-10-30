@@ -2,20 +2,23 @@ import { z } from "zod/mini";
 
 import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 
-import { seatControlReasonSchema, seatSchema } from "./common";
+import { seatControlReasonSchema, seatSchema, waitIdSchema } from "./common";
 
 // --- Session Error ---
 
+/** A session error; a rate limit names the wait id the refused game action echoed, when it had a readable one. */
 const sessionErrorSchema = z.pipe(
     z.object({
         code: z.string(),
         message: z.string(),
         type: z.literal(SESSION_MESSAGE_TYPE.ERROR),
+        wi: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
         code: raw.code,
         message: raw.message,
         type: "session_error" as const,
+        waitId: raw.wi ?? null,
     })),
 );
 

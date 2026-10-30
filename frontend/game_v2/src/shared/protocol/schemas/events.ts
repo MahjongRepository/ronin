@@ -252,16 +252,19 @@ export const doraRevealedSchema = z.pipe(
 
 // --- Error (t=7) ---
 
+/** A game error refusing the seat's action, named by the wait id that action echoed. */
 export const errorEventSchema = z.pipe(
     z.object({
         cd: z.string(),
         msg: z.string(),
         t: z.literal(EVENT_TYPE.ERROR),
+        wi: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
         code: raw.cd,
         message: raw.msg,
         type: "error" as const,
+        waitId: raw.wi ?? null,
     })),
 );
 

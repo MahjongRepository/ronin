@@ -7,11 +7,10 @@ import {
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
     wireRoundEnd,
-    wireSessionError,
 } from "#tests/fixtures/wire";
 import { type ClientEffect, type ClientEvent, nextDeadline } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { SESSION_ERROR_CODE, buildConfirmRoundAction } from "@/shared/protocol";
+import { buildConfirmRoundAction } from "@/shared/protocol";
 
 const { closed, confirm, message, opened, tick } = clientEvent;
 
@@ -69,17 +68,6 @@ describe("stepGameClient - round confirm", () => {
         expect(scenario.step(closed(500, 1006))).toEqual([]);
         expect(scenario.step(confirm(600))).toEqual([]);
         expect(nextDeadline(scenario.state)).toBe(1500);
-    });
-
-    it("reopens a sent confirm the rate limit dropped, so the player can confirm again", () => {
-        const scenario = playingScenario();
-        scenario.step(message(100, wireRoundEnd(5)));
-        scenario.step(confirm(200));
-
-        scenario.step(message(300, wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED)));
-        expect(scenario.step(confirm(400))).toEqual([
-            { message: buildConfirmRoundAction(5), type: "send" },
-        ]);
     });
 
     it("owes the confirm a reconnect's snapshot names, untimed when the snapshot says nothing of its timer", () => {

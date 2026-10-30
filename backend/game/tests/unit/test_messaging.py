@@ -61,6 +61,12 @@ class TestReconnectMessageParsing:
 
 
 class TestInputValidation:
+    @pytest.mark.parametrize("wait_id", [True, "3", 3.0])
+    def test_parse_client_message__when_wait_id_is_not_an_int__should_raise(self, wait_id):
+        data = {"t": WireClientMessageType.GAME_ACTION, "wi": wait_id, "a": WireGameAction.PASS}
+        with pytest.raises(ValidationError):
+            parse_client_message(data)
+
     def test_parse_client_message__when_tile_id_negative__should_raise(self):
         data = {"t": WireClientMessageType.GAME_ACTION, "wi": 0, "a": WireGameAction.DISCARD, "ti": -1}
         with pytest.raises(ValidationError):

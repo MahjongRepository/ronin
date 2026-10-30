@@ -106,9 +106,10 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   the reconnect snapshot, and a new deal hides it.
 * **Wait ids:** every action echoes the wait id of the last server message that carried one (a
   draw, the `turn` event after the seat's own pon or chi, a call prompt, a round end, the
-  reconnect snapshot). A round end without one is the game's last: nothing is confirmed, and the
-  final standings follow once that result is dismissed, by the player or its countdown. A refused
-  action reopens its decision; a stale one does not.
+  reconnect snapshot), never a game error's, which names the refused action's wait. A round end
+  without one is the game's last: nothing is confirmed, and the final standings follow once that
+  result is dismissed, by the player or its countdown. A refused action reopens its decision; a
+  stale one does not.
 * **Reconnect:** the `game_reconnected` snapshot rebuilds the table and opens no decision; when the
   game awaits the seat the server re-sends the event that opened the wait: the `turn` event after
   its own pon or chi, or the draw already in the snapshot's hand, so a draw of a tile the hand holds
