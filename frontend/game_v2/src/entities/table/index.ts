@@ -124,8 +124,18 @@ export type { StandingsAction } from "./ui/standings-panel";
 export { GameStartDisplay } from "./ui/game-start-display";
 export type { GameStartDisplayState, GameStartSeat, GameStartView } from "./lib/game-start-display";
 export { gameStartDisplay } from "./lib/game-start-display";
-export { REPLAY_ROUND_LIST_ID, ReplayControls, STEP_BUTTON_ATTRIBUTE } from "./ui/replay-controls";
-export type { ReplayControlsProps, ReplayPlayback, StepDirection } from "./ui/replay-controls";
+export {
+    REPLAY_ROUND_LIST_ID,
+    ReplayControls,
+    ReplayStatus,
+    STEP_BUTTON_ATTRIBUTE,
+} from "./ui/replay-controls";
+export type {
+    ReplayControlsProps,
+    ReplayPlayback,
+    ReplayStatusProps,
+    StepDirection,
+} from "./ui/replay-controls";
 export { ROUND_LIST_ROW_CLASS, RoundList } from "./ui/round-list";
-export type { RoundListProps } from "./ui/round-list";
+export type { RoundListEnd, RoundListProps } from "./ui/round-list";
 export { formatRoundName } from "./lib/round-name";

@@ -1,7 +1,8 @@
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/table";
+import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, type StandingsRenderer } from "@/entities/table";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
+import { type RetryingLoad } from "@/shared/lib";
 import { REPLAY_VERSION } from "@/shared/protocol";
 
 import { startStorybookStandings } from "./storybook-standings";
@@ -20,6 +21,7 @@ export const REPLAY_STORIES = [
     "incomplete",
     "ends_on_result",
     "damaged",
+    "throws_on_step",
     "loading",
     "waiting",
     "not_found",
@@ -43,6 +45,8 @@ interface StorySetup {
      */
     readonly clock?: Clock;
     readonly prefs?: ReplayPrefs;
+    /** The final standings' load; the storybook's own, on hurried timers, when omitted. */
+    readonly standings?: () => RetryingLoad<StandingsRenderer>;
 }
 
 type FixtureImport = () => Promise<{ readonly default: string }>;
@@ -77,6 +81,24 @@ function notFoundThen(next: Promise<ReplayFetch>): LoadReplay {
     return () => {
         calls += 1;
         return calls === 1 ? Promise.resolve(NOT_FOUND) : next;
+    };
+}
+
+/**
+ * Final standings whose drawing throws, as a bug in drawing would: stepping onto the game's end shows the replay's
+ * failure screen.
+ */
+function throwingStandings(): RetryingLoad<StandingsRenderer> {
+    return {
+        status: () => "ready",
+        stop: () => {},
+        subscribe: () => () => {},
+        value: () => (table) => {
+            if (table.phase === "game_ended") {
+                throw new Error("The standings story throws as it draws");
+            }
+            return undefined;
+        },
     };
 }
 
@@ -133,6 +155,11 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         search: "?round=11&step=141",
     },
     start: { load: servesFixture(paoReplay), search: "" },
+    throws_on_step: {
+        load: servesFixture(paoReplay),
+        search: "?round=0&step=23",
+        standings: throwingStandings,
+    },
     unreachable: { load: () => Promise.reject(new TypeError("Failed to fetch")), search: "" },
     unsupported: { load: serves('{"version": "0.1"}\n{"t": 8}'), search: "" },
     viewpoint_hidden: {
@@ -170,7 +197,8 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
             prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
-            startStandings: () => startStorybookStandings(HURRIED_CLOCK.setTimer),
+            startStandings:
+                story.standings ?? (() => startStorybookStandings(HURRIED_CLOCK.setTimer)),
         });
     }
     void mount();

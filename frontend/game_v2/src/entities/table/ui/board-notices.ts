@@ -21,14 +21,19 @@ function noticeAction(notice: BoardNotice): TemplateResult | typeof nothing {
 }
 
 /**
- * The notices over the table, stacked at its top edge, inside the table's own area so they never cover the local
- * hand or the decision's corner. The stack is one polite live region, so each notice is read as it appears.
+ * The notices' place in the table's left field, outside every river's capacity, so a notice never covers a tile, a
+ * badge or a control: the notices, one polite live region so each is read as it appears, and under them what the
+ * board's page shows there too (a replay's position and narration).
  */
-export function BoardNotices(notices: readonly BoardNotice[]): TemplateResult {
-    return html`<div class="board-notices" role="status" aria-live="polite">
-        ${notices.map(
+export function BoardNotices(
+    notices: readonly BoardNotice[],
+    after: TemplateResult | typeof nothing = nothing,
+): TemplateResult {
+    return html`<div class="board-notices">
+        <div class="board-notices__list" role="status" aria-live="polite">${notices.map(
             (notice) =>
                 html`<p class="board-notice board-notice--${notice.tone}">${notice.text}${noticeAction(notice)}</p>`,
-        )}
+        )}</div>
+        ${after}
     </div>`;
 }

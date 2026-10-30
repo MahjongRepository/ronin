@@ -27,7 +27,7 @@ export interface Viewport {
     readonly supported: boolean;
     /** The smallest local hand tile it may draw in landscape, on a phone: a tap target. A desktop has none. */
     readonly ownTileFloor?: Size;
-    /** A desktop, where the replay aside's text limits hold. */
+    /** A desktop window, not a phone (the decisions surface tells the phones apart by it). */
     readonly desktop: boolean;
     readonly insets?: Insets;
     /** The viewport and safe-area box a capture model must produce, asserted on every page before its checks. */

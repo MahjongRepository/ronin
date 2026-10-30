@@ -8,8 +8,16 @@ import { type ReplayCursor } from "@/entities/table/model/replay-cursor";
 
 import { REPLAY_ROUND_LIST_ID } from "./replay-controls";
 
+/** The list's way to the replay's last stop (its last result and the game's end, or where the recording ends). */
+export interface RoundListEnd {
+    readonly cursor: ReplayCursor;
+    readonly current: boolean;
+    readonly summary: string;
+}
+
 export interface RoundListProps {
     readonly rows: readonly ReplayRoundRow[];
+    readonly end: RoundListEnd | null;
     readonly incomplete: ReplayIncompleteness | null;
     readonly onSelect: (start: ReplayCursor) => void;
     readonly onClose: () => void;
@@ -73,9 +81,30 @@ function listKeyAction(event: KeyboardEvent): "close" | HTMLElement | null {
     );
 }
 
+function EndRow(
+    end: RoundListEnd | null,
+    onSelect: (cursor: ReplayCursor) => void,
+): TemplateResult | typeof nothing {
+    if (end === null) {
+        return nothing;
+    }
+    return html`<div class="round-list__foot">
+        <button
+            type="button"
+            class="${ROUND_LIST_ROW_CLASS} round-list__row--end"
+            aria-current=${end.current ? "step" : nothing}
+            @click=${() => onSelect(end.cursor)}
+        >
+            <span class="round-list__name">Last step</span>
+            <span class="round-list__summary">${end.summary}</span>
+        </button>
+    </div>`;
+}
+
 /**
- * Every round of the replay with its result in a line, the current one marked; choosing one opens its deal. A replay
- * that is not the whole game says why at its head.
+ * Every round of the replay with its result in a line, the current one marked; choosing one opens its deal. Its foot,
+ * in view however far the rounds scroll, goes to the replay's last stop, the touch way to the end. A replay that is not
+ * the whole game says why at its head.
  */
 export function RoundList(props: RoundListProps): TemplateResult {
     return html`<section
@@ -112,5 +141,6 @@ export function RoundList(props: RoundListProps): TemplateResult {
                 </li>`,
             )}
         </ol>
+        ${EndRow(props.end, props.onSelect)}
     </section>`;
 }

@@ -1,0 +1,92 @@
+$tile-w: 60;
+$tile-h: 80;
+$short-height: 520px;
+$short-desktop-height: 760px;
+$small-chrome-width: 1100px;
+$large-chrome-width: 2000px;
+$large-chrome-height: 1200px;
+$wide-board: "4 / 3";
+$corner-reserve: 10rem;
+$corner-reserve-short: 5rem;
+
+/* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
+$full-hand: 14.6;
+$drawn-gap: 0.35;
+$own-meld-scale: 1.2;
+$river-gap-share: 0.3;
+$core-tiles: 8.6;
+$river-by-own: 0.65;
+$side-reach-tiles: 10.6667;
+
+@mixin phone-board {
+    @container game-board (height < #{$short-height}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+@mixin desktop-board {
+    @container game-board (height >= #{$short-height}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+/* A short desktop (a laptop's window) shares the band's lower corners with the core, as a phone does. */
+@mixin short-desktop-board {
+    @container game-board (height >= #{$short-height}) and (height < #{$short-desktop-height}) and
+        (width >= #{$small-chrome-width}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+@mixin upright-board {
+    @container game-board (aspect-ratio < 1) {
+        @content;
+    }
+}
+
+/* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone, upright, and on
+   a desktop board too narrow for the desktop's (a tablet's or a small window's), whose geometry stays the desktop's. */
+@mixin small-chrome {
+    @container game-board (width < #{$small-chrome-width}) or (height < #{$short-height}) {
+        @content;
+    }
+}
+
+/* The chrome a step larger on a large board, where the own tile passes 100px. */
+@mixin large-chrome {
+    @container game-board (width >= #{$large-chrome-width}) and (height >= #{$large-chrome-height}) {
+        @content;
+    }
+}
+
+/* A side strip's depth as drawn, from the lengths its seat's display hands the element (`sideStripStyle`) and the room
+   along its line: its first line, and its oldest meld's second line where its melds do not fit beside its hand. */
+@mixin side-strip-depth($side, $room) {
+    --#{$side}-hand-len: calc(
+        var(--#{$side}-hand-n) * var(--bw) + var(--#{$side}-drawn) * var(--dg)
+    );
+    --#{$side}-melds-len: calc(
+        var(--#{$side}-meld-n) * (var(--g) + 2px) + var(--#{$side}-meld-units) * var(--rw)
+    );
+    --#{$side}-len: calc(var(--#{$side}-hand-len) + var(--#{$side}-melds-len));
+    --#{$side}-line1: max(
+        var(--bh),
+        min(1, var(--#{$side}-meld-n)) * var(--#{$side}-meld-deep) * var(--rw)
+    );
+    --#{$side}-line2: calc(var(--#{$side}-line1) + 4px + var(--#{$side}-oldest-deep) * var(--rw));
+    --#{$side}-depth: max(
+        var(--#{$side}-line1),
+        min(var(--#{$side}-line2), (var(--#{$side}-len) - #{$room}) * 1000)
+    );
+}
+
+/* The right strip's depth as drawn: its room runs from its origin up to the page's corner or the top margin. */
+@mixin right-strip-depth {
+    --right-shallow: clamp(0, (1.5 - var(--right-meld-deep)) * 1000, 1);
+    --right-room-top: max(
+        var(--m) - 8px,
+        var(--corner-bottom) - var(--corner-in) * var(--right-shallow) * 100000
+    );
+
+    @include side-strip-depth(right, calc(var(--right-origin) - var(--right-room-top) - 8px));
+}

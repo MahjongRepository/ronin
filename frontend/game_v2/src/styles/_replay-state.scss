@@ -1,15 +1,32 @@
+@use "game-board/queries" as *;
 @use "type";
 
-$move-size: 40px;
-$move-gap: 0.25rem;
-$column-gap: 2px;
-$column-pad: 2px;
-$aside-phone: calc(2 * #{$move-size} + #{$column-gap} + 2 * #{$column-pad} + 2px);
-$bar: "(orientation: landscape) and (width >= 1024px) and (height >= 600px)";
-$bar-text-floor: 12px;
-$narration-hint: color-mix(in srgb, var(--ronin-text-secondary) 55%, transparent);
-$column-surface: var(--ronin-surface);
-$column: "(orientation: landscape) and (width < 1024px), (orientation: landscape) and (height < 600px)";
+$controls-z: 26;
+$round-list-z: 30;
+$place-gap: 6px;
+$overlay-unit-min: 0.25px;
+$overlay-unit-max: 0.8px;
+$overlay-chrome: 3rem;
+
+@each $name in rb, rgap, opt-right, opt-left, opts-w, pair-w, small-moves-w, opts-fit, pair-clear,
+    pair-shift, upper-extra, list-rise, band-reserve-top
+{
+    @property --#{$name} {
+        syntax: "<length>";
+        inherits: true;
+        initial-value: 0;
+    }
+}
+
+@mixin visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
 
 .replay-state {
     display: flex;
@@ -53,117 +70,109 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     outline: none;
 }
 
-.board-page.replay-board-mode {
-    @media #{$bar} {
-        grid-template: "board" minmax(0, 1fr) "aside" auto / minmax(0, 1fr);
+/* The replay's places on the band: its button and gap, the options' row from the decisions' right end, and where the
+   band beside the own river's reach holds all four options in a row (`--opts-fit`, 1px) or two rows of two. */
+.game-board--replay > :is(.board-layout, .board-overlay) {
+    --rb: 52px;
+    --rgap: 6px;
+    --opt-right: calc(100cqw - var(--own-hand-right));
+    --opt-left: calc(var(--switches-left) + var(--switches-w) + var(--band-gap));
+    --opts-w: calc(4 * var(--rb) + 3 * var(--rgap));
+    --pair-w: calc(2 * var(--rb) + var(--rgap));
+    --small-moves-w: calc(5 * var(--rb) + 5 * var(--rgap));
+
+    @include small-chrome {
+        --rb: 40px;
+        --rgap: 4px;
+    }
+
+    @include large-chrome {
+        --rb: 60px;
+        --rgap: 8px;
+    }
+
+    @include phone-board {
+        --opt-right: calc(var(--m) + var(--band-shift));
+        --opt-left: calc(max(var(--reach-bottom-right), var(--reach-right)) + #{$place-gap});
+    }
+
+    @include short-desktop-board {
+        --opt-left: calc(max(var(--reach-bottom-right), var(--reach-right)) + #{$place-gap});
+    }
+
+    @include upright-board {
+        --opt-right: calc(var(--m) + var(--strip-depth) + 8px);
+        --opt-left: var(--m);
     }
 }
 
-.board-page__aside.replay-controls {
-    container-type: inline-size;
-    gap: $move-gap;
+.board-replay {
+    @include right-strip-depth;
 
-    @media #{$column} {
-        align-self: stretch;
-        gap: $column-gap;
-        background: $column-surface;
-        width: clamp(#{$aside-phone}, 20vw - 9rem, 14rem);
-        padding: $column-pad;
-    }
+    --opts-fit: clamp(
+        0px,
+        (100cqw - var(--opt-right) - var(--opt-left) - var(--opts-w) + 0.5px) * 1000,
+        1px
+    );
+    --pair-clear: max(0px, var(--m) + var(--right-depth) + #{$place-gap} - var(--opt-right));
+    --pair-shift: clamp(
+        0px,
+        var(--pair-clear),
+        100cqw - var(--opt-left) - var(--pair-w) - var(--opt-right)
+    );
+    --upper-extra: min(var(--pair-clear) - var(--pair-shift), (1px - var(--opts-fit)) * 100000);
+    --list-rise: min(var(--rb) + var(--rgap), (1px - var(--opts-fit)) * 100000);
 
-    @media #{$bar} {
-        flex-flow: row nowrap;
-        align-self: stretch;
-        align-items: center;
-        gap: 0.5rem;
-        max-height: none;
-        padding: 0.25rem;
-        overflow: visible;
+    display: contents;
+
+    @include upright-board {
+        --opts-fit: 1px;
     }
 }
 
-.replay-controls__incomplete {
+/* Under a panel over a desktop's board, the board beneath is inert, so every option takes the band row. */
+.game-board--replay:has(> .board-overlay) .board-replay {
+    --opts-fit: 1px;
+}
+
+.replay-controls {
+    position: absolute;
+    bottom: calc(100cqh - var(--band-bottom));
+    z-index: $controls-z;
     display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    margin: 0;
-    padding: 0.3rem 0.4rem;
-    font-size: 0.7rem;
-    line-height: 1.25;
-    color: var(--ronin-warning);
-    background: color-mix(in srgb, var(--ronin-warning) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--ronin-warning) 40%, transparent);
-    border-radius: 0.375rem;
+    gap: var(--rgap);
+    height: var(--rb);
+}
 
-    @container (width < 9rem) {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
-    }
+.replay-controls__moves {
+    left: var(--switches-left);
 
-    @media #{$column} {
-        flex: none;
-    }
-
-    @media #{$bar} {
-        flex: 0 1 16rem;
-        padding: 0.15rem 0.5rem;
-        font-size: max(#{$bar-text-floor}, 0.65rem);
-        line-height: 1.2;
-    }
-
-    &--end {
-        color: var(--pico-color);
-        background: color-mix(in srgb, var(--ronin-warning) 30%, transparent);
-        border-color: var(--ronin-warning);
+    @include upright-board {
+        left: var(--m);
     }
 }
 
-.replay-controls__incomplete-detail {
-    color: var(--ronin-text-secondary);
+/* The options in one row, or two rows of two clear of the right strip as drawn, the round list's toggle in the band. */
+.replay-controls__options {
+    right: calc(var(--opt-right) + min(var(--pair-shift), (1px - var(--opts-fit)) * 100000));
+    flex-wrap: wrap;
+    place-content: flex-end flex-end;
+    width: calc(var(--pair-w) + min(var(--pair-w) + var(--rgap), var(--opts-fit) * 100000));
+    height: auto;
 
-    .replay-controls__incomplete--end & {
-        color: inherit;
+    /* The upper pair steps further from the right strip where the band's pair must stay past the river's reach. */
+    > :nth-child(-n + 2) {
+        position: relative;
+        right: var(--upper-extra);
+    }
+
+    @include upright-board {
+        bottom: calc(100cqh - var(--band-bottom) + var(--rb) + var(--rgap));
     }
 }
 
-.replay-controls__round--incomplete .replay-controls__step::after,
-.replay-controls__round--end .replay-controls__step::after {
-    @container (width < 9rem) {
-        content: "!";
-        display: inline-block;
-        margin-inline-start: 0.25em;
-        padding: 0 0.2em;
-        font-size: 0.9em;
-        line-height: 1.1;
-        font-weight: 700;
-        color: var(--ronin-warning);
-        border: 1px solid currentcolor;
-        border-radius: 0.25rem;
-    }
-}
-
-.replay-controls__round--end .replay-controls__step {
-    @container (width < 9rem) {
-        font-size: 0;
-
-        &::after {
-            content: "End";
-            margin: 0;
-            font-size: 0.65rem;
-            color: var(--ronin-surface);
-            background: var(--ronin-warning);
-            border-color: var(--ronin-warning);
-        }
-    }
-}
-
-/* The replay's moves, options and round toggle are quiet controls, a pressed one ringed. */
-:is(.replay-controls__round, .replay-controls__option, .replay-controls__move) {
+/* The moves and the options are quiet controls, a pressed one ringed; autoplay is the player's own action, the accent. */
+:is(.replay-controls__option, .replay-controls__move) {
     &,
     &:is(:hover, :active, :focus) {
         --pico-background-color: var(--ronin-action-quiet);
@@ -172,183 +181,50 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     }
 }
 
-.replay-controls__round,
-.replay-controls__options,
-.replay-controls__moves {
-    @media #{$column} {
-        flex: none;
-    }
-}
-
-.replay-controls__round {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: $move-size;
+:is(.replay-controls__option, .replay-controls__move, .replay-controls__play) {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--rb);
+    height: var(--rb);
     margin: 0;
-    padding: 0.25rem 0.4rem;
-    font-size: 0.75rem;
-    line-height: 1.2;
+    padding: 0;
+    font-size: calc(var(--rb) * 0.36);
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 10px;
+    touch-action: manipulation;
 
+    &:disabled {
+        opacity: 0.35;
+    }
+
+    &[aria-pressed="true"]:not(.replay-controls__play),
     &[aria-expanded="true"] {
         box-shadow: inset 0 0 0 2px var(--ronin-text);
     }
 
-    @media #{$bar} {
-        flex: none;
-        min-width: 9rem;
-        padding-block: 0;
-        font-size: 0.7rem;
-    }
-}
-
-.replay-controls__round-name {
-    font-weight: 600;
-}
-
-.replay-controls__step {
-    @include type.figures;
-
-    font-size: 0.85em;
-    opacity: 0.85;
-
-    @media #{$bar} {
-        font-size: max(#{$bar-text-floor}, 0.85em);
-    }
-}
-
-.replay-controls__honba,
-.replay-controls__step-word {
-    @container (width < 9rem) {
-        display: none;
-    }
-}
-
-.replay-controls__narration-room {
-    display: contents;
-
-    @media #{$column} {
-        display: block;
-        flex: 1 1 auto;
-        min-height: 1.3em;
-        font-size: 0.75rem;
-        container-type: size;
-    }
-}
-
-.replay-controls__narration {
-    flex: 1 1 12rem;
-    min-height: 2.5em;
-    margin: 0;
-    font-size: 0.75rem;
-    line-height: 1.3;
-    color: var(--ronin-text-secondary);
-    overflow-wrap: anywhere;
-
-    @media #{$column} {
-        min-height: 1lh;
-        height: round(down, 100cqh, 1lh);
-        overflow-y: auto;
-        background:
-            linear-gradient(#{$column-surface}, #{$column-surface}) bottom / 100% 0.6lh no-repeat
-                local,
-            linear-gradient(transparent, #{$narration-hint}) bottom / 100% 0.6lh no-repeat scroll;
-    }
-
-    @media #{$bar} {
-        flex: 1 1 0;
-        min-height: 0;
-        max-height: $move-size;
-        font-size: 0.75rem;
-        overflow-y: auto;
-    }
-
-    @container (width < 9rem) {
-        font-size: 0.65rem;
-        line-height: 1.2;
-    }
-}
-
-.replay-controls__announcer {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-}
-
-.replay-controls__moves {
-    display: grid;
-    grid-template-columns: repeat(6, $move-size);
-    gap: $move-gap;
-
-    @media #{$column} {
-        grid-template-areas: "first last" "prevRound nextRound" "prev next";
-        grid-template-columns: repeat(2, minmax($move-size, 1fr));
-        gap: $column-gap;
-    }
-}
-
-.replay-controls__options {
-    display: grid;
-    grid-template-columns: repeat(4, $move-size);
-    gap: $move-gap;
-
-    @media #{$column} {
-        grid-template-columns: repeat(2, minmax($move-size, 1fr));
-        gap: $column-gap;
-    }
-}
-
-.replay-controls__option {
-    display: grid;
-    place-items: center;
-    min-width: $move-size;
-    height: $move-size;
-    margin: 0;
-    padding: 0;
-    font-size: 0.8rem;
-    font-weight: 600;
-    touch-action: manipulation;
-
-    &:disabled {
-        opacity: 0.35;
-    }
-
-    &[aria-pressed="true"] {
-        box-shadow: inset 0 0 0 2px var(--ronin-text);
+    &:focus-visible {
+        outline: 3px solid var(--ronin-text);
+        outline-offset: 2px;
     }
 }
 
 .replay-controls__move {
-    display: grid;
-    place-items: center;
-    min-width: $move-size;
-    height: $move-size;
-    margin: 0;
-    padding: 0;
-    touch-action: manipulation;
     user-select: none;
     -webkit-touch-callout: none;
+}
 
-    &:disabled {
-        opacity: 0.35;
-    }
-
-    @media #{$column} {
-        @each $move in first, last, prevRound, nextRound, prev, next {
-            &--#{$move} {
-                grid-area: $move;
-            }
-        }
+/* A smaller board's switches' place holds five moves: either end is the keys' and the round list's. */
+.replay-controls__moves > :is(.replay-controls__move--first, .replay-controls__move--last) {
+    @include small-chrome {
+        display: none;
     }
 }
 
 .replay-controls__icon {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: calc(var(--rb) * 0.46);
+    height: calc(var(--rb) * 0.46);
     fill: none;
     stroke: currentcolor;
     stroke-width: 2.25;
@@ -356,28 +232,202 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     stroke-linejoin: round;
 }
 
+/* The position and narration in the notices' place, under any notice. */
+.replay-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    font-size: max(13px, var(--text) * 0.94);
+    line-height: 1.3;
+
+    > p {
+        margin: 0;
+    }
+}
+
+.replay-status__position {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.5em;
+    font-weight: 650;
+    color: var(--ronin-text);
+}
+
+.replay-status__step {
+    @include type.figures;
+
+    font-weight: 500;
+    color: var(--ronin-text-secondary);
+}
+
+.replay-status__narration {
+    color: var(--ronin-text-secondary);
+    overflow-wrap: break-word;
+}
+
+.replay-status__announcer {
+    @include visually-hidden;
+}
+
+.replay-status__incomplete {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.4em;
+    align-self: flex-start;
+    padding: 0.15em 0.5em;
+    font-size: max(12px, 0.9em);
+    color: var(--ronin-warning);
+    background: color-mix(in srgb, var(--ronin-warning) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ronin-warning) 40%, transparent);
+    border-radius: 0.375rem;
+
+    &--end {
+        color: var(--pico-color);
+        background: color-mix(in srgb, var(--ronin-warning) 30%, transparent);
+        border-color: var(--ronin-warning);
+    }
+}
+
+.replay-status__incomplete-end {
+    display: none;
+    font-weight: 650;
+}
+
+.replay-status__incomplete-detail {
+    color: var(--ronin-text-secondary);
+
+    .replay-status__incomplete--end & {
+        color: inherit;
+    }
+
+    .replay-status__incomplete:not(.replay-status__incomplete--end) & {
+        @include phone-board {
+            @include visually-hidden;
+        }
+    }
+}
+
+/* Upright, the left field is too narrow for text: the place spans the board above the options' row. */
+.game-board--replay .board-notices {
+    @include upright-board {
+        --place-bottom: calc(var(--band-bottom) - 2 * var(--rb) - 2 * var(--rgap) - #{$place-gap});
+
+        top: auto;
+        bottom: calc(100cqh - var(--place-bottom));
+        left: var(--m);
+        width: calc(100cqw - var(--opt-right) - var(--m));
+        max-height: calc(var(--place-bottom) - var(--cy) - var(--h) - var(--g) - 3 * var(--rh));
+    }
+}
+
+/* A panel over the replay leaves the band to its controls, and on a wide desktop the left field to its narration. */
+.game-board--replay > .board-overlay {
+    --band-reserve-top: var(--foreground-top);
+
+    padding-bottom: calc(100cqh - var(--band-reserve-top));
+
+    @include small-chrome {
+        --band-reserve-top: calc(var(--band-bottom) - var(--rb) - var(--rgap));
+    }
+
+    @include upright-board {
+        --band-reserve-top: calc(var(--band-bottom) - 2 * var(--rb) - 2 * var(--rgap));
+    }
+
+    @container game-board (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
+        --board-unit: clamp(
+            #{$overlay-unit-min},
+            min((100cqw - #{$overlay-chrome} - var(--reach-left)) / 1000, 100cqh / 640),
+            #{$overlay-unit-max}
+        );
+
+        padding-left: var(--reach-left);
+    }
+}
+
+/* On a smaller board a panel takes all but the moves' row: the options hide but the round list's toggle (its last row
+   is the end), and the position and the end's mark stand between them, the narration read out only. */
+@include small-chrome {
+    .game-board--replay:has(> .board-overlay) {
+        .replay-controls__options {
+            right: var(--opt-right);
+            width: auto;
+
+            > :not(.replay-controls__option--rounds) {
+                display: none;
+            }
+        }
+
+        .board-notices {
+            --band-middle-end: calc(var(--opt-right) + var(--rb) + 2 * var(--rgap));
+
+            top: auto;
+            bottom: calc(100cqh - var(--band-bottom));
+            left: calc(var(--switches-left) + var(--small-moves-w));
+            align-items: flex-start;
+            width: calc(
+                100cqw - var(--band-middle-end) - var(--small-moves-w) - var(--switches-left)
+            );
+            max-height: calc(var(--rb) + var(--rgap));
+        }
+
+        .replay-status {
+            gap: 0;
+            padding: 0 0.5em;
+            line-height: 1.2;
+            background: var(--ronin-notice);
+            border: 1px solid var(--ronin-border-mark);
+            border-radius: 10px;
+        }
+
+        .replay-status__incomplete {
+            padding-block: 0;
+        }
+
+        :is(.replay-status__narration, .replay-status__incomplete-detail) {
+            @include visually-hidden;
+        }
+
+        .replay-status__incomplete-end {
+            display: inline;
+        }
+    }
+}
+
+/* Upright, the position stands in the options' row, before the round list's toggle. */
+@include upright-board {
+    .game-board--replay:has(> .board-overlay) .board-notices {
+        --band-middle-end: calc(var(--opt-right) + var(--rb) + var(--rgap));
+
+        bottom: calc(100cqh - var(--band-bottom) + var(--rb) + var(--rgap));
+        left: var(--m);
+        width: calc(100cqw - var(--band-middle-end) - 2 * var(--m));
+    }
+}
+
 .round-list {
     position: absolute;
-    inset: 0 0 auto auto;
-    max-height: 100%;
-    z-index: 30;
+    right: var(--opt-right);
+    bottom: calc(100cqh - var(--band-bottom) + var(--rb) + var(--rgap) + var(--list-rise));
+    z-index: $round-list-z;
     display: flex;
     flex-direction: column;
     gap: 0;
-    width: min(24rem, 100%);
+    width: min(24rem, 100cqw - var(--opt-right) - var(--m));
+    max-height: calc(var(--band-bottom) - var(--rb) - var(--rgap) - var(--m) - var(--list-rise));
     margin: 0;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.5rem;
     box-shadow: var(--ronin-panel-shadow);
 
-    @media #{$bar} {
-        inset: auto auto 0 0;
-        box-shadow: var(--ronin-panel-shadow);
-    }
-
     > * {
         margin-block: 0;
+    }
+
+    @include upright-board {
+        bottom: calc(100cqh - var(--band-bottom) + 2 * var(--rb) + 2 * var(--rgap));
+        max-height: calc(var(--band-bottom) - 2 * var(--rb) - 2 * var(--rgap) - var(--m));
     }
 }
 
@@ -397,8 +447,8 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
 }
 
 .round-list__close {
-    width: $move-size;
-    height: $move-size;
+    width: 40px;
+    height: 40px;
     margin: 0;
     padding: 0;
     font-size: 1.25rem;
@@ -430,17 +480,31 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     }
 }
 
+.round-list__foot {
+    flex: none;
+    padding: 0.25rem;
+    border-top: 1px solid var(--ronin-border);
+
+    > .round-list__row {
+        flex-flow: row wrap;
+        align-items: baseline;
+        column-gap: 0.5em;
+        margin: 0;
+        padding-block: 0.2rem;
+    }
+}
+
 .round-list__row {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.1rem;
     width: 100%;
-    min-height: $move-size;
+    min-height: 40px;
     margin: 0 0 0.15rem;
     padding: 0.35rem 0.6rem;
     text-align: left;
-    color: var(--pico-color);
+    color: var(--ronin-text);
     background: transparent;
     border: 1px solid transparent;
     border-radius: 0.375rem;
@@ -452,6 +516,13 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     &[aria-current="true"] {
         border-color: var(--ronin-text);
         background: var(--ronin-action-quiet);
+    }
+
+    @include phone-board {
+        flex-flow: row wrap;
+        align-items: baseline;
+        column-gap: 0.5em;
+        padding-block: 0.2rem;
     }
 }
 

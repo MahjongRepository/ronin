@@ -1,22 +1,5 @@
-$tile-w: 60;
-$tile-h: 80;
-$short-height: 520px;
-$short-desktop-height: 760px;
-$small-chrome-width: 1100px;
-$large-chrome-width: 2000px;
-$large-chrome-height: 1200px;
-$wide-board: "4 / 3";
-$corner-reserve: 10rem;
-$corner-reserve-short: 5rem;
-
-/* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
-$full-hand: 14.6;
-$drawn-gap: 0.35;
-$own-meld-scale: 1.2;
-$river-gap-share: 0.3;
-$core-tiles: 8.6;
-$river-by-own: 0.65;
-$side-reach-tiles: 10.6667;
+@forward "queries";
+@use "queries" as *;
 
 /* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
    length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
@@ -35,47 +18,6 @@ $lengths:
         syntax: "<length>";
         inherits: true;
         initial-value: 0;
-    }
-}
-
-@mixin phone-board {
-    @container game-board (height < #{$short-height}) and (aspect-ratio >= 1) {
-        @content;
-    }
-}
-
-@mixin desktop-board {
-    @container game-board (height >= #{$short-height}) and (aspect-ratio >= 1) {
-        @content;
-    }
-}
-
-/* A short desktop (a laptop's window) shares the band's lower corners with the core, as a phone does. */
-@mixin short-desktop-board {
-    @container game-board (height >= #{$short-height}) and (height < #{$short-desktop-height}) and
-        (width >= #{$small-chrome-width}) and (aspect-ratio >= 1) {
-        @content;
-    }
-}
-
-@mixin upright-board {
-    @container game-board (aspect-ratio < 1) {
-        @content;
-    }
-}
-
-/* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone, upright, and on
-   a desktop board too narrow for the desktop's (a tablet's or a small window's), whose geometry stays the desktop's. */
-@mixin small-chrome {
-    @container game-board (width < #{$small-chrome-width}) or (height < #{$short-height}) {
-        @content;
-    }
-}
-
-/* The chrome a step larger on a large board, where the own tile passes 100px. */
-@mixin large-chrome {
-    @container game-board (width >= #{$large-chrome-width}) and (height >= #{$large-chrome-height}) {
-        @content;
     }
 }
 

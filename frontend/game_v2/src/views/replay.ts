@@ -12,9 +12,11 @@ import {
     ROUND_LIST_ROW_CLASS,
     ReplayControls,
     type ReplayCursor,
+    type ReplayDisplay,
     type ReplayMoves,
     type ReplayPrefs,
     type ReplayPrefsStore,
+    ReplayStatus,
     type ReplayView,
     RoundList,
     STEP_BUTTON_ATTRIBUTE,
@@ -27,6 +29,7 @@ import {
     autoplayStep,
     boardOverlay,
     isPauseStop,
+    lastCursor,
     nextAutoplaySpeed,
     parseReplayAddress,
     replayAddressSearch,
@@ -322,6 +325,11 @@ function readReplayScreen(text: string, options: ScreenOptions): ReplayScreen {
     return screen;
 }
 
+/** Whether `element` is drawn: a control the board's stylesheet hides (an option under a small board's panel) is not. */
+function isShown(element: HTMLElement): boolean {
+    return typeof element.checkVisibility !== "function" || element.checkVisibility();
+}
+
 function elementOf(target: EventTarget | null): Element | null {
     return target instanceof Element ? target : null;
 }
@@ -383,8 +391,8 @@ function keyCommand(event: KeyboardEvent): ReplayKeyCommand | null {
 }
 
 /**
- * A wheel turned up or down over the board, outside the round list, the standings' rounds and a round's result
- * scrolling in its panel, and not a pinch.
+ * A wheel turned up or down over the board, outside the round list, the standings' rounds, the notices' place (the
+ * position and narration) and a round's result scrolling in its panel, and not a pinch.
  */
 function isBoardWheel(event: WheelEvent): boolean {
     const over = elementOf(event.target);
@@ -393,7 +401,7 @@ function isBoardWheel(event: WheelEvent): boolean {
         !event.ctrlKey &&
         over !== null &&
         over.closest(".board-page__board") !== null &&
-        over.closest(".round-list, .standings__sheet") === null &&
+        over.closest(".round-list, .standings__sheet, .board-notices") === null &&
         !inScrollingPanel(over)
     );
 }
@@ -427,12 +435,62 @@ function standingsNotices(table: TableState, standings: StandingsState): BoardNo
     ];
 }
 
+/** The replay's moves and options over the board's band, and the round list over the board while it is open. */
+function controlsTemplate(
+    { autoplay, hideHands, replay, roundListOpen, view }: LoadedScreen,
+    display: ReplayDisplay,
+    handlers: ReplayHandlers,
+): TemplateResult {
+    const viewName = seatName(display.table, view.bottomSeat);
+    const nextViewName = seatName(display.table, nextSeat(view.bottomSeat, replay.seatCount));
+    const last = lastCursor(replay.navigation);
+    const end =
+        last === null
+            ? null
+            : {
+                  current: display.moves.last === null,
+                  cursor: last,
+                  summary:
+                      display.incomplete === null
+                          ? "The game's end and the final standings"
+                          : "Where the recording ends",
+              };
+    const roundList = roundListOpen
+        ? RoundList({
+              end,
+              incomplete: display.incomplete,
+              onClose: handlers.closeRoundList,
+              onSelect: handlers.selectRound,
+              rows: display.rounds,
+          })
+        : nothing;
+    return html`${ReplayControls({
+        moves: display.moves,
+        onCycleSpeed: handlers.cycleSpeed,
+        onMove: handlers.move,
+        onStepClick: handlers.stepClick,
+        onStepPress: handlers.stepPress,
+        onSwitchView: handlers.switchView,
+        onToggleHands: handlers.toggleHands,
+        onTogglePlay: handlers.togglePlay,
+        onToggleRoundList: handlers.toggleRoundList,
+        playback: {
+            hideHands,
+            nextViewName,
+            playing: autoplay.playing,
+            speed: autoplay.speed,
+            viewName,
+        },
+        roundListOpen,
+    })}${roundList}`;
+}
+
 function loadedTemplate(
     screen: LoadedScreen,
     { links, standings }: ReplayPage,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { autoplay, hideHands, pinnedNameplate, replay, roundListOpen, view } = screen;
+    const { autoplay, hideHands, pinnedNameplate, replay, view } = screen;
     const perspective = {
         bottomSeat: view.bottomSeat,
         reveal: hideHands ? "bottom" : "all",
@@ -463,42 +521,12 @@ function loadedTemplate(
                     },
                 }),
                 overlayIsResult: showsRoundResult(display.table),
+                replay: {
+                    controls: controlsTemplate(screen, display, handlers),
+                    status: ReplayStatus({ display, playing: autoplay.playing }),
+                },
                 scoreDiff,
                 state: tableStateToDisplayState(display.table, perspective),
-            })}
-            ${
-                roundListOpen
-                    ? RoundList({
-                          incomplete: display.incomplete,
-                          onClose: handlers.closeRoundList,
-                          onSelect: handlers.selectRound,
-                          rows: display.rounds,
-                      })
-                    : nothing
-            }
-        </div>
-        <div class="board-page__aside replay-controls">
-            ${ReplayControls({
-                display,
-                onCycleSpeed: handlers.cycleSpeed,
-                onMove: handlers.move,
-                onStepClick: handlers.stepClick,
-                onStepPress: handlers.stepPress,
-                onSwitchView: handlers.switchView,
-                onToggleHands: handlers.toggleHands,
-                onTogglePlay: handlers.togglePlay,
-                onToggleRoundList: handlers.toggleRoundList,
-                playback: {
-                    hideHands,
-                    nextViewName: seatName(
-                        display.table,
-                        nextSeat(view.bottomSeat, replay.seatCount),
-                    ),
-                    playing: autoplay.playing,
-                    speed: autoplay.speed,
-                    viewName: seatName(display.table, view.bottomSeat),
-                },
-                roundListOpen,
             })}
         </div>
     `;
@@ -607,6 +635,7 @@ class HeldStep {
     private readonly deps: HeldStepDeps;
     private cancelRepeat: CancelTimer | null = null;
     private over = true;
+    private stopped = false;
 
     constructor(button: HTMLElement, deps: HeldStepDeps) {
         this.button = button;
@@ -630,6 +659,7 @@ class HeldStep {
     }
 
     stop(): void {
+        this.stopped = true;
         this.cancelRepeat?.();
         this.cancelRepeat = null;
         for (const type of HOLD_EVENTS) {
@@ -637,7 +667,11 @@ class HeldStep {
         }
     }
 
+    /** Arm the next repeat, unless the hold was stopped meanwhile (its step failed, or another move took over). */
     private arm(delay: number): void {
+        if (this.stopped) {
+            return;
+        }
         this.cancelRepeat = this.deps.clock.setTimer(delay, () => this.repeat());
     }
 
@@ -700,24 +734,33 @@ class ReplayViewController {
     private wheelGesture: WheelGesture | null = null;
 
     private readonly handlers: ReplayHandlers = {
-        closeRoundList: () => this.closeRoundList(),
-        cycleSpeed: () => this.cycleSpeed(),
-        keydown: (event) => this.onKeydown(event),
+        closeRoundList: this.guard(() => this.closeRoundList()),
+        cycleSpeed: this.guard(() => this.cycleSpeed()),
+        keydown: this.guard((event: KeyboardEvent) => this.onKeydown(event)),
         keyup: (event) => this.onKeyup(event),
-        move: (cursor) => this.moveTo(cursor),
-        pinNameplate: (seat) => this.updateLoaded({ pinnedNameplate: seat }),
+        move: this.guard((cursor: ReplayCursor) => this.moveTo(cursor)),
+        pinNameplate: this.guard((seat: SeatPosition | null) =>
+            this.updateLoaded({ pinnedNameplate: seat }),
+        ),
         retry: () => this.startLoad(),
         root: createRef<HTMLElement>(),
-        selectRound: (start) => this.selectRound(start),
-        showResultPage: (page) => this.showResultPage(page),
-        showRoundResult: (round) => this.showRoundResult(round),
-        stepClick: (direction, event) => this.onStepClick(direction, event),
-        stepPress: (direction, event) => this.startHold(direction, event),
-        switchView: () => this.switchView(),
-        toggleHands: () => this.toggleHands(),
-        togglePlay: () => this.togglePlay(),
-        toggleRoundList: () => this.toggleRoundList(),
-        wheel: { handleEvent: (event) => this.onWheel(event), passive: false },
+        selectRound: this.guard((start: ReplayCursor) => this.selectRound(start)),
+        showResultPage: this.guard((page: number) => this.showResultPage(page)),
+        showRoundResult: this.guard((round: number) => this.showRoundResult(round)),
+        stepClick: this.guard((direction: StepDirection, event: MouseEvent) =>
+            this.onStepClick(direction, event),
+        ),
+        stepPress: this.guard((direction: StepDirection, event: PointerEvent) =>
+            this.startHold(direction, event),
+        ),
+        switchView: this.guard(() => this.switchView()),
+        toggleHands: this.guard(() => this.toggleHands()),
+        togglePlay: this.guard(() => this.togglePlay()),
+        toggleRoundList: this.guard(() => this.toggleRoundList()),
+        wheel: {
+            handleEvent: this.guard((event: WheelEvent) => this.onWheel(event)),
+            passive: false,
+        },
     };
 
     constructor(host: HTMLElement, gameId: string, deps: ReplayViewDeps) {
@@ -729,7 +772,7 @@ class ReplayViewController {
             REPLAY_URL_WRITE_INTERVAL_MS,
             deps.location.replaceSearch,
         );
-        this.removePageHide = deps.location.onPageHide(() => this.onPageHide());
+        this.removePageHide = deps.location.onPageHide(this.guard(() => this.onPageHide()));
         host.ownerDocument.addEventListener("click", this.onClickOutside);
         this.standings = this.startStandings();
         this.show(this.screen);
@@ -740,7 +783,7 @@ class ReplayViewController {
     /** Start loading the final standings, drawing the page again as their load moves on. */
     private startStandings(): RetryingLoad<StandingsRenderer> {
         const standings = this.deps.startStandings();
-        standings.subscribe(() => this.show(this.screen));
+        standings.subscribe(this.guard(() => this.show(this.screen)));
         return standings;
     }
 
@@ -756,17 +799,40 @@ class ReplayViewController {
         render(nothing, this.host);
     }
 
-    private readonly onClickOutside = (event: MouseEvent): void => {
+    private readonly onClickOutside = this.guard((event: MouseEvent): void => {
         const { screen } = this;
         if (screen.kind !== "loaded" || !screen.roundListOpen) {
             return;
         }
-        const inside = elementOf(event.target)?.closest(".round-list, .replay-controls__round");
+        const inside = elementOf(event.target)?.closest(
+            ".round-list, .replay-controls__option--rounds",
+        );
         if (inside && this.host.contains(inside)) {
             return;
         }
         this.show({ ...screen, roundListOpen: false });
-    };
+    });
+
+    /**
+     * A move the reader or a timer makes, which reads and draws the replay at its new stop: a throw in it says the
+     * replay cannot be shown, its error on the console, rather than leaving the page on a stop it could not draw.
+     */
+    private guard<Args extends unknown[]>(run: (...args: Args) => void): (...args: Args) => void {
+        return (...args) => {
+            try {
+                run(...args);
+            } catch (error: unknown) {
+                this.fail(error);
+            }
+        };
+    }
+
+    private fail(error: unknown): void {
+        console.error("The replay could not be shown:", error);
+        this.stopAutoplayTimer();
+        this.stopHold();
+        this.show({ failure: { kind: "show_failed" }, kind: "failed" });
+    }
 
     private onPageHide(): void {
         this.addressWriter.flush();
@@ -885,8 +951,7 @@ class ReplayViewController {
                 }),
             );
         } catch (error: unknown) {
-            console.error("The replay could not be shown:", error);
-            this.show({ failure: { kind: "show_failed" }, kind: "failed" });
+            this.fail(error);
         }
     }
 
@@ -921,7 +986,8 @@ class ReplayViewController {
         const focused = this.host.ownerDocument.activeElement;
         const lost =
             !this.host.contains(focused) ||
-            (focused instanceof HTMLButtonElement && focused.disabled);
+            (focused instanceof HTMLButtonElement && focused.disabled) ||
+            (focused instanceof HTMLElement && !isShown(focused));
         if (lost) {
             this.focusRoot();
         }
@@ -1009,7 +1075,10 @@ class ReplayViewController {
             return;
         }
         const delay = autoplayDelayMs(screen.replay, screen.view.cursor, screen.autoplay.speed);
-        this.autoplayTimer = this.deps.clock.setTimer(delay, () => this.autoplayTick());
+        this.autoplayTimer = this.deps.clock.setTimer(
+            delay,
+            this.guard(() => this.autoplayTick()),
+        );
     }
 
     private stopAutoplayTimer(): void {
@@ -1093,7 +1162,7 @@ class ReplayViewController {
             clock: this.deps.clock,
             end: (cancelled) => this.endHold(cancelled),
             nextStep: () => (this.atPauseStop() ? null : this.stepTarget(direction)),
-            step: (cursor) => this.navigate(cursor),
+            step: this.guard((cursor: ReplayCursor) => this.navigate(cursor)),
         });
     }
 

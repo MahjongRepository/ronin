@@ -1,8 +1,17 @@
 @use "grid" as *;
 
+@property --left-depth {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
+/* The place starts past the left strip as drawn, its second line of melds included where it has one. */
 .board-notices {
+    @include side-strip-depth(left, calc(var(--band-top) - 8px - var(--side-start)));
+
     --notice-gap: 16px;
-    --notice-left: calc(var(--m) + var(--strip-depth) + var(--notice-gap));
+    --notice-left: calc(var(--m) + max(var(--strip-depth), var(--left-depth)) + var(--notice-gap));
     --notice-top: max(
         var(--side-badge-top) + var(--badge-h) + var(--notice-gap),
         var(--reach-top-row3) + var(--notice-gap)
@@ -15,7 +24,6 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
     width: calc(var(--reach-left) - 24px - var(--notice-left));
     max-height: calc(var(--band-top) - 24px - var(--notice-top));
     overflow-y: auto;
@@ -36,9 +44,25 @@
     }
 }
 
+/* The notices, then under them what the page shows in their place (a replay's position and narration). */
+.board-notices__list {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+
+    &:not(:empty) {
+        margin-bottom: 6px;
+    }
+}
+
 /* Over a panel, a short or upright board's notices move to the reserve under the right strip's end; a narrow
    desktop's panel leaves them their own field. */
 @container game-board (height < #{$short-height}) or (aspect-ratio < 1) {
+    .game-board:has(> .board-overlay) .board-notices__list {
+        align-items: stretch;
+    }
+
     .game-board:has(> .board-overlay) {
         .board-notices {
             --notice-top: calc(

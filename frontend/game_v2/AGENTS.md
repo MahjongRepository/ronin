@@ -300,10 +300,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   replay it cannot show (not found after the retries, refused, unreachable, another version, no
   deal) gets a screen saying why with the way back to the game history and the lobby, and a retry
   where one may help: only a failed fetch counts as unreachable, while a throw in reading or drawing
-  the replay says it cannot be shown, its error on the console, with no retry. The wheel steps only
-  over the board, outside the round list, the standings' rounds and a round's result scrolling in its
-  panel, and only where a step goes; anywhere else it scrolls. The narration is read out by a live region
-  of its own, polite and left empty while autoplay runs.
+  the replay, as it loads or at any later move (a press, a key, the wheel, a hold's or autoplay's timer), says it
+  cannot be shown, its error on the console, with no retry, autoplay and a hold stopped. The wheel steps only
+  over the board, outside the round list, the standings' rounds, the notices' place and a round's result scrolling
+  in its panel, and only where a step goes; anywhere else it scrolls. The narration is read out by a live region
+  of its own, polite and left empty while autoplay runs (Layout, the replay's controls).
 * **Session** (`entities/session`): one machine owns finding the handoff, joining, playing,
   reconnecting and the end. It joins with the lobby's ticket (`shared/session` holds the handoff) and
   resumes the seat with the same ticket. A tab that holds no ticket asks the lobby
@@ -381,8 +382,10 @@ follows holds through the rebuild to it.
   the last snapshot (App, Desync), on the console too, shown until a snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
   a reload, until a retry loads them. An end that stops the session on the
   page blocks the board, and takes the rotate panel's place, with why and a way back. The notices' place is
-  the left field under the left badge, outside every river's capacity, scrolling a stack taller than it
-  (never clipped silently; "Show all" is Step 4's); a desktop panel over the board then starts past the left
+  the left field under the left badge, outside every river's capacity and past the left strip as drawn (its second
+  meld line included, from the lengths `sideStripStyle` hands the table), scrolling a stack taller than it
+  (never clipped silently; "Show all" is Step 4's); the notices are one polite live region, and what a page shows in
+  their place lies under them (a replay's status); a desktop panel over the board then starts past the left
   river's reach, and over a short or upright board's panel they move to the reserve under the right strip's end (where
   the out-of-step notice is cut short until Step 4.2's clamp: the gate's `noticeCutAt` exception). With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
@@ -406,7 +409,9 @@ follows holds through the rebuild to it.
   lives in `game-board/_grid.scss` alone, as custom properties on the board's layout and its overlay: the
   own tile (36x48 under 520px high, else min(5cqw, 10cqh), capped by a full hand's row beside its badge's
   and furiten's slots), the river tile, the core, the centre and every place derived from them (the
-  rivers' capacity reach, the foreground band, a badge's place). Its lengths are registered
+  rivers' capacity reach, the foreground band, a badge's place); its breakpoints, viewport mixins and the side
+  strips' depth as drawn are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the
+  replay's) uses them without repeating the board's rules. Its lengths are registered
   (`@property`, `<length>`), so each computes once to pixels where it is set: an unregistered chain grows
   with every reference until a browser drops the declaration. A desktop's core also stays above the
   foreground band's controls and below the top strip's slot; a short desktop (`short-desktop-board`: under
@@ -500,20 +505,37 @@ follows holds through the rebuild to it.
   * Text the board scales keeps a 10px floor, a safety limit, never the size to design to.
 * **Pages never clip the board.** `.board-page` gives it a definite box, the safe area exactly (sized with
   `dvh` and the theme's `--ronin-safe-*`, which a test can set; the table's surface runs on under the
-  insets), and puts the replay's controls below it upright, or beside it in landscape as a compact column
-  that scrolls when the window is too short for it. A storybook's switches always lie below the board, so
-  its board is the live game's box (36x48 own tile at 667x375) and the page scrolls to them. The replay's controls below (its
-  column and bar, its narration's three lines) are the current implementation's, kept until the replay's
-  controls move into the board's foreground band as the spec places them. The replay's column is two 40px
-  move buttons wide on a phone, the most it may take before the local hand drops under its floor at
-  667x375; it stands the board's height and its narration takes the height its buttons leave, at least
-  three lines on the supported phones (for which the round leaves its honba to the board and an incomplete
-  replay's note folds into the round's toggle as a mark, at its end in place of the step, read out still), while a shorter window scrolls a narration it
-  cannot hold, hinted at its foot. On a landscape window of at least 1024x600 the local hand is bounded by the board's width
-  with height to spare, so a column there would shrink it before its text read well:
-  the replay's controls run instead as one bar of a button's height under the board. Its round list
-  lies over the board's right side, in the bar over its bottom-left above its toggle, as tall as its rounds, above a result's dimming; a replay that is
-  not the whole game says so in the controls, and where it ends at its last stop, never over the board.
+  insets). A storybook's switches always lie below the board, so its board is the live game's box (36x48 own
+  tile at 667x375) and the page scrolls to them. The replay's page is the board alone, the live game's box.
+* **The replay's controls are on its board** (`GameBoard`'s `replay`, the board marked `game-board--replay`;
+  `styles/_replay-state.scss`, the replay chunk's, over the board's lengths from `game-board/_queries.scss`): one
+  place per control per viewport, never moved by what a stop shows.
+  * The moves stand in the play switches' place, bottom-aligned with the band: a round back, a step back, autoplay
+    (the accent, the player's own action), a step on, a round on, and on a board with the desktop's chrome either end
+    too (a smaller board's place holds five; the round list's first row is then the first deal and its foot,
+    Last step, in view however far its rounds scroll, the replay's last stop, beside Home/End). On a phone and a short desktop the place ends before the
+    bottom river's capacity reach.
+  * The options stand in the decisions' place, right-aligned at its end (a phone's band row past the bottom and
+    right rivers' capacity reach, before the right hand where it crosses the band): speed, the viewpoint, hiding the
+    hands, the round list's toggle. Where that row is too short for all four (`--opts-fit`, a length switch, never a
+    measure) they stand as two rows of two, the round list's toggle in the band, the upper pair ending before the right
+    strip as drawn (`side-strip-depth`, from the lengths `sideStripStyle` hands it). Upright, the options take a row
+    above the moves, short of the right strip.
+  * The position (round, honba, step), a replay that is not the whole game (and where it ends at its last stop; a
+    phone shows the label alone until then, its detail still read out) and the narration take the notices' place,
+    under any notice. The narration is read out by its own polite live region, empty while autoplay runs; the
+    narration drawn is `aria-hidden`, so it is in the accessibility tree once. Upright, the place spans the board above
+    the options' row.
+  * A panel over the replay's board never covers its controls. On a board with the desktop's chrome it stops at the
+    foreground's top, every option in the band row (the board beneath is inert), and on a wide desktop also leaves the
+    left field to the status, starting past the left river's reach. On a smaller board (the panel-only exception) it
+    takes all but the moves' row: the options hide but the round list's toggle, which keeps the touch way to every
+    round and the end, and the status turns compact between them (the position and, at an incomplete recording's end,
+    its label and an "Ends here" mark), the narration and the incompleteness's detail then read out only, since the
+    panel shows the same stop; upright, the compact status and the toggle take the options' row. The panel's tiles keep
+    their size; a result taller than its panel scrolls under its foot. The options come back as the panel closes, and
+    a render that hides the focused control gives the focus back to the root. The round list opens above the options,
+    right-aligned, over the board and a result's dimming, as tall as its rounds.
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
@@ -530,7 +552,8 @@ follows holds through the rebuild to it.
   them; the board's standings over a hand-written short game, and again with its leftover stick not awarded; and the replay page's stories: its opening, autoplay
   running, another seat's view with the hands hidden, a result with them hidden, its round list,
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
-  on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
+  on a round's result, a damaged one, one whose step throws, loading and a replay not found), the replay and the
+  live game, at
   its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080 (Chromium), 1366x657 on the anchor,
   the worst board, a call beside the latest riichi discard's row, the full and mixed hands, the replay and
   the live turn alone (the band's corners shared, a chip bounded by its row), 800x600 on the anchor, the
@@ -540,7 +563,8 @@ follows holds through the rebuild to it.
   double ron and the out-of-step result (`window-*`: a panel against a small window's width), 2560x1440 on the offers, the choices and the full
   hands (`desktop-large`: a control's height against the band), 680x375 and 700x375 (WebKit,
   `phone-680`/`phone-700`: wider phones at the floor's height, where the own tile reaches 36px) on the
-  anchor, the switches, the strips' capacity and the replay, iPhone 13 portrait, the notch phone (the spec's
+  anchor, the switches, the strips' capacity and the replay, 1024x510 (`tablet-short`: a wide board under a
+  phone's 520px height) on the replay's opening, round list and double ron, iPhone 13 portrait, the notch phone (the spec's
   capture model, 844x390 with insets of 47, 47 and 21, asserted on every page) and the 667x375 floor
   (WebKit). Every viewport from 1366x657 through the wider phones is opt-in (`optIn`), checking only the
   pages that name it. The two engines run at once and each checks several pages at a time, each in its own
@@ -568,13 +592,25 @@ follows holds through the rebuild to it.
   floor) or, in landscape, no larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   notice over a tile (only its shown part where a page names a known cut, `noticeCutAt`, until Step 4.2), a plate, a decision button or the panel
   over the board, two names on a line of a result's scores under 12px apart, a result's score figure wrapped past a line, a decision
-  button not wholly inside its container (never scrolled or clipped out of it), and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)
-  under 40x40 or off the screen, or a round list off the board; on a desktop, on
-  replay controls whose narration reads under 13px or past three lines,
-  round and step under 13px or past two, or incompleteness under 12px; on a landscape phone, a
-replay narration showing fewer than three lines at once or leaving its column. On the replay's route,
-in both engines, a click, Enter and Space on Next must each step exactly once; the replay stories that
-show a board run on the browser's clock for that reason, so their input keeps its real timing. On the anchor
+  button not wholly inside its container (never scrolled or clipped out of it), and decision, leave or replay buttons (its moves, autoplay, its options, the round list's close and shown rows)
+  under 40x40 or off the screen, or a round list off the board. In landscape on a supported screen the replay fails
+  on a control its board's state asks for not shown (the five moves, either end with the desktop's chrome, every option
+  but under a panel on a smaller board, where only the round list's toggle is asked for), band controls off the board,
+  over each other, over a tile, a badge or the centre, or under a panel over the board, the open round list hiding none
+  of them from these checks; its status fails leaving its place, the board or the screen, overflowing its place
+  sideways, or down with no way to scroll, over a tile or a badge (over the panel and the controls while one shows), a
+  part its state asks for not drawn a line high (the position; the narration but in the compact status; the
+  incompleteness where the replay has one; the end's mark in the compact status at its end), its narration and
+  position under 13px and its incompleteness and end mark under 12px, on a desktop window (800x600 included) its
+  narration past three lines, its position past two and its incompleteness past four, and, with no panel, fewer than
+  three of the narration's lines (or all it has) in view at once; upright, a control off the board or the position
+  not shown on it clear of a panel. On the replay's route,
+in both engines, a click, Enter and Space on Next must each step exactly once, the narration must be in the
+accessibility tree once, a step must record exactly one non-empty text in its live region, its new narration, and
+autoplay at its fastest must record none (the reader's speed restored after); the replay stories that
+show a board run on the browser's clock for that reason, so their input keeps its real timing. On the story whose
+step throws (its final standings' drawing throws), at desktop-1440 and the 667x375 floor, a second page in the same
+context steps once and must show the failure screen with its ways back and the error on the console. On the anchor
 checkpoints (the riichi toggle on and off), the worst board, a round result and the switches beside furiten, at the
 spec's three viewports and the narrow desktop (`CONTRAST_VIEWPORTS`: the smallest faces at one device pixel to a CSS
 pixel), every text, mark and face's glyph the page shows (a held-back face included) must keep 4.5:1 against what it is
@@ -605,7 +641,7 @@ Enter on Auto win must each turn it once, sending nothing. It also fails on a ro
   without Stay focused and the board inert, lets Tab out, or that Escape does not close with the focus back on the corner's
   control (`game-leave-question`), any other panel that
   does not fit, a panel over a landscape board covering the
-  page's corner, an aside that
+  page's corner, a storybook's aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, on a tile sprite that never loaded or a face whose
   symbol it lacks, and on a page whose face (Build) did not load: its FontFace `loaded` and

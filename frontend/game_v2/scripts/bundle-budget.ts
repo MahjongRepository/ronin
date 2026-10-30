@@ -74,12 +74,16 @@ interface RouteBudget {
  * ledger and its incomplete note. Size is optimised later, outside the redesign.
  * The storybook's JS re-set on 2026-10-31 from 74 / 18 to 116 / 23.5 at 105.0 / 21.1: the sparse and interrupted
  * stories run two more transcripts (the first-turn wins) and the out-of-step branch.
+ * The replay's CSS re-set on 2026-10-31 from 8.9 / 2.8 to 13.5 / 3.8 at 12.0 / 2.7: its controls moved onto the
+ * board's band and its status into the notices' place, each placed per viewport from the board's lengths, the options
+ * in two rows of two where the band is short, and a panel over the board leaving them free (a smaller board's compact
+ * status beside the moves).
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
     replay: {
         chunk: "src/views/replay.ts",
-        css: { gzip: 2.8, raw: 8.9 },
+        css: { gzip: 3.8, raw: 13.5 },
         js: { gzip: 11.1, raw: 32.5 },
     },
     standings: {

@@ -357,8 +357,21 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   readable at the floor viewport. Decision: the controls take the foreground band outside the own
   river's capacity reach, the moves in the switches' place and the options in the decisions' place,
   those that do not fit beside the reach on a phone in a row above before the right strip; the
-  position and narration share the notices' place, under any notice. Loading, not found, incomplete
-  and damaged replays each say so; an incomplete one shows no result for its unfinished round.
+  position and narration share the notices' place, under any notice. Decision: the moves are a round
+  back, a step back, play (in the accent, the player's own action), a step on and a round on, with
+  either end too where the switches' place holds seven (a desktop's chrome; elsewhere the round list's
+  first row and its foot, Last step, always in view, reach them by touch); the options are speed, the viewpoint,
+  hide hands and the round list, in two rows of two where the band holds fewer than four, the round
+  list's toggle in the band. A panel over a replay's board never covers the controls, so the replay
+  always moves on. Decision, a panel-only exception: on a board smaller than a desktop's chrome a panel
+  takes all but the moves' row, the options hide but the round list's toggle, and the position
+  stands between them, compact, with an incomplete recording's "Ends here" at its end; the narration
+  is then read out only, since the panel shows the same stop, and the panel's tiles keep their size,
+  its content scrolling with its pager and action in reach. The options return as the panel closes.
+  The narration is announced once, by a live region of its own, and is silent while autoplay runs.
+  Loading, not found, incomplete
+  and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
+  screen); an incomplete one shows no result for its unfinished round.
 - **Material and type.** Ivory tile faces with room around the glyph, a small consistent edge and
   shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
   backs in one quiet colour. Decision: the face artwork (the committed SVG set) stays; the room

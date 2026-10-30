@@ -24,6 +24,8 @@ export const SHORT_DESKTOP = "desktop-short";
 export const NARROW_DESKTOP = "desktop-narrow";
 /** A large desktop (2560x1440), where the chrome steps up: a control's height against the band. */
 export const LARGE_DESKTOP = "desktop-large";
+/** A short tablet's or a small laptop's window (1024x510): wide, but under the phone board's 520px height. */
+export const SHORT_TABLET = "tablet-short";
 
 /**
  * Laptop windows on either side of the short desktop's 760px: 1280x720 and 1536x730 share the band's corners,
@@ -143,6 +145,16 @@ export const VIEWPORTS: readonly Viewport[] = [
     },
     ...LAPTOP_VIEWPORTS,
     ...SMALL_WINDOW_VIEWPORTS,
+    {
+        context: { viewport: { height: 510, width: 1024 } },
+        desktop: false,
+        engine: chromium,
+        name: SHORT_TABLET,
+        optIn: true,
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
     {
         context: { viewport: { height: 1440, width: 2560 } },
         desktop: true,

@@ -50,6 +50,11 @@ interface GameBoardProps {
     /** The play switches, in their slot on the foreground band's side away from the decisions. */
     readonly switches?: TemplateResult;
     /**
+     * A replay's controls, over the foreground band in the switches' and the decisions' places (a board that shows
+     * them plays no hand), and what it shows in the notices' place under any notice (its position and narration).
+     */
+    readonly replay?: { readonly controls: TemplateResult; readonly status: TemplateResult };
+    /**
      * What Escape does once no badge is pinned (stepping back from a decision's step), given the board; none when it
      * does nothing. An Escape something on the board already took (a panel's) is left alone.
      */
@@ -138,20 +143,30 @@ function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, 
 }
 
 /**
- * What the decision controls' place reads of the right strip, which a phone's column stands beside: its hand's and
- * melds' lengths, its deepest meld and its oldest, which a second line of its melds starts with, so the column ends
- * before that line.
+ * What a place beside a side strip reads of it (the decisions' and the replay's options beside the right strip, the
+ * notices beside the left): its hand's and melds' lengths, its deepest meld and its oldest, which a second line of its
+ * melds starts with, so the place stays clear of that line.
  */
-function rightStripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
+function sideStripStyle(
+    side: "left" | "right",
+    player: BoardPlayerDisplay | null,
+): Readonly<Record<string, string>> {
     const style = stripStyle(player);
     const oldest = player?.melds[0];
     return Object.fromEntries([
         ...["--hand-n", "--drawn", "--meld-n", "--meld-units", "--meld-deep"].map((name) => [
-            `--right${name.slice(1)}`,
+            `--${side}${name.slice(1)}`,
             style[name],
         ]),
-        ["--right-oldest-deep", String(oldest === undefined ? 0 : meldDepth(oldest))],
+        [`--${side}-oldest-deep`, String(oldest === undefined ? 0 : meldDepth(oldest))],
     ]);
+}
+
+function seatPlayer(
+    state: BoardDisplayState | null,
+    seat: SeatPosition,
+): BoardPlayerDisplay | null {
+    return state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null;
 }
 
 /** What the own row's melds scale from to end before the board's edge: how many there are and how long, in tiles. */
@@ -412,6 +427,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     const boardClass = [
         "game-board",
         props.localHand ? "game-board--play" : "",
+        props.replay ? "game-board--replay" : "",
         props.debug ? "game-board--debug" : "",
         scoreDiff.pinned === null ? "" : `game-board--diff-${scoreDiff.pinned}`,
     ]
@@ -443,16 +459,17 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         <div class="${boardClass}" @click=${unpinOnClickElsewhere} @keydown=${onKey}>
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
-                <div class="board-table">
+                <div class="board-table" style=${styleMap(sideStripStyle("left", seatPlayer(state, "left")))}>
                     ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                     ${state ? CenterInfo(state.center, state.nameplates) : EmptyCenterArea()}
                     ${STRIP_SEATS.map((seat) => Strip(seat, state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null))}
                     ${state ? DoraDisplay(state.center) : ""}
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
-                    ${props.actions ? html`<div class="board-actions" data-area="actions" style=${styleMap(rightStripStyle(state?.players[1] ?? null))}>${props.actions}</div>` : ""}
+                    ${props.actions ? html`<div class="board-actions" data-area="actions" style=${styleMap(sideStripStyle("right", seatPlayer(state, "right")))}>${props.actions}</div>` : ""}
                     ${props.switches ?? ""}
-                    ${props.notices ? BoardNotices(props.notices) : ""}
+                    ${props.replay ? html`<div class="board-replay" style=${styleMap(sideStripStyle("right", seatPlayer(state, "right")))}>${props.replay.controls}</div>` : ""}
+                    ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
                     ${props.callouts ? Callouts(props.callouts, state) : ""}
                 </div>
                 <div class="board-local" style=${styleMap(ownMeldStyle(bottom))}>

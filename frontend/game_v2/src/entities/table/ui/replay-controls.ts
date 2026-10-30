@@ -26,17 +26,7 @@ export type StepDirection = "next" | "prev";
 export const STEP_BUTTON_ATTRIBUTE = "data-step";
 
 export interface ReplayControlsProps {
-    readonly display: Pick<
-        ReplayDisplay,
-        | "endNotice"
-        | "honbaLabel"
-        | "incomplete"
-        | "moves"
-        | "narration"
-        | "roundName"
-        | "roundTitle"
-        | "step"
-    >;
+    readonly moves: ReplayMoves;
     readonly playback: ReplayPlayback;
     readonly roundListOpen: boolean;
     readonly onToggleRoundList: () => void;
@@ -49,6 +39,15 @@ export interface ReplayControlsProps {
     readonly onCycleSpeed: () => void;
     readonly onSwitchView: () => void;
     readonly onToggleHands: () => void;
+}
+
+export interface ReplayStatusProps {
+    readonly display: Pick<
+        ReplayDisplay,
+        "endNotice" | "honbaLabel" | "incomplete" | "narration" | "roundTitle" | "step"
+    >;
+    /** Autoplay runs, so the narration is not read out at each of its stops. */
+    readonly playing: boolean;
 }
 
 type MoveName = keyof ReplayMoves;
@@ -71,23 +70,17 @@ const MOVE_LABELS: Readonly<Record<MoveName, string>> = {
     prevRound: "Previous round",
 };
 
-const MOVE_ORDER: readonly MoveName[] = ["first", "prevRound", "prev", "next", "nextRound", "last"];
-
 const OPTION_ICONS = {
     hands: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
     handsHidden: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM4 4l16 16",
     pause: "M9 5v14M15 5v14",
     play: "M8 5l11 7-11 7z",
+    rounds: "M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1",
     view: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM16.2 7.8l-2.1 6.3-6.3 2.1 2.1-6.3z",
 } as const;
 
-function MoveIcon(path: string): TemplateResult {
+function Icon(path: string): TemplateResult {
     return html`<svg class="replay-controls__icon" viewBox="0 0 24 24" aria-hidden="true">${svg`<path d=${path} />`}</svg>`;
-}
-
-/** The moves a held pointer repeats. */
-function isStepDirection(name: MoveName): name is StepDirection {
-    return name === "next" || name === "prev";
 }
 
 /** A step's button, which steps from a pointer's press and repeats while held; the view takes its click. */
@@ -105,17 +98,12 @@ function StepButton(
         ?disabled=${target === null}
         @pointerdown=${(event: PointerEvent) => props.onStepPress(direction, event)}
         @click=${(event: MouseEvent) => props.onStepClick(direction, event)}
-    >${MoveIcon(MOVE_ICONS[direction])}</button>`;
+    >${Icon(MOVE_ICONS[direction])}</button>`;
 }
 
-function MoveButton(
-    name: MoveName,
-    target: ReplayCursor | null,
-    props: ReplayControlsProps,
-): TemplateResult {
-    if (isStepDirection(name)) {
-        return StepButton(name, target, props);
-    }
+/** A jump's button: to a round's deal or either end. */
+function JumpButton(name: MoveName, props: ReplayControlsProps): TemplateResult {
+    const target = props.moves[name];
     return html`<button
         type="button"
         class="replay-controls__move replay-controls__move--${name}"
@@ -127,7 +115,21 @@ function MoveButton(
                 props.onMove(target);
             }
         }}
-    >${MoveIcon(MOVE_ICONS[name])}</button>`;
+    >${Icon(MOVE_ICONS[name])}</button>`;
+}
+
+/** Autoplay's switch, the player's own action among the moves: the accent. */
+function PlayButton(props: ReplayControlsProps): TemplateResult {
+    const { playing } = props.playback;
+    return html`<button
+        type="button"
+        class="replay-controls__play"
+        aria-label="Autoplay"
+        title="Autoplay"
+        aria-pressed=${String(playing)}
+        ?disabled=${!playing && props.moves.next === null}
+        @click=${props.onTogglePlay}
+    >${Icon(playing ? OPTION_ICONS.pause : OPTION_ICONS.play)}</button>`;
 }
 
 interface OptionProps {
@@ -136,7 +138,6 @@ interface OptionProps {
     readonly title?: string;
     /** A switch's state; omitted for a button that only acts. */
     readonly pressed?: boolean;
-    readonly disabled?: boolean;
     readonly onClick: () => void;
     readonly content: TemplateResult | string;
 }
@@ -148,49 +149,66 @@ function OptionButton(props: OptionProps): TemplateResult {
         aria-label=${props.label}
         title=${props.title ?? props.label}
         aria-pressed=${props.pressed === undefined ? nothing : String(props.pressed)}
-        ?disabled=${props.disabled === true}
         @click=${props.onClick}
     >${props.content}</button>`;
 }
 
-/** Autoplay and its speed, then the seat at the bottom and whether the other hands show. */
-function PlaybackOptions(props: ReplayControlsProps): TemplateResult {
-    const { playback } = props;
-    const speed = `${playback.speed}\u00D7`;
-    return html`<div class="replay-controls__options" role="group" aria-label="Play and view">
-        ${OptionButton({
-            content: MoveIcon(playback.playing ? OPTION_ICONS.pause : OPTION_ICONS.play),
-            disabled: !playback.playing && props.display.moves.next === null,
-            kind: "play",
-            label: "Autoplay",
-            onClick: props.onTogglePlay,
-            pressed: playback.playing,
-        })}
-        ${OptionButton({
-            content: speed,
-            kind: "speed",
-            label: `Autoplay speed ${speed}, change`,
-            onClick: props.onCycleSpeed,
-            title: "Autoplay speed",
-        })}
-        ${OptionButton({
-            content: MoveIcon(OPTION_ICONS.view),
-            kind: "view",
-            label: `Viewing from ${playback.viewName}; view from ${playback.nextViewName}`,
-            onClick: props.onSwitchView,
-            title: `View from ${playback.nextViewName}`,
-        })}
-        ${OptionButton({
-            content: MoveIcon(playback.hideHands ? OPTION_ICONS.handsHidden : OPTION_ICONS.hands),
-            kind: "hands",
-            label: "Hide the other hands",
-            onClick: props.onToggleHands,
-            pressed: playback.hideHands,
-        })}
-    </div>`;
+function RoundsButton(props: ReplayControlsProps): TemplateResult {
+    return html`<button
+        type="button"
+        class="replay-controls__option replay-controls__option--rounds"
+        aria-label="Rounds"
+        title="Rounds"
+        aria-expanded=${props.roundListOpen ? "true" : "false"}
+        aria-controls=${REPLAY_ROUND_LIST_ID}
+        @click=${props.onToggleRoundList}
+    >${Icon(OPTION_ICONS.rounds)}</button>`;
 }
 
-/** Why the replay is not the whole game, and at its last stop that it ends there, which the label says always. */
+/**
+ * The replay's controls over the foreground band: the moves in the play switches' place (a round back, a step back,
+ * autoplay, a step on, a round on, and either end where the place holds them), and the options in the decisions'
+ * place (autoplay's speed, the seat at the bottom, the other hands and the round list), two rows of two where the band
+ * beside the own river's reach is too short for all four. A move that cannot go is disabled.
+ */
+export function ReplayControls(props: ReplayControlsProps): TemplateResult {
+    const { playback } = props;
+    const speed = `${playback.speed}×`;
+    return html`
+        <div class="replay-controls replay-controls__moves" role="group" aria-label="Move through the replay">
+            ${JumpButton("first", props)}${JumpButton("prevRound", props)}${StepButton("prev", props.moves.prev, props)}${PlayButton(props)}${StepButton("next", props.moves.next, props)}${JumpButton("nextRound", props)}${JumpButton("last", props)}
+        </div>
+        <div class="replay-controls replay-controls__options" role="group" aria-label="Speed and view">
+            ${OptionButton({
+                content: speed,
+                kind: "speed",
+                label: `Autoplay speed ${speed}, change`,
+                onClick: props.onCycleSpeed,
+                title: "Autoplay speed",
+            })}
+            ${OptionButton({
+                content: Icon(OPTION_ICONS.view),
+                kind: "view",
+                label: `Viewing from ${playback.viewName}; view from ${playback.nextViewName}`,
+                onClick: props.onSwitchView,
+                title: `View from ${playback.nextViewName}`,
+            })}
+            ${OptionButton({
+                content: Icon(playback.hideHands ? OPTION_ICONS.handsHidden : OPTION_ICONS.hands),
+                kind: "hands",
+                label: "Hide the other hands",
+                onClick: props.onToggleHands,
+                pressed: playback.hideHands,
+            })}
+            ${RoundsButton(props)}
+        </div>
+    `;
+}
+
+/**
+ * Why the replay is not the whole game, and at its last stop that it ends there; its detail in its title, and a short
+ * mark of the end a compact status shows in place of the detail (the detail is what assistive technology reads).
+ */
 function IncompleteNote(
     incomplete: ReplayIncompleteness | null,
     endNotice: string | null,
@@ -200,62 +218,34 @@ function IncompleteNote(
     }
     const atEnd = endNotice !== null;
     return html`<p
-        class="replay-controls__incomplete ${atEnd ? "replay-controls__incomplete--end" : ""}"
+        class="replay-status__incomplete ${atEnd ? "replay-status__incomplete--end" : ""}"
         role="status"
         title=${incomplete.detail}
     >
-        <strong class="replay-controls__incomplete-label">${incomplete.label}</strong>
-        <span class="replay-controls__incomplete-detail">${endNotice ?? incomplete.detail}</span>
+        <strong class="replay-status__incomplete-label">${incomplete.label}</strong>
+        <span class="replay-status__incomplete-detail">${endNotice ?? incomplete.detail}</span>
+        ${atEnd ? html`<span class="replay-status__incomplete-end" aria-hidden="true">Ends here</span>` : nothing}
     </p>`;
 }
 
-/** The note folded into the round's toggle as a mark where the column is too narrow for it, which the end words. */
-function roundMarkClass(incomplete: ReplayIncompleteness | null, endNotice: string | null): string {
-    if (incomplete === null) {
-        return "";
-    }
-    return endNotice === null
-        ? "replay-controls__round--incomplete"
-        : "replay-controls__round--end";
-}
-
 /**
- * The replay's controls beside its board: a replay that is not the whole game says so, and where it ends at its last
- * stop, the round and step open the round list, the narration tells what the stop shows (read out by a live region
- * that stays silent while autoplay runs), autoplay and the view have their switches, and the moves step, jump a
- * round, or go to either end; a move that cannot go anywhere is disabled.
+ * What the replay shows in the notices' place: the round and step, a replay that is not the whole game saying so (and
+ * where it ends at its last stop), and the narration of the stop, read out once by a live region of its own that
+ * stays empty while autoplay runs; the narration drawn is hidden from assistive technology, which reads that region.
  */
-export function ReplayControls(props: ReplayControlsProps): TemplateResult {
-    const { display } = props;
+export function ReplayStatus({ display, playing }: ReplayStatusProps): TemplateResult {
     const { step } = display;
-    return html`
-        ${IncompleteNote(display.incomplete, display.endNotice)}
-        <button
-            type="button"
-            class="replay-controls__round ${roundMarkClass(display.incomplete, display.endNotice)}"
-            aria-expanded=${props.roundListOpen ? "true" : "false"}
-            aria-controls=${REPLAY_ROUND_LIST_ID}
-            aria-label="Rounds: ${display.roundName}, step ${step.index} of ${step.count}"
-            @click=${props.onToggleRoundList}
-        >
-            <span class="replay-controls__round-name"
-                >${display.roundTitle}${
-                    display.honbaLabel === null
-                        ? nothing
-                        : html`<span class="replay-controls__honba">, ${display.honbaLabel}</span>`
-                }</span
-            >
-            <span class="replay-controls__step"
-                ><span class="replay-controls__step-word">Step </span>${step.index}/${step.count}</span
-            >
-        </button>
-        <div class="replay-controls__narration-room"><p class="replay-controls__narration">${display.narration}</p></div>
-        <p class="replay-controls__announcer" aria-live="polite">
-            ${props.playback.playing ? "" : display.narration}
+    return html`<div class="replay-status">
+        <p class="replay-status__position">
+            <span class="replay-status__round">${display.roundTitle}${
+                display.honbaLabel === null
+                    ? nothing
+                    : html`<span class="replay-status__honba">, ${display.honbaLabel}</span>`
+            }</span>
+            <span class="replay-status__step">Step ${step.index} of ${step.count}</span>
         </p>
-        ${PlaybackOptions(props)}
-        <div class="replay-controls__moves" role="group" aria-label="Move through the replay">
-            ${MOVE_ORDER.map((name) => MoveButton(name, display.moves[name], props))}
-        </div>
-    `;
+        ${IncompleteNote(display.incomplete, display.endNotice)}
+        <p class="replay-status__narration" aria-hidden="true">${display.narration}</p>
+        <p class="replay-status__announcer" aria-live="polite">${playing ? "" : display.narration}</p>
+    </div>`;
 }

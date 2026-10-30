@@ -158,7 +158,7 @@ function textOf(host: HTMLElement, selector: string): string | undefined {
 }
 
 function position(host: HTMLElement): string | undefined {
-    return textOf(host, ".replay-controls__round");
+    return textOf(host, ".replay-status__position");
 }
 
 /** Press `key` on `target` and say whether the page prevented its default. */
@@ -208,7 +208,7 @@ function positionsAfter(
 }
 
 function playing(host: HTMLElement): boolean {
-    return button(host, ".replay-controls__option--play").getAttribute("aria-pressed") === "true";
+    return button(host, ".replay-controls__play").getAttribute("aria-pressed") === "true";
 }
 
 function pointer(type: string, init: PointerEventInit = {}): PointerEvent {
@@ -271,6 +271,27 @@ async function answerNotFound(
     }
 }
 
+/** Final standings whose drawing, which every stop but a result asks for, throws once `fail` is called. */
+function standingsFailingOnCall(): {
+    readonly standings: FakeStandingsLoad;
+    readonly fail: () => void;
+} {
+    const standings = new FakeStandingsLoad();
+    const draws = { failing: false };
+    vi.spyOn(standings, "value").mockReturnValue(() => {
+        if (draws.failing) {
+            throw new Error("the board failed to draw");
+        }
+        return undefined;
+    });
+    return {
+        fail: () => {
+            draws.failing = true;
+        },
+        standings,
+    };
+}
+
 afterEach(() => {
     vi.restoreAllMocks();
     for (const mounted of mounts.splice(0)) {
@@ -284,8 +305,8 @@ describe("mountReplayView - moving", () => {
         const { host } = await mountLoadedReplay();
 
         expect(host.querySelector(".game-board")).not.toBeNull();
-        expect(position(host)).toBe("East 1 Step 1/28");
-        expect(textOf(host, ".replay-controls__narration")).toBe("East 1: Diana deals");
+        expect(position(host)).toBe("East 1 Step 1 of 28");
+        expect(textOf(host, ".replay-status__narration")).toBe("East 1: Diana deals");
         expect(button(host, ".replay-controls__move--prev").disabled).toBe(true);
     });
 
@@ -294,29 +315,29 @@ describe("mountReplayView - moving", () => {
 
         button(host, ".replay-controls__move--next").click();
         pressKey(rootOf(host), "ArrowRight");
-        expect(position(host)).toBe("East 1 Step 3/28");
+        expect(position(host)).toBe("East 1 Step 3 of 28");
 
         expect(wheel(element(host, ".game-board"), -100)).toBe(true);
-        expect(position(host)).toBe("East 1 Step 2/28");
+        expect(position(host)).toBe("East 1 Step 2 of 28");
     });
 
-    it("leaves the wheel to scroll beside the board and where no step goes", async () => {
+    it("leaves the wheel to the narration's place and to where no step goes", async () => {
         const { host } = await mountLoadedReplay();
 
-        expect(wheel(element(host, ".replay-controls__narration"), 100)).toBe(false);
+        expect(wheel(element(host, ".replay-status__narration"), 100)).toBe(false);
         expect(wheel(element(host, ".game-board"), -100)).toBe(false);
-        expect(position(host)).toBe("East 1 Step 1/28");
+        expect(position(host)).toBe("East 1 Step 1 of 28");
     });
 
     it("jumps to either end, with no way on from the last step", async () => {
         const { host } = await mountLoadedReplay();
 
         button(host, ".replay-controls__move--last").click();
-        expect(position(host)).toBe("East 1 Step 28/28");
+        expect(position(host)).toBe("East 1 Step 28 of 28");
         expect(button(host, ".replay-controls__move--next").disabled).toBe(true);
 
         button(host, ".replay-controls__move--first").click();
-        expect(position(host)).toBe("East 1 Step 1/28");
+        expect(position(host)).toBe("East 1 Step 1 of 28");
     });
 
     it("takes the arrow keys only inside its own root, so of two mounts only the targeted one moves", async () => {
@@ -327,8 +348,8 @@ describe("mountReplayView - moving", () => {
         pressKey(document.body, "ArrowRight");
 
         expect([position(first.host), position(second.host)]).toEqual([
-            "East 1 Step 1/28",
-            "East 1 Step 2/28",
+            "East 1 Step 1 of 28",
+            "East 1 Step 2 of 28",
         ]);
     });
 
@@ -354,7 +375,7 @@ describe("mountReplayView - keys", () => {
         pressKey(rootOf(host), "ArrowRight", { ctrlKey: true });
         pressKey(rootOf(host), "End", { metaKey: true });
 
-        expect(position(host)).toBe("East 1 Step 1/28");
+        expect(position(host)).toBe("East 1 Step 1 of 28");
     });
 
     it("moves a round with the up and down keys and to either end with Home and End", async () => {
@@ -369,11 +390,11 @@ describe("mountReplayView - keys", () => {
                 ),
             ),
         ).toEqual([
-            "East 2, 1 honba Step 1/85",
-            "East 1 Step 1/141",
-            "East 1 Step 1/141",
-            "East 3 Step 128/128",
-            "East 1 Step 1/141",
+            "East 2, 1 honba Step 1 of 85",
+            "East 1 Step 1 of 141",
+            "East 1 Step 1 of 141",
+            "East 3 Step 128 of 128",
+            "East 1 Step 1 of 141",
         ]);
     });
 
@@ -386,7 +407,7 @@ describe("mountReplayView - keys", () => {
         const onButton = [position(host), playing(host)];
         pressKey(rootOf(host), " ", SPACE);
 
-        expect(onButton).toEqual(["East 1 Step 1/28", false]);
+        expect(onButton).toEqual(["East 1 Step 1 of 28", false]);
         expect(playing(host)).toBe(true);
     });
 
@@ -400,7 +421,7 @@ describe("mountReplayView - keys", () => {
         pressKey(next, "Enter");
 
         expect(prevented).toEqual([true, true, true]);
-        expect(held).toEqual(["East 1 Step 11/11", "Alice South"]);
+        expect(held).toEqual(["East 1 Step 11 of 11", "Alice South"]);
         expect(textOf(host, ".round-end-result__title")).toBe("Charlie West");
     });
 
@@ -414,8 +435,8 @@ describe("mountReplayView - keys", () => {
         click(next, 0);
 
         expect(prevented).toEqual([true, true]);
-        expect(afterSpace).toEqual(["East 1 Step 2/28", false]);
-        expect(position(host)).toBe("East 1 Step 3/28");
+        expect(afterSpace).toEqual(["East 1 Step 2 of 28", false]);
+        expect(position(host)).toBe("East 1 Step 3 of 28");
     });
 
     it("switches autoplay, the view and the hands once per press however long the key is held", async () => {
@@ -449,30 +470,49 @@ describe("mountReplayView - keys", () => {
         const held = position(host);
         pressKey(root, "ArrowRight");
 
-        expect(held).toBe("East 1 Step 141/141");
-        expect(position(host)).toBe("East 2, 1 honba Step 1/85");
+        expect(held).toBe("East 1 Step 141 of 141");
+        expect(position(host)).toBe("East 2, 1 honba Step 1 of 85");
     });
 });
 
 describe("mountReplayView - autoplay", () => {
     it("plays on and pauses on a round's result, moving on from it when played again", async () => {
         const { clock, host } = await mountLoadedReplay("double_ron_on_honba", "?round=0&step=137");
-        button(host, ".replay-controls__option--play").click();
+        button(host, ".replay-controls__play").click();
 
         runTimers(clock);
         const paused = [position(host), playing(host), textOf(host, ".round-end-result__title")];
-        button(host, ".replay-controls__option--play").click();
+        button(host, ".replay-controls__play").click();
         clock.advanceTo(clock.now() + 800);
 
-        expect(paused).toEqual(["East 1 Step 141/141", false, "Exhaustive draw"]);
-        expect([position(host), playing(host)]).toEqual(["East 2, 1 honba Step 1/85", true]);
+        expect(paused).toEqual(["East 1 Step 141 of 141", false, "Exhaustive draw"]);
+        expect([position(host), playing(host)]).toEqual(["East 2, 1 honba Step 1 of 85", true]);
+    });
+
+    it("reads the narration out once by its own live region, which stays empty while autoplay runs", async () => {
+        const { clock, host } = await mountLoadedReplay();
+        function announced(): string[] {
+            return [...host.querySelectorAll("[aria-live='polite']")]
+                .map((region) => region.textContent.trim())
+                .filter((text) => text !== "");
+        }
+        button(host, ".replay-controls__move--next").click();
+        const stepped = [announced(), textOf(host, ".replay-status__narration")];
+
+        button(host, ".replay-controls__play").click();
+        clock.advanceTo(clock.now() + 1000);
+        const whilePlaying = [position(host), announced()];
+
+        expect(stepped).toEqual([["Diana discards East"], "Diana discards East"]);
+        expect(element(host, ".replay-status__narration").getAttribute("aria-hidden")).toBe("true");
+        expect(whilePlaying).toEqual(["East 1 Step 3 of 28", []]);
     });
 
     it("takes its speed from the reader's settings and keeps a change there", async () => {
         const { clock, host, savedPrefs } = await mountLoadedReplay("riichi", "?v=2", {
             prefs: { hideHands: false, speed: 4 },
         });
-        button(host, ".replay-controls__option--play").click();
+        button(host, ".replay-controls__play").click();
         const firstWait = clock.lastTimer().at;
 
         button(host, ".replay-controls__option--speed").click();
@@ -486,7 +526,7 @@ describe("mountReplayView - autoplay", () => {
     it("stops on a move the reader makes, when the page hides and on dispose", async () => {
         const { clock, dispose, hidePage, host } = await mountLoadedReplay();
         function playThen(stop: () => void): [boolean, string | undefined] {
-            button(host, ".replay-controls__option--play").click();
+            button(host, ".replay-controls__play").click();
             stop();
             runTimers(clock);
             return [playing(host), position(host)];
@@ -494,10 +534,10 @@ describe("mountReplayView - autoplay", () => {
 
         expect(playThen(() => button(host, ".replay-controls__move--next").click())).toEqual([
             false,
-            "East 1 Step 2/28",
+            "East 1 Step 2 of 28",
         ]);
-        expect(playThen(hidePage)).toEqual([false, "East 1 Step 2/28"]);
-        button(host, ".replay-controls__option--play").click();
+        expect(playThen(hidePage)).toEqual([false, "East 1 Step 2 of 28"]);
+        button(host, ".replay-controls__play").click();
         dispose();
         expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
     });
@@ -517,10 +557,10 @@ describe("mountReplayView - wheel and hold", () => {
                 }),
             ),
         ).toEqual([
-            "East 1 Step 141/141",
-            "East 1 Step 141/141",
-            "East 1 Step 141/141",
-            "East 2, 1 honba Step 1/85",
+            "East 1 Step 141 of 141",
+            "East 1 Step 141 of 141",
+            "East 1 Step 141 of 141",
+            "East 2, 1 honba Step 1 of 85",
         ]);
     });
 
@@ -534,7 +574,7 @@ describe("mountReplayView - wheel and hold", () => {
         const taken = [wheel(element(host, ".round-end-result"), -100), pressKey(pager, "Home")];
 
         expect(taken).toEqual([false, false]);
-        expect(position(host)).toBe("East 1 Step 11/11");
+        expect(position(host)).toBe("East 1 Step 11 of 11");
     });
 
     it("steps once for a trackpad's small ticks until they add up", async () => {
@@ -545,8 +585,8 @@ describe("mountReplayView - wheel and hold", () => {
         const before = position(host);
         wheel(board, 12);
 
-        expect([taken, before]).toEqual([[true, true], "East 1 Step 1/28"]);
-        expect(position(host)).toBe("East 1 Step 2/28");
+        expect([taken, before]).toEqual([[true, true], "East 1 Step 1 of 28"]);
+        expect(position(host)).toBe("East 1 Step 2 of 28");
     });
 
     it("repeats a held step button after a delay and on a beat, pausing at a round's result", async () => {
@@ -568,11 +608,11 @@ describe("mountReplayView - wheel and hold", () => {
                 ].map((at) => () => clock.advanceTo(at)),
             ),
         ).toEqual([
-            "East 1 Step 138/141",
-            "East 1 Step 139/141",
-            "East 1 Step 140/141",
-            "East 1 Step 141/141",
-            "East 1 Step 141/141",
+            "East 1 Step 138 of 141",
+            "East 1 Step 139 of 141",
+            "East 1 Step 140 of 141",
+            "East 1 Step 141 of 141",
+            "East 1 Step 141 of 141",
         ]);
     });
 
@@ -591,7 +631,7 @@ describe("mountReplayView - wheel and hold", () => {
             () => click(next, 0),
         ]);
 
-        expect(shown).toEqual(["East 1 Step 2/28", "East 1 Step 3/28"]);
+        expect(shown).toEqual(["East 1 Step 2 of 28", "East 1 Step 3 of 28"]);
         expect(capture).not.toHaveBeenCalled();
     });
 
@@ -605,11 +645,15 @@ describe("mountReplayView - wheel and hold", () => {
             () => clock.advanceTo(HOLD_DELAY_MS + HOLD_REPEAT_MS),
         ]);
         next.dispatchEvent(pointer("pointerdown"));
-        button(host, ".replay-controls__option--play").click();
+        button(host, ".replay-controls__play").click();
         clock.advanceTo(clock.now() + HOLD_DELAY_MS);
 
-        expect(afterKey).toEqual(["East 1 Step 7/28", "East 1 Step 6/28", "East 1 Step 6/28"]);
-        expect([position(host), playing(host)]).toEqual(["East 1 Step 7/28", true]);
+        expect(afterKey).toEqual([
+            "East 1 Step 7 of 28",
+            "East 1 Step 6 of 28",
+            "East 1 Step 6 of 28",
+        ]);
+        expect([position(host), playing(host)]).toEqual(["East 1 Step 7 of 28", true]);
     });
 
     it("pauses a hold while the pointer is off the button and goes on when it comes back still pressed", async () => {
@@ -633,7 +677,7 @@ describe("mountReplayView - wheel and hold", () => {
                     clock.advanceTo(at);
                 }),
             ),
-        ).toEqual(["East 1 Step 2/28", "East 1 Step 3/28", "East 1 Step 3/28"]);
+        ).toEqual(["East 1 Step 2 of 28", "East 1 Step 3 of 28", "East 1 Step 3 of 28"]);
     });
 });
 
@@ -650,7 +694,7 @@ describe("mountReplayView - view", () => {
         clock.advanceTo(REPLAY_URL_WRITE_INTERVAL_MS);
 
         expect([position(host), textOf(host, ".round-end-result__title")]).toEqual([
-            "East 1 Step 11/11",
+            "East 1 Step 11 of 11",
             "Charlie West",
         ]);
         expect(textOf(host, ".board-local .nameplate__name")).not.toBe(nameplate);
@@ -665,7 +709,7 @@ describe("mountReplayView - view", () => {
 
         expect(shownBacks).toBe(0);
         expect(host.querySelectorAll(".board-strip .tile-back").length).toBeGreaterThan(0);
-        expect(textOf(host, ".replay-controls__narration")).toBe("Alice draws");
+        expect(textOf(host, ".replay-status__narration")).toBe("Alice draws");
         expect(savedPrefs).toEqual([{ hideHands: true, speed: 1 }]);
     });
     it("shows the hands a round's result reveals face up while the other hands hide", async () => {
@@ -742,15 +786,15 @@ describe("mountReplayView - standings", () => {
         const shown = [position(host), textOf(host, ".round-end-result__title")];
         pressOnFocus(host, "ArrowRight");
 
-        expect(shown).toEqual(["East 3, 2 honba Step 141/141", "Exhaustive draw"]);
-        expect(position(host)).toBe("East 4, 3 honba Step 1/141");
+        expect(shown).toEqual(["East 3, 2 honba Step 141 of 141", "Exhaustive draw"]);
+        expect(position(host)).toBe("East 4, 3 honba Step 1 of 141");
     });
 });
 
 describe("mountReplayView - round list", () => {
     it("opens with the focus on the current round and its result", async () => {
         const { host } = await mountLoadedReplay("double_ron_on_honba", "?round=1&step=4");
-        const toggle = button(host, ".replay-controls__round");
+        const toggle = button(host, ".replay-controls__option--rounds");
 
         toggle.click();
 
@@ -763,22 +807,33 @@ describe("mountReplayView - round list", () => {
 
     it("moves between rounds by key without stepping the replay, then opens the chosen deal", async () => {
         const { host } = await mountLoadedReplay("double_ron_on_honba", "?round=1&step=4");
-        button(host, ".replay-controls__round").click();
+        button(host, ".replay-controls__option--rounds").click();
 
         const below = pressOnFocus(host, "ArrowDown");
         pressOnFocus(host, "ArrowRight");
-        expect(position(host)).toBe("East 2, 1 honba Step 5/85");
+        expect(position(host)).toBe("East 2, 1 honba Step 5 of 85");
 
         assert(below instanceof HTMLButtonElement);
         below.click();
         expect(host.querySelector(".round-list")).toBeNull();
-        expect(position(host)).toMatch(/^East 2, 2 honba Step 1[/]/);
-        expect(document.activeElement).toBe(button(host, ".replay-controls__round"));
+        expect(position(host)).toMatch(/^East 2, 2 honba Step 1 of/);
+        expect(document.activeElement).toBe(button(host, ".replay-controls__option--rounds"));
+    });
+
+    it("goes from its last row to the replay's last stop, the touch way to the end", async () => {
+        const { host } = await mountLoadedReplay("double_ron_on_honba");
+        button(host, ".replay-controls__option--rounds").click();
+
+        button(host, ".round-list__row--end").click();
+
+        expect(host.querySelector(".round-list")).toBeNull();
+        expect(position(host)).toBe("East 3 Step 128 of 128");
+        expect(button(host, ".replay-controls__move--next").disabled).toBe(true);
     });
 
     it("closes on Escape and on a click outside it, not on one inside", async () => {
         const { host } = await mountLoadedReplay("double_ron_on_honba");
-        button(host, ".replay-controls__round").click();
+        button(host, ".replay-controls__option--rounds").click();
 
         host.querySelector<HTMLElement>(".round-list__head")?.click();
         expect(host.querySelector(".round-list")).not.toBeNull();
@@ -786,7 +841,7 @@ describe("mountReplayView - round list", () => {
         document.body.click();
         expect(host.querySelector(".round-list")).toBeNull();
 
-        button(host, ".replay-controls__round").click();
+        button(host, ".replay-controls__option--rounds").click();
         pressKey(document.activeElement ?? host, "Escape");
         expect(host.querySelector(".round-list")).toBeNull();
     });
@@ -798,7 +853,7 @@ describe("mountReplayView - address", () => {
             "double_ron_on_honba",
             "?v=2&round=2&step=3",
         );
-        expect(position(host)).toMatch(/^East 2, 2 honba Step 4[/]/);
+        expect(position(host)).toMatch(/^East 2, 2 honba Step 4 of /);
         expect(written).toEqual(["?v=2&round=2&step=3&seat=1"]);
 
         button(host, ".replay-controls__move--next").click();
@@ -832,7 +887,7 @@ describe("mountReplayView - loading", () => {
         clock.advanceTo(500);
         await answer({ ok: true, text: engineReplayText("riichi") });
 
-        expect(position(host)).toBe("East 1 Step 1/28");
+        expect(position(host)).toBe("East 1 Step 1 of 28");
     });
 
     it("says the replay was not found once its retries are spent, with a way to try again and back", async () => {
@@ -873,10 +928,9 @@ describe("mountReplayView - loading", () => {
         const { host } = await mountLoadedReplay("truncated_mid_round");
         button(host, ".replay-controls__move--last").click();
 
-        expect(textOf(host, ".replay-controls__incomplete--end")).toBe(
-            "Incomplete The recording ends here, before the game's end",
+        expect(textOf(host, ".replay-status__incomplete--end")).toBe(
+            "Incomplete The recording ends here, before the game's end Ends here",
         );
-        expect(host.querySelector(".replay-controls__round--end")).not.toBeNull();
     });
 
     it("says a replay that throws while it is read cannot be shown, without a retry, the error on the console", async () => {
@@ -891,6 +945,49 @@ describe("mountReplayView - loading", () => {
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
         expect(host.querySelector(".replay-state__links button")).toBeNull();
         expect(logged).toHaveBeenCalledWith("The replay could not be shown:", thrown);
+    });
+
+    it("says a replay that throws while a held button repeats cannot be shown, arming no further repeat", async () => {
+        const { fail, standings } = standingsFailingOnCall();
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        const { clock, dispose, host } = await mountLoadedReplay("riichi", "?v=2", { standings });
+
+        button(host, ".replay-controls__move--next").dispatchEvent(pointer("pointerdown"));
+        const pressed = position(host);
+        fail();
+        clock.advanceTo(HOLD_DELAY_MS);
+        const shown = [
+            pressed,
+            textOf(host, ".replay-state__title"),
+            clock.timers.find((timer) => timer.at === HOLD_DELAY_MS + HOLD_REPEAT_MS),
+        ];
+        dispose();
+
+        expect([...shown, clock.timers.filter((timer) => !timer.cancelled)]).toEqual([
+            "East 1 Step 2 of 28",
+            "This replay cannot be shown",
+            undefined,
+            [],
+        ]);
+    });
+
+    it("says a replay that throws while autoplay steps cannot be shown, its timers stopped and the error on the console", async () => {
+        const thrown = new Error("standings failed to draw");
+        const standings = new FakeStandingsLoad();
+        vi.spyOn(standings, "value").mockReturnValue(() => {
+            throw thrown;
+        });
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+        const { clock, host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=140", {
+            standings,
+        });
+
+        button(host, ".replay-controls__play").click();
+        runTimers(clock);
+
+        expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
+        expect(logged).toHaveBeenCalledWith("The replay could not be shown:", thrown);
+        expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
     });
 
     it("clears its host on dispose and takes no key afterwards", async () => {

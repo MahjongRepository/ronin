@@ -19,23 +19,8 @@ $preview-tile-share: 0.42;
 /* The decisions' place: a desktop's band row past the switches' slot to the hand's right end; a phone's column beside
    the right river's reach and the right strip as drawn, down to the band, whose row starts past the own river's reach. */
 .board-actions {
-    --right-hand-len: calc(var(--right-hand-n) * var(--bw) + var(--right-drawn) * var(--dg));
-    --right-melds-len: calc(
-        var(--right-meld-n) * (var(--g) + 2px) + var(--right-meld-units) * var(--rw)
-    );
-    --right-len: calc(var(--right-hand-len) + var(--right-melds-len));
-    --right-shallow: clamp(0, (1.5 - var(--right-meld-deep)) * 1000, 1);
-    --right-room-top: max(
-        var(--m) - 8px,
-        var(--corner-bottom) - var(--corner-in) * var(--right-shallow) * 100000
-    );
-    --right-room: calc(var(--right-origin) - var(--right-room-top) - 8px);
-    --right-line1: max(var(--bh), min(1, var(--right-meld-n)) * var(--right-meld-deep) * var(--rw));
-    --right-line2: calc(var(--right-line1) + 4px + var(--right-oldest-deep) * var(--rw));
-    --right-depth: max(
-        var(--right-line1),
-        min(var(--right-line2), (var(--right-len) - var(--right-room)) * 1000)
-    );
+    @include right-strip-depth;
+
     --upper-clear: max(
         0px,
         var(--m) + var(--right-depth) + #{$desktop-gap} - (100cqw - var(--own-hand-right))
