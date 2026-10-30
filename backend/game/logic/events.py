@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType, PromptKind
+from game.logic.enums import CallType, GameEndCause, GameErrorCode, MeldViewType, PromptKind
 from game.logic.types import (
     AvailableActionItem,
     GamePlayerInfo,
@@ -244,6 +244,7 @@ class GameEndedEvent(GameEvent):
     leftover_riichi_bonus: WireScore = Field(serialization_alias="lb")
     leftover_riichi_sticks: int = Field(serialization_alias="lr")
     num_rounds: int = Field(serialization_alias="nr")
+    end_cause: GameEndCause = Field(serialization_alias="ec")
 
 
 class FuritenEvent(GameEvent):

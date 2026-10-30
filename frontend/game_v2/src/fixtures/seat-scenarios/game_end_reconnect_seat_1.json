@@ -602,7 +602,7 @@
     {"at": 536000, "kind": "received", "payload": {"s": 0, "t": 13}},
     {"at": 536000, "kind": "received", "payload": {"d": 598, "t": 2}},
     {"at": 536000, "kind": "received", "label": "last round end", "payload": {"ns": [0, 1, 2, 3], "rt": 3, "sch": {"0": 0, "1": 0, "2": 0, "3": 0}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "th": [], "ts": []}},
-    {"at": 536000, "kind": "received", "label": "game end", "payload": {"lb": 0, "lr": 0, "nr": 5, "st": [{"fs": 35, "s": 0, "sc": 250}, {"fs": 5, "s": 1, "sc": 250}, {"fs": -15, "s": 2, "sc": 250}, {"fs": -25, "s": 3, "sc": 250}], "t": 10, "ws": 0}},
+    {"at": 536000, "kind": "received", "label": "game end", "payload": {"ec": "length", "lb": 0, "lr": 0, "nr": 5, "st": [{"fs": 35, "s": 0, "sc": 250}, {"fs": 5, "s": 1, "sc": 250}, {"fs": -15, "s": 2, "sc": 250}, {"fs": -25, "s": 3, "sc": 250}], "t": 10, "ws": 0}},
     {"at": 536000, "code": 1000, "kind": "closed", "reason": "game_ended"}
   ]
 }

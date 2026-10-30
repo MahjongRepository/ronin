@@ -6,6 +6,7 @@ import {
     type RoundRecord,
     type TableState,
 } from "@/entities/table/model/types";
+import { GAME_END_CAUSE, type GameEndCause } from "@/shared/protocol";
 
 import { drawName } from "./draw-name";
 import { formatDelta, formatPoints } from "./round-end-display";
@@ -66,8 +67,16 @@ export interface LeftoverSticks {
     readonly cells: readonly string[];
 }
 
+/** How the game came to its end, always as a completed game: the rule the server's engine ended it by, and where. */
+export interface GameEnding {
+    readonly kind: GameEndCause;
+    /** "Completed by tobi in East 3", "Completed after South 4". */
+    readonly text: string;
+}
+
 /** The final standings as the panel shows them: a column per seat, a ledger row per round, the leftover sticks. */
 export interface StandingsDisplay {
+    readonly ending: GameEnding;
     readonly seats: readonly StandingsSeat[];
     readonly ledger: readonly LedgerRow[];
     /**
@@ -218,6 +227,49 @@ function leftoverSticks(end: GameEndResult, seats: readonly number[]): LeftoverS
 }
 
 /**
+ * The game's last round, named: the ledger's last row where it holds every round, else the round the table stands on
+ * while it is in step with the server; null where neither is known.
+ */
+function lastRoundName(table: TableState, ledgerComplete: boolean): string | null {
+    const record = ledgerComplete ? table.roundHistory.at(-1) : undefined;
+    if (record === undefined && !table.roundHistoryInStep) {
+        return null;
+    }
+    const wind = record?.wind ?? table.roundWind;
+    const dealerSeat = record?.dealerSeat ?? table.dealerSeat;
+    return roundName(wind, roundInWind({ dealerSeat, firstDealerSeat: table.firstDealerSeat }));
+}
+
+/** Each cause's line, with the last round where it is known and without it where it is not. */
+const ENDING_TEXTS: Readonly<
+    Record<GameEndCause, { readonly at: (round: string) => string; readonly bare: string }>
+> = {
+    [GAME_END_CAUSE.EXTENSION_LIMIT]: {
+        at: (round) => `Completed after ${round}, the extension's last round`,
+        bare: "Completed at the extension's last round",
+    },
+    [GAME_END_CAUSE.LENGTH]: {
+        at: (round) => `Completed after ${round}`,
+        bare: "Completed",
+    },
+    [GAME_END_CAUSE.TARGET_REACHED]: {
+        at: (round) => `Completed in ${round}, the extension's target score reached`,
+        bare: "Completed: the extension's target score reached",
+    },
+    [GAME_END_CAUSE.TOBI]: {
+        at: (round) => `Completed by tobi in ${round}`,
+        bare: "Completed by tobi",
+    },
+};
+
+/** Why the game ended, as the server's engine decided it (`endCause`), and in which round. */
+function gameEnding(table: TableState, end: GameEndResult, ledgerComplete: boolean): GameEnding {
+    const round = lastRoundName(table, ledgerComplete);
+    const texts = ENDING_TEXTS[end.endCause];
+    return { kind: end.endCause, text: round === null ? texts.bare : texts.at(round) };
+}
+
+/**
  * The standings of a table whose game ended, read from `viewerSeat` (the live player's seat, the replay's bottom seat,
  * or none): the seats in placement order with their scores and uma/oka results as the server gave them, the ledger of
  * every round the table recorded, marked incomplete when that is not every round the server played as it played it,
@@ -233,11 +285,13 @@ export function standingsDisplay(
     }
     const name = nameOf(table.players);
     const seats = end.standings.map((standing) => standing.seat);
+    const ledgerComplete = table.roundHistoryInStep && table.roundHistory.length === end.numRounds;
     return {
+        ending: gameEnding(table, end, ledgerComplete),
         ledger: table.roundHistory.map((record, round) =>
             ledgerRow({ seats, table }, record, round),
         ),
-        ledgerComplete: table.roundHistoryInStep && table.roundHistory.length === end.numRounds,
+        ledgerComplete,
         leftover: leftoverSticks(end, seats),
         seats: end.standings.map((standing, index) => ({
             name: name(standing.seat),

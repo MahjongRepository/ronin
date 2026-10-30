@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from game.logic.enums import GameAction, TimeoutType
+from game.logic.enums import GameAction, GameEndCause, TimeoutType
 from game.logic.events import EventType, GameEndedEvent, GameEvent
 from game.logic.types import PlayerStanding
 from game.session.models import GameLifecycle, PlayerSpec
@@ -45,6 +45,7 @@ def _make_game_end_events(*, num_rounds: int = 1) -> list[GameEvent]:
             leftover_riichi_bonus=0,
             leftover_riichi_sticks=0,
             num_rounds=num_rounds,
+            end_cause=GameEndCause.LENGTH,
         ),
     ]
 
@@ -110,6 +111,7 @@ class TestGameCompletionRecording:
                 leftover_riichi_bonus=0,
                 leftover_riichi_sticks=0,
                 num_rounds=8,
+                end_cause=GameEndCause.LENGTH,
             ),
         ]
         manager_with_repo._game_service.handle_action = MagicMock(return_value=mock_update(events, MOCK_GAME_OVER))

@@ -19,8 +19,7 @@ import {
 import { CALLOUT_MS } from "@/entities/table";
 import { renderStandings } from "@/entities/table/ui/standings";
 
-function renderPlay(state: GameClientState, ui: PlayUi = NO_PLAY_UI): HTMLElement {
-    const host = document.createElement("div");
+function drawPlay(host: HTMLElement, state: GameClientState, ui: PlayUi = NO_PLAY_UI): void {
     render(
         PlayBoard({
             display: playDisplay(state, ui),
@@ -30,6 +29,38 @@ function renderPlay(state: GameClientState, ui: PlayUi = NO_PLAY_UI): HTMLElemen
         }),
         host,
     );
+}
+
+/** Focus the hand's first tile on a board in the document at `before`, redraw it at `after`: what holds the focus then. */
+function focusThrough(
+    before: GameClientState,
+    after: GameClientState,
+): {
+    readonly tile: HTMLButtonElement | null;
+    readonly focused: Element | null;
+    readonly controls: HTMLButtonElement[];
+} {
+    const host = document.createElement("div");
+    document.body.append(host);
+    drawPlay(host, before);
+    const tile = host.querySelector<HTMLButtonElement>(".board-local .hand-tile");
+    tile?.focus();
+    drawPlay(host, after);
+    const focused = document.activeElement;
+    const controls = [
+        ...host.querySelectorAll<HTMLButtonElement>(".board-actions .decision-controls__action"),
+    ];
+    host.remove();
+    return { controls, focused, tile };
+}
+
+function reachableByTab(control: HTMLButtonElement): boolean {
+    return !control.disabled && control.tabIndex >= 0 && control.closest("[inert]") === null;
+}
+
+function renderPlay(state: GameClientState, ui: PlayUi = NO_PLAY_UI): HTMLElement {
+    const host = document.createElement("div");
+    drawPlay(host, state, ui);
     return host;
 }
 
@@ -296,6 +327,18 @@ describe("PlayBoard", () => {
         expect(host.querySelector(".notice-sheet")).toBeNull();
         expect(document.activeElement).toBe(host.querySelector(".board-local button"));
         host.remove();
+    });
+
+    it("keeps the focus on the hand's tile as a call offer opens, its controls reachable by Tab without moving it", () => {
+        const { controls, focused, tile } = focusThrough(
+            checkpointState("call_prompt_seat_1", "seat 2 drew"),
+            checkpointState("call_prompt_seat_1", "pon prompt"),
+        );
+
+        expect(tile).not.toBeNull();
+        expect(focused).toBe(tile);
+        expect(controls.map(reachableByTab)).toEqual(controls.map(() => true));
+        expect(controls.length).toBeGreaterThan(0);
     });
 
     it("times a turn as its base and bank apart, marks the bank once it alone drains, and says Sent once answered", () => {

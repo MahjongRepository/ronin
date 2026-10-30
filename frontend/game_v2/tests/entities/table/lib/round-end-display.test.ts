@@ -51,7 +51,7 @@ describe("roundEndDisplay - a win", () => {
         const page = winPage(lastRoundEndTable("ron_riichi_discard"));
 
         expect(page).toMatchObject({
-            fromName: "Charlie",
+            from: "from Charlie",
             hanFu: "7 han 30 fu",
             limit: "Haneman",
             points: 12_000,
@@ -67,6 +67,17 @@ describe("roundEndDisplay - a win", () => {
             ["Red Five", 1, true],
         ]);
         expect(page.notes).toEqual(["Riichi ×1 +1,000"]);
+    });
+
+    test("a chankan: the ron reads as robbing the declarer's kan, not as taking a discard", () => {
+        const page = winPage(lastRoundEndTable("chankan_added"));
+
+        expect(page).toMatchObject({
+            from: "robbing Alice's kan",
+            title: "Ron",
+            winnerName: "Charlie",
+        });
+        expect(page.yaku.map((line) => line.name)).toContain("Chankan");
     });
 
     test("a ron: the closed hand sorted, the winning tile apart under its label, the dora and ura as faces", () => {

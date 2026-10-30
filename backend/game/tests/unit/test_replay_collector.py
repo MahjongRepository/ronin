@@ -1,6 +1,6 @@
 import json
 
-from game.logic.enums import CallType, GameErrorCode, MeldViewType, WindName
+from game.logic.enums import CallType, GameEndCause, GameErrorCode, MeldViewType, WindName
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
@@ -91,6 +91,7 @@ def _make_game_ended_event() -> GameEndedEvent:
         leftover_riichi_bonus=0,
         leftover_riichi_sticks=0,
         num_rounds=1,
+        end_cause=GameEndCause.LENGTH,
     )
 
 

@@ -97,6 +97,16 @@ const RESULT_SOURCES = [
     },
     {
         dealerSeat: 0,
+        doraIndicators: [112],
+        fixture: "chankan_added",
+        key: "chankan",
+        label: "Chankan",
+        names: ["Diana", "Alice", "Charlie", "Bob"],
+        roundEnd:
+            '{"t": 4, "rt": 1, "ws": 2, "ls": 1, "wt": 59, "hr": {"han": 6, "fu": 30, "yk": [{"yi": 4, "han": 1}, {"yi": 12, "han": 1}, {"yi": 27, "han": 2}, {"yi": 121, "han": 2}], "pt": 120}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "sch": {"0": 0, "1": -120, "2": 120, "3": 0}, "rc": 0, "ct": [0, 4, 8, 12, 16, 20, 24, 28, 32, 48, 52, 72, 73], "ml": [], "rk": {"s": 1, "ti": 59, "kty": "added"}}',
+    },
+    {
+        dealerSeat: 0,
         doraIndicators: [109],
         fixture: "chankan_closed_kokushi",
         key: "yakuman",

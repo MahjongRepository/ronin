@@ -11,8 +11,9 @@ import {
     describeSize,
     intersects,
 } from "../boxes.ts";
-import { boardCase, decisionCase } from "../cases.ts";
+import { boardCase, decisionCase, expectAnnounced, expectTexts } from "../cases.ts";
 import {
+    type BoardCase,
     type BoardRun,
     GAME_ID,
     type PageCase,
@@ -53,12 +54,24 @@ interface ToneColour {
 }
 
 /** A round result over the board storybook's board, one of its result stories, at a page of it. */
-function resultCase(result: string, query: string, extra: readonly string[]): PageCase {
+function resultCase(result: string, query: string, extra: readonly string[]): BoardCase {
     return boardCase(
         `board-result-${result.replaceAll("_", "-")}`,
         `?overlay=round_end&result=${result}${query}`,
         [".board-overlay__panel", ...extra],
     );
+}
+
+/** A result story whose panel must read its family's heading and label, the state it proves. */
+function resultStory(
+    result: string,
+    texts: Readonly<Record<string, string>>,
+    extra: readonly string[] = [],
+): PageCase {
+    return {
+        ...resultCase(result, "", [...Object.keys(texts), ...extra]),
+        prepare: (page) => expectTexts(page, texts),
+    };
 }
 
 /** A decisions story whose result panel is forced shorter than its content: the live confirm must stay in view. */
@@ -80,10 +93,34 @@ async function forceResultPanelShort(page: Page): Promise<void> {
     });
 }
 
-/** A rotate panel story: the panel an upright phone shows in place of the live board. */
-function rotateCase(state: string, countdown: boolean, content: string): PageCase {
+/** An upright board's result panel made as tall as its overlay allows: it must still leave the page's corner clear. */
+async function forceResultPanelTall(page: Page): Promise<void> {
+    await page.addStyleTag({
+        content: ".board-overlay__panel:has(> .round-end-result) { height: 100vh !important; }",
+    });
+}
+
+/** What a rotate story shows: an element proving it, whether it counts seconds down, and the words it must read. */
+interface RotateExpectation {
+    readonly content: string;
+    readonly countdown: boolean;
+    /** Words it shows a player. */
+    readonly texts?: Readonly<Record<string, string>>;
+    /** Words only its live region holds, read out and never drawn. */
+    readonly announced?: Readonly<Record<string, string>>;
+}
+
+/** A rotate panel story: the panel an upright phone shows in place of the live board, reading its own state's words. */
+function rotateCase(
+    state: string,
+    { announced = {}, content, countdown, texts = {} }: RotateExpectation,
+): PageCase {
     return {
-        check: ({ page, report }) => checkRotatePanel(page, countdown, report),
+        async check({ page, report }) {
+            await expectTexts(page, texts);
+            await expectAnnounced(page, announced);
+            return checkRotatePanel(page, countdown, report);
+        },
         kind: "own",
         name: `rotate-${state}`,
         path: `/play/storybook/rotate?state=${state}`,
@@ -174,8 +211,53 @@ const PAGES: readonly PageCase[] = [
     { ...resultCase("sanbaiman", "", [".round-end-result__hand .meld"]), contrast: true },
     resultCase("pao", "", [".round-end-result__notes"]),
     resultCase("exhaustive", "", [".round-end-result__tenpai .tile"]),
+    resultStory("tsumo", {
+        ".round-end-result__kind": "Tsumo",
+        ".round-end-result__win-label": "Tsumo",
+    }),
+    resultStory("ron", {
+        ".round-end-result__from": "from Charlie",
+        ".round-end-result__kind": "Ron",
+        ".round-end-result__limit": "Haneman",
+    }),
+    resultStory("dealer", {
+        ".round-end-result__limit": "Mangan",
+        ".round-end-result__points": "12,000",
+        ".round-end-result__wind": "East",
+    }),
+    resultStory("kazoe", { ".round-end-result__limit": "Kazoe Yakuman" }),
+    resultStory("chankan", {
+        ".round-end-result__from": "robbing Alice's kan",
+        ".round-end-result__kind": "Ron",
+    }),
+    resultStory(
+        "nagashi",
+        {
+            ".round-end-result__from": "by Alice",
+            ".round-end-result__kind": "Draw",
+            ".round-end-result__title": "Nagashi Mangan",
+        },
+        [".round-end-result__tenpai .tile"],
+    ),
+    resultStory("kyuushu", {
+        ".round-end-result__from": "declared by Alice",
+        ".round-end-result__title": "Nine terminals",
+    }),
+    resultStory("four_winds", {
+        ".round-end-result__from": "Abortive draw",
+        ".round-end-result__title": "Four winds",
+    }),
+    resultStory("four_riichi", {
+        ".round-end-result__from": "Abortive draw",
+        ".round-end-result__title": "Four riichi",
+    }),
+    resultStory("four_kans", {
+        ".round-end-result__from": "Abortive draw",
+        ".round-end-result__title": "Four kans",
+    }),
     {
         ...boardCase("board-standings", "?overlay=game_end", [
+            ".standings__ending--length",
             ".standings__foot-row--leftover",
             ".standings__cell .standings__riichi",
             ".standings__cell .standings__mark--deal-in",
@@ -190,6 +272,12 @@ const PAGES: readonly PageCase[] = [
         required: { visible: [".game-start__seat--viewer", ".game-start__status", ".nameplate"] },
     },
     decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
+    {
+        ...decisionCase("round_end", [".round-end-result__confirm"]),
+        name: "decisions-round-end-tall",
+        onlyAt: ["phone-portrait"],
+        prepare: forceResultPanelTall,
+    },
     scrollingResultCase("round_end", [
         ".round-end-result__confirm",
         ".round-end-result__countdown",
@@ -203,11 +291,19 @@ const PAGES: readonly PageCase[] = [
         ]),
         alsoAt: SMALL_WINDOWS,
     },
+    {
+        ...decisionCase("double_ron_last", [
+            ".round-end-result__confirm",
+            ".round-end-result__countdown",
+        ]),
+        prepare: (page) => expectTexts(page, { ".board-overlay .round-end-result__page": "2 / 2" }),
+    },
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("last_result", [".round-end-result__confirm"]),
     {
         ...decisionCase("standings", [
+            ".standings__ending--tobi",
             ".standings__cell--win",
             ".standings__foot-row--result",
             ".standings__actions a[href*='seat=1']",
@@ -227,10 +323,41 @@ const PAGES: readonly PageCase[] = [
     decisionCase("kicked", [".failure-panel__leave", ".game-menu__status:not(.status-connected)"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     decisionCase("leave_after_win", [".leave-confirm__stay"]),
-    rotateCase("waiting", false, ".rotate-panel .connection-status"),
-    rotateCase("leave", false, ".rotate-panel .leave-confirm__leave"),
-    rotateCase("ended", false, ".rotate-panel .failure-panel__reload"),
-    rotateCase("countdown", true, ".rotate-panel__seconds"),
+    rotateCase("waiting", { content: ".rotate-panel .connection-status", countdown: false }),
+    rotateCase("leave", { content: ".rotate-panel .leave-confirm__leave", countdown: false }),
+    rotateCase("ended", { content: ".rotate-panel .failure-panel__reload", countdown: false }),
+    rotateCase("countdown", { content: ".rotate-panel__seconds", countdown: true }),
+    rotateCase("expired", {
+        announced: { ".rotate-panel__announce": "Time is up" },
+        content: ".rotate-panel__decision--expired",
+        countdown: false,
+        texts: {
+            ".rotate-panel__decision--expired":
+                "You can call the last discard, and its time is up: the server makes the move.",
+        },
+    }),
+    rotateCase("reconnecting", {
+        content: ".rotate-panel .connection-status.status-disconnected",
+        countdown: false,
+        texts: { ".rotate-panel .connection-status": "Reconnecting" },
+    }),
+    rotateCase("result", {
+        content: ".rotate-panel__seconds",
+        countdown: true,
+        texts: {
+            ".rotate-panel__decision p":
+                "The round's result awaits your OK. Its timer keeps running while the phone is upright.",
+            ".rotate-panel__seconds": "8",
+        },
+    }),
+    rotateCase("untimed", {
+        content: ".rotate-panel__decision",
+        countdown: false,
+        texts: {
+            ".rotate-panel__decision p":
+                "It is your turn. Play continues, and your timer keeps running while the phone is upright.",
+        },
+    }),
 ];
 
 function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageReport): void {
@@ -239,9 +366,7 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
         return;
     }
     report.expect(contains(board.board, overlay.box), "the overlay panel leaves the board");
-    const covered = viewport.portrait
-        ? []
-        : board.menu.filter((control) => intersects(control, overlay.box));
+    const covered = board.menu.filter((control) => intersects(control, overlay.box));
     report.expect(
         covered.length === 0,
         `the overlay panel ${describeBox(overlay.box)} covers the page's corner: ${covered.map(describeBox).join(", ")}`,
@@ -253,6 +378,31 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
             `the overlay panel's content overflows it: ${describeSize(overlay.scroll)} > ${describeSize(overlay.client)}`,
         );
     }
+}
+
+/**
+ * Upright, where the notices' own checks do not run, a notice shown over a panel stands in its reserve under the right
+ * strip's end, clear of the panel, which stops above the foreground for it.
+ */
+async function checkUprightNotices(page: Page, panel: Box, report: PageReport): Promise<void> {
+    const notices = await page.evaluate(() =>
+        [...document.querySelectorAll(".game-board .board-notice")]
+            .filter((notice) => notice.checkVisibility({ visibilityProperty: true }))
+            .map((notice) => {
+                const rect = notice.getBoundingClientRect();
+                return {
+                    height: rect.height,
+                    left: rect.left + window.scrollX,
+                    top: rect.top + window.scrollY,
+                    width: rect.width,
+                };
+            }),
+    );
+    const over = notices.filter((notice) => intersects(notice, panel));
+    report.expect(
+        over.length === 0,
+        `notice(s) over the upright panel ${describeBox(panel)}: ${over.map(describeBox).join(", ")}`,
+    );
 }
 
 /** What a round result's panel shows at one end of its scroll. */
@@ -695,6 +845,9 @@ async function checkBoard({
     viewport,
 }: BoardRun): Promise<void> {
     checkOverlay(board, viewport, report);
+    if (viewport.portrait && board.overlay !== null) {
+        await checkUprightNotices(page, board.overlay.box, report);
+    }
     if (viewport.supported) {
         checkResultPanel(
             await measureResultPanel(page),

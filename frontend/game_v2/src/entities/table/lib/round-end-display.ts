@@ -63,8 +63,11 @@ export interface WinPageDisplay {
     readonly title: string;
     readonly winnerName: string;
     readonly winnerWind: string;
-    /** The discarder (or the robbed kan's declarer) of a ron, null for a tsumo. */
-    readonly fromName: string | null;
+    /**
+     * Whom a ron took its tile from, null for a tsumo: "from Bob", or "robbing Bob's kan" for a chankan, so a robbed kan
+     * reads as a robbed attempt.
+     */
+    readonly from: string | null;
     readonly hand: ResultHandDisplay;
     readonly winningTile: HandTile;
     /** How the winning tile came: Tsumo or Ron. */
@@ -240,10 +243,18 @@ function winNotes(result: RoundEndResult, winner: WinnerResult, names: SeatNames
     return notes.filter((note) => note !== null);
 }
 
+function fromPhrase(result: RoundEndResult, names: SeatNames): string | null {
+    if (result.loserSeat === null) {
+        return null;
+    }
+    const loser = names.name(result.loserSeat);
+    return result.kanRobbed ? `robbing ${loser}'s kan` : `from ${loser}`;
+}
+
 function winPage(result: RoundEndResult, winner: WinnerResult, names: SeatNames): WinPageDisplay {
     return {
         doraIndicators: result.doraIndicators.map(tile136toString),
-        fromName: result.loserSeat === null ? null : names.name(result.loserSeat),
+        from: fromPhrase(result, names),
         hanFu: hanFuLabel(winner),
         hand: resultHand(winner.closedTiles, winner.melds),
         kind: "win",

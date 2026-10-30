@@ -122,6 +122,18 @@ $indicator-scale: 0.6;
     }
 }
 
+/* An upright board has height to spare: its panel stands under the corner's height, however tall its content, and
+   above the foreground while notices show, leaving them the reserve under the right strip's end. */
+@container (aspect-ratio < 1) {
+    .game-board:has(.board-menu) > .board-overlay {
+        padding-top: calc(var(--corner-bottom) + 0.5rem);
+    }
+
+    .game-board:has(.board-menu):has(.board-notice) > .board-overlay {
+        padding-bottom: calc(100cqh - var(--foreground-top));
+    }
+}
+
 /* One or two tenpai hands take the win hand's size, one under the other; three or four shrink to sit two abreast. */
 .board-overlay .round-end-result__tenpai:has(> :nth-child(3)) {
     --board-tile-w: calc(#{$tile-w} * #{$tenpai-scale} * var(--board-unit));

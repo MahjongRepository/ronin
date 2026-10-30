@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from mahjong.tile import TilesConverter
 
 from game.logic.ai_player import AIPlayer
-from game.logic.enums import GameAction, TimeoutType, WaitKind
+from game.logic.enums import GameAction, GameEndCause, TimeoutType, WaitKind
 from game.logic.events import EventType, GameEndedEvent, GameEvent
 from game.logic.exceptions import InvalidGameActionError, ScoringError
 from game.logic.scoring import HandResult
@@ -60,6 +60,7 @@ def _make_game_end_events() -> list[GameEvent]:
             leftover_riichi_bonus=0,
             leftover_riichi_sticks=0,
             num_rounds=1,
+            end_cause=GameEndCause.LENGTH,
         ),
     ]
 

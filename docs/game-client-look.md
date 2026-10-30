@@ -116,10 +116,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the riichi declaration discard lies sideways, and if that tile is claimed for a meld the
   declarer's next surviving discard lies sideways instead. Decision: the river starts at the
   centre's corner on the seat's left (the pinwheel). Decision: a claimed tile leaves the river, as
-  on a real table; the current board keeps it greyed, and the change costs the river as a
-  single-place chronology: a claimed tile stays identifiable in the meld that took it, with its
-  feeder, so what that seat has passed can still be read, but a player reconstructs the seat's full
-  discard order from river and melds together; the engine, not the player, judges furiten. A narrow
+  on a real table, which costs the river as a single-place chronology: a claimed tile stays
+  identifiable in the meld that took it, with its feeder, so what that seat has passed can still be
+  read, but a player reconstructs the seat's full discard order from river and melds together; the engine, not the player, judges furiten. A narrow
   but visible gap separates a river from the centre and from its neighbours; tiles touch inside a
   river, rivers never touch each other. Decision, departing from the run-on convention for side
   rivers only: at the 24-tile capacity a side river wraps its overflow into a fourth row of six
@@ -324,18 +323,20 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   live board is announced once too. An ongoing condition (reconnecting, a seat lost, faces that did not load, a
   message the client could not read) stays until it recovers, is rebuilt or ends; an acknowledgement
   (the seat back, a refused move) leaves on its own after a moment. Nothing dismisses a failure that
-  goes on. A connection replaced by another tab is an end, with its reason.
+  goes on. A connection replaced by another tab is an end, with its reason, its corner status in the
+  ended tone rather than an error's.
 - **Panels.** Round results, standings, the seating before the first deal and the leave question use
   a legible overlay area over the board and dim it beneath; each has the size its content needs, not
   the core's; at the floor viewport a panel that does not fit scrolls inside its area with its
   primary button and countdown kept in view. The result, standings and seating leave the page corner
-  reachable; the leave question is modal, says that an AI takes the seat over, makes staying the
-  clear default, and need not. The seating shows the game's length and first round, every seat's
+  reachable; the leave question need not, since it is modal: it says that an AI takes the seat over
+  and makes staying the clear default. The seating shows the game's length and first round, every seat's
   wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits.
   Decision (placements drawn in step 4.1): on a desktop a panel stands centred, the page corner's width kept free
   on both sides, and past the left river's reach while notices show; on a narrow desktop (narrower than
   `$small-chrome-width`) it stands under the corner's height, between the side strips, and past the left river's reach
-  while notices show; on a phone it stands at the top, left of the corner. A desktop's panel fits its content whole.
+  while notices show; on a phone it stands at the top, left of the corner; on an upright board, under the corner's
+  height. A desktop's panel fits its content whole.
 - **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
   the total first): the winner and how (ron, and from whom; tsumo; a head bump names who lost the
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
@@ -358,7 +359,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the leftover riichi sticks, or a note that the game's rules award them to nobody) told apart, signed values kept, the ledger of every finished round
   with what its marks mean and each round reachable from it, the viewer's seat marked, and the
   ways on (the last result, this game's replay, the history, the lobby). A game that ended by
-  tobi or at a round threshold is shown as completed, never as a failure. An ended session says
+  tobi or at a round threshold is shown as completed, saying how it ended as the server decided it
+  (tobi, the game's length, the target score reached in the extension, the extension's last round),
+  never as a failure. An ended session says
   why and offers the way back; it is not quiet.
 - **Replay.** The board unchanged, its geometry identical to live play's, drawn from the chosen
   viewpoint seat, which need not be the reader's; plus controls with the position (round, step), the
@@ -471,8 +474,15 @@ scores stay readable at the floor.
 
 The reference is drawn, and every review opens, the same three: the 667x375 floor (iPhone SE), an
 iPhone 13 in landscape with a notch's safe area (844x390 with insets of 47, 47 and 21), and
-1440x900. The gate also runs 1280x800 and 1920x1080, and an iPhone 13 upright for the rotate panel.
-The composition is identical on all the landscape ones.
+1440x900. The gate runs every page at those three, at 1280x800 and 1920x1080, and on an iPhone 13
+upright (the rotate panel, and the storybooks and the replay read upright). It runs a page at a
+further viewport only where that page names it, each guarding one path of the layout: 1366x657
+(a short desktop, the band's corners shared), 800x600 (a narrow desktop, a phone's chrome on a
+desktop's geometry), 1280x720, 1536x730 and 1440x770 (laptop windows either side of the short
+desktop's 760px), 700x540 and 900x600 (small windows, a panel against the board's width),
+1024x510 (a short tablet, wide but under a phone's height), 2560x1440 (a large desktop, the
+chrome a step up) and 680x375 and 700x375 (wider phones at the floor's height). The composition
+is identical on all the landscape ones.
 
 ## Review checklist
 

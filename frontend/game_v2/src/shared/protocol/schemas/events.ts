@@ -1,6 +1,11 @@
 import { z } from "zod/mini";
 
-import { EVENT_TYPE, GAME_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import {
+    EVENT_TYPE,
+    GAME_END_CAUSE,
+    GAME_TYPE,
+    WIRE_SCORE_DIVISOR,
+} from "@/shared/protocol/constants";
 import { decodeDiscard } from "@/shared/protocol/decoders/discard";
 import { decodeDraw } from "@/shared/protocol/decoders/draw";
 import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
@@ -287,6 +292,7 @@ export const furitenSchema = z.pipe(
 
 export const gameEndSchema = z.pipe(
     z.object({
+        ec: z.enum(GAME_END_CAUSE),
         lb: wireScoreSchema,
         lr: z.int().check(z.gte(0)),
         nr: z.int(),
@@ -295,6 +301,7 @@ export const gameEndSchema = z.pipe(
         ws: seatSchema,
     }),
     z.transform((raw) => ({
+        endCause: raw.ec,
         leftoverRiichiBonus: raw.lb,
         leftoverRiichiSticks: raw.lr,
         numRounds: raw.nr,

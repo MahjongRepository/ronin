@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.logic.game import _get_wind_for_unique_dealers, check_game_end, process_round_end
+from game.logic.enums import GameEndCause
+from game.logic.game import _get_wind_for_unique_dealers, game_end_cause, process_round_end
 from game.logic.settings import EnchousenType, GameSettings, GameType
 from game.logic.state import MahjongPlayer, MahjongRoundState
 from game.logic.types import (
@@ -75,15 +76,15 @@ def _exhaustive_draw(*, tempai_seats: list[int], noten_seats: list[int]) -> Exha
 class TestWestRoundEndCondition:
     def test_west_round_end__when_player_reaches_threshold__should_end_game(self):
         gs = _west_game_state(unique_dealers=9, player_scores=[30000, 25000, 22000, 23000])
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
     def test_west_round_end__when_no_player_reaches_threshold__should_continue_game(self):
         gs = _west_game_state(unique_dealers=9, player_scores=[29000, 25000, 23000, 23000])
-        assert check_game_end(gs) is False
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
 
     def test_west_round_end__when_threshold_reached_mid_west__should_end_game(self):
         gs = _west_game_state(unique_dealers=11, player_scores=[35000, 20000, 22000, 23000])
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
     def test_west_round_end__when_custom_threshold_not_reached__should_continue_game(self):
         gs = _west_game_state(
@@ -91,7 +92,7 @@ class TestWestRoundEndCondition:
             player_scores=[35000, 20000, 22000, 23000],
             winning_score_threshold=40000,
         )
-        assert check_game_end(gs) is False
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
 
     def test_west_round_end__when_custom_threshold_reached__should_end_game(self):
         gs = _west_game_state(
@@ -99,7 +100,7 @@ class TestWestRoundEndCondition:
             player_scores=[40000, 15000, 22000, 23000],
             winning_score_threshold=40000,
         )
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
     def test_west_round_end__when_still_in_primary_wind__should_ignore_threshold(self):
         scores = [35000, 20000, 22000, 23000]
@@ -108,7 +109,7 @@ class TestWestRoundEndCondition:
         settings = GameSettings(game_type=GameType.HANCHAN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=7, settings=settings)
 
-        assert check_game_end(gs) is False
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
 
 
 # ============================================================================
@@ -127,7 +128,9 @@ class TestWestRoundRenchanOverride:
         new_gs = process_round_end(gs, _tsumo(winner_seat=0))
         assert new_gs.unique_dealers == 9  # renchan
         assert new_gs.round_state.dealer_seat == 0  # dealer stays
-        assert check_game_end(new_gs) is True  # but game ends due to threshold
+        assert (
+            game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
+        )
 
     def test_west_renchan__when_dealer_wins_without_threshold__should_continue_game(self):
         gs = _west_game_state(
@@ -138,7 +141,7 @@ class TestWestRoundRenchanOverride:
         new_gs = process_round_end(gs, _tsumo(winner_seat=0))
         assert new_gs.unique_dealers == 9  # renchan
         assert new_gs.round_state.dealer_seat == 0
-        assert check_game_end(new_gs) is False  # game continues
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) is None
 
     def test_west_renchan__when_dealer_tenpai_draw_with_threshold_reached__should_end_game(self):
         gs = _west_game_state(
@@ -150,7 +153,9 @@ class TestWestRoundRenchanOverride:
         result = _exhaustive_draw(tempai_seats=[1], noten_seats=[0, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.round_state.dealer_seat == 1  # dealer stays (tenpai renchan)
-        assert check_game_end(new_gs) is True  # game ends due to threshold
+        assert (
+            game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
+        )
 
     def test_west_renchan__when_dealer_tenpai_draw_without_threshold__should_continue_game(self):
         gs = _west_game_state(
@@ -162,7 +167,7 @@ class TestWestRoundRenchanOverride:
         result = _exhaustive_draw(tempai_seats=[1], noten_seats=[0, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.round_state.dealer_seat == 1  # renchan
-        assert check_game_end(new_gs) is False
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) is None
 
 
 # ============================================================================
@@ -188,7 +193,7 @@ class TestWestRoundRotation:
 
         new_gs = process_round_end(gs, _tsumo(winner_seat=1))
         assert new_gs.unique_dealers == 13
-        assert check_game_end(new_gs) is True
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.EXTENSION_LIMIT
 
     def test_west_rotation__when_dealer_noten_draw_in_west_4__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[25000, 25000, 25000, 25000])
@@ -196,7 +201,7 @@ class TestWestRoundRotation:
         result = _exhaustive_draw(tempai_seats=[0], noten_seats=[1, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.unique_dealers == 13
-        assert check_game_end(new_gs) is True
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.EXTENSION_LIMIT
 
     def test_west_rotation__when_dealer_wins_west_4_without_threshold__should_continue_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[29000, 24000, 24000, 23000])
@@ -204,14 +209,16 @@ class TestWestRoundRotation:
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan, not incremented
         assert new_gs.round_state.dealer_seat == 3
-        assert check_game_end(new_gs) is False  # 12 > 12 is False
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) is None
 
     def test_west_rotation__when_dealer_wins_west_4_with_threshold__should_end_game(self):
         gs = _west_game_state(unique_dealers=12, dealer_seat=3, player_scores=[30000, 23000, 24000, 23000])
 
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan
-        assert check_game_end(new_gs) is True  # threshold reached
+        assert (
+            game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
+        )
 
 
 # ============================================================================
@@ -227,7 +234,7 @@ class TestTonpusenSuddenDeath:
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
 
-        assert check_game_end(gs) is False
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
 
     def test_tonpusen_sudden_death__when_south_with_threshold__should_end_game(self):
         scores = [31000, 24000, 22000, 23000]
@@ -236,7 +243,7 @@ class TestTonpusenSuddenDeath:
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=6, settings=settings)
 
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
     def test_tonpusen_sudden_death__when_past_south_4__should_end_game(self):
         scores = [25000, 25000, 25000, 25000]
@@ -245,4 +252,4 @@ class TestTonpusenSuddenDeath:
         settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.SUDDEN_DEATH)
         gs = create_game_state(round_state=rs, unique_dealers=9, settings=settings)
 
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.EXTENSION_LIMIT

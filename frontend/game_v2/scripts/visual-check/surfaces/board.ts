@@ -357,6 +357,114 @@ function checkLeave(board: BoardMeasure, screen: Box, report: PageReport): void 
     );
 }
 
+/** Every badge is a control: its tap area, the plate's button, meets the control floor whatever its pill's size. */
+function checkBadgeTaps(board: BoardMeasure, report: PageReport): void {
+    const small = board.nameplates.filter(
+        (plate) =>
+            plate.width < MIN_ACTION_SIZE - EPSILON || plate.height < MIN_ACTION_SIZE - EPSILON,
+    );
+    report.expect(
+        board.nameplates.length === 4 && small.length === 0,
+        `badge tap areas under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE} (of ${board.nameplates.length}): ${small.map(describeBox).join(", ")}`,
+    );
+}
+
+/**
+ * The seats the board cues as in turn, as painted, never by their state's class: the centre's bar drawn on their side
+ * (shown, opaque and of some size), and their badge's pill underlined (an opaque inset shadow, the pill shown).
+ */
+interface TurnCues {
+    readonly bars: readonly string[];
+    readonly badges: readonly string[];
+    /** A panel says no round plays: the seating, a round's result or the standings. */
+    readonly roundOver: boolean;
+}
+
+function measureTurnCues(page: Page): Promise<TurnCues> {
+    return page.evaluate(() => {
+        const board = document.querySelector(".game-board");
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function seatOf(element: Element, block: string): string {
+            return (
+                new RegExp(`${block}--(?<seat>bottom|right|top|left)\\b`, "u").exec(
+                    element.className,
+                )?.groups?.seat ?? "?"
+            );
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function opaque(colour: string): boolean {
+            const channels = (/\((?<inner>[^)]*)\)/u.exec(colour)?.groups?.inner ?? "")
+                .split(/[\s,/]+/u)
+                .filter((channel) => channel !== "");
+            const alpha = channels.length >= 4 ? Number.parseFloat(channels[3]) : 1;
+            return colour !== "" && colour !== "transparent" && alpha > 0;
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function shown(element: Element): boolean {
+            return element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+        }
+        const bars = [...(board?.querySelectorAll(".board-center__seat") ?? [])].filter((seat) => {
+            const bar = getComputedStyle(seat, "::after");
+            return (
+                shown(seat) &&
+                bar.content !== "none" &&
+                bar.display !== "none" &&
+                bar.visibility === "visible" &&
+                Number.parseFloat(bar.opacity) > 0 &&
+                Number.parseFloat(bar.width) > 0 &&
+                Number.parseFloat(bar.height) > 0 &&
+                opaque(bar.backgroundColor)
+            );
+        });
+        const underlined = [...(board?.querySelectorAll(".nameplate") ?? [])].filter((plate) => {
+            const pill = plate.querySelector(".nameplate__pill");
+            if (pill === null || !shown(pill)) {
+                return false;
+            }
+            const shadow = getComputedStyle(pill).boxShadow;
+            const offsets = /(?<x>-?[\d.]+)px (?<y>-?[\d.]+)px/u.exec(shadow)?.groups;
+            return (
+                shadow.includes("inset") &&
+                offsets !== undefined &&
+                Number(offsets.y) !== 0 &&
+                opaque(/rgba?\([^)]*\)/u.exec(shadow)?.[0] ?? "")
+            );
+        });
+        return {
+            badges: underlined.map((plate) => seatOf(plate, "nameplate")),
+            bars: bars.map((seat) => seatOf(seat, "board-center__seat")),
+            roundOver:
+                board?.querySelector(
+                    ".board-overlay :is(.round-end-result, .standings, .game-start)",
+                ) !== null,
+        };
+    });
+}
+
+/**
+ * One cue for the seat in turn: at most one seat's bar drawn on the centre, the same seat's badge underlined and no
+ * other's, exactly one while a decision is open on the board with no panel over it (a round plays), and none under
+ * the seating, a round's result or the standings (no round plays).
+ */
+function checkTurnCue(cues: TurnCues, board: BoardMeasure, report: PageReport): void {
+    report.expect(
+        cues.bars.length <= 1 && cues.bars.join(", ") === cues.badges.join(", "),
+        `turn cues on more than one seat or apart: bars ${cues.bars.join(", ") || "none"}, badges ${cues.badges.join(", ") || "none"}`,
+    );
+    if (cues.roundOver) {
+        report.expect(
+            cues.bars.length + cues.badges.length === 0,
+            `a seat cued in turn under a panel where no round plays: bars ${cues.bars.join(", ") || "none"}, badges ${cues.badges.join(", ") || "none"}`,
+        );
+    }
+    if (board.timer !== null && board.overlay === null) {
+        report.expect(
+            cues.bars.length === 1,
+            `a round plays with ${cues.bars.length} seat(s) cued in turn, not one`,
+        );
+    }
+}
+
 /**
  * The rivers keep their pinwheel's gaps: no river's tile comes within a few pixels of another seat's river or of the
  * centre, so a dense board still reads as four blocks, never one pile (look spec, Rivers).
@@ -714,7 +822,7 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
 
 /**
  * The board as a whole: its content inside its box and readable, the table's surface clear of the aside, the board on
- * the page, the pinned badge's label, and in landscape on a supported screen the own hand, the rivers' and strips'
+ * the page, the pinned badge's label, every badge's tap area on a supported screen, and in landscape on a supported screen the own hand, the rivers' and strips'
  * gaps, the badges, the page's corner and the side hands' reserved reach.
  */
 async function checkBoard({
@@ -738,6 +846,10 @@ async function checkBoard({
     }
     checkCallouts(board, report);
     checkPlacement(board, { measure, screen, viewport }, report);
+    checkTurnCue(await measureTurnCues(page), board, report);
+    if (viewport.supported) {
+        checkBadgeTaps(board, report);
+    }
     if (!viewport.supported || viewport.portrait) {
         return;
     }

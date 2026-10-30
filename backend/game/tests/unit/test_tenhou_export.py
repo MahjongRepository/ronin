@@ -6,7 +6,7 @@ import pytest
 from mahjong.constants import HONOR_INDICES, TERMINAL_INDICES
 from mahjong.hand_calculating.yaku_config import YakuConfig
 
-from game.logic.enums import AbortiveDrawType, GameAction, KanType, MeldViewType, WaitKind
+from game.logic.enums import AbortiveDrawType, GameAction, GameEndCause, KanType, MeldViewType, WaitKind
 from game.logic.events import (
     DiscardEvent,
     DoraRevealedEvent,
@@ -240,7 +240,12 @@ def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_of_the_tier_
 def _game_end_replay_line(final_scores: dict[int, int]) -> dict[str, Any]:
     standings = [PlayerStanding(seat=seat, score=score, final_score=0) for seat, score in final_scores.items()]
     event = GameEndedEvent(
-        winner_seat=0, standings=standings, leftover_riichi_bonus=0, leftover_riichi_sticks=0, num_rounds=1
+        winner_seat=0,
+        standings=standings,
+        leftover_riichi_bonus=0,
+        leftover_riichi_sticks=0,
+        num_rounds=1,
+        end_cause=GameEndCause.LENGTH,
     )
     return json.loads(json.dumps(game_event_payload(event)))
 

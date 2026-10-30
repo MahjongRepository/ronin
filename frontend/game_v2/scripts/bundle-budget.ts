@@ -81,6 +81,8 @@ interface RouteBudget {
  * The replay's JS re-set on 2026-10-31 from 32.5 / 11.1 to 37 / 12.4 at 33.6 / 11.3 (30.8 / 10.4 before): the page's
  * transitions moved into a pure reducer of their own (`views/replay-page.ts`), its inputs and effects spelled out as
  * data, and its key, wheel and hold input mapping into another (`views/replay-input.ts`).
+ * The standings' JS re-set on 2026-10-31 from 8 / 2.7 to 9.2 / 3.1 at 8.3 / 2.8: the line saying how the game ended
+ * (tobi, its length or an extra wind).
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
@@ -92,7 +94,7 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     standings: {
         chunk: "src/entities/table/ui/standings.ts",
         css: { gzip: 2.3, raw: 7.1 },
-        js: { gzip: 2.7, raw: 8 },
+        js: { gzip: 3.1, raw: 9.2 },
     },
     storybook: {
         chunk: "src/views/storybook-routes.ts",

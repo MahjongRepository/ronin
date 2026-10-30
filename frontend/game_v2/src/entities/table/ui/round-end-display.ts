@@ -183,7 +183,7 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
                 ${page.winnerName}
                 <span class="round-end-result__wind">${page.winnerWind}</span>
             </span>
-            ${page.fromName === null ? nothing : html`<span class="round-end-result__from">from ${page.fromName}</span>`}
+            ${page.from === null ? nothing : html`<span class="round-end-result__from">${page.from}</span>`}
             ${PagerControls(props)}
             ${UncertainNote(display)}
         </div>

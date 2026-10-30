@@ -12,7 +12,7 @@
     {"at": 3000, "kind": "received", "label": "ron prompt", "payload": {"clt": 0, "cs": 1, "frs": 0, "t": 3, "ti": 32, "wi": 1}},
     {"at": 5000, "kind": "sent", "label": "ron chosen", "message": {"a": 3, "t": 3, "wi": 1}},
     {"at": 5000, "kind": "received", "label": "round end", "payload": {"ct": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "hr": {"fu": 0, "han": 13, "pt": 320, "yk": [{"han": 13, "yi": 100}]}, "ls": 0, "ml": [], "rc": 0, "rt": 1, "sch": {"0": -320, "1": 320, "2": 0, "3": 0}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "ws": 1, "wt": 32}},
-    {"at": 5000, "kind": "received", "label": "game end", "payload": {"lb": 0, "lr": 0, "nr": 1, "st": [{"fs": 67, "s": 1, "sc": 570}, {"fs": 5, "s": 2, "sc": 250}, {"fs": -15, "s": 3, "sc": 250}, {"fs": -57, "s": 0, "sc": -70}], "t": 10, "ws": 1}},
+    {"at": 5000, "kind": "received", "label": "game end", "payload": {"ec": "tobi", "lb": 0, "lr": 0, "nr": 1, "st": [{"fs": 67, "s": 1, "sc": 570}, {"fs": 5, "s": 2, "sc": 250}, {"fs": -15, "s": 3, "sc": 250}, {"fs": -57, "s": 0, "sc": -70}], "t": 10, "ws": 1}},
     {"at": 5000, "code": 1000, "kind": "closed", "reason": "game_ended"}
   ]
 }

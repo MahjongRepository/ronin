@@ -7,6 +7,7 @@ import {
     type DrawEvent,
     type DrawNoticeEvent,
     type ExhaustiveDrawRoundEnd,
+    GAME_END_CAUSE,
     GAME_TYPE,
     type GameEndEvent,
     type GameStartedEvent,
@@ -278,6 +279,7 @@ export function makeNagashiManganRoundEnd(
 
 export function makeGameEndEvent(overrides: Partial<GameEndEvent> = {}): GameEndEvent {
     return {
+        endCause: GAME_END_CAUSE.LENGTH,
         leftoverRiichiBonus: 0,
         leftoverRiichiSticks: 0,
         numRounds: 8,

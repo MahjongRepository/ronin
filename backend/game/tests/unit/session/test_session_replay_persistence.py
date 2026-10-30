@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from game.logic.enums import GameAction
+from game.logic.enums import GameAction, GameEndCause
 from game.logic.events import (
     DiscardEvent,
     GameEndedEvent,
@@ -89,6 +89,7 @@ def _make_game_end_event() -> GameEndedEvent:
         leftover_riichi_bonus=0,
         leftover_riichi_sticks=0,
         num_rounds=1,
+        end_cause=GameEndCause.LENGTH,
     )
 
 

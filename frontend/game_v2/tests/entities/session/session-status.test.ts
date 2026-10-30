@@ -8,7 +8,7 @@ const NO_ATTEMPTS = { session: 0, transport: 0 } as const;
 const JOIN = { kind: "join" } as const;
 
 describe("describePlayerSessionStatus", () => {
-    it("names each session state in the player's terms, not the machine's, toned by its socket", () => {
+    it("names each session state in the player's terms, not the machine's, toned by its socket or, once ended, by whether it failed", () => {
         const states: readonly SessionState[] = [
             { failedLookups: 0, gameId: "g1", retryAt: null, status: "recovering" },
             {
@@ -59,9 +59,9 @@ describe("describePlayerSessionStatus", () => {
             ["Connecting", "connected", ""],
             ["Reconnecting", "disconnected", "Offline"],
             ["Game over", "disconnected", "Ended"],
-            ["Opened in another tab", "error", "Replaced"],
+            ["Opened in another tab", "disconnected", "Replaced"],
             ["Disconnected", "error", "Offline"],
-            ["You left the game", "error", ""],
+            ["You left the game", "disconnected", ""],
             ["Removed from the game", "error", "Removed"],
             ["Disconnected", "error", "Error"],
             ["Something went wrong", "error", "Error"],

@@ -24,7 +24,12 @@ import { applyEvent } from "@/entities/table/model/apply-event";
 import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type ReplayEvent, type TableEvent, type TableState } from "@/entities/table/model/types";
-import { MELD_TYPE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
+import {
+    GAME_END_CAUSE,
+    MELD_TYPE,
+    ROUND_RESULT_TYPE,
+    parseServerMessage,
+} from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
     test("sets phase to pre_game with 4 players at score 0", () => {
@@ -764,6 +769,7 @@ describe("applyEvent - game_end result data", () => {
     test("populates gameEndResult with standings and finalScore, the leftover sticks counted by the server", () => {
         const state = { ...stateAfterRoundEnded(), riichiSticks: 3 };
         const event = makeGameEndEvent({
+            endCause: GAME_END_CAUSE.TOBI,
             leftoverRiichiBonus: 2000,
             leftoverRiichiSticks: 2,
             winnerSeat: 0,
@@ -771,6 +777,7 @@ describe("applyEvent - game_end result data", () => {
         const next = applyEvent(state, event);
 
         expect(next.gameEndResult).toEqual({
+            endCause: GAME_END_CAUSE.TOBI,
             leftoverRiichiBonus: 2000,
             leftoverSticks: 2,
             numRounds: event.numRounds,

@@ -11,7 +11,7 @@ import {
     intersects,
     sameBox,
 } from "../boxes.ts";
-import { ACTION, BOARD_VISIBLE, decisionCase } from "../cases.ts";
+import { ACTION, BOARD_VISIBLE, decisionCase, expectAnnounced } from "../cases.ts";
 import {
     type BoardRun,
     GAME_ID,
@@ -30,6 +30,7 @@ import {
     LARGE_DESKTOP,
     NARROW_DESKTOP,
     SHORT_DESKTOP,
+    SHORT_TABLET,
     VIEWPORTS,
     WIDER_PHONES,
 } from "../viewports.ts";
@@ -200,15 +201,20 @@ const PAGES: readonly PageCase[] = [
     decisionCase("player_left", [".nameplate__ai--away"]),
     decisionCase("player_back", [".board-notice--success"]),
     decisionCase("seat_back", [".board-notice--success"]),
-    decisionCase("replaced", [
-        ".failure-panel__leave",
-        ".failure-panel__title",
-        ".failure-panel__detail",
-    ]),
+    {
+        ...decisionCase("replaced", [
+            ".failure-panel__leave",
+            ".failure-panel__title",
+            ".failure-panel__detail",
+            ".game-menu__status.status-disconnected",
+        ]),
+        prepare: (page) => expectAnnounced(page, { ".game-menu__status-word": "Replaced" }),
+    },
+    decisionCase("own_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
     gameCase("prompt", ".game__play .decision-controls__action"),
     {
         ...gameCase("turn", ".game__play .board-local .hand-tile--selectable"),
-        alsoAt: [SHORT_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, ...LAPTOPS, ...WIDER_PHONES],
     },
 ];
 

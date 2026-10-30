@@ -1,6 +1,14 @@
 import pytest
 
-from game.logic.enums import CallType, MeldViewType, WaitKind, WireCallType, WireMeldCallType, WirePlayerAction
+from game.logic.enums import (
+    CallType,
+    GameEndCause,
+    MeldViewType,
+    WaitKind,
+    WireCallType,
+    WireMeldCallType,
+    WirePlayerAction,
+)
 from game.logic.events import (
     CallPromptEvent,
     DiscardEvent,
@@ -55,7 +63,7 @@ class TestGameEventPayload:
         assert is_tsumogiri is False
         assert is_riichi is True
 
-    def test_game_event_payload__when_game_end_leaves_sticks_unawarded__should_send_their_count_apart_from_the_bonus(
+    def test_game_event_payload__when_game_ends_with_sticks_unawarded__should_send_their_count_bonus_and_cause(
         self,
     ):
         standings = [PlayerStanding(seat=seat, score=25000, final_score=0) for seat in range(4)]
@@ -65,12 +73,13 @@ class TestGameEventPayload:
             leftover_riichi_bonus=0,
             leftover_riichi_sticks=2,
             num_rounds=8,
+            end_cause=GameEndCause.EXTENSION_LIMIT,
         )
 
         payload = game_event_payload(event)
 
         assert payload["t"] == EVENT_TYPE_INT[EventType.GAME_END]
-        assert (payload["lb"], payload["lr"], payload["nr"]) == (0, 2, 8)
+        assert (payload["lb"], payload["lr"], payload["nr"], payload["ec"]) == (0, 2, 8, "extension_limit")
 
     def test_game_event_payload__when_draw__should_pack_into_integer(self):
         event = DrawEvent(seat=1, tile_id=42, target=SeatTarget(seat=1))

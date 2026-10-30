@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import { type GameEndResult, type RoundRecord, type TableState } from "@/entities/table";
 import { type StandingsDisplay, standingsDisplay } from "@/entities/table/lib/standings-display";
+import { GAME_END_CAUSE } from "@/shared/protocol";
 
 const STARTING_SCORE = 25_000;
 
@@ -20,6 +21,7 @@ function endedAtLastRound(table: TableState): TableState {
     return {
         ...table,
         gameEndResult: {
+            endCause: GAME_END_CAUSE.LENGTH,
             leftoverRiichiBonus: 0,
             leftoverSticks: 0,
             numRounds: table.roundHistory.length,
@@ -100,6 +102,38 @@ describe("standingsDisplay", () => {
             cells: ["", "", "", ""],
             sticks: 1,
         });
+    });
+
+    test("says the game completed by the cause the server's engine names, in its last round", () => {
+        expect(shownStandings(endTable("leftover_riichi"), null).ending).toEqual({
+            kind: "tobi",
+            text: "Completed by tobi in East 1",
+        });
+        expect(shownStandings(endTable("eager_game"), null).ending).toEqual({
+            kind: "length",
+            text: "Completed after South 4",
+        });
+        expect(shownStandings(endTable("full_game"), null).ending).toEqual({
+            kind: "extension_limit",
+            text: "Completed after West 4, the extension's last round",
+        });
+    });
+
+    test("names the round the table stands on when the ledger misses rounds, and none once the table lost step", () => {
+        const table = endTable("full_game");
+        const end = endOf(table);
+        const missing = {
+            ...table,
+            gameEndResult: { ...end, endCause: GAME_END_CAUSE.TARGET_REACHED },
+            roundHistory: table.roundHistory.slice(1),
+        };
+
+        expect(shownStandings(missing, null).ending.text).toBe(
+            "Completed in West 4, the extension's target score reached",
+        );
+        expect(shownStandings({ ...missing, roundHistoryInStep: false }, null).ending.text).toBe(
+            "Completed: the extension's target score reached",
+        );
     });
 
     test("nets each riichi deposit out of its round, so the rounds and the leftover sticks add up to each final score", () => {

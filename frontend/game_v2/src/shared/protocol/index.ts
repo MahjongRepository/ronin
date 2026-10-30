@@ -26,6 +26,7 @@ export {
     REPLAY_VERSION,
     REPLAY_LINE_TYPE,
     SEAT_CONTROL_REASON,
+    GAME_END_CAUSE,
     GAME_TYPE,
 } from "./constants";
 
@@ -45,6 +46,7 @@ export type {
     AbortiveDrawType,
     SessionErrorCode,
     SeatControlReason,
+    GameEndCause,
     GameType,
 } from "./constants";
 

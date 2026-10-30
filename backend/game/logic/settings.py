@@ -142,9 +142,6 @@ class GameSettings(BaseModel):
 
 NUM_PLAYERS = 4
 
-# (east_max, south_max, west_max) dealer thresholds — raw boundaries based on
-# NUM_PLAYERS.  The caller (check_game_end) selects which threshold is the
-# primary wind boundary based on game_type.
 WIND_THRESHOLDS: tuple[int, int, int] = (NUM_PLAYERS, NUM_PLAYERS * 2, NUM_PLAYERS * 3)
 
 

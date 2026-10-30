@@ -4,6 +4,7 @@ import {
     type DoraRevealedEvent,
     type DrawEvent,
     type DrawNoticeEvent,
+    type GameEndCause,
     type GameEndEvent,
     type GameReconnectedEvent,
     type GameStartedEvent,
@@ -175,6 +176,8 @@ export interface RoundRecord {
 
 export interface GameEndResult {
     readonly winnerSeat: number;
+    /** The rule that ended the game, as the server's engine decided it. */
+    readonly endCause: GameEndCause;
     /** How many rounds the server played, one ledger row each. */
     readonly numRounds: number;
     /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */

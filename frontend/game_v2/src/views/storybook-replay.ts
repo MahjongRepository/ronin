@@ -17,6 +17,7 @@ export const REPLAY_STORIES = [
     "result_hidden",
     "standings",
     "standings_long",
+    "standings_failed",
     "round_list",
     "incomplete",
     "ends_on_result",
@@ -102,6 +103,16 @@ function throwingStandings(): RetryingLoad<StandingsRenderer> {
     };
 }
 
+/** Final standings whose every try failed: the game's end shows the board's notice over the replay's status. */
+function failedStandings(): RetryingLoad<StandingsRenderer> {
+    return {
+        status: () => "failed",
+        stop: () => {},
+        subscribe: () => () => {},
+        value: () => null,
+    };
+}
+
 /** A clock whose timers never fire: autoplay's story stays on the stop it opened on. */
 const STILL_CLOCK: Clock = { now: () => Date.now(), setTimer: () => () => {} };
 
@@ -150,6 +161,11 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         search: "?round=1&step=3",
     },
     standings: { load: servesFixture(paoReplay), search: "?round=0&step=24" },
+    standings_failed: {
+        load: servesFixture(paoReplay),
+        search: "?round=0&step=24",
+        standings: failedStandings,
+    },
     standings_long: {
         load: servesFixture(() => import("@/fixtures/replays/full_game.txt?raw")),
         search: "?round=11&step=141",

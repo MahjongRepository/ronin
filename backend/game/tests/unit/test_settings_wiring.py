@@ -1,9 +1,10 @@
 import pytest
 
+from game.logic.enums import GameEndCause
 from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.game import (
     _get_honba_and_rotation,
-    check_game_end,
+    game_end_cause,
     init_game,
 )
 from game.logic.settings import (
@@ -148,25 +149,25 @@ class TestGameTypeEnchousenExtensions:
             settings=settings,
         )
 
-    def test_check_game_end__when_tonpusen_east_complete_without_winner__should_continue(self):
+    def test_game_end_cause__when_tonpusen_east_complete_without_winner__should_continue(self):
         gs = self._game_state(unique_dealers=5, player_scores=[25000, 25000, 25000, 25000])
-        assert check_game_end(gs) is False
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
 
-    def test_check_game_end__when_tonpusen_south_complete__should_end(self):
+    def test_game_end_cause__when_tonpusen_south_complete__should_end(self):
         gs = self._game_state(unique_dealers=9)
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is not None
 
-    def test_check_game_end__when_hanchan_south_complete_without_winner__should_continue(self):
+    def test_game_end_cause__when_hanchan_south_complete_without_winner__should_continue(self):
         gs = self._game_state(
             unique_dealers=9,
             player_scores=[25000, 25000, 25000, 25000],
             game_type=GameType.HANCHAN,
         )
-        assert check_game_end(gs) is False
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is None
 
-    def test_check_game_end__when_hanchan_west_complete__should_end(self):
+    def test_game_end_cause__when_hanchan_west_complete__should_end(self):
         gs = self._game_state(unique_dealers=13, game_type=GameType.HANCHAN)
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) is not None
 
 
 # ============================================================================
@@ -191,14 +192,14 @@ class TestEnchousenNone:
             settings=settings,
         )
 
-    def test_check_game_end__when_enchousen_none_and_hanchan_south_complete__should_end(self):
+    def test_game_end_cause__when_enchousen_none_and_hanchan_south_complete__should_end(self):
         gs = self._game_state(unique_dealers=9, enchousen=EnchousenType.NONE)
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.LENGTH
 
-    def test_check_game_end__when_enchousen_none_and_tonpusen_east_complete__should_end(self):
+    def test_game_end_cause__when_enchousen_none_and_tonpusen_east_complete__should_end(self):
         gs = self._game_state(
             unique_dealers=5,
             enchousen=EnchousenType.NONE,
             game_type=GameType.TONPUSEN,
         )
-        assert check_game_end(gs) is True
+        assert game_end_cause(gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.LENGTH

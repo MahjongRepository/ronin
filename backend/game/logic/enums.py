@@ -149,6 +149,18 @@ class AbortiveDrawType(StrEnum):
     FOUR_WINDS = "four_winds"
 
 
+class GameEndCause(StrEnum):
+    """
+    The rule that ended a game: a score below the tobi threshold, the primary wind completed, the winning score reached
+    in the extension, or the extension's last wind completed.
+    """
+
+    TOBI = "tobi"
+    LENGTH = "length"
+    TARGET_REACHED = "target_reached"
+    EXTENSION_LIMIT = "extension_limit"
+
+
 class RoundResultType(StrEnum):
     """
     Types of round end results.

@@ -61,6 +61,18 @@ function endWord(reason: EndReason): string {
     }
 }
 
+/**
+ * An ended session's tone: the quiet ended tone for an end that is no failure (the game's, the player's own leaving,
+ * the seat taken by another tab), the error's for the rest.
+ */
+function endTone(reason: EndReason): ConnectionStatus {
+    const quiet =
+        reason.kind === "game_ended" ||
+        reason.kind === "left" ||
+        (reason.kind === "closed" && reason.code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION);
+    return quiet ? CONNECTION_STATUS.DISCONNECTED : CONNECTION_STATUS.ERROR;
+}
+
 /** Each active state's tone, from its socket: opening, open, or down until a transport retry. */
 const ACTIVE_TONES: Readonly<Record<ActiveSession["status"], ConnectionStatus>> = {
     awaiting_retry: CONNECTION_STATUS.DISCONNECTED,
@@ -115,11 +127,11 @@ function describeEnd(reason: EndReason): string {
 /** The status line the log view shows for a session. */
 export function describeSessionStatus(state: SessionState): SessionStatusDisplay {
     if (state.status === "ended") {
-        const tone =
-            state.reason.kind === "game_ended"
-                ? CONNECTION_STATUS.DISCONNECTED
-                : CONNECTION_STATUS.ERROR;
-        return { label: describeEnd(state.reason), tone, word: endWord(state.reason) };
+        return {
+            label: describeEnd(state.reason),
+            tone: endTone(state.reason),
+            word: endWord(state.reason),
+        };
     }
     if (state.status === "recovering") {
         const tone = CONNECTION_STATUS.CONNECTING;

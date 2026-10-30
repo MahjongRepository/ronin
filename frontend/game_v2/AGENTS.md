@@ -198,8 +198,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   focus, at once. The seat in turn is cued only by the centre's bar on its side and its badge's
   underline (the spec's turn cue), the viewer's turn and call prompt by nothing else; furiten shows only
   while a round plays, as a dot and the word in its slot by the hand (`GameBoard`'s `furiten`).
-* **Final standings** (`boardOverlay`, live and replay alike): the seats in the server's placement
-  order with its uma/oka results, the ledger of every finished round with a line saying what its marks
+* **Final standings** (`boardOverlay`, live and replay alike): how the game ended, always as completed, by the cause the
+  game end names (`endCause`: tobi, its length, the extension's target score or its last round; never inferred) and in
+  its last round (the ledger's last row where it holds every round, else the table's round while it is in step), the
+  seats in the server's placement order with its uma/oka results, the ledger of every finished round with a line saying what its marks
   mean, the leftover sticks (what they paid the winner, or, where the game end pays no bonus for the sticks the
   table held, that they were not awarded), the viewer's seat (the live seat, the replay's bottom seat) marked. Their
   panel, mapper and stylesheet are a lazy chunk (`startStandingsLoad`, with the sprite's retries), which
@@ -384,7 +386,8 @@ follows holds through the rebuild to it.
   session's status as a dot, with one short word (`SessionStatusDisplay.word`): the socket's state while the
   session runs, none while connected, and once it ended what happened (Ended, Replaced, Removed), none once the
   player left (a short board, too narrow for a
-  word, shows the dot alone, never part of the word), the player's whole wording in
+  word, shows the dot alone, never part of the word; an end that is no failure, the game's, the player's leaving or
+  another tab's, in the quiet ended tone, never the error's), the player's whole wording in
   its title and read out, the notices saying more) sit in the board's top-right corner, so a phone gives the
   board its whole width; `PlayBoard` draws them when given the status, the decisions storybook too. A panel
   over the board leaves the corner clear (`game-board/_overlay.scss`, the spec's Panels): a desktop caps the
@@ -392,7 +395,8 @@ follows holds through the rebuild to it.
   `$small-chrome-width`) has the height but not the width, so its panel stands under the corner's height, between the
   side strips (past the left river's reach while notices show); a
   short board keeps the reserve on the corner's side alone and tops the panel; the overlay's tiles size from the
-  width left. An upright board does not keep the corner clear yet. The board carries the notices
+  width left; an upright board's panel stands under the corner's height, and above the foreground while notices show
+  (they take the reserve under the right strip's end). The board carries the notices
   (`playDisplay`'s, in the table's own area, never over a tile, a plate, the centre, a decision control or the panel,
   however long they stay), stacked ongoing conditions first, then acknowledgements (`NoticeKind`'s order): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
@@ -587,13 +591,17 @@ follows holds through the rebuild to it.
   seat whose open and added kans come from every feeder across two stories, with a different call at every seat and with a triple ron's
   callouts; four open kans a seat, the longest strip, with the most offers; the worst case with a turn in its bank (these
   four only at the phones, 800x600 and 1366x657); the dense round
-  results and the other families (a yakuman, a head bump, all noten, a triple ron); the
+  results and every other family (a tsumo, a ron, a dealer's win, kazoe, a robbed kan, a head bump, a nagashi
+  mangan, all noten, kyuushu, the four-winds, four-riichi and four-kans draws and a triple ron), each proved by the
+  words of its heading and label (`expectTexts`); the
   decisions stories, the seating before the first deal, a turn in its bank, the live standings and the
   last result reopened from them, a game ended out of step (its result and its standings), a replaced tab among
   them; the board's standings over a hand-written short game, and again with its leftover stick not awarded; and the replay page's stories: its opening, autoplay
-  running, another seat's view with the hands hidden, a result with them hidden, its round list,
-  a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
-  on a round's result, a damaged one, one whose step throws, loading and a replay not found), the replay and the
+  running, a later stop, another seat's view with the hands hidden, a result with them hidden, its round list,
+  a double ron's result, the standings with a short and a long ledger (a tobi and an extra wind) and with their load
+  failed (its notice over the status), an incomplete replay, one ending on a round's result, a damaged one, one whose
+  step throws, and its screens without a board, each by its words: loading, waiting for the save, not found,
+  unreachable, another version and no round), the replay and the
   live game, at
   its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080 (Chromium), 1366x657 on the anchor,
   the worst board, a call beside the latest riichi discard's row, the full and mixed hands, the replay and
@@ -615,7 +623,10 @@ follows holds through the rebuild to it.
   6px of a river, an opponent's concealed hand tile off the river tile's width, a side hand's full reach (as its
   place reserves it, whatever the seat holds) over a play switch, the page's corner, a decision control or the
   timer, a badge name shortened in the middle on a page whose names are ordinary (`longNames` marks the
-  pages whose names no badge holds), a badge of a decisions story off the place it holds on the others at that viewport, a
+  pages whose names no badge holds), a badge of a decisions story off the place it holds on the others at that viewport,
+  a badge's tap area under 40x40, a turn cue (the centre's bar, the badge's underline) on more than one seat or on two
+  seats apart, or on none while a decision is open with no panel over the board, the replay's opening or route
+  whose board's box, centre, river tile or own tile part from the live game's at its turn at that viewport, a
   play switch under 40x40, off the board or screen, within 4px of a tile, over a decision control or the timer, or
   whose knob's side or track's fill does not match its `aria-checked`, a
   decision's controls or timer off the place they hold while it is open once it is answered or expired
@@ -692,8 +703,9 @@ place, and staying bring the sheet back (`notices-precedence`). It also fails on
   round's result with the focus back on the page's root, a live leave question asked from the corner that opens
   without Stay focused and the board inert, lets Tab out, or that Escape does not close with the focus back on the corner's
   control (`game-leave-question`), any other panel that
-  does not fit, a panel over a landscape board covering the
-  page's corner, a storybook's aside that
+  does not fit, a panel over a board covering the
+  page's corner (upright too, where one case forces a result's panel as tall as its overlay), an upright panel under
+  a shown notice, a storybook's aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, on a tile sprite that never loaded or a face whose
   symbol it lacks, and on a page whose face (Build) did not load: its FontFace `loaded` and

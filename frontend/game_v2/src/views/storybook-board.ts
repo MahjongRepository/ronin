@@ -42,7 +42,7 @@ import {
 } from "@/entities/tile";
 import { browserClock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
-import { SEAT_CONTROL_REASON } from "@/shared/protocol";
+import { GAME_END_CAUSE, SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 import {
     RESULT_STORIES,
@@ -190,6 +190,31 @@ function discarderSeat(state: BoardDisplayState): number {
         player.discards.some((tile) => tile.last === true),
     );
     return seat === -1 ? DEFAULT_DISCARDER : seat;
+}
+
+/** The story's offers that are the viewer's own turn rather than a call prompt on another seat's discard. */
+const OWN_TURN_OFFERS: ReadonlySet<StoryOffers> = new Set(["riichi", "bank"]);
+
+/**
+ * The story's board, one seat cued in turn while its round plays (the centre's bar and the badge's underline on it
+ * alone): the viewer's on its own turn, else the seat whose discard is the latest, as a call prompt on it finds the
+ * table. Under a round's result or the standings the round is over, so, as on the live board, no seat is cued.
+ */
+function cuedInTurn(state: BoardDisplayState, story: BoardStoryState): BoardDisplayState {
+    if (story.overlay !== "none") {
+        return state;
+    }
+    const cued = OWN_TURN_OFFERS.has(story.offers) ? 0 : discarderSeat(state);
+    const [bottom, right, top, left] = state.nameplates;
+    return {
+        ...state,
+        nameplates: [
+            { ...bottom, isCurrent: cued === 0 },
+            { ...right, isCurrent: cued === 1 },
+            { ...top, isCurrent: cued === 2 },
+            { ...left, isCurrent: cued === 3 },
+        ],
+    };
 }
 
 function storyCalls(
@@ -995,6 +1020,7 @@ const STANDINGS_TABLE: TableState = {
     ...createInitialTableState(),
     dealerSeat: 3,
     gameEndResult: {
+        endCause: GAME_END_CAUSE.LENGTH,
         leftoverRiichiBonus: 1000,
         leftoverSticks: 1,
         numRounds: STANDINGS_HISTORY.length,
@@ -1016,6 +1042,7 @@ const STANDINGS_TABLE: TableState = {
 const STANDINGS_TABLE_STICK_LOST: TableState = {
     ...STANDINGS_TABLE,
     gameEndResult: {
+        endCause: GAME_END_CAUSE.LENGTH,
         leftoverRiichiBonus: 0,
         leftoverSticks: 1,
         numRounds: STANDINGS_HISTORY.length,
@@ -1164,7 +1191,7 @@ function storybookBoardTemplate(
     handlers: BoardStoryHandlers,
     standings: StandingsRenderer | null,
 ): TemplateResult {
-    const state = BOARD_STATES[story.story];
+    const state = cuedInTurn(BOARD_STATES[story.story], story);
     const offers = storyOffers(story.offers);
     const notices = storyNotices(story, handlers);
     const sheet = story.noticeOpen ? noticeSheetOverlay(notices, handlers) : undefined;

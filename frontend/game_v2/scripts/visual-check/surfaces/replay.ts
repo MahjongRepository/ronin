@@ -5,21 +5,26 @@ import {
     type Box,
     EPSILON,
     MIN_ACTION_SIZE,
+    type Size,
     contains,
     describeBox,
+    describeSize,
     findOverlaps,
     intersects,
+    sameBox,
 } from "../boxes.ts";
-import { BOARD_VISIBLE, documentCase } from "../cases.ts";
+import { BOARD_VISIBLE, expectTexts } from "../cases.ts";
 import {
     type BoardCase,
     type BoardRun,
     GAME_ID,
     type PageCase,
+    PageRecord,
     type PageReport,
     type PageRun,
     SELECTOR_TIMEOUT_MS,
     type Surface,
+    type TaskResult,
 } from "../model.ts";
 import { NARROW_DESKTOP, SHORT_DESKTOP, SHORT_TABLET, WIDER_PHONES } from "../viewports.ts";
 
@@ -111,6 +116,8 @@ interface ReplayMeasure {
         readonly clippedAcross: boolean;
     } | null;
     readonly status: Box | null;
+    /** The notices shown in the place, over the status (the standings that failed to load). */
+    readonly notices: readonly Box[];
     /** The parts present in the page, by name; a part absent from the page (no incompleteness) is missing. */
     readonly parts: Readonly<Partial<Record<StatusPart, StatusText>>>;
     /** The replay stands at its last stop of an incomplete recording. */
@@ -129,13 +136,39 @@ function replayCase(story: string, extra: readonly string[]): BoardCase {
     };
 }
 
-/** A replay page story that shows no board: loading, or why the replay cannot be shown. */
-function replayStateCase(story: string, content: string): PageCase {
-    return documentCase(
-        `replay-${story.replaceAll("_", "-")}`,
-        `/play/storybook/replay?state=${story}`,
-        content,
-    );
+/**
+ * A replay page story that shows no board, loading or why the replay cannot be shown: its screen must read the words of
+ * its own state, its retry offered exactly where one may help.
+ */
+function replayStateCase(
+    story: string,
+    texts: Readonly<Record<string, string>>,
+    retry: boolean | null,
+): PageCase {
+    return {
+        async check({ measure, page, report }) {
+            await expectTexts(page, texts);
+            if (retry !== null) {
+                const offered = (await page.getByRole("button", { name: "Try again" }).count()) > 0;
+                report.expect(
+                    offered === retry,
+                    retry
+                        ? "the failure screen offers no retry"
+                        : "the failure screen offers a retry",
+                );
+            }
+            return `page ${measure.scrollWidth}x${measure.scrollHeight}`;
+        },
+        kind: "own",
+        name: `replay-${story.replaceAll("_", "-")}`,
+        path: `/play/storybook/replay?state=${story}`,
+        required: {
+            visible: [
+                retry === null ? ".replay-state" : ".replay-state--failed .replay-state__links a",
+                ...Object.keys(texts),
+            ],
+        },
+    };
 }
 
 /** The step the replay shows within its round, as a number. */
@@ -146,6 +179,20 @@ async function replayStep(page: Page): Promise<number> {
         throw new Error(`the replay shows no step: ${text}`);
     }
     return Number(step);
+}
+
+/**
+ * A story's `prepare` that requires the replay to stand at the stop its address names (`step`, from 0), which its
+ * position counts from 1.
+ */
+function expectStep(step: number): (page: Page) => Promise<void> {
+    return async (page) => {
+        await page.waitForSelector(".replay-status__step", { timeout: SELECTOR_TIMEOUT_MS });
+        const shown = await replayStep(page);
+        if (shown !== step + 1) {
+            throw new Error(`the replay shows step ${shown}, not its address's ${step + 1}`);
+        }
+    };
 }
 
 /**
@@ -315,6 +362,16 @@ const PAGES: readonly PageCase[] = [
         ...replayCase("start", [".replay-status__narration"]),
         alsoAt: [...WIDER_PHONES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
     },
+    { ...replayCase("mid", [".replay-status__narration"]), prepare: expectStep(14) },
+    {
+        ...replayCase("standings_failed", [".board-notices .board-notice--error"]),
+        alsoAt: [NARROW_DESKTOP, SHORT_TABLET],
+        prepare: (page) =>
+            expectTexts(page, {
+                ".board-notices .board-notice--error .board-notice__body":
+                    "The final standings did not load; reload the page to try again",
+            }),
+    },
     replayCase("autoplay", [".replay-controls__play[aria-pressed='true']"]),
     replayCase("viewpoint_hidden", [".replay-controls__option--hands[aria-pressed='true']"]),
     {
@@ -333,8 +390,16 @@ const PAGES: readonly PageCase[] = [
             visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__title"],
         },
     },
-    replayCase("standings", [".standings__round--jump", ".standings__cell--win"]),
-    replayCase("standings_long", [".standings__round--jump", ".standings__foot-row--result"]),
+    replayCase("standings", [
+        ".standings__round--jump",
+        ".standings__cell--win",
+        ".standings__ending--tobi",
+    ]),
+    replayCase("standings_long", [
+        ".standings__round--jump",
+        ".standings__foot-row--result",
+        ".standings__ending--extension_limit",
+    ]),
     {
         check: checkThrowOnStep,
         kind: "own",
@@ -343,8 +408,38 @@ const PAGES: readonly PageCase[] = [
         path: "/play/storybook/replay?state=throws_on_step",
         required: { visible: [...BOARD_VISIBLE, ".replay-controls__moves"] },
     },
-    replayStateCase("loading", ".replay-state"),
-    replayStateCase("not_found", ".replay-state__links a"),
+    replayStateCase("loading", { ".replay-state__detail": "Loading the replay…" }, null),
+    replayStateCase(
+        "waiting",
+        { ".replay-state__detail": "Waiting for the replay to be saved…" },
+        null,
+    ),
+    replayStateCase("not_found", { ".replay-state__title": "Replay not found" }, true),
+    replayStateCase(
+        "unreachable",
+        {
+            ".replay-state__detail": "The server could not be reached.",
+            ".replay-state__title": "The replay could not be loaded",
+        },
+        true,
+    ),
+    replayStateCase(
+        "unsupported",
+        {
+            ".replay-state__detail":
+                'It was recorded in format "0.1", which this page cannot read.',
+            ".replay-state__title": "This replay cannot be shown",
+        },
+        false,
+    ),
+    replayStateCase(
+        "no_round",
+        {
+            ".replay-state__detail": "The recording stops before the first deal.",
+            ".replay-state__title": "This replay holds no round",
+        },
+        false,
+    ),
     {
         alsoAt: [SHORT_DESKTOP],
         kind: "board",
@@ -449,6 +544,9 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                     ) ?? []),
                     ...shownRows,
                 ].map(box),
+                notices: [...(placeElement?.querySelectorAll(".board-notice") ?? [])]
+                    .filter((notice) => notice.checkVisibility())
+                    .map(box),
                 parts: Object.fromEntries(measured),
                 place:
                     placeElement === null
@@ -590,8 +688,8 @@ function checkStatusPart(
 }
 
 /**
- * The replay's status in the notices' place: on the board and the screen, wholly inside its place, which scrolls down
- * where it is too short but never clips sideways or silently, over no tile, badge, control or panel (over a panel's
+ * The replay's status in the notices' place: on the board and the screen, wholly inside its place under any notice,
+ * which scrolls down where it is too short but never clips sideways or silently, over no tile, badge, control or panel (over a panel's
  * dimming it covers only the inert table); every part the state asks for shown at its size, within its lines on a
  * desktop window, and with no panel at least three of the narration's lines (or all it has) in view at once.
  */
@@ -625,6 +723,14 @@ function checkReplayStatus(
         !place.clippedAcross && (!place.clippedDown || place.scrolls),
         "the replay's status overflows the notices' place sideways, or down with no way to scroll to it",
     );
+    const over = replay.notices.filter(
+        (notice) =>
+            !contains(place.box, notice) || notice.top + notice.height > status.top + EPSILON,
+    );
+    report.expect(
+        over.length === 0,
+        `notice(s) not over the replay's status ${describeBox(status)} in its place: ${over.map(describeBox).join(", ")}`,
+    );
     const panel = board.overlay?.box;
     const band = replay.band.filter((control) => control.shown).map((control) => control.box);
     const covered = [
@@ -647,8 +753,94 @@ function checkReplayStatus(
     }
 }
 
+/** The geometry the replay's board shares with live play's: the board's box, the centre's, a river and an own tile. */
+interface SharedGeometry {
+    readonly board: Box;
+    readonly center: Box | null;
+    readonly riverTile: number | null;
+    readonly ownTile: Size | null;
+}
+
+const SHARED_GEOMETRY = new PageRecord<SharedGeometry>();
+
+/** The live game's own route at its turn, and the replay's pages whose board must lie as its board does. */
+const LIVE_REFERENCE = "game-turn";
+const SAME_AS_LIVE: ReadonlySet<string> = new Set(["replay-start", "replay"]);
+
+/** The board's river tile as the sizing rule sets it (`--rw`), laid or not: a turn's rivers may still be empty. */
+async function measureRiverTile(page: Page): Promise<number | null> {
+    const length = await page.evaluate(() => {
+        const center = document.querySelector(".game-board .board-center");
+        return center === null ? "" : getComputedStyle(center).getPropertyValue("--rw");
+    });
+    const pixels = Number.parseFloat(length);
+    return Number.isFinite(pixels) ? pixels : null;
+}
+
+async function sharedGeometry(page: Page, board: BoardMeasure): Promise<SharedGeometry> {
+    return {
+        board: board.board,
+        center: board.center,
+        ownTile: board.localTileSizes[0] ?? null,
+        riverTile: await measureRiverTile(page),
+    };
+}
+
+function sameLength(one: number | null, other: number | null): boolean {
+    return one === null || other === null ? one === other : Math.abs(one - other) <= EPSILON;
+}
+
+function sameGeometry(first: SharedGeometry, second: SharedGeometry): boolean {
+    const centers =
+        first.center === null || second.center === null
+            ? first.center === second.center
+            : sameBox(first.center, second.center);
+    return (
+        sameBox(first.board, second.board) &&
+        centers &&
+        sameLength(first.ownTile?.width ?? null, second.ownTile?.width ?? null) &&
+        sameLength(first.ownTile?.height ?? null, second.ownTile?.height ?? null) &&
+        sameLength(first.riverTile, second.riverTile)
+    );
+}
+
+function describeGeometry({ board, center, ownTile, riverTile }: SharedGeometry): string {
+    return `board ${describeBox(board)}, centre ${center === null ? "none" : describeBox(center)}, own tile ${ownTile === null ? "none" : describeSize(ownTile)}, river tile ${riverTile ?? "none"}px`;
+}
+
+/**
+ * The replay's board is live play's (the spec's Replay: its geometry identical): at each viewport where both were
+ * measured in landscape, its box, its centre, its river tile and its own tile stand as the live game's at its turn.
+ */
+function checkLiveGeometry(results: readonly TaskResult[]): string[] {
+    return results.flatMap(({ page, report, viewport }) => {
+        const replay = SHARED_GEOMETRY.read(report);
+        if (!SAME_AS_LIVE.has(page) || replay === undefined) {
+            return [];
+        }
+        const reference = results.find(
+            (result) => result.page === LIVE_REFERENCE && result.viewport === viewport,
+        );
+        const live = reference === undefined ? undefined : SHARED_GEOMETRY.read(reference.report);
+        if (live === undefined) {
+            return [
+                `${viewport}: ${page}'s board has no live ${LIVE_REFERENCE} measured at this viewport to match (check them together)`,
+            ];
+        }
+        if (sameGeometry(live, replay)) {
+            return [];
+        }
+        return [
+            `${viewport}: ${page}'s board is not the live game's: ${describeGeometry(replay)} against ${describeGeometry(live)}`,
+        ];
+    });
+}
+
 /** The replay's controls and status on a supported screen: in landscape all of the checks, upright on the page. */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
+    if (!viewport.portrait) {
+        SHARED_GEOMETRY.keep(report, await sharedGeometry(page, board));
+    }
     const replay = await measureReplay(page);
     if (replay.band.length === 0 || !viewport.supported) {
         return;
@@ -676,5 +868,6 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
 /** The replay page: its stories, its states without a board, and the route stepped to the local melds. */
 export const replaySurface: Surface = {
     checkBoard,
+    checkResults: checkLiveGeometry,
     pages: PAGES,
 };

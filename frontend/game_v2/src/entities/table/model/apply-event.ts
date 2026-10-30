@@ -183,6 +183,7 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
     return {
         ...state,
         gameEndResult: {
+            endCause: event.endCause,
             leftoverRiichiBonus: event.leftoverRiichiBonus,
             leftoverSticks: event.leftoverRiichiSticks,
             numRounds: event.numRounds,

@@ -41,6 +41,13 @@ $tint: color-mix(in srgb, var(--ronin-text) 8%, transparent);
     line-height: 1.2;
 }
 
+.standings__ending {
+    margin: 0;
+    font-size: max(10px, 0.75rem);
+    line-height: 1.25;
+    color: var(--ronin-text-secondary);
+}
+
 .standings__sheet {
     --foot-rows: 2;
     --foot-row: calc(1lh + 2 * var(--standings-pad-y) + 1px);

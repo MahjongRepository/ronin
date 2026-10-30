@@ -1,10 +1,11 @@
 import pytest
 
+from game.logic.enums import GameEndCause
 from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.game import (
     calculate_final_scores,
-    check_game_end,
     finalize_game,
+    game_end_cause,
     init_game,
     init_round,
 )
@@ -30,7 +31,7 @@ class TestGameType:
             settings=GameSettings(game_type=GameType.HANCHAN),
         )
         # unique_dealers=5 means East is done, entering South — primary wind NOT complete yet
-        assert check_game_end(game_state) is False
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) is None
 
     def test_game_type__when_hanchan_after_south_with_winner__should_end(self):
         players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
@@ -40,7 +41,7 @@ class TestGameType:
             unique_dealers=9,  # South complete
             settings=GameSettings(game_type=GameType.HANCHAN),
         )
-        assert check_game_end(game_state) is True
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) == GameEndCause.LENGTH
 
     def test_game_type__when_tonpusen_after_east_with_winner__should_end(self):
         players = tuple(create_player(seat=i, score=35000 if i == 0 else 21667) for i in range(4))
@@ -50,7 +51,7 @@ class TestGameType:
             unique_dealers=5,  # East complete
             settings=GameSettings(game_type=GameType.TONPUSEN),
         )
-        assert check_game_end(game_state) is True
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) == GameEndCause.LENGTH
 
     def test_game_type__when_tonpusen_during_east__should_not_end(self):
         players = tuple(create_player(seat=i, score=50000 if i == 0 else 16667) for i in range(4))
@@ -60,7 +61,7 @@ class TestGameType:
             unique_dealers=3,  # still in East
             settings=GameSettings(game_type=GameType.TONPUSEN),
         )
-        assert check_game_end(game_state) is False
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) is None
 
 
 class TestInitRound:
@@ -129,7 +130,7 @@ class TestWinningScoreThreshold:
             ),
         )
         # 35000 < 40000, so game continues into West
-        assert check_game_end(game_state) is False
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) is None
 
     def test_winning_score_threshold__when_custom_low__should_end_game_early(self):
         players = tuple(create_player(seat=i, score=26000 if i == 0 else 24667) for i in range(4))
@@ -140,7 +141,7 @@ class TestWinningScoreThreshold:
             settings=GameSettings(winning_score_threshold=25000),
         )
         # 26000 >= 25000, game ends
-        assert check_game_end(game_state) is True
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) == GameEndCause.LENGTH
 
 
 class TestUma:
@@ -184,7 +185,7 @@ class TestTobi:
             unique_dealers=1,  # still in East round 1
             settings=GameSettings(tobi_enabled=True),
         )
-        assert check_game_end(game_state) is True
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) == GameEndCause.TOBI
 
     def test_tobi__when_score_exactly_zero__should_not_end_game(self):
         players = tuple(create_player(seat=i, score=0 if i == 3 else 33334) for i in range(4))
@@ -194,7 +195,7 @@ class TestTobi:
             unique_dealers=1,
             settings=GameSettings(tobi_enabled=True),
         )
-        assert check_game_end(game_state) is False
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) is None
 
     def test_tobi__when_disabled_and_score_negative__should_not_end_game(self):
         players = tuple(create_player(seat=i, score=-5000 if i == 3 else 35000) for i in range(4))
@@ -204,7 +205,17 @@ class TestTobi:
             unique_dealers=1,
             settings=GameSettings(tobi_enabled=False),
         )
-        assert check_game_end(game_state) is False
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) is None
+
+    def test_game_end_cause__when_tobi_disabled_and_score_negative_at_primary_end__should_end_by_length(self):
+        players = tuple(create_player(seat=i, score=-5000 if i == 3 else 35000) for i in range(4))
+        round_state = create_round_state(players=players)
+        game_state = create_game_state(
+            round_state,
+            unique_dealers=9,
+            settings=GameSettings(tobi_enabled=False),
+        )
+        assert game_end_cause(game_state, ended_round_wind=1) == GameEndCause.LENGTH
 
     def test_tobi__when_custom_threshold__should_end_game_below_it(self):
         players = tuple(create_player(seat=i, score=500 if i == 3 else 33167) for i in range(4))
@@ -215,7 +226,7 @@ class TestTobi:
             unique_dealers=1,
             settings=GameSettings(tobi_enabled=True, tobi_threshold=1000),
         )
-        assert check_game_end(game_state) is True
+        assert game_end_cause(game_state, ended_round_wind=game_state.round_state.round_wind) == GameEndCause.TOBI
 
 
 class TestAgariyame:

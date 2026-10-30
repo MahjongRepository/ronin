@@ -30,8 +30,8 @@ from game.logic.events import (
 from game.logic.exceptions import DiscardHistoryError, GeneratedActionError, InvalidGameActionError
 from game.logic.furiten_tracker import FuritenTracker
 from game.logic.game import (
-    check_game_end,
     finalize_game,
+    game_end_cause,
     init_game,
     init_round,
     process_round_end,
@@ -624,12 +624,15 @@ class MahjongGameService(GameService):
         frozen_game = runtime.state
         logger.info("round ended", result_type=type(round_result).__name__)
 
+        ended_round_wind = frozen_game.round_state.round_wind
         frozen_game = process_round_end(frozen_game, round_result)
 
-        if check_game_end(frozen_game):
+        end_cause = game_end_cause(frozen_game, ended_round_wind=ended_round_wind)
+        if end_cause is not None:
             frozen_game, game_result = finalize_game(frozen_game)
             logger.info(
                 "game ended",
+                end_cause=end_cause.value,
                 winner_seat=game_result.winner_seat,
                 standings=[{"seat": s.seat, "score": s.final_score} for s in game_result.standings],
             )
@@ -641,6 +644,7 @@ class MahjongGameService(GameService):
                     leftover_riichi_bonus=game_result.leftover_riichi_bonus,
                     leftover_riichi_sticks=game_result.leftover_riichi_sticks,
                     num_rounds=frozen_game.round_number,
+                    end_cause=end_cause,
                 ),
             ]
 

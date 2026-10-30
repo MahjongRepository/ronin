@@ -1,4 +1,4 @@
-from game.logic.enums import GamePhase, RoundPhase, RoundResultType
+from game.logic.enums import GameEndCause, GamePhase, RoundPhase, RoundResultType, WireWind
 from game.logic.rng import RNG_VERSION, determine_first_dealer
 from game.logic.settings import (
     NUM_PLAYERS,
@@ -312,23 +312,26 @@ def process_round_end(
     )
 
 
-def check_game_end(game_state: MahjongGameState) -> bool:
+def game_end_cause(game_state: MahjongGameState, ended_round_wind: int) -> GameEndCause | None:
     """
-    Check if the game should end.
+    Return the rule that ends the game after a round, or None when play goes on.
 
-    Game ends when any of these conditions are met:
+    `game_state` is the state after the round's dealer advance; `ended_round_wind` is the wind of the round that just
+    ended, which tells a win of the target score in the extension from the primary wind's own end.
+
+    The game ends when any of these conditions are met:
     - Tobi: any player's score drops below tobi_threshold (when tobi_enabled)
-    - Primary wind complete and someone has winning_score_threshold+ points
-      (East for tonpusen, South for hanchan)
-    - If enchousen == NONE: game ends unconditionally after primary wind
-    - Sudden death wind limit reached (South for tonpusen, West for hanchan)
+    - Primary wind complete (East for tonpusen, South for hanchan) with enchousen NONE, or with someone at
+      winning_score_threshold+ points: the game's length
+    - In the extension, someone reaches winning_score_threshold+ points: the target reached
+    - Sudden death wind limit reached (South for tonpusen, West for hanchan): the extension's limit
     """
     round_state = game_state.round_state
     settings = game_state.settings
 
     # check tobi (player score below threshold)
     if settings.tobi_enabled and any(player.score < settings.tobi_threshold for player in round_state.players):
-        return True
+        return GameEndCause.TOBI
 
     east_max, south_max, west_max = WIND_THRESHOLDS
     has_winner = any(player.score >= settings.winning_score_threshold for player in round_state.players)
@@ -337,20 +340,25 @@ def check_game_end(game_state: MahjongGameState) -> bool:
         # tonpusen: primary wind is East, sudden death extends into South
         primary_complete = game_state.unique_dealers > east_max
         sudden_death_limit = south_max
+        last_primary_wind = WireWind.EAST
     else:
         # hanchan: primary wind is East + South, sudden death extends into West
         primary_complete = game_state.unique_dealers > south_max
         sudden_death_limit = west_max
+        last_primary_wind = WireWind.SOUTH
 
     if primary_complete:
         if settings.enchousen == EnchousenType.NONE:
-            return True
+            return GameEndCause.LENGTH
 
         if has_winner:
-            return True
+            return GameEndCause.TARGET_REACHED if ended_round_wind > last_primary_wind else GameEndCause.LENGTH
 
     # sudden death limit reached
-    return game_state.unique_dealers > sudden_death_limit
+    if game_state.unique_dealers > sudden_death_limit:
+        return GameEndCause.EXTENSION_LIMIT
+
+    return None
 
 
 def finalize_game(

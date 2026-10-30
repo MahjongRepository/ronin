@@ -94,6 +94,7 @@ export const WIRE_ROUND_STARTED: WirePayload = {
 };
 
 export const WIRE_GAME_END: WirePayload = {
+    ec: "length",
     lb: 0,
     lr: 0,
     nr: 1,

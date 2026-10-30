@@ -186,6 +186,19 @@ export const ABORTIVE_DRAW_TYPE = {
 
 export type AbortiveDrawType = (typeof ABORTIVE_DRAW_TYPE)[keyof typeof ABORTIVE_DRAW_TYPE];
 
+/**
+ * The rule that ended a game (the game end's `ec`): a score under the tobi threshold, the primary wind completed, the
+ * winning score reached in the extension, or the extension's last wind completed.
+ */
+export const GAME_END_CAUSE = {
+    EXTENSION_LIMIT: "extension_limit",
+    LENGTH: "length",
+    TARGET_REACHED: "target_reached",
+    TOBI: "tobi",
+} as const;
+
+export type GameEndCause = (typeof GAME_END_CAUSE)[keyof typeof GAME_END_CAUSE];
+
 // --- Session error codes (string) ---
 
 export const SESSION_ERROR_CODE = {

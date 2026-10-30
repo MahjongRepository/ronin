@@ -433,6 +433,7 @@ describe("furitenSchema", () => {
 describe("gameEndSchema", () => {
     it("parses valid wire payload with standings", () => {
         const wire = {
+            ec: "target_reached",
             lb: 20,
             lr: 2,
             nr: 8,
@@ -448,7 +449,7 @@ describe("gameEndSchema", () => {
         const result = gameEndSchema.parse(wire);
         expect(result.type).toBe("game_end");
         expect(result.winnerSeat).toBe(0);
-        expect(result.numRounds).toBe(8);
+        expect([result.numRounds, result.endCause]).toEqual([8, "target_reached"]);
         expect([result.leftoverRiichiBonus, result.leftoverRiichiSticks]).toEqual([2000, 2]);
         expect(result.standings[0]).toEqual({ finalScore: 42, score: 35_000, seat: 0 });
         expect(result.standings[3]).toEqual({ finalScore: -36, score: 20_000, seat: 3 });
