@@ -8,6 +8,8 @@ interface DiscardTile {
     face: TileFace;
     grayed?: boolean;
     riichi?: boolean;
+    /** The table's latest discard, still where it fell. */
+    last?: boolean;
 }
 
 const ROW_SIZE = 6;
@@ -36,6 +38,9 @@ function Discards(tiles: readonly DiscardTile[]) {
                         }
                         if (t.riichi) {
                             classes.push("discard-tile-riichi");
+                        }
+                        if (t.last) {
+                            classes.push("discard-tile--last");
                         }
                         return html`<span class="${classes.join(" ")}">${Tile(t.face, "face")}</span>`;
                     })}</span

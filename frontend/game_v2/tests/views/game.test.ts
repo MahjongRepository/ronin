@@ -166,7 +166,7 @@ describe("mountGameView", () => {
         socket.handlers.onMessage(WIRE_GAME_STARTED);
 
         expect(socket.sent).toEqual([JOIN]);
-        expect(host.querySelector(".game-aside__status")?.textContent).toBe("Connected");
+        expect(host.querySelector(".game-menu__status-label")?.textContent).toBe("Connected");
         expect(host.querySelector(".log-entry:last-child .log-type")?.textContent).toBe(
             "game_started",
         );
@@ -275,7 +275,11 @@ describe("mountGameView", () => {
         connections[0].handlers.onOpen();
 
         connections[0].handlers.onMessage(wireSessionError("reconnect_no_session"));
-        expect(host.querySelector(".game-aside__status")?.textContent).toBe("Something went wrong");
+        expect(
+            ["label", "word"].map(
+                (part) => host.querySelector(`.game-menu__status-${part}`)?.textContent,
+            ),
+        ).toEqual(["Something went wrong", "Error"]);
 
         press(host, ".failure-panel__reload");
         host.querySelector<HTMLElement>(".game__rotate .failure-panel__leave")?.click();
@@ -509,17 +513,17 @@ function mountInDocumentAtCallPrompt(): {
         host.remove();
     });
     openCallPrompt(connections[0]);
-    const lobby = host.querySelector<HTMLElement>(".game__play .game-aside__leave");
+    const lobby = host.querySelector<HTMLElement>(".game__play .game-menu__leave");
     if (lobby === null) {
         throw new Error("no Lobby button");
     }
     return { connections, host, lobby };
 }
 
-/** Whether the board and the aside under the leave question are inert. */
-function inertAreas(host: HTMLElement): (boolean | undefined)[] {
-    return [".board-layout", ".game-aside"].map((selector) =>
-        host.querySelector(`.game__play ${selector}`)?.hasAttribute("inert"),
+/** Whether the board and the page's controls in its corner are inert under the leave question. */
+function inertAreas(host: HTMLElement): boolean[] {
+    return [".board-layout", ".game-menu"].map(
+        (selector) => host.querySelector(`.game__play ${selector}`)?.closest("[inert]") != null,
     );
 }
 
@@ -528,7 +532,7 @@ describe("mountGameView leaving", () => {
         const { connections, host, sink } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        press(host, ".game-aside__leave");
+        press(host, ".game-menu__leave");
         expect(host.querySelector(".game__play .leave-confirm__detail")?.textContent).toBe(
             "An AI will play your seat.",
         );
@@ -544,7 +548,7 @@ describe("mountGameView leaving", () => {
         const { connections, host, sink } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        press(host, ".game-aside__leave");
+        press(host, ".game-menu__leave");
         press(host, ".leave-confirm__leave");
 
         expect(connections[0].disconnected).toBe(true);

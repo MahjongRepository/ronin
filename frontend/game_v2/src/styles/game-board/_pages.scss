@@ -1,5 +1,5 @@
-/* A page around a board: the board fills what its aside (controls, story switches) leaves, beside it in
-   landscape as a compact column bounded to the viewport's height, below it upright, where the page may scroll. */
+/* A page around a board: the board fills what its aside (controls, story switches), when it has one, leaves, beside it
+   in landscape as a compact column bounded to the viewport's height, below it upright, where the page may scroll. */
 
 #app:has(.board-page) {
     max-width: none;
@@ -22,6 +22,14 @@
     @media (orientation: landscape) {
         grid-template: "board aside" minmax(0, 1fr) / minmax(0, 1fr) auto;
         height: 100dvh;
+    }
+
+    &:not(:has(> .board-page__aside)) {
+        grid-template: "board" minmax(20rem, 1fr) / minmax(0, 1fr);
+
+        @media (orientation: landscape) {
+            grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr);
+        }
     }
 }
 
@@ -87,7 +95,7 @@
     }
 }
 
-.board-storybook .board-storybook__select {
+:is(.board-storybook, .decisions-storybook) .board-storybook__select {
     width: 100%;
     font-size: 0.8rem;
     height: auto;

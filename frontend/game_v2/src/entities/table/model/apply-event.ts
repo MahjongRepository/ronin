@@ -87,6 +87,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         dealerSeat: event.dealerSeat,
         doraIndicators: event.doraIndicators,
         honbaSticks: event.honbaSticks,
+        lastDiscardSeat: null,
         lastEventDescription: "Round started",
         phase: "in_round",
         players,
@@ -130,6 +131,7 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
     return {
         ...state,
         currentPlayerSeat: event.seat,
+        lastDiscardSeat: event.seat,
         lastEventDescription: `${player.name} discarded ${tile136toString(event.tileId)}`,
         players: updatePlayer(state.players, event.seat, {
             concealedCount: hand.concealedCount,

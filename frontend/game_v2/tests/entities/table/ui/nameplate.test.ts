@@ -2,7 +2,11 @@ import { render } from "lit-html";
 import { describe, expect, it, vi } from "vitest";
 
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
-import { type BoardDisplayState, type SeatPosition } from "@/entities/table/model/board-types";
+import {
+    type BoardDisplayState,
+    SEAT_POSITIONS,
+    type SeatPosition,
+} from "@/entities/table/model/board-types";
 import {
     createInitialPlayerState,
     createInitialTableState,
@@ -29,7 +33,11 @@ function nameplates(): BoardDisplayState["nameplates"] {
 
 function renderPlates(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement {
     const host = document.createElement("div");
-    render(Nameplates(nameplates(), { onPin, pinned }), host);
+    const plates = Nameplates(nameplates(), { onPin, pinned });
+    render(
+        SEAT_POSITIONS.map((position) => plates[position]),
+        host,
+    );
     return host;
 }
 
@@ -65,9 +73,6 @@ describe("Nameplates", () => {
         );
         expect(plate(host, "right").querySelector(".nameplate__ai--ai")).not.toBeNull();
         expect(plate(host, "left").querySelector(".nameplate__ai--away")).not.toBeNull();
-        expect(plate(host, "left").querySelector(".nameplate__diff--right")?.textContent).toBe(
-            "+1000",
-        );
     });
 
     it("shortens a name too long for its plate in the middle, keeping its end", () => {

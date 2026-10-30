@@ -1,4 +1,4 @@
-export { Tile, injectTileSprite } from "./ui/tile";
+export { Tile, TileBack, injectTileSprite } from "./ui/tile";
 export type { TileSprite, TileSpriteDeps, TileSpriteStatus } from "./lib/sprite-loader";
 export { TILE_SPRITE_RETRY_DELAYS_MS, loadTileSprite } from "./lib/sprite-loader";
 export { Hand } from "./ui/hand";

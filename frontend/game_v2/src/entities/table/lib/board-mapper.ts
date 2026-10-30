@@ -59,11 +59,14 @@ function sidewaysDiscardIndex(discards: PlayerState["discards"]): number {
     return discards.findIndex((discard, index) => index >= declared && discard.claimed !== true);
 }
 
-function buildDiscardTiles(player: PlayerState): DiscardTile[] {
+/** The river, its riichi tile sideways and, when the table's latest discard is this seat's, that tile marked. */
+function buildDiscardTiles(player: PlayerState, lastDiscardSeat: number | null): DiscardTile[] {
     const sideways = sidewaysDiscardIndex(player.discards);
+    const last = player.seat === lastDiscardSeat ? player.discards.length - 1 : -1;
     return player.discards.map((d, index) => ({
         face: tile136toString(d.tileId),
         grayed: d.claimed,
+        last: index === last,
         riichi: index === sideways,
     }));
 }
@@ -78,13 +81,13 @@ const EMPTY_PLAYER: BoardPlayerDisplay = {
 function mapPlayerDisplay(
     player: PlayerState,
     atBottom: boolean,
-    perspective: BoardPerspective,
+    { perspective, state }: { perspective: BoardPerspective; state: TableState },
 ): BoardPlayerDisplay {
     const show = perspective.reveal === "all" || atBottom ? "face" : "back";
     const { baseTiles, drawnTile } = buildHandTiles(player, show);
 
     return {
-        discards: buildDiscardTiles(player),
+        discards: buildDiscardTiles(player, state.lastDiscardSeat),
         drawnTile,
         hand: baseTiles,
         melds: player.melds.map(meldTiles),
@@ -178,7 +181,7 @@ function tableStateToDisplayState(
     const slots = slotsFrom(state.players, perspective.bottomSeat);
     const [bottom, right, top, left] = slots;
     function display(player: PlayerState | undefined, atBottom: boolean): BoardPlayerDisplay {
-        return player ? mapPlayerDisplay(player, atBottom, perspective) : EMPTY_PLAYER;
+        return player ? mapPlayerDisplay(player, atBottom, { perspective, state }) : EMPTY_PLAYER;
     }
     function nameplate(player: PlayerState | undefined): BoardNameplate {
         return player ? mapNameplate(player, slots, state) : EMPTY_NAMEPLATE;

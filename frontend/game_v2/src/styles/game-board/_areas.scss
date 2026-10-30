@@ -1,3 +1,5 @@
+@use "grid" as *;
+
 .board-area {
     display: flex;
     justify-content: center;
@@ -12,6 +14,7 @@
 
 .board-area--bottom-hand {
     grid-column: 2;
+    justify-self: start;
     align-items: flex-end;
 }
 
@@ -21,57 +24,125 @@
 }
 
 .board-strip--top {
-    grid-area: top-strip;
+    grid-area: top-strip / left-wrap / top-gap / right-reach;
+    min-width: 0;
     transform: rotate(180deg);
+
+    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        grid-area: top-far / right-river / top-near / end;
+        justify-content: flex-end;
+        margin-left: var(--board-gap-u);
+    }
+
+    > .nameplate {
+        flex: 0 1 auto;
+        align-self: center;
+        max-height: 100%;
+        transform: rotate(180deg);
+    }
 }
 
-.board-strip--right {
-    grid-area: right-strip;
-    transform: rotate(270deg);
+/* A side seat's slot is its column; the strip inside is laid out as long as the column, then turned into it. */
+.board-side {
+    position: relative;
+    grid-column: right-col / right-edge;
+
+    > .board-strip {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: var(--board-side-length);
+    }
 }
 
-.board-strip--left {
-    grid-area: left-strip;
-    transform: rotate(90deg);
+.board-side--right {
+    grid-row: top-far / bottom-far;
+
+    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        grid-row: top-near / frame-end;
+    }
+
+    > .board-strip {
+        transform: translate(-50%, -50%) rotate(270deg);
+    }
 }
 
-.board-area--bottom-disc {
-    grid-area: bottom-disc;
-    place-self: start center;
-    justify-content: flex-start;
-    align-items: flex-start;
-    width: var(--board-disc-width);
-    height: var(--board-disc-height);
+.board-side--left {
+    grid-row: top-near / frame-end;
+    grid-column: left-col / left-gap;
+
+    > .board-strip {
+        transform: translate(-50%, -50%) rotate(90deg);
+    }
 }
 
-.board-area--top-disc {
-    grid-area: top-disc;
-    place-self: end center;
-    justify-content: flex-start;
-    align-items: flex-start;
-    width: var(--board-disc-width);
-    height: var(--board-disc-height);
-    transform: rotate(180deg);
+/* A top or bottom river's long third row runs on past the corner it starts at; a side river's wraps into a fourth row
+   toward its edge, since the table is shorter than it is wide. */
+.board-river {
+    position: relative;
+
+    > .discards {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: var(--board-river-length);
+        height: var(--board-river);
+        min-width: 0;
+        min-height: 0;
+        padding-top: calc(#{$river-pad * 0.5} * var(--board-unit));
+    }
 }
 
-.board-area--right-disc {
-    grid-area: right-disc;
-    place-self: center start;
-    justify-content: flex-start;
-    align-items: flex-start;
-    width: var(--board-disc-width);
-    height: var(--board-disc-height);
-    transform: translateX(calc((var(--board-disc-height) - var(--board-disc-width)) / 2))
-        rotate(270deg);
+.board-river--bottom,
+.board-river--top {
+    width: var(--board-river-length);
+    height: var(--board-river);
 }
 
-.board-area--left-disc {
-    grid-area: left-disc;
-    place-self: center end;
-    justify-content: flex-start;
-    align-items: flex-start;
-    width: var(--board-disc-width);
-    height: var(--board-disc-height);
-    transform: translateX(calc((var(--board-disc-width) - var(--board-disc-height)) / 2))
-        rotate(90deg);
+.board-river--right,
+.board-river--left {
+    width: var(--board-river);
+    height: var(--board-river-length);
+
+    .discard-row {
+        flex-wrap: wrap;
+        row-gap: calc(#{$river-row-gap} * var(--board-unit));
+        max-width: var(--board-river-length);
+    }
+}
+
+.board-river--bottom {
+    grid-area: bottom-near / center / frame-end / right-wrap;
+    justify-self: start;
+
+    > .discards {
+        transform: translate(-50%, -50%);
+    }
+}
+
+.board-river--top {
+    grid-area: top-far / left-river / center / right-river;
+    justify-self: end;
+
+    > .discards {
+        transform: translate(-50%, -50%) rotate(180deg);
+    }
+}
+
+.board-river--right {
+    grid-area: top-far / right-river / bottom-near / right-wrap;
+    align-self: end;
+
+    > .discards {
+        transform: translate(-50%, -50%) rotate(270deg);
+    }
+}
+
+.board-river--left {
+    grid-area: center / left-river / frame-end / center;
+    align-self: start;
+
+    > .discards {
+        transform: translate(-50%, -50%) rotate(90deg);
+    }
 }

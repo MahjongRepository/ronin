@@ -1,45 +1,55 @@
 @use "game-board/grid" as *;
 
-/* The decision's corner of the board: beside the table on a wide board, its buttons stacked down to the hand for
-   the thumb; in the strip above the table otherwise, in one row that scrolls sideways rather than push the table. */
-
 $action-min-height: 2.5rem;
-$action-short-height: 2rem;
-$short-board: 300px;
+$action-short-board: 300px;
 $action-tile-share: 0.45;
 
 /* Its size is the grid area's, never its content's (`contain: size`), so a long list of offers scrolls inside the
    corner rather than growing the table's row. */
 .board-actions {
-    grid-area: actions;
+    grid-area: center / outer-right / frame-end / end;
     display: flex;
     min-width: 0;
     min-height: 0;
     padding: var(--board-pad);
     overflow: auto;
     contain: size;
+
+    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        grid-area: top-near / outer-right / frame-end / end;
+        padding-top: calc(40px + 2 * var(--board-pad));
+        padding-inline: 0;
+    }
+
+    @container (aspect-ratio < 1) {
+        grid-area: foot / outer-left / end / end;
+        overflow: visible;
+        contain: none;
+    }
 }
 
-/* The controls sit at the end nearest the hand by an auto margin, not `justify-content`, so content wider or taller
-   than the corner overflows toward the scrollable side instead of off its start. */
+/* The controls sit at the foot nearest the hand by an auto margin, not `justify-content`, so content taller than the
+   corner overflows toward the scrollable side instead of off its start. */
 .decision-controls {
+    --action-text: max(0.85rem, calc(26 * var(--board-table-unit)));
+
     display: flex;
     flex: 1;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.4rem;
     min-width: 0;
 
     > :first-child {
-        margin-inline-start: auto;
+        margin-block-start: auto;
     }
 
-    @container (aspect-ratio >= #{$wide-board}) {
-        flex-direction: column;
-        align-items: stretch;
+    @container (aspect-ratio < 1) {
+        flex-direction: row;
+        align-items: center;
 
         > :first-child {
-            margin-block-start: auto;
-            margin-inline-start: 0;
+            margin-block-start: 0;
         }
     }
 }
@@ -55,14 +65,14 @@ $action-tile-share: 0.45;
 .decision-controls__countdown {
     min-width: 2.5ch;
     font-family: var(--ronin-font-mono);
-    font-size: 1.5rem;
+    font-size: calc(var(--action-text) * 1.6);
     font-weight: 700;
     line-height: 1.1;
     color: var(--ronin-gold);
     text-align: center;
 
     &--expired {
-        font-size: 0.85rem;
+        font-size: var(--action-text);
         color: var(--ronin-danger);
     }
 }
@@ -79,17 +89,27 @@ $action-tile-share: 0.45;
 }
 
 .decision-controls__actions {
-    display: flex;
-    gap: 0.4rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.3rem;
 
-    @container (aspect-ratio >= #{$wide-board}) {
-        flex-wrap: wrap;
+    > .decision-controls__action {
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 0;
+        padding-inline: 0.25rem;
+    }
 
-        > .decision-controls__action {
-            flex: 1 1 40%;
-            flex-direction: column;
-            gap: 0.15rem;
-            padding-inline: 0.25rem;
+    > .decision-controls__action:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+
+    @container (aspect-ratio < 1) {
+        flex: 1;
+        grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+
+        > .decision-controls__action:last-child:nth-child(odd) {
+            grid-column: auto;
         }
     }
 }
@@ -101,10 +121,10 @@ $action-tile-share: 0.45;
     justify-content: center;
     gap: 0.2rem;
     width: auto;
-    min-height: $action-min-height;
+    min-height: max(#{$action-min-height}, calc(72 * var(--board-table-unit)));
     margin: 0;
     padding: 0.25rem 0.5rem;
-    font-size: 0.85rem;
+    font-size: var(--action-text);
     font-weight: 700;
     line-height: 1;
     white-space: nowrap;
@@ -121,8 +141,7 @@ $action-tile-share: 0.45;
         outline-offset: 2px;
     }
 
-    @container (height < #{$short-board}) {
-        min-height: $action-short-height;
+    @container (height < #{$action-short-board}) {
         padding-block: 0.1rem;
     }
 }

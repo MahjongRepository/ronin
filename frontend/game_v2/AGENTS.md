@@ -146,7 +146,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
   keeps the page; and the nameplate pinned for score differences. One gesture serves every board
   (live, replay, storybook): hovering a nameplate, or tapping it (a button, so a key too), shows the
-  other seats' scores as differences from its own; a tap pins it until it is tapped again, another
+  other seats' scores in the centre as differences from its own; a tap pins it until it is tapped again, another
   part of the board is tapped or Escape is pressed. A replay viewpoint switch, when it comes, is a
   control of its own, never the nameplate's tap. A new prop on the board is added to these mappers
   when a scenario shows the need, never computed in a view.
@@ -184,8 +184,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Browser floor: iOS Safari 16.4** (range media syntax; container queries need 16.0, `dvh` 15.4),
   and the smallest supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320
   phones never got iOS 16.4, so they are below the floor.
-* **The live game's page** is the board beside an aside holding the way back and the session's
-  status in a player's terms, as the rotate panel words it. The board carries the notices
+* **The live game's page** is the board alone: the page's own controls (`GameMenu`: the way back and the
+  session's status as a dot, with one short word by its tone unless connected, the player's whole wording in
+  its title and read out, the notices saying more) sit in the board's top-right corner, so a phone gives the
+  board its whole width; `PlayBoard` draws them when given the status, the decisions storybook too. The board
+  carries the notices
   (`playDisplay`'s, in the table's own area so they never cover the hand or the decision's corner): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
   opened, each worded the same across its retries so it is announced once (a page that only resumes
@@ -194,7 +197,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   move); and a server message the client cannot read, on the console too, shown until a reconnect's
   snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
   a reload, until a retry loads them. An end that stops the session on the
-  page blocks the board, and takes the rotate panel's place, with why and a way back. With `?debug` (any value but `0`, `false`, `no` or `off`) the aside adds the debug log, a
+  page blocks the board, and takes the rotate panel's place, with why and a way back. With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
   it the view keeps no log at all.
 * **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than
@@ -212,37 +215,56 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   clip.
 * **The board sizes itself from its own box.** `.game-board` is a size container and every length in it
   derives from its width and height (container query units), never the viewport or a fixed tile size.
-  The local strip (the bottom seat's hand, its melds smaller) spans the bottom edge and takes its share
-  of the height first; the dora take a corner of their own, beside the table on a wide board and above
-  it otherwise; the table fits what is left in both directions. Each other seat has one strip along its
-  edge, its melds sharing the hand's track, so a hand shrinks as its melds grow and the two never
-  overlap. Inside the table, lengths are counted in board units (a tile is 60 x 80); the Sass constants
+  The local strip spans the bottom edge and takes its share of the height first, with no cap, so its
+  tiles are always the board's largest: the bottom seat's plate, then its hand from where a full hand
+  would start, its melds smaller at the far end. The table fits what is left in both directions.
+  Inside the table, lengths are counted in board units (a river tile is 60 x 80); the Sass constants
   in `game-board/_grid.scss` give every track in those units and the spans the unit is fitted to, and
-  `--board-unit` is the length of one unit, the smaller of the table's width and height over those
-  spans. The local strip, the dora and the overlay set their own unit the same way. Each nameplate
-  sits upright in the table corner on its seat's left and takes the whole corner, until the
-  neighbouring river's third row runs past six tiles into it and the plate steps out of that band
-  (`game-board/_nameplates.scss`); a name wraps before it is cut, and the component shortens a long
-  one in the middle so its end, which tells AI players apart, always shows. Breakpoints, as
-  container queries, change density only. Text the board scales keeps a 10px floor. The decision's
-  corner is the board's own grid area, beside the table opposite the dora on a wide board (its
-  buttons wrapping down toward the hand, for the thumb) and beside the dora above the table
-  otherwise (one row that scrolls sideways); it is sized by its area, never its content, so offers
-  scroll inside it rather than squeeze the table.
+  `--board-unit` is the length of one unit, the smallest of the table's width and height over those
+  spans (the centre keeps a pixel floor, so its text fits a phone).
+* **The table is a frame of fixed proportions**, centred, and the board's spare width goes to the
+  outer columns beside it, never between a seat and its river. The rivers form a pinwheel around the
+  centre, each starting at the centre's corner on its seat's left; a top or bottom river's third row
+  runs on past its corner, up to six tiles past the other two (24 discards), and a side river, whose
+  length runs along the short axis, wraps its third row into a fourth toward its edge. The other seats'
+  strips (hand, then melds, at a fraction of the river size, their tiles toward the centre) start at
+  the hand's start: the top seat's at its right, a side seat's at its column's end, each side column
+  stopping short of the band a long third row runs into. On a tall board the top strip runs along the
+  top edge; a short one (a phone in landscape) has no height for that row, so the top strip lies beside
+  the top river, the right column stands past a long bottom third row's reach and the centre is smaller,
+  which buys the rivers and faces their size. Each plate (one shape: wind, name, AI and riichi marks,
+  sized by the table's unit) reads as its seat's by standing against its hand's start: the top seat's
+  leads its strip and gives up its name's room before the strip leaves the board; a side seat's sits
+  in the corner on the strip's inner side, which no river reaches; the bottom seat's left of its hand.
+  A long name is shortened in the middle by the component so its end, which tells AI players apart,
+  shows; an upright board (a storybook or replay page on an upright phone) shows the wind and marks
+  alone, its name in the label. The outer columns hold the dora and the table's honba and riichi
+  sticks (top-left, at the strips' size, a back in each slot still to turn), the page's corner
+  (top-right) and the decision's controls (right, above the hand); the live board's are wider on a
+  short board, so two columns of offers fit; an upright board moves them to rows above and below the
+  table. The centre shows each seat's wind and score on the side facing it, its riichi stick beside
+  them, a bar for whose turn it is, and the round and the wall, labelled, in its middle. The overlay
+  sets its own unit. Text the board scales keeps a 10px floor. The decision's corner is sized by its
+  area, never its content, so offers scroll inside it rather than squeeze the table.
 * **Pages never clip the board.** `.board-page` gives it a definite box, sized with `dvh` and the
-  safe-area insets (the theme's `--ronin-safe-*`, which a test can set), and puts its aside (controls,
-  story switches) below it upright, or beside it in landscape as a compact column that scrolls when the
-  window is too short for it.
+  safe-area insets (the theme's `--ronin-safe-*`, which a test can set), and puts its aside, when it has
+  one (the replay's controls, the storybooks' switches), below it upright, or beside it in landscape as
+  a compact column that scrolls when the window is too short for it.
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
   dora, long names, AI marks and a pinned nameplate; the dense round results; and the decisions
-  stories), the replay and the live game, at its call prompt and at its turn, at 1280x800 (Chromium),
-  iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
+  stories), the replay and the live game, at its call prompt and at its turn, at 1280x800 and 1920x1080
+  (Chromium), iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context. It
   fails on content that is hidden or empty, tiles of different areas or a nameplate overlapping,
-  anything outside the board or the screen, page overflow, board text under 10px, local hand tiles under 32x42 or
-  decision buttons under 40x40 in landscape, a round end that does not fit its panel, an aside that
+  anything outside the board or the screen, page overflow, board text under 10px, local hand tiles under
+  the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800 and 93x124 at 1920x1080) or no
+  larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
+  nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or
+  stick count under 0.8 of the scores' size, and decision or leave buttons under 40x40; on a desktop, on a
+  river tile outside 0.55-0.75 of the local hand tile or a side seat's hand further from the centre than a
+  quarter of the board's width. It also fails on a round end that does not fit its panel, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, and on a tile sprite that never loaded or a face whose
   symbol it lacks. It writes a screenshot per page to

@@ -6,8 +6,6 @@ import {
     type SeatPosition,
 } from "@/entities/table/model/board-types";
 
-import { RiichiStickIcon } from "./riichi-stick-icon";
-
 /**
  * The plate whose score the other plates show their differences from, pinned by a tap or a press, and where a pin
  * or an unpin goes. Hovering a plate shows the same differences without pinning it.
@@ -91,11 +89,10 @@ function nameplateLabel({ pinnedOther, plate }: NameplateProps): string {
 }
 
 /**
- * A seat's nameplate, one shape on every side: its wind (the dealer's marked) beside its player's name, which wraps
- * to a second line before it is cut, then its score and its riichi and AI marks; whose turn it is lights it up. It
- * is a button: pressing it pins it, so the other plates show their scores as differences from its own, and pressing
- * it again unpins it. Each plate holds its difference from every other seat, and the stylesheet shows the one the
- * hovered or pinned plate asks for.
+ * A seat's nameplate, one shape on every side: its wind (the dealer's marked), its player's name, then its AI and
+ * riichi marks; whose turn it is lights it up. Its score is the centre's, on the seat's side. It is a button: pressing
+ * it pins it, so the centre shows the other seats' scores as differences from its own, and pressing it again unpins
+ * it; its label reads the score, or the difference from the pinned plate.
  */
 function Nameplate(props: NameplateProps): TemplateResult {
     const { onToggle, plate, position, pressed } = props;
@@ -107,10 +104,6 @@ function Nameplate(props: NameplateProps): TemplateResult {
     ]
         .filter(Boolean)
         .join(" ");
-    const diffs = SEAT_POSITIONS.filter((other) => other !== position).map(
-        (other) =>
-            html`<span class="nameplate__diff nameplate__diff--${other}">${plate.scoreDiffs[other]}</span>`,
-    );
     const { aiMark } = plate;
     return html`<button
         type="button"
@@ -129,10 +122,7 @@ function Nameplate(props: NameplateProps): TemplateResult {
                       >${aiMark.tag === "Away" ? UnpluggedIcon() : RobotIcon()}</span
                   >`
         }
-        <span class="nameplate__info">
-            <span class="nameplate__points"><span class="nameplate__score">${plate.score}</span>${diffs}</span>
-            ${plate.isRiichi ? html`<span class="nameplate__riichi">${RiichiStickIcon()}</span>` : nothing}
-        </span>
+        ${plate.isRiichi ? html`<span class="nameplate__riichi">Riichi</span>` : nothing}
     </button>`;
 }
 
@@ -140,10 +130,10 @@ function Nameplate(props: NameplateProps): TemplateResult {
 function Nameplates(
     plates: readonly [BoardNameplate, BoardNameplate, BoardNameplate, BoardNameplate],
     pin: ScoreDiffPin,
-): TemplateResult[] {
+): Readonly<Record<SeatPosition, TemplateResult>> {
     const pinnedIndex = pin.pinned === null ? -1 : SEAT_POSITIONS.indexOf(pin.pinned);
     const pinnedPlate = plates[pinnedIndex];
-    return SEAT_POSITIONS.map((position, index) => {
+    const [bottom, right, top, left] = SEAT_POSITIONS.map((position, index) => {
         const pressed = pin.pinned === position;
         const pinnedOther =
             pin.pinned === null || pressed || pinnedPlate === undefined
@@ -157,6 +147,7 @@ function Nameplates(
             pressed,
         });
     });
+    return { bottom, left, right, top };
 }
 
 export { Nameplates };

@@ -166,6 +166,12 @@ export interface TableState {
     readonly doraIndicators: readonly number[];
     readonly currentPlayerSeat: number;
     readonly tilesRemaining: number;
+    /**
+     * The seat whose discard is the table's latest while it still lies in its river: set by a discard, cleared by any
+     * meld or kan declaration and by a new deal; a reconnect's snapshot sets it when the seat in turn has just
+     * discarded, else clears it.
+     */
+    readonly lastDiscardSeat: number | null;
     readonly phase: GamePhase;
     readonly lastEventDescription: string;
     /** The ended round's result, kept through the game end that follows the last round's, until a new deal. */

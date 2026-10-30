@@ -8,9 +8,11 @@ import {
     type PlayNotice,
     type ResultControls,
 } from "@/entities/client/model/play-display";
+import { type SessionStatusDisplay } from "@/entities/session";
 import { type BoardNotice, GameBoard, type TableState, boardOverlay } from "@/entities/table";
 import { Tile } from "@/entities/tile";
 
+import { GameMenu } from "./game-menu";
 import { countdownAnnouncement } from "./rotate-panel";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
@@ -19,6 +21,10 @@ export interface PlayBoardProps {
     /** The table the display was mapped from, whose panel (seating, result, standings) shows over the board. */
     readonly table: TableState;
     readonly onCommand: (command: PlayCommand) => void;
+    /** The session's status, which the board's corner shows beside the way back; none on a board with no session. */
+    readonly status?: SessionStatusDisplay;
+    /** What the page adds to the corner before the status (the debug log). */
+    readonly menuExtra?: TemplateResult;
 }
 
 function CountdownView(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
@@ -178,7 +184,13 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * nothing; turning the result's page is a command too. While an end or the leave question blocks the board, the board
  * under it is inert.
  */
-export function PlayBoard({ display, onCommand, table }: PlayBoardProps): TemplateResult {
+export function PlayBoard({
+    display,
+    menuExtra,
+    onCommand,
+    status,
+    table,
+}: PlayBoardProps): TemplateResult {
     function onTile(tileId: number): void {
         const intent = display.tileIntents.get(tileId);
         if (intent !== undefined) {
@@ -190,6 +202,10 @@ export function PlayBoard({ display, onCommand, table }: PlayBoardProps): Templa
         debug: false,
         inert: display.failure !== null || display.leave.confirming,
         localHand: { onTile, tileAction: display.tileAction },
+        menu:
+            status === undefined
+                ? undefined
+                : GameMenu({ extra: menuExtra, leave: display.leave, onCommand, status }),
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         overlay: PlayOverlay(display, table, onCommand),
         scoreDiff: {

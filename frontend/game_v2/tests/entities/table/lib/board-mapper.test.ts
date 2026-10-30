@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
+import { checkpointState } from "#tests/fixtures/seat-transcripts";
 import { formatScore, tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { type BoardPerspective } from "@/entities/table/model/board-types";
 import {
@@ -341,6 +342,53 @@ describe("tableStateToDisplayState nameplates on a replay", () => {
             "Charlie W 25000",
             "Bob N turn riichi 24000",
         ]);
+    });
+});
+
+describe("tableStateToDisplayState last discard", () => {
+    function marked(table: TableState, bottomSeat = 0): readonly string[] {
+        const display = tableStateToDisplayState(table, { bottomSeat, reveal: "all" })!;
+        return display.players.flatMap((player, position) =>
+            player.discards.flatMap((tile, at) =>
+                tile.last ? [`${position}:${at} ${tile.face}`] : [],
+            ),
+        );
+    }
+
+    function markedAfter(
+        name: string,
+        matches: (
+            event: NonNullable<ReturnType<typeof loadEngineReplay>["events"][number]>,
+        ) => boolean,
+        nth = 0,
+    ): readonly string[] {
+        const replay = loadEngineReplay(name);
+        const index = replay.events.flatMap((event, at) =>
+            event !== null && matches(event) ? [at] : [],
+        )[nth];
+        if (index === undefined) {
+            throw new Error(`${name} has no such event #${nth}`);
+        }
+        return marked(replay.tables[index + 1]);
+    }
+
+    test("marks the latest discard, moving with each discard and kept through the next draw, and none once a meld or kan follows", () => {
+        expect(markedAfter("pao", (event) => event.type === "discard")).toEqual(["0:0 5z"]);
+        expect(markedAfter("pao", (event) => event.type === "draw", 1)).toEqual(["1:0 9p"]);
+        expect(markedAfter("pao", (event) => event.type === "meld")).toEqual([]);
+        expect(
+            markedAfter(
+                "kans",
+                (event) => event.type === "meld" && event.meldType === "closed_kan",
+            ),
+        ).toEqual([]);
+    });
+
+    test("marks after a reconnect the discard a call prompt offers, and none at a turn or a chankan prompt", () => {
+        const marks = ["reconnect_seat_1", "own_turn_seat_1", "chankan_passed_seat_3"].map((name) =>
+            marked(checkpointState(name, "reconnected").table),
+        );
+        expect(marks).toEqual([["0:0 5z"], [], []]);
     });
 });
 

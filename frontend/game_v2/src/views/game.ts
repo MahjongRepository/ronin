@@ -81,7 +81,6 @@ interface LogEntry {
 }
 
 interface GameViewProps {
-    readonly gameId: string;
     readonly log: readonly LogEntry[] | null;
     readonly state: GameClientState;
     readonly ui: PlayUi;
@@ -193,33 +192,25 @@ function logTemplate(
 }
 
 /**
- * The live game: its board, played from the viewer's seat, beside its controls (the way back, the session's status
- * and, under `?debug`, the log), and the rotate panel the stylesheet shows in their place on an upright phone, all
- * rendered from the same state so the panel's status and countdown stay current while it is hidden. While the leave
- * question is open the controls are inert with the board, so the question is modal.
+ * The live game: its board, played from the viewer's seat, with the page's controls in its corner, and the rotate
+ * panel the stylesheet shows in its place on an upright phone, all rendered from the same state so the panel's status
+ * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { gameId, log, onCommand, panel, state, ui } = props;
-    const status = describePlayerClientStatus(state);
+    const { log, onCommand, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
+    const board = PlayBoard({
+        display,
+        menuExtra: log === null ? undefined : logTemplate(log, panel, state),
+        onCommand,
+        status: describePlayerClientStatus(state),
+        table: state.table,
+    });
     return html`
         <div class="game">
             <div class="game__rotate">${RotatePanel(rotatePanelProps(state, ui, onCommand))}</div>
             <div class="game__play board-page">
-                <div class="board-page__board">${PlayBoard({ display, onCommand, table: state.table })}</div>
-                <aside class="board-page__aside game-aside" aria-label="Game ${gameId}" ?inert=${display.leave.confirming}>
-                    <button
-                        class="secondary game-aside__leave"
-                        aria-haspopup=${display.leave.command.kind === "ask_leave" ? "dialog" : nothing}
-                        @click=${() => onCommand(display.leave.command)}
-                    >
-                        Lobby
-                    </button>
-                    <span class="connection-status game-aside__status status-${status.tone}" role="status"
-                        >${status.label}</span
-                    >
-                    ${log === null ? "" : logTemplate(log, panel, state)}
-                </aside>
+                <div class="board-page__board">${board}</div>
             </div>
         </div>
     `;
@@ -249,7 +240,6 @@ function nextWake(state: GameClientState): number | null {
  */
 class GameViewController {
     private readonly host: HTMLElement;
-    private readonly gameId: string;
     private readonly deps: GameViewDeps;
     private readonly panel = createRef<HTMLElement>();
     private readonly queue: ClientEvent[] = [];
@@ -270,7 +260,6 @@ class GameViewController {
 
     constructor(host: HTMLElement, gameId: string, deps: GameViewDeps) {
         this.host = host;
-        this.gameId = gameId;
         this.deps = deps;
         this.log = deps.debug ? [] : null;
         this.ui = { ...NO_PLAY_UI, tileSprite: deps.tileSprite.status() };
@@ -392,8 +381,8 @@ class GameViewController {
         if (this.disposed) {
             return;
         }
-        const { command, gameId, log, panel, state, ui } = this;
-        const props = { gameId, log, onCommand: command, panel, state, ui };
+        const { command, log, panel, state, ui } = this;
+        const props = { log, onCommand: command, panel, state, ui };
         render(gameTemplate(props), this.host);
         if (panel.value && this.logAppended !== this.logAppendedAtDraw) {
             panel.value.scrollTop = panel.value.scrollHeight;

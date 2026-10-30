@@ -202,6 +202,7 @@ export function applyMeld(state: TableState, event: MeldEvent): TableState {
     return {
         ...nextState,
         currentPlayerSeat: event.callerSeat,
+        lastDiscardSeat: null,
         lastEventDescription: meldDescription(state, event),
     };
 }

@@ -21,14 +21,27 @@
         margin-left: calc(4 * var(--board-unit));
     }
 
+    .board-strip .meld {
+        margin-left: calc(2 * var(--board-unit));
+    }
+
+    .board-strip .hand-drawn-gap {
+        margin-left: calc(4 * var(--board-unit));
+    }
+
     .discards {
         gap: calc(2 * var(--board-unit));
-        min-width: var(--board-disc-width);
-        min-height: calc(3 * var(--board-tile-h) + 2 * 2 * var(--board-unit));
     }
 
     .discard-row {
         gap: calc(1 * var(--board-unit));
+    }
+
+    .discard-tile--last {
+        border-radius: calc(6 * var(--board-unit));
+        box-shadow:
+            0 0 0 max(2px, calc(4 * var(--board-unit))) var(--ronin-gold),
+            0 0 max(4px, calc(16 * var(--board-unit))) var(--ronin-gold);
     }
 
     // Sideways tile overrides (melds + riichi discards)

@@ -317,8 +317,18 @@ function withRiver(player: BoardPlayerDisplay, hand: readonly HandTile[]): Board
     return { ...player, discards: fullRiver, hand, melds: [] };
 }
 
-/** Twenty-one discards: the longest third row the worst case lays out. */
-const longRiver: DiscardTile[] = [...fullRiver, { face: "9s" }, { face: "1z" }];
+/** Twenty-four discards: the longest third row the worst case lays out, six past the others. */
+const longRiver: DiscardTile[] = [
+    ...fullRiver,
+    { face: "9s" },
+    { face: "1z" },
+    { face: "2z" },
+    { face: "3z" },
+    { face: "4z" },
+];
+
+/** The long river with its last tile the table's latest discard, which only one seat's river holds. */
+const latestRiver: DiscardTile[] = [...longRiver.slice(0, -1), { face: "4z", last: true }];
 
 /** Four melds for `seat`, the widest kinds: a closed, an open and an added kan, then a pon. */
 function fourMelds(seat: number): MeldInput[] {
@@ -355,9 +365,9 @@ function fourMelds(seat: number): MeldInput[] {
     ];
 }
 
-function worstSeat(seat: number): BoardPlayerDisplay {
+function worstSeat(seat: number, discards: readonly DiscardTile[] = longRiver): BoardPlayerDisplay {
     return {
-        discards: longRiver,
+        discards,
         drawnTile: { face: "6z", show: "face" },
         hand: [{ face: "2s", show: "face" }],
         melds: laid(fourMelds(seat)),
@@ -383,7 +393,7 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
             tilesRemaining: 0,
         },
         nameplates: worstPlates,
-        players: [worstSeat(0), worstSeat(1), worstSeat(2), worstSeat(3)],
+        players: [worstSeat(0), worstSeat(1), worstSeat(2), worstSeat(3, latestRiver)],
     },
 };
 

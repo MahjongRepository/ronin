@@ -82,11 +82,15 @@ replay view, the live game and the storybook read the tables it produces.
   known hand shows face up (a replay) or only the bottom seat's. A known tile keeps its id;
   concealed tiles render as backs from the count; melds are laid out as faces; a riichi
   declaration's discard lies sideways, or when called, the declarer's next discard left in the
-  river. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer, turn
-  (only while a round plays), riichi and AI marks, and its signed difference from every other seat's score; the board shows
-  the differences from a hovered or pinned plate by stylesheet alone, and the pin is the view's
-  state (`ScoreDiffPin`), never the table's. The centre keeps the round, the wall, the sticks, each
-  riichi stick and the turn's side. The board marks no tile playable: that is the client's
+  river; the table's latest discard (`lastDiscardSeat`: set by a discard, cleared by any meld or kan
+  declaration and a new deal; a reconnect's snapshot sets it when the seat in turn holds 3n+1 tiles and
+  a river, since the server keeps the turn on a discarder while its discard is offered) is marked while
+  it lies in its river. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer,
+  turn (only while a round plays), riichi and AI marks, and its signed difference from every other seat's
+  score; the plate shows the name and marks, the centre each seat's wind, score and riichi stick on its
+  side, and the board shows the differences from a hovered or pinned plate there by stylesheet alone.
+  The pin is the view's state (`ScoreDiffPin`), never the table's. The centre also keeps the round and
+  the wall; the dora panel the sticks. The board marks no tile playable: that is the client's
   mapper's, from a decision this slice does not know.
   `ui/board-overlay.ts` picks the panel a table shows over its board (the seating, a round's
   result, the standings) for every board that shows a table.

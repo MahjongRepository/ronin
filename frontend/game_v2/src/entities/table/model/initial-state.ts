@@ -9,6 +9,7 @@ export function createInitialTableState(): TableState {
         gameEndResult: null,
         gameId: "",
         honbaSticks: 0,
+        lastDiscardSeat: null,
         lastEventDescription: "",
         phase: "pre_game",
         players: [],

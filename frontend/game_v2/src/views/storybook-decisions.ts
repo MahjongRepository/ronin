@@ -8,6 +8,7 @@ import {
     PlayBoard,
     type PlayCommand,
     type PlayUi,
+    describePlayerClientStatus,
     nextPlayUi,
     parseSeatTranscript,
     playDisplay,
@@ -205,6 +206,16 @@ function describeSent(sent: readonly ClientEffect[]): TemplateResult | typeof no
     return html`<pre class="decisions-storybook__sent">${sent.map((effect) => JSON.stringify(effect)).join("\n")}</pre>`;
 }
 
+/** The story the picker's change names, shown; a value naming none is ignored. */
+function pickStory(event: Event, show: (story: DecisionStoryKey) => void): void {
+    const { target } = event;
+    const key = target instanceof HTMLSelectElement ? target.value : "";
+    const picked = STORY_KEYS.find((candidate) => candidate === key);
+    if (picked !== undefined) {
+        show(picked);
+    }
+}
+
 function storybookTemplate(
     screen: StoryScreen,
     show: (story: DecisionStoryKey) => void,
@@ -214,16 +225,23 @@ function storybookTemplate(
     return html`
         <div class="board-page decisions-storybook">
             <div class="board-page__board">
-                ${PlayBoard({ display: playDisplay(state, ui), onCommand, table: state.table })}
+                ${PlayBoard({
+                    display: playDisplay(state, ui),
+                    onCommand,
+                    status: describePlayerClientStatus(state),
+                    table: state.table,
+                })}
             </div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>
-                ${STORY_KEYS.map(
-                    (key) => html`<button
-                        class="board-storybook__btn ${key === story ? "board-storybook__btn--active" : ""}"
-                        @click=${() => show(key)}
-                    >${DECISION_STORIES[key].title}</button>`,
-                )}
+                <div class="board-storybook__picker"><select
+                    class="board-storybook__select"
+                    aria-label="Story"
+                    @change=${(event: Event) => pickStory(event, show)}
+                >${STORY_KEYS.map(
+                    (key) =>
+                        html`<option value=${key} ?selected=${key === story}>${DECISION_STORIES[key].title}</option>`,
+                )}</select></div>
                 ${describeSent(sent)}
             </div>
         </div>

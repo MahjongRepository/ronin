@@ -1,36 +1,70 @@
 @use "grid" as *;
 
 .board-dora {
+    --board-unit: calc(var(--board-table-unit) * var(--board-opponent-scale));
+    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
+    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
+    --dora-text: max(10px, calc(24 * var(--board-table-unit)));
+
     display: flex;
     flex-direction: column;
-    gap: $dora-pad;
-    grid-area: info;
-    place-self: start;
-    margin: var(--board-pad);
-    padding: $dora-pad;
+    gap: calc(#{$dora-pad} * var(--board-unit));
+    grid-area: top-strip / outer-left / top-near / left-edge;
+    place-self: start start;
+    padding: calc(#{$dora-pad} * var(--board-unit));
     background: var(--ronin-surface-elevated);
-    border: $dora-border solid var(--ronin-border);
+    border: 1px solid var(--ronin-border);
     border-radius: 0.375rem;
-}
 
-.board-dora__label {
-    font-family: var(--ronin-font-mono);
-    font-size: 10px;
-    line-height: $dora-label-line;
-    font-weight: 600;
-    color: var(--ronin-text-muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        grid-area: top-far / outer-left / center / left-edge;
+    }
+
+    @container (aspect-ratio < 1) {
+        grid-area: head / outer-left / top-strip / center;
+    }
 }
 
 .board-dora__tiles {
     display: flex;
-    gap: $dora-gap;
+    gap: calc(#{$tile-gap} * var(--board-unit));
 }
 
-.board-dora__tile .tile {
-    --board-unit: calc(var(--board-dora-tile-w) / #{$tile-w});
+.board-dora__tile {
+    line-height: 0;
+}
 
-    width: var(--board-dora-tile-w);
-    height: var(--board-dora-tile-h);
+.board-dora__sticks {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    gap: 0.6em;
+    font-family: var(--ronin-font-mono);
+    font-size: var(--dora-text);
+    line-height: 1.1;
+    color: var(--pico-color);
+}
+
+.board-dora__stick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.board-dora__label {
+    font-family: var(--ronin-font-body);
+    font-size: max(10px, 0.55em);
+    color: var(--ronin-text-secondary);
+}
+
+.board-dora__count {
+    display: flex;
+    align-items: center;
+    gap: 0.15em;
+    font-weight: 700;
+
+    svg {
+        height: 1em;
+        width: auto;
+    }
 }

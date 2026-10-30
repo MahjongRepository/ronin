@@ -1,42 +1,28 @@
 @use "grid" as *;
 
-/* Each plate sits upright in the table corner on its seat's left, clear of the sideways riichi tile a neighbouring
-   river's row may push in; only once that river's third row runs past the corner's edge does it step out of its band. */
-$plate-band: $tile-h + $river-pad + 2;
-$plate-overflow: $tile-h - $tile-w + 4;
-$plate-long: $river-depth - $plate-overflow;
-$plate-short: $river-depth - $plate-band;
 $plate-text-min: 10px;
-$plate-line: 1.15;
 $plate-seats: bottom, right, top, left;
 
-/* Each seat's plate: its corner (row, column), the corner's outer edge it hugs, the neighbouring river whose third row
-   runs into that corner (from its own side), and the plate's length that row takes, then the other. */
-$plate-corners:
-    (bottom, 4, 2, end start, left, width, height), (right, 4, 4, end end, bottom, height, width),
-    (top, 2, 4, start end, right, width, height), (left, 2, 2, start start, top, height, width);
-
 .nameplate {
-    --plate-text: max(#{$plate-text-min}, calc(20 * var(--board-unit)));
+    --plate-text: max(#{$plate-text-min}, calc(18 * var(--board-table-unit)));
 
     z-index: 1;
-    display: grid;
-    grid-template:
-        "wind name" auto
-        "mark name" auto
-        "info info" auto / auto minmax(0, 1fr);
-    align-items: start;
-    gap: 1px 2px;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15em 0.3em;
     min-width: 0;
-    width: max-content;
+    max-width: 100%;
+    width: auto;
     margin: 0;
-    padding: 1px 2px;
+    padding: 0.15em 0.4em;
     overflow: hidden;
     font-family: var(--ronin-font-body);
     font-size: var(--plate-text);
     font-weight: 400;
-    line-height: $plate-line;
+    line-height: 1.2;
     text-align: left;
+    white-space: nowrap;
     color: var(--pico-color);
     background: var(--ronin-surface-overlay);
     border: 1px solid var(--ronin-border);
@@ -45,7 +31,8 @@ $plate-corners:
 
     &--current {
         border-color: var(--pico-primary);
-        box-shadow: inset 0 0 0 1px var(--pico-primary);
+        outline: 1px solid var(--pico-primary);
+        outline-offset: -2px;
     }
 
     &[aria-pressed="true"] {
@@ -58,37 +45,46 @@ $plate-corners:
     }
 }
 
-@each $seat, $row, $column, $anchor, $river, $along, $across in $plate-corners {
-    .nameplate--#{$seat} {
-        grid-area: #{$row} / #{$column};
-        place-self: $anchor;
-        max-#{$across}: calc(#{$plate-long} * var(--board-unit));
-        max-#{$along}: calc(#{$river-depth} * var(--board-unit));
-    }
-
-    .board-table:has(.board-area--#{$river}-disc .discard-row:nth-child(3) > :nth-child(7))
-        .nameplate--#{$seat} {
-        @if $along == width {
-            --plate-name-lines: 3;
-        }
-
-        max-#{$along}: calc(#{$plate-short} * var(--board-unit));
-        margin-#{$river}: calc(#{$plate-band} * var(--board-unit));
+.nameplate--top,
+.nameplate--bottom {
+    .nameplate__name {
+        min-width: 0;
     }
 }
 
-.nameplate__info {
-    grid-area: info;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1px 3px;
+.nameplate--bottom {
+    grid-column: 1;
+    place-self: start end;
+}
+
+.nameplate--right,
+.nameplate--left {
+    --plate-room: #{$side-fixed - $strip-depth - $edge-gap - $river-length - $plate-gap};
+
+    max-width: calc(
+        var(--board-center) + var(--plate-reach) + var(--plate-room) * var(--board-table-unit)
+    );
+}
+
+.nameplate--right {
+    --plate-reach: var(--board-reach);
+
+    grid-area: bottom-near / right-river / bottom-far / right-gap;
+    place-self: end end;
+    margin-right: calc(var(--board-plate-gap) - var(--board-gap-u));
+}
+
+.nameplate--left {
+    --plate-reach: var(--board-reach-left);
+
+    grid-area: top-near / left-reach / center / center;
+    place-self: start start;
+    margin-left: calc(var(--board-plate-gap) - var(--board-gap-u));
 }
 
 .nameplate__wind {
-    grid-area: wind;
-    justify-self: center;
-    padding: 0 2px;
+    flex: none;
+    padding: 0 0.25em;
     font-family: var(--ronin-font-mono);
     font-weight: 700;
     color: hsl(220deg 30% 90%);
@@ -102,42 +98,32 @@ $plate-corners:
 }
 
 .nameplate__name {
-    grid-area: name;
-    max-height: calc(var(--plate-name-lines, 2) * #{$plate-line}em);
+    min-width: auto;
     overflow: hidden;
-    overflow-wrap: anywhere;
-}
+    text-overflow: ellipsis;
 
-.nameplate__points {
-    font-family: var(--ronin-font-mono);
-    font-weight: 700;
-    color: var(--ronin-text-secondary);
-    white-space: nowrap;
-}
-
-.nameplate__diff {
-    display: none;
-    color: var(--ronin-gold);
-}
-
-.nameplate__riichi {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    width: 1.4em;
-    height: 1em;
-
-    .board-center__stick-icon {
-        flex: none;
-        width: auto;
-        height: 1.4em;
-        transform: rotate(90deg);
+    @container (aspect-ratio < 1) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        clip-path: inset(50%);
     }
 }
 
+.nameplate__riichi {
+    flex: none;
+    padding: 0 0.3em;
+    font-size: max(#{$plate-text-min}, 0.8em);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ronin-surface);
+    background: var(--ronin-gold);
+    border-radius: 3px;
+}
+
 .nameplate__ai {
-    grid-area: mark;
-    justify-self: center;
+    flex: none;
     display: flex;
     padding: 0 1px;
     color: var(--ronin-warning);
@@ -155,14 +141,18 @@ $plate-corners:
 }
 
 @mixin diffs-from($seat) {
-    .nameplate:not(.nameplate--#{$seat}) {
-        .nameplate__score {
+    .board-center__seat:not(.board-center__seat--#{$seat}) {
+        .board-center__score {
             display: none;
         }
 
-        .nameplate__diff--#{$seat} {
+        .board-center__diff--#{$seat} {
             display: inline;
         }
+    }
+
+    .board-center__seat--#{$seat} .board-center__score {
+        color: var(--ronin-gold);
     }
 
     .nameplate--#{$seat} {
@@ -171,18 +161,33 @@ $plate-corners:
 }
 
 /* A hovered plate wins over the pinned one where a pointer hovers; a touch screen's tap, which may leave its plate
-   hovered, only pins. */
+   hovered, only pins. The scores in the centre then read as differences from that plate's seat. */
 @each $seat in $plate-seats {
     @media (hover: hover) {
-        .board-table:has(.nameplate--#{$seat}:hover),
-        .game-board--diff-#{$seat} .board-table:not(:has(.nameplate:hover)) {
+        .board-layout:has(.nameplate--#{$seat}:hover),
+        .game-board--diff-#{$seat} .board-layout:not(:has(.nameplate:hover)) {
             @include diffs-from($seat);
         }
     }
 
     @media (hover: none) {
-        .game-board--diff-#{$seat} .board-table {
+        .game-board--diff-#{$seat} .board-layout {
             @include diffs-from($seat);
         }
+    }
+}
+
+.board-menu {
+    grid-area: top-strip / outer-right / top-far / end;
+    place-self: start end;
+    min-width: 0;
+    max-width: 100%;
+
+    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        grid-area: top-near / outer-right / center / end;
+    }
+
+    @container (aspect-ratio < 1) {
+        grid-area: head / center / top-strip / end;
     }
 }

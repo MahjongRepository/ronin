@@ -57,6 +57,20 @@ function snapshotPlayer(
 }
 
 /**
+ * The seat whose discard is the snapshot's latest: the seat in turn when its closed hand holds 3n+1 tiles and its river
+ * a tile, since the server keeps the turn on a discarder while its discard is offered and nobody has drawn or called
+ * since. Otherwise none.
+ */
+function snapshotLastDiscardSeat(snapshot: GameReconnectedEvent): number | null {
+    const seat = snapshot.playerStates.find((state) => state.seat === snapshot.currentPlayerSeat);
+    const last = seat?.discards.at(-1);
+    if (seat === undefined || last === undefined || seat.tileCount % 3 !== 1) {
+        return null;
+    }
+    return seat.seat;
+}
+
+/**
  * The game's first dealer: the dealer of the first round the snapshot's history lists, or while no round has ended
  * yet, the dealer of the round in play.
  */
@@ -65,8 +79,8 @@ function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
 }
 
 /**
- * Rebuild the table from a reconnect snapshot. It opens no wait: when the game awaits the seat, the server re-sends
- * the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result, and
+ * Rebuild the table from a reconnect snapshot, its latest discard marked when the snapshot shows whose it is. It opens
+ * no wait: when the game awaits the seat, the server re-sends the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result, and
  * the kan its win robbed as declared: the server never completes a robbed kan, so the snapshot's hand still holds its
  * tiles. Its scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
  */
@@ -86,6 +100,7 @@ export function applyGameReconnected(
         gameEndResult: null,
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
+        lastDiscardSeat: snapshotLastDiscardSeat(snapshot),
         lastEventDescription: "Reconnected",
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),

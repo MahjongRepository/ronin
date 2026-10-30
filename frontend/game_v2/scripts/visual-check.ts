@@ -37,11 +37,20 @@ const TRANSCRIPT_FIXTURE = join(APP_ROOT, "src/fixtures/seat-scenarios/call_prom
 const LIVE_CHECKPOINTS = ["prompt", "turn"] as const;
 const GAME_ID = "visual-check";
 
-/** The smallest local hand tile a landscape table may draw on a supported size, in CSS pixels: a tap target. */
-const MIN_TAP_WIDTH = 32;
-const MIN_TAP_HEIGHT = 42;
-/** The smallest decision button, in CSS pixels: a tap target. */
+/** The smallest local hand tile a landscape table may draw on a supported phone, in CSS pixels: a tap target. */
+const MIN_TAP: Size = { height: 42, width: 32 };
+/** The smallest decision button and leave button, in CSS pixels: a tap target. */
 const MIN_ACTION_SIZE = 40;
+/** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
+const MIN_OPPONENT_FACE: Size = { height: 17, width: 13 };
+/** A desktop river tile's long side as a share of the local hand tile's: the hierarchy the references keep. */
+const RIVER_TO_HAND = { max: 0.75, min: 0.55 } as const;
+/** How far a desktop side seat's hand may stand from the centre, as a share of the board's width. */
+const MAX_SIDE_DISTANCE_SHARE = 0.25;
+/** How close a nameplate sits to its own seat's tiles, in CSS pixels. */
+const MAX_PLATE_DISTANCE = 16;
+/** The centre's wall count and the sticks against the score: never under this share of its size. */
+const MIN_COUNTER_TO_SCORE = 0.8;
 /** The smallest computed font size of the board's centre text, dora label and nameplates, in CSS pixels. */
 const MIN_TEXT_PX = 10;
 /** Sub-pixel slack for comparing layout boxes. */
@@ -100,6 +109,10 @@ interface Viewport {
     readonly rotates: boolean;
     /** A supported device size, where the tap minimum holds and the round end fits without scrolling. */
     readonly supported: boolean;
+    /** The smallest local hand tile it may draw in landscape: a tap target, and on a desktop a hand that fills it. */
+    readonly handFloor: Size;
+    /** A desktop, where the river to hand ratio and the side seats' distance from the centre hold. */
+    readonly desktop: boolean;
     readonly insets?: Insets;
 }
 
@@ -150,10 +163,19 @@ interface BoardMeasure {
     readonly hiddenTiles: number;
     readonly grouped: readonly GroupedBox[];
     readonly localTiles: readonly Box[];
+    /** Every board tile but the local hand's and the decision buttons': rivers, other seats, melds, dora. */
+    readonly otherTiles: readonly Box[];
     readonly actions: readonly Box[];
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly nameplates: readonly Box[];
+    /** Each plate by its seat, and each seat's tiles (its hand and melds; the bottom seat's in the local strip). */
+    readonly plates: readonly { readonly seat: string; readonly box: Box }[];
+    readonly seatTiles: Readonly<Record<string, readonly Box[]>>;
+    readonly riverTiles: readonly Box[];
+    readonly opponentFaces: readonly Box[];
+    readonly center: Box | null;
+    readonly leave: Box | null;
 }
 
 interface PageMeasure {
@@ -197,21 +219,35 @@ function deviceOptions(name: string): BrowserContextOptions {
 }
 
 /**
- * The acceptance viewports: a desktop, the upright phone that gets the rotate panel, the notched landscape phone
+ * The acceptance viewports: a 16:10 and a 16:9 desktop, the upright phone that gets the rotate panel, the notched landscape phone
  * (its insets cover the plain one), and the smallest supported landscape, which also keeps the aside's scroll honest.
  */
 const VIEWPORTS: readonly Viewport[] = [
     {
         context: { viewport: { height: 800, width: 1280 } },
+        desktop: true,
         engine: chromium,
+        handFloor: { height: 93, width: 70 },
         name: "desktop",
         portrait: false,
         rotates: false,
         supported: true,
     },
     {
+        context: { viewport: { height: 1080, width: 1920 } },
+        desktop: true,
+        engine: chromium,
+        handFloor: { height: 124, width: 93 },
+        name: "desktop-wide",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
         context: deviceOptions("iPhone 13"),
+        desktop: false,
         engine: webkit,
+        handFloor: MIN_TAP,
         name: "phone-portrait",
         portrait: true,
         rotates: true,
@@ -219,7 +255,9 @@ const VIEWPORTS: readonly Viewport[] = [
     },
     {
         context: deviceOptions("iPhone 13 landscape"),
+        desktop: false,
         engine: webkit,
+        handFloor: MIN_TAP,
         insets: { bottom: 21, left: 47, right: 47 },
         name: "phone-notch-landscape",
         portrait: false,
@@ -228,7 +266,9 @@ const VIEWPORTS: readonly Viewport[] = [
     },
     {
         context: deviceOptions("iPhone SE (3rd gen) landscape"),
+        desktop: false,
         engine: webkit,
+        handFloor: MIN_TAP,
         name: "phone-se-landscape",
         portrait: false,
         rotates: false,
@@ -286,7 +326,7 @@ const PAGES: readonly PageCase[] = [
     boardCase("board-worst", "?state=worst&pin=right", [
         ".board-strip .meld",
         ".board-dora .tile",
-        ".nameplate--left .nameplate__diff--right",
+        ".board-center__seat--left .board-center__diff--right",
         ".nameplate__ai",
     ]),
     resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
@@ -303,10 +343,10 @@ const PAGES: readonly PageCase[] = [
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("last_result", [".round-end-result__confirm"]),
-    decisionCase("connection_lost", [".board-notice--warning"]),
+    decisionCase("connection_lost", [".board-notice--warning", ".game-menu__status-word"]),
     decisionCase("move_refused", [".board-notice--warning", ".hand-tile--selectable"]),
     decisionCase("faces_missing", [".board-notice__action", ".hand-tile--selectable"]),
-    decisionCase("kicked", [".failure-panel__leave"]),
+    decisionCase("kicked", [".failure-panel__leave", ".game-menu__status-word"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     {
         countdown: false,
@@ -604,6 +644,9 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const dora of board.querySelectorAll(".board-dora")) {
             grouped.push({ box: box(dora), group: "dora" });
         }
+        for (const menu of board.querySelectorAll(".board-menu")) {
+            grouped.push({ box: box(menu), group: "menu" });
+        }
         const nameplates = [...board.querySelectorAll(".nameplate")].map((plate) => ({
             box: box(plate),
             group: plate.className.split(" ")[1] ?? "nameplate",
@@ -621,6 +664,20 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         const actions = [...decisionActions, ...resultActions];
         const aside = document.querySelector(".board-page__aside");
         const overlay = board.querySelector(".board-overlay__panel");
+        const seatTileSelectors: Readonly<Record<string, string>> = {
+            bottom: ".board-local .tile",
+            left: ".board-strip--left .tile",
+            right: ".board-strip--right .tile",
+            top: ".board-strip--top .tile",
+        };
+        const seatTiles = Object.fromEntries(
+            Object.entries(seatTileSelectors).map(([seat, selector]) => [
+                seat,
+                [...board.querySelectorAll(selector)].map(box),
+            ]),
+        );
+        const center = board.querySelector(".board-center");
+        const leave = board.querySelector(".game-menu__leave");
         const centerTexts = [...board.querySelectorAll(centerTextSelectors)].map(
             (element, index) => ({
                 box: box(element),
@@ -644,6 +701,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             board: box(board),
             boardClient: { height: board.clientHeight, width: board.clientWidth },
             boardScroll: { height: board.scrollHeight, width: board.scrollWidth },
+            center: center === null ? null : box(center),
             centerTexts,
             fonts,
             grouped,
@@ -651,10 +709,17 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
                 (tile) =>
                     !tile.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
             ).length,
+            leave: leave === null ? null : box(leave),
             localTiles: [
                 ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
             ].map(box),
             nameplates: nameplates.map((plate) => plate.box),
+            opponentFaces: [...board.querySelectorAll(".board-strip .tile:not(.tile-back)")].map(
+                box,
+            ),
+            otherTiles: tableTiles
+                .filter((tile) => tile.closest(".board-area--bottom-hand, .board-actions") === null)
+                .map(box),
             overlay:
                 overlay === null
                     ? null
@@ -663,6 +728,16 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
                           client: { height: overlay.clientHeight, width: overlay.clientWidth },
                           scroll: { height: overlay.scrollHeight, width: overlay.scrollWidth },
                       },
+            plates: nameplates.map((plate) => ({
+                box: plate.box,
+                seat: plate.group.replace("nameplate--", ""),
+            })),
+            riverTiles: [
+                ...board.querySelectorAll(
+                    ".board-river .discard-tile:not(.discard-tile-riichi) .tile",
+                ),
+            ].map(box),
+            seatTiles,
             tiles: tableTiles.map(box),
         };
     }, BOARD_TEXT);
@@ -676,16 +751,18 @@ const BOARD_TEXT = {
     centerTextSelectors: [
         ".board-center__round",
         ".board-center__wall",
-        ".board-center__stick",
-        ".board-center__riichi-stick",
+        ".board-center__riichi:not(.board-center__riichi--none)",
+        ".board-center__score-line",
     ].join(", "),
     fontSelectors: [
         ".board-center__round",
-        ".board-center__sticks",
+        ".board-center__wall",
+        ".board-dora__sticks",
         ".board-dora__label",
+        ".board-center__score-line",
         ".nameplate__name",
         ".nameplate__wind",
-        ".nameplate__points",
+        ".nameplate__riichi",
         ".nameplate__ai",
     ].join(", "),
 } as const;
@@ -769,15 +846,147 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
     }
 }
 
-function checkLocalHand(board: BoardMeasure, screen: Box, report: PageReport): void {
+function longSide(box: Box): number {
+    return Math.max(box.width, box.height);
+}
+
+/**
+ * The local hand stays on the screen, at least the viewport's floor, and its tiles are the board's largest: larger
+ * than any river, other seat's hand or meld, or dora tile.
+ */
+function checkLocalHand(
+    board: BoardMeasure,
+    { floor, screen }: { readonly floor: Size; readonly screen: Box },
+    report: PageReport,
+): void {
     const hidden = board.localTiles.filter((tile) => !contains(screen, tile));
     report.expect(hidden.length === 0, `${hidden.length} local hand tile(s) outside the viewport`);
     const small = board.localTiles.filter(
-        (tile) => tile.width < MIN_TAP_WIDTH - EPSILON || tile.height < MIN_TAP_HEIGHT - EPSILON,
+        (tile) => tile.width < floor.width - EPSILON || tile.height < floor.height - EPSILON,
     );
     report.expect(
         small.length === 0,
-        `local hand tiles under ${MIN_TAP_WIDTH}x${MIN_TAP_HEIGHT}: ${small.map(describeBox).join(", ")}`,
+        `local hand tiles under ${describeSize(floor)}: ${small.map(describeBox).join(", ")}`,
+    );
+    const smallestOwn = Math.min(...board.localTiles.map(longSide));
+    const largestOther = Math.max(0, ...board.otherTiles.map(longSide));
+    report.expect(
+        smallestOwn > largestOther + EPSILON,
+        `a local hand tile (${smallestOwn.toFixed(1)}px) is no larger than another tile on the board (${largestOther.toFixed(1)}px)`,
+    );
+}
+
+/** The gap between two boxes, 0 when they touch or overlap. */
+function gapBetween(first: Box, second: Box): number {
+    const dx = Math.max(
+        0,
+        first.left - (second.left + second.width),
+        second.left - (first.left + first.width),
+    );
+    const dy = Math.max(
+        0,
+        first.top - (second.top + second.height),
+        second.top - (first.top + first.height),
+    );
+    return Math.hypot(dx, dy);
+}
+
+/**
+ * Each nameplate reads as its own seat's: close to that seat's tiles, and nearer them than any other seat's. A seat
+ * with no tiles (an empty board) is skipped.
+ */
+function checkPlateOwnership(board: BoardMeasure, report: PageReport): void {
+    for (const { box, seat } of board.plates) {
+        const distances = Object.entries(board.seatTiles)
+            .filter(([, tiles]) => tiles.length > 0)
+            .map(([owner, tiles]) => ({
+                distance: Math.min(...tiles.map((tile) => gapBetween(box, tile))),
+                owner,
+            }));
+        const own = distances.find((entry) => entry.owner === seat);
+        const nearestOther = Math.min(
+            ...distances.filter((entry) => entry.owner !== seat).map((entry) => entry.distance),
+        );
+        report.expect(
+            own === undefined ||
+                (own.distance <= MAX_PLATE_DISTANCE && own.distance < nearestOther),
+            `the ${seat} plate stands ${own?.distance.toFixed(0)}px from its seat's tiles, another seat's at ${nearestOther.toFixed(0)}px`,
+        );
+    }
+}
+
+/** Another seat's face-up tiles stay readable in landscape. */
+function checkOpponentFaces(board: BoardMeasure, report: PageReport): void {
+    const small = board.opponentFaces.filter(
+        (tile) =>
+            Math.min(tile.width, tile.height) < MIN_OPPONENT_FACE.width - EPSILON ||
+            longSide(tile) < MIN_OPPONENT_FACE.height - EPSILON,
+    );
+    report.expect(
+        small.length === 0,
+        `face-up tiles of other seats under ${describeSize(MIN_OPPONENT_FACE)}: ${small.slice(0, 3).map(describeBox).join(", ")}`,
+    );
+}
+
+/**
+ * On a desktop the table keeps the references' proportions: a river tile between a share of the local hand tile's
+ * size, and each side seat's hand near the centre, so the board's spare width goes to its margins.
+ */
+function checkDesktopTable(board: BoardMeasure, report: PageReport): void {
+    const [river] = board.riverTiles;
+    const [own] = board.localTiles;
+    if (river !== undefined && own !== undefined) {
+        const ratio = longSide(river) / longSide(own);
+        report.expect(
+            ratio >= RIVER_TO_HAND.min && ratio <= RIVER_TO_HAND.max,
+            `a river tile is ${ratio.toFixed(2)} of a local hand tile, outside ${RIVER_TO_HAND.min}-${RIVER_TO_HAND.max}`,
+        );
+    }
+    const { center } = board;
+    const left = board.seatTiles.left ?? [];
+    const right = board.seatTiles.right ?? [];
+    if (center === null || left.length === 0 || right.length === 0) {
+        return;
+    }
+    const limit = MAX_SIDE_DISTANCE_SHARE * board.board.width;
+    const leftGap = center.left - Math.max(...left.map((tile) => tile.left + tile.width));
+    const rightGap = Math.min(...right.map((tile) => tile.left)) - (center.left + center.width);
+    report.expect(
+        leftGap <= limit && rightGap <= limit,
+        `a side hand stands ${Math.max(leftGap, rightGap).toFixed(0)}px from the centre, over ${limit.toFixed(0)}px`,
+    );
+}
+
+/** The wall count and the sticks read at no less than a share of the scores' size. */
+function fontSizes(board: BoardMeasure, name: string): number[] {
+    return board.fonts.filter((font) => font.name === name).map((font) => font.px);
+}
+
+function checkCounters(board: BoardMeasure, report: PageReport): void {
+    const score = Math.max(0, ...fontSizes(board, "board-center__score-line"));
+    const smallest = Math.min(
+        ...fontSizes(board, "board-center__wall"),
+        ...fontSizes(board, "board-dora__sticks"),
+    );
+    report.expect(
+        smallest >= MIN_COUNTER_TO_SCORE * score - EPSILON,
+        `a counter reads ${smallest}px beside ${score}px scores`,
+    );
+}
+
+/** The page's way back sits on the board and the screen, large enough to tap. */
+function checkLeave(board: BoardMeasure, screen: Box, report: PageReport): void {
+    const { leave } = board;
+    if (leave === null) {
+        return;
+    }
+    report.expect(
+        contains(board.board, leave) && contains(screen, leave),
+        `the leave button ${describeBox(leave)} is off the board or screen`,
+    );
+    report.expect(
+        leave.width >= MIN_ACTION_SIZE - EPSILON && leave.height >= MIN_ACTION_SIZE - EPSILON,
+        `the leave button is under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${describeBox(leave)}`,
     );
 }
 
@@ -829,8 +1038,15 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         checkAside(board, screen, report);
     }
     if (viewport.supported && !viewport.portrait) {
-        checkLocalHand(board, screen, report);
+        checkLocalHand(board, { floor: viewport.handFloor, screen }, report);
         checkActions(board, screen, report);
+        checkLeave(board, screen, report);
+        checkOpponentFaces(board, report);
+        checkPlateOwnership(board, report);
+        checkCounters(board, report);
+    }
+    if (viewport.desktop) {
+        checkDesktopTable(board, report);
     }
     const fonts = Math.min(...board.fonts.map((font) => font.px));
     const scroll = `scroll ${describeSize(board.boardScroll)}`;

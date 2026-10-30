@@ -1,139 +1,138 @@
-$center-text-min: 10px;
+$score-text-min: 10px;
+$round-text-min: 12px;
 
+/* Each seat's side is a layer as large as the centre, turned to face its seat, so its score and riichi stick sit
+   upright for that seat at the layer's foot. */
 .board-center {
-    --board-stick-size: max(#{$center-text-min}, calc(40 * var(--board-unit)));
-    --board-stick-inset: calc(var(--board-stick-size) * 0.75);
+    --center-score-text: max(#{$score-text-min}, calc(30 * var(--board-unit)));
+    --center-stick-length: max(18px, calc(72 * var(--board-unit)));
+    --center-stick-width: max(3px, calc(9 * var(--board-unit)));
+    --center-band: calc(var(--center-score-text) * 1.25 + var(--center-stick-width) + 6px);
 
+    position: relative;
     grid-area: center;
     background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
     border-radius: 0.375rem;
+    overflow: hidden;
+}
+
+.board-center__seat {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px;
+    padding-bottom: 3px;
+    pointer-events: none;
+
+    &--right {
+        transform: rotate(270deg);
+    }
+
+    &--top {
+        transform: rotate(180deg);
+    }
+
+    &--left {
+        transform: rotate(90deg);
+    }
+
+    &--current::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 15%;
+        right: 15%;
+        height: max(2px, calc(5 * var(--board-unit)));
+        background: var(--pico-primary);
+        border-radius: 1px;
+    }
+}
+
+.board-center__riichi {
+    width: var(--center-stick-length);
+    height: var(--center-stick-width);
+    background:
+        radial-gradient(circle, var(--ronin-danger) 0 32%, transparent 36%) center /
+            var(--center-stick-width) 100% no-repeat,
+        var(--pico-color);
+    border-radius: 999px;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+
+    &--none {
+        visibility: hidden;
+    }
+}
+
+.board-center__score-line {
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    position: relative;
+    gap: 0.25em;
+    font-family: var(--ronin-font-mono);
+    font-size: var(--center-score-text);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--ronin-text-secondary);
+    white-space: nowrap;
+
+    .board-center__seat--current & {
+        color: var(--pico-color);
+    }
+}
+
+.board-center__wind {
+    padding: 0 0.2em;
+    font-size: 0.85em;
+    color: hsl(220deg 30% 90%);
+    background: hsl(225deg 40% 35%);
+    border-radius: 3px;
+
+    .board-center__seat--dealer & {
+        color: hsl(0deg 30% 90%);
+        background: hsl(0deg 55% 45%);
+    }
+}
+
+.board-center__diff {
+    display: none;
+    color: var(--ronin-gold);
 }
 
 .board-center__info {
+    position: absolute;
+    inset: var(--center-band);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: max(2px, calc(16 * var(--board-unit)));
-    width: 100%;
+    gap: max(1px, calc(8 * var(--board-unit)));
     min-width: 0;
-    padding: calc(var(--board-stick-size) * 1.5);
+    font-family: var(--ronin-font-mono);
+    line-height: 1.1;
+    white-space: nowrap;
 }
 
 .board-center__round {
-    font-family: var(--ronin-font-mono);
     font-weight: 700;
     color: var(--pico-color);
-    font-size: max(#{$center-text-min}, calc(36 * var(--board-unit)));
-    white-space: nowrap;
-}
-
-.board-center__sticks {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 2px 0.5em;
-    font-family: var(--ronin-font-mono);
-    font-size: max(#{$center-text-min}, calc(22 * var(--board-unit)));
-    white-space: nowrap;
-}
-
-.board-center__stick {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    color: var(--ronin-text-secondary);
-}
-
-.board-center__stick-icon {
-    height: 1.4em;
-    width: auto;
-}
-
-.board-center__stick-x {
-    font-size: 0.7em;
-    color: var(--ronin-text-muted);
-    line-height: 1;
+    font-size: max(#{$round-text-min}, calc(31 * var(--board-unit)));
 }
 
 .board-center__wall {
-    color: var(--ronin-text-muted);
+    display: flex;
+    align-items: baseline;
+    gap: 0.3em;
+    font-size: max(#{$score-text-min}, calc(36 * var(--board-unit)));
+    font-weight: 700;
+    color: var(--ronin-gold);
 }
 
-.board-center__turn {
-    position: absolute;
-    background: var(--pico-primary);
-    border-radius: 1px;
-
-    &--bottom,
-    &--top {
-        left: 20%;
-        right: 20%;
-        height: max(2px, calc(6 * var(--board-unit)));
-    }
-
-    &--left,
-    &--right {
-        top: 20%;
-        bottom: 20%;
-        width: max(2px, calc(6 * var(--board-unit)));
-    }
-
-    &--bottom {
-        bottom: 0;
-    }
-
-    &--top {
-        top: 0;
-    }
-
-    &--left {
-        left: 0;
-    }
-
-    &--right {
-        right: 0;
-    }
-}
-
-// Riichi stick laid on the table between edge and score
-.board-center__riichi-stick {
-    position: absolute;
-    pointer-events: none;
-    line-height: 0;
-
-    .board-center__stick-icon {
-        height: calc(var(--board-stick-size) * 1.2);
-        width: auto;
-        filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
-    }
-
-    &--bottom {
-        bottom: var(--board-stick-inset);
-        left: 50%;
-        transform: translate(-50%, 50%) rotate(90deg);
-    }
-
-    &--top {
-        top: var(--board-stick-inset);
-        left: 50%;
-        transform: translate(-50%, -50%) rotate(90deg);
-    }
-
-    &--left {
-        left: var(--board-stick-inset);
-        top: 50%;
-        transform: translate(-50%, -50%);
-    }
-
-    &--right {
-        right: var(--board-stick-inset);
-        top: 50%;
-        transform: translate(50%, -50%);
-    }
+.board-center__wall-label {
+    font-family: var(--ronin-font-body);
+    font-size: max(#{$score-text-min}, 0.45em);
+    font-weight: 400;
+    color: var(--ronin-text-secondary);
 }
