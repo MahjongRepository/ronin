@@ -1,3 +1,4 @@
+import { DesyncError } from "@/entities/table/model/desync-error";
 import {
     type DrawKind,
     type RoundEndResult,
@@ -64,7 +65,7 @@ function historyOutcome(resultType: RoundResultType, entry: HistoryEntry): Round
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             if (entry.abortiveReason === null) {
-                throw new Error("An abortive draw in the round history names no reason");
+                throw new DesyncError("An abortive draw in the round history names no reason");
             }
             return entry.abortiveReason;
         }

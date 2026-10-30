@@ -18,6 +18,7 @@ export function createInitialTableState(): TableState {
         riichiSticks: 0,
         roundEndResult: null,
         roundHistory: [],
+        roundHistoryInStep: true,
         roundNumber: 0,
         roundWind: 0,
         tilesRemaining: 0,

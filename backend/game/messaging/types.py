@@ -102,7 +102,16 @@ class JoinGameMessage(BaseModel):
     game_ticket: str = Field(min_length=1, max_length=2000)
 
 
-ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage
+class ResyncMessage(BaseModel):
+    """
+    A seat's request, on the connection that holds it, for its snapshot and its pending wait again: its client lost step
+    with the server's messages and drops everything until the snapshot arrives.
+    """
+
+    t: Literal[WireClientMessageType.RESYNC] = WireClientMessageType.RESYNC
+
+
+ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage | ResyncMessage
 
 
 class ErrorMessage(BaseModel):
@@ -163,7 +172,7 @@ class SeatControlMessage(BaseModel):
 
 
 _NonGameMessage = Annotated[
-    ReconnectMessage | JoinGameMessage,
+    ReconnectMessage | JoinGameMessage | ResyncMessage,
     Field(discriminator="t"),
 ]
 

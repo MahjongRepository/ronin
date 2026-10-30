@@ -33,7 +33,8 @@ Mandatory for all game server code; review must catch violations.
 
 * Rate-limit every WebSocket after decoding and before processing, so malformed frames always count:
   every frame is charged once, an over-budget malformed frame gets no reply or log, and undecodable
-  frames (non-binary included) are consecutive strikes that close the connection.
+  frames (non-binary included) are consecutive strikes that close the connection. A resync request,
+  which costs a whole snapshot, also draws on a far tighter budget of its own per connection.
 * A connection must authenticate (JOIN_GAME or RECONNECT) within the auth timeout or be closed.
 * A connection the server closes is evicted from the registry in the same synchronous step, so a
   pipelined or concurrent join/reconnect cannot pick it up.

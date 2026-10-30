@@ -115,7 +115,9 @@ export type PlayIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
  * The one input of the game client's dispatcher, from any source: the live socket, a scripted scenario, or a
  * replay file. Each is stamped with the logical time `at` the source's clock gave it; a `tick` only advances
  * time. A server message carries the raw wire payload, parsed inside the dispatcher; a replay line carries a
- * replay file's event line, parsed as one.
+ * replay file's event line, parsed as one. A transport error is the browser's socket error, which its close follows;
+ * an undecodable frame is a server frame the socket could not decode into a message (not binary, not MessagePack, not
+ * an object), a message the client missed.
  */
 export type ClientEvent =
     | {
@@ -136,6 +138,7 @@ export type ClientEvent =
           readonly reason: string;
       }
     | { readonly kind: "transport_error"; readonly at: number; readonly detail: string }
+    | { readonly kind: "frame_undecodable"; readonly at: number; readonly detail: string }
     | { readonly kind: "tick"; readonly at: number }
     | { readonly kind: "intent"; readonly at: number; readonly intent: LocalIntent }
     | {
@@ -168,6 +171,25 @@ export type RoundConfirm =
     | { readonly kind: "final" };
 
 /**
+ * The protocol failure that put the client out of step with the server: a server message that does not parse, a frame
+ * that does not decode, or a message its table or decision cannot take (`DesyncError`).
+ */
+export type DesyncCause = "unreadable_message" | "undecodable_frame" | "impossible_state";
+
+/**
+ * A client out of step with the server since logical time `since`: it answers nothing and drops every server message
+ * but a snapshot and the game's end until a snapshot rebuilds it. `answerDue` is when the resync request it sent counts
+ * as unanswered and is sent again; null while none is outstanding (none sent yet, or the socket dropped, whose
+ * reconnect brings a snapshot of its own).
+ */
+export interface Desync {
+    readonly cause: DesyncCause;
+    readonly detail: string;
+    readonly since: number;
+    readonly answerDue: number | null;
+}
+
+/**
  * The calls the board shows, made aloud by one move at logical time `at`. A live server message's last until `until`
  * or a newer call; a replay line's until the next move, since a replay's stop is a move and its time never runs.
  */
@@ -195,8 +217,18 @@ export interface GameClientState {
     readonly roundConfirm: RoundConfirm | null;
     /** The latest short-lived notice, until it expires or a newer one replaces it. */
     readonly notice: TimedNotice | null;
-    /** How many server messages the client could not read: the table may be wrong from the first. */
+    /**
+     * How many protocol failures (`Desync`) the client met since the last snapshot rebuilt its table: the table may be
+     * wrong from the first. A snapshot alone resets it.
+     */
     readonly unreadMessages: number;
+    /** Where the client stands since it lost step with the server, until a snapshot rebuilds it; null while in step. */
+    readonly desync: Desync | null;
+    /**
+     * How many resync requests this page has sent, never reset, so a client that loses step again and again ends
+     * however often its snapshots arrive.
+     */
+    readonly resyncRequests: number;
     /** The calls the board shows by their seats, or null. */
     readonly calls: ShownCalls | null;
     /**
@@ -215,10 +247,13 @@ export interface GameClientState {
     readonly highestOpenedWaitId: number | null;
 }
 
-/** The session's IO plus a report of a message or replay line the client could not parse, for the driver to show. */
+/**
+ * The session's IO plus a report of a protocol failure for the driver to show: a message or replay line the client
+ * could not parse, a frame it could not decode, or a message it could not take (`DesyncCause`).
+ */
 export type ClientEffect =
     | SessionEffect
-    | { readonly type: "report_parse_error"; readonly detail: string };
+    | { readonly type: "report_protocol_failure"; readonly detail: string };
 
 export interface ClientStep {
     readonly state: GameClientState;

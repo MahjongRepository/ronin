@@ -203,7 +203,8 @@ function StandingsActionView(action: StandingsAction): TemplateResult {
  * The final standings: a column per seat in placement order (placement, name, the viewer's highlighted), a row per
  * finished round with each seat's change in it (its riichi, the dealer, the winners, who paid a ron and who was liable
  * for a yakuman marked), then
- * the leftover riichi sticks, the final scores and the uma/oka results; its head says what the marks mean. The
+ * the leftover riichi sticks, the final scores and the uma/oka results; its head says what the marks mean, and that
+ * the rounds may be wrong when the ledger is incomplete. The
  * rounds scroll between the names and the totals, which stay in view. Given `onRound`, a row shows that round's
  * result.
  */
@@ -214,6 +215,14 @@ export function StandingsPanel({ actions, display, onRound }: StandingsPanelProp
             <h2 class="standings__title">Final standings</h2>
             ${StandingsLegend(ledger)}
             <div class="standings__actions">${actions.map(StandingsActionView)}</div>
+            ${
+                display.ledgerComplete
+                    ? nothing
+                    : html`<p class="standings__incomplete" role="note">
+                      The rounds below may be missing some or show them wrong: this page lost step with
+                      the server. The final scores and results are the server's.
+                  </p>`
+            }
         </header>
         <div class="standings__sheet" tabindex="0" role="region" aria-label="Scores by round">
             <table class="standings__table">

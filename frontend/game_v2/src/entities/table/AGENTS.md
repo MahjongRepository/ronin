@@ -31,10 +31,11 @@ replay view, the live game and the storybook read the tables it produces.
   that robbed a kan in two steps, the kan declared and then the result, and the replay stops on
   the kan. A seat control line between the declarer's draw and that round end therefore shows from
   the kan's stop: the replay cannot tell whether the seat changed before the declaration or after.
-- The draw, discard, meld, kan declaration and riichi handlers throw on an impossible state (a tile
-  neither shown nor covered by the count, a missing player or caller); a new check throws the same
-  way rather than returning the state unchanged. The other handlers tolerate a missing player or
-  result.
+- The draw, discard, meld, kan declaration and riichi handlers throw a `DesyncError` on an
+  impossible state (a tile neither shown nor covered by the count, a missing player or caller); a
+  new check throws the same way rather than returning the state unchanged, since the live client
+  recovers from that error alone by a fresh snapshot and takes any other as a bug. The other handlers
+  tolerate a missing player or result.
 - Riichi deposits on `riichi_declared`, which the server sends only once the declaration's discard
   passes without a ron (a ronned declaration discard deposits nothing): one stick onto the table, the
   table's riichi cost (`riichiCost`, the game's `riichi_cost` from its start or a reconnect's snapshot)
@@ -54,9 +55,17 @@ replay view, the live game and the storybook read the tables it produces.
 - The table keeps every finished round as a `RoundRecord` (`roundHistory`) for the final standings'
   ledger, built from its own round end or taken whole from a reconnect's snapshot history, which
   names the same fields (the result type and an abortive draw's reason included), so a reconnect
-  rebuilds the ledger the seat built. A record's payments exclude riichi deposits; the ledger nets
-  each standing riichi's deposit, at the table's riichi cost, out of its round, so the rounds and the leftover sticks add up to
-  each final score. `lib/standings-display.ts` maps an ended table to the standings (seats in the
+  rebuilds the ledger the seat built. A live client's loss of step (`lost_step`, a table event no
+  message carries) drops the round result the table kept, which is no longer known to be the latest,
+  and marks the history out of step until a snapshot rebuilds it; a round end taken out of step (the
+  game's last) keeps its result but says so (`inStep`), and its panel notes that the dora and dealer
+  it read from the table may be wrong. The standings
+  call their ledger incomplete, saying so on the panel, unless the history is in step and holds a
+  record for each round the game's end counts (`nr`): a ledger is never shown as whole when it may
+  miss or misstate a round. A record's payments exclude riichi deposits; the ledger nets
+  each standing riichi's deposit, at the table's riichi cost, out of its round, so the rounds and
+  the leftover sticks add up to each final score. `lib/standings-display.ts` maps an ended table to
+  the standings (seats in the
   server's placement order with its uma/oka results, never recomputed; a ledger row per record;
   the leftover sticks), which `ui/standings-panel.ts` renders. A ledger cell's text is its change, net of
   a riichi deposit; a round with no payments names each seat's tenpai on a draw that judges it, so a

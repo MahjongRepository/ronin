@@ -1,6 +1,7 @@
+import { encode } from "@msgpack/msgpack";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GameSocket } from "@/shared/websocket/websocket";
+import { GameSocket, type SocketHandlers } from "@/shared/websocket/websocket";
 
 class FakeWebSocket {
     static readonly OPEN = 1;
@@ -23,8 +24,12 @@ class FakeWebSocket {
         this.onopen?.(new Event("open"));
     }
 
-    receiveFrame(): void {
-        this.onmessage?.(new MessageEvent("message", { data: new ArrayBuffer(0) }));
+    receiveFrame(data: unknown = new ArrayBuffer(0)): void {
+        this.onmessage?.(new MessageEvent("message", { data }));
+    }
+
+    fail(): void {
+        this.onerror?.(new Event("error"));
     }
 
     close(): void {
@@ -34,12 +39,17 @@ class FakeWebSocket {
 
 let socket: GameSocket | null = null;
 
-function connectedSocket(closes: [number, string][]): FakeWebSocket {
+function connectedSocket(
+    closes: [number, string][],
+    handlers: Partial<SocketHandlers> = {},
+): FakeWebSocket {
     socket = new GameSocket("ws://game/ws/g1", {
         onClose: (code, reason) => closes.push([code, reason]),
         onError: () => {},
         onMessage: () => {},
         onOpen: () => {},
+        onUndecodableFrame: () => {},
+        ...handlers,
     });
     const [ws] = FakeWebSocket.created;
     ws.open();
@@ -83,5 +93,40 @@ describe("GameSocket silence watchdog", () => {
         vi.setSystemTime(Date.now() + 120_000);
         vi.advanceTimersByTime(5000);
         expect([ws.closed, closes]).toEqual([true, [[1006, "server_silent"]]]);
+    });
+});
+
+describe("GameSocket frames", () => {
+    beforeEach(() => {
+        FakeWebSocket.created = [];
+        vi.stubGlobal("WebSocket", FakeWebSocket);
+    });
+
+    afterEach(() => {
+        socket?.disconnect();
+        socket = null;
+        vi.unstubAllGlobals();
+    });
+
+    it("reports a frame that decodes into no message as undecodable, apart from the browser's socket error", () => {
+        const reports: string[] = [];
+        const ws = connectedSocket([], {
+            onError: (detail) => reports.push(`error: ${detail}`),
+            onMessage: (message) => reports.push(`message: ${JSON.stringify(message)}`),
+            onUndecodableFrame: (detail) => reports.push(`undecodable: ${detail}`),
+        });
+
+        ws.receiveFrame("text");
+        ws.receiveFrame(new Uint8Array([193]).buffer);
+        ws.receiveFrame(new Uint8Array(encode([1, 2])).buffer);
+        ws.receiveFrame(new Uint8Array(encode({ t: 1 })).buffer);
+        ws.fail();
+        expect(reports).toEqual([
+            "undecodable: Received a non-binary frame",
+            "undecodable: Failed to decode a MessagePack frame",
+            "undecodable: Received a frame that is not a message object",
+            'message: {"t":1}',
+            "error: WebSocket error",
+        ]);
     });
 });

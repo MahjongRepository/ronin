@@ -632,11 +632,8 @@ class SessionManager:
         records and the others get as `seat_control` (`_hand_over_seat`). A participant still bound to a connection (a
         half-open socket after a network switch, or another client) has that connection replaced (`_bind`) instead: its
         seat was never handed over, the others never saw it leave, and the wait, its timers and the bank carry on
-        untouched. Either way the new connection gets the `game_reconnected` snapshot with the current wait id, every
-        seat an AI player holds for its participant marked as such, the seat's timer settings (its bank as of its last
-        turn) and, during a round advance, whether the seat still owes its confirmation, with how long that wait's timer
-        has run when it does; then the event that opened the wait the game owes the seat, if any
-        (`_send_wait_on_reconnect`). A RECONNECT on a connection the server already evicted is dropped unanswered.
+        untouched. Either way the new connection gets the seat's state (`_send_seat_state`). A RECONNECT on a connection
+        the server already evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
             return
@@ -654,10 +651,49 @@ class SessionManager:
             self._game_service.restore_human_player(runtime, seat)
             self._hand_over_seat(participant, stand_in=None)
 
-        snapshot = self._game_service.build_reconnection_snapshot(runtime, seat)
         self._bind(participant, connection)
         awaiting = self._game_service.get_awaiting(runtime)
         game.awaiting = awaiting
+        self._send_seat_state(participant, connection, awaiting=awaiting)
+        logger.info("connection taken over" if taking_over else "player reconnected")
+
+    def resync(self, connection: ConnectionProtocol) -> None:
+        """
+        Send the seat a bound connection holds its `game_reconnected` snapshot and the wait the game owes it again, as a
+        reconnect does, on the same connection.
+
+        Its client lost step with the server's messages; a reconnect would close the socket first and hand the seat to
+        an AI player for the gap. Nothing changes hands: the connection stays bound, nobody else hears of it, and the
+        wait, its timers and the bank carry on, the re-sent wait naming how long its timer has run. A connection bound
+        to no participant is answered `not_in_game` (an evicted one nothing), and a game that has not dealt its first
+        round yet, whose snapshot would show a deal the seat has not been sent, `game_not_started`.
+        """
+        participant = self._bound_participant(connection)
+        if participant is None:
+            return
+
+        game = participant.game
+        if game.lifecycle is GameLifecycle.PENDING or game.start_pause is not None:
+            self._send_error(connection, code=SessionErrorCode.GAME_NOT_STARTED, message="Game has not started yet")
+            return
+
+        structlog.contextvars.bind_contextvars(game_id=game.game_id, seat=self._seat_of(participant))
+        awaiting = self._game_service.get_awaiting(self._runtime_of(game))
+        self._send_seat_state(participant, connection, awaiting=awaiting)
+        logger.info("seat resynced")
+
+    def _send_seat_state(self, participant: Participant, connection: ConnectionProtocol, *, awaiting: Awaiting) -> None:
+        """
+        Send a participant's connection the `game_reconnected` snapshot of the wait `awaiting`, then the event that
+        opened the wait the game owes the seat, if any, changing nothing.
+
+        The snapshot carries the current wait id, every seat an AI player holds for its participant marked as such, the
+        seat's timer settings (its bank as of its last turn) and, during a round advance, whether the seat still owes
+        its confirmation, with how long that wait's timer has run when it does.
+        """
+        game = participant.game
+        seat = self._seat_of(participant)
+        snapshot = self._game_service.build_reconnection_snapshot(self._runtime_of(game), seat)
         stand_ins = {self._seat_of(p): p.stand_in for p in game.participants if p.stand_in is not None}
         payload = reconnection_payload(snapshot, stand_ins=stand_ins)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
@@ -670,7 +706,6 @@ class SessionManager:
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
         self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
-        logger.info("connection taken over" if taking_over else "player reconnected")
 
     def _reconnecting_participant(
         self,

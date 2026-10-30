@@ -1,4 +1,4 @@
-import { type PlayerState } from "@/entities/table";
+import { DesyncError, type PlayerState } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
     CALL_TYPE,
@@ -96,15 +96,18 @@ function turnDeadlines(
     };
 }
 
-function kanOffer(kanType: KanType, tileId: number | undefined): Offer[] {
-    return tileId === undefined ? [] : [{ kanType, kind: "kan", tileId }];
-}
-
-/** A turn's offers from the draw's available actions; a kan names a tile type, answered with a tile of it. */
+/**
+ * A turn's offers from the draw's available actions; a kan names a tile type, answered with a tile of it. A kan of a
+ * type the hand holds no tile of means the hand the client holds is not the server's.
+ */
 function actionOffers(action: AvailableAction, hand: readonly number[]): Offer[] {
     const tiles = action.tiles ?? [];
-    function handTileOf(type: number): number | undefined {
-        return hand.find((tileId) => tileType(tileId) === type);
+    function kanOffer(kanType: KanType, type: number): Offer {
+        const tileId = hand.find((handTile) => tileType(handTile) === type);
+        if (tileId === undefined) {
+            throw new DesyncError(`A kan of tile type ${type} is offered, but the hand holds none`);
+        }
+        return { kanType, kind: "kan", tileId };
     }
     switch (action.action) {
         case PLAYER_ACTION.RIICHI: {
@@ -114,10 +117,10 @@ function actionOffers(action: AvailableAction, hand: readonly number[]): Offer[]
             return [{ kind: "tsumo" }];
         }
         case PLAYER_ACTION.KAN: {
-            return tiles.flatMap((type) => kanOffer(KAN_TYPE.CLOSED, handTileOf(type)));
+            return tiles.map((type) => kanOffer(KAN_TYPE.CLOSED, type));
         }
         case PLAYER_ACTION.ADDED_KAN: {
-            return tiles.flatMap((type) => kanOffer(KAN_TYPE.ADDED, handTileOf(type)));
+            return tiles.map((type) => kanOffer(KAN_TYPE.ADDED, type));
         }
         case PLAYER_ACTION.KYUUSHU: {
             return [{ kind: "kyuushu" }];
@@ -140,7 +143,12 @@ function promptOffers(prompt: CallPromptEvent): Offer[] {
                 return [{ kind: "pon", tileId }];
             }
             case MELD_CALL_TYPE.CHI: {
-                return (call.options ?? []).map((sequence) => ({ kind: "chi", sequence, tileId }));
+                if (call.options === null) {
+                    throw new DesyncError(
+                        `A chi on tile ${tileId} is offered with no pair to call it with`,
+                    );
+                }
+                return call.options.map((sequence) => ({ kind: "chi", sequence, tileId }));
             }
             case MELD_CALL_TYPE.OPEN_KAN: {
                 return [{ kanType: KAN_TYPE.OPEN, kind: "kan", tileId }];
@@ -194,7 +202,8 @@ function openCall(prompt: CallPromptEvent, waitId: number, context: DecisionCont
 
 /**
  * The decision a message opens for the viewer's seat, or null: the seat's own draw or `turn` event opens its turn,
- * a call prompt its call. Only a message that carries a wait id opens one, so a replay never does.
+ * a call prompt its call. Only a message that carries a wait id opens one, so a replay never does. An offer the client
+ * cannot resolve (a kan of a type the hand lacks, a chi with no pair) throws a `DesyncError` rather than being dropped.
  */
 export function openDecision(
     message: ParsedServerMessage,
@@ -241,11 +250,31 @@ export function refusalOf(message: ParsedServerMessage): Refusal | null {
 }
 
 /**
+ * Whether a message only repeats the wait a decision already answered: a snapshot naming its wait id, or that wait's
+ * opening re-sent after it. A resync request that went unanswered past its due time is sent again, so a late second
+ * snapshot can follow the player's answer to the first one's wait; the answer is on its way, and the server judges it.
+ */
+export function isAnsweredWait(decision: Decision, message: ParsedServerMessage): boolean {
+    if (decision.status.kind !== "submitted") {
+        return false;
+    }
+    const repeats =
+        message.type === "game_reconnected" ||
+        message.type === "draw" ||
+        message.type === "turn" ||
+        message.type === "call_prompt";
+    return repeats && message.waitId === decision.waitId;
+}
+
+/**
  * The decision after a message that opens none: closed when the server moved on; reopened for another answer
  * when the server refused the submitted one by its wait id and still waits; otherwise as it was, so a refusal of an
  * older request, or of one it cannot name, reopens nothing.
  */
 export function followDecision(decision: Decision, message: ParsedServerMessage): Decision | null {
+    if (isAnsweredWait(decision, message)) {
+        return decision;
+    }
     if (CLOSING_TYPES.has(message.type)) {
         return null;
     }

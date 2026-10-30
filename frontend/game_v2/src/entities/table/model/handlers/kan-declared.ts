@@ -1,3 +1,4 @@
+import { DesyncError } from "@/entities/table/model/desync-error";
 import { requirePlayer, takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type KanDeclaredEvent,
@@ -95,7 +96,9 @@ function declaredKan(
     }
     const pon = findPon(player, event.tileId);
     if (pon === undefined) {
-        throw new Error(`No pon to raise to an added kan of ${event.tileId} at seat ${event.seat}`);
+        throw new DesyncError(
+            `No pon to raise to an added kan of ${event.tileId} at seat ${event.seat}`,
+        );
     }
     const kan: MeldRecord = {
         ...pon,
@@ -129,7 +132,9 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
     const { fromHand, melds } = declaredKan(player, event, meldType);
     const hand = takeFromHand(player, fromHand);
     if (hand === null) {
-        throw new Error(`Tiles ${fromHand.join(", ")} not found in hand of seat ${event.seat}`);
+        throw new DesyncError(
+            `Tiles ${fromHand.join(", ")} not found in hand of seat ${event.seat}`,
+        );
     }
     return {
         ...state,

@@ -62,16 +62,12 @@ function messageNotice(
     return { code: refusal.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
 }
 
-/**
- * The notices a message leaves: the one it raises, if any; and a snapshot rebuilds the table, so the messages read
- * wrong before it no longer count.
- */
+/** The notices a message leaves: the one it raises, if any, else the one shown. */
 export function withNotice(
     before: NoticeBefore,
     state: GameClientState,
     message: ParsedServerMessage,
 ): GameClientState {
     const notice = messageNotice(before, state, message);
-    const unreadMessages = message.type === "game_reconnected" ? 0 : state.unreadMessages;
-    return { ...state, notice: notice ?? state.notice, unreadMessages };
+    return notice === null ? state : { ...state, notice };
 }

@@ -61,6 +61,11 @@ export interface LeftoverSticks {
 export interface StandingsDisplay {
     readonly seats: readonly StandingsSeat[];
     readonly ledger: readonly LedgerRow[];
+    /**
+     * Whether the ledger holds every round as the server played it: a row per round the server counted, from a round
+     * history in step with it. The seats' scores and results are the server's either way.
+     */
+    readonly ledgerComplete: boolean;
     readonly leftover: LeftoverSticks | null;
 }
 
@@ -187,7 +192,8 @@ function ledgerRow({ seats, table }: LedgerColumns, record: RoundRecord, round: 
 /**
  * The standings of a table whose game ended, read from `viewerSeat` (the live player's seat, the replay's bottom seat,
  * or none): the seats in placement order with their scores and uma/oka results as the server gave them, the ledger of
- * every round the table recorded, and the leftover riichi sticks paid to the winner. Null before the game ends.
+ * every round the table recorded, marked incomplete when that is not every round the server played as it played it,
+ * and the leftover riichi sticks paid to the winner. Null before the game ends.
  */
 export function standingsDisplay(
     table: TableState,
@@ -204,6 +210,7 @@ export function standingsDisplay(
         ledger: table.roundHistory.map((record, round) =>
             ledgerRow({ seats, table }, record, round),
         ),
+        ledgerComplete: table.roundHistoryInStep && table.roundHistory.length === end.numRounds,
         leftover:
             sticks === 0
                 ? null

@@ -1,7 +1,6 @@
 import {
     type SessionInput,
     type SessionState,
-    failSession,
     sessionDeadline,
     startSession,
     stepSession,
@@ -9,6 +8,7 @@ import {
 import {
     CALLOUT_MS,
     type Call,
+    DesyncError,
     type TableEvent,
     type TableState,
     applyEvent,
@@ -30,7 +30,26 @@ import {
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
-import { answerDecision, expireDecision, followDecision, openDecision } from "./decision";
+import {
+    answerDecision,
+    expireDecision,
+    followDecision,
+    isAnsweredWait,
+    openDecision,
+} from "./decision";
+import {
+    canSend,
+    deferredUntilDeal,
+    desyncDeadline,
+    desyncStep,
+    isLinked,
+    isSnapshotPayload,
+    recoveryFailedStep,
+    resynced,
+    settleDesync,
+    takesServerMessages,
+    takesWhileDesynced,
+} from "./desync";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
 import { SWITCHES_OFF, snapshotLeftHand, switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep, withRoundConfirm } from "./round-confirm";
@@ -52,25 +71,18 @@ function untraced(step: ClientStep): TracedStep {
     return { ...step, parsed: null, partial: false };
 }
 
-function reportUnreadMessage(state: GameClientState, detail: string): TracedStep {
-    return reportParseError({ ...state, unreadMessages: state.unreadMessages + 1 }, detail);
-}
-
-function reportParseError(state: GameClientState, detail: string): TracedStep {
+function reportProtocolFailure(state: GameClientState, detail: string): TracedStep {
     return {
-        effects: [{ detail, type: "report_parse_error" }],
+        effects: [{ detail, type: "report_protocol_failure" }],
         parsed: null,
         partial: false,
         state,
     };
 }
 
-function canSend(session: SessionState | null): boolean {
-    return session !== null && session.status === "playing" && session.link === "open";
-}
-
-function isLinked(session: SessionState): boolean {
-    return session.status !== "ended" && session.status !== "recovering" && session.link !== "down";
+/** Whether the client may answer: it can send, and it is in step with the server, since out of step it answers nothing. */
+function canAnswer(state: GameClientState): boolean {
+    return canSend(state.session) && state.desync === null;
 }
 
 /** Whether the session ended other than by the game's end: it failed, or the player left. */
@@ -191,6 +203,9 @@ function withSwitches(
 
 function withDecision(state: GameClientState, message: ParsedServerMessage): GameClientState {
     const { highestOpenedWaitId, now, table, timer, viewerSeat } = state;
+    if (state.decision !== null && isAnsweredWait(state.decision, message)) {
+        return state;
+    }
     const hand = table.players.find((player) => player.seat === viewerSeat)?.tiles ?? [];
     const opened = openDecision(message, { at: now, hand, timer, viewerSeat });
     if (opened !== null) {
@@ -263,19 +278,63 @@ function takeMessage(
     return switchStep(noticed, viewed.highestOpenedWaitId);
 }
 
+/**
+ * Take a server message the session took, as `takeMessage` does, where a `DesyncError` (a message the table or the
+ * decision cannot take) is a protocol failure rather than a bug: it puts the client out of step, and it ends the page
+ * for a snapshot or the game's end, since no snapshot can rebuild the client then; out of step, the game's last round
+ * end it cannot take is one more message dropped. A snapshot it takes puts it back in step. Any other error is the
+ * client's own and propagates.
+ */
+function takeMessageInStep(
+    before: GameClientState,
+    stepped: GameClientState,
+    message: ParsedServerMessage,
+): ClientStep {
+    try {
+        const taken = takeMessage(before, stepped, message);
+        return message.type === "game_reconnected"
+            ? { ...taken, state: resynced(taken.state) }
+            : taken;
+    } catch (error: unknown) {
+        if (!(error instanceof DesyncError)) {
+            throw error;
+        }
+        return message.type === "game_reconnected" || message.type === "game_end"
+            ? recoveryFailedStep(stepped, error.message)
+            : desyncStep(stepped, "impossible_state", error.message);
+    }
+}
+
+/**
+ * A parsed server message: the session takes every one; out of step, only the snapshot and the game's end with its
+ * last round end reach the table, any other dropped.
+ */
+function takeParsedMessage(state: GameClientState, message: ParsedServerMessage): ClientStep {
+    const step = withSession(state, { at: state.now, kind: "message", message });
+    if (state.desync !== null && !takesWhileDesynced(message)) {
+        return { effects: step.effects, state: deferredUntilDeal(step.state, message) };
+    }
+    const taken = takeMessageInStep(state, step.state, message);
+    return { effects: [...step.effects, ...taken.effects], state: taken.state };
+}
+
+/**
+ * A server message, on a session that takes them: one that does not parse puts the client out of step (a snapshot
+ * that does not parse ends the page).
+ */
 function onServerMessage(state: GameClientState, raw: Record<string, unknown>): TracedStep {
+    if (!takesServerMessages(state.session)) {
+        return untraced({ effects: [], state });
+    }
     const [error, message] = parseServerMessage(raw);
     if (error) {
-        return reportUnreadMessage(state, error.message);
+        return untraced(
+            isSnapshotPayload(raw)
+                ? recoveryFailedStep(state, error.message)
+                : desyncStep(state, "unreadable_message", error.message),
+        );
     }
-    const step = withSession(state, { at: state.now, kind: "message", message });
-    const taken = takeMessage(state, step.state, message);
-    return {
-        effects: [...step.effects, ...taken.effects],
-        parsed: message,
-        partial: false,
-        state: taken.state,
-    };
+    return { ...takeParsedMessage(state, message), parsed: message, partial: false };
 }
 
 /**
@@ -309,11 +368,11 @@ function replayLineStep(state: GameClientState, line: ReplayLine, event: TableEv
 function onReplayLine(state: GameClientState, raw: Record<string, unknown>): TracedStep {
     const [error, line] = parseReplayLine(raw);
     if (error) {
-        return reportParseError(state, `Parse error: ${error.message}`);
+        return reportProtocolFailure(state, `Parse error: ${error.message}`);
     }
     const tableEvent = replayLineTableEvent(line);
     if (tableEvent === null) {
-        return reportParseError(state, `Non-replay event type: ${line.type}`);
+        return reportProtocolFailure(state, `Non-replay event type: ${line.type}`);
     }
     return robbedKanPart(state, line) ?? replayLineStep(state, line, tableEvent);
 }
@@ -325,7 +384,7 @@ function onTick(state: GameClientState): ClientStep {
 /** The action `intent` sends now: the open decision's answer, on a socket the client can send on; or null. */
 function decisionAnswer(state: GameClientState, intent: DecisionIntent): ClientMessage | null {
     const { decision, table, viewerSeat } = state;
-    if (decision === null || !canSend(state.session)) {
+    if (decision === null || !canAnswer(state)) {
         return null;
     }
     const viewer = table.players.find((player) => player.seat === viewerSeat);
@@ -338,7 +397,7 @@ function decisionAnswer(state: GameClientState, intent: DecisionIntent): ClientM
  */
 export function takesIntent(state: GameClientState, intent: PlayIntent): boolean {
     if (intent.type === "confirm_result") {
-        return confirmStep(state, canSend(state.session)) !== null;
+        return confirmStep(state, canAnswer(state)) !== null;
     }
     if (intent.type === "show_last_result") {
         return reopenResultStep(state) !== null;
@@ -420,7 +479,7 @@ function onIntent(state: GameClientState, intent: LocalIntent): ClientStep {
             return toggleSwitchStep(state, intent.playSwitch) ?? { effects: [], state };
         }
         case "confirm_result": {
-            return confirmStep(state, canSend(state.session)) ?? { effects: [], state };
+            return confirmStep(state, canAnswer(state)) ?? { effects: [], state };
         }
         case "show_last_result": {
             return reopenResultStep(state) ?? { effects: [], state };
@@ -469,7 +528,14 @@ function stepEvent(timed: GameClientState, event: ClientEvent): TracedStep {
             return untraced(withSession(timed, sessionInput(event)));
         }
         case "transport_error": {
-            return { effects: [], parsed: null, partial: false, state: timed };
+            return untraced({ effects: [], state: timed });
+        }
+        case "frame_undecodable": {
+            return untraced(
+                takesServerMessages(timed.session)
+                    ? desyncStep(timed, "undecodable_frame", event.detail)
+                    : { effects: [], state: timed },
+            );
         }
         case "tick": {
             return untraced(onTick(timed));
@@ -487,11 +553,13 @@ function emptyClient(at: number, session: SessionState | null): GameClientState 
     return {
         calls: null,
         decision: null,
+        desync: null,
         firstDealDue: null,
         furiten: false,
         highestOpenedWaitId: null,
         notice: null,
         now: at,
+        resyncRequests: 0,
         roundConfirm: null,
         session,
         switches: SWITCHES_OFF,
@@ -522,25 +590,20 @@ export function startReplayClient(at: number): GameClientState {
 
 /**
  * When the client next needs a tick: the earliest of its session's deadline, its open decision's, its notice's and its
- * calls' expiry, or null. A round confirm's deadline needs none: the client never confirms on its own, and its
- * countdown reads `now`.
+ * calls' expiry, and when its resync request counts as unanswered, or null. A round confirm's deadline needs none: the
+ * client never confirms on its own, and its countdown reads `now`.
  */
 export function nextDeadline(state: GameClientState): number | null {
     const { calls, decision, notice, session } = state;
     const decisionDue = decision?.status.kind === "open" ? decision.deadline : null;
     const deadlines = [
         session === null ? null : sessionDeadline(session),
+        desyncDeadline(state),
         decisionDue,
         notice?.until ?? null,
         calls?.until ?? null,
     ].filter((deadline) => deadline !== null);
     return deadlines.length === 0 ? null : Math.min(...deadlines);
-}
-
-/** End the client because its driver failed while stepping it; nothing is pending afterwards. */
-export function failGameClient(state: GameClientState, detail: string): GameClientState {
-    const session = state.session === null ? null : failSession(state.session, detail);
-    return { ...state, calls: null, decision: null, notice: null, roundConfirm: null, session };
 }
 
 /** The state at logical time `at`: an open decision past its deadline expired, a notice or calls past their time gone. */
@@ -557,8 +620,9 @@ function expireAt(state: GameClientState, at: number): GameClientState {
 /** One part of the dispatcher's step with what it took of its event, as parsed. */
 function traceGameClientPart(state: GameClientState, event: ClientEvent): TracedStep {
     const step = stepEvent({ ...state, now: event.at }, event);
-    const expired = expireAt(step.state, event.at);
-    return expired === step.state ? step : { ...step, state: expired };
+    const settled = settleDesync(step);
+    const expired = expireAt(settled.state, event.at);
+    return { ...step, effects: settled.effects, state: expired };
 }
 
 /**

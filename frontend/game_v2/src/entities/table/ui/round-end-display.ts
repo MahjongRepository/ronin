@@ -163,6 +163,16 @@ function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
     </ol>`;
 }
 
+/** Says, on a result read against a table out of step, which of its parts may be wrong and which are the server's. */
+function UncertainNote({ uncertain }: RoundEndDisplayState): TemplateResult | typeof nothing {
+    return uncertain
+        ? html`<span class="round-end-result__uncertain" role="note"
+              >This page lost step with the server: the dora and dealer shown may be wrong. The hand and the
+              scores are the server's.</span
+          >`
+        : nothing;
+}
+
 function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateResult {
     const { display } = props;
     return html`<div class="round-end-result round-end-result--win">
@@ -174,6 +184,7 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
             </span>
             ${page.fromName === null ? nothing : html`<span class="round-end-result__from">from ${page.fromName}</span>`}
             ${PagerControls(props)}
+            ${UncertainNote(display)}
         </div>
         ${WinHand(page)}
         ${YakuList(page)}
@@ -189,6 +200,7 @@ function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateR
             <span class="round-end-result__kind">Draw</span>
             <span class="round-end-result__title">${page.title}</span>
             ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
+            ${UncertainNote(display)}
         </div>
         ${
             page.tenpaiHands.length === 0

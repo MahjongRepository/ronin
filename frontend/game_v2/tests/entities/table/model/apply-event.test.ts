@@ -805,6 +805,7 @@ describe("applyEvent - game_end result data", () => {
 
         expect(next.gameEndResult).toEqual({
             leftoverRiichiBonus: 2000,
+            numRounds: event.numRounds,
             standings: event.standings,
             winnerSeat: 0,
         });

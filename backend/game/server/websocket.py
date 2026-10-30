@@ -7,6 +7,7 @@ import structlog
 from game.messaging.encoder import DecodeError, decode
 from game.messaging.protocol import ConnectionProtocol
 from game.messaging.types import ErrorMessage, SessionErrorCode, refused_wait_id
+from game.messaging.wire_enums import WireClientMessageType
 from shared.rate_limit import TokenBucket
 from shared.websocket import QueuedWebSocket, accept_websocket, reject_websocket
 
@@ -25,6 +26,9 @@ _MAX_GAME_ID_LENGTH = 50
 # so a fast client can send ~30 msg/sec (discards + pass on each AI discard).
 _RATE_LIMIT_RATE = 50.0
 _RATE_LIMIT_BURST = 80
+
+_RESYNC_RATE_LIMIT_RATE = 0.2
+_RESYNC_RATE_LIMIT_BURST = 2
 
 # Disconnect after this many consecutive decode errors
 _MAX_DECODE_ERRORS = 5
@@ -98,6 +102,7 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
     router.handle_connect(connection)
 
     bucket = TokenBucket(rate=_RATE_LIMIT_RATE, burst=_RATE_LIMIT_BURST)
+    resync_bucket = TokenBucket(rate=_RESYNC_RATE_LIMIT_RATE, burst=_RESYNC_RATE_LIMIT_BURST)
     decode_errors = 0
 
     try:
@@ -134,6 +139,12 @@ async def _serve_connection(connection: WebSocketConnection, router: MessageRout
                         message="Too many messages",
                         wait_id=refused_wait_id(data),
                     ).payload(),
+                )
+                continue
+
+            if data.get("t") == WireClientMessageType.RESYNC and not resync_bucket.consume():
+                connection.send_message(
+                    ErrorMessage(code=SessionErrorCode.RATE_LIMITED, message="Too many resync requests").payload(),
                 )
                 continue
 

@@ -16,6 +16,7 @@ import {
     buildJoinGameMessage,
     buildPassAction,
     buildReconnectMessage,
+    buildResyncMessage,
 } from "@/shared/protocol";
 import { type GameConnection, type SocketHandlers } from "@/shared/websocket";
 import { type GameViewDeps, mountGameView } from "@/views/game";
@@ -318,18 +319,24 @@ describe("mountGameView", () => {
         expect(sink.clearHandoff).toHaveBeenCalledTimes(2);
     });
 
-    it("reports a server message it cannot read on the console and the board, without the debug log", () => {
+    it("reports a server message it cannot read on the console and the board, without the debug log, and asks the open socket for a snapshot", () => {
         const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-        const { connections, host } = mountWithFakes();
-        connections[0].handlers.onOpen();
+        const {
+            connections: [socket],
+            host,
+        } = mountWithFakes();
+        socket.handlers.onOpen();
+        socket.handlers.onMessage(WIRE_GAME_STARTED);
 
-        connections[0].handlers.onMessage({ t: 999 });
+        socket.handlers.onMessage({ t: 999 });
+        socket.handlers.onUndecodableFrame("Received a non-binary frame");
 
-        expect(consoleError).toHaveBeenCalledOnce();
-        expect(host.querySelector(".game__play .board-notice--error")?.textContent).toBe(
-            "A server message could not be read; the table may be wrong",
-        );
-        expect(host.querySelector(".log-entry")).toBeNull();
+        expect(consoleError).toHaveBeenCalledTimes(2);
+        expect([
+            host.querySelector(".game__play .board-notice--error")?.textContent,
+            host.querySelector(".log-entry"),
+        ]).toEqual(["2 server messages could not be read; the table may be wrong", null]);
+        expect([socket.sent, socket.disconnected]).toEqual([[JOIN, buildResyncMessage()], false]);
         consoleError.mockRestore();
     });
 

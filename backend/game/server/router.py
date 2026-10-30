@@ -9,6 +9,7 @@ from game.messaging.types import (
     GameActionMessage,
     JoinGameMessage,
     ReconnectMessage,
+    ResyncMessage,
     SessionErrorCode,
     parse_client_message,
 )
@@ -63,6 +64,8 @@ class MessageRouter:
                 self._handle_join_game(connection, message)
             case ReconnectMessage():
                 self._handle_reconnect(connection, message)
+            case ResyncMessage():
+                self._handle_resync(connection)
             case _:  # pragma: no cover (exhaustive)
                 raise AssertionError(f"unhandled client message: {type(message).__name__}")
 
@@ -134,6 +137,16 @@ class MessageRouter:
             self._session_manager.reconnect(connection=connection, session_token=message.game_ticket)
         except Exception as exc:  # noqa: BLE001
             self._session_manager.fail_connection(connection, game, reason="reconnect failed", exc=exc)
+
+    def _handle_resync(self, connection: ConnectionProtocol) -> None:
+        """
+        Send a bound connection's seat its state again; an unexpected error is a server fault that fails its game.
+        """
+        game = self._session_manager.get_connection_game(connection)
+        try:
+            self._session_manager.resync(connection)
+        except Exception as exc:  # noqa: BLE001
+            self._session_manager.fail_connection(connection, game, reason="resync failed", exc=exc)
 
     def _handle_game_action(
         self,

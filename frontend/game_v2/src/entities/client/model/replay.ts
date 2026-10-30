@@ -46,7 +46,7 @@ function stepLine(state: GameClientState, line: ReplayFileLine): LineSteps {
         const steps = traceGameClient(state, event);
         const refused = steps
             .flatMap((step) => step.effects)
-            .find((effect) => effect.type === "report_parse_error");
+            .find((effect) => effect.type === "report_protocol_failure");
         if (refused !== undefined) {
             return { damage: refused.detail, entries: [] };
         }

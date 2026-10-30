@@ -6,6 +6,8 @@ export type {
     Decision,
     DecisionIntent,
     DecisionStatus,
+    Desync,
+    DesyncCause,
     GameClientState,
     LocalIntent,
     Offer,
@@ -17,13 +19,13 @@ export type {
     TurnDecision,
 } from "./model/types";
 export {
-    failGameClient,
     nextDeadline,
     takesIntent,
     startGameClient,
     startReplayClient,
     stepGameClient,
 } from "./model/dispatch";
+export { MAX_RESYNC_REQUESTS, RESYNC_ANSWER_MS, failGameClient } from "./model/desync";
 export { PLAY_SWITCHES } from "./model/play-switches";
 export type { DecisionCountdown, TurnClock } from "./model/countdown";
 export {

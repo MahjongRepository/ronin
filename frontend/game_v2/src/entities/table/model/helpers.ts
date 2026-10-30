@@ -1,5 +1,6 @@
 import { NUM_PLAYERS } from "@/shared/protocol";
 
+import { DesyncError } from "./desync-error";
 import { type PlayerState, type TableState } from "./types";
 
 type ClosedHand = Pick<PlayerState, "tiles" | "concealedCount">;
@@ -19,7 +20,7 @@ export function updatePlayer(
 export function requirePlayer(state: TableState, seat: number): PlayerState {
     const player = state.players.find((p) => p.seat === seat);
     if (!player) {
-        throw new Error(`No player found for seat ${seat}`);
+        throw new DesyncError(`No player found for seat ${seat}`);
     }
     return player;
 }

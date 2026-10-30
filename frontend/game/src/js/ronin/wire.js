@@ -7,6 +7,7 @@ const wire = {
         GAME_ACTION: 3,
         RECONNECT:   6,
         JOIN_GAME:   7,
+        RESYNC:      8,
     },
 
     /* game_action: a */

@@ -291,7 +291,7 @@ stateDiagram-v2
     PENDING --> PLAYING: pending timeout, someone connected (absent seats → AI)
     PENDING --> ENDING: pending timeout, nobody connected (abandoned)
     PENDING --> ENDING: server fault
-    PLAYING --> PLAYING: action / timeout / disconnect (seat → AI) / RECONNECT (seat back, or socket replaced)
+    PLAYING --> PLAYING: action / timeout / disconnect (seat → AI) / RECONNECT (seat back, or socket replaced) / RESYNC (state re-sent)
     PLAYING --> ENDING: game completed
     PLAYING --> ENDING: last connected human leaves (abandoned)
     PLAYING --> ENDING: server fault (fail_game)
@@ -396,7 +396,10 @@ honours this contract can replace it.
   and stores it under the same key. The v2 client forgets it at the game end, since its ticket will never
   hold the seat again.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
-  (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect.
+  (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect. A client that lost
+  step with the messages may send RESYNC on its open socket for the reconnect's snapshot and re-sent
+  wait, keeping the seat; closing to reconnect would hand the seat to an AI for the gap. A client may
+  ignore it (v1 does).
 * **Closes:** the client reconnects after any close but two terminal ones, after which it stops
   reconnecting and cancels any scheduled retry: 4002 `replaced_by_new_connection` (another socket
   of the seat took it over) and 1008 `invalid_game_action` (the seat was kicked). A 1000

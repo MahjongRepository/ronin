@@ -73,6 +73,7 @@ export type {
 export {
     buildJoinGameMessage,
     buildReconnectMessage,
+    buildResyncMessage,
     buildDiscardAction,
     buildRiichiAction,
     buildTsumoAction,

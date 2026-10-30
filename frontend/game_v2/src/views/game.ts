@@ -133,7 +133,14 @@ function describeRecovery(recovery: HandoffRecovery): string {
 function systemLogText(
     event: Extract<
         ClientEvent,
-        { kind: "transport_opened" | "transport_closed" | "transport_error" | "handoff_recovered" }
+        {
+            kind:
+                | "transport_opened"
+                | "transport_closed"
+                | "transport_error"
+                | "frame_undecodable"
+                | "handoff_recovered";
+        }
     >,
 ): string {
     switch (event.kind) {
@@ -145,6 +152,9 @@ function systemLogText(
         }
         case "transport_error": {
             return `Transport error: ${event.detail}`;
+        }
+        case "frame_undecodable": {
+            return `Undecodable frame: ${event.detail}`;
         }
         case "handoff_recovered": {
             return describeRecovery(event.recovery);
@@ -166,6 +176,7 @@ function logEntryFor(event: ClientEvent): LogEntry | null {
         case "transport_opened":
         case "transport_closed":
         case "transport_error":
+        case "frame_undecodable":
         case "handoff_recovered": {
             return { at, kind: LOG_TYPE_SYSTEM, text: systemLogText(event) };
         }
@@ -249,8 +260,9 @@ function nextWake(state: GameClientState): number | null {
  * with the clock's time, steps the dispatcher, executes the effects it returns in order and renders the state.
  * Events raised while effects run are queued behind the current one. After each step it arms one timer to the
  * state's next deadline or countdown change, which comes back as a tick; a timer that was replaced, a socket that
- * was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step that throws
- * ends the client as failed, shown on the page, instead of leaving it stuck.
+ * was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step or an effect that
+ * throws ends the client as failed, shown on the page, instead of leaving it stuck: a protocol failure never throws
+ * here, since the dispatcher recovers from it itself, so what does is a bug in the client.
  */
 class GameViewController {
     private readonly host: HTMLElement;
@@ -452,8 +464,8 @@ class GameViewController {
                 void this.recover();
                 return;
             }
-            case "report_parse_error": {
-                this.reportParseError(effect.detail);
+            case "report_protocol_failure": {
+                this.reportProtocolFailure(effect.detail);
                 return;
             }
             default: {
@@ -488,11 +500,11 @@ class GameViewController {
     }
 
     /**
-     * A server message the client could not read: always on the console, whatever the log; the state counts it for
-     * the board's notice, since the table may be wrong from here on.
+     * A server message the client could not read or take: always on the console, whatever the log; the state counts it
+     * for the board's notice and recovers from it itself, since the table may be wrong until a snapshot.
      */
-    private reportParseError(detail: string): void {
-        const text = `Parse error: ${detail}`;
+    private reportProtocolFailure(detail: string): void {
+        const text = `Protocol failure: ${detail}`;
         console.error(text);
         this.appendLog({ at: this.state.now, kind: LOG_TYPE_UNKNOWN, text });
     }
@@ -565,6 +577,8 @@ class GameViewController {
             onError: (detail) => fromCurrent({ at: clock.now(), detail, kind: "transport_error" }),
             onMessage: (raw) => fromCurrent({ at: clock.now(), kind: "server_message", raw }),
             onOpen: () => fromCurrent({ at: clock.now(), kind: "transport_opened" }),
+            onUndecodableFrame: (detail) =>
+                fromCurrent({ at: clock.now(), detail, kind: "frame_undecodable" }),
         };
     }
 

@@ -17,6 +17,7 @@ export type {
 } from "./model/types";
 export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
 export { applyEvent } from "./model/apply-event";
+export { DesyncError } from "./model/desync-error";
 export { extractRoundEndResult, roundEndPages } from "./model/handlers/round-end";
 export type { RoundEndContext } from "./model/handlers/round-end";
 export { chankanKanDeclared, robbedKanDeclared } from "./model/handlers/kan-declared";

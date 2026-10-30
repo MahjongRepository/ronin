@@ -91,6 +91,8 @@ export interface RoundEndDisplayState {
     readonly pageCount: number;
     readonly body: WinPageDisplay | DrawPageDisplay;
     readonly scores: readonly ResultScoreRow[];
+    /** The result was read against a table out of step with the server, so its dora and dealer may be wrong. */
+    readonly uncertain: boolean;
 }
 
 interface SeatNames {
@@ -304,5 +306,6 @@ export function roundEndDisplay(table: RoundEndTable, page: number): RoundEndDis
         page: shown.index,
         pageCount: shown.count,
         scores: scoreRows(table, names, shown.index),
+        uncertain: !result.inStep,
     };
 }

@@ -11,6 +11,7 @@ import {
     type SeatControlLine,
 } from "@/shared/protocol";
 
+import { DesyncError } from "./desync-error";
 import { applyKanDeclared } from "./handlers/kan-declared";
 import { applyMeld } from "./handlers/meld";
 import { applyGameReconnected } from "./handlers/reconnect";
@@ -130,7 +131,9 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
     const player = requirePlayer(state, event.seat);
     const hand = takeFromHand(player, [event.tileId]);
     if (hand === null) {
-        throw new Error(`Discarded tile ${event.tileId} not found in hand of seat ${event.seat}`);
+        throw new DesyncError(
+            `Discarded tile ${event.tileId} not found in hand of seat ${event.seat}`,
+        );
     }
     return {
         ...state,
@@ -185,6 +188,7 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
         ...state,
         gameEndResult: {
             leftoverRiichiBonus: event.leftoverRiichiBonus,
+            numRounds: event.numRounds,
             standings: event.standings.map((s) => ({
                 finalScore: s.finalScore,
                 score: s.score,
@@ -209,7 +213,7 @@ function applySeatControl(state: TableState, line: SeatControlLine): TableState 
 
 /**
  * The table transition: the next table after one event, never changing the one it was given. The draw, discard,
- * meld and kan declaration handlers throw on an impossible state (a missing tile, player or caller).
+ * meld and kan declaration handlers throw a `DesyncError` on an impossible state (a missing tile, player or caller).
  */
 export function applyEvent(state: TableState, event: TableEvent): TableState {
     switch (event.type) {
@@ -252,6 +256,9 @@ export function applyEvent(state: TableState, event: TableEvent): TableState {
         case "ai_replacement":
         case "human_return": {
             return applySeatControl(state, event);
+        }
+        case "lost_step": {
+            return { ...state, roundEndResult: null, roundHistoryInStep: false };
         }
         default: {
             return assertNever(event);

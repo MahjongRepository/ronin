@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { clientEvent, clientScenario, forbiddingIo } from "#tests/fixtures/scenario";
 import {
     WIRE_DRAW,
+    WIRE_GAME_END,
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
@@ -114,8 +115,22 @@ describe("stepGameClient", () => {
         const { session } = scenario.state;
 
         const [report] = scenario.step(message(100, { t: 99 }));
-        expect(report?.type).toBe("report_parse_error");
+        expect(report?.type).toBe("report_protocol_failure");
         expect(scenario.state.session).toBe(session);
+    });
+
+    it("takes no server message once its session ended, so the table stays as the game's end left it", () => {
+        const scenario = playingScenario();
+        scenario.step(message(100, WIRE_GAME_END));
+        const ended = scenario.state;
+
+        expect(scenario.step(message(200, WIRE_ROUND_STARTED))).toEqual([]);
+        expect(scenario.step(message(300, { t: 99 }))).toEqual([]);
+        expect(scenario.state.table).toBe(ended.table);
+        expect([scenario.state.table.phase, scenario.state.unreadMessages]).toEqual([
+            "game_ended",
+            0,
+        ]);
     });
 
     it("keeps the logical time of its last event, so a tick with nothing due changes only the time", () => {

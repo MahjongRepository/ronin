@@ -1,7 +1,11 @@
 import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
-import { checkpointState } from "#tests/fixtures/seat-transcripts";
+import {
+    checkpointState,
+    loadSeatScenario,
+    receivedPayload,
+} from "#tests/fixtures/seat-transcripts";
 import {
     type GameClientState,
     NO_PLAY_UI,
@@ -55,8 +59,9 @@ function renderSwitches(
 
 const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
 
-function renderLiveStandings(): { host: HTMLElement; commands: PlayCommand[] } {
-    const gameEnd = checkpointState("final_round_seat_1", "game end");
+function renderLiveStandings(
+    gameEnd: GameClientState = checkpointState("final_round_seat_1", "game end"),
+): { host: HTMLElement; commands: PlayCommand[] } {
     const standings = stepGameClient(gameEnd, {
         at: gameEnd.now,
         intent: { type: "confirm_result" },
@@ -100,6 +105,25 @@ describe("PlayBoard", () => {
             { intent: { type: "show_last_result" }, kind: "intent" },
             { intent: { type: "leave" }, kind: "intent" },
         ]);
+        expect(host.querySelector(".standings__incomplete")).toBeNull();
+    });
+
+    it("says on the standings that the rounds may be wrong when the page lost step before the game's end", () => {
+        const before = checkpointState("final_round_seat_1", "ron prompt");
+        const lostStep = stepGameClient(before, {
+            at: 4000,
+            kind: "server_message",
+            raw: { t: 999 },
+        });
+        const { transcript } = loadSeatScenario("final_round_seat_1");
+        const gameEnd = stepGameClient(lostStep.state, {
+            at: 5000,
+            kind: "server_message",
+            raw: receivedPayload(transcript, "game end"),
+        }).state;
+
+        const { host } = renderLiveStandings(gameEnd);
+        expect(host.querySelector(".standings__incomplete")?.getAttribute("role")).toBe("note");
     });
 
     it("holds a won round's result back for its call, but asks about leaving over it at once, with no furiten", () => {

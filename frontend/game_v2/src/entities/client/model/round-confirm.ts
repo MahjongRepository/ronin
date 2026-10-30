@@ -24,18 +24,23 @@ function roundAdvanceDeadline(state: GameClientState, elapsedSeconds: number): n
 
 /**
  * The round confirm a reconnect's snapshot names: none outside a round advance; owed, with a deadline only when the
- * snapshot says how long its timer has run, never a fresh full timeout; or confirmed already.
+ * snapshot says how long its timer has run, never a fresh full timeout; or confirmed already. A confirm the seat sent
+ * for the wait the snapshot still names stays sent: a late second snapshot after a resync can follow the confirm.
  */
 function reconnectRoundConfirm(
     state: GameClientState,
     snapshot: Extract<ParsedServerMessage, { type: "game_reconnected" }>,
 ): RoundConfirm | null {
     const { confirmationOwed, elapsedSeconds, waitId } = snapshot;
+    const { roundConfirm } = state;
     if (state.table.roundEndResult === null) {
         return null;
     }
     if (!confirmationOwed) {
         return CONFIRMED;
+    }
+    if (roundConfirm?.kind === "sent" && roundConfirm.waitId === waitId) {
+        return roundConfirm;
     }
     const deadline = elapsedSeconds === null ? null : roundAdvanceDeadline(state, elapsedSeconds);
     return { deadline, kind: "owed", waitId };

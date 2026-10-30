@@ -54,7 +54,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   mounts never move together. Its dispose cancels every timer, socket, fetch and listener it owns
   and clears its host, and a callback that still fires afterwards is dropped. The game view's
   driver ends the client as failed, on the page, when a step or an effect throws, rather than
-  leaving its queue stuck, and reports a socket factory that throws as a failed connection.
+  leaving its queue stuck, and reports a socket factory that throws as a failed connection. A
+  protocol failure never throws out of the dispatcher (Desync), so what does is a bug in the client.
 * **One dispatcher over client events.** The live game, the replay and scripted scenarios all run
   on `entities/client`'s dispatcher, a pure `(state, event) → { state, effects }` over an explicit
   client event union (`ClientEvent`): server messages arrive as raw wire payloads and replay lines
@@ -127,6 +128,32 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   carries no wait and its game end follows at once: the table keeps that result and the live board
   shows it over the standings until the player dismisses it, which sends nothing; the standings'
   Last hand (the `show_last_result` intent) reopens it, on its first page, sending nothing either.
+* **Desync** (`model/desync.ts`). A protocol failure puts the live client out of step with the
+  server: a server message that does not parse, a frame the socket could not decode
+  (`frame_undecodable`, apart from the browser's socket error, `transport_error`, which only its
+  close follows), or a message its table or decision cannot take, which they report by throwing a
+  `DesyncError` (`entities/table`); a silent fallback that guesses (an offer dropped for want of its
+  tile) is one too. Out of step, the client answers nothing, drops the open decision and an owed or
+  sent round confirm, never resends what it sent, and keeps `highestOpenedWaitId`, so a wait re-sent
+  after the snapshot is the player's to answer; the session still takes every message, but only the
+  snapshot, the game's end and the round end before it (the game's last, which carries no wait)
+  reach the table, every other message dropped. Those two carry the scores and the result the server
+  settled, so a game that ends out of step ends on them, but the table records the loss of step
+  (`lost_step`), dropping any result it kept, so only a result taken in step or that last round end
+  opens the final result, its panel noting what may be wrong, and the standings mark their ledger
+  incomplete (`entities/table/AGENTS.md`); a last round end it cannot take is one more message
+  dropped. It sends one resync request on the open
+  socket and again only once one goes unanswered for `RESYNC_ANSWER_MS`, or, refused because the
+  game has not dealt yet, when the first deal is due (`firstDealDue`); a dropped socket forgets the
+  request, since the reconnect's own snapshot rebuilds it. A snapshot it takes puts it back in step
+  and alone resets the board's count of failures (`unreadMessages`). A second snapshot that answers a
+  request sent again can follow the player's answer to the first one's wait: a snapshot or re-sent
+  opening naming the wait of a submitted decision or a sent round confirm leaves it submitted, so the
+  wait is never answered twice. The requests are counted for the page, never reset by a snapshot or
+  the session's admission, so one past `MAX_RESYNC_REQUESTS` ends the page as failed, as does a
+  snapshot that does not parse or that it cannot take, or a game's end it cannot take. A server
+  message that arrives once the session ended or while it recovers its handoff is dropped. An error
+  that is not a `DesyncError` is a bug and propagates to the driver.
 * **Game start and calls.** Before the first deal the board's panel is the seating (`gameStartDisplay`):
   the game's length and first round, each seat's wind and player, the dealer, AI players and the viewer
   marked, and the server's game start pause counted down (`firstDealCountdown`, from the game start's
@@ -322,8 +349,8 @@ follows holds through the rebuild to it.
   opened, each worded the same across its retries so it is announced once (a page that only resumes
   its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
   expiry (the seat back after a snapshot of such a drop, which a second drop replaces, and a refused
-  move, shown only for the refusal that reopens the request it names); and a server message the
-  client cannot read, on the console too, shown until a reconnect's snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
+  move, shown only for the refusal that reopens the request it names); and the protocol failures since
+  the last snapshot (App, Desync), on the console too, shown until a snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
   a reload, until a retry loads them. An end that stops the session on the
   page blocks the board, and takes the rotate panel's place, with why and a way back. The notices' place is
   the left field under the left badge, outside every river's capacity, scrolling a stack taller than it

@@ -45,6 +45,12 @@ interleave.
   snapshot says during a round advance whether the seat still owes its confirmation, which only a
   replacement can make true: a disconnect confirms the seat, and a seat an AI player held at the
   round end was never required.
+* **A resync is a reconnect without the socket.** A RESYNC on the connection that holds a seat gets
+  exactly what a reconnect sends it (the snapshot, then the wait the game owes the seat with how long
+  its timer has run), through the same step, on that connection, and is read-only: nothing is
+  rebound, handed over, stored, recorded or re-armed, and no other seat hears of it, so a client that lost step recovers without its
+  seat passing to an AI. Before the first deal it is refused as not started, since the snapshot would
+  show a deal the seat was not sent.
 * **Playing.** A user plays a game from its creation (pending included) until its end is claimed,
   and a disconnected participant still counts, deliberately: the lobby keeps that user out of rooms
   and matchmaking until the game ends. The lobby's per-user lookup, its recovery of the participant's

@@ -297,6 +297,15 @@ $tint: color-mix(in srgb, var(--ronin-text) 8%, transparent);
     color: var(--ronin-text-secondary);
 }
 
+.standings__incomplete {
+    flex-basis: 100%;
+    order: 2;
+    margin: 0;
+    font-size: max(10px, 0.75rem);
+    line-height: 1.25;
+    color: var(--ronin-warning);
+}
+
 .standings__legend-item {
     display: inline-flex;
     align-items: center;

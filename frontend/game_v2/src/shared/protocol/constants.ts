@@ -52,6 +52,7 @@ export const CLIENT_MESSAGE_TYPE = {
     GAME_ACTION: 3,
     JOIN_GAME: 7,
     RECONNECT: 6,
+    RESYNC: 8,
 } as const;
 
 export type ClientMessageType = (typeof CLIENT_MESSAGE_TYPE)[keyof typeof CLIENT_MESSAGE_TYPE];

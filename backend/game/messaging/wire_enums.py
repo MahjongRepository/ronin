@@ -9,6 +9,7 @@ class WireClientMessageType(IntEnum):
     GAME_ACTION = 3
     RECONNECT = 6
     JOIN_GAME = 7
+    RESYNC = 8
 
 
 class WireGameAction(IntEnum):

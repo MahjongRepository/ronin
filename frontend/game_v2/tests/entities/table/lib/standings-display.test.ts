@@ -21,6 +21,7 @@ function endedAtLastRound(table: TableState): TableState {
         ...table,
         gameEndResult: {
             leftoverRiichiBonus: 0,
+            numRounds: table.roundHistory.length,
             standings: ranked.map((player) => ({
                 finalScore: 0,
                 score: player.score,

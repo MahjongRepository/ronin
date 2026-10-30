@@ -8,7 +8,10 @@ export interface SocketHandlers {
     readonly onOpen: () => void;
     readonly onMessage: (message: Record<string, unknown>) => void;
     readonly onClose: (code: number, reason: string) => void;
+    /** The browser's socket error, which its close follows. */
     readonly onError: (detail: string) => void;
+    /** A frame that decodes into no message: not binary, not MessagePack, or not an object. */
+    readonly onUndecodableFrame: (detail: string) => void;
 }
 
 /** One connection attempt: it never reconnects by itself, and `disconnect` silences it. */
@@ -96,7 +99,7 @@ export class GameSocket implements GameConnection {
         if (frame.ok) {
             this.handlers.onMessage(frame.message);
         } else {
-            this.handlers.onError(frame.detail);
+            this.handlers.onUndecodableFrame(frame.detail);
         }
     }
 

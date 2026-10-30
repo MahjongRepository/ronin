@@ -1,3 +1,4 @@
+import { DesyncError } from "@/entities/table/model/desync-error";
 import { takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DiscardRecord,
@@ -36,7 +37,7 @@ interface MeldMove {
 function findCaller(state: TableState, event: MeldEvent): PlayerState {
     const caller = state.players.find((p) => p.seat === event.callerSeat);
     if (!caller) {
-        throw new Error(`Caller not found for seat ${event.callerSeat}`);
+        throw new DesyncError(`Caller not found for seat ${event.callerSeat}`);
     }
     return caller;
 }
@@ -50,7 +51,7 @@ function meldFromHand(
     const caller = findCaller(state, event);
     const hand = takeFromHand(caller, fromHand);
     if (hand === null) {
-        throw new Error(`Tiles ${fromHand.join(", ")} not found in hand during meld`);
+        throw new DesyncError(`Tiles ${fromHand.join(", ")} not found in hand during meld`);
     }
     return {
         ...state,
@@ -70,7 +71,7 @@ function markFromSeatDiscard(state: TableState, fromSeat: number | null): TableS
     }
     const fromPlayer = state.players.find((p) => p.seat === fromSeat);
     if (!fromPlayer) {
-        throw new Error(`fromSeat player not found for seat ${fromSeat}`);
+        throw new DesyncError(`fromSeat player not found for seat ${fromSeat}`);
     }
     return {
         ...state,
@@ -121,7 +122,7 @@ function applyAddedKan(state: TableState, event: MeldEvent): TableState {
     const caller = findCaller(state, event);
     const match = findPonAndAddedTile(caller, event);
     if (!match) {
-        throw new Error(`No matching pon found for added_kan at seat ${event.callerSeat}`);
+        throw new DesyncError(`No matching pon found for added_kan at seat ${event.callerSeat}`);
     }
     const kan = buildMeldRecord(event, match.addedTileId);
     const melds = caller.melds.map((m) => (m === match.ponMeld ? kan : m));

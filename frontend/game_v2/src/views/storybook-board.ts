@@ -787,6 +787,7 @@ const STANDINGS_TABLE: TableState = {
     dealerSeat: 3,
     gameEndResult: {
         leftoverRiichiBonus: 1000,
+        numRounds: STANDINGS_HISTORY.length,
         standings: [
             { finalScore: 50, score: 39_500, seat: 0 },
             { finalScore: 9, score: 29_100, seat: 2 },

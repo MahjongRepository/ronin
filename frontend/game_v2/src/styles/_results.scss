@@ -141,6 +141,13 @@
     gap: 0.1rem 0.6rem;
 }
 
+.round-end-result__uncertain {
+    flex-basis: 100%;
+    font-size: max(10px, 0.75rem);
+    line-height: 1.25;
+    color: var(--ronin-warning);
+}
+
 .round-end-result__kind {
     font-size: 0.7rem;
     font-weight: 700;

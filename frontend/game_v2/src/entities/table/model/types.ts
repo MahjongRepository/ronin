@@ -138,6 +138,11 @@ export interface RoundEndResult {
     readonly scoresBeforePayment: Readonly<Record<string, number>>;
     readonly doraIndicators: readonly number[];
     readonly draw: DrawResult | null;
+    /**
+     * Whether the table the result was read against was in step with the server: false for the game's last round end
+     * a live client took out of step, whose dora indicators and dealer came from a table that may be stale.
+     */
+    readonly inStep: boolean;
 }
 
 /** One page of a round's result: a winner's, or the draw's. A double ron has a page per winner. */
@@ -170,6 +175,8 @@ export interface RoundRecord {
 
 export interface GameEndResult {
     readonly winnerSeat: number;
+    /** How many rounds the server played, one ledger row each. */
+    readonly numRounds: number;
     /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */
     readonly leftoverRiichiBonus: number;
     readonly standings: readonly {
@@ -219,6 +226,11 @@ export interface TableState {
     readonly gameEndResult: GameEndResult | null;
     /** Every finished round of the game in play order, for the final standings' ledger. */
     readonly roundHistory: readonly RoundRecord[];
+    /**
+     * Whether the round history follows the server: false from a live client's loss of step (`LostStepEvent`) until a
+     * snapshot rebuilds the history, since a round the client missed is a row missing or wrong.
+     */
+    readonly roundHistoryInStep: boolean;
 }
 
 export type ReplayEvent =
@@ -247,13 +259,23 @@ export interface KanDeclaredEvent {
 }
 
 /**
+ * A live client lost step with the server: it drops the messages that follow until a snapshot, so the table it holds
+ * may miss what they carried, and the result it kept is no longer known to be the round's latest, so it goes. No
+ * message carries it as such.
+ */
+export interface LostStepEvent {
+    readonly type: "lost_step";
+}
+
+/**
  * Everything that changes the table: the events a replay stores, the seat control lines (a replay's, or the live
  * session's messages, parsed alike), the reconnect snapshot that rebuilds the table, a live seat's notice of another
- * seat's draw, and a kan declared open to chankan.
+ * seat's draw, a kan declared open to chankan, and a live client's loss of step.
  */
 export type TableEvent =
     | ReplayEvent
     | DrawNoticeEvent
     | KanDeclaredEvent
+    | LostStepEvent
     | SeatControlLine
     | GameReconnectedEvent;

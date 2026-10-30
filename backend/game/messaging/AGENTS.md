@@ -27,7 +27,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   client's bank never drifts by delivery delays; a discard's
   call prompt is split per seat; after the `game_reconnected` snapshot a reconnect re-sends the
   event that opened the wait the game owes the seat (its draw, its `turn` event or its call
-  prompt), with how long the wait's timer has run (`el`, seconds); `furiten` goes only to its seat, and only on a change, so the `game_reconnected`
+  prompt), with how long the wait's timer has run (`el`, seconds), and a resync request on the seat's
+  own connection is answered with the same two; `furiten` goes only to its seat, and only on a change, so the `game_reconnected`
   snapshot carries the furiten last sent to the seat. Past rounds are never re-sent either, so the
   snapshot carries every finished round's ledger entry for the final standings. A robbed kan sends
   no meld event: the round end that robs it names it, and so does the snapshot's round result. A

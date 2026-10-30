@@ -197,6 +197,7 @@ export function extractRoundEndResult(
         ...ronDetail(event),
         doraIndicators: context.doraIndicators,
         draw: resultDraw(event),
+        inStep: true,
         resultType: event.resultType,
         scoreChanges: event.scoreChanges,
         scoresBeforePayment: event.scores,
@@ -300,11 +301,11 @@ export function showRobbedKan(state: TableState, event: RoundEndEvent): TableSta
 
 /**
  * End the round: the kan a win robbed shows as declared first, then the scores pay out and the hands the result
- * reveals show.
+ * reveals show. On a table out of step with the server, the result says so (`inStep`).
  */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     const declared = showRobbedKan(state, event);
-    const result = extractRoundEndResult(event, state);
+    const result = { ...extractRoundEndResult(event, state), inStep: state.roundHistoryInStep };
     return revealHands(
         {
             ...declared,

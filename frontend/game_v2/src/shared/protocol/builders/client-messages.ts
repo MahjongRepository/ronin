@@ -13,6 +13,14 @@ export function buildReconnectMessage(gameTicket: string) {
     } as const;
 }
 
+/**
+ * Ask the server, on the socket that holds the seat, for the seat's snapshot and its pending wait again, after the
+ * client lost step with the server's messages.
+ */
+export function buildResyncMessage() {
+    return { t: CLIENT_MESSAGE_TYPE.RESYNC } as const;
+}
+
 // --- Game action messages ---
 
 export function buildDiscardAction(tileId: number, waitId: number) {
@@ -106,6 +114,7 @@ export function buildConfirmRoundAction(waitId: number) {
 export type ClientMessage = ReturnType<
     | typeof buildJoinGameMessage
     | typeof buildReconnectMessage
+    | typeof buildResyncMessage
     | typeof buildDiscardAction
     | typeof buildRiichiAction
     | typeof buildTsumoAction
