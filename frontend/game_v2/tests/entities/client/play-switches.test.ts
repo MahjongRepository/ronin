@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    type GeneratedScenario,
     answeredBySwitch,
     branchAfter,
     expecting,
@@ -15,6 +16,7 @@ import {
     type GameClientState,
     NO_PLAY_UI,
     type ScenarioRun,
+    type ScenarioStep,
     type SeatScenario,
     playDisplay,
     runSeatScenario,
@@ -38,6 +40,35 @@ function runClean(scenario: SeatScenario): ScenarioRun {
 
 function stateAt(scenario: SeatScenario, run: ScenarioRun, label: string): GameClientState {
     return timelineStates(run.timeline)[scenarioStateIndex(scenario, label)];
+}
+
+function stepAt(scenario: SeatScenario, label: string): ScenarioStep["event"] {
+    return scenario.steps[scenarioStateIndex(scenario, label) - 1].event;
+}
+
+function stepEffects(scenario: SeatScenario, label: string): readonly ClientEffect[] {
+    return scenario.steps[scenarioStateIndex(scenario, label) - 1].effects ?? [];
+}
+
+/**
+ * The generated drop, reopen and snapshot of a transcript's reconnect, played again after the step labelled `label`,
+ * the snapshot naming the wait `waitId`: a second drop that missed what came between.
+ */
+function rejoinedAfter(
+    { scenario, transcript }: GeneratedScenario,
+    label: string,
+    waitId: unknown,
+): readonly ScenarioStep[] {
+    const shift = stepAt(scenario, label).at - stepAt(scenario, "dropped").at;
+    const rejoining = scenario.steps
+        .slice(
+            scenarioStateIndex(scenario, "dropped") - 1,
+            scenarioStateIndex(scenario, "reopened"),
+        )
+        .map(({ effects, event }) => ({ effects, event: { ...event, at: event.at + shift } }));
+    const at = stepAt(scenario, "reconnected").at + shift;
+    const snapshot = { ...receivedPayload(transcript, "reconnected"), wi: waitId };
+    return [...rejoining, { event: { at, kind: "server_message", raw: snapshot } }];
 }
 
 function lastState(run: ScenarioRun): GameClientState {
@@ -174,17 +205,23 @@ describe("switchAnswer", () => {
 });
 
 describe("stepGameClient - play switches", () => {
-    it("never answers a wait re-sent after a reconnect, which stays the player's, and No calls stays on through it", () => {
+    it("never answers a wait re-sent after a reconnect, seen with the switch on or off, and No calls stays on through it", () => {
         const { scenario, transcript } = loadSeatScenario("reconnect_seat_1");
         const pass = promptPass(receivedPayload(transcript, "prompt"));
         const switched = expecting(switchedOnBefore(scenario, "prompt", ["no_calls"]), "prompt", [
             pass,
         ]);
+        const switchedLate = switchedOnBefore(scenario, "dropped", ["no_calls"]);
         const run = runClean(switched);
         const resent = stateAt(switched, run, "prompt re-sent");
+        const resentLate = stateAt(switchedLate, runClean(switchedLate), "prompt re-sent");
 
         expect(bySwitch(stateAt(switched, run, "prompt"))).toBe("no_calls");
-        expect([bySwitch(resent), resent.switches.no_calls]).toEqual(["open", true]);
+        expect([bySwitch(resent), bySwitch(resentLate), resent.switches.no_calls]).toEqual([
+            "open",
+            "open",
+            true,
+        ]);
         expect(playDisplay(resent, NO_PLAY_UI).decisionStanding).toBe("open");
     });
 
@@ -198,6 +235,32 @@ describe("stepGameClient - play switches", () => {
         const run = runClean(branch);
 
         expect(bySwitch(stateAt(branch, run, "prompt re-sent"))).toBe("no_calls");
+    });
+
+    it("answers a new wait first seen on a later reconnect whose snapshot names it", () => {
+        const generated = loadSeatScenario("reconnect_seat_1");
+        const { scenario, transcript } = generated;
+        const switchedOn = switchedOnBefore(scenario, "prompt", ["no_calls", "auto_win"]);
+        const passed = expecting(switchedOn, "prompt", [
+            promptPass(receivedPayload(transcript, "prompt")),
+        ]);
+        const ronPrompt = receivedPayload(transcript, "ron prompt");
+        const rejoined = rejoinedAfter(generated, "discarded", ronPrompt.wi);
+        const missed = branchAfter(passed, "discarded", [
+            ...rejoined,
+            {
+                effects: stepEffects(scenario, "ron chosen"),
+                event: {
+                    at: rejoined.at(-1)?.event.at ?? 0,
+                    kind: "server_message",
+                    raw: ronPrompt,
+                },
+                label: "ron prompt",
+            },
+        ]);
+        const run = runClean(missed);
+
+        expect(bySwitch(stateAt(missed, run, "ron prompt"))).toBe("auto_win");
     });
 
     it("never answers again a decision the server's refusal reopened", () => {

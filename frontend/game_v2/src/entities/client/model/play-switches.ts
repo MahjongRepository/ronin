@@ -62,15 +62,25 @@ export function switchAnswer(decision: Decision, switches: PlaySwitches): Switch
 }
 
 /**
- * Whether a reconnect's snapshot leaves the hand the table played before it: the table before it was not in a round
- * (it showed a result, so any snapshot is of that result or a later hand), or the snapshot is of another game or
- * another count of finished rounds (a later hand, or the hand's own result pending, which counts it finished). The
- * switches are an instruction about one hand, so such a snapshot turns them off.
+ * Whether a reconnect's snapshot leaves the hand the table played before it: either table is not in a round (the one
+ * before showed a result, so any snapshot is of that result or a later hand; the snapshot shows the hand's own result
+ * pending, which keeps the hand's deal number), or the snapshot is of another game or another deal. The switches are
+ * an instruction about one hand, so such a snapshot turns them off.
  */
 export function snapshotLeftHand(before: TableState, after: TableState): boolean {
     return (
         before.phase !== "in_round" ||
+        after.phase !== "in_round" ||
         before.gameId !== after.gameId ||
-        before.roundHistory.length !== after.roundHistory.length
+        before.roundNumber !== after.roundNumber
     );
+}
+
+/**
+ * Whether a play switch may answer a decision on `waitId`: a wait above the highest one the game opened before (none
+ * yet is null). The server's id rises only when a call ends a wait, so a wait re-sent after a reconnect or reopened by
+ * a refusal is at or under it.
+ */
+export function unseenWait(waitId: number, highestOpened: number | null): boolean {
+    return highestOpened === null || waitId > highestOpened;
 }

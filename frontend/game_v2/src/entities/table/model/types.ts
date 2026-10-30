@@ -188,6 +188,8 @@ export interface TableState {
     readonly firstDealerSeat: number;
     readonly dealerSeat: number;
     readonly roundWind: number;
+    /** The server's deal number: every deal of the game counted from 0, a hand's pending result keeping its hand's. */
+    readonly roundNumber: number;
     readonly honbaSticks: number;
     readonly riichiSticks: number;
     readonly doraIndicators: readonly number[];

@@ -92,6 +92,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         revealedSeats: [],
         riichiSticks: event.riichiSticks,
         roundEndResult: null,
+        roundNumber: event.roundNumber,
         roundWind: event.wind,
         tilesRemaining: TILES_AFTER_DEAL,
     };

@@ -70,7 +70,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **One client state.** The dispatcher composes the session, the table (`entities/table`) and the
   viewer's interaction into one immutable state: the viewer's seat, its open decision, its
   furiten, the timer settings, the round confirm it owes, when the first deal is due, the calls
-  the board shows, the play switches the player turned on and the wait ids the hand has opened. A replay is the same state with no
+  the board shows, the play switches the player turned on and the highest wait id the game has opened. A replay is the same state with no
   session and no viewer; visibility (a replay's every hand, a live seat's own) is what the source
   showed and how the board is drawn, never a second model, and the seat at the bottom is the
   view's choice (the replay's is the recorded first dealer's, `docs/architecture.md`, Replays).
@@ -92,19 +92,22 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   owes the seat.
 * **Play switches** (`model/play-switches.ts`): Auto win, No calls and Auto discard are the player's standing
   answers, a field of the client state. Turning one (the `toggle_switch` intent, taken only on a live seat while a
-  round plays) sends nothing; the dispatcher answers for it where a message opens a decision on a wait id the client
-  has not seen before (`seenWaitIds`, each opened decision's id), stepping the switch's intent exactly as the player's
+  round plays) sends nothing; the dispatcher answers for it where a message opens a decision on a wait id above the
+  highest one a decision of the game opened before (`highestOpenedWaitId`), since the server raises the id only when
+  a call ends a wait (a partial prompt response and a refusal keep it), stepping the switch's intent exactly as the player's
   press would be stepped: the same send with the decision's wait id, once, marked submitted with the switch that sent
   it (`bySwitch`). So the decision already open when a switch is turned on, a wait the client saw before, re-sent
-  after a reconnect, and a decision a refusal reopened are never answered by a switch: the seen ids are kept across a
-  drop, which drops the decision itself. A wait the server opened while the socket was down is new to the client,
-  and a switch answers it when the reconnect sends it. `switchAnswer` is the policy (the spec's Play switches): a win first (a turn's tsumo, a prompt's
+  after a reconnect, and a decision a refusal reopened are never answered by a switch. The mark rises with every
+  opened decision, the switches on or off, and is never lowered; it is kept across a drop (which drops the decision
+  itself), a refusal and a deal, forgotten only on a table of another game, and never taken from a snapshot's `wi`:
+  a wait the server opened while the socket was down is new to the client, and a switch answers it when the
+  reconnect sends it. `switchAnswer` is the policy (the spec's Play switches): a win first (a turn's tsumo, a prompt's
   ron), then No calls' pass of a prompt offering a call and no ron, then Auto discard's discard of the drawn tile on
   a turn offering nothing else (`TurnDecision.drawnTileId`, null on the turn after the seat's chi or pon); no timer,
-  since ron is taken at once. A deal turns all three off and forgets the seen ids, as does a reconnect's snapshot
-  that leaves the hand (`snapshotLeftHand`: the table before it was not in a round (before the game, at a result or
-  after the game), or the snapshot is of another game or another count of finished rounds, which a snapshot of the
-  hand's own result pending is too); a snapshot of the same hand keeps them, and a reload starts with them off. A decision No
+  since ron is taken at once. A deal turns all three off, as does a reconnect's snapshot that leaves the hand
+  (`snapshotLeftHand`): one of another game or another deal number `n`, or where the table before it or the snapshot is
+  not in a round. A snapshot of the hand's own result pending keeps the hand's `n`, so only its phase tells it left the
+  hand. A snapshot of the same hand keeps them, and a reload starts with them off. A decision No
   calls passed shows no controls; one Auto win or Auto discard answered shows as answered. The board shows them
   (`PlayDisplay.switches`) only while the dispatcher takes their intent, never on a replay board.
 * **Round confirm.** A round end's wait, or a reconnect's snapshot of a round advance that says the

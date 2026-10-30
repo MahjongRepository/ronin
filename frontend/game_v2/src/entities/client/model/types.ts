@@ -207,10 +207,12 @@ export interface GameClientState {
     /** The play switches the player turned on for this hand; a deal turns them off. */
     readonly switches: PlaySwitches;
     /**
-     * The wait ids of the decisions opened this hand, kept across a dropped socket, so a switch answers a wait only the
-     * first time the client sees it: never one re-sent after a reconnect or reopened by a refusal.
+     * The highest wait id a decision of this game opened, or null before the first, whether or not a switch was on:
+     * kept across a dropped socket, a refusal and a deal, never lowered and never taken from a snapshot, so a switch
+     * answers a wait only the first time the client sees it, never one re-sent after a reconnect or reopened by a
+     * refusal.
      */
-    readonly seenWaitIds: readonly number[];
+    readonly highestOpenedWaitId: number | null;
 }
 
 /** The session's IO plus a report of a message or replay line the client could not parse, for the driver to show. */

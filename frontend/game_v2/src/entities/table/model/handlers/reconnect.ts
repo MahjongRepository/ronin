@@ -96,6 +96,7 @@ export function applyGameReconnected(
         riichiSticks: snapshot.riichiSticks,
         roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
         roundHistory: snapshot.roundHistory.map(roundRecordOfHistory),
+        roundNumber: snapshot.roundNumber,
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,
     };

@@ -32,7 +32,7 @@ import { type GameSessionData } from "@/shared/session";
 
 import { answerDecision, expireDecision, followDecision, openDecision } from "./decision";
 import { keptNotice, withNotice } from "./notices";
-import { SWITCHES_OFF, snapshotLeftHand, switchAnswer } from "./play-switches";
+import { SWITCHES_OFF, snapshotLeftHand, switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep, withRoundConfirm } from "./round-confirm";
 import {
     type ClientEvent,
@@ -172,8 +172,8 @@ function withViewer(state: GameClientState, message: ParsedServerMessage): GameC
 
 /**
  * The play switches after a message, from the table it found (`before`): a deal turns them off, as does a reconnect's
- * snapshot of another hand or of a round result pending, and either forgets the hand's wait ids. Any other message
- * leaves them, a snapshot of the same hand included.
+ * snapshot of another hand or of a round result pending. Any other message leaves them, a snapshot of the same hand
+ * included. A table of another game forgets the highest wait id opened, which belongs to its game.
  */
 function withSwitches(
     state: GameClientState,
@@ -183,18 +183,19 @@ function withSwitches(
     const leaves =
         message.type === "round_started" ||
         (message.type === "game_reconnected" && snapshotLeftHand(before, state.table));
-    return leaves ? { ...state, seenWaitIds: [], switches: SWITCHES_OFF } : state;
+    const switched = leaves ? { ...state, switches: SWITCHES_OFF } : state;
+    return state.table.gameId === before.gameId
+        ? switched
+        : { ...switched, highestOpenedWaitId: null };
 }
 
 function withDecision(state: GameClientState, message: ParsedServerMessage): GameClientState {
-    const { now, seenWaitIds, table, timer, viewerSeat } = state;
+    const { highestOpenedWaitId, now, table, timer, viewerSeat } = state;
     const hand = table.players.find((player) => player.seat === viewerSeat)?.tiles ?? [];
     const opened = openDecision(message, { at: now, hand, timer, viewerSeat });
     if (opened !== null) {
-        const seen = seenWaitIds.includes(opened.waitId)
-            ? seenWaitIds
-            : [...seenWaitIds, opened.waitId];
-        return { ...state, decision: opened, seenWaitIds: seen };
+        const highest = Math.max(opened.waitId, highestOpenedWaitId ?? opened.waitId);
+        return { ...state, decision: opened, highestOpenedWaitId: highest };
     }
     const decision = state.decision === null ? null : followDecision(state.decision, message);
     return { ...state, decision };
@@ -258,7 +259,7 @@ function takeMessage(
     const viewed = withSwitches(withViewer(tabled, message), before.table, message);
     const decided = withDecision(viewed, message);
     const noticed = withNotice(before.session, withRoundConfirm(decided, message), message);
-    return switchStep(noticed, viewed.seenWaitIds);
+    return switchStep(noticed, viewed.highestOpenedWaitId);
 }
 
 function onServerMessage(state: GameClientState, raw: Record<string, unknown>): TracedStep {
@@ -369,13 +370,13 @@ function onDecisionIntent(
 }
 
 /**
- * The play switches' standing answer to a decision a message opened on a wait the client had not seen before it
- * (`seenBefore`), taken exactly where the player's press would be; nothing for a decision already open, re-sent after
+ * The play switches' standing answer to a decision a message opened on a wait above the highest the game opened before
+ * it (`highestBefore`), taken exactly where the player's press would be; nothing for a decision already open, re-sent after
  * a reconnect or reopened by a refusal, which stay the player's.
  */
-function switchStep(state: GameClientState, seenBefore: readonly number[]): ClientStep {
+function switchStep(state: GameClientState, highestBefore: number | null): ClientStep {
     const { decision, switches } = state;
-    if (decision?.status.kind !== "open" || seenBefore.includes(decision.waitId)) {
+    if (decision?.status.kind !== "open" || !unseenWait(decision.waitId, highestBefore)) {
         return { effects: [], state };
     }
     const answer = switchAnswer(decision, switches);
@@ -487,10 +488,10 @@ function emptyClient(at: number, session: SessionState | null): GameClientState 
         decision: null,
         firstDealDue: null,
         furiten: false,
+        highestOpenedWaitId: null,
         notice: null,
         now: at,
         roundConfirm: null,
-        seenWaitIds: [],
         session,
         switches: SWITCHES_OFF,
         table: createInitialTableState(),
