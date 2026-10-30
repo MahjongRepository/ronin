@@ -152,8 +152,16 @@
                         ],
                         "patterns": [
                             {
-                                "group": ["@/fixtures/*"],
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
                                 "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "group": ["@/entities/*/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
                             }
                         ]
                     }
@@ -182,6 +190,315 @@
                             {
                                 "name": "zod/v3",
                                 "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/entities/*/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/fixtures/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "regex": "^[^.]",
+                                "message": "Fixtures import nothing: they are generated data and a loader over it."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/shared/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "group": ["@/entities", "@/entities/**"],
+                                "message": "Shared code imports no entity: layers depend downward only."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "Shared code imports no view and not the app's entry or router: layers depend downward only."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/entities/tile/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "An entity imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": [
+                                    "@/entities/table",
+                                    "@/entities/table/**",
+                                    "@/entities/session",
+                                    "@/entities/session/**",
+                                    "@/entities/client",
+                                    "@/entities/client/**"
+                                ],
+                                "message": "The tile slice uses no other slice: slices depend downward only."
+                            },
+                            {
+                                "group": ["@/entities/*/**", "!@/entities/tile/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/entities/table/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "An entity imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": [
+                                    "@/entities/session",
+                                    "@/entities/session/**",
+                                    "@/entities/client",
+                                    "@/entities/client/**"
+                                ],
+                                "message": "The table slice uses only tile: slices depend downward only."
+                            },
+                            {
+                                "group": ["@/entities/*/**", "!@/entities/table/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/entities/session/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "An entity imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": [
+                                    "@/entities/tile",
+                                    "@/entities/tile/**",
+                                    "@/entities/table",
+                                    "@/entities/table/**",
+                                    "@/entities/client",
+                                    "@/entities/client/**"
+                                ],
+                                "message": "The session slice uses no other slice: slices depend downward only."
+                            },
+                            {
+                                "group": ["@/entities/*/**", "!@/entities/session/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/entities/client/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "An entity imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": ["@/entities/*/**", "!@/entities/client/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
                             }
                         ]
                     }

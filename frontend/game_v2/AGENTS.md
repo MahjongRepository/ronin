@@ -548,6 +548,10 @@ rather than introducing new FSD layers:
   live board and rotate panel drawn from that state),
   imported through each slice's `index.ts`. A slice uses only slices below it: `client` may use
   `session` and `table`, `table` may use `tile`, never the reverse.
+  Lint enforces the layering in `src`: `.oxlintrc.json` has one `no-restricted-imports` override per layer and
+  slice, banning upward imports (the entry and the router included), any slice's internals but its own, and the
+  tests. The tests are exempt from the slice and public-entry bans. A new slice needs its own override, or its
+  self-imports fail. An override replaces the rule's options, so each one repeats the zod paths and the tests ban.
 * `shared/` — protocol, handoff storage, the socket adapter, the replay fetch, the clock, config and
   small helpers; imports nothing above it.
 * `fixtures/` — generated data (the seat transcripts and the replay files) and a loader that hands
@@ -575,7 +579,8 @@ rather than introducing new FSD layers:
   whole pixel. `styles/game-app.scss` is the one entry stylesheet; board layout lives in `styles/game-board/`.
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
-* Lint and format follow the lobby's config (keep them in sync); the `.oxlintrc.json` overrides
+* Lint and format follow the lobby's config (keep them in sync), but `new-cap`'s exceptions are this app's own:
+  its capitalized lit-html components, each added as it is written. The `.oxlintrc.json` overrides
   relax only rules the restored code trips where it is shaped by its domain: the socket's
   replaceable `on*` handlers, the nested Zod tuples of the wire schemas and the long event
   dispatchers.
