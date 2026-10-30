@@ -34,7 +34,7 @@ export interface ReplayControlsProps {
     /** A pointer pressed a step button: it steps from the press and repeats while held. */
     readonly onStepPress: (direction: StepDirection, event: PointerEvent) => void;
     /** A step button was clicked, which the view drops when it ends a press that stepped already. */
-    readonly onStepClick: (direction: StepDirection, event: MouseEvent) => void;
+    readonly onStepClick: (direction: StepDirection) => void;
     readonly onTogglePlay: () => void;
     readonly onCycleSpeed: () => void;
     readonly onSwitchView: () => void;
@@ -97,7 +97,7 @@ function StepButton(
         title=${MOVE_LABELS[direction]}
         ?disabled=${target === null}
         @pointerdown=${(event: PointerEvent) => props.onStepPress(direction, event)}
-        @click=${(event: MouseEvent) => props.onStepClick(direction, event)}
+        @click=${() => props.onStepClick(direction)}
     >${Icon(MOVE_ICONS[direction])}</button>`;
 }
 

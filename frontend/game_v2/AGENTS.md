@@ -272,9 +272,16 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   when a scenario shows the need, never computed in a view.
 * **The replay page** opens where its address says, else on the first deal, and moves only
   through the table slice's cursor functions (`entities/table/AGENTS.md`); its view state is the
-  cursor, the seat at the bottom, the round list's openness, the pinned plate, autoplay and whether
-  the other hands hide. Autoplay's state is plain data and its pacing a pure function of the stop and
-  speed; the view arms one clock timer to it. Autoplay, a held step button (repeating from a pointer's
+  cursor, the seat at the bottom, the round list's openness, the pinned plate, autoplay, a held step button,
+  the wheel's gesture and whether the other hands hide. Every transition of the page, its load's answers and
+  failure screen included, is one pure reducer the page owns (`views/replay-page.ts`, never the table slice, which
+  has no other consumer of it): an input stamped with the clock's logical time in, the screen and the IO it asks
+  for out (the address written, the reader's settings saved, the focus moved), which the view runs after drawing.
+  Autoplay's next move and a hold's next repeat are deadlines in the screen, as the live client's are: the view
+  keeps one timer armed to the earliest (`replayPageDeadline`), which comes back as a tick, and a tick before it
+  does nothing. The reducer reads no DOM: what a key, the wheel or a held button's pointer means is the input
+  mapping's (`views/replay-input.ts`), and the view keeps the IO, the DOM focus, the pointer capture and the timer.
+  Autoplay, a held step button (repeating from a pointer's
   press, under its capture, waiting while the pointer is off it) and a turning wheel all pause where a result shows
   (each page of a double ron) and at the end, and autoplay also stops on any move the reader makes, as
   the page hides and on dispose; any other move and autoplay's start end a hold. A press's step is its own, so

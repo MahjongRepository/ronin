@@ -78,13 +78,16 @@ interface RouteBudget {
  * board's band and its status into the notices' place, each placed per viewport from the board's lengths, the options
  * in two rows of two where the band is short, and a panel over the board leaving them free (a smaller board's compact
  * status beside the moves).
+ * The replay's JS re-set on 2026-10-31 from 32.5 / 11.1 to 37 / 12.4 at 33.6 / 11.3 (30.8 / 10.4 before): the page's
+ * transitions moved into a pure reducer of their own (`views/replay-page.ts`), its inputs and effects spelled out as
+ * data, and its key, wheel and hold input mapping into another (`views/replay-input.ts`).
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 3.8, raw: 13.5 },
-        js: { gzip: 11.1, raw: 32.5 },
+        js: { gzip: 12.4, raw: 37 },
     },
     standings: {
         chunk: "src/entities/table/ui/standings.ts",
