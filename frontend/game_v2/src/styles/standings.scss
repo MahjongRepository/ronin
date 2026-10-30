@@ -1,5 +1,7 @@
 $label-width: 7.75rem;
 $tap: 2.5rem;
+$tap-min: 40px;
+$short-board: 500px;
 $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 
 .board-overlay__panel:has(> .standings) {
@@ -10,6 +12,9 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 }
 
 .standings {
+    --standings-pad-y: 0.2rem;
+    --standings-pad-x: 0.35rem;
+
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -37,11 +42,25 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 }
 
 .standings__sheet {
+    --foot-rows: 2;
+    --foot-row: calc(1lh + 2 * var(--standings-pad-y) + 1px);
+    --foot-height: calc(var(--foot-rows) * var(--foot-row) + 1px);
+
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;
     border: 1px solid var(--ronin-border);
     border-radius: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    background:
+        linear-gradient(transparent, rgb(0 0 0 / 75%)) 0 calc(100% - var(--foot-height)) / 100%
+            1.5rem no-repeat,
+        var(--ronin-surface);
+
+    &:has(.standings__foot-row--leftover) {
+        --foot-rows: 3;
+    }
 
     &:focus-visible {
         outline: 2px solid var(--ronin-gold);
@@ -55,13 +74,12 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.75rem;
-    line-height: 1.2;
+    font-size: inherit;
     font-variant-numeric: tabular-nums;
 
     th,
     td {
-        padding: 0.2rem 0.35rem;
+        padding: var(--standings-pad-y) var(--standings-pad-x);
         border: 0;
         border-bottom: 1px solid var(--ronin-border-subtle);
         background: var(--ronin-surface);
@@ -85,6 +103,25 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     tfoot tr:first-child > * {
         border-top: 1px solid var(--ronin-border);
     }
+
+    tfoot th,
+    tfoot td {
+        height: var(--foot-row);
+        white-space: nowrap;
+    }
+
+    tfoot th {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    tbody > tr:not(:last-child) > * {
+        background: transparent;
+    }
+
+    tbody > tr:not(:last-child) > .standings__col--viewer {
+        background: $tint;
+    }
 }
 
 .standings__label {
@@ -99,11 +136,10 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 
 .standings__placement {
     display: block;
-    font-size: 0.85em;
+    font-size: max(10px, 0.85em);
     color: var(--ronin-text-secondary);
 }
 
-.standings__name,
 .standings__round-name,
 .standings__outcome {
     display: block;
@@ -113,6 +149,8 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 }
 
 .standings__name {
+    display: flex;
+    justify-content: flex-end;
     font-weight: 600;
 }
 
@@ -156,8 +194,20 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 .standings__honba,
 .standings__note,
 .standings__hint {
-    font-size: 0.85em;
+    font-size: max(10px, 0.85em);
     color: var(--ronin-text-secondary);
+}
+
+@media (pointer: coarse) {
+    .standings__hint-click {
+        display: none;
+    }
+}
+
+@media not (pointer: coarse) {
+    .standings__hint-touch {
+        display: none;
+    }
 }
 
 .standings__honba::before {
@@ -281,13 +331,13 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
         font-size: 1.3rem;
     }
 
-    .standings__table {
-        font-size: 0.9rem;
+    .standings {
+        --standings-pad-y: 0.35rem;
+        --standings-pad-x: 0.6rem;
+    }
 
-        th,
-        td {
-            padding: 0.35rem 0.6rem;
-        }
+    .standings__sheet {
+        font-size: 0.9rem;
     }
 
     .standings__label {
@@ -299,9 +349,22 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     }
 }
 
-@container (width < 480px) {
+@container overlay-panel (width < 480px) {
     .standings__label {
         width: 5.5rem;
+    }
+
+    .standings__sheet {
+        --foot-height: calc(var(--foot-rows) * var(--foot-row) + 1lh + 1px);
+    }
+
+    .standings__table .standings__foot-row--result > * {
+        height: calc(var(--foot-row) + 1lh);
+    }
+
+    .standings__foot-row--result .standings__note {
+        display: block;
+        margin-left: 0;
     }
 }
 
@@ -317,5 +380,56 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 
     .game-board:has(.board-menu) .standings__label {
         width: 5.75rem;
+    }
+}
+
+@container (height < #{$short-board}) and (aspect-ratio >= 1) {
+    .board-overlay__panel:has(> .standings) {
+        padding: 0.5rem 0.6rem;
+    }
+
+    .standings {
+        --standings-pad-y: 0.12rem;
+
+        gap: 0.35rem;
+    }
+
+    .standings__head {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 0.25rem 0.75rem;
+    }
+
+    .standings__title {
+        font-size: 0.9rem;
+    }
+
+    .standings__legend {
+        order: 0;
+        flex-basis: auto;
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 0 0.6rem;
+        font-size: max(10px, 0.6rem);
+    }
+
+    .standings__actions .standings__action {
+        min-height: $tap-min;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.8rem;
+    }
+
+    .standings__sheet {
+        font-size: 0.65rem;
+        line-height: 1.15;
+    }
+
+    .board-overlay .standings__table .standings__label {
+        width: 7rem;
+    }
+
+    .standings__round--jump {
+        min-height: $tap-min;
+        padding-block: 0.1rem;
     }
 }

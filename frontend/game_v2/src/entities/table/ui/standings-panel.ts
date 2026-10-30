@@ -7,6 +7,7 @@ import {
     type StandingsSeat,
 } from "@/entities/table/lib/standings-display";
 
+import { PlayerName } from "./player-name";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** A way on from the standings: a link to another page, or a control of the view's own. */
@@ -94,6 +95,13 @@ function StandingsLegend(): TemplateResult {
         <span class="standings__legend-item">${Mark("win")}Won</span>
         <span class="standings__legend-item">${Mark("deal-in")}Dealt in</span>
     </p>`;
+}
+
+/** The rounds' column says how to open a round's result, by the pointer the reader has. */
+function RoundHint(): TemplateResult {
+    return html`<span class="standings__hint-touch">Tap a round</span><span class="standings__hint-click"
+            >Click a round</span
+        >`;
 }
 
 function StandingsRoundLabel(row: LedgerRow): TemplateResult {
@@ -203,14 +211,14 @@ export function StandingsPanel({ actions, display, onRound }: StandingsPanelProp
                 <thead>
                     <tr>
                         <th scope="col" class="standings__label">
-                            <span class="standings__hint">${onRound === undefined ? "Round" : "Tap a round"}</span>
+                            <span class="standings__hint">${onRound === undefined ? "Round" : RoundHint()}</span>
                         </th>
                         ${seats.map(
                             (
                                 seat,
                             ) => html`<th scope="col" class=${columnClass(seat, "standings__seat")}>
                                 <span class="standings__placement">${seat.placement}</span>
-                                <span class="standings__name" title=${seat.name}>${seat.name}</span>
+                                ${PlayerName(seat.name, "standings__name")}
                             </th>`,
                         )}
                     </tr>

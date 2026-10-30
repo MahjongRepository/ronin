@@ -53,6 +53,8 @@ interface RouteBudget {
  * 29.4 / 10.1 and 7.9 / 1.8: autoplay and its speeds, the round, Home/End and autoplay keys, the wheel's gesture
  * thresholds, hold-to-repeat, the viewpoint switch, hiding the other hands, the reader's settings and the phone
  * column's narration room.
+ * The standings' CSS re-set on 2026-10-30 from 5.5 to 7.1 raw at 6.1: their compact head on a short board and the
+ * shadow over rounds hidden under the totals.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 14.8, raw: 88 }, js: { gzip: 57.7, raw: 188 } },
@@ -63,7 +65,7 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     },
     standings: {
         chunk: "src/entities/table/ui/standings.ts",
-        css: { gzip: 2.3, raw: 5.5 },
+        css: { gzip: 2.3, raw: 7.1 },
         js: { gzip: 2.4, raw: 7 },
     },
     storybook: {

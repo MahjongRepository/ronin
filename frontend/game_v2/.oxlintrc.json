@@ -37,6 +37,8 @@
                     "StandingsFoot",
                     "StandingsActionView",
                     "StandingsLegend",
+                    "RoundHint",
+                    "PlayerName",
                     "Mark",
                     "RiichiMark",
                     "GameStartDisplay",

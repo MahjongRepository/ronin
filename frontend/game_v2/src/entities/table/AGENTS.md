@@ -62,7 +62,12 @@ replay view, the live game and the storybook read the tables it produces.
   a riichi deposit; a round with no payments names each seat's tenpai on a draw that judges it, so a
   deposit never hides another seat's tenpai. The mapper, the panel and their stylesheet are one lazy
   chunk (`ui/standings.ts`, started by `startStandingsLoad`), so `boardOverlay` draws the standings only
-  through the renderer the view hands it.
+  through the renderer the view hands it. Rounds hidden under the sticky totals show a shadow over the
+  totals by CSS alone: the sheet paints it at the totals' height, which their fixed row height gives,
+  under the transparent rows, and the last row, opaque, covers it once nothing more is hidden.
+- A player's name in a panel (the result's scores, the standings' columns, the seating) is
+  `PlayerName`: a narrow column shortens it in the middle, keeping its end (`nameParts`), as the
+  nameplate does, so AI players stay told apart.
 - A round end's result (`RoundEndResult`) keeps what the panel shows: per winner its hand, value
   (`handResult.points`, the hand alone), dora kinds, ura indicators, its own payments, honba bonus
   (its gain beyond hand value and sticks), sticks and pao seat; for a draw its kind and the seats it

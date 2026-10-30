@@ -39,7 +39,7 @@ export interface ResultScoreRow {
     readonly seat: number;
     readonly wind: string;
     readonly name: string;
-    /** For a draw that judges tenpai: Tenpai, Noten or Nagashi; null otherwise. */
+    /** For a draw that judges tenpai: Tenpai, Noten or Nagashi; Pao for the seat liable for the page's win; else null. */
     readonly tag: string | null;
     /** The change this page describes. */
     readonly delta: number;
@@ -243,6 +243,10 @@ function drawPage(draw: DrawResult, names: SeatNames): DrawPageDisplay {
     };
 }
 
+function winTag(winner: WinnerResult | undefined, seat: number): string | null {
+    return winner !== undefined && winner.paoSeat === seat ? "Pao" : null;
+}
+
 function drawTag(draw: DrawResult, seat: number): string | null {
     if (isAbortiveDraw(draw.kind)) {
         return null;
@@ -273,7 +277,10 @@ function scoreRows(
             delta: changes.at(-1) ?? 0,
             name: names.name(seat),
             seat,
-            tag: result.draw === null ? null : drawTag(result.draw, seat),
+            tag:
+                result.draw === null
+                    ? winTag(result.winners[index], seat)
+                    : drawTag(result.draw, seat),
             wind: names.wind(seat),
         };
     });

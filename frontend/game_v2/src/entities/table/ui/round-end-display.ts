@@ -11,6 +11,8 @@ import {
 } from "@/entities/table/lib/round-end-display";
 import { Hand, Meld, Tile, type TileFace } from "@/entities/tile";
 
+import { PlayerName } from "./player-name";
+
 export interface RoundEndDisplayProps {
     readonly display: RoundEndDisplayState;
     /** Called with the page to show; without it the panel offers no paging, only says which page it shows. */
@@ -146,8 +148,12 @@ function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
         ${rows.map(
             (row) => html`<li class="round-end-result__score">
                 <span class="round-end-result__score-who">
-                    <span class="round-end-result__score-wind">${row.wind}</span>
-                    <span class="round-end-result__score-name">${row.name}</span>
+                    <span class="round-end-result__score-wind"
+                        >${row.wind.slice(0, 1)}<span class="round-end-result__score-wind-rest"
+                            >${row.wind.slice(1)}</span
+                        ></span
+                    >
+                    ${PlayerName(row.name, "round-end-result__score-name")}
                 </span>
                 ${row.tag === null ? nothing : html`<span class="round-end-result__score-tag">${row.tag}</span>`}
                 <span class="round-end-result__delta ${deltaModifier(row.delta)}">${formatDelta(row.delta)}</span>

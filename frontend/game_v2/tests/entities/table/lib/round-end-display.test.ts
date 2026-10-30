@@ -94,12 +94,19 @@ describe("roundEndDisplay - a win", () => {
         ]);
     });
 
-    test("a yakuman: names it without han or fu; pao names the liable seat; melds laid out", () => {
-        const page = winPage(lastRoundEndTable("pao"));
+    test("a yakuman: names it without han or fu; pao names the liable seat and tags its score; melds laid out", () => {
+        const table = lastRoundEndTable("pao");
+        const page = winPage(table);
 
         expect(page.limit).toBe("Yakuman");
         expect(page.hanFu).toBeNull();
         expect(page.notes).toContain("Pao: Diana is liable");
+        expect(displayAt(table).scores.map((row) => [row.name, row.tag])).toEqual([
+            ["Diana", "Pao"],
+            ["Alice", null],
+            ["Charlie", null],
+            ["Bob", null],
+        ]);
         expect(page.hand.melds).toHaveLength(3);
         expect(page.winningTileLabel).toBe("Tsumo");
     });

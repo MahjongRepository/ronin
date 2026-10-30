@@ -60,10 +60,21 @@
     }
 }
 
-.game-start__name {
+.player-name {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    white-space: pre;
+}
+
+.player-name__head {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+}
+
+.player-name__tail {
+    flex: none;
 }
 
 .game-start__marks {
@@ -426,19 +437,29 @@
     padding: 0.4rem 0 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-rows: repeat(4, auto);
+    gap: 0 0.5rem;
     font-family: var(--ronin-font-mono);
 }
 
 .round-end-result__score {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-row: span 4;
+    grid-template-rows: subgrid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    column-gap: 0.3rem;
     min-width: 0;
     margin: 0;
     list-style: none;
+
+    > * {
+        grid-column: 1 / -1;
+    }
 }
 
 .round-end-result__score-who {
+    grid-row: 1;
     display: flex;
     align-items: baseline;
     gap: 0.3rem;
@@ -446,13 +467,11 @@
 }
 
 .round-end-result__score-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-family: var(--ronin-font-body);
 }
 
 .round-end-result__score-tag {
+    grid-row: 2;
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -460,6 +479,7 @@
 }
 
 .round-end-result__delta {
+    grid-row: 3;
     font-weight: 700;
     font-size: 0.9rem;
     color: var(--ronin-text-secondary);
@@ -474,5 +494,6 @@
 }
 
 .round-end-result__score-after {
+    grid-row: 4;
     color: var(--ronin-text-muted);
 }

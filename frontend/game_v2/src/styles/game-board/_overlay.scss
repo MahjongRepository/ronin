@@ -53,11 +53,30 @@ $indicator-scale: 0.6;
     }
 }
 
+.board-overlay__panel:has(> .round-end-result) {
+    width: min(100%, #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
+}
+
+.board-overlay__panel:has(> .standings) {
+    container: overlay-panel / inline-size;
+}
+
+.board-overlay .round-end-result__foot {
+    container: result-foot / inline-size;
+}
+
+@container (height < #{$short-height}) and (aspect-ratio >= 1) {
+    .game-board > .board-overlay {
+        align-items: flex-start;
+        padding-left: 0;
+    }
+}
+
 /* A board with the page's corner keeps it clear of the panel: the corner is capped to a reserve the overlay leaves
    free beside the panel, on the corner's side alone where a short board has no width to spare. */
 @container (aspect-ratio >= 1) {
     .game-board:has(.board-menu) > .board-overlay {
-        @include overlay-unit(2 * $corner-reserve);
+        @include overlay-unit(2 * ($corner-reserve + 1rem));
 
         padding-inline: calc(#{$corner-reserve} + 1rem);
     }
@@ -65,9 +84,9 @@ $indicator-scale: 0.6;
 
 @container (height < #{$short-height}) and (aspect-ratio >= 1) {
     .game-board:has(.board-menu) > .board-overlay {
-        @include overlay-unit($corner-reserve-short);
+        @include overlay-unit($corner-reserve-short + 0.25rem);
 
-        padding-inline: 0.25rem calc(#{$corner-reserve-short} + 0.25rem);
+        padding-inline: 0 calc(#{$corner-reserve-short} + 0.25rem);
     }
 }
 
@@ -93,53 +112,58 @@ $indicator-scale: 0.6;
     }
 }
 
-/* On a narrow board the controls beside the scores leave each score little width, so the controls tighten and each
-   score's wind moves down beside its score after the payments, its name taking the whole line. */
 @container (width < 800px) {
     .board-overlay .round-end-result__head {
         column-gap: 0.4rem;
     }
+}
 
-    .board-overlay .round-end-result__foot:has(.round-end-result__controls) {
-        gap: 0.5rem;
+@container result-foot (width < 36rem) {
+    .round-end-result__confirm {
+        min-width: 4.5rem;
+        padding-inline: 0.6rem;
+    }
 
-        .round-end-result__confirm {
-            min-width: 4.5rem;
-            padding-inline: 0.6rem;
-        }
+    .round-end-result__wait {
+        max-width: 5rem;
+    }
+}
 
-        .round-end-result__wait {
-            max-width: 5rem;
-        }
+@mixin score-name-line {
+    .round-end-result__score .round-end-result__score-who {
+        display: contents;
+    }
 
-        .round-end-result__score {
-            flex-flow: row wrap;
-            align-items: baseline;
-            column-gap: 0.25rem;
-        }
+    .round-end-result__score .round-end-result__score-name {
+        grid-row: 1;
+        grid-column: 1 / -1;
+    }
 
-        .round-end-result__score-wind {
-            letter-spacing: 0.04em;
-        }
+    .round-end-result__score .round-end-result__score-wind {
+        grid-row: 4;
+        grid-column: 1;
+        align-self: end;
+        line-height: 1.45;
+    }
 
-        .round-end-result__score-who {
-            display: contents;
-        }
+    .round-end-result__score-wind-rest {
+        display: none;
+    }
 
-        .round-end-result__score-name,
-        .round-end-result__score-tag,
-        .round-end-result__delta {
-            flex-basis: 100%;
-        }
+    .round-end-result__score .round-end-result__score-after {
+        grid-column: 2;
+        align-self: end;
+        line-height: 1.3;
+    }
+}
 
-        .round-end-result__score-name {
-            order: -1;
-        }
+@container result-foot (width < 37rem) {
+    @include score-name-line;
+}
 
-        .round-end-result__score-wind,
-        .round-end-result__score-after {
-            order: 1;
-        }
+@container result-foot (width < 45rem) {
+    .round-end-result__foot:has(> .round-end-result__controls) {
+        @include score-name-line;
     }
 }
 

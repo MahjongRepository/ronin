@@ -17,7 +17,7 @@ import {
     seatScenarioFromTranscript,
     stepGameClient,
 } from "@/entities/client";
-import { type StandingsRenderer } from "@/entities/table";
+import { CALLOUT_MS, type StandingsRenderer } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
@@ -112,11 +112,18 @@ function refusedDiscard(state: GameClientState): readonly ClientEvent[] {
     ];
 }
 
-/** The player's intents, one after another, from the checkpoint on. */
-function intents(
+/**
+ * The player's intents, one after another, once the last win's call has gone, as it has by the time the player
+ * dismisses its result.
+ */
+function intentsAfterCall(
     ...picked: readonly LocalIntent[]
 ): (state: GameClientState) => readonly ClientEvent[] {
-    return (state) => picked.map((intent) => ({ at: state.now, intent, kind: "intent" }));
+    return (state) => {
+        const at = state.now + CALLOUT_MS;
+        const answers: ClientEvent[] = picked.map((intent) => ({ at, intent, kind: "intent" }));
+        return [{ at, kind: "tick" }, ...answers];
+    };
 }
 
 function closedWith(code: number): (state: GameClientState) => readonly ClientEvent[] {
@@ -151,7 +158,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
     last_result_reopened: {
         ...checkpoint("final_round_seat_1", "game end", "Last result reopened"),
-        followUp: intents({ type: "confirm_result" }, { type: "show_last_result" }),
+        followUp: intentsAfterCall({ type: "confirm_result" }, { type: "show_last_result" }),
     },
     leave_after_win: {
         ...checkpoint("own_turn_seat_1", "round end", "Leave after a win"),
@@ -177,7 +184,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     round_end: checkpoint("own_turn_seat_1", "round end", "Round end"),
     standings: {
         ...checkpoint("final_round_seat_1", "game end", "Standings"),
-        followUp: intents({ type: "confirm_result" }),
+        followUp: intentsAfterCall({ type: "confirm_result" }),
     },
     turn_in_bank: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Turn in bank"),

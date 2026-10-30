@@ -5,6 +5,8 @@ import {
     type GameStartSeat,
 } from "@/entities/table/lib/game-start-display";
 
+import { PlayerName } from "./player-name";
+
 function SeatRow(seat: GameStartSeat): TemplateResult {
     const classes = [
         "game-start__seat",
@@ -15,7 +17,7 @@ function SeatRow(seat: GameStartSeat): TemplateResult {
         .join(" ");
     return html`<li class=${classes}>
         <span class="game-start__wind" title=${seat.windName} aria-label=${seat.windName}>${seat.wind}</span>
-        <span class="game-start__name" title=${seat.name}>${seat.name}</span>
+        ${PlayerName(seat.name, "game-start__name")}
         <span class="game-start__marks">
             ${seat.isDealer ? html`<span class="game-start__mark game-start__mark--dealer">Dealer</span>` : nothing}
             ${seat.isAiPlayer ? html`<span class="game-start__mark">AI</span>` : nothing}
