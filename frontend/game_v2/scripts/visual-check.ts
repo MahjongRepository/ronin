@@ -45,6 +45,22 @@ const NOTCH_INSETS: Insets = { bottom: 21, left: 47, right: 47 };
 const NOTCH_SAFE_AREA: Box = { height: 369, left: 47, top: 0, width: 750 };
 /** The smallest decision button and leave button, in CSS pixels: a tap target. */
 const MIN_ACTION_SIZE = 40;
+/** The least room between a decision control and any tile outside the controls, so a tap meant for one never lands on the other. */
+const MIN_CONTROL_TILE_GAP = 4;
+/**
+ * A decision story and the stories of the same decision answered and expired, whose controls and timer must stand
+ * where the open one's stand: answering or running out never moves them.
+ */
+const CONTROL_FAMILIES: readonly string[] = ["decisions-anchor-call"];
+/**
+ * Pages showing a toggle off and then pressed (riichi in the band; a call's first step, then its choice of tiles, in
+ * the column), whose toggle must stand in one place on a phone: pressing it never moves it.
+ */
+const TOGGLE_FAMILIES: readonly (readonly [string, string])[] = [
+    ["decisions-anchor-riichi-off", "decisions-anchor-riichi"],
+    ["decisions-kan-offer", "decisions-kan-choice"],
+    ["decisions-call-prompt", "decisions-chi-choice"],
+];
 /** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
 const MIN_OPPONENT_FACE: Size = { height: 17, width: 13 };
 /** The replay aside's text on a desktop: the least font size in px and the most lines each part may wrap to. */
@@ -225,6 +241,12 @@ interface BoardMeasure {
     readonly clippedWords: readonly string[];
     /** The calls shown by their seats. */
     readonly callouts: readonly Box[];
+    /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
+    readonly actionSources: readonly Box[];
+    /** The decision timer's slot. */
+    readonly timer: Box | null;
+    /** The decision's first toggle (riichi, a call's first step), pressed or not. */
+    readonly toggle: Box | null;
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly nameplates: readonly Box[];
@@ -296,6 +318,10 @@ class PageReport {
     summary = "";
     /** Each badge's fixed point (its seat's side of its box), where the page measured a board. */
     badgeAnchors: Readonly<Record<string, readonly [number, number]>> | null = null;
+    /** The decision controls' boxes and then the timer's, where the page measured a board with a decision. */
+    controlPlaces: readonly Box[] | null = null;
+    /** The decision's first toggle's box, where it has one. */
+    togglePlace: Box | null = null;
 
     expect(ok: boolean, failure: string): void {
         this.checks += 1;
@@ -372,6 +398,7 @@ const VIEWPORTS: readonly Viewport[] = [
             "decisions-anchor-call",
             "decisions-anchor-riichi",
             "board-worst",
+            "board-callouts-adjacent",
             "replay",
             "game-turn",
         ],
@@ -388,7 +415,11 @@ const VIEWPORTS: readonly Viewport[] = [
             "decisions-anchor-turn",
             "decisions-anchor-call",
             "decisions-anchor-riichi",
+            "decisions-call-prompt",
+            "decisions-chi-choice",
+            "decisions-kan-choice",
             "board-worst",
+            "board-worst-offers",
         ],
         portrait: false,
         rotates: false,
@@ -432,8 +463,9 @@ const VIEWPORTS: readonly Viewport[] = [
     },
 ];
 
+/** The board's tiles, but a decision control's preview faces, which a paired control may shed (the spec's Decisions). */
 const BOARD_VISIBLE = [
-    ".game-board .board-table .tile",
+    ".game-board .board-table .tile:not(.decision-controls__tiles .tile)",
     ".board-local .board-area--bottom-hand .tile",
     ".board-table .nameplate",
 ];
@@ -518,12 +550,18 @@ const PAGES: readonly PageCase[] = [
     boardCase("board-full-rivers", "?state=full_rivers"),
     boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
     boardCase("board-callouts-tsumo", "?state=full_rivers&callout=tsumo", [".board-callout"]),
+    boardCase("board-callouts-adjacent", "?state=riichi_latest&callout=riichi&offers=five", [
+        ".board-callout",
+        ".discard-tile--last.discard-tile-riichi",
+        ACTION,
+    ]),
     boardCase("board-worst", "?state=worst&pin=right", [
         ".board-strip .meld",
         ".board-dora .tile",
         ".board-center__seat--left .board-center__diff--right",
         ".nameplate__ai",
     ]),
+    boardCase("board-worst-offers", "?state=worst&offers=five", [ACTION, ".board-strip .meld"]),
     resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
     resultCase("sanbaiman", "", [".round-end-result__hand .meld"]),
     resultCase("pao", "", [".round-end-result__notes"]),
@@ -549,16 +587,24 @@ const PAGES: readonly PageCase[] = [
     },
     decisionCase("anchor_call", [ACTION, ".decision-controls__countdown"]),
     decisionCase("anchor_riichi", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
+    decisionCase("anchor_riichi_off", [`${ACTION}[aria-pressed="false"]`]),
+    decisionCase("anchor_call_sent", [`${ACTION}--chosen`, ".decision-timer--sent"]),
+    decisionCase("anchor_call_expired", [ACTION, ".decision-timer--time-up"]),
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
-    decisionCase("chankan_prompt", [ACTION, ".board-strip .meld"]),
+    decisionCase("chi_choice", [`${ACTION}--choice .meld-tile-sideways`, `${ACTION}--pass`]),
+    decisionCase("kan_offer", [`${ACTION}[aria-pressed="false"]`, ".decision-controls__countdown"]),
+    decisionCase("kan_choice", [`${ACTION}--choice .tile-back`, `${ACTION}--pass`]),
+    decisionCase("ron_prompt", [ACTION, ".decision-controls__countdown"]),
+    decisionCase("chankan_prompt", [ACTION, ".board-strip .meld--source"]),
+    decisionCase("kuikae_turn", [".hand-tile--disabled", ".hand-tile--selectable"]),
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
     decisionCase("riichi_turn", [
         ACTION,
-        ".decision-controls__furiten",
+        ".board-furiten__word",
         ".hand-tile--selectable",
         ".decision-controls__bank",
     ]),
-    decisionCase("turn_in_bank", [".decision-controls__countdown--bank"]),
+    decisionCase("turn_in_bank", [".decision-controls__bank--draining", ".decision-timer--bank"]),
     decisionCase("answered", [".hand-tile--selected"]),
     decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
     scrollingResultCase("round_end", [
@@ -1029,7 +1075,9 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             throw new Error("no .game-board");
         }
         const tableTiles = [...board.querySelectorAll(".tile")].filter(
-            (tile) => tile.closest(".board-overlay") === null,
+            (tile) =>
+                tile.closest(".board-overlay") === null &&
+                tile.closest(".decision-controls__tiles") === null,
         );
         const grouped: GroupedBox[] = [];
         for (const tile of tableTiles) {
@@ -1072,6 +1120,10 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         ].map(box);
         const actions = [...decisionActions, ...resultActions];
         const corner = board.querySelector(".board-actions");
+        const timer = board.querySelector(".board-actions .decision-timer");
+        const toggle = board.querySelector(
+            ".board-actions .decision-controls__action[aria-pressed]",
+        );
         const wholeWords = [
             ".game-menu__status-word",
             ".nameplate__wind",
@@ -1170,6 +1222,9 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             px: Number.parseFloat(getComputedStyle(element).fontSize),
         }));
         return {
+            actionSources: [...board.querySelectorAll(".discard-tile--last, .meld--source")].map(
+                box,
+            ),
             actions,
             aside:
                 aside === null
@@ -1228,6 +1283,8 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             standings: measureStandings(),
             stripTiles: bySeat(board, ".board-strip .tile", ".board-strip"),
             tiles: tableTiles.map(box),
+            timer: timer === null ? null : box(timer),
+            toggle: toggle === null ? null : box(toggle),
         };
     }, BOARD_TEXT);
 }
@@ -1783,7 +1840,10 @@ function checkResultNames(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-/** A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps. */
+/**
+ * A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps, over a
+ * decision control or the timer, or over what an open offer refers to (the latest discard, a kan a chankan may rob).
+ */
 function checkCallouts(board: BoardMeasure, report: PageReport): void {
     const outside = board.callouts.filter((callout) => !contains(board.board, callout));
     report.expect(outside.length === 0, `${outside.length} call(s) off the board`);
@@ -1794,6 +1854,33 @@ function checkCallouts(board: BoardMeasure, report: PageReport): void {
         overHand.length === 0,
         `call(s) over the local hand: ${overHand.map(describeBox).join(", ")}`,
     );
+    const controls = [
+        ...(board.decisionCorner?.buttons ?? []),
+        ...(board.timer ? [board.timer] : []),
+    ];
+    const overControl = board.callouts.filter((callout) =>
+        controls.some((control) => intersects(callout, control)),
+    );
+    report.expect(
+        overControl.length === 0,
+        `call(s) over a decision control or the timer: ${overControl.map(describeBox).join(", ")}`,
+    );
+    const overSource = board.callouts.filter((callout) =>
+        board.actionSources.some((source) => intersects(callout, source)),
+    );
+    report.expect(
+        overSource.length === 0,
+        `call(s) over the latest discard or an offered kan: ${overSource.map(describeBox).join(", ")}`,
+    );
+}
+
+function grown(target: Box, by: number): Box {
+    return {
+        height: target.height + 2 * by,
+        left: target.left - by,
+        top: target.top - by,
+        width: target.width + 2 * by,
+    };
 }
 
 /**
@@ -1811,12 +1898,12 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
             `decision button(s) outside their corner ${describeBox(decisionCorner.box)}: ${cut.map(describeBox).join(", ")}`,
         );
     }
-    const outside = board.actions.filter(
+    const outside = [...board.actions, ...(board.timer ? [board.timer] : [])].filter(
         (action) => !contains(board.board, action) || !contains(screen, action),
     );
     report.expect(
         outside.length === 0,
-        `${outside.length} decision button(s) off the board or screen`,
+        `${outside.length} decision button(s) or the timer off the board or screen`,
     );
     const small = board.actions.filter(
         (action) =>
@@ -1825,6 +1912,28 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
     report.expect(
         small.length === 0,
         `decision buttons under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
+    );
+    const buttons = decisionCorner?.buttons ?? [];
+    const overlapping = buttons.filter((button, index) =>
+        buttons.some((other, otherIndex) => otherIndex !== index && intersects(button, other)),
+    );
+    report.expect(
+        overlapping.length === 0,
+        `decision buttons over each other: ${overlapping.map(describeBox).join(", ")}`,
+    );
+    const { timer } = board;
+    const overTimer = timer === null ? [] : buttons.filter((button) => intersects(button, timer));
+    report.expect(
+        overTimer.length === 0,
+        `decision button(s) over the timer: ${overTimer.map(describeBox).join(", ")}`,
+    );
+    const tiles = [...board.otherTiles, ...board.localTiles];
+    const crowded = (decisionCorner?.buttons ?? []).filter((button) =>
+        tiles.some((tile) => intersects(grown(button, MIN_CONTROL_TILE_GAP), tile)),
+    );
+    report.expect(
+        crowded.length === 0,
+        `decision button(s) within ${MIN_CONTROL_TILE_GAP}px of a tile: ${crowded.map(describeBox).join(", ")}`,
     );
 }
 
@@ -1873,6 +1982,9 @@ async function checkBoard(
         checkRiverGaps(board, report);
         checkStripsApart(board, report);
         report.badgeAnchors = badgeAnchors(board);
+        report.togglePlace = board.toggle;
+        report.controlPlaces =
+            board.timer === null ? null : [...(board.decisionCorner?.buttons ?? []), board.timer];
         checkActions(board, screen, report);
         checkNotices(board, report);
         checkResultNames(board, report);
@@ -2347,6 +2459,81 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
     });
 }
 
+/**
+ * A decision's controls and timer stand where they stood while it was open once it is answered or has run out
+ * (`CONTROL_FAMILIES`), at each viewport.
+ */
+function checkControlPlaces(results: readonly TaskResult[]): string[] {
+    return CONTROL_FAMILIES.flatMap((family) => {
+        const members = results.filter(
+            ({ page, report }) =>
+                (page === family || page.startsWith(`${family}-`)) && report.controlPlaces !== null,
+        );
+        return members.flatMap(({ page, report, viewport }) => {
+            const open = members.find(
+                (member) => member.page === family && member.viewport === viewport,
+            );
+            const expected = open?.report.controlPlaces;
+            if (page === family || expected === undefined || expected === null) {
+                return [];
+            }
+            const places = report.controlPlaces ?? [];
+            const moved =
+                places.length !== expected.length ||
+                places.some(
+                    (place, index) =>
+                        Math.abs(place.left - expected[index].left) > EPSILON ||
+                        Math.abs(place.top - expected[index].top) > EPSILON ||
+                        Math.abs(place.width - expected[index].width) > EPSILON ||
+                        Math.abs(place.height - expected[index].height) > EPSILON,
+                );
+            return moved
+                ? [
+                      `${viewport}: ${page}'s controls or timer stand apart from ${family}'s: ${places.map(describeBox).join(", ")}`,
+                  ]
+                : [];
+        });
+    });
+}
+
+function sameBox(first: Box, second: Box): boolean {
+    return (
+        Math.abs(first.left - second.left) <= EPSILON &&
+        Math.abs(first.top - second.top) <= EPSILON &&
+        Math.abs(first.width - second.width) <= EPSILON &&
+        Math.abs(first.height - second.height) <= EPSILON
+    );
+}
+
+/** The landscape phones, whose column and band the toggle pin is about; an upright board lays its controls in rows. */
+const LANDSCAPE_PHONES: ReadonlySet<string> = new Set(
+    VIEWPORTS.filter((viewport) => !viewport.desktop && !viewport.portrait).map(({ name }) => name),
+);
+
+/** A landscape phone's toggle stands where it stood before it was pressed (`TOGGLE_FAMILIES`). */
+function checkTogglePlaces(results: readonly TaskResult[]): string[] {
+    return TOGGLE_FAMILIES.flatMap(([off, on]) =>
+        results
+            .filter(({ page, viewport }) => page === on && LANDSCAPE_PHONES.has(viewport))
+            .flatMap(({ report, viewport }) => {
+                const before = results.find(
+                    (result) => result.page === off && result.viewport === viewport,
+                );
+                const [was, is] = [before?.report.togglePlace, report.togglePlace];
+                if (was === undefined || was === null || is === null) {
+                    return before === undefined
+                        ? []
+                        : [`${viewport}: ${on} or ${off} shows no toggle`];
+                }
+                return sameBox(was, is)
+                    ? []
+                    : [
+                          `${viewport}: the toggle moves when pressed, ${describeBox(was)} on ${off}, ${describeBox(is)} on ${on}`,
+                      ];
+            }),
+    );
+}
+
 /** Both engines' pages at once, then, on a full run, the replay load budget on the Chromium browser, the CPU idle. */
 async function checkAll(
     fixtures: Fixtures,
@@ -2366,6 +2553,8 @@ async function checkAll(
         const pageFailures = [
             ...reportFailures(results.flat()),
             ...checkBadgePlaces(results.flat()),
+            ...checkControlPlaces(results.flat()),
+            ...checkTogglePlaces(results.flat()),
         ];
         if (selection.partial) {
             return pageFailures;

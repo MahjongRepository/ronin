@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { checkpointState } from "#tests/fixtures/seat-transcripts";
 import {
+    type GameClientState,
     NO_PLAY_UI,
     PlayBoard,
     type PlayCommand,
@@ -10,6 +11,29 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import { renderStandings } from "@/entities/table/ui/standings";
+
+function renderPlay(state: GameClientState): HTMLElement {
+    const host = document.createElement("div");
+    render(
+        PlayBoard({
+            display: playDisplay(state, NO_PLAY_UI),
+            onCommand: () => {},
+            standings: null,
+            table: state.table,
+        }),
+        host,
+    );
+    return host;
+}
+
+/** The timer's caption and digits, and whether its bank is marked as draining. */
+function timer(host: HTMLElement): [string | undefined, string | undefined, boolean] {
+    return [
+        host.querySelector(".decision-timer__caption")?.textContent?.trim(),
+        host.querySelector(".decision-timer__digits")?.textContent?.replaceAll(/\s+/gu, ""),
+        host.querySelector(".decision-controls__bank--draining") !== null,
+    ];
+}
 
 const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
 
@@ -83,5 +107,23 @@ describe("PlayBoard", () => {
         expect(result.querySelector(".decision-controls")).toBeNull();
         expect(leaving.querySelector(".board-overlay .leave-confirm__stay")).not.toBeNull();
         expect(leaving.querySelector(".board-overlay--after-call")).toBeNull();
+    });
+
+    it("times a turn as its base and bank apart, marks the bank once it alone drains, and says Sent once answered", () => {
+        const turn = checkpointState("own_turn_seat_1", "rinshan");
+        const inBank = stepGameClient(turn, { at: turn.now + 6000, kind: "tick" }).state;
+        const discard = {
+            tileId: turn.table.players[1].drawnTileId ?? -1,
+            type: "discard",
+        } as const;
+        const sent = stepGameClient(inBank, {
+            at: inBank.now,
+            intent: discard,
+            kind: "intent",
+        }).state;
+
+        expect(timer(renderPlay(turn))).toEqual(["", "5+30", false]);
+        expect(timer(renderPlay(inBank))).toEqual(["Bank", "0+29", true]);
+        expect(timer(renderPlay(sent))).toEqual(["Sent", "", false]);
     });
 });

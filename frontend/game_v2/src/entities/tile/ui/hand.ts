@@ -5,10 +5,10 @@ import { type TileFace } from "@/entities/tile/lib/tile-utils";
 import { Tile, TileBack } from "./tile";
 
 /**
- * Where a tile of the player's own hand stands: one it may play now, the one its submitted answer played, one the
- * open decision does not take, or one waiting for a decision that would.
+ * Where a tile of the player's own hand stands: one it may play now (declaring riichi, while the riichi toggle is on),
+ * the one its submitted answer played, one the open decision holds back, or one waiting for a decision that would.
  */
-type PlayableState = "selectable" | "selected" | "disabled" | "waiting";
+type PlayableState = "selectable" | "declaring" | "selected" | "disabled" | "waiting";
 
 /**
  * A tile in a hand: one the view knows, with its tile id when it came from a table, shown face up or as a back by
@@ -38,7 +38,7 @@ type HandTile =
 interface HandProps {
     readonly tiles: readonly HandTile[];
     readonly drawnTile?: HandTile;
-    /** Called with a selectable tile's id when the player taps it or presses Enter or Space on it. */
+    /** Called with a selectable or declaring tile's id when the player taps it or presses Enter or Space on it. */
     readonly onTile?: (tileId: number) => void;
     /** What playing a selectable tile does, read out before its face (`Discard 5p`). */
     readonly tileAction?: string;
@@ -50,7 +50,7 @@ function TileFaceView(tile: HandTile): TemplateResult {
 
 /**
  * One slot of the hand. A tile of the player's own is always a native button, so it takes focus, Enter and Space,
- * and a turn never moves focus out of the hand: only a selectable one acts, the others say so with `aria-disabled`
+ * and a turn never moves focus out of the hand: only a selectable or declaring one acts, the others say so with `aria-disabled`
  * (and the selected one, the tile its answer played, with `aria-pressed`) and ignore a press.
  */
 function HandSlot(tile: HandTile, extraClass: string, props: HandProps): TemplateResult {
@@ -59,7 +59,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         return html`<span class="${slotClass}">${TileFaceView(tile)}</span>`;
     }
     const { state, tileId } = tile;
-    const acts = state === "selectable";
+    const acts = state === "selectable" || state === "declaring";
     function press(): void {
         if (acts) {
             props.onTile?.(tileId);

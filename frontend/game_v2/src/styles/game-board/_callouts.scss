@@ -6,19 +6,22 @@ $overlay-hold-ms: 1000ms;
     display: contents;
 }
 
-/* A call shows as one word on a chip over its caller's own river, upright: the chip's centre on the river's middle,
-   in the river's own frame (along its rows, rows away from the centre) turned to the screen. */
+/* A call's word on a chip over its caller's river, upright, at the board's spot clear of the latest discard
+   (`--spot-along` river tiles along its rows, `--spot-across` rows from the centre, in the river's frame). */
 .board-callout {
+    --callout-cap: 40px;
+    --chip-border: 2px;
+
     position: absolute;
     z-index: 5;
-    padding: 0.05em 0.35em;
-    border: 2px solid currentcolor;
+    padding: 0 0.35em;
+    border: var(--chip-border) solid currentcolor;
     border-radius: 0.3em;
     background: color-mix(in srgb, var(--ronin-surface) 92%, transparent);
     box-shadow: 0 0 0.4em rgb(0 0 0 / 60%);
-    font-size: 40px;
+    font-size: min(var(--callout-cap), var(--rh) - 2 * var(--chip-border));
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1;
     white-space: nowrap;
     color: var(--ronin-gold);
     pointer-events: none;
@@ -26,31 +29,31 @@ $overlay-hold-ms: 1000ms;
     animation: callout-show var(--callout-ms) ease-out both;
 
     @include small-chrome {
-        font-size: 20px;
+        --callout-cap: 20px;
     }
 
     @include large-chrome {
-        font-size: 56px;
+        --callout-cap: 56px;
     }
 
     &--bottom {
-        left: calc(var(--cx) - var(--h) + 3 * var(--rw));
-        top: calc(var(--cy) + var(--h) + var(--g) + 1.5 * var(--rh));
+        left: calc(var(--cx) - var(--h) + var(--spot-along) * var(--rw));
+        top: calc(var(--cy) + var(--h) + var(--g) + var(--spot-across) * var(--rh));
     }
 
     &--top {
-        left: calc(var(--cx) + var(--h) - 3 * var(--rw));
-        top: calc(var(--cy) - var(--h) - var(--g) - 2.5 * var(--rh));
+        left: calc(var(--cx) + var(--h) - var(--spot-along) * var(--rw));
+        top: calc(var(--cy) - var(--h) - var(--g) - var(--spot-across) * var(--rh));
     }
 
     &--right {
-        left: calc(var(--cx) + var(--h) + var(--g) + 2 * var(--rh));
-        top: calc(var(--cy) + var(--h) - 3 * var(--rw));
+        left: calc(var(--cx) + var(--h) + var(--g) + var(--spot-across) * var(--rh));
+        top: calc(var(--cy) + var(--h) - var(--spot-along) * var(--rw));
     }
 
     &--left {
-        left: calc(var(--cx) - var(--h) - var(--g) - 2 * var(--rh));
-        top: calc(var(--cy) - var(--h) + 3 * var(--rw));
+        left: calc(var(--cx) - var(--h) - var(--g) - var(--spot-across) * var(--rh));
+        top: calc(var(--cy) - var(--h) + var(--spot-along) * var(--rw));
     }
 
     &--ron,
@@ -79,10 +82,6 @@ $overlay-hold-ms: 1000ms;
 
     12% {
         opacity: 1;
-        transform: scale(1.08);
-    }
-
-    22% {
         transform: scale(1);
     }
 

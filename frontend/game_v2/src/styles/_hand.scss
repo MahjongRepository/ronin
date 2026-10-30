@@ -1,3 +1,5 @@
+@use "game-board/grid" as *;
+
 .hand {
     display: inline-flex;
     align-items: flex-end;
@@ -49,14 +51,31 @@ button.hand-tile {
     }
 }
 
+/* A tile held back by a rule is recessed, never darkened: lower, slightly smaller, flat, with a dashed inner rim, its
+   face and glyph colours kept. While some are held back, the ones that may be played stand slightly raised. */
 .hand-tile--disabled .tile {
-    filter: brightness(0.55) saturate(0.4);
+    outline: 1.5px dashed var(--ronin-held-rim);
+    outline-offset: -3px;
+    box-shadow: none;
+    transform: translateY(2px) scale(0.95);
 }
 
+.hand:has(.hand-tile--disabled) .hand-tile--selectable {
+    transform: translateY(-3px);
+}
+
+/* A tile that declares riichi, or the one an answer played, is lifted and outlined in the accent, never into the 4px
+   kept clear under the controls in the band above the hand. */
+.hand-tile--declaring,
 .hand-tile--selected {
-    transform: translateY(-4px);
+    transform: translateY(max(-16%, 5px - var(--band-gap, 100px)));
+
+    @include phone-board {
+        transform: translateY(-8%);
+    }
 
     .tile {
-        box-shadow: 0 0 0 2px var(--ronin-gold);
+        outline: 3px solid var(--ronin-gold);
+        outline-offset: 0;
     }
 }

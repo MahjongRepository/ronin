@@ -62,9 +62,12 @@ interface RouteBudget {
  * The game's CSS re-set again on 2026-10-30 from 96.5 / 16.4 to 116 / 19.2 at 105.4 / 17.4: the composed board (the
  * sizing rule's registered lengths, the zone device, a side strip's second meld line placed without measuring, the
  * chrome's steps for narrow and large boards).
+ * The game's JS re-set on 2026-10-30 from 188 / 57.7 to 208 / 64.2 at 188.9 / 58.4 (181.3 / 56.4 before): the
+ * decisions' ranking, the two-step choice of tiles, the answered and expired controls, the timer's slot, the furiten
+ * mark, the action source and callouts placed clear of the latest discard.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 19.2, raw: 116 }, js: { gzip: 57.7, raw: 188 } },
+    game: { chunk: "index.html", css: { gzip: 19.2, raw: 116 }, js: { gzip: 64.2, raw: 208 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 2.8, raw: 8.9 },

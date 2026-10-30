@@ -9,6 +9,7 @@ import {
     PlayBoard,
     type PlayCommand,
     type PlayUi,
+    type TileChoiceKind,
     describePlayerClientStatus,
     nextPlayUi,
     parseSeatTranscript,
@@ -24,6 +25,7 @@ import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.jso
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
 import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json";
 import FINAL_ROUND_SEAT_1 from "@/fixtures/seat-scenarios/final_round_seat_1.json";
+import KAN_CHOICE_SEAT_1 from "@/fixtures/seat-scenarios/kan_choice_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
@@ -39,6 +41,7 @@ const TRANSCRIPTS = {
     chankan_robbed_seat_3: CHANKAN_ROBBED_SEAT_3,
     double_ron_seat_1: DOUBLE_RON_SEAT_1,
     final_round_seat_1: FINAL_ROUND_SEAT_1,
+    kan_choice_seat_1: KAN_CHOICE_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
     seat_left_seat_1: SEAT_LEFT_SEAT_1,
@@ -48,13 +51,15 @@ type TranscriptName = keyof typeof TRANSCRIPTS;
 
 /**
  * A board at a checkpoint of a generated seat transcript: the client state after the step its label names, as the
- * live game reaches it, with the view's riichi pick on or off and its round result at a page.
+ * live game reaches it, with the view's riichi pick on or off, a call's choice of tiles open or not, and its round
+ * result at a page.
  */
 interface DecisionStory {
     readonly title: string;
     readonly transcript: TranscriptName;
     readonly label: string;
     readonly pickRiichi: boolean;
+    readonly chooseTiles?: TileChoiceKind;
     readonly resultPage: number;
     /** What happens next, stepped on the checkpoint's state: a drop, a refusal, a kick. */
     readonly followUp?: (state: GameClientState) => readonly ClientEvent[];
@@ -64,20 +69,26 @@ interface DecisionStory {
 
 /**
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
- * three checkpoints, the seating before the first deal, the call prompts, the turns (in their base time and in the
- * bank), what follows an answer, the round results the player confirms, the standings and the last result reopened
+ * three checkpoints and its call answered and expired, the seating before the first deal, the call prompts and a
+ * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), what follows an answer, the round results the player confirms, the standings and the last result reopened
  * from them, then another player's seat left to an AI, the board's notices, a kick and the leave question.
  */
 const STORY_KEYS = [
     "anchor_turn",
     "anchor_call",
     "anchor_riichi",
+    "anchor_riichi_off",
+    "anchor_call_sent",
+    "anchor_call_expired",
     "game_start",
     "call_prompt",
+    "chi_choice",
     "ron_prompt",
     "chankan_prompt",
     "kuikae_turn",
     "own_turn",
+    "kan_offer",
+    "kan_choice",
     "turn_in_bank",
     "riichi_pick",
     "riichi_turn",
@@ -135,6 +146,11 @@ function closedWith(code: number): (state: GameClientState) => readonly ClientEv
     return (state) => [{ at: state.now + 500, code, kind: "transport_closed", reason: "" }];
 }
 
+/** The player's answer at the checkpoint. */
+function answering(intent: LocalIntent): (state: GameClientState) => readonly ClientEvent[] {
+    return (state) => [{ at: state.now, intent, kind: "intent" }];
+}
+
 /** A tick `seconds` after the checkpoint, the time the player let run. */
 function after(seconds: number): (state: GameClientState) => readonly ClientEvent[] {
     return (state) => [{ at: state.now + seconds * 1000, kind: "tick" }];
@@ -142,14 +158,27 @@ function after(seconds: number): (state: GameClientState) => readonly ClientEven
 
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     anchor_call: checkpoint("anchor_seat_1", "call offer", "Anchor: call offer"),
+    anchor_call_expired: {
+        ...checkpoint("anchor_seat_1", "call offer", "Anchor: call expired"),
+        followUp: after(5),
+    },
+    anchor_call_sent: {
+        ...checkpoint("anchor_seat_1", "call offer", "Anchor: call passed"),
+        followUp: answering({ type: "pass" }),
+    },
     anchor_riichi: {
         ...checkpoint("anchor_seat_1", "riichi offer", "Anchor: riichi"),
         pickRiichi: true,
     },
+    anchor_riichi_off: checkpoint("anchor_seat_1", "riichi offer", "Anchor: riichi offered"),
     anchor_turn: checkpoint("anchor_seat_1", "own turn", "Anchor: own turn"),
     answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
     chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),
+    chi_choice: {
+        ...checkpoint("call_prompt_seat_1", "prompt", "Chi: choose the tiles"),
+        chooseTiles: "chi",
+    },
     connection_lost: {
         ...checkpoint("call_prompt_seat_1", "turn", "Connection lost"),
         followUp: closedWith(1006),
@@ -164,6 +193,11 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         tileSprite: "failed",
     },
     game_start: checkpoint("own_turn_seat_1", "game started", "Game start"),
+    kan_choice: {
+        ...checkpoint("kan_choice_seat_1", "kan offer", "Kan: choose the tiles"),
+        chooseTiles: "kan",
+    },
+    kan_offer: checkpoint("kan_choice_seat_1", "kan offer", "Kan of either of two types"),
     kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
@@ -225,17 +259,28 @@ function checkpointState(transcriptName: TranscriptName, label: string): GameCli
 }
 
 function storyScreen(key: DecisionStoryKey): StoryScreen {
-    const { confirmingLeave, followUp, label, pickRiichi, resultPage, tileSprite, transcript } =
-        DECISION_STORIES[key];
+    const {
+        chooseTiles,
+        confirmingLeave,
+        followUp,
+        label,
+        pickRiichi,
+        resultPage,
+        tileSprite,
+        transcript,
+    } = DECISION_STORIES[key];
     const reached = checkpointState(transcript, label);
     const state = (followUp?.(reached) ?? []).reduce(
         (current, event) => stepGameClient(current, event).state,
         reached,
     );
+    const waitId = state.decision?.waitId ?? null;
     const picked = {
         ...NO_PLAY_UI,
         confirmingLeave: confirmingLeave ?? false,
-        riichiPickWaitId: pickRiichi ? (state.decision?.waitId ?? null) : null,
+        riichiPickWaitId: pickRiichi ? waitId : null,
+        tileChoice:
+            chooseTiles === undefined || waitId === null ? null : { kind: chooseTiles, waitId },
         tileSprite: tileSprite ?? NO_PLAY_UI.tileSprite,
     };
     const ui = nextPlayUi(state, picked, { kind: "show_result_page", page: resultPage });

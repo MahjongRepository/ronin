@@ -1,7 +1,6 @@
 @use "sass:list";
 @use "grid" as *;
 
-
 $max-melds: 4;
 $face-floor: 13px;
 $selected: 1000;
@@ -209,8 +208,8 @@ $strip-lengths:
     --line2-base: calc(var(--foreground-top) - var(--side-start) - var(--line2-len));
 }
 
-/* The own row: the badge's slot and furiten's, then the hand from a full hand's fixed start, its melds after the tiles
-   it holds at a fixed scale. */
+/* The own row: the badge's slot and furiten's (`.board-furiten`), then the hand from a full hand's fixed start, its
+   melds after the tiles it holds at a fixed scale. */
 .board-local {
     --board-tile-w: var(--ow);
     --board-tile-h: var(--oh);
@@ -225,13 +224,6 @@ $strip-lengths:
     > .nameplate {
         flex: none;
         width: var(--badge-slot);
-    }
-
-    &::before {
-        content: "";
-        order: 1;
-        flex: none;
-        width: var(--furiten-slot);
     }
 
     > .board-area--bottom-hand {

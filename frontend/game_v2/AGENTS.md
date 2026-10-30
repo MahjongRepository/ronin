@@ -116,14 +116,17 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`entities/table`, which the board hands its stylesheet as `--callout-ms`) or until a newer
   call, never ended by a move that calls nothing, since one may follow at once (an AI player's discard
   after its pon, the viewer's draw after a riichi), nor by the game's end, so the last win shows its call;
-  a failed or left session drops them. A replay line's last until the next move, so each
+  a failed or left session drops them. Each lies over its caller's river at the first of a few fixed spots
+  (in river tiles and rows, `CALLOUT_SPOTS`) clear of the latest discard's row (top, bottom) or column pair
+  (sides), its chip no taller than a river row (its font bounded by the row, its pop never past full size),
+  so it never covers the action source, a control or the own hand. A replay line's last until the next move, so each
   stop shows its own move's calls and stepping or autoplay leaves none behind. The board keys each
   showing, so a new one replays its CSS animation and a redraw does not; it takes no input, and a
   win's call shows before the result panel, which waits for it by CSS alone; the board waits only when
   told its panel is a result (`overlayIsResult`), so the leave question and an end show, and take the
   focus, at once. The seat in turn is cued only by the centre's bar on its side and its badge's
   underline (the spec's turn cue), the viewer's turn and call prompt by nothing else; furiten shows only
-  while a round plays.
+  while a round plays, as a dot and the word in its slot by the hand (`GameBoard`'s `furiten`).
 * **Final standings** (`boardOverlay`, live and replay alike): the seats in the server's placement
   order with its uma/oka results, the ledger of every finished round with a line saying what its marks
   mean, the leftover sticks, the viewer's seat (the live seat, the replay's bottom seat) marked. Their
@@ -178,18 +181,31 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the decision's controls, and decides nothing. `tableStateToDisplayState` maps a table from a
   perspective; `playDisplay` (`entities/client`) maps a whole client state for the live board: the
   table from the viewer's seat with only its hand face up, each of its tiles marked by the open
-  decision, the intent each selectable tile sends, the decision's buttons (riichi as one toggle,
-  then each other offer, then a pass), the countdown and furiten, and the round result's controls
+  decision (selectable, declaring while the riichi toggle is on, held back, the one an answer played), the
+  intent each selectable tile sends, the decision's controls ranked (`DecisionAction.rank`: the wins, ron,
+  tsumo and kyuushu, first; then riichi as one toggle and one control per other kind of offer in the
+  server's order; then a pass), the countdown, where the decision stands (open, expired, answered), what
+  Escape does, furiten, a chankan offer's kan (`sourceMeld`), and the round result's controls
   (its one primary button, the result's pager only secondary beside it, the countdown, waiting for
   the others). What may be played is never
   restated there: every tile intent and button is one the dispatcher's own `takesIntent` takes (the
   decision's answer on a socket it can send on), so the board offers exactly what stepping the
   intent would send. `PlayBoard` only renders that, with the table's panel over it, and routes a
   command: an intent goes to the dispatcher; the view state is `PlayUi`, an input of the mapper too:
-  the riichi toggle, keyed by the decision's wait id so a newer decision never inherits it, and the
+  the riichi toggle and a call's choice of tiles, each keyed by the decision's wait id so a newer decision
+  never inherits it, each turning the other off; and the
   round result's page, keyed by the round the result ends (its wind, dealer and honba, which a
   reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
-  keeps the page; and the nameplate pinned for score differences. One gesture serves every board
+  keeps the page; and the nameplate pinned for score differences. A kind of offer with a choice of tiles
+  (two chi, two kan) is one control that opens its second step, which is that control pressed, each
+  choice the dispatcher takes as a tile group laid by `meldTiles` as the meld will lie, the pressed control
+  after them (where the first step had it, so pressing it never moves it; a desktop row shows it first), and
+  Back in Pass's place; Back, Escape (the board's) and the call pressed again go back, Escape moving a focus it finds on a
+  decision control to the call's control, and Escape also turns the riichi toggle off. One Escape is one step:
+  a pinned badge's unpinning first, and never an Escape a panel over the board already took (the leave
+  question's). An answered decision keeps the controls it was answered from, inert, the one whose answer
+  matches the sent message marked, and its steps no longer change, so nothing moves while the server
+  answers. One gesture serves every board
   (live, replay, storybook): hovering a nameplate, or tapping it (a button, so a key too), shows the
   other seats' scores in the centre as differences from its own; a tap pins it until it is tapped again, another
   part of the board is tapped or Escape is pressed. The replay's viewpoint switch is a control of its
@@ -349,7 +365,24 @@ follows holds through the rebuild to it.
     centre holds the round, the wall's count, each seat's wind and score in a pinwheel row on its side, its
     riichi stick inside the edge, the turn's bar on the edge, and while a badge's differences show, whose.
   * The latest discard (`lastDiscardSeat`, `entities/table/AGENTS.md`) is ringed with a notch on its far side,
-    in its river's frame, in the table's neutral latest colour; a claimed tile has left the river.
+    in its river's frame, in the table's neutral latest colour; a claimed tile has left the river. A chankan
+    offer's kan is ringed whole in its meld (`meld--source`) until the offer resolves.
+  * The decisions' place (`_decision-controls.scss`): on a desktop one row in the foreground band, from past
+    the play switches' slot (`--switches-left`/`--switches-right`, on the band's side away from the decisions,
+    kept empty until the switches land) to the own row's right end, the timer's fixed slot (`--timer-w`, a
+    caption line over the digits: Time up, Sent, Bank) last; a row too narrow for its controls (a narrow
+    desktop's) wraps the higher-ranked above the band's control and the timer, and four or more under 800px
+    shed their tile previews and spare width. On a phone the lowest-ranked control that is neither a win, a
+    choice of tiles nor a call's first step takes the band row beside the timer (the riichi toggle among them), starting past the own river's
+    capacity reach; the rest stack upward, right-aligned, between the right river's capacity reach and the
+    right strip as drawn (its second meld line counted, from the per-meld units `rightStripStyle` hands the
+    stylesheet), a win or a choice across the column, and pair up, shedding their tile previews, where the
+    column (a size container, `decisions`) is too short for one a row (the count `data-upper`). Rings lie
+    inside a control's box. The board's container is named `game-board` and its viewport mixins query it by
+    name, so a container inside the board never answers them.
+  * Own tiles: a held-back tile (kuikae, riichi) is recessed, never darkened: lower, smaller, flat, a dashed
+    inner rim, its face and glyph colours kept; while some are held back the playable ones stand raised; a
+    declaring or played tile is lifted and outlined in the accent, never into the 4px kept under the band.
   * The zone device is decoration under every layer: lines and field tints from the centre's corners,
     drawn with `hypot`/`atan2` and clip paths from the same lengths.
   * Text the board scales keeps a 10px floor, a safety limit, never the size to design to.
@@ -372,7 +405,9 @@ follows holds through the rebuild to it.
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
-  dora, long names, AI marks and a pinned nameplate; a call at every seat; the dense round results; the
+  dora, long names, AI marks and a pinned nameplate, and again with the most offers one discard can make,
+  whose phone column ends before the right strip's second meld line; a call at every seat; the dense round
+  results; the
   decisions stories, the seating before the first deal, a turn in its bank, the live standings and the
   last result reopened from them among them; the board's
   standings over a hand-written short game; and the replay page's stories: its opening, autoplay
@@ -380,14 +415,21 @@ follows holds through the rebuild to it.
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
   its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080
-  (Chromium), 1366x657 on the anchor, the worst board, the replay and the live turn alone (`onlyPages`:
-  the core bounded by the band), 800x600 on the anchor and the worst board alone (a narrow desktop's
-  chrome), iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
+  (Chromium), 1366x657 on the anchor, the worst board, a call beside the latest riichi discard's row, the
+  replay and the live turn alone (`onlyPages`: the core bounded by the band, a chip bounded by its row),
+  800x600 on the anchor, the dense and two-step decisions and the worst board with and without offers (a
+  narrow desktop's chrome), iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
   and 21, asserted on every page) and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context, which
   asks for reduced motion so each shot shows an animation's resting state. It
-  fails on content that is hidden or empty, rivers within 3px of each other or the centre, a strip within
-  6px of a river, a badge of a decisions story off the place it holds on the others at that viewport, tiles
+  fails on content that is hidden or empty (a decision control's tile previews aside, which a pair may
+  shed), rivers within 3px of each other or the centre, a strip within
+  6px of a river, a badge of a decisions story off the place it holds on the others at that viewport, a
+  decision's controls or timer off the place they hold while it is open once it is answered or expired
+  (`CONTROL_FAMILIES`: the anchor's call), a landscape phone's toggle off its place once pressed (`TOGGLE_FAMILIES`:
+  riichi in the band, a chi's and a kan's first step in the column), decision buttons over each other or the timer, a decision control
+  within 4px of any tile outside the controls,
+  a call over a decision control, the timer or the action source (the latest discard, an offered kan), tiles
   of different areas, a nameplate overlapping,
   anything outside the board or the screen, a call over the local hand's tiles, a status word, a plate's wind or
   marks or a name's end cut short, page overflow, board text under 10px, local hand tiles under

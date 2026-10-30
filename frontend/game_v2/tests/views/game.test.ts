@@ -10,6 +10,7 @@ import { type HandoffRecovery } from "@/shared/api";
 import { type LoadStatus } from "@/shared/lib";
 import {
     type ClientMessage,
+    buildChiAction,
     buildConfirmRoundAction,
     buildDiscardAction,
     buildJoinGameMessage,
@@ -156,6 +157,20 @@ function press(host: HTMLElement, selector: string): void {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
+function pressKey(host: HTMLElement, selector: string, key: string): void {
+    host.querySelector(`.game__play ${selector}`)?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key }),
+    );
+}
+
+/** The decision controls' names, as a screen reader reads them, in their order on the board, after `act`. */
+function labelsAfter(host: HTMLElement, act: () => void): (string | null)[] {
+    act();
+    return [...host.querySelectorAll(".game__play .decision-controls__action")].map((button) =>
+        button.getAttribute("aria-label"),
+    );
+}
+
 function spriteNotice(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game__play .board-notice--warning")?.textContent;
 }
@@ -169,6 +184,7 @@ const JOIN = buildJoinGameMessage(HANDOFF.gameTicket);
 const FIRST_FREE_TILE = 12;
 const TURN_WAIT_ID = 2;
 const PROMPT_WAIT_ID = 1;
+const FIRST_STEP_CALL = '.decision-controls__action[aria-pressed="false"]';
 const ROUND_END_WAIT_ID = 2;
 const RECONNECT = buildReconnectMessage(HANDOFF.gameTicket);
 
@@ -642,6 +658,44 @@ describe("mountGameView leaving", () => {
     });
 });
 
+describe("mountGameView choice of tiles", () => {
+    it("moves the focus from a choice to its call's control when Escape goes back, never out of the board", () => {
+        const { host } = mountInDocumentAtCallPrompt();
+        press(host, FIRST_STEP_CALL);
+        host.querySelector<HTMLElement>(".game__play .decision-controls__action--choice")?.focus();
+
+        pressKey(host, ".decision-controls__action--choice", "Escape");
+
+        expect([
+            document.activeElement?.getAttribute("aria-label"),
+            document.activeElement?.getAttribute("aria-pressed"),
+        ]).toEqual(["Chi", "false"]);
+    });
+
+    it("leaves a choice of tiles open when Escape closes the leave question over it", async () => {
+        const { host, lobby } = mountInDocumentAtCallPrompt();
+        press(host, FIRST_STEP_CALL);
+        lobby.click();
+        await Promise.resolve();
+
+        document.activeElement?.dispatchEvent(
+            new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" }),
+        );
+
+        expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
+        expect(labelsAfter(host, () => {})).toEqual(["Chi 2m 4m", "Chi 1m 2m", "Chi", "Back"]);
+    });
+
+    it("names the control that sent the answer once it is sent", () => {
+        const { connections, host } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        const sent = labelsAfter(host, () => press(host, ".decision-controls__action--pass"));
+
+        expect(sent).toEqual(["Kan 3m", "Pon 3m", "Chi", "Pass (sent)"]);
+    });
+});
+
 describe("mountGameView board", () => {
     it("sends one discard with the turn's wait id for a tapped tile, and nothing for a kuikae-blocked one or a second tap", () => {
         const { connections, host } = mountWithFakes();
@@ -689,8 +743,25 @@ describe("mountGameView board", () => {
         const { connections, host } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        press(host, ".decision-controls__action.secondary");
+        press(host, ".decision-controls__action--pass");
 
         expect(connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
+    });
+
+    it("opens a chi's choice of tiles on Chi, sending nothing, goes back on Escape, and sends the chosen chi once", () => {
+        const { connections, host } = mountWithFakes();
+        openCallPrompt(connections[0]);
+
+        const choosing = labelsAfter(host, () => press(host, FIRST_STEP_CALL));
+        const back = labelsAfter(host, () => pressKey(host, ".board-local .hand-tile", "Escape"));
+        press(host, FIRST_STEP_CALL);
+        press(host, ".decision-controls__action--choice");
+        press(host, ".decision-controls__action--choice");
+
+        expect([choosing, back]).toEqual([
+            ["Chi 2m 4m", "Chi 1m 2m", "Chi", "Back"],
+            ["Kan 3m", "Pon 3m", "Chi", "Pass"],
+        ]);
+        expect(connections[0].sent).toEqual([JOIN, buildChiAction(8, [4, 12], PROMPT_WAIT_ID)]);
     });
 });

@@ -129,8 +129,9 @@ replay view, the live game and the storybook read the tables it produces.
   score; the plate shows the name and marks, the centre each seat's wind, score and riichi stick on its
   side, and the board shows the differences from a hovered or pinned plate there by stylesheet alone.
   The pin is the view's state (`ScoreDiffPin`), never the table's. The centre also keeps the round and
-  the wall; the dora panel the sticks. The board marks no tile playable: that is the client's
-  mapper's, from a decision this slice does not know.
+  the wall; the dora panel the sticks. The board marks no tile playable and no meld as an offer's
+  source (`sourceMeld`, a chankan offer's kan): both are the client's mapper's, from a decision this slice does
+  not know.
   `ui/board-overlay.ts` picks the panel a table shows over its board (the seating, a round's
   result, the standings) for every board that shows a table.
 - `lib/callouts.ts` says which calls a table event makes aloud (`eventCalls`, read with the tables it

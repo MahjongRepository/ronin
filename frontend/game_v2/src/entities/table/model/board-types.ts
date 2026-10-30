@@ -67,6 +67,8 @@ interface BoardPlayerDisplay {
     /** Each meld laid out, oldest first. */
     readonly melds: readonly (readonly MeldTile[])[];
     readonly discards: readonly DiscardTile[];
+    /** The meld an offer refers to (the kan a chankan offer may rob), by its index in `melds`; none for any other. */
+    readonly sourceMeld?: number;
 }
 
 interface BoardDisplayState {

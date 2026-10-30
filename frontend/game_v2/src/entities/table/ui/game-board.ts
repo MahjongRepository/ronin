@@ -1,4 +1,4 @@
-import { type TemplateResult, html } from "lit-html";
+import { type TemplateResult, html, nothing } from "lit-html";
 import { keyed } from "lit-html/directives/keyed.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
@@ -46,6 +46,13 @@ interface GameBoardProps {
     readonly callouts?: BoardCallouts | null;
     /** The overlay's panel is a round's result, which waits until a win's call has been seen; any other shows at once. */
     readonly overlayIsResult?: boolean;
+    /** The bottom seat is furiten: its mark shows in the slot by the hand that a played board keeps for it. */
+    readonly furiten?: boolean;
+    /**
+     * What Escape does once no badge is pinned (stepping back from a decision's step), given the board; none when it
+     * does nothing. An Escape something on the board already took (a panel's) is left alone.
+     */
+    readonly onEscape?: (board: HTMLElement) => void;
 }
 
 function HandArea(
@@ -58,10 +65,14 @@ function HandArea(
     </div>`;
 }
 
-/** A seat's melds, newest first from the hand outward, so the first meld lies farthest right. */
+/**
+ * A seat's melds, newest first from the hand outward, so the first meld lies farthest right; the one an offer refers to
+ * marked as its source.
+ */
 function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    const melds = player?.melds ?? [];
     return html`<div class="board-area board-melds board-area--${seat}-melds" data-area="${seat}-melds">
-        ${player ? player.melds.toReversed().map((tiles) => Meld(tiles)) : ""}
+        ${melds.toReversed().map((tiles, index) => Meld(tiles, melds.length - 1 - index === player?.sourceMeld))}
     </div>`;
 }
 
@@ -122,6 +133,23 @@ function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, 
         [`--mp-${MAX_MELDS}`, String(sum(0, MAX_MELDS))],
         ["--meld-deep", String(deepest)],
         ...perMeld,
+    ]);
+}
+
+/**
+ * What the decision controls' place reads of the right strip, which a phone's column stands beside: its hand's and
+ * melds' lengths, its deepest meld and its oldest, which a second line of its melds starts with, so the column ends
+ * before that line.
+ */
+function rightStripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
+    const style = stripStyle(player);
+    const oldest = player?.melds[0];
+    return Object.fromEntries([
+        ...["--hand-n", "--drawn", "--meld-n", "--meld-units", "--meld-deep"].map((name) => [
+            `--right${name.slice(1)}`,
+            style[name],
+        ]),
+        ["--right-oldest-deep", String(oldest === undefined ? 0 : meldDepth(oldest))],
     ]);
 }
 
@@ -237,21 +265,112 @@ function CenterInfo(
     `;
 }
 
-function Callout({ kind, label, position }: BoardCallout): TemplateResult {
-    return html`<div class="board-callout board-callout--${position} board-callout--${kind}">
+const RIVER_ROW = 6;
+
+/**
+ * Where a call's chip may lie in its caller's river, in the river's frame (along its rows in river tiles, away from the
+ * centre in river rows), first choice first: a top or bottom river's chip lies along one row, a side river's, upright,
+ * across every row over two columns.
+ */
+const CALLOUT_SPOTS: Readonly<Record<SeatPosition, readonly (readonly [number, number])[]>> = {
+    bottom: [
+        [3, 1.5],
+        [3, 0.5],
+        [3, 2.5],
+    ],
+    left: [
+        [3, 2],
+        [1, 2],
+        [5, 2],
+    ],
+    right: [
+        [3, 2],
+        [1, 2],
+        [5, 2],
+    ],
+    top: [
+        [3, 2.5],
+        [3, 1.5],
+        [3, 0.5],
+    ],
+};
+
+/** The latest discard's place in a river, its column along its row and its row, or null when it lies elsewhere. */
+function latestSlot(
+    seat: SeatPosition,
+    player: BoardPlayerDisplay | null,
+): { col: number; row: number } | null {
+    const index = player?.discards.findIndex((tile) => tile.last === true) ?? -1;
+    if (index === -1) {
+        return null;
+    }
+    const lastRow = seat === "left" || seat === "right" ? 3 : 2;
+    const row = Math.min(lastRow, Math.floor(index / RIVER_ROW));
+    return { col: index - row * RIVER_ROW, row };
+}
+
+/**
+ * The first spot for a call's chip over its caller's river that leaves the latest discard, the action source, in view:
+ * a top or bottom chip off the latest discard's row, a side chip off its column pair.
+ */
+function calloutSpot(
+    seat: SeatPosition,
+    player: BoardPlayerDisplay | null,
+): readonly [number, number] {
+    const spots = CALLOUT_SPOTS[seat];
+    const latest = latestSlot(seat, player);
+    const side = seat === "left" || seat === "right";
+    const clear = spots.find(([along, across]) => {
+        if (latest === null) {
+            return true;
+        }
+        return side
+            ? latest.col < along - 1 || latest.col >= along + 1
+            : latest.row !== Math.floor(across);
+    });
+    return clear ?? spots[0];
+}
+
+function Callout(
+    { kind, label, position }: BoardCallout,
+    players: BoardDisplayState["players"] | null,
+): TemplateResult {
+    const [along, across] = calloutSpot(
+        position,
+        players?.[SEAT_POSITIONS.indexOf(position)] ?? null,
+    );
+    return html`<div
+        class="board-callout board-callout--${position} board-callout--${kind}"
+        style="--spot-along: ${along}; --spot-across: ${across}"
+    >
         <span class="board-callout__word">${label}</span>
     </div>`;
 }
 
 /**
- * The calls by their seats; a new showing (a new key) is drawn afresh, so its animation plays from the start, over the
- * time a live call shows.
+ * The calls by their seats, each over its caller's river clear of the latest discard; a new showing (a new key) is
+ * drawn afresh, so its animation plays from the start, over the time a live call shows.
  */
-function Callouts(callouts: BoardCallouts): TemplateResult {
+function Callouts(callouts: BoardCallouts, state: BoardDisplayState | null): TemplateResult {
+    const players = state?.players ?? null;
     return html`${keyed(
         callouts.key,
-        html`<div class="board-callouts" style="--callout-ms: ${CALLOUT_MS}ms">${callouts.items.map(Callout)}</div>`,
+        html`<div class="board-callouts" style="--callout-ms: ${CALLOUT_MS}ms">${callouts.items.map(
+            (item) => Callout(item, players),
+        )}</div>`,
     )}`;
+}
+
+/** The furiten mark's slot by the hand, kept on a played board so the hand never moves: a dot and the word. */
+function FuritenSlot(furiten: boolean): TemplateResult {
+    return html`<span class="board-furiten" title=${furiten ? "Furiten: you cannot win on a discard" : nothing}
+        >${
+            furiten
+                ? html`<span class="board-furiten__dot" aria-hidden="true"></span
+                      ><span class="board-furiten__word">Furiten</span>`
+                : ""
+        }</span
+    >`;
 }
 
 /** Whether the calls shown are a win's (ron, tsumo), whose result panel waits until they have been seen. */
@@ -270,9 +389,9 @@ function EmptyCenterArea(): TemplateResult {
  * rivers in their pinwheel, the other seats' strips and badges in their zones toward the edges, the pooled counters in
  * the top-left corner and the page's own controls (`menu`) in the top-right, and over the foreground band the bottom
  * seat's badge, hand and melds with the decision's controls, when given, by the hand; a board the viewer plays
- * (`localHand`) also keeps the furiten's slot beside the hand. A pinned badge unpins on a click anywhere else on the
- * board or on Escape. Calls show over their seats' rivers for a moment, and a win's call shows before the panel over
- * the board does.
+ * (`localHand`) also keeps the furiten mark's slot beside the hand. A pinned badge unpins on a click anywhere else on
+ * the board or on Escape; with none pinned, Escape steps back from a decision's step. Calls show over their seats' rivers for a
+ * moment, clear of the latest discard, and a win's call shows before the panel over the board does.
  */
 function GameBoard(props: GameBoardProps): TemplateResult {
     const { scoreDiff, state } = props;
@@ -293,14 +412,21 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             scoreDiff.onPin(null);
         }
     }
-    function unpinOnEscape(event: KeyboardEvent): void {
-        if (event.key === "Escape" && scoreDiff.pinned !== null) {
+    function onKey(event: KeyboardEvent): void {
+        if (event.key !== "Escape" || event.defaultPrevented) {
+            return;
+        }
+        if (scoreDiff.pinned !== null) {
             scoreDiff.onPin(null);
+            return;
+        }
+        if (event.currentTarget instanceof HTMLElement) {
+            props.onEscape?.(event.currentTarget);
         }
     }
 
     return html`
-        <div class="${boardClass}" @click=${unpinOnClickElsewhere} @keydown=${unpinOnEscape}>
+        <div class="${boardClass}" @click=${unpinOnClickElsewhere} @keydown=${onKey}>
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
                 <div class="board-table">
@@ -310,12 +436,12 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${state ? DoraDisplay(state.center) : ""}
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
-                    ${props.actions ? html`<div class="board-actions" data-area="actions">${props.actions}</div>` : ""}
+                    ${props.actions ? html`<div class="board-actions" data-area="actions" style=${styleMap(rightStripStyle(state?.players[1] ?? null))}>${props.actions}</div>` : ""}
                     ${props.notices ? BoardNotices(props.notices) : ""}
-                    ${props.callouts ? Callouts(props.callouts) : ""}
+                    ${props.callouts ? Callouts(props.callouts, state) : ""}
                 </div>
                 <div class="board-local">
-                    ${plates?.bottom ?? ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
+                    ${plates?.bottom ?? ""}${props.localHand ? FuritenSlot(props.furiten ?? false) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
                 </div>
             </div>
             ${

@@ -19,9 +19,11 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { type HandTile } from "@/entities/tile";
+import { type HandTile, type MeldTile } from "@/entities/tile";
+import { buildChiAction } from "@/shared/protocol";
 
 const KUIKAE_BLOCKED = [9, 10, 11];
+const CHOOSE_CHI = { kind: "toggle_tile_choice", offer: "chi" } as const;
 const CLOSED_KAN_OFFSET = 6072;
 
 /** The viewer's hand on the board as `[tileId, mark]`, the drawn tile last, an unmarked tile as "idle". */
@@ -32,6 +34,17 @@ function handMarks(display: PlayDisplay): [number | undefined, string][] {
         ...(bottom?.drawnTile ? [bottom.drawnTile] : []),
     ];
     return tiles.map((tile) => [tile.tileId, tile.state ?? "idle"]);
+}
+
+/** A choice's tiles as they lie, `kind face` each, or null for a control with none. */
+function laid(group: readonly MeldTile[] | null): string[] | null {
+    return (
+        group?.map((tile) =>
+            tile.kind === "stacked"
+                ? `stacked ${tile.bottom}/${tile.top}`
+                : `${tile.kind} ${tile.face}`,
+        ) ?? null
+    );
 }
 
 /** The state once logical time reaches the open decision's deadline, which shows it as expired. */
@@ -52,32 +65,39 @@ function viewerTiles(state: GameClientState): readonly number[] {
 }
 
 describe("playDisplay", () => {
-    it("shows a call prompt as its offers, in the server's order, then Pass, still once expired, and no tile plays", () => {
+    it("shows a call prompt as one control per kind of offer, in the server's order, then Pass, still once expired, and no tile plays", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
         const display = playDisplay(state, NO_PLAY_UI);
         const expired = playDisplay(pastDeadline(state), NO_PLAY_UI);
 
-        expect(display.actions.map((action) => [action.label, action.tiles])).toEqual([
-            ["Kan", ["3m"]],
-            ["Pon", ["3m"]],
-            ["Chi", ["2m", "4m"]],
-            ["Chi", ["1m", "2m"]],
-            ["Pass", []],
+        expect(
+            display.actions.map((action) => [
+                action.label,
+                action.tiles,
+                action.rank,
+                action.pressed,
+            ]),
+        ).toEqual([
+            ["Kan", ["3m"], "call", null],
+            ["Pon", ["3m"], "call", null],
+            ["Chi", [], "call", false],
+            ["Pass", [], "pass", null],
         ]);
-        expect(display.actions[2].command).toEqual({
-            intent: { offer: { kind: "chi", sequence: [4, 12], tileId: 8 }, type: "choose" },
+        expect(display.actions[1].command).toEqual({
+            intent: { offer: { kind: "pon", tileId: 8 }, type: "choose" },
             kind: "intent",
         });
-        expect(display.countdown).toEqual({
-            kind: "running",
-            move: "call",
-            secondsLeft: 5,
-            turn: null,
-        });
-        expect(display.tileIntents.size).toBe(0);
+        expect([display.countdown, display.tileIntents.size]).toEqual([
+            { kind: "running", move: "call", secondsLeft: 5, turn: null },
+            0,
+        ]);
         expect(handMarks(display).every(([, mark]) => mark === "waiting")).toBe(true);
         expect(expired.actions).toEqual(display.actions);
-        expect(expired.countdown).toEqual({ kind: "expired", move: "call" });
+        expect([display.decisionStanding, expired.decisionStanding, expired.countdown]).toEqual([
+            "open",
+            "expired",
+            { kind: "expired", move: "call" },
+        ]);
     });
 
     it("on the turn after a chi disables the types kuikae blocks and lets every other tile discard, expired too", () => {
@@ -123,11 +143,18 @@ describe("playDisplay", () => {
         expect([...display.tileIntents]).toEqual([
             [120, { offer: { kind: "riichi", tileId: 120 }, type: "choose" }],
         ]);
+        expect(handMarks(display).filter(([, mark]) => mark !== "disabled")).toEqual([
+            [120, "declaring"],
+        ]);
         expect([display.tileAction, display.actions[0].pressed]).toEqual([
             "Declare riichi discarding",
             true,
         ]);
-        expect(nextPlayUi(state, picking, toggle)).toEqual(NO_PLAY_UI);
+        expect([
+            nextPlayUi(state, picking, toggle),
+            display.escape,
+            nextPlayUi(state, picking, { kind: "step_back" }),
+        ]).toEqual([NO_PLAY_UI, { kind: "step_back" }, NO_PLAY_UI]);
         expect([stale.tileAction, stale.tileIntents.get(120), stale.tileIntents.size]).toEqual([
             "Discard",
             { tileId: 120, type: "discard" },
@@ -243,6 +270,155 @@ describe("playDisplay", () => {
             [],
             null,
         ]);
+    });
+});
+
+describe("playDisplay decisions", () => {
+    it("takes a chi with a choice in two steps: only the server's options, laid as they will lie, Back in Pass's place", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const choosing = nextPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
+        const display = playDisplay(state, choosing);
+        const [first] = display.actions;
+        assert(first.command.kind === "intent");
+        const sent = stepGameClient(state, {
+            at: state.now,
+            intent: first.command.intent,
+            kind: "intent",
+        });
+
+        expect(
+            display.actions.map((action) => [
+                action.label,
+                action.pressed,
+                action.rank,
+                laid(action.group),
+            ]),
+        ).toEqual([
+            ["Chi", null, "call", ["sideways 3m", "upright 2m", "upright 4m"]],
+            ["Chi", null, "call", ["sideways 3m", "upright 1m", "upright 2m"]],
+            ["Chi", true, "call", null],
+            ["Back", null, "pass", null],
+        ]);
+        expect(display.actions.slice(0, 2).map((action) => action.command)).toEqual([
+            {
+                intent: { offer: { kind: "chi", sequence: [4, 12], tileId: 8 }, type: "choose" },
+                kind: "intent",
+            },
+            {
+                intent: { offer: { kind: "chi", sequence: [0, 4], tileId: 8 }, type: "choose" },
+                kind: "intent",
+            },
+        ]);
+        expect(sent.effects).toEqual([{ message: buildChiAction(8, [4, 12], 1), type: "send" }]);
+        expect(playDisplay(sent.state, choosing).actions.map((action) => action.chosen)).toEqual([
+            true,
+            false,
+            false,
+            false,
+        ]);
+    });
+
+    it("goes back from a call's choice of tiles by Back, Escape or the call pressed again, and never into a newer wait's", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const choosing = nextPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
+        const { actions, escape } = playDisplay(state, choosing);
+        const older = { ...NO_PLAY_UI, tileChoice: { kind: "chi", waitId: 0 } } as const;
+        assert(escape !== null);
+
+        expect([escape, actions.at(-1)?.command]).toEqual([
+            { kind: "step_back" },
+            { kind: "step_back" },
+        ]);
+        expect(nextPlayUi(state, choosing, escape)).toEqual(NO_PLAY_UI);
+        expect(nextPlayUi(state, choosing, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
+        expect(playDisplay(state, older).actions.map((action) => action.label)).toEqual([
+            "Kan",
+            "Pon",
+            "Chi",
+            "Pass",
+        ]);
+        expect(playDisplay(state, NO_PLAY_UI).escape).toBeNull();
+    });
+
+    it("offers a closed kan of either of two types as one Kan, then each kan laid with its ends face down", () => {
+        const state = checkpointState("kan_choice_seat_1", "kan offer");
+        const choosing = nextPlayUi(state, NO_PLAY_UI, {
+            kind: "toggle_tile_choice",
+            offer: "kan",
+        });
+
+        expect(
+            playDisplay(state, NO_PLAY_UI).actions.map((action) => [action.label, action.pressed]),
+        ).toEqual([["Kan", false]]);
+        expect(
+            playDisplay(state, choosing).actions.map((action) => [
+                action.label,
+                laid(action.group),
+                action.command,
+            ]),
+        ).toEqual([
+            [
+                "Kan",
+                ["facedown 1m", "upright 1m", "upright 1m", "facedown 1m"],
+                {
+                    intent: {
+                        offer: { kanType: "closed", kind: "kan", tileId: 0 },
+                        type: "choose",
+                    },
+                    kind: "intent",
+                },
+            ],
+            [
+                "Kan",
+                ["facedown 9p", "upright 9p", "upright 9p", "facedown 9p"],
+                {
+                    intent: {
+                        offer: { kanType: "closed", kind: "kan", tileId: 68 },
+                        type: "choose",
+                    },
+                    kind: "intent",
+                },
+            ],
+            ["Kan", null, { kind: "toggle_tile_choice", offer: "kan" }],
+            ["Back", null, { kind: "step_back" }],
+        ]);
+    });
+
+    it("keeps an answered call's controls in place, inert, marking the one that sent the answer", () => {
+        const state = checkpointState("anchor_seat_1", "call offer");
+        const open = playDisplay(state, NO_PLAY_UI);
+        const passed = stepGameClient(state, {
+            at: state.now,
+            intent: { type: "pass" },
+            kind: "intent",
+        }).state;
+        const sent = playDisplay(passed, NO_PLAY_UI);
+
+        expect(sent.actions.map((action) => [action.label, action.chosen])).toEqual([
+            ["Pon", false],
+            ["Pass", true],
+        ]);
+        expect(sent.actions.map((action) => ({ ...action, chosen: false }))).toEqual(open.actions);
+        expect([sent.decisionStanding, sent.countdown, sent.escape]).toEqual([
+            "submitted",
+            null,
+            null,
+        ]);
+        expect(nextPlayUi(passed, NO_PLAY_UI, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
+    });
+
+    it("marks the kan a chankan offer may rob in its meld until the offer resolves", () => {
+        function sourceMelds(label: string): (number | undefined)[] {
+            const { board } = playDisplay(
+                checkpointState("chankan_robbed_seat_3", label),
+                NO_PLAY_UI,
+            );
+            return (board?.players ?? []).map((player) => player.sourceMeld);
+        }
+
+        expect(sourceMelds("chankan prompt")).toEqual([undefined, undefined, 0, undefined]);
+        expect(sourceMelds("ron chosen")).toEqual([undefined, undefined, 0, undefined]);
+        expect(sourceMelds("round end")).toEqual([undefined, undefined, undefined, undefined]);
     });
 });
 

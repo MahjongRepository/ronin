@@ -23,7 +23,7 @@ $lengths:
     core-room-h, core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, strip-len,
     foreground-top, band-top, band-bottom, corner-bottom, reach-left, reach-right, reach-top-row3,
     reach-top-left, reach-bottom-right, side-badge-top, left-badge-x, side-badge-max, full-hand-w,
-    own-start, own-hand-right;
+    own-start, own-hand-right, switches-left, switches-right;
 
 @each $name in $lengths {
     @property --#{$name} {
@@ -34,19 +34,19 @@ $lengths:
 }
 
 @mixin phone-board {
-    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+    @container game-board (height < #{$short-height}) and (aspect-ratio >= 1) {
         @content;
     }
 }
 
 @mixin desktop-board {
-    @container (height >= #{$short-height}) and (aspect-ratio >= 1) {
+    @container game-board (height >= #{$short-height}) and (aspect-ratio >= 1) {
         @content;
     }
 }
 
 @mixin upright-board {
-    @container (aspect-ratio < 1) {
+    @container game-board (aspect-ratio < 1) {
         @content;
     }
 }
@@ -54,20 +54,20 @@ $lengths:
 /* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone, upright, and on
    a desktop board too narrow for the desktop's (a tablet's or a small window's), whose geometry stays the desktop's. */
 @mixin small-chrome {
-    @container (width < #{$small-chrome-width}) or (height < #{$short-height}) {
+    @container game-board (width < #{$small-chrome-width}) or (height < #{$short-height}) {
         @content;
     }
 }
 
 /* The chrome a step larger on a large board, where the own tile passes 100px. */
 @mixin large-chrome {
-    @container (width >= #{$large-chrome-width}) and (height >= #{$large-chrome-height}) {
+    @container game-board (width >= #{$large-chrome-width}) and (height >= #{$large-chrome-height}) {
         @content;
     }
 }
 
 .game-board {
-    container-type: size;
+    container: game-board / size;
     position: relative;
     width: 100%;
     height: 100%;
@@ -97,6 +97,10 @@ $lengths:
     --core-cap: 60cqh;
     --row-edge: max(11px, var(--c) * 0.1);
     --text: 17px;
+    --switches-w: 470px;
+    --timer-w: 120px;
+    --action-min-w: 96px;
+    --win-min-w: 150px;
 
     /* The own tile, capped by what a full hand's row holds beside its badge and furiten slots. */
     --ow: min(
@@ -193,6 +197,10 @@ $lengths:
         var(--own-start) + var(--badge-slot) + var(--furiten-slot) + var(--full-hand-w)
     );
 
+    /* The play switches' slot, on the band's side away from the decisions, which never reach into it. */
+    --switches-left: var(--own-start);
+    --switches-right: calc(var(--switches-left) + var(--switches-w));
+
     /* What the stylesheets of the board's other parts count in: a river tile's sixtieth, and the own tile. */
     --board-table-unit: calc(var(--rw) / #{$tile-w});
     --board-local-tile-w: var(--ow);
@@ -206,6 +214,10 @@ $lengths:
         --counters-w: 95px;
         --dora-w: 15px;
         --text: 12px;
+        --switches-w: 232px;
+        --timer-w: 76px;
+        --action-min-w: 64px;
+        --win-min-w: 96px;
     }
 
     @include large-chrome {
@@ -216,6 +228,8 @@ $lengths:
         --counters-w: 400px;
         --dora-w: 37px;
         --text: 24px;
+        --switches-w: 560px;
+        --timer-w: 150px;
     }
 
     @include phone-board {
@@ -230,6 +244,8 @@ $lengths:
         --core-cap: 9999px;
         --core-room-band: 9999px;
         --core-top: calc(var(--core-top-slot) + var(--core-top-free));
+        --switches-left: var(--m);
+        --timer-w: 60px;
     }
 
     @include upright-board {
@@ -241,6 +257,9 @@ $lengths:
         --control-h: 40px;
         --band-gap: 8px;
         --own-cap: 10cqh;
+        --switches-left: var(--m);
+        --switches-w: 0px;
+        --timer-w: 60px;
     }
 }
 

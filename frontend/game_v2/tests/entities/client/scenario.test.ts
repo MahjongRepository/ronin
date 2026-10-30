@@ -115,6 +115,7 @@ describe("seatScenarioFromTranscript", () => {
             "double_ron_seat_1",
             "final_round_seat_1",
             "game_end_reconnect_seat_1",
+            "kan_choice_seat_1",
             "own_turn_seat_1",
             "reconnect_seat_1",
             "riichi_reconnect_seat_1",

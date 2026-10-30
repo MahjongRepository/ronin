@@ -83,6 +83,14 @@
         }
     }
 
+    /* A chankan offer's source: the whole kan, ringed in its meld like the latest discard, until the offer resolves. */
+    .meld--source {
+        border-radius: 6px;
+        outline: 2px solid var(--ronin-table-latest);
+        outline-offset: 2px;
+        box-shadow: 0 0 0 1px var(--ronin-table-latest-inner);
+    }
+
     .discard-tile-riichi {
         overflow: visible;
 

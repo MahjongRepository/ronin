@@ -13,17 +13,23 @@ import {
 } from "@/entities/table";
 import {
     type HandTile,
+    type MeldInput,
+    type MeldTile,
     type PlayableState,
     type TileFace,
     type TileSpriteStatus,
+    meldTiles,
     tile136toString,
 } from "@/entities/tile";
 import { type LoadStatus, assertNever } from "@/shared/lib";
 import {
+    CALL_TYPE,
     CLIENT_MESSAGE_TYPE,
     CLOSE_CODE,
+    type ClientMessage,
     GAME_ACTION,
     GAME_ERROR_CODE,
+    KAN_TYPE,
     SESSION_ERROR_CODE,
 } from "@/shared/protocol";
 
@@ -33,6 +39,7 @@ import {
     firstDealCountdown,
     roundConfirmCountdown,
 } from "./countdown";
+import { answerDecision } from "./decision";
 import { takesIntent } from "./dispatch";
 import {
     type Decision,
@@ -45,14 +52,20 @@ import {
     type TimedNotice,
 } from "./types";
 
+/** A call whose offers of one kind differ by their tiles (which chi, which kan), taken in two steps. */
+export type TileChoiceKind = "chi" | "kan";
+
 /**
- * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, turn the
- * round result's panel to a page, pin a nameplate (or none) for the others' score differences, ask to leave mid-game
- * or take that back, or reload the page after a failure.
+ * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
+ * a call's choice of tiles, step back from either (Back, Escape), turn the round result's panel to a page, pin a
+ * nameplate (or none) for the others' score differences, ask to leave mid-game or take that back, or reload the page
+ * after a failure.
  */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
     | { readonly kind: "toggle_riichi_pick" }
+    | { readonly kind: "toggle_tile_choice"; readonly offer: TileChoiceKind }
+    | { readonly kind: "step_back" }
     | { readonly kind: "show_result_page"; readonly page: number }
     | { readonly kind: "pin_nameplate"; readonly seat: SeatPosition | null }
     | { readonly kind: "ask_leave" }
@@ -69,8 +82,29 @@ export interface PlayAction {
 }
 
 /**
- * What the view holds beside the client state: that the player is picking riichi's discard, for the decision of
- * this wait id, so a newer decision never inherits it; the page of a round's result the player turned to, for
+ * How prominent a decision control is: a win (ron, tsumo, and kyuushu, which ends the hand too) above a call, kan or
+ * riichi, and a pass or the way back below them.
+ */
+export type ActionRank = "win" | "call" | "pass";
+
+/**
+ * A control of the open decision: a first step's one control per kind of offer, a second step's choice of tiles drawn
+ * as its meld will lie (`group`), the riichi toggle, a pass or the way back.
+ */
+export interface DecisionAction extends PlayAction {
+    readonly rank: ActionRank;
+    /** A choice of tiles at a call's second step, laid as the meld will lie; null for any other control. */
+    readonly group: readonly MeldTile[] | null;
+    /** Once the decision is answered, whether this control sent the answer; false while it is open. */
+    readonly chosen: boolean;
+}
+
+/** Where the open decision stands for its controls: open, past its deadline (still answerable), or answered. */
+export type DecisionStanding = "open" | "expired" | "submitted";
+
+/**
+ * What the view holds beside the client state: that the player is picking riichi's discard, or choosing a call's
+ * tiles, for the decision of this wait id, so a newer decision never inherits either; the page of a round's result the player turned to, for
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player asked to leave mid-game and has yet to confirm it; and where the
@@ -78,6 +112,7 @@ export interface PlayAction {
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
+    readonly tileChoice: { readonly waitId: number; readonly kind: TileChoiceKind } | null;
     readonly resultPage: { readonly round: string; readonly page: number } | null;
     readonly pinnedNameplate: SeatPosition | null;
     readonly confirmingLeave: boolean;
@@ -91,6 +126,7 @@ export const NO_PLAY_UI: PlayUi = {
     resultPage: null,
     riichiPickWaitId: null,
     standings: "loading",
+    tileChoice: null,
     tileSprite: "loading",
 };
 
@@ -138,7 +174,12 @@ export interface PlayDisplay {
     readonly firstDealSeconds: number | null;
     readonly tileAction: string;
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
-    readonly actions: readonly PlayAction[];
+    /** The open decision's controls, ranked; an answered one keeps them, showing which sent the answer. */
+    readonly actions: readonly DecisionAction[];
+    /** Where the viewer's decision stands; null with none. */
+    readonly decisionStanding: DecisionStanding | null;
+    /** What Escape does: step back from a call's choice of tiles or the riichi toggle; null with neither on. */
+    readonly escape: PlayCommand | null;
     readonly countdown: DecisionCountdown | null;
     /** The seat is furiten, shown only while a round plays, never under its result or the standings. */
     readonly furiten: boolean;
@@ -181,6 +222,7 @@ const OFFER_LABELS: Readonly<Record<Offer["kind"], string>> = {
 };
 
 const PASS: DecisionIntent = { type: "pass" };
+const BACK = "Back";
 const CONFIRM_RESULT: PlayIntent = { type: "confirm_result" };
 const SHOW_LAST_RESULT: PlayIntent = { type: "show_last_result" };
 
@@ -210,10 +252,27 @@ function submittedTileId(decision: Decision | null): number | null {
     return played ? message.ti : null;
 }
 
+/**
+ * The state as the decision stood for its answer: an answered decision reopened, so its controls are drawn as they
+ * were when the player answered, and never move under the answer.
+ */
+function asAnswered(state: GameClientState): GameClientState {
+    const { decision } = state;
+    if (decision?.status.kind !== "submitted") {
+        return state;
+    }
+    return { ...state, decision: { ...decision, status: { kind: "open" } } };
+}
+
+/** The offers the client would answer now, in the order the server listed them. */
+function takenOffers(state: GameClientState): Offer[] {
+    const offers = state.decision?.offers ?? [];
+    return offers.filter((offer) => takesIntent(state, choose(offer)));
+}
+
 /** The riichi offers the client would answer now: what the riichi toggle picks from. */
 function takenRiichiOffers(state: GameClientState): Offer[] {
-    const offers = state.decision?.offers ?? [];
-    return offers.filter((offer) => offer.kind === "riichi" && takesIntent(state, choose(offer)));
+    return takenOffers(state).filter((offer) => offer.kind === "riichi");
 }
 
 /** Whether the player is picking riichi's discard: toggled for this decision, which still takes a riichi. */
@@ -226,6 +285,21 @@ function pickingRiichi(state: GameClientState, ui: PlayUi): boolean {
     );
 }
 
+function isTileChoiceKind(kind: Offer["kind"]): kind is TileChoiceKind {
+    return kind === "chi" || kind === "kan";
+}
+
+/** The kind of call whose tiles the player is choosing: toggled for this decision, which still takes two of it. */
+function choosingTiles(state: GameClientState, ui: PlayUi): TileChoiceKind | null {
+    const { decision } = state;
+    const choice = ui.tileChoice;
+    if (decision === null || choice === null || decision.waitId !== choice.waitId) {
+        return null;
+    }
+    const choices = takenOffers(state).filter((offer) => offer.kind === choice.kind);
+    return choices.length > 1 ? choice.kind : null;
+}
+
 /** The intent a tap on `tileId` asks for: riichi with it while riichi's discard is picked, else its discard. */
 function tileIntent(tileId: number, picking: boolean): DecisionIntent {
     return picking ? choose({ kind: "riichi", tileId }) : { tileId, type: "discard" };
@@ -233,8 +307,9 @@ function tileIntent(tileId: number, picking: boolean): DecisionIntent {
 
 /**
  * How each of the viewer's tiles plays, by asking the dispatcher whether it takes the tile's intent: selectable
- * when it does; on an open turn, disabled when it does not (kuikae, riichi, or not riichi's while picking it); the
- * tile an answer played, selected; any other moment, waiting. Every tile stays a button, so focus stays in the hand.
+ * when it does (declaring, while riichi's discard is picked); on an open turn, disabled when it does not (kuikae,
+ * riichi, or not riichi's while picking it); the tile an answer played, selected; any other moment, waiting. Every
+ * tile stays a button, so focus stays in the hand.
  */
 function tilePlays(
     state: GameClientState,
@@ -248,7 +323,7 @@ function tilePlays(
         viewer.tiles.map((tileId): [number, TilePlay] => {
             const intent = tileIntent(tileId, picking);
             if (takesIntent(state, intent)) {
-                return [tileId, { intent, state: "selectable" }];
+                return [tileId, { intent, state: picking ? "declaring" : "selectable" }];
             }
             const waiting: PlayableState = openTurn ? "disabled" : "waiting";
             return [tileId, { intent: null, state: tileId === played ? "selected" : waiting }];
@@ -297,41 +372,191 @@ function offerTiles(offer: Offer): TileFace[] {
     }
 }
 
-function offerAction(offer: Offer): PlayAction {
-    const label = OFFER_LABELS[offer.kind];
-    return {
+const WIN_KINDS: ReadonlySet<Offer["kind"]> = new Set(["ron", "tsumo", "kyuushu"]);
+const COPIES = [0, 1, 2, 3] as const;
+
+type ControlFields = Pick<DecisionAction, "label" | "command" | "rank"> &
+    Partial<Pick<DecisionAction, "group" | "pressed" | "tiles">>;
+
+function control(fields: ControlFields): DecisionAction {
+    return { chosen: false, group: null, pressed: null, tiles: [], ...fields };
+}
+
+function offerAction(offer: Offer): DecisionAction {
+    return control({
         command: intentCommand(choose(offer)),
-        label,
-        pressed: null,
+        label: OFFER_LABELS[offer.kind],
+        rank: WIN_KINDS.has(offer.kind) ? "win" : "call",
         tiles: offerTiles(offer),
-    };
+    });
+}
+
+/** Every copy of a tile's type: a kan's four tiles. */
+function typeCopies(tileId: number): number[] {
+    const type = Math.floor(tileId / 4);
+    return COPIES.map((copy) => type * 4 + copy);
+}
+
+/** An added kan laid as it will lie: the pon it adds to, with the added tile stacked on its called one. */
+function addedKanGroup(state: GameClientState, tileId: number): MeldTile[] | null {
+    const { table, viewerSeat } = state;
+    const copies = typeCopies(tileId);
+    const viewer = table.players.find((player) => player.seat === viewerSeat);
+    const pon = viewer?.melds.find(
+        (meld) => meld.meldType === "pon" && meld.tileIds.some((id) => copies.includes(id)),
+    );
+    if (pon === undefined) {
+        return null;
+    }
+    const tileIds = [...pon.tileIds, tileId];
+    return meldTiles({ ...pon, addedTileId: tileId, meldType: "added_kan", tileIds });
 }
 
 /**
- * The open decision's buttons, each one the dispatcher would answer now: riichi first, as one toggle that picks its
- * discard from the hand, then the other offers in the order the server listed them, then a pass. An answered
- * decision takes nothing, so it shows none.
+ * A chi's or kan's tiles laid as its meld will lie: a chi's called tile turned toward its feeder, a closed kan's ends
+ * face down, an added kan's added tile stacked on its pon's called one, an open kan's called tile turned.
  */
-function decisionActions(state: GameClientState, picking: boolean): PlayAction[] {
-    const offers = state.decision?.offers ?? [];
-    const riichi: PlayAction[] =
-        takenRiichiOffers(state).length > 0
-            ? [
-                  {
-                      command: { kind: "toggle_riichi_pick" },
-                      label: OFFER_LABELS.riichi,
-                      pressed: picking,
-                      tiles: [],
-                  },
-              ]
-            : [];
-    const offered = offers
-        .filter((offer) => offer.kind !== "riichi" && takesIntent(state, choose(offer)))
-        .map(offerAction);
-    const pass: PlayAction[] = takesIntent(state, PASS)
-        ? [{ command: intentCommand(PASS), label: "Pass", pressed: null, tiles: [] }]
-        : [];
-    return [...riichi, ...offered, ...pass];
+function offerGroup(
+    state: GameClientState,
+    offer: Extract<Offer, { kind: TileChoiceKind }>,
+): MeldTile[] {
+    const { decision, viewerSeat } = state;
+    if (viewerSeat === null) {
+        throw new Error("a choice of tiles needs the viewer's seat, which every decision has");
+    }
+    const seats = {
+        callerSeat: viewerSeat,
+        fromSeat: decision?.kind === "call" ? decision.fromSeat : null,
+    };
+    if (offer.kind === "chi") {
+        const tileIds = [offer.tileId, ...offer.sequence];
+        return meldTiles({ ...seats, calledTileId: offer.tileId, meldType: "chi", tileIds });
+    }
+    return kanGroup(state, offer, seats);
+}
+
+/** A kan laid as it will lie: an open one's called tile turned, an added one stacked, a closed one's ends face down. */
+function kanGroup(
+    state: GameClientState,
+    offer: Extract<Offer, { kind: "kan" }>,
+    seats: Pick<MeldInput, "callerSeat" | "fromSeat">,
+): MeldTile[] {
+    const tileIds = typeCopies(offer.tileId);
+    if (offer.kanType === KAN_TYPE.OPEN) {
+        return meldTiles({ ...seats, calledTileId: offer.tileId, meldType: "open_kan", tileIds });
+    }
+    const added = offer.kanType === KAN_TYPE.ADDED ? addedKanGroup(state, offer.tileId) : null;
+    const closed = { calledTileId: null, callerSeat: seats.callerSeat, fromSeat: null } as const;
+    return added ?? meldTiles({ ...closed, meldType: "closed_kan", tileIds });
+}
+
+/**
+ * A call's second step: one choice per tile group the dispatcher takes, drawn as the meld will lie; then the call's own
+ * control, pressed, which steps back when pressed again and so stays where the first step had it, last before the
+ * band; and Back in the place of Pass.
+ */
+function tileChoiceActions(
+    state: GameClientState,
+    kind: TileChoiceKind,
+    offers: readonly Offer[],
+): DecisionAction[] {
+    const label = OFFER_LABELS[kind];
+    const choices = offers.flatMap((offer): DecisionAction[] => {
+        if (offer.kind !== kind || (offer.kind !== "chi" && offer.kind !== "kan")) {
+            return [];
+        }
+        const command = intentCommand(choose(offer));
+        const group = offerGroup(state, offer);
+        return [control({ command, group, label, rank: "call", tiles: offerTiles(offer) })];
+    });
+    const toggle: PlayCommand = { kind: "toggle_tile_choice", offer: kind };
+    return [
+        ...choices,
+        control({ command: toggle, label, pressed: true, rank: "call" }),
+        control({ command: { kind: "step_back" }, label: BACK, rank: "pass" }),
+    ];
+}
+
+/**
+ * A decision's first step: the wins first, then riichi as one toggle that picks its discard from the hand, then one
+ * control per other kind of offer in the order the server listed them (a kind with a choice of tiles opens its second
+ * step), then a pass.
+ */
+function firstStepActions(
+    state: GameClientState,
+    offers: readonly Offer[],
+    picking: boolean,
+): DecisionAction[] {
+    const wins = offers.filter((offer) => WIN_KINDS.has(offer.kind)).map(offerAction);
+    const riichiToggle = control({
+        command: { kind: "toggle_riichi_pick" },
+        label: OFFER_LABELS.riichi,
+        pressed: picking,
+        rank: "call",
+    });
+    const riichi = offers.some((offer) => offer.kind === "riichi") ? [riichiToggle] : [];
+    const calls = offers.filter((offer) => !WIN_KINDS.has(offer.kind) && offer.kind !== "riichi");
+    const kinds = [...new Set(calls.map((offer) => offer.kind))];
+    const perKind = kinds.flatMap((kind): DecisionAction[] => {
+        const ofKind = calls.filter((offer) => offer.kind === kind);
+        if (ofKind.length === 1 || !isTileChoiceKind(kind)) {
+            return ofKind.map(offerAction);
+        }
+        const command: PlayCommand = { kind: "toggle_tile_choice", offer: kind };
+        return [control({ command, label: OFFER_LABELS[kind], pressed: false, rank: "call" })];
+    });
+    const passControl = control({ command: intentCommand(PASS), label: "Pass", rank: "pass" });
+    const pass = takesIntent(state, PASS) ? [passControl] : [];
+    return [...wins, ...riichi, ...perKind, ...pass];
+}
+
+/** Whether pressing `candidate` sends what the answered decision sent. */
+function sentBy(state: GameClientState, candidate: DecisionAction, sent: ClientMessage): boolean {
+    const { decision, table, viewerSeat } = state;
+    if (decision === null || candidate.command.kind !== "intent") {
+        return false;
+    }
+    const { intent } = candidate.command;
+    if (intent.type !== "choose" && intent.type !== "pass" && intent.type !== "discard") {
+        return false;
+    }
+    const viewer = table.players.find((player) => player.seat === viewerSeat);
+    return JSON.stringify(answerDecision(decision, intent, viewer)) === JSON.stringify(sent);
+}
+
+/**
+ * The decision's controls, each one the dispatcher would answer now: the first step, or the second while the player
+ * chooses a call's tiles. An answered decision keeps the controls it was answered from, marking the one that sent the
+ * answer, so nothing moves while the server answers.
+ */
+function decisionActions(state: GameClientState, ui: PlayUi): DecisionAction[] {
+    const answered = asAnswered(state);
+    const offers = takenOffers(answered);
+    const choosing = choosingTiles(answered, ui);
+    const controls =
+        choosing === null
+            ? firstStepActions(answered, offers, pickingRiichi(answered, ui))
+            : tileChoiceActions(answered, choosing, offers);
+    const status = state.decision?.status;
+    if (status?.kind !== "submitted") {
+        return controls;
+    }
+    return controls.map((candidate) =>
+        answeredBy(candidate, sentBy(answered, candidate, status.message)),
+    );
+}
+
+function answeredBy(candidate: DecisionAction, chosen: boolean): DecisionAction {
+    return { ...candidate, chosen };
+}
+
+/** What Escape steps back from: a call's choice of tiles, else the riichi toggle; neither once answered. */
+function escapeCommand(state: GameClientState, ui: PlayUi): PlayCommand | null {
+    if (state.decision?.status.kind === "submitted") {
+        return null;
+    }
+    const stepping = choosingTiles(state, ui) !== null || pickingRiichi(state, ui);
+    return stepping ? { kind: "step_back" } : null;
 }
 
 function intentsOf(plays: ReadonlyMap<number, TilePlay>): ReadonlyMap<number, LocalIntent> {
@@ -340,6 +565,29 @@ function intentsOf(plays: ReadonlyMap<number, TilePlay>): ReadonlyMap<number, Lo
             play.intent === null ? [] : [[tileId, play.intent]],
         ),
     );
+}
+
+/**
+ * A chankan offer's source, the kan it may rob, as the declarer's board position and the meld's index (oldest first);
+ * null for any other decision, so the mark goes once the offer resolves.
+ */
+function kanSource(state: GameClientState): { position: number; meld: number } | null {
+    const { decision, table, viewerSeat } = state;
+    if (
+        decision?.kind !== "call" ||
+        decision.callType !== CALL_TYPE.CHANKAN ||
+        viewerSeat === null
+    ) {
+        return null;
+    }
+    const declarer = table.players.find((player) => player.seat === decision.fromSeat);
+    const meld =
+        declarer?.melds.findIndex(
+            (candidate) =>
+                candidate.tileIds.includes(decision.tileId) ||
+                candidate.addedTileId === decision.tileId,
+        ) ?? -1;
+    return meld === -1 ? null : { meld, position: (decision.fromSeat - viewerSeat + 4) % 4 };
 }
 
 function viewerBoard(
@@ -355,7 +603,30 @@ function viewerBoard(
         return null;
     }
     const [bottom, right, top, left] = board.players;
-    return { ...board, players: [playHand(bottom, plays), right, top, left] };
+    const players: BoardDisplayState["players"] = [playHand(bottom, plays), right, top, left];
+    return { ...board, players: markSource(players, kanSource(state)) };
+}
+
+function withSource(player: BoardPlayerDisplay, meld: number): BoardPlayerDisplay {
+    return { ...player, sourceMeld: meld };
+}
+
+/** The players with the kan a chankan offer may rob marked in its declarer's melds; as they were with none. */
+function markSource(
+    players: BoardDisplayState["players"],
+    source: { position: number; meld: number } | null,
+): BoardDisplayState["players"] {
+    if (source === null) {
+        return players;
+    }
+    const [bottom, right, top, left] = players.map((player, position) =>
+        position === source.position ? withSource(player, source.meld) : player,
+    );
+    return [bottom, right, top, left];
+}
+
+function decisionStanding(state: GameClientState): DecisionStanding | null {
+    return state.decision?.status.kind ?? null;
 }
 
 /**
@@ -668,10 +939,12 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
     const resultPage = shownResultPage(table, ui);
     const failure = failureDisplay(state.session);
     return {
-        actions: decisionActions(state, picking),
+        actions: decisionActions(state, ui),
         board: viewerBoard(state, plays),
         callouts: liveCallouts(state),
         countdown: decisionCountdown(state),
+        decisionStanding: decisionStanding(state),
+        escape: escapeCommand(state, ui),
         failure,
         firstDealSeconds: firstDealCountdown(state),
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
@@ -688,15 +961,69 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
     };
 }
 
+/** Whether the open decision was answered, so its steps stay as they were while the server answers. */
+function answeredDecision(state: GameClientState): boolean {
+    return state.decision?.status.kind === "submitted";
+}
+
+/** Picking riichi's discard turned on (for the open decision, closing a choice of tiles) or off. */
+function toggledRiichiPick(state: GameClientState, ui: PlayUi): PlayUi {
+    if (answeredDecision(state)) {
+        return ui;
+    }
+    const waitId = state.decision?.waitId ?? null;
+    const riichiPickWaitId = pickingRiichi(state, ui) ? null : waitId;
+    return { ...ui, riichiPickWaitId, tileChoice: null };
+}
+
+/** A call's choice of tiles opened (for the open decision, turning the riichi pick off) or closed. */
+function toggledTileChoice(state: GameClientState, ui: PlayUi, kind: TileChoiceKind): PlayUi {
+    const { decision } = state;
+    if (decision === null || answeredDecision(state)) {
+        return ui;
+    }
+    const tileChoice = choosingTiles(state, ui) === kind ? null : { kind, waitId: decision.waitId };
+    return { ...ui, riichiPickWaitId: null, tileChoice };
+}
+
+/** The view's `ui` after one of the open decision's steps: the riichi toggle, a call's choice of tiles, a step back. */
+function steppedDecision(
+    state: GameClientState,
+    ui: PlayUi,
+    command: Extract<
+        PlayCommand,
+        { kind: "toggle_riichi_pick" | "toggle_tile_choice" | "step_back" }
+    >,
+): PlayUi {
+    if (command.kind === "toggle_riichi_pick") {
+        return toggledRiichiPick(state, ui);
+    }
+    return command.kind === "toggle_tile_choice"
+        ? toggledTileChoice(state, ui, command.offer)
+        : steppedBack(state, ui);
+}
+
+/** One step back: out of a call's choice of tiles, else the riichi pick off. */
+function steppedBack(state: GameClientState, ui: PlayUi): PlayUi {
+    if (answeredDecision(state)) {
+        return ui;
+    }
+    if (choosingTiles(state, ui) !== null) {
+        return { ...ui, tileChoice: null };
+    }
+    return { ...ui, riichiPickWaitId: null };
+}
+
 /** The game's last result reopens on its first page; any other intent leaves the view's `ui` as it was. */
 function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
     return intent.type === "show_last_result" ? { ...ui, resultPage: null } : ui;
 }
 
 /**
- * The view's `ui` after a command: picking riichi's discard turns on or off for the open decision; the result's panel
- * turns to a page of the result showing, and the game's last result reopens on its first; a nameplate is pinned, or
- * none.
+ * The view's `ui` after a command: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
+ * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
+ * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
+ * result reopens on its first; a nameplate is pinned, or none.
  */
 export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
@@ -710,9 +1037,10 @@ export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayComm
         case "cancel_leave": {
             return { ...ui, confirmingLeave: false };
         }
-        case "toggle_riichi_pick": {
-            const waitId = state.decision?.waitId ?? null;
-            return { ...ui, riichiPickWaitId: pickingRiichi(state, ui) ? null : waitId };
+        case "toggle_riichi_pick":
+        case "toggle_tile_choice":
+        case "step_back": {
+            return steppedDecision(state, ui, command);
         }
         case "show_result_page": {
             const round = resultRound(state.table);

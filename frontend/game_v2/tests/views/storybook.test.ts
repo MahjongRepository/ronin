@@ -114,7 +114,7 @@ describe("mountStorybookDecisions", () => {
         mountStorybookDecisions(host);
 
         const pressed = host.querySelector('.decision-controls__action[aria-pressed="true"]');
-        const tiles = host.querySelectorAll(".board-local button.hand-tile--selectable");
+        const tiles = host.querySelectorAll(".board-local button.hand-tile--declaring");
         tiles[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         const sent = host.querySelector(".decisions-storybook__sent")?.textContent ?? "";
 

@@ -1,6 +1,14 @@
 import { type TemplateResult, html, render } from "lit-html";
 
 import {
+    type ActionRank,
+    type DecisionAction,
+    DecisionControls,
+    type DecisionView,
+    type Offer,
+    type PlayCommand,
+} from "@/entities/client";
+import {
     type BoardCallouts,
     type BoardCenterInfo,
     type BoardDisplayState,
@@ -27,6 +35,7 @@ import {
     type HandTile,
     type MeldInput,
     type MeldTile,
+    type TileFace,
     meldTiles,
 } from "@/entities/tile";
 import { browserClock } from "@/shared/clock";
@@ -49,12 +58,13 @@ const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
  * all at once (every seat with four melds, long rivers, five dora, AI marks). A board the scenarios reach is a
  * decisions story instead.
  */
-const BOARD_STORIES = ["full_rivers", "worst"] as const;
+const BOARD_STORIES = ["full_rivers", "worst", "riichi_latest"] as const;
 
 type BoardStory = (typeof BOARD_STORIES)[number];
 
 const BOARD_STORY_LABELS: Readonly<Record<BoardStory, string>> = {
     full_rivers: "Full rivers",
+    riichi_latest: "Riichi just discarded",
     worst: "Worst case",
 };
 
@@ -73,6 +83,8 @@ interface BoardStoryState {
     readonly story: BoardStory;
     readonly result: ResultStory;
     readonly page: number;
+    /** The most controls one discard can offer, over the board, kept in the page's `?offers=`. */
+    readonly offers: boolean;
 }
 
 const DEFAULT_RESULT: ResultStory = "tsumo";
@@ -104,6 +116,73 @@ function storyCallouts(kind: CalloutKind | null): BoardCallouts | null {
     }
     const calls = SEAT_POSITIONS.map((_position, seat) => ({ kind, seat }));
     return { items: boardCallouts(calls, 0), key: kind };
+}
+
+function parseOffersParam(search: string): boolean {
+    return new URLSearchParams(search).get("offers") === "five";
+}
+
+/** A control of the story's offers: what it answers with and how it ranks, its label and preview faces. */
+interface StoryOffer {
+    readonly command: PlayCommand;
+    readonly rank: ActionRank;
+    readonly label: string;
+    readonly tiles?: readonly TileFace[];
+    readonly pressed?: boolean;
+}
+
+function storyControl({ command, label, pressed, rank, tiles }: StoryOffer): DecisionAction {
+    return {
+        chosen: false,
+        command,
+        group: null,
+        label,
+        pressed: pressed ?? null,
+        rank,
+        tiles: tiles ?? [],
+    };
+}
+
+function choosing(offer: Offer): PlayCommand {
+    return { intent: { offer, type: "choose" }, kind: "intent" };
+}
+
+/** A played board's hand input, so a board with offers keeps a played board's row (its furiten slot included). */
+const PLAYED_HAND = { onTile: () => {}, tileAction: "Discard" } as const;
+
+/** A discarded 3m's offers: a win, a kan and a pon of it, a chi with a choice of tiles, and a pass. */
+function fiveOffers(): DecisionView {
+    const tileId = 8;
+    return {
+        actions: [
+            storyControl({ command: choosing({ kind: "ron" }), label: "Ron", rank: "win" }),
+            storyControl({
+                command: choosing({ kanType: "open", kind: "kan", tileId }),
+                label: "Kan",
+                rank: "call",
+                tiles: ["3m"],
+            }),
+            storyControl({
+                command: choosing({ kind: "pon", tileId }),
+                label: "Pon",
+                rank: "call",
+                tiles: ["3m"],
+            }),
+            storyControl({
+                command: { kind: "toggle_tile_choice", offer: "chi" },
+                label: "Chi",
+                pressed: false,
+                rank: "call",
+            }),
+            storyControl({
+                command: { intent: { type: "pass" }, kind: "intent" },
+                label: "Pass",
+                rank: "pass",
+            }),
+        ],
+        countdown: { kind: "running", move: "call", secondsLeft: 5, turn: null },
+        decisionStanding: "open",
+    };
 }
 
 function parsePinParam(search: string): SeatPosition | null {
@@ -357,6 +436,12 @@ const longRiver: DiscardTile[] = [
 /** The long river with its last tile the table's latest discard, which only one seat's river holds. */
 const latestRiver: DiscardTile[] = [...longRiver.slice(0, -1), { face: "4z", last: true }];
 
+/** Nine discards, the ninth the table's latest, laid sideways for riichi: a call's chip must lie off its row. */
+const riichiLatestRiver: DiscardTile[] = [
+    ...fullRiver.slice(0, 8),
+    { face: "6s", last: true, riichi: true },
+];
+
 /** Four melds for `seat`, the widest kinds: a closed, an open and an added kan, then a pon. */
 function fourMelds(seat: number): MeldInput[] {
     return [
@@ -410,6 +495,16 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
             withRiver(rightPlayer, thirteenFaces),
             withRiver(topPlayer, thirteenFaces),
             withRiver(leftPlayer, thirteenFaces),
+        ],
+    },
+    riichi_latest: {
+        center: mockCenter,
+        nameplates: riverPlates,
+        players: [
+            { ...bottomPlayer, discards: riichiLatestRiver, hand: thirteenFaces, melds: [] },
+            { ...rightPlayer, discards: fullRiver.slice(0, 9), hand: thirteenFaces, melds: [] },
+            { ...topPlayer, discards: fullRiver.slice(0, 9), hand: thirteenFaces, melds: [] },
+            { ...leftPlayer, discards: fullRiver.slice(0, 9), hand: thirteenFaces, melds: [] },
         ],
     },
     worst: {
@@ -581,8 +676,10 @@ function storybookBoardTemplate(
         <div class="board-page board-storybook">
             <div class="board-page__board">
                 ${GameBoard({
+                    actions: story.offers ? DecisionControls(fiveOffers(), () => {}) : undefined,
                     callouts: storyCallouts(story.callout),
                     debug: story.debug,
+                    localHand: story.offers ? PLAYED_HAND : undefined,
                     overlay: buildOverlay(story, handlers, standings),
                     scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
                     state,
@@ -661,6 +758,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     let story: BoardStoryState = {
         callout: parseCalloutParam(window.location.search),
         debug: false,
+        offers: parseOffersParam(window.location.search),
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
         pinned: parsePinParam(window.location.search),

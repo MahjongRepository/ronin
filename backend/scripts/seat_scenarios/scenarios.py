@@ -68,6 +68,42 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
         return game.transcripts("call_prompt", PLAYER)
 
 
+def kan_choice() -> tuple[SeatTranscript, ...]:
+    """
+    Deal Alice (seat 1) four 1m and three 9p, then draw her the fourth 9p: her turn offers a closed kan of either.
+
+    She declares the kan of 9p and draws its rinshan tile.
+    """
+    staged = StagedWall(
+        hands=(
+            tile_copies(1, man="2345678", pin="12", sou="1346"),
+            (
+                *(tile(copy, man="1") for copy in range(4)),
+                *(tile(copy, pin="9") for copy in range(3)),
+                *tile_copies(0, pin="246", sou="258"),
+            ),
+            tile_copies(2, man="2345678", pin="12", sou="1346"),
+            tile_copies(3, man="2345678", pin="12", sou="1346"),
+        ),
+        draws=(
+            (0, tile(0, honors="1")),
+            (1, tile(3, pin="9")),
+        ),
+        rinshan=(tile(0, honors="4"),),
+    )
+
+    with seated_game("seat-kan-choice", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("dealt", WireEventType.ROUND_STARTED)
+        alice.label("kan offer", WireEventType.DRAW)
+        alice.kan(tile(0, pin="9"), KanType.CLOSED, at=5, label="kan chosen")
+        alice.label("rinshan", WireEventType.DRAW)
+
+        return game.transcripts("kan_choice", PLAYER)
+
+
 def _own_turn_wall() -> StagedWall:
     """
     Deal Alice (seat 1) three 1m, a ready shape waiting on 6s or 9s once a 1m goes, and draw her the fourth 1m; seat 2
@@ -622,6 +658,7 @@ def anchor() -> tuple[SeatTranscript, ...]:
 
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
+    "kan_choice": kan_choice,
     "own_turn": own_turn,
     "bank_reconnect": bank_reconnect,
     "reconnect": reconnect,

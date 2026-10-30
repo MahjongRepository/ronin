@@ -24,9 +24,12 @@ function MeldTileView(tile: MeldTile): TemplateResult {
     }
 }
 
-/** Render a meld from its laid tiles (`meldTiles` lays a recorded meld out), faces like a hand's and a river's. */
-function Meld(tiles: readonly MeldTile[]): TemplateResult {
-    return html`<span class="meld">${tiles.map(MeldTileView)}</span>`;
+/**
+ * Render a meld from its laid tiles (`meldTiles` lays a recorded meld out), faces like a hand's and a river's; a meld an
+ * offer refers to (a kan a chankan may rob) is marked as the offer's source.
+ */
+function Meld(tiles: readonly MeldTile[], source = false): TemplateResult {
+    return html`<span class="meld ${source ? "meld--source" : ""}">${tiles.map(MeldTileView)}</span>`;
 }
 
 export { Meld };

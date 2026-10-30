@@ -1,5 +1,5 @@
 import { html, render } from "lit-html";
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { type BoardCallouts, type SeatPosition } from "@/entities/table/model/board-types";
@@ -8,6 +8,7 @@ import {
     createInitialTableState,
 } from "@/entities/table/model/initial-state";
 import { GameBoard } from "@/entities/table/ui/game-board";
+import { type DiscardTile } from "@/entities/tile";
 
 function renderBoard(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement {
     const players = [0, 1, 2, 3].map((seat) => ({
@@ -43,6 +44,10 @@ function press(host: HTMLElement, selector: string, init: KeyboardEventInit | nu
             ? new MouseEvent("click", { bubbles: true })
             : new KeyboardEvent("keydown", { bubbles: true, ...init }),
     );
+}
+
+function escapeKey(): KeyboardEvent {
+    return new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" });
 }
 
 function texts(host: HTMLElement, selector: string): (string | undefined)[] {
@@ -104,6 +109,27 @@ describe("GameBoard nameplates", () => {
         expect(onPin.mock.calls).toEqual([[null], [null]]);
     });
 
+    it("spends one Escape on one step: a pinned plate's unpinning first, and never an Escape a panel already took", () => {
+        const onPin = vi.fn();
+        const onEscape = vi.fn();
+        function renderWith(pinned: SeatPosition | null): HTMLElement {
+            const host = document.createElement("div");
+            render(
+                GameBoard({ debug: false, onEscape, scoreDiff: { onPin, pinned }, state: null }),
+                host,
+            );
+            return host;
+        }
+        renderWith("left").querySelector(".board-center")?.dispatchEvent(escapeKey());
+        const taken = escapeKey();
+        taken.preventDefault();
+        const free = renderWith(null);
+        free.querySelector(".board-center")?.dispatchEvent(taken);
+        free.querySelector(".board-center")?.dispatchEvent(escapeKey());
+
+        expect([onPin.mock.calls, onEscape.mock.calls.length]).toEqual([[[null]], 1]);
+    });
+
     it("asks nothing on a click elsewhere or Escape while no plate is pinned", () => {
         const onPin = vi.fn();
         const host = renderBoard(null, onPin);
@@ -159,5 +185,64 @@ describe("GameBoard callouts", () => {
         expect(first?.classList.contains("board-callout--top")).toBe(true);
         expect(redrawn).toBe(first);
         expect(host.querySelector(".board-callout")).not.toBe(first);
+    });
+
+    it("lays each call's chip over its caller's river clear of the latest discard", () => {
+        const table = {
+            ...createInitialTableState(),
+            players: [0, 1, 2, 3].map((seat) =>
+                createInitialPlayerState({
+                    isAiPlayer: false,
+                    name: `P${seat}`,
+                    score: 25_000,
+                    seat,
+                }),
+            ),
+        };
+        const board = tableStateToDisplayState(table, { bottomSeat: 0, reveal: "bottom" });
+        assert(board !== null);
+        function river(length: number): DiscardTile[] {
+            return Array.from({ length }, (_unused, index) => ({
+                face: "1m",
+                last: index === length - 1,
+            }));
+        }
+        const [bottom, right, top, left] = board.players;
+        const state = {
+            ...board,
+            players: [
+                { ...bottom, discards: river(9) },
+                { ...right, discards: river(3) },
+                top,
+                left,
+            ] as const,
+        };
+        const host = document.createElement("div");
+        render(
+            GameBoard({
+                callouts: {
+                    items: [
+                        { kind: "pon", label: "Pon", position: "bottom" },
+                        { kind: "chi", label: "Chi", position: "right" },
+                        { kind: "kan", label: "Kan", position: "top" },
+                    ],
+                    key: "call-4",
+                },
+                debug: false,
+                scoreDiff: { onPin: vi.fn(), pinned: null },
+                state,
+            }),
+            host,
+        );
+
+        expect(
+            [...host.querySelectorAll<HTMLElement>(".board-callout")].map((chip) =>
+                chip.getAttribute("style"),
+            ),
+        ).toEqual([
+            "--spot-along: 3; --spot-across: 0.5",
+            "--spot-along: 1; --spot-across: 2",
+            "--spot-along: 3; --spot-across: 2.5",
+        ]);
     });
 });
