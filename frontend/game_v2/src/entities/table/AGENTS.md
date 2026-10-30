@@ -118,11 +118,9 @@ replay view, the live game and the storybook read the tables it produces.
   claimed has left the river for the meld that took it; a riichi declaration's discard lies sideways, or
   when called, the declarer's next discard left in the river; the table's latest discard
   (`lastDiscardSeat`: set by a discard, cleared by a call that claims it (chi, pon, open kan) and a new
-  deal, kept through a draw and a kan from the hand, which claims none) is marked. A reconnect's snapshot
-  names it where it shows it: the seat in turn holding 3n+1 tiles with a river is the discarder (the
-  server keeps the turn on it while its discard is offered); holding 3n+2 it drew after its left
-  neighbour's discard, unless one of its calls took a tile that still lies last in its feeder's river (it
-  called just now); a call that old a snapshot cannot tell from one just made shows none, never a guess. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer,
+  deal, kept through a draw and a kan from the hand, which claims none) is marked. A reconnect takes it
+  from the snapshot (`ld`), which the server derives from the round's own discard history and leaves out
+  when there is none or a call claimed it; the client never infers it. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer,
   turn (only while a round plays), riichi and AI marks, and its signed difference from every other seat's
   score; the plate shows the name and marks, the centre each seat's wind, score and riichi stick on its
   side, and the board shows the differences from a hovered or pinned plate there by stylesheet alone.

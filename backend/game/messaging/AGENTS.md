@@ -31,7 +31,10 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   snapshot taken during a round advance shows the round that ended: its dealer, wind, round number
   and honba with its tiles, the scores and riichi sticks its result left, that result (`re`) in the
   round end's shape, and whether the seat still owes its confirmation (`oc`), with how long that
-  wait's timer has run (`el`) when it does. The snapshot gives
+  wait's timer has run (`el`) when it does. The snapshot names the seat of the round's latest
+  discard (`ld`, from the engine's ordered discard history), which lies last in that seat's river and
+  is kept through draws, kans from the hand and a pending result; it is absent, never null, before the
+  round's first discard and once a call claimed that discard, never naming an earlier one. The snapshot gives
   each seat's closed-hand size, since a client sees other hands face down and never sees their
   tiles. A participant's seat changing hands goes to the others as `seat_control`, by seat and
   shaped like the replay's seat control line, ahead of the moves that follow; the snapshot marks a

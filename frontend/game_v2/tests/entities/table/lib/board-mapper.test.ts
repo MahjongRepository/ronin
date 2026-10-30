@@ -390,11 +390,18 @@ describe("tableStateToDisplayState last discard", () => {
         ]);
     });
 
-    test("marks after a reconnect the discard a call prompt offers, and the left seat's discard at a re-sent draw and a chankan prompt", () => {
-        const marks = ["reconnect_seat_1", "own_turn_seat_1", "chankan_passed_seat_3"].map((name) =>
-            marked(checkpointState(name, "reconnected").table),
-        );
-        expect(marks).toEqual([["0:0 5z"], ["0:0 2z"], ["0:0 7z"]]);
+    test("marks after a reconnect the latest discard the snapshot names: in a call prompt, at a draw, in a chankan window and under a pending result, kept through the re-sent draw", () => {
+        const marks = [
+            "reconnect_seat_1",
+            "own_turn_seat_1",
+            "chankan_passed_seat_3",
+            "chankan_robbed_seat_1",
+            "riichi_reconnect_seat_1",
+        ].map((name) => marked(checkpointState(name, "reconnected").table));
+        expect(marks).toEqual([["0:0 5z"], ["0:0 2z"], ["0:0 7z"], ["0:1 7z"], ["2:0 6s"]]);
+        expect(marked(checkpointState("own_turn_seat_1", "draw re-sent").table)).toEqual([
+            "0:0 2z",
+        ]);
     });
 });
 

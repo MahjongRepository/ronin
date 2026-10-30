@@ -58,51 +58,6 @@ function snapshotPlayer(
     };
 }
 
-const SEATS = 4;
-
-/** Whether one of the seat's calls took a tile that still lies last in its feeder's river: nobody discarded since. */
-function calledJustNow(snapshot: GameReconnectedEvent, seat: SnapshotSeat): boolean {
-    return seat.melds.map(decodeMeldCompact).some((meld) => {
-        const feeder = snapshot.playerStates.find((state) => state.seat === meld.fromSeat);
-        return meld.calledTileId !== null && feeder?.discards.at(-1)?.tileId === meld.calledTileId;
-    });
-}
-
-/**
- * The seat whose discard is the snapshot's latest, where the snapshot shows it. The seat in turn holding 3n+1 tiles
- * with a river is the discarder: the server keeps the turn on it while its discard is offered. Holding 3n+2, it drew
- * after its left neighbour's discard (a kan from its own hand claims none), unless it called just now, which took that
- * discard; a call it may have made earlier is told apart from that only when its feeder discarded since, so a seat
- * that cannot be told shows none rather than a guess.
- */
-function snapshotLastDiscardSeat(
-    snapshot: GameReconnectedEvent,
-    claimed: ReadonlySet<string>,
-): number | null {
-    const seat = snapshot.playerStates.find((state) => state.seat === snapshot.currentPlayerSeat);
-    if (seat === undefined) {
-        return null;
-    }
-    if (seat.tileCount % 3 === 1) {
-        return seat.discards.length > 0 ? seat.seat : null;
-    }
-    if (seat.tileCount % 3 !== 2 || calledJustNow(snapshot, seat)) {
-        return null;
-    }
-    return leftDiscardSeat(snapshot, seat, claimed);
-}
-
-/** The seat on the left of `seat` when its latest discard still lies in its river, unclaimed. */
-function leftDiscardSeat(
-    snapshot: GameReconnectedEvent,
-    seat: SnapshotSeat,
-    claimed: ReadonlySet<string>,
-): number | null {
-    const leftSeat = (seat.seat + SEATS - 1) % SEATS;
-    const last = snapshot.playerStates.find((state) => state.seat === leftSeat)?.discards.at(-1);
-    return last === undefined || claimed.has(`${leftSeat}:${last.tileId}`) ? null : leftSeat;
-}
-
 /**
  * The game's first dealer: the dealer of the first round the snapshot's history lists, or while no round has ended
  * yet, the dealer of the round in play.
@@ -112,7 +67,7 @@ function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
 }
 
 /**
- * Rebuild the table from a reconnect snapshot, its latest discard marked when the snapshot shows whose it is. It opens
+ * Rebuild the table from a reconnect snapshot, its latest discard marked where the snapshot names it. It opens
  * no wait: when the game awaits the seat, the server re-sends the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result, the
  * hands it reveals, and the kan its win robbed as declared: the server never completes a robbed kan, so the snapshot's hand still holds its
  * tiles. Its scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
@@ -134,7 +89,7 @@ export function applyGameReconnected(
         gameEndResult: null,
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
-        lastDiscardSeat: snapshotLastDiscardSeat(snapshot, claimed),
+        lastDiscardSeat: snapshot.latestDiscardSeat,
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),
         revealedSeats: [],

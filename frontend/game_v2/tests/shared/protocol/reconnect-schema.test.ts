@@ -241,3 +241,11 @@ describe("gameReconnectedSchema", () => {
         expect(state2.isRiichi).toBe(false);
     });
 });
+
+describe("gameReconnectedSchema - latest discard", () => {
+    it("reads the latest discard's seat, none when ld is absent, and refuses a null the server never sends", () => {
+        expect(parsePayload({ ld: 1 }).latestDiscardSeat).toBe(1);
+        expect(parsePayload().latestDiscardSeat).toBeNull();
+        expect(() => parsePayload({ ld: null })).toThrow();
+    });
+});

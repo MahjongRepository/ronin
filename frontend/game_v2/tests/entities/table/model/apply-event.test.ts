@@ -535,28 +535,6 @@ describe("applyEvent - game_reconnected", () => {
         expect(next.tilesRemaining).toBe(70);
     });
 
-    test("marks the left seat's discard for a seat in turn that drew, and none for one whose call took it", () => {
-        const PON_FROM_ACROSS = 16_133;
-        function lastDiscardSeat(acrossRiver: readonly object[]): number | null {
-            const [error, snapshot] = parseServerMessage({
-                ...WIRE_GAME_RECONNECTED,
-                cp: 1,
-                pst: [
-                    { dsc: [{ ti: 100 }], ml: [], ri: false, s: 0, sc: 250, tc: 13 },
-                    { dsc: [], ml: [PON_FROM_ACROSS], ri: false, s: 1, sc: 250, tc: 11 },
-                    { dsc: [], ml: [], ri: false, s: 2, sc: 250, tc: 13 },
-                    { dsc: acrossRiver, ml: [], ri: false, s: 3, sc: 250, tc: 13 },
-                ],
-                s: 1,
-            });
-            assert(error === null && snapshot.type === "game_reconnected");
-            return applyEvent(createInitialTableState(), snapshot).lastDiscardSeat;
-        }
-
-        expect(lastDiscardSeat([{ ti: 50 }, { ti: 1 }])).toBeNull();
-        expect(lastDiscardSeat([{ ti: 1 }, { ti: 50 }])).toBe(0);
-    });
-
     test("names the round from the first dealer its history lists, else from the dealer in play", () => {
         const history = { h: 0, ps: [], rs: [], rt: 3, sch: {}, w: 0, ws: [] };
         const [error, later] = parseServerMessage({

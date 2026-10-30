@@ -22,12 +22,12 @@ from game.logic.events import (
     EventType,
     SeatTarget,
 )
-from game.logic.exceptions import UnsupportedSettingsError
+from game.logic.exceptions import DiscardHistoryError, UnsupportedSettingsError
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.runtime import GameRuntime
 from game.logic.settings import GameSettings
-from game.logic.state import Caller, MeldOption, PendingCallPrompt
+from game.logic.state import Caller, Discard, MeldOption, PendingCallPrompt
 from game.logic.tiles import NUM_TILES, tile_to_34
 from game.logic.turn import process_draw_phase
 from game.logic.types import (
@@ -351,6 +351,14 @@ class TestMahjongGameServiceRestoreHumanPlayer:
         assert runtime.ai.is_ai_player(seat) is False
 
 
+def _latest_discard_on_wire(service: MahjongGameService, runtime: GameRuntime) -> int | None:
+    return reconnection_payload(service.build_reconnection_snapshot(runtime, 0), stand_ins={}).get("ld")
+
+
+def _discards(*tiles: int) -> tuple[Discard, ...]:
+    return tuple(Discard(tile_id=tile) for tile in tiles)
+
+
 class TestMahjongGameServiceBuildReconnectionSnapshot:
     @pytest.fixture
     def service(self):
@@ -376,6 +384,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert [ps.tile_count for ps in snapshot.player_states] == [
             14 if seat == dealer_seat else 13 for seat in range(4)
         ]
+        assert "ld" not in reconnection_payload(snapshot, stand_ins={})
 
     def test_build_reconnection_snapshot__when_human_restored__should_mark_player_as_not_ai(self, service):
         runtime = service.start_game("game1", ["Alice"], seed="a" * 192).runtime
@@ -475,6 +484,142 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
 
         payload = service.build_reconnection_snapshot(runtime, 2).model_dump(by_alias=True, exclude_none=True)
         assert payload["re"]["rk"] == {"s": 0, "ti": man_1[3], "kty": "closed"}
+
+    def test_build_reconnection_snapshot__when_the_latest_discard_is_claimed__should_name_no_latest_discard(
+        self, service
+    ):
+        earlier_discard = tile_copies(2, honors="1")[0]
+        haku = tile_copies(0, honors="5")[0]
+        pon_caller_discard = tile_copies(1, man="1")[0]
+        players = (
+            create_player(
+                seat=0,
+                tiles=tile_copies(0, man="1479", pin="147", sou="147", honors="123"),
+                discards=_discards(earlier_discard),
+            ),
+            create_player(seat=1, tiles=tile_copies(0, man="258", pin="2589", sou="2589", honors="567")),
+            create_player(seat=2, tiles=tile_copies(1, man="258", pin="258", sou="1258", honors="123")),
+            create_player(
+                seat=3,
+                tiles=(
+                    *tile_copies(0, man="36", pin="36", sou="36"),
+                    *tile_copies(1, man="147", pin="14", honors="5"),
+                    tile_copies(2, honors="5")[0],
+                ),
+            ),
+        )
+        runtime = GameRuntime(
+            game_id="game1",
+            state=create_dealt_game_state(players, current_player_seat=1, seed="a" * 192),
+            ai=AIPlayerController({}),
+        )
+
+        service.handle_action(runtime, seat=1, action=GameAction.DISCARD, data={"tile_id": haku})
+        assert runtime.state.round_state.pending_call_prompt is not None
+        offered = _latest_discard_on_wire(service, runtime)
+        service.handle_action(runtime, seat=3, action=GameAction.CALL_PON, data={"tile_id": haku})
+        claimed = _latest_discard_on_wire(service, runtime)
+        service.handle_action(runtime, seat=3, action=GameAction.DISCARD, data={"tile_id": pon_caller_discard})
+        assert runtime.state.round_state.current_player_seat == 0
+
+        assert (offered, claimed, _latest_discard_on_wire(service, runtime)) == (1, None, 3)
+
+    def test_build_reconnection_snapshot__when_hand_kans_and_a_robbed_kan_follow__should_keep_the_latest_discard(
+        self, service
+    ):
+        man_1 = [tile_copies(copy, man="1")[0] for copy in range(4)]
+        sou_5 = [tile_copies(copy, sou="5")[0] for copy in range(4)]
+        latest_discard = tile_copies(2, man="9")[0]
+        pon_from_seat_3 = FrozenMeld(
+            tiles=tuple(sou_5[:3]),
+            meld_type=FrozenMeld.PON,
+            opened=True,
+            called_tile=sou_5[0],
+            who=1,
+            from_who=3,
+        )
+        discards_by_seat = (
+            [*tile_copies(0, honors="2"), latest_discard],
+            tile_copies(0, honors="36"),
+            tile_copies(0, honors="47"),
+            [sou_5[0], tile_copies(1, honors="1")[0]],
+        )
+        players = (
+            create_player(
+                seat=0,
+                tiles=(
+                    *tile_copies(1, man="3467", pin="148", sou="289", honors="57"),
+                    tile_copies(0, honors="5")[0],
+                ),
+                discards=_discards(*discards_by_seat[0]),
+            ),
+            create_player(
+                seat=1,
+                tiles=(*man_1, sou_5[3], *tile_copies(0, pin="289", sou="9"), *tile_copies(1, sou="1", honors="6")),
+                melds=(pon_from_seat_3,),
+                discards=_discards(*discards_by_seat[1]),
+            ),
+            create_player(
+                seat=2,
+                tiles=(*tile_copies(0, man="234567", pin="345", sou="634"), tile_copies(1, sou="6")[0]),
+                discards=_discards(*discards_by_seat[2]),
+            ),
+            create_player(
+                seat=3,
+                tiles=(
+                    *tile_copies(0, man="89", pin="17", sou="17"),
+                    *tile_copies(2, honors="1234"),
+                    *tile_copies(1, man="25", pin="6"),
+                ),
+                discards=_discards(*discards_by_seat[3]),
+            ),
+        )
+        play_order = ((0, 0), (1, 0), (2, 0), (3, 0), (1, 1), (2, 1), (3, 1), (0, 1))
+        all_discards = [discards_by_seat[seat][turn] for seat, turn in play_order]
+        runtime = GameRuntime(
+            game_id="game1",
+            state=create_dealt_game_state(
+                players,
+                current_player_seat=1,
+                all_discards=all_discards,
+                rinshan_draws=tile_copies(2, honors="7"),
+                seed="a" * 192,
+            ),
+            ai=AIPlayerController({}),
+        )
+        after_the_draw = _latest_discard_on_wire(service, runtime)
+
+        service.handle_action(
+            runtime, seat=1, action=GameAction.CALL_KAN, data={"tile_id": man_1[0], "kan_type": KanType.CLOSED}
+        )
+        assert len(runtime.state.round_state.players[1].melds) == 2
+        after_the_closed_kan = _latest_discard_on_wire(service, runtime)
+        service.handle_action(
+            runtime, seat=1, action=GameAction.CALL_KAN, data={"tile_id": sou_5[3], "kan_type": KanType.ADDED}
+        )
+        assert runtime.state.round_state.pending_call_prompt is not None
+        in_the_chankan_window = _latest_discard_on_wire(service, runtime)
+        service.handle_action(runtime, seat=2, action=GameAction.CALL_RON, data={})
+        assert runtime.state.round_state.result is not None
+
+        assert (after_the_draw, after_the_closed_kan, in_the_chankan_window) == (0, 0, 0)
+        assert _latest_discard_on_wire(service, runtime) == 0
+
+    def test_build_reconnection_snapshot__when_the_discard_history_disagrees_with_the_rivers__should_raise(
+        self, service
+    ):
+        first, second = tile_copies(0, honors="12")
+        players = (
+            create_player(seat=0, tiles=tile_copies(0, man="123456789", pin="1234"), discards=_discards(first, second)),
+            create_player(seat=1, tiles=tile_copies(1, man="123456789", pin="12345")),
+            create_player(seat=2, tiles=tile_copies(2, man="123456789", pin="1234")),
+            create_player(seat=3, tiles=tile_copies(3, man="123456789", pin="1234")),
+        )
+        state = create_dealt_game_state(players, current_player_seat=1, all_discards=[second, first], seed="a" * 192)
+        runtime = GameRuntime(game_id="game1", state=state, ai=AIPlayerController({}))
+
+        with pytest.raises(DiscardHistoryError):
+            service.build_reconnection_snapshot(runtime, 0)
 
 
 class TestMahjongGameServiceBuildWaitEventsForSeat:

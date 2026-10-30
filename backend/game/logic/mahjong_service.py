@@ -27,7 +27,7 @@ from game.logic.events import (
     SeatTarget,
     build_call_prompt_events,
 )
-from game.logic.exceptions import GeneratedActionError, InvalidGameActionError
+from game.logic.exceptions import DiscardHistoryError, GeneratedActionError, InvalidGameActionError
 from game.logic.furiten_tracker import FuritenTracker
 from game.logic.game import (
     check_game_end,
@@ -46,6 +46,7 @@ from game.logic.service import Awaiting, GameService, GameStart, GameUpdate
 from game.logic.settings import NUM_PLAYERS
 from game.logic.state import (
     MahjongGameState,
+    MahjongRoundState,
     PendingCallPrompt,
     get_player_view,
     wind_name,
@@ -134,6 +135,29 @@ def _snapshot_round_header(game_state: MahjongGameState) -> _RoundHeader:
         round_number=round_number,
         honba_sticks=ended.honba_sticks,
     )
+
+
+def _latest_discard_seat(round_state: MahjongRoundState) -> int | None:
+    """
+    Return the seat whose discard is the round's latest while it still lies in its river, else None.
+
+    all_discards holds the round's discarded tiles in play order, so its last is the latest discard. A meld that holds
+    that tile claimed it, and then no discard is the latest, never the one before it; a draw and a kan from the hand
+    claim none, so the latest discard is kept through them, and through a round's result too. Raises DiscardHistoryError
+    when that unclaimed tile lies last in no river.
+    """
+    if not round_state.all_discards:
+        return None
+
+    tile_id = round_state.all_discards[-1]
+    if any(tile_id in meld.tiles for player in round_state.players for meld in player.melds):
+        return None
+
+    discarder = next((p.seat for p in round_state.players if p.discards and p.discards[-1].tile_id == tile_id), None)
+    if discarder is None:
+        raise DiscardHistoryError(f"the latest discard {tile_id} lies last in no river")
+
+    return discarder
 
 
 class MahjongGameService(GameService):
@@ -709,6 +733,7 @@ class MahjongGameService(GameService):
             round_wind=header.round_wind,
             round_number=header.round_number,
             current_player_seat=round_state.current_player_seat,
+            latest_discard_seat=_latest_discard_seat(round_state),
             dora_indicators=view.dora_indicators,
             honba_sticks=header.honba_sticks,
             riichi_sticks=view.riichi_sticks,

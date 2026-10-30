@@ -62,6 +62,12 @@ class TileOwnershipError(Exception):
     """
 
 
+class DiscardHistoryError(Exception):
+    """
+    The round's discard history and its rivers disagree: a server fault, never a player's.
+    """
+
+
 class UnsupportedSettingsError(Exception):
     """
     Game settings contain unsupported values that cannot be silently ignored.
