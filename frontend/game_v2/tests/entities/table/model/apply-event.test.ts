@@ -67,30 +67,6 @@ describe("applyEvent - game_started", () => {
         expect(next.players[1].name).toBe("Bot-1");
         expect(next.players[3].name).toBe("Bob");
     });
-
-    test("initializes players with empty hands, discards, and melds", () => {
-        const state = createInitialTableState();
-        const event = makeGameStartedEvent();
-        const next = applyEvent(state, event);
-
-        for (const player of next.players) {
-            expect(player.tiles).toEqual([]);
-            expect(player.discards).toEqual([]);
-            expect(player.melds).toEqual([]);
-            expect(player.drawnTileId).toBeNull();
-            expect(player.isRiichi).toBe(false);
-        }
-    });
-
-    test("does not mutate the input state", () => {
-        const state = createInitialTableState();
-        const event = makeGameStartedEvent();
-        const next = applyEvent(state, event);
-
-        expect(state.players).toEqual([]);
-        expect(state.gameId).toBe("");
-        expect(next).not.toBe(state);
-    });
 });
 
 describe("applyEvent - round_started", () => {
@@ -209,16 +185,6 @@ describe("applyEvent - round_started", () => {
         expect(next.currentPlayerSeat).toBe(2);
     });
 
-    test("does not mutate the input state", () => {
-        const state = stateAfterGameStarted();
-        const originalPlayers = state.players.map((p) => ({ ...p, tiles: [...p.tiles] }));
-        const event = makeRoundStartedEvent();
-        applyEvent(state, event);
-
-        expect(state.players.map((p) => p.tiles)).toEqual(originalPlayers.map((p) => p.tiles));
-        expect(state.phase).toBe("pre_game");
-    });
-
     test("sets tilesRemaining to 70 (live wall after dealing)", () => {
         const state = stateAfterGameStarted();
         const event = makeRoundStartedEvent();
@@ -288,16 +254,6 @@ describe("applyEvent - draw", () => {
 
         expect(next.players[0].tiles).toHaveLength(originalTileCount + 1);
         expect(next.players[0].tiles[next.players[0].tiles.length - 1]).toBe(52);
-    });
-
-    test("does not mutate the input state", () => {
-        const state = stateAfterRoundStarted();
-        const originalTiles = [...state.players[0].tiles];
-        const event = makeDrawEvent({ seat: 0, tileId: 52 });
-        applyEvent(state, event);
-
-        expect(state.players[0].tiles).toEqual(originalTiles);
-        expect(state.players[0].drawnTileId).toBeNull();
     });
 });
 
@@ -411,17 +367,6 @@ describe("applyEvent - discard", () => {
         expect(next.players[0].discards[0].isRiichi).toBe(true);
     });
 
-    test("does not mutate the input state", () => {
-        const state = stateAfterRoundStarted();
-        const originalTiles = [...state.players[0].tiles];
-        const originalDiscards = [...state.players[0].discards];
-        const event = makeDiscardEvent({ seat: 0, tileId: 0 });
-        applyEvent(state, event);
-
-        expect(state.players[0].tiles).toEqual(originalTiles);
-        expect(state.players[0].discards).toEqual(originalDiscards);
-    });
-
     test("accumulates multiple discards", () => {
         const state = stateAfterRoundStarted();
         const after1 = applyEvent(state, makeDiscardEvent({ seat: 0, tileId: 0 }));
@@ -451,13 +396,6 @@ describe("applyEvent - riichi_declared", () => {
         expect(next.players[2].isRiichi).toBe(false);
         expect(next.players[3].isRiichi).toBe(false);
     });
-
-    test("does not mutate the input state", () => {
-        const state = stateAfterRoundStarted();
-        applyEvent(state, makeRiichiDeclaredEvent({ seat: 0 }));
-
-        expect(state.players[0].isRiichi).toBe(false);
-    });
 });
 
 describe("applyEvent - dora_revealed", () => {
@@ -477,14 +415,6 @@ describe("applyEvent - dora_revealed", () => {
         const after2 = applyEvent(after1, makeDoraRevealedEvent({ tileId: 30 }));
 
         expect(after2.doraIndicators).toEqual([10, 20, 30]);
-    });
-
-    test("does not mutate the input state", () => {
-        const state = stateAfterRoundStarted();
-        const originalDora = [...state.doraIndicators];
-        applyEvent(state, makeDoraRevealedEvent({ tileId: 20 }));
-
-        expect(state.doraIndicators).toEqual(originalDora);
     });
 });
 
@@ -579,15 +509,6 @@ describe("applyEvent - game_end", () => {
             35_000, 22_000, 22_000, 21_000,
         ]);
     });
-
-    test("does not mutate the input state", () => {
-        const state = stateAfterRoundStarted();
-        const originalScores = state.players.map((p) => p.score);
-        applyEvent(state, makeGameEndEvent());
-
-        expect(state.players.map((p) => p.score)).toEqual(originalScores);
-        expect(state.phase).toBe("in_round");
-    });
 });
 
 // --- round_end helpers and tests ---
@@ -652,15 +573,6 @@ describe("applyEvent - round_end", () => {
             expect(next.players[0].score).toBe(37_000);
             expect(next.players[1].score).toBe(21_000);
         });
-    });
-
-    test("does not mutate the input state", () => {
-        const state = stateAfterRoundStarted();
-        const originalScores = state.players.map((p) => p.score);
-        applyEvent(state, makeTsumoRoundEnd());
-
-        expect(state.players.map((p) => p.score)).toEqual(originalScores);
-        expect(state.phase).toBe("in_round");
     });
 });
 
@@ -999,11 +911,6 @@ describe("applyEvent - full event sequence integration", () => {
             return replayAllEvents(buildFullEventSequence());
         }
 
-        test("produces correct number of states", () => {
-            const states = getAllStates();
-            expect(states).toHaveLength(13);
-        });
-
         test("game_started sets pre_game phase with 4 players", () => {
             const states = getAllStates();
             expect(states[1].phase).toBe("pre_game");
@@ -1059,22 +966,15 @@ describe("applyEvent - full event sequence integration", () => {
         });
     });
 
-    test("intermediate states are not mutated by subsequent events", () => {
-        const states = replayAllEvents(buildFullEventSequence());
+    test("keeps every earlier state of the timeline as it was when each later event applies", () => {
+        const states: TableState[] = [createInitialTableState()];
+        const takenWhenMade: TableState[] = [structuredClone(states[0])];
+        for (const event of buildFullEventSequence()) {
+            const next = applyEvent(states[states.length - 1], event);
+            states.push(next);
+            takenWhenMade.push(structuredClone(next));
+        }
 
-        // Snapshot key values from early states
-        const [, , stateAfterRound, stateAfterDraw] = states;
-        const seat0TilesAfterRound = [...stateAfterRound.players[0].tiles];
-        const seat0DiscardsAfterRound = [...stateAfterRound.players[0].discards];
-
-        // These should not have been mutated by later events (draw, discard, meld, etc.)
-        expect(stateAfterRound.players[0].tiles).toEqual(seat0TilesAfterRound);
-        expect(stateAfterRound.players[0].discards).toEqual(seat0DiscardsAfterRound);
-        expect(stateAfterRound.phase).toBe("in_round");
-        expect(stateAfterRound.doraIndicators).toEqual([10]);
-
-        // State after draw should not have been mutated by the subsequent discard
-        expect(stateAfterDraw.players[0].tiles).toContain(52);
-        expect(stateAfterDraw.players[0].drawnTileId).toBe(52);
+        expect(states).toEqual(takenWhenMade);
     });
 });

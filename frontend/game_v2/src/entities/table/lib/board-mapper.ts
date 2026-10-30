@@ -220,4 +220,4 @@ function tableStateToDisplayState(
     };
 }
 
-export { formatScore, tableStateToDisplayState };
+export { tableStateToDisplayState };

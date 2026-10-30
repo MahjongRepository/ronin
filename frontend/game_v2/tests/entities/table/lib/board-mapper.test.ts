@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import { checkpointState } from "#tests/fixtures/seat-transcripts";
-import { formatScore, tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
+import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { type BoardPerspective } from "@/entities/table/model/board-types";
 import {
     createInitialPlayerState,
@@ -36,16 +36,14 @@ function makeTableState(overrides: Partial<TableState> = {}): TableState {
 
 describe("tableStateToDisplayState", () => {
     describe("incomplete state handling", () => {
-        test("returns null when players array is empty", () => {
-            const state = makeTableState({ players: [] });
-            expect(tableStateToDisplayState(state, SEAT_0_VIEW)).toBeNull();
-        });
-
-        test("returns null when players array has fewer than 4 entries", () => {
-            const state = makeTableState({
+        test("returns null until four players are seated", () => {
+            const twoSeated = makeTableState({
                 players: [makePlayer({ seat: 0 }), makePlayer({ seat: 1 })],
             });
-            expect(tableStateToDisplayState(state, SEAT_0_VIEW)).toBeNull();
+            expect(
+                tableStateToDisplayState(makeTableState({ players: [] }), SEAT_0_VIEW),
+            ).toBeNull();
+            expect(tableStateToDisplayState(twoSeated, SEAT_0_VIEW)).toBeNull();
         });
     });
 
@@ -275,20 +273,21 @@ describe("tableStateToDisplayState nameplates", () => {
         const state = makeTableState({
             players: [
                 makePlayer({ score: 32_100, seat: 0 }),
-                makePlayer({ score: 25_000, seat: 1 }),
-                makePlayer({ score: 18_900, seat: 2 }),
-                makePlayer({ score: 25_000, seat: 3 }),
+                makePlayer({ score: 0, seat: 1 }),
+                makePlayer({ score: -1500, seat: 2 }),
+                makePlayer({ score: 0, seat: 3 }),
             ],
         });
-        const [bottom, right] = tableStateToDisplayState(state, SEAT_0_VIEW)!.nameplates;
-        expect(bottom.score).toBe("32100");
+        const { nameplates } = tableStateToDisplayState(state, SEAT_0_VIEW)!;
+        const [bottom, right] = nameplates;
+        expect(nameplates.map((plate) => plate.score)).toEqual(["32100", "0", "-1500", "0"]);
         expect(bottom.scoreDiffs).toEqual({
             bottom: "",
-            left: "+7100",
-            right: "+7100",
-            top: "+13200",
+            left: "+32100",
+            right: "+32100",
+            top: "+33600",
         });
-        expect(right.scoreDiffs).toEqual({ bottom: "-7100", left: "±0", right: "", top: "+6100" });
+        expect(right.scoreDiffs).toEqual({ bottom: "-32100", left: "±0", right: "", top: "+1500" });
     });
 
     test("marks an AI player seated from the start apart from one standing in for a human who left or never came", () => {
@@ -419,19 +418,5 @@ describe("tableStateToDisplayState last discard", () => {
         expect(marked(checkpointState("own_turn_seat_1", "draw re-sent").table)).toEqual([
             "0:0 2z",
         ]);
-    });
-});
-
-describe("formatScore", () => {
-    test("formats as plain number", () => {
-        expect(formatScore(25_000)).toBe("25000");
-    });
-
-    test("formats zero", () => {
-        expect(formatScore(0)).toBe("0");
-    });
-
-    test("formats negative scores", () => {
-        expect(formatScore(-1500)).toBe("-1500");
     });
 });
