@@ -1,0 +1,345 @@
+import { readdir, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { parseArgs } from "node:util";
+
+import {
+    type Browser,
+    type BrowserContext,
+    type BrowserType,
+    type Page,
+    chromium,
+    webkit,
+} from "playwright";
+
+import { describeBoard, measureBoard } from "./board-measure.ts";
+import { CONTRAST_VIEWPORTS, checkContrast } from "./contrast.ts";
+import { APP_ROOT, type Fixtures, openContext, startServer, transcriptFrames } from "./fixtures.ts";
+import { checkReplayLoad } from "./load-budget.ts";
+import {
+    type BoardOptions,
+    type PageCase,
+    PageReport,
+    type PageRun,
+    SELECTOR_TIMEOUT_MS,
+    type Surface,
+    type TaskResult,
+    type Viewport,
+} from "./model.ts";
+import { checkTileFaces, checkVisible, measurePage, viewportBox } from "./page-checks.ts";
+import { boardSurface } from "./surfaces/board.ts";
+import { decisionsSurface } from "./surfaces/decisions.ts";
+import { noticesSurface } from "./surfaces/notices.ts";
+import { panelsSurface } from "./surfaces/panels.ts";
+import { replaySurface } from "./surfaces/replay.ts";
+import { checkFont, isBlockedFont } from "./text.ts";
+import { VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.ts";
+
+/**
+ * The v2 client's layout gate. It builds nothing itself: it serves the built `dist/` (the app page for every
+ * `/play/` path, as the lobby does), a replay fixture under the replay API and a seat transcript over a mocked
+ * game socket, then loads every storybook page, the replay and the live game at each viewport and asserts what a
+ * player would see: content visible, nothing overlapping, everything inside the board and the screen, readable
+ * text and tappable tiles. Any console error, failed request or missing element fails it. It writes a screenshot
+ * of each page for review. Each surface (`Surface`) declares its pages and its checks; the runner loads the
+ * pages and runs every surface's checks on each.
+ */
+
+const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
+const SETTLE_MS = 150;
+/** Pages a browser checks at once, each in its own context. */
+const PAGES_AT_ONCE = 6;
+
+const SURFACES: readonly Surface[] = [
+    boardSurface,
+    decisionsSurface,
+    panelsSurface,
+    replaySurface,
+    noticesSurface,
+];
+const PAGES: readonly PageCase[] = SURFACES.flatMap((surface) => surface.pages);
+
+/** Measure the board once and hold it to every surface's checks, in turn; the board's summary line. */
+async function checkBoard(run: PageRun, options: BoardOptions): Promise<string> {
+    const board = await measureBoard(run.page);
+    const screen = await viewportBox(run.page);
+    const boardRun = { ...run, board, options, screen };
+    for (const surface of SURFACES) {
+        await surface.checkBoard?.(boardRun);
+    }
+    return describeBoard(board);
+}
+
+async function checkPage(
+    { page, report, viewport }: Omit<PageRun, "measure">,
+    pageCase: PageCase,
+): Promise<string> {
+    const measure = await measurePage(page);
+    const run = { measure, page, report, viewport };
+    report.expect(
+        measure.scrollWidth <= measure.innerWidth,
+        `horizontal page overflow: ${measure.scrollWidth} > ${measure.innerWidth}`,
+    );
+    await checkVisible(page, pageCase.required.visible, report);
+    switch (pageCase.kind) {
+        case "document": {
+            return `page ${measure.scrollWidth}x${measure.scrollHeight}`;
+        }
+        case "board": {
+            return checkBoard(run, pageCase);
+        }
+        case "own": {
+            return pageCase.check(run, () => checkBoard(run, {}));
+        }
+    }
+}
+
+interface PageLoad {
+    readonly context: BrowserContext;
+    readonly viewport: Viewport;
+    readonly origin: string;
+    readonly shots: string;
+}
+
+async function loadPage(page: Page, pageCase: PageCase, origin: string): Promise<void> {
+    await page.goto(origin + pageCase.path);
+    if (pageCase.kind === "board" && pageCase.prepare) {
+        await pageCase.prepare(page);
+    }
+    const { attached = [], visible } = pageCase.required;
+    for (const selector of visible) {
+        await page.waitForSelector(selector, { state: "visible", timeout: SELECTOR_TIMEOUT_MS });
+    }
+    for (const selector of attached) {
+        await page.waitForSelector(selector, { state: "attached", timeout: SELECTOR_TIMEOUT_MS });
+    }
+}
+
+async function runPage(
+    { context, origin, shots, viewport }: PageLoad,
+    pageCase: PageCase,
+): Promise<PageReport> {
+    const report = new PageReport();
+    const page = await context.newPage();
+    page.on("console", (message) => {
+        if (message.type() === "error" && !isBlockedFont(pageCase, message.location().url)) {
+            report.failures.push(`console error: ${message.text()}`);
+        }
+    });
+    page.on("pageerror", (error) => report.failures.push(`page error: ${error.message}`));
+    page.on("requestfailed", (request) => {
+        if (!isBlockedFont(pageCase, request.url())) {
+            report.failures.push(`request failed: ${request.url()}`);
+        }
+    });
+    try {
+        await loadPage(page, pageCase, origin);
+        await emulateInsets(page, viewport.insets);
+        await checkCaptureModel(page, viewport, report);
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        await checkFont(page, pageCase, report);
+        await page.waitForTimeout(SETTLE_MS);
+        await checkTileFaces(page, report);
+        report.summary = await checkPage({ page, report, viewport }, pageCase);
+        await page.screenshot({ path: join(shots, `${viewport.name}-${pageCase.name}.png`) });
+        if (pageCase.contrast === true && CONTRAST_VIEWPORTS.has(viewport.name)) {
+            report.summary += `, ${await checkContrast(page, report)}`;
+        }
+        if (pageCase.kind === "board") {
+            for (const surface of SURFACES) {
+                await surface.checkAfterShot?.(page, report);
+            }
+        }
+    } catch (error: unknown) {
+        report.failures.push(error instanceof Error ? error.message : String(error));
+    } finally {
+        await page.close();
+    }
+    if (report.checks === 0 && report.failures.length === 0) {
+        report.failures.push("no check ran");
+    }
+    return report;
+}
+
+/** One page at one viewport, checked in a context of its own, its findings named by both. */
+interface PageTask {
+    readonly viewport: Viewport;
+    readonly pageCase: PageCase;
+}
+
+async function runTask(
+    browser: Browser,
+    { pageCase, viewport }: PageTask,
+    { fixtures, shots }: { readonly fixtures: Fixtures; readonly shots: string },
+): Promise<TaskResult> {
+    const frames =
+        pageCase.kind === "own" && pageCase.checkpoint !== undefined
+            ? fixtures.frames.get(pageCase.checkpoint)
+            : [];
+    const context = await openContext(browser, viewport, {
+        fontBlocked: pageCase.fontBlocked,
+        frames: frames ?? [],
+        origin: fixtures.origin,
+    });
+    try {
+        const report = await runPage(
+            { context, origin: fixtures.origin, shots, viewport },
+            pageCase,
+        );
+        return {
+            name: `${viewport.name} ${pageCase.name}`,
+            page: pageCase.name,
+            report,
+            viewport: viewport.name,
+        };
+    } finally {
+        await context.close();
+    }
+}
+
+/** Run `tasks` with at most `limit` at once, keeping their order in the results. */
+async function runPooled<Task, Result>(
+    tasks: readonly Task[],
+    limit: number,
+    run: (task: Task) => Promise<Result>,
+): Promise<Result[]> {
+    const results: Result[] = [];
+    let next = 0;
+    async function worker(): Promise<void> {
+        for (let index = next++; index < tasks.length; index = next++) {
+            results[index] = await run(tasks[index]);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+    return results;
+}
+
+/** The pages and viewports a run checks: all of them, or the ones `--page` and `--viewport` name. */
+interface Selection {
+    readonly pages: readonly PageCase[];
+    readonly viewports: readonly Viewport[];
+    readonly partial: boolean;
+}
+
+/** The selected pages at each of an engine's selected viewports. */
+function tasksOf(engine: BrowserType, selection: Selection): PageTask[] {
+    const viewports = selection.viewports.filter((viewport) => viewport.engine === engine);
+    return viewports.flatMap((viewport) =>
+        selection.pages
+            .filter(({ onlyAt }) => onlyAt === undefined || onlyAt.includes(viewport.name))
+            .filter(({ alsoAt = [] }) => viewport.optIn !== true || alsoAt.includes(viewport.name))
+            .map((pageCase) => ({ pageCase, viewport })),
+    );
+}
+
+/** Check an engine's tasks in one browser, several pages at once. */
+async function runEngine(
+    browser: Browser,
+    tasks: readonly PageTask[],
+    run: { readonly fixtures: Fixtures; readonly shots: string },
+): Promise<TaskResult[]> {
+    return runPooled(tasks, PAGES_AT_ONCE, (task) => runTask(browser, task, run));
+}
+
+function reportFailures(results: readonly TaskResult[]): string[] {
+    return results.flatMap(({ name, report }) => {
+        if (report.summary !== "") {
+            console.info(`${name}: ${report.summary}`);
+        }
+        return report.failures.map((failure) => `${name}: ${failure}`);
+    });
+}
+
+/** Both engines' pages at once, then, on a full run, the replay load budget on the Chromium browser, the CPU idle. */
+async function checkAll(
+    fixtures: Fixtures,
+    shots: string,
+    selection: Selection,
+): Promise<string[]> {
+    const [chromiumBrowser, webkitBrowser] = await Promise.all([
+        chromium.launch(),
+        webkit.launch(),
+    ]);
+    try {
+        const run = { fixtures, shots };
+        const results = await Promise.all([
+            runEngine(chromiumBrowser, tasksOf(chromium, selection), run),
+            runEngine(webkitBrowser, tasksOf(webkit, selection), run),
+        ]);
+        const pageFailures = [
+            ...reportFailures(results.flat()),
+            ...SURFACES.flatMap((surface) => surface.checkResults?.(results.flat()) ?? []),
+        ];
+        if (selection.partial) {
+            return pageFailures;
+        }
+        return [...pageFailures, ...(await checkReplayLoad(chromiumBrowser, fixtures.origin))];
+    } finally {
+        await Promise.all([chromiumBrowser.close(), webkitBrowser.close()]);
+    }
+}
+
+/** Remove the last run's screenshots, so the folder holds only this run's. */
+async function clearShots(folder: string): Promise<void> {
+    const files = await readdir(folder).catch(() => []);
+    await Promise.all(
+        files.filter((file) => file.endsWith(".png")).map((file) => rm(join(folder, file))),
+    );
+}
+
+/** Keep the items whose name contains one of `filters`, or every item when there are none. */
+function matching<Item extends { readonly name: string }>(
+    items: readonly Item[],
+    filters: readonly string[],
+): readonly Item[] {
+    if (filters.length === 0) {
+        return items;
+    }
+    return items.filter((item) => filters.some((filter) => item.name.includes(filter)));
+}
+
+/** The run's selection from `--page` and `--viewport` (each repeatable, matching a name by substring). */
+function selectRun(pageFilters: readonly string[], viewportFilters: readonly string[]): Selection {
+    return {
+        pages: matching(PAGES, pageFilters),
+        partial: pageFilters.length > 0 || viewportFilters.length > 0,
+        viewports: matching(VIEWPORTS, viewportFilters),
+    };
+}
+
+async function main(): Promise<number> {
+    const { values } = parseArgs({
+        options: {
+            page: { default: [], multiple: true, type: "string" },
+            shots: { default: DEFAULT_SHOTS, type: "string" },
+            viewport: { default: [], multiple: true, type: "string" },
+        },
+    });
+    const selection = selectRun(values.page, values.viewport);
+    if (tasksOf(chromium, selection).length + tasksOf(webkit, selection).length === 0) {
+        console.error(
+            `Visual check selected nothing: pages ${PAGES.map(({ name }) => name).join(", ")}; viewports ${VIEWPORTS.map(({ name }) => name).join(", ")}`,
+        );
+        return 1;
+    }
+    const shots = resolve(values.shots);
+    if (shots === DEFAULT_SHOTS) {
+        await clearShots(shots);
+    }
+    const frames = await transcriptFrames();
+    const { origin, server } = await startServer();
+    const failures = await checkAll({ frames, origin }, shots, selection).finally(() =>
+        server.close(),
+    );
+    if (failures.length > 0) {
+        console.error(
+            `Visual check failed:\n${failures.map((failure) => `  ${failure}`).join("\n")}`,
+        );
+        return 1;
+    }
+    const pages = tasksOf(chromium, selection).length + tasksOf(webkit, selection).length;
+    const scope = selection.partial ? "partial run, no replay load budget; " : "";
+    console.info(`Visual check passed: ${scope}${pages} pages; screenshots in ${shots}`);
+    return 0;
+}
+
+process.exitCode = await main();

@@ -520,18 +520,19 @@ follows holds through the rebuild to it.
   running, another seat's view with the hands hidden, a result with them hidden, its round list,
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
-  its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080
-  (Chromium), 1366x657 on the anchor, the worst board, a call beside the latest riichi discard's row, the
-  full and mixed hands, the replay and the live turn alone (`onlyPages`: the band's corners shared, a chip
-  bounded by its row), 800x600 on the anchor, the dense and two-step decisions, the worst board with and
-  without offers and the full and a mixed hand (a narrow desktop's chrome), 1280x720, 1536x730 and 1440x770
-  on the anchor, the offers and the full hands (`laptop-*`: either side of the short desktop's 760px),
-  2560x1440 on the offers, the choices and the full hands (`desktop-large`: a control's height against the
-  band), 680x375 and 700x375 (WebKit, `phone-680`/`phone-700`: wider phones at the floor's height, where the
-  own tile reaches 36px) on the anchor, the switches, the strips' capacity and the replay, iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
-  and 21, asserted on every page) and the 667x375 floor (WebKit). The
-  two engines run at once and each checks several pages at a time, each in its own context, which
-  asks for reduced motion so each shot shows an animation's resting state. It
+  its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080 (Chromium), 1366x657 on the anchor,
+  the worst board, a call beside the latest riichi discard's row, the full and mixed hands, the replay and
+  the live turn alone (the band's corners shared, a chip bounded by its row), 800x600 on the anchor, the
+  dense and two-step decisions, the worst board with and without offers and the full and a mixed hand (a
+  narrow desktop's chrome), 1280x720, 1536x730 and 1440x770 on the anchor, the offers and the full hands
+  (`laptop-*`: either side of the short desktop's 760px), 2560x1440 on the offers, the choices and the full
+  hands (`desktop-large`: a control's height against the band), 680x375 and 700x375 (WebKit,
+  `phone-680`/`phone-700`: wider phones at the floor's height, where the own tile reaches 36px) on the
+  anchor, the switches, the strips' capacity and the replay, iPhone 13 portrait, the notch phone (the spec's
+  capture model, 844x390 with insets of 47, 47 and 21, asserted on every page) and the 667x375 floor
+  (WebKit). Every viewport from 1366x657 through the wider phones is opt-in (`optIn`), checking only the
+  pages that name it. The two engines run at once and each checks several pages at a time, each in its own
+  context, which asks for reduced motion so each shot shows an animation's resting state. It
   fails on content that is hidden or empty (a decision control's tile previews aside, which a pair may
   shed), rivers within 3px of each other or the centre, a strip within
   6px of a river, an opponent's concealed hand tile off the river tile's width, a side hand's full reach (as its
@@ -604,9 +605,16 @@ Enter on Auto win must each turn it once, sending nothing. It also fails on a ro
   fingerprint of its inputs (every non-ignored file under `frontend/game_v2`, tracked or not, and the
   `Makefile`) in `node_modules/.cache/visual-check.pass`; `make run-all-checks` skips the gate only
   when the current fingerprint matches that stamp, so a skip always means these exact inputs passed.
-  Run directly, it always runs. While iterating, `node scripts/visual-check.ts --page <name>
+  Run directly, it always runs. While iterating, `node scripts/visual-check/run.ts --page <name>
   --viewport <name> --shots <dir>` (after `vite build`; each repeatable, matching names by substring)
   checks and shoots only those pages; it skips the replay load budget and never stamps.
+* **The gate's structure** (`scripts/visual-check/`): the runner loads the pages and composes one module per
+  surface, each declaring its pages and its checks, so a new page or check goes in its surface's module
+  alone, never the runner or another surface. Every surface's board checks run on every page that draws a
+  board, whichever surface's page it is, so each page is held to every surface's rules; a check across pages
+  keeps what it compares in its own `PageRecord`, never on the shared report. The viewports are the capture model; an opt-in one (`optIn`) checks only the pages whose
+  `alsoAt` names it, so a page says where it runs. Measurement shared by surfaces (boxes, the board's common
+  geometry, text and the face, contrast) has its own modules; a surface measures what only it reads.
 * **Budgets**, in the same run: `scripts/bundle-budget.ts` reads the manifest the gate's build alone
   writes (`vite build --manifest`; it deletes it, so `dist/` never serves one) and fails when a
   route loads more JavaScript or CSS than its budget, raw or gzipped (the game route is the entry
