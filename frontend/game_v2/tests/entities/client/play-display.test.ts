@@ -16,9 +16,10 @@ import {
     wireSessionError,
 } from "#tests/fixtures/wire";
 import {
-    type GameClientState,
+    type LiveClient,
     NO_PLAY_UI,
     type PlayDisplay,
+    decisionOf,
     nextCountdownChange,
     nextDeadline,
     nextPlayUi,
@@ -56,19 +57,19 @@ function laid(group: readonly MeldTile[] | null): string[] | null {
 }
 
 /** The state once logical time reaches the open decision's deadline, which shows it as expired. */
-function pastDeadline(state: GameClientState): GameClientState {
-    const at = state.decision?.deadline ?? Number.NaN;
+function pastDeadline(state: LiveClient): LiveClient {
+    const at = decisionOf(state)?.deadline ?? Number.NaN;
     return stepGameClient(state, { at, kind: "tick" }).state;
 }
 
 /** How each seat's hand shows on the viewer's board (bottom, right, top, left): "face", "concealed" or both. */
-function handShows(state: GameClientState): string[] {
+function handShows(state: LiveClient): string[] {
     return (playDisplay(state, NO_PLAY_UI).board?.players ?? []).map((player) =>
         [...new Set(player.hand.map((tile) => tile.show))].join(","),
     );
 }
 
-function viewerTiles(state: GameClientState): readonly number[] {
+function viewerTiles(state: LiveClient): readonly number[] {
     return state.table.players.find((player) => player.seat === state.viewerSeat)?.tiles ?? [];
 }
 
@@ -145,7 +146,7 @@ describe("playDisplay", () => {
         const display = playDisplay(state, picking);
         const stale = playDisplay(state, {
             ...NO_PLAY_UI,
-            riichiPickWaitId: (state.decision?.waitId ?? 0) - 1,
+            riichiPickWaitId: (decisionOf(state)?.waitId ?? 0) - 1,
         });
 
         expect([...display.tileIntents]).toEqual([
@@ -436,7 +437,7 @@ describe("playDisplay decisions", () => {
     });
 });
 
-function noticeTexts(state: GameClientState): string[] {
+function noticeTexts(state: LiveClient): string[] {
     return playDisplay(state, NO_PLAY_UI).notices.map((notice) => notice.text);
 }
 
@@ -781,7 +782,7 @@ describe("playDisplay callouts", () => {
     });
 
     it("calls a kan open to chankan once: not again for the prompt a reconnect re-sends, nor as nobody robs it", () => {
-        function callsAt(label: string): GameClientState["calls"] {
+        function callsAt(label: string): LiveClient["calls"] {
             return checkpointState("chankan_passed_seat_3", label).calls;
         }
         const kan = { at: 8000, calls: [{ kanTileType: 14, kind: "kan", seat: 1 }], until: 9500 };

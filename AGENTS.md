@@ -37,8 +37,8 @@ Ronin is a Riichi Mahjong game server and browser client.
 
 The `Makefile` lists the targets; the non-obvious ones:
 
-* `make install-frontend` — `npm ci` in each frontend app, then the Playwright browsers the v2 client's
-  `make visual-check` drives.
+* `make install-frontend` — `npm ci` in each frontend app, then the Playwright browsers the v2
+  client's `make visual-check` drives.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
   frontend app (`:5173` lobby, `:5174` game client, `:5175` game client v2) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the

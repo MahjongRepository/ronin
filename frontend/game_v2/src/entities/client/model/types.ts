@@ -146,6 +146,12 @@ export type ClientEvent =
           readonly recovery: HandoffRecovery;
       };
 
+/** An event a live seat's client takes: any but a replay line. */
+export type LiveEvent = Exclude<ClientEvent, { readonly kind: "replay_line" }>;
+
+/** The one event a replay's client takes: a line of its file. */
+export type ReplayLineEvent = Extract<ClientEvent, { readonly kind: "replay_line" }>;
+
 /**
  * A short-lived notice to the viewer, shown until `until` in logical time: its seat is back after a reconnect, or the
  * server refused its last move (by the game's error code, or the socket's rate limit) while the move stays open.
@@ -160,14 +166,20 @@ export type TimedNotice =
  * client can estimate it (logical time, backdated by a snapshot's elapsed time; null when unknown). It is for display
  * only: the server's timeout advances the game, and the client never confirms on its own. Sent: the player confirmed
  * it once and waits for the others, unless the rate limit reopens it as owed. Confirmed: a reconnect's snapshot owes
- * no confirm, so the seat waits too. Final: the game's last result, which the game end follows at once; the player
- * dismisses it to read the standings and may reopen it from them, neither of which sends anything.
+ * no confirm, so the seat waits too.
  */
 export type RoundConfirm =
     | { readonly kind: "owed"; readonly waitId: number; readonly deadline: number | null }
     | { readonly kind: "sent"; readonly waitId: number; readonly deadline: number | null }
-    | { readonly kind: "confirmed" }
-    | { readonly kind: "final" };
+    | { readonly kind: "confirmed" };
+
+/**
+ * What the seat owes the server, one at a time: its open decision, or the round result it reads before the next deal.
+ * The server never waits on both, since a round end closes every decision and only the next deal opens one.
+ */
+export type Pending =
+    | { readonly kind: "decision"; readonly decision: Decision }
+    | { readonly kind: "round_confirm"; readonly confirm: RoundConfirm };
 
 /**
  * The protocol failure that put the client out of step with the server: a server message that does not parse, a frame
@@ -176,19 +188,34 @@ export type RoundConfirm =
 export type DesyncCause = "unreadable_message" | "undecodable_frame" | "impossible_state";
 
 /**
- * A client out of step with the server since logical time `since`: it answers nothing and drops every server message
- * but a snapshot and the game's end until a snapshot rebuilds it. `answerDue` is when the resync request it sent counts
- * as unanswered and is sent again; null while none is outstanding (none sent yet, or the socket dropped, whose
- * reconnect brings a snapshot of its own). `requested`: a resync request the client sent is outstanding on the open
- * socket, so a rate limit then answers it, never the session's identity message.
+ * A client in step with the server, and what its seat owes while the session holds the seat; null while it owes
+ * nothing or holds no seat.
+ */
+export interface InStep {
+    readonly kind: "in_step";
+    readonly pending: Pending | null;
+}
+
+/**
+ * A client out of step with the server since logical time `since`: it owes and answers nothing and drops every server
+ * message but a snapshot and the game's end until a snapshot rebuilds it. `answerDue` is when the resync request it
+ * sent counts as unanswered and is sent again; null while none is outstanding (none sent yet, or the socket dropped,
+ * whose reconnect brings a snapshot of its own). `requested`: a resync request the client sent is outstanding on the
+ * open socket, so a rate limit then answers it, never the session's identity message. `unreadMessages`: the protocol
+ * failures it met since it lost step, the first included, so the board says its table may be wrong.
  */
 export interface Desync {
+    readonly kind: "out_of_step";
     readonly cause: DesyncCause;
     readonly detail: string;
     readonly since: number;
     readonly answerDue: number | null;
     readonly requested: boolean;
+    readonly unreadMessages: number;
 }
+
+/** Whether the client is in step with the server, which a snapshot alone restores. */
+export type Sync = InStep | Desync;
 
 /**
  * The calls the board shows, made aloud by one move at logical time `at`. A live server message's last until `until`
@@ -201,37 +228,48 @@ export interface ShownCalls {
 }
 
 /**
- * The game client's state at logical time `now`, the `at` of the last event it took, so a state kept at a
- * historical cursor keeps the time it was taken at. A replay has no session: no socket drives it and it sends
- * nothing. The table holds what the source showed: one seat's view for a live seat (`viewerSeat`), every hand for
- * a replay, whose viewer is null.
+ * What every client holds at logical time `now`, the `at` of the last event it took, so a state kept at a historical
+ * cursor keeps the time it was taken at: the table as its source showed it, and the calls its board shows by their
+ * seats, or null.
  */
-export interface GameClientState {
+interface ClientBase {
     readonly now: number;
-    readonly session: SessionState | null;
     readonly table: TableState;
+    readonly calls: ShownCalls | null;
+}
+
+/**
+ * A replay's client: every hand the file records, and nothing else. No socket drives it, it has no viewer and it
+ * sends nothing, so it owes, answers and loses step with nothing.
+ */
+export interface ReplayClient extends ClientBase {
+    readonly kind: "replay";
+}
+
+/** A live seat's client: its session, the table as the seat sees it, and the seat's own facts and obligations. */
+export interface LiveClient extends ClientBase {
+    readonly kind: "live";
+    readonly session: SessionState;
+    /** The seat the server named the viewer's, or null before it did. */
     readonly viewerSeat: number | null;
-    readonly decision: Decision | null;
     /** The furiten the server last reported to the viewer's seat; a new deal clears it. */
     readonly furiten: boolean;
     readonly timer: TimerSettings | null;
-    readonly roundConfirm: RoundConfirm | null;
+    /** Whether the client is in step with the server, and what the seat owes it while it is. */
+    readonly sync: Sync;
+    /**
+     * The game's last result shown over the standings: the game end follows it at once, the player dismisses it to
+     * read the standings and may reopen it from them, none of which sends anything. Out of step too, since that result
+     * and the standings are the server's.
+     */
+    readonly showsLastResult: boolean;
     /** The latest short-lived notice, until it expires or a newer one replaces it. */
     readonly notice: TimedNotice | null;
-    /**
-     * How many protocol failures (`Desync`) the client met since the last snapshot rebuilt its table: the table may be
-     * wrong from the first. A snapshot alone resets it.
-     */
-    readonly unreadMessages: number;
-    /** Where the client stands since it lost step with the server, until a snapshot rebuilds it; null while in step. */
-    readonly desync: Desync | null;
     /**
      * How many resync requests this page has sent, never reset, so a client that loses step again and again ends
      * however often its snapshots arrive.
      */
     readonly resyncRequests: number;
-    /** The calls the board shows by their seats, or null. */
-    readonly calls: ShownCalls | null;
     /**
      * When the server's game start pause likely ends with the first deal, in logical time, from the game start's timer
      * settings; null without them.
@@ -248,6 +286,9 @@ export interface GameClientState {
     readonly highestOpenedWaitId: number | null;
 }
 
+/** The game client's state: a replay's, or a live seat's. */
+export type GameClientState = ReplayClient | LiveClient;
+
 /**
  * The session's IO plus a report of a protocol failure for the driver to show: a message or replay line the client
  * could not parse, a frame it could not decode, or a message it could not take (`DesyncCause`).
@@ -256,8 +297,8 @@ export type ClientEffect =
     | SessionEffect
     | { readonly type: "report_protocol_failure"; readonly detail: string };
 
-export interface ClientStep {
-    readonly state: GameClientState;
+export interface ClientStep<State extends GameClientState = GameClientState> {
+    readonly state: State;
     readonly effects: readonly ClientEffect[];
 }
 
@@ -266,7 +307,9 @@ export interface ClientStep {
  * robbed as declared, or null for any other. A partial step took only part of its event: the dispatcher steps the
  * same event again for the rest.
  */
-export interface TracedStep extends ClientStep {
+export interface TracedStep<
+    State extends GameClientState = GameClientState,
+> extends ClientStep<State> {
     readonly parsed: ReplayLine | KanDeclaredEvent | null;
     readonly partial: boolean;
 }

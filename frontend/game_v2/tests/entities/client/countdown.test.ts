@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { checkpointState, loadSeatScenario } from "#tests/fixtures/seat-transcripts";
 import {
-    type GameClientState,
+    type LiveClient,
     decisionCountdown,
+    decisionOf,
     nextCountdownChange,
     runSeatScenario,
     scenarioStateIndex,
@@ -13,7 +14,7 @@ import {
 
 const { scenario } = loadSeatScenario("call_prompt_seat_1");
 
-function stateAt(label: string): GameClientState {
+function stateAt(label: string): LiveClient {
     const run = runSeatScenario(scenario);
     expect(run.mismatches).toEqual([]);
     return timelineStates(run.timeline)[scenarioStateIndex(scenario, label)];
@@ -33,9 +34,14 @@ describe("decisionCountdown", () => {
     });
 
     it("shows a prompt past its deadline as expired, an answered one as none, and one without a deadline as untimed", () => {
-        const untimed = {
+        const prompt = decisionOf(PROMPT);
+        assert(prompt !== null);
+        const untimed: LiveClient = {
             ...PROMPT,
-            decision: PROMPT.decision && { ...PROMPT.decision, deadline: null },
+            sync: {
+                kind: "in_step",
+                pending: { decision: { ...prompt, deadline: null }, kind: "decision" },
+            },
         };
 
         expect(decisionCountdown(EXPIRED)).toEqual({ kind: "expired", move: "call" });
@@ -56,7 +62,7 @@ describe("nextCountdownChange", () => {
 describe("decisionCountdown - a turn's base and bank", () => {
     const FIRST_DRAW = checkpointState("own_turn_seat_1", "first draw");
 
-    function at(state: GameClientState, now: number): GameClientState {
+    function at(state: LiveClient, now: number): LiveClient {
         return { ...state, now };
     }
 

@@ -2,12 +2,13 @@ import { assertNever } from "@/shared/lib";
 
 import { boardNotices } from "./board-notices";
 import { choosingTiles, pickingRiichi } from "./decision-controls";
+import { decisionOf } from "./pending";
 import { type PlayCommand, type PlayUi, type TileChoiceKind } from "./play-ui";
 import { resultRound } from "./result-controls";
-import { type GameClientState, type LocalIntent } from "./types";
+import { type LiveClient, type LocalIntent } from "./types";
 
 /** The view's `ui` once the client state moved on: a sheet with no notice left closes, so it never reopens. */
-export function settledPlayUi(state: GameClientState, ui: PlayUi): PlayUi {
+export function settledPlayUi(state: LiveClient, ui: PlayUi): PlayUi {
     if (ui.noticeSheet === null || boardNotices(state, ui).length > 0) {
         return ui;
     }
@@ -15,23 +16,23 @@ export function settledPlayUi(state: GameClientState, ui: PlayUi): PlayUi {
 }
 
 /** Whether the open decision was answered, so its steps stay as they were while the server answers. */
-function answeredDecision(state: GameClientState): boolean {
-    return state.decision?.status.kind === "submitted";
+function answeredDecision(state: LiveClient): boolean {
+    return decisionOf(state)?.status.kind === "submitted";
 }
 
 /** Picking riichi's discard turned on (for the open decision, closing a choice of tiles) or off. */
-function toggledRiichiPick(state: GameClientState, ui: PlayUi): PlayUi {
+function toggledRiichiPick(state: LiveClient, ui: PlayUi): PlayUi {
     if (answeredDecision(state)) {
         return ui;
     }
-    const waitId = state.decision?.waitId ?? null;
+    const waitId = decisionOf(state)?.waitId ?? null;
     const riichiPickWaitId = pickingRiichi(state, ui) ? null : waitId;
     return { ...ui, riichiPickWaitId, tileChoice: null };
 }
 
 /** A call's choice of tiles opened (for the open decision, turning the riichi pick off) or closed. */
-function toggledTileChoice(state: GameClientState, ui: PlayUi, kind: TileChoiceKind): PlayUi {
-    const { decision } = state;
+function toggledTileChoice(state: LiveClient, ui: PlayUi, kind: TileChoiceKind): PlayUi {
+    const decision = decisionOf(state);
     if (decision === null || answeredDecision(state)) {
         return ui;
     }
@@ -41,7 +42,7 @@ function toggledTileChoice(state: GameClientState, ui: PlayUi, kind: TileChoiceK
 
 /** The view's `ui` after one of the open decision's steps: the riichi toggle, a call's choice of tiles, a step back. */
 function steppedDecision(
-    state: GameClientState,
+    state: LiveClient,
     ui: PlayUi,
     command: Extract<
         PlayCommand,
@@ -57,7 +58,7 @@ function steppedDecision(
 }
 
 /** One step back: out of a call's choice of tiles, else the riichi pick off. */
-function steppedBack(state: GameClientState, ui: PlayUi): PlayUi {
+function steppedBack(state: LiveClient, ui: PlayUi): PlayUi {
     if (answeredDecision(state)) {
         return ui;
     }
@@ -78,7 +79,7 @@ function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
  * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
  * result reopens on its first; a nameplate is pinned, or none; a notice opens whole in its sheet, or the sheet closes.
  */
-export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayCommand): PlayUi {
+export function nextPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
         case "intent":
         case "reload": {

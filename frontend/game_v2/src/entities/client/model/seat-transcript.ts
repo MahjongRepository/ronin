@@ -15,7 +15,7 @@ import { type GameSessionData } from "@/shared/session";
 
 import { nextDeadline, startGameClient, stepGameClient } from "./dispatch";
 import { type ScenarioStep, type SeatScenario } from "./scenario";
-import { type ClientEffect, type GameClientState, type LocalIntent, type Offer } from "./types";
+import { type ClientEffect, type LiveClient, type LocalIntent, type Offer } from "./types";
 
 /** What a transcript writes for the game ticket of a JOIN_GAME or RECONNECT, which the lobby's handoff holds. */
 const GAME_TICKET_PLACEHOLDER = "<game ticket>";
@@ -295,9 +295,9 @@ function openedSteps({ events, index }: Cursor, { handoff, reopen }: DriveContex
  * expected to describe no effect, since everything the client sent on its own is in the transcript at its time.
  */
 function ticksBefore(
-    state: GameClientState,
+    state: LiveClient,
     at: number,
-): { readonly state: GameClientState; readonly steps: ScenarioStep[] } {
+): { readonly state: LiveClient; readonly steps: ScenarioStep[] } {
     const steps: ScenarioStep[] = [];
     let current = state;
     for (let due = nextDeadline(current); due !== null && due < at; due = nextDeadline(current)) {
@@ -311,7 +311,7 @@ function ticksBefore(
     return { state: current, steps };
 }
 
-function advance(state: GameClientState, steps: readonly ScenarioStep[]): GameClientState {
+function advance(state: LiveClient, steps: readonly ScenarioStep[]): LiveClient {
     return steps.reduce((current, step) => stepGameClient(current, step.event).state, state);
 }
 
@@ -338,11 +338,11 @@ function eventSteps(cursor: Cursor, context: DriveContext): Taken {
 }
 
 interface Driven extends Taken {
-    readonly state: GameClientState;
+    readonly state: LiveClient;
 }
 
 /** Drive the client to the transcript event at `index` and through it: the ticks due before it, then its steps. */
-function driveEvent(state: GameClientState, cursor: Cursor, context: DriveContext): Driven {
+function driveEvent(state: LiveClient, cursor: Cursor, context: DriveContext): Driven {
     const ticks = ticksBefore(state, cursor.events[cursor.index].at);
     const taken = eventSteps(cursor, context);
     return {

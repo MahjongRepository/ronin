@@ -2,10 +2,10 @@ import { type GameSessionData } from "@/shared/session";
 
 import { startGameClient } from "./dispatch";
 import { type ClientTimeline, buildClientTimeline, timelineStates } from "./timeline";
-import { type ClientEffect, type ClientEvent, type GameClientState } from "./types";
+import { type ClientEffect, type LiveClient, type LiveEvent } from "./types";
 
 /** The client events a seat's scenario takes: everything but a replay line, which only a replay file holds. */
-export type ScenarioEvent = Exclude<ClientEvent, { kind: "replay_line" }>;
+export type ScenarioEvent = LiveEvent;
 
 /**
  * One step of a scenario: a client event, with the effects stepping it must describe, exactly and in order. An
@@ -46,7 +46,7 @@ export type ScenarioMismatch =
     | { readonly kind: "seat"; readonly expected: number; readonly actual: number | null };
 
 export interface ScenarioRun {
-    readonly timeline: ClientTimeline;
+    readonly timeline: ClientTimeline<LiveClient>;
     readonly mismatches: readonly ScenarioMismatch[];
 }
 
@@ -70,7 +70,7 @@ function effectsMismatch(check: EffectsCheck): ScenarioMismatch[] {
     return [{ ...check, kind: "effects" }];
 }
 
-function seatMismatch(scenario: SeatScenario, last: GameClientState): ScenarioMismatch[] {
+function seatMismatch(scenario: SeatScenario, last: LiveClient): ScenarioMismatch[] {
     const actual = last.viewerSeat;
     return actual === scenario.seat ? [] : [{ actual, expected: scenario.seat, kind: "seat" }];
 }
@@ -117,7 +117,7 @@ export function scenarioStateIndex(scenario: SeatScenario, label: string): numbe
  * storybook renders and the tests assert on. A run that parts from its scenario throws rather than show a state the
  * transcript never reached.
  */
-export function scenarioCheckpoint(scenario: SeatScenario, label: string): GameClientState {
+export function scenarioCheckpoint(scenario: SeatScenario, label: string): LiveClient {
     const run = runSeatScenario(scenario);
     if (run.mismatches.length > 0) {
         throw new Error(

@@ -1,6 +1,6 @@
 import {
     type ClientEffect,
-    type GameClientState,
+    type LiveClient,
     type PlaySwitch,
     type ScenarioStep,
     type SeatScenario,
@@ -65,7 +65,7 @@ export function receivedThrough(
 }
 
 /** The client state after the step labelled `label` of the named transcript's scenario, which must run clean. */
-export function checkpointState(name: string, label: string): GameClientState {
+export function checkpointState(name: string, label: string): LiveClient {
     return scenarioCheckpoint(loadSeatScenario(name).scenario, label);
 }
 

@@ -7,7 +7,7 @@ import {
     receivedPayload,
 } from "#tests/fixtures/seat-transcripts";
 import {
-    type GameClientState,
+    type LiveClient,
     NO_PLAY_UI,
     PlayBoard,
     type PlayCommand,
@@ -19,7 +19,7 @@ import {
 import { CALLOUT_MS } from "@/entities/table";
 import { renderStandings } from "@/entities/table/ui/standings";
 
-function drawPlay(host: HTMLElement, state: GameClientState, ui: PlayUi = NO_PLAY_UI): void {
+function drawPlay(host: HTMLElement, state: LiveClient, ui: PlayUi = NO_PLAY_UI): void {
     render(
         PlayBoard({
             display: playDisplay(state, ui),
@@ -33,8 +33,8 @@ function drawPlay(host: HTMLElement, state: GameClientState, ui: PlayUi = NO_PLA
 
 /** Focus the hand's first tile on a board in the document at `before`, redraw it at `after`: what holds the focus then. */
 function focusThrough(
-    before: GameClientState,
-    after: GameClientState,
+    before: LiveClient,
+    after: LiveClient,
 ): {
     readonly tile: HTMLButtonElement | null;
     readonly focused: Element | null;
@@ -58,7 +58,7 @@ function reachableByTab(control: HTMLButtonElement): boolean {
     return !control.disabled && control.tabIndex >= 0 && control.closest("[inert]") === null;
 }
 
-function renderPlay(state: GameClientState, ui: PlayUi = NO_PLAY_UI): HTMLElement {
+function renderPlay(state: LiveClient, ui: PlayUi = NO_PLAY_UI): HTMLElement {
     const host = document.createElement("div");
     drawPlay(host, state, ui);
     return host;
@@ -73,7 +73,7 @@ async function pressFocused(host: HTMLElement, selector: string): Promise<string
 
 /** A live board in the document whose commands change its view's `ui` and redraw it, as the game view does. */
 function mountLive(
-    state: GameClientState,
+    state: LiveClient,
     initial: PlayUi,
 ): {
     readonly host: HTMLElement;
@@ -135,7 +135,7 @@ function timer(host: HTMLElement): [string | undefined, string | undefined, bool
 
 /** The play switches a live board draws for a state, each press going to `onCommand`. */
 function renderSwitches(
-    state: GameClientState,
+    state: LiveClient,
     onCommand: (command: PlayCommand) => void,
 ): HTMLButtonElement[] {
     const host = document.createElement("div");
@@ -154,7 +154,7 @@ function renderSwitches(
 const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
 
 function renderLiveStandings(
-    gameEnd: GameClientState = checkpointState("final_round_seat_1", "game end"),
+    gameEnd: LiveClient = checkpointState("final_round_seat_1", "game end"),
 ): { host: HTMLElement; commands: PlayCommand[] } {
     const standings = stepGameClient(gameEnd, {
         at: gameEnd.now,

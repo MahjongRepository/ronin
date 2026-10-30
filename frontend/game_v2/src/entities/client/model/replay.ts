@@ -10,9 +10,9 @@ import {
     readReplayFile,
 } from "@/entities/table";
 
-import { startReplayClient, traceGameClient } from "./dispatch";
+import { startReplayClient, traceReplayClient } from "./dispatch";
 import { type ClientTimeline, type TimelineEntry, timelineStates } from "./timeline";
-import { type ClientEvent, type GameClientState } from "./types";
+import { type ReplayClient } from "./types";
 
 /** The logical time of every replay line: a replay records no times, and its client waits on no deadline. */
 const REPLAY_TIME = 0;
@@ -25,13 +25,13 @@ const REPLAY_TIME = 0;
 export type ReplayTimelineRead =
     | {
           readonly ok: true;
-          readonly timeline: ClientTimeline;
+          readonly timeline: ClientTimeline<ReplayClient>;
           readonly damage: ReplayLineError | null;
       }
     | { readonly ok: false; readonly refusal: ReplayRefusal };
 
 interface LineSteps {
-    readonly entries: readonly TimelineEntry[];
+    readonly entries: readonly TimelineEntry<ReplayClient>[];
     readonly damage: string | null;
 }
 
@@ -40,10 +40,10 @@ function errorDetail(error: unknown): string {
 }
 
 /** The timeline entries one line makes, or why it cannot be shown: it does not parse, or the table refuses it. */
-function stepLine(state: GameClientState, line: ReplayFileLine): LineSteps {
-    const event: ClientEvent = { at: REPLAY_TIME, kind: "replay_line", raw: line.raw };
+function stepLine(state: ReplayClient, line: ReplayFileLine): LineSteps {
+    const event = { at: REPLAY_TIME, kind: "replay_line", raw: line.raw } as const;
     try {
-        const steps = traceGameClient(state, event);
+        const steps = traceReplayClient(state, event);
         const refused = steps
             .flatMap((step) => step.effects)
             .find((effect) => effect.type === "report_protocol_failure");
@@ -66,10 +66,10 @@ function stepLine(state: GameClientState, line: ReplayFileLine): LineSteps {
 
 /** The entries of every line in order, up to the first that cannot be shown, which is the damage. */
 function stepLines(
-    start: GameClientState,
+    start: ReplayClient,
     lines: readonly ReplayFileLine[],
-): { readonly entries: TimelineEntry[]; readonly damage: ReplayLineError | null } {
-    const entries: TimelineEntry[] = [];
+): { readonly entries: TimelineEntry<ReplayClient>[]; readonly damage: ReplayLineError | null } {
+    const entries: TimelineEntry<ReplayClient>[] = [];
     let state = start;
     for (const line of lines) {
         const stepped = stepLine(state, line);

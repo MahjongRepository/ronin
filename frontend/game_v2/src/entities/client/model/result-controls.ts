@@ -2,8 +2,14 @@ import { type TableState, roundEndPageAt } from "@/entities/table";
 
 import { type DecisionCountdown, roundConfirmCountdown } from "./countdown";
 import { takesIntent } from "./dispatch";
+import { roundConfirmOf } from "./pending";
 import { type PlayAction, type PlayUi, intentCommand } from "./play-ui";
-import { type GameClientState, type PlayIntent, type RoundConfirm } from "./types";
+import { type LiveClient, type PlayIntent, type RoundConfirm } from "./types";
+
+/** How the viewer reads the round result shown: as the round confirm it owes or sent, or as the game's last result. */
+type ResultRead = RoundConfirm | { readonly kind: "final" };
+
+const FINAL: ResultRead = { kind: "final" };
 
 /**
  * The round result's controls in its panel: its one primary button (the next page of a result the player still has
@@ -49,7 +55,7 @@ function pageAction(page: number): PlayAction {
 }
 
 /** The confirm's button, when the dispatcher takes the confirm now. */
-function confirmAction(state: GameClientState, confirm: RoundConfirm): PlayAction | null {
+function confirmAction(state: LiveClient, confirm: ResultRead): PlayAction | null {
     if (
         (confirm.kind !== "owed" && confirm.kind !== "final") ||
         !takesIntent(state, CONFIRM_RESULT)
@@ -69,22 +75,23 @@ function confirmAction(state: GameClientState, confirm: RoundConfirm): PlayActio
  * but the last and the confirm on the last, so the player reads each winner of a double ron before confirming; once
  * the seat confirmed, that it waits for the others, with no button.
  */
-export function resultControls(state: GameClientState, page: number): ResultControls | null {
-    const { roundConfirm, table } = state;
-    if (roundConfirm === null || table.roundEndResult === null) {
+export function resultControls(state: LiveClient, page: number): ResultControls | null {
+    const { table } = state;
+    const read = roundConfirmOf(state) ?? (state.showsLastResult ? FINAL : null);
+    if (read === null || table.roundEndResult === null) {
         return null;
     }
     const countdown = roundConfirmCountdown(state);
-    if (roundConfirm.kind === "sent" || roundConfirm.kind === "confirmed") {
+    if (read.kind === "sent" || read.kind === "confirmed") {
         return { action: null, countdown, waiting: true };
     }
     const { count, index } = roundEndPageAt(table.roundEndResult, page);
-    const action = index < count - 1 ? pageAction(index + 1) : confirmAction(state, roundConfirm);
+    const action = index < count - 1 ? pageAction(index + 1) : confirmAction(state, read);
     return { action, countdown, waiting: false };
 }
 
 /** The standings' button back to the game's last result, when the dispatcher takes it now. */
-export function lastResultAction(state: GameClientState): PlayAction | null {
+export function lastResultAction(state: LiveClient): PlayAction | null {
     if (!takesIntent(state, SHOW_LAST_RESULT)) {
         return null;
     }

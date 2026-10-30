@@ -2,8 +2,8 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 
 import {
     type ClientEffect,
-    type ClientEvent,
-    type GameClientState,
+    type LiveClient,
+    type LiveEvent,
     type LocalIntent,
     NO_PLAY_UI,
     type NoticeKind,
@@ -13,6 +13,7 @@ import {
     type PlayUi,
     type SeatTranscript,
     type TileChoiceKind,
+    decisionOf,
     describePlayerClientStatus,
     nextPlayUi,
     parseSeatTranscript,
@@ -74,7 +75,7 @@ interface DecisionStory {
     readonly chooseTiles?: TileChoiceKind;
     readonly resultPage: number;
     /** What happens next, stepped on the checkpoint's state: a drop, a refusal, a kick. */
-    readonly followUp?: (state: GameClientState) => readonly ClientEvent[];
+    readonly followUp?: (state: LiveClient) => readonly LiveEvent[];
     readonly confirmingLeave?: boolean;
     readonly tileSprite?: TileSpriteStatus;
     /** The notice opened whole in its sheet. */
@@ -155,14 +156,14 @@ function checkpoint(transcript: TranscriptName, label: string, title: string): D
  * The kuikae turn's first tile the player may discard, discarded, and the game's refusal of it, named by the turn's
  * wait id as the server names it.
  */
-function refusedDiscard(state: GameClientState): readonly ClientEvent[] {
+function refusedDiscard(state: LiveClient): readonly LiveEvent[] {
     const [intent] = playDisplay(state, NO_PLAY_UI).tileIntents.values();
     const at = state.now + 500;
     const refusal = {
         cd: "invalid_discard",
         msg: "invalid discard",
         t: 7,
-        wi: state.decision?.waitId,
+        wi: decisionOf(state)?.waitId,
     };
     return [
         { at, intent, kind: "intent" },
@@ -176,10 +177,10 @@ function refusedDiscard(state: GameClientState): readonly ClientEvent[] {
  */
 function intentsAfterCall(
     ...picked: readonly LocalIntent[]
-): (state: GameClientState) => readonly ClientEvent[] {
+): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => {
         const at = state.now + CALLOUT_MS;
-        const answers: ClientEvent[] = picked.map((intent) => ({ at, intent, kind: "intent" }));
+        const answers: LiveEvent[] = picked.map((intent) => ({ at, intent, kind: "intent" }));
         return [{ at, kind: "tick" }, ...answers];
     };
 }
@@ -205,11 +206,11 @@ function receivedPayload(
  */
 function endedOutOfStep(
     ...picked: readonly LocalIntent[]
-): (state: GameClientState) => readonly ClientEvent[] {
+): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => {
         const at = state.now;
-        const unreadable: ClientEvent = { at, kind: "server_message", raw: { t: 999 } };
-        const ends = ["round end", "game end"].map((label): ClientEvent => ({
+        const unreadable: LiveEvent = { at, kind: "server_message", raw: { t: 999 } };
+        const ends = ["round end", "game end"].map((label): LiveEvent => ({
             at,
             kind: "server_message",
             raw: receivedPayload("final_round_seat_1", label),
@@ -219,21 +220,21 @@ function endedOutOfStep(
 }
 
 /** A message the client cannot read, `ms` after the checkpoint: the long notice of a client out of step. */
-function unreadableAfter(ms: number): (state: GameClientState) => readonly ClientEvent[] {
+function unreadableAfter(ms: number): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => [{ at: state.now + ms, kind: "server_message", raw: { t: 999 } }];
 }
 
-function closedWith(code: number): (state: GameClientState) => readonly ClientEvent[] {
+function closedWith(code: number): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => [{ at: state.now + 500, code, kind: "transport_closed", reason: "" }];
 }
 
 /** The player's answer at the checkpoint. */
-function answering(intent: LocalIntent): (state: GameClientState) => readonly ClientEvent[] {
+function answering(intent: LocalIntent): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => [{ at: state.now, intent, kind: "intent" }];
 }
 
 /** Every play switch turned on at the checkpoint, which answers none of the decision already open. */
-function allSwitchesOn(state: GameClientState): readonly ClientEvent[] {
+function allSwitchesOn(state: LiveClient): readonly LiveEvent[] {
     return PLAY_SWITCHES.map((playSwitch) => ({
         at: state.now,
         intent: { playSwitch, type: "toggle_switch" },
@@ -242,7 +243,7 @@ function allSwitchesOn(state: GameClientState): readonly ClientEvent[] {
 }
 
 /** A tick `seconds` after the checkpoint, the time the player let run. */
-function after(seconds: number): (state: GameClientState) => readonly ClientEvent[] {
+function after(seconds: number): (state: LiveClient) => readonly LiveEvent[] {
     return (state) => [{ at: state.now + seconds * 1000, kind: "tick" }];
 }
 
@@ -382,7 +383,7 @@ const DEFAULT_STORY: DecisionStoryKey = "call_prompt";
 /** The page's story, the client state it shows, the view's `ui`, and what the last answer sent. */
 interface StoryScreen {
     readonly story: DecisionStoryKey;
-    readonly state: GameClientState;
+    readonly state: LiveClient;
     readonly ui: PlayUi;
     readonly sent: readonly ClientEffect[];
 }
@@ -396,7 +397,7 @@ function parsedTranscript(transcriptName: TranscriptName): SeatTranscript {
 }
 
 /** The client state after the transcript's step labelled `label`, run as the live driver would run it. */
-function checkpointState(transcriptName: TranscriptName, label: string): GameClientState {
+function checkpointState(transcriptName: TranscriptName, label: string): LiveClient {
     const transcript = parsedTranscript(transcriptName);
     const handoff = { gameTicket: "storybook", wsUrl: `ws://storybook/ws/${transcript.gameId}` };
     return scenarioCheckpoint(seatScenarioFromTranscript(transcript, handoff), label);
@@ -419,7 +420,7 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
         (current, event) => stepGameClient(current, event).state,
         reached,
     );
-    const waitId = state.decision?.waitId ?? null;
+    const waitId = decisionOf(state)?.waitId ?? null;
     const picked = {
         ...NO_PLAY_UI,
         confirmingLeave: confirmingLeave ?? false,

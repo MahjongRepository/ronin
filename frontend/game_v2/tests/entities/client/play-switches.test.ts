@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
     type GeneratedScenario,
@@ -11,18 +11,21 @@ import {
     receivedPayload,
     switchedOnBefore,
 } from "#tests/fixtures/seat-transcripts";
-import { REPLAY_GAME_STARTED, WIRE_ROUND_STARTED, wireRuleRefusal } from "#tests/fixtures/wire";
+import { wireRoundEnd, wireRuleRefusal } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
-    type GameClientState,
+    type LiveClient,
     NO_PLAY_UI,
+    type ReplayClient,
     type ScenarioRun,
     type ScenarioStep,
     type SeatScenario,
+    decisionOf,
+    desyncOf,
     playDisplay,
+    roundConfirmOf,
     runSeatScenario,
     scenarioStateIndex,
-    startReplayClient,
     stepGameClient,
     takesIntent,
     timelineStates,
@@ -45,7 +48,7 @@ function runClean(scenario: SeatScenario): ScenarioRun {
     return run;
 }
 
-function stateAt(scenario: SeatScenario, run: ScenarioRun, label: string): GameClientState {
+function stateAt(scenario: SeatScenario, run: ScenarioRun, label: string): LiveClient {
     return timelineStates(run.timeline)[scenarioStateIndex(scenario, label)];
 }
 
@@ -78,7 +81,7 @@ function rejoinedAfter(
     return [...rejoining, { event: { at, kind: "server_message", raw: snapshot } }];
 }
 
-function lastState(run: ScenarioRun): GameClientState {
+function lastState(run: ScenarioRun): LiveClient {
     return timelineStates(run.timeline).at(-1) ?? run.timeline.start;
 }
 
@@ -99,13 +102,45 @@ function droppedAfter(
     return { ...switched, steps: [...kept, ...reconnecting] };
 }
 
-function bySwitch(state: GameClientState): unknown {
-    const status = state.decision?.status;
+function bySwitch(state: LiveClient): unknown {
+    const status = decisionOf(state)?.status;
     return status?.kind === "submitted" ? status.bySwitch : status?.kind;
 }
 
 function sent(message: ClientMessage): ClientEffect {
     return { message, type: "send" };
+}
+
+function received(at: number, raw: Record<string, unknown>, label: string): ScenarioStep {
+    return { event: { at, kind: "server_message", raw }, label };
+}
+
+/**
+ * The reconnect with No calls on, where the reopened socket gets a prompt on a wait it never saw and a round end before
+ * the snapshot admits it; then the snapshot of that wait, No calls turned on again (the round end's table left the
+ * hand), the prompt re-sent, the player's pass, and the snapshot and prompt repeated once more.
+ */
+function earlyWaitBranch(): { readonly early: SeatScenario; readonly waitId: number } {
+    const { scenario, transcript } = loadSeatScenario("reconnect_seat_1");
+    const prompt = receivedPayload(transcript, "prompt re-sent");
+    const waitId = Number(prompt.wi) + 1;
+    const unseen = { ...prompt, wi: waitId };
+    const snapshot = { ...receivedPayload(transcript, "reconnected"), wi: waitId };
+    const noCalls = { playSwitch: "no_calls", type: "toggle_switch" } as const;
+    const early = branchAfter(switchedOnBefore(scenario, "dropped", ["no_calls"]), "reopened", [
+        received(5500, unseen, "early prompt"),
+        received(5500, wireRoundEnd(waitId + 1), "early round end"),
+        received(5500, snapshot, "admitted"),
+        { event: { at: 5500, intent: noCalls, kind: "intent" } },
+        received(5500, unseen, "prompt re-sent"),
+        {
+            effects: [sent(buildPassAction(waitId))],
+            event: { at: 6000, intent: { type: "pass" }, kind: "intent" },
+        },
+        received(6100, snapshot, "snapshot again"),
+        received(6100, unseen, "prompt again"),
+    ]);
+    return { early, waitId };
 }
 
 /** The discard of the tile a draw's payload drew, on its wait: what Auto discard sends, written by hand. */
@@ -130,8 +165,8 @@ describe("switchAnswer", () => {
 
         expect(bySwitch(stateAt(switched, run, "passed"))).toBeNull();
         expect(bySwitch(stateAt(switched, run, "tsumo draw"))).toBe("auto_win");
-        expect(stateAt(switched, run, "tsumo chosen").decision?.status).toEqual(
-            stateAt(switched, run, "tsumo draw").decision?.status,
+        expect(decisionOf(stateAt(switched, run, "tsumo chosen"))?.status).toEqual(
+            decisionOf(stateAt(switched, run, "tsumo draw"))?.status,
         );
     });
 
@@ -270,25 +305,33 @@ describe("stepGameClient - play switches", () => {
         expect(bySwitch(stateAt(missed, run, "ron prompt"))).toBe("auto_win");
     });
 
-    it("never answers a new wait while the client cannot send: a prompt before the snapshot admits the reconnect stays the player's", () => {
-        const { scenario, transcript } = loadSeatScenario("reconnect_seat_1");
-        const switched = switchedOnBefore(scenario, "dropped", ["no_calls"]);
-        const prompt = receivedPayload(transcript, "prompt re-sent");
-        const unseen = { ...prompt, wi: Number(prompt.wi) + 1 };
-        const early = branchAfter(switched, "reopened", [
-            { event: { at: 5500, kind: "server_message", raw: unseen }, label: "early prompt" },
-        ]);
-        const state = stateAt(early, runClean(early), "early prompt");
+    it("never answers a new wait while the client cannot send: a prompt or round end before the snapshot admits the reconnect is owed by no one, and the prompt re-sent after it is the player's to answer, once", () => {
+        const { early, waitId } = earlyWaitBranch();
+        const run = runClean(early);
+        const before = stateAt(early, run, "early prompt");
+        const roundEnd = stateAt(early, run, "early round end");
+        const resent = stateAt(early, run, "prompt re-sent");
 
-        expect(state.session).toMatchObject({
+        expect(before.session).toMatchObject({
             identity: { kind: "reconnect" },
             status: "identifying",
         });
-        expect([state.switches.no_calls, state.decision?.waitId, bySwitch(state)]).toEqual([
+        expect([before.switches.no_calls, before.highestOpenedWaitId, decisionOf(before)]).toEqual([
             true,
-            unseen.wi,
-            "open",
+            waitId,
+            null,
         ]);
+        expect([roundEnd.session.status, roundEnd.table.phase, roundConfirmOf(roundEnd)]).toEqual([
+            "identifying",
+            "round_ended",
+            null,
+        ]);
+        expect([resent.switches.no_calls, bySwitch(resent)]).toEqual([true, "open"]);
+        expect(decisionOf(stateAt(early, run, "prompt again"))?.status).toMatchObject({
+            bySwitch: null,
+            intent: { type: "pass" },
+            kind: "submitted",
+        });
     });
 
     it("takes a play switch only on a live seat: never once the session ended, nor on a replay's board", () => {
@@ -303,27 +346,14 @@ describe("stepGameClient - play switches", () => {
             kind: "transport_closed",
             reason: "",
         }).state;
-        const replay = [REPLAY_GAME_STARTED, WIRE_ROUND_STARTED].reduce(
-            (state, raw) => stepGameClient(state, { at: 0, kind: "replay_line", raw }).state,
-            startReplayClient(0),
-        );
 
-        expect([ended.session?.status, ended.table.phase, replay.table.phase]).toEqual([
-            "ended",
-            "in_round",
-            "in_round",
+        expect([ended.session.status, ended.table.phase]).toEqual(["ended", "in_round"]);
+        expect([takesIntent(ended, toggle.intent), stepGameClient(ended, toggle)]).toEqual([
+            false,
+            { effects: [], state: { ...ended, now: 4000 } },
         ]);
-        expect(
-            [ended, replay].map((state) => [
-                takesIntent(state, toggle.intent),
-                stepGameClient(state, toggle),
-            ]),
-        ).toEqual(
-            [ended, replay].map((state) => [
-                false,
-                { effects: [], state: { ...state, now: 4000 } },
-            ]),
-        );
+        expectTypeOf<ReplayClient>().not.toExtend<Parameters<typeof takesIntent>[0]>();
+        expectTypeOf<ReplayClient>().not.toExtend<Parameters<typeof stepGameClient>[0]>();
     });
 
     it.each([
@@ -361,7 +391,7 @@ describe("stepGameClient - play switches", () => {
             "send",
         ]);
         expect(unreadable.effects[1]).toEqual(sent(buildResyncMessage()));
-        expect([unreadable.state.decision, unreadable.state.desync?.cause]).toEqual([
+        expect([decisionOf(unreadable.state), desyncOf(unreadable.state)?.cause]).toEqual([
             null,
             "unreadable_message",
         ]);

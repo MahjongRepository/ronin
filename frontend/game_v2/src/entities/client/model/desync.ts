@@ -7,7 +7,8 @@ import {
     buildResyncMessage,
 } from "@/shared/protocol";
 
-import { type ClientStep, type Desync, type DesyncCause, type GameClientState } from "./types";
+import { settledPending } from "./pending";
+import { type ClientStep, type Desync, type DesyncCause, type LiveClient } from "./types";
 
 const LOST_STEP: TableEvent = { type: "lost_step" };
 
@@ -20,30 +21,34 @@ export const MAX_RESYNC_REQUESTS = 5;
 /** How soon a resync refused before the first deal is asked again when the deal's time is unknown or past. */
 const NOT_STARTED_RETRY_MS = 1000;
 
+/** Where the client stands since it lost step with the server, or null while in step. */
+export function desyncOf(state: LiveClient): Desync | null {
+    return state.sync.kind === "out_of_step" ? state.sync : null;
+}
+
 /** Whether the client can send on its session: it holds the seat, which only an open socket does. */
-export function canSend(session: SessionState | null): boolean {
-    return session?.status === "playing";
+export function canSend(session: SessionState): boolean {
+    return session.status === "playing";
 }
 
 /**
- * Whether the client takes server messages on its session at all: a replay's (none) and a session on an open socket,
- * identifying or playing, as the session itself does. Any other has no open socket, so any message then is dropped.
+ * Whether the client takes server messages on its session at all: on an open socket, identifying or playing, as the
+ * session itself does. Any other has no open socket, so any message then is dropped.
  */
-export function takesServerMessages(session: SessionState | null): boolean {
-    return session === null || session.status === "identifying" || session.status === "playing";
+export function takesServerMessages(session: SessionState): boolean {
+    return session.status === "identifying" || session.status === "playing";
 }
 
-/** End the client because its driver failed while stepping it; nothing is pending afterwards. */
-export function failGameClient(state: GameClientState, detail: string): GameClientState {
-    const session = state.session === null ? null : failSession(state.session, detail);
-    return { ...state, calls: null, decision: null, notice: null, roundConfirm: null, session };
+/** End the client because its driver failed while stepping it; nothing is pending or shown afterwards. */
+export function failGameClient(state: LiveClient, detail: string): LiveClient {
+    const session = failSession(state.session, detail);
+    return settledPending({ ...state, calls: null, notice: null, session, showsLastResult: false });
 }
 
 /** End the client as failed from inside a step, on the page as a driver failure does, closing its socket. */
-function failStep(state: GameClientState, detail: string): ClientStep {
-    const linked = state.session !== null && hasSocket(state.session);
+function failStep(state: LiveClient, detail: string): ClientStep<LiveClient> {
     return {
-        effects: linked ? [{ type: "close_socket" }] : [],
+        effects: hasSocket(state.session) ? [{ type: "close_socket" }] : [],
         state: failGameClient(state, detail),
     };
 }
@@ -69,28 +74,31 @@ export function takesWhileDesynced(message: ParsedServerMessage): boolean {
 
 /**
  * The client after a protocol failure, reported for the console: it counts towards the board's notice and, in step
- * until now, puts the client out of step. Answering freezes: the open decision and an owed or sent round confirm go,
- * since the snapshot and the wait the server re-sends after it say again what the seat owes, and nothing sent is
- * ever sent again; the table knows its round history may miss what follows. Out of step already, the failure is one
- * more message dropped.
+ * until now, puts the client out of step, which owes nothing: the snapshot and the wait the server re-sends after it
+ * say again what the seat owes, and nothing sent is ever sent again; the table knows its round history may miss what
+ * follows. Out of step already, the failure is one more message dropped.
  */
-export function desyncStep(state: GameClientState, cause: DesyncCause, detail: string): ClientStep {
+export function desyncStep(
+    state: LiveClient,
+    cause: DesyncCause,
+    detail: string,
+): ClientStep<LiveClient> {
     const effects = [{ detail, type: "report_protocol_failure" } as const];
-    const counted = { ...state, unreadMessages: state.unreadMessages + 1 };
-    if (state.desync !== null) {
-        return { effects, state: counted };
+    const { now, sync, table } = state;
+    if (sync.kind === "out_of_step") {
+        const counted: Desync = { ...sync, unreadMessages: sync.unreadMessages + 1 };
+        return { effects, state: { ...state, sync: counted } };
     }
-    const { roundConfirm } = state;
-    return {
-        effects,
-        state: {
-            ...counted,
-            decision: null,
-            desync: { answerDue: null, cause, detail, requested: false, since: state.now },
-            roundConfirm: roundConfirm?.kind === "final" ? roundConfirm : null,
-            table: applyEvent(state.table, LOST_STEP),
-        },
+    const desync: Desync = {
+        answerDue: null,
+        cause,
+        detail,
+        kind: "out_of_step",
+        requested: false,
+        since: now,
+        unreadMessages: 1,
     };
+    return { effects, state: { ...state, sync: desync, table: applyEvent(table, LOST_STEP) } };
 }
 
 /**
@@ -99,10 +107,10 @@ export function desyncStep(state: GameClientState, cause: DesyncCause, detail: s
  * failed, out of step with the server, which it stays if it was already.
  */
 export function recoveryFailedStep(
-    state: GameClientState,
+    state: LiveClient,
     cause: DesyncCause,
     detail: string,
-): ClientStep {
+): ClientStep<LiveClient> {
     const lost = desyncStep(state, cause, detail);
     const failed = failStep(lost.state, `The server's game state could not be shown: ${detail}`);
     return { effects: [...lost.effects, ...failed.effects], state: failed.state };
@@ -114,19 +122,16 @@ export function recoveryFailedStep(
  * when the first deal is due, or shortly when that time is unknown or past, rather than a whole answer's wait later,
  * which would eat into a first dealer's turn.
  */
-export function deferredUntilDeal(
-    state: GameClientState,
-    message: ParsedServerMessage,
-): GameClientState {
-    const { desync, firstDealDue, now } = state;
+export function deferredUntilDeal(state: LiveClient, message: ParsedServerMessage): LiveClient {
+    const { firstDealDue, now, sync } = state;
     const notStarted =
         message.type === "session_error" && message.code === SESSION_ERROR_CODE.GAME_NOT_STARTED;
-    if (desync === null || !notStarted) {
+    if (sync.kind === "in_step" || !notStarted) {
         return state;
     }
     const answerDue =
         firstDealDue !== null && firstDealDue > now ? firstDealDue : now + NOT_STARTED_RETRY_MS;
-    return { ...state, desync: { ...desync, answerDue } };
+    return { ...state, sync: { ...sync, answerDue } };
 }
 
 /**
@@ -135,20 +140,23 @@ export function deferredUntilDeal(
  * refusal is the request's, which is asked again when its answer comes due, and the session never takes it for its
  * identity message's, which it would resend on a socket that may hold the seat already.
  */
-export function refusesResyncRequest(
-    state: GameClientState,
-    message: ParsedServerMessage,
-): boolean {
+export function refusesResyncRequest(state: LiveClient, message: ParsedServerMessage): boolean {
     return (
-        state.desync?.requested === true &&
+        state.sync.kind === "out_of_step" &&
+        state.sync.requested &&
         message.type === "session_error" &&
         message.code === SESSION_ERROR_CODE.RATE_LIMITED
     );
 }
 
-/** The client a snapshot rebuilt: in step again, and the failures before it no longer count. */
-export function resynced(state: GameClientState): GameClientState {
-    return { ...state, desync: null, unreadMessages: 0 };
+/**
+ * The client a snapshot rebuilds, before it takes the snapshot: in step again, owing nothing yet, and the failures
+ * before it no longer count. One in step already keeps what it owes, which the snapshot may repeat.
+ */
+export function resynced(state: LiveClient): LiveClient {
+    return state.sync.kind === "in_step"
+        ? state
+        : { ...state, sync: { kind: "in_step", pending: null } };
 }
 
 /**
@@ -156,10 +164,10 @@ export function resynced(state: GameClientState): GameClientState {
  * or identifying with no session retry waiting, since a socket whose identity message the server refused holds no
  * seat to resync until the retry resends it. Identifying, only the request is sent, never an answer to the game.
  */
-function canRequestResync(session: SessionState | null): boolean {
+function canRequestResync(session: SessionState): boolean {
     return (
-        session?.status === "playing" ||
-        (session?.status === "identifying" && session.sessionRetryAt === null)
+        session.status === "playing" ||
+        (session.status === "identifying" && session.sessionRetryAt === null)
     );
 }
 
@@ -171,26 +179,26 @@ function canRequestResync(session: SessionState | null): boolean {
  * a RECONNECT the server took binds. The requests are counted for the page, whatever the session's own retries reset:
  * one past `MAX_RESYNC_REQUESTS` ends the page as failed.
  */
-export function settleDesync(step: ClientStep): ClientStep {
+export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
     const { state } = step;
-    const { desync } = state;
-    if (desync === null) {
+    const { sync } = state;
+    if (sync.kind === "in_step") {
         return step;
     }
-    const answerDue = awaitedAnswerDue(state, desync);
-    if (answerDue !== desync.answerDue) {
-        const requested = answerDue !== null && desync.requested;
-        return { ...step, state: { ...state, desync: { ...desync, answerDue, requested } } };
+    const answerDue = awaitedAnswerDue(state, sync);
+    if (answerDue !== sync.answerDue) {
+        const requested = answerDue !== null && sync.requested;
+        return { ...step, state: { ...state, sync: { ...sync, answerDue, requested } } };
     }
     const due = answerDue === null || state.now >= answerDue;
-    return canRequestResync(state.session) && due ? requestResync(step, desync) : step;
+    return canRequestResync(state.session) && due ? requestResync(step, sync) : step;
 }
 
 /**
  * When an out-of-step client's snapshot counts as unanswered before it sends a request: none with no socket to ask
  * on (the request forgotten), `RESYNC_ANSWER_MS` from now for an identifying session's own snapshot, else as it was.
  */
-function awaitedAnswerDue(state: GameClientState, desync: Desync): number | null {
+function awaitedAnswerDue(state: LiveClient, desync: Desync): number | null {
     if (!canRequestResync(state.session)) {
         return null;
     }
@@ -201,7 +209,7 @@ function awaitedAnswerDue(state: GameClientState, desync: Desync): number | null
 }
 
 /** Send a resync request after `step`, or end the page once the page's requests are spent. */
-function requestResync(step: ClientStep, desync: Desync): ClientStep {
+function requestResync(step: ClientStep<LiveClient>, desync: Desync): ClientStep<LiveClient> {
     const { state } = step;
     if (state.resyncRequests >= MAX_RESYNC_REQUESTS) {
         const detail = `Lost step with the server ${MAX_RESYNC_REQUESTS} times: ${desync.detail}`;
@@ -212,13 +220,14 @@ function requestResync(step: ClientStep, desync: Desync): ClientStep {
         effects: [...step.effects, { message: buildResyncMessage(), type: "send" }],
         state: {
             ...state,
-            desync: { ...desync, answerDue: state.now + RESYNC_ANSWER_MS, requested: true },
             resyncRequests: state.resyncRequests + 1,
+            sync: { ...desync, answerDue: state.now + RESYNC_ANSWER_MS, requested: true },
         },
     };
 }
 
 /** When an out-of-step client's resync request counts as unanswered, or null. */
-export function desyncDeadline(state: GameClientState): number | null {
-    return canRequestResync(state.session) ? (state.desync?.answerDue ?? null) : null;
+export function desyncDeadline(state: LiveClient): number | null {
+    const { session, sync } = state;
+    return sync.kind === "out_of_step" && canRequestResync(session) ? sync.answerDue : null;
 }

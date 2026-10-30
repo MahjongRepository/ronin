@@ -2,7 +2,8 @@ import { type SessionState, hasLostSeat } from "@/entities/session";
 import { type ParsedServerMessage } from "@/shared/protocol";
 
 import { refusalOf } from "./decision";
-import { type GameClientState, type TimedNotice } from "./types";
+import { decisionOf, roundConfirmOf } from "./pending";
+import { type LiveClient, type TimedNotice } from "./types";
 
 const RECONNECTED_NOTICE_MS = 3000;
 const REFUSED_NOTICE_MS = 4000;
@@ -22,8 +23,9 @@ export function keptNotice(notice: TimedNotice | null, session: SessionState): T
  * The wait id of the request the client submitted and awaits an answer to, or null: a submitted decision's, else a
  * sent round confirm's.
  */
-export function submittedWaitId(state: GameClientState): number | null {
-    const { decision, roundConfirm } = state;
+export function submittedWaitId(state: LiveClient): number | null {
+    const decision = decisionOf(state);
+    const roundConfirm = roundConfirmOf(state);
     if (decision?.status.kind === "submitted") {
         return decision.waitId;
     }
@@ -35,7 +37,7 @@ export function submittedWaitId(state: GameClientState): number | null {
  * (`submittedWaitId`).
  */
 export interface NoticeBefore {
-    readonly session: SessionState | null;
+    readonly session: SessionState;
     readonly submitted: number | null;
 }
 
@@ -47,16 +49,16 @@ export interface NoticeBefore {
  */
 function messageNotice(
     before: NoticeBefore,
-    state: GameClientState,
+    state: LiveClient,
     message: ParsedServerMessage,
 ): TimedNotice | null {
     const { now, session } = state;
     if (message.type === "game_reconnected") {
-        const lostSeat = before.session !== null && hasLostSeat(before.session);
+        const lostSeat = hasLostSeat(before.session);
         return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
     }
     const refusal = refusalOf(message);
-    if (session?.status !== "playing" || refusal === null || refusal.waitId !== before.submitted) {
+    if (session.status !== "playing" || refusal === null || refusal.waitId !== before.submitted) {
         return null;
     }
     return { code: refusal.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
@@ -65,9 +67,9 @@ function messageNotice(
 /** The notices a message leaves: the one it raises, if any, else the one shown. */
 export function withNotice(
     before: NoticeBefore,
-    state: GameClientState,
+    state: LiveClient,
     message: ParsedServerMessage,
-): GameClientState {
+): LiveClient {
     const notice = messageNotice(before, state, message);
     return notice === null ? state : { ...state, notice };
 }

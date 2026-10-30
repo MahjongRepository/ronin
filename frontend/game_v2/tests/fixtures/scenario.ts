@@ -3,8 +3,8 @@ import { vi } from "vitest";
 import { type WirePayload } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
-    type ClientEvent,
-    type GameClientState,
+    type LiveClient,
+    type LiveEvent,
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
@@ -63,7 +63,7 @@ export function sessionScenario(
 /** A client begun at 0 from the lobby's handoff, or from none when `handoff` is null. */
 export function clientScenario(
     handoff: GameSessionData | null = HANDOFF,
-): Scenario<GameClientState, ClientEvent, ClientEffect> {
+): Scenario<LiveClient, LiveEvent, ClientEffect> {
     return new Scenario(startGameClient(GAME_ID, handoff, 0), stepGameClient);
 }
 
@@ -98,21 +98,21 @@ export const sessionInput = {
 };
 
 export const clientEvent = {
-    closed: (at: number, code: number): ClientEvent => ({
+    closed: (at: number, code: number): LiveEvent => ({
         at,
         code,
         kind: "transport_closed",
         reason: "",
     }),
-    confirm: (at: number): ClientEvent => ({
+    confirm: (at: number): LiveEvent => ({
         at,
         intent: { type: "confirm_result" },
         kind: "intent",
     }),
-    leave: (at: number): ClientEvent => ({ at, intent: { type: "leave" }, kind: "intent" }),
-    message: (at: number, raw: WirePayload): ClientEvent => ({ at, kind: "server_message", raw }),
-    opened: (at: number): ClientEvent => ({ at, kind: "transport_opened" }),
-    tick: (at: number): ClientEvent => ({ at, kind: "tick" }),
+    leave: (at: number): LiveEvent => ({ at, intent: { type: "leave" }, kind: "intent" }),
+    message: (at: number, raw: WirePayload): LiveEvent => ({ at, kind: "server_message", raw }),
+    opened: (at: number): LiveEvent => ({ at, kind: "transport_opened" }),
+    tick: (at: number): LiveEvent => ({ at, kind: "tick" }),
 };
 
 function forbidIo(): never {

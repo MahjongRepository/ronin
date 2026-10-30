@@ -2,18 +2,18 @@ import { roundEndPages } from "@/entities/table";
 import { type ParsedServerMessage, buildConfirmRoundAction } from "@/shared/protocol";
 
 import { refusalOf } from "./decision";
-import { type ClientStep, type GameClientState, type RoundConfirm } from "./types";
+import { replaceRoundConfirm, roundConfirmOf } from "./pending";
+import { type ClientStep, type LiveClient, type RoundConfirm } from "./types";
 
 const MS_PER_SECOND = 1000;
 const CONFIRMED: RoundConfirm = { kind: "confirmed" };
-const FINAL: RoundConfirm = { kind: "final" };
 
 /**
  * When the server's round advance timer for the table's result likely runs out, in logical time: one deadline per
  * round, the round advance timeout times the result's pages (the server's `results_shown`, a double ron's winners),
  * armed at the round end, less the time the timer has run already.
  */
-function roundAdvanceDeadline(state: GameClientState, elapsedSeconds: number): number | null {
+function roundAdvanceDeadline(state: LiveClient, elapsedSeconds: number): number | null {
     const { now, table, timer } = state;
     if (timer === null || table.roundEndResult === null) {
         return null;
@@ -28,11 +28,11 @@ function roundAdvanceDeadline(state: GameClientState, elapsedSeconds: number): n
  * for the wait the snapshot still names stays sent: a late second snapshot after a resync can follow the confirm.
  */
 function reconnectRoundConfirm(
-    state: GameClientState,
+    state: LiveClient,
     snapshot: Extract<ParsedServerMessage, { type: "game_reconnected" }>,
 ): RoundConfirm | null {
     const { confirmationOwed, elapsedSeconds, waitId } = snapshot;
-    const { roundConfirm } = state;
+    const roundConfirm = roundConfirmOf(state);
     if (state.table.roundEndResult === null) {
         return null;
     }
@@ -47,12 +47,12 @@ function reconnectRoundConfirm(
 }
 
 /**
- * The round confirm a message opens, from the table it left: a round end's wait, a reconnect's snapshot of a round
- * advance, or the game's last result when the game end follows a round end. Null for a round end with no wait;
- * undefined for any other message.
+ * The round confirm a message opens, from the table it left, in place of whatever the seat owed: a round end's wait, a
+ * reconnect's snapshot of a round advance. Null for a round end with no wait, a snapshot of no round advance and the
+ * game's end, which owe none; undefined for any other message.
  */
-function openedRoundConfirm(
-    state: GameClientState,
+export function openedRoundConfirm(
+    state: LiveClient,
     message: ParsedServerMessage,
 ): RoundConfirm | null | undefined {
     switch (message.type) {
@@ -65,7 +65,7 @@ function openedRoundConfirm(
             return reconnectRoundConfirm(state, message);
         }
         case "game_end": {
-            return state.table.roundEndResult === null ? null : FINAL;
+            return null;
         }
         default: {
             return undefined;
@@ -78,11 +78,11 @@ function openedRoundConfirm(
  * only by a refusal that names its wait id. A late refusal of an earlier move names that move's wait, and the
  * confirm's own stale reply follows the deal that closed it already.
  */
-function followRoundConfirm(
+export function followRoundConfirm(
     confirm: RoundConfirm,
     message: ParsedServerMessage,
 ): RoundConfirm | null {
-    if (message.type === "round_started" && confirm.kind !== "final") {
+    if (message.type === "round_started") {
         return null;
     }
     if (confirm.kind === "sent" && refusalOf(message)?.waitId === confirm.waitId) {
@@ -91,20 +91,14 @@ function followRoundConfirm(
     return confirm;
 }
 
-/** The round confirm after a message: the one it opens, else the open one as the message leaves it. */
-export function withRoundConfirm(
-    state: GameClientState,
-    message: ParsedServerMessage,
-): GameClientState {
-    const opened = openedRoundConfirm(state, message);
-    const { roundConfirm } = state;
-    if (opened !== undefined) {
-        return { ...state, roundConfirm: opened };
-    }
-    if (roundConfirm === null) {
-        return state;
-    }
-    return { ...state, roundConfirm: followRoundConfirm(roundConfirm, message) };
+/**
+ * Whether the game's last result shows over the standings after a message: the game's end shows it when it follows a
+ * round end, and nothing else changes it.
+ */
+export function showsLastResultAfter(state: LiveClient, message: ParsedServerMessage): boolean {
+    return message.type === "game_end"
+        ? state.table.roundEndResult !== null
+        : state.showsLastResult;
 }
 
 /**
@@ -112,18 +106,18 @@ export function withRoundConfirm(
  * (`sendable`), and wait for the others; or dismiss the game's last result for the standings, sending nothing. Null
  * when there is nothing to confirm.
  */
-export function confirmStep(state: GameClientState, sendable: boolean): ClientStep | null {
-    const { roundConfirm } = state;
-    if (roundConfirm?.kind === "final") {
-        return { effects: [], state: { ...state, roundConfirm: null } };
+export function confirmStep(state: LiveClient, sendable: boolean): ClientStep<LiveClient> | null {
+    if (state.showsLastResult) {
+        return { effects: [], state: { ...state, showsLastResult: false } };
     }
+    const roundConfirm = roundConfirmOf(state);
     if (roundConfirm?.kind !== "owed" || !sendable) {
         return null;
     }
     const { deadline, waitId } = roundConfirm;
     return {
         effects: [{ message: buildConfirmRoundAction(waitId), type: "send" }],
-        state: { ...state, roundConfirm: { deadline, kind: "sent", waitId } },
+        state: replaceRoundConfirm(state, { deadline, kind: "sent", waitId }),
     };
 }
 
@@ -131,10 +125,10 @@ export function confirmStep(state: GameClientState, sendable: boolean): ClientSt
  * Reopen the game's last result over the standings it was dismissed for, sending nothing. Null unless the game ended on
  * a result the standings show.
  */
-export function reopenResultStep(state: GameClientState): ClientStep | null {
-    const { roundConfirm, table } = state;
-    if (table.phase !== "game_ended" || table.roundEndResult === null || roundConfirm !== null) {
+export function reopenResultStep(state: LiveClient): ClientStep<LiveClient> | null {
+    const { showsLastResult, table } = state;
+    if (table.phase !== "game_ended" || table.roundEndResult === null || showsLastResult) {
         return null;
     }
-    return { effects: [], state: { ...state, roundConfirm: FINAL } };
+    return { effects: [], state: { ...state, showsLastResult: true } };
 }

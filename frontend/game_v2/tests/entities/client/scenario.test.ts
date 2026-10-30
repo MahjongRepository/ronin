@@ -15,14 +15,16 @@ import {
     wireSessionError,
 } from "#tests/fixtures/wire";
 import {
-    type GameClientState,
+    type LiveClient,
     NO_PLAY_UI,
     type ScenarioRun,
     type ScenarioStep,
     type SeatScenario,
+    decisionOf,
     nextDeadline,
     parseSeatTranscript,
     playDisplay,
+    roundConfirmOf,
     runSeatScenario,
     scenarioStateIndex,
     stepGameClient,
@@ -74,11 +76,11 @@ function runClean(scenario: SeatScenario): ScenarioRun {
     return run;
 }
 
-function stateAt(scenario: SeatScenario, run: ScenarioRun, label: string): GameClientState {
+function stateAt(scenario: SeatScenario, run: ScenarioRun, label: string): LiveClient {
     return timelineStates(run.timeline)[scenarioStateIndex(scenario, label)];
 }
 
-function lastState(run: ScenarioRun): GameClientState {
+function lastState(run: ScenarioRun): LiveClient {
     return timelineStates(run.timeline).at(-1) ?? run.timeline.start;
 }
 
@@ -91,7 +93,7 @@ function discardAt(at: number, tileId: number): ScenarioStep["event"] {
 }
 
 /** The table's seats as their known tiles, concealed count, then the tile ids of their discards. */
-function seatsAt(state: GameClientState): (number | number[])[][] {
+function seatsAt(state: LiveClient): (number | number[])[][] {
     return state.table.players.map((player) => [
         player.tiles.length,
         player.concealedCount,
@@ -223,8 +225,8 @@ describe("stepGameClient - generated call prompt", () => {
         const { dealt, prompt } = result;
 
         expect(calls).toEqual([0, 0, 0, 0]);
-        expect(dealt.decision).toBeNull();
-        expect(prompt.decision).toEqual({
+        expect(decisionOf(dealt)).toBeNull();
+        expect(decisionOf(prompt)).toEqual({
             callType: CALL_TYPE.MELD,
             deadline: 3000 + 5000,
             fromSeat: 0,
@@ -267,8 +269,8 @@ describe("stepGameClient - generated call prompt", () => {
             kind: "submitted",
         };
 
-        expect(stateAt(twice, run, "chi chosen").decision?.status).toEqual(submitted);
-        expect(stateAt(twice, run, "chi again").decision?.status).toEqual(submitted);
+        expect(decisionOf(stateAt(twice, run, "chi chosen"))?.status).toEqual(submitted);
+        expect(decisionOf(stateAt(twice, run, "chi again"))?.status).toEqual(submitted);
         expect(nextDeadline(stateAt(twice, run, "chi again"))).toBeNull();
     });
 
@@ -277,7 +279,7 @@ describe("stepGameClient - generated call prompt", () => {
         const turn = stateAt(scenario, run, "turn");
         const turnPayload = receivedPayload(transcript, "turn");
 
-        expect(turn.decision).toMatchObject({
+        expect(decisionOf(turn)).toMatchObject({
             deadline: 5000 + (5 + 30) * 1000,
             kind: "turn",
             kuikaeTileTypes: turnPayload.kt,
@@ -299,14 +301,14 @@ describe("stepGameClient - generated call prompt", () => {
         ]);
         const run = runClean(kuikae);
         const promptRun = runClean(onPrompt);
-        const turn = stateAt(kuikae, run, "turn").decision;
-        const prompt = stateAt(onPrompt, promptRun, "pon prompt").decision;
+        const turn = decisionOf(stateAt(kuikae, run, "turn"));
+        const prompt = decisionOf(stateAt(onPrompt, promptRun, "pon prompt"));
 
         expect([turn?.status.kind, prompt?.kind]).toEqual(["open", "call"]);
         expect([
-            stateAt(kuikae, run, "kuikae discard").decision,
-            stateAt(kuikae, run, "pass").decision,
-            stateAt(onPrompt, promptRun, "prompt discard").decision,
+            decisionOf(stateAt(kuikae, run, "kuikae discard")),
+            decisionOf(stateAt(kuikae, run, "pass")),
+            decisionOf(stateAt(onPrompt, promptRun, "prompt discard")),
         ]).toEqual([turn, turn, prompt]);
     });
 
@@ -328,8 +330,8 @@ describe("stepGameClient - generated call prompt", () => {
         ]);
         const run = runClean(passedOver);
 
-        expect(stateAt(passedOver, run, "pon prompt").decision?.status.kind).toBe("open");
-        expect(stateAt(passedOver, run, "seat 3 drew").decision).toBeNull();
+        expect(decisionOf(stateAt(passedOver, run, "pon prompt"))?.status.kind).toBe("open");
+        expect(decisionOf(stateAt(passedOver, run, "seat 3 drew"))).toBeNull();
     });
 
     it("passes the pon prompt, and the next draw opens the turn with the bank the server left", () => {
@@ -337,12 +339,12 @@ describe("stepGameClient - generated call prompt", () => {
         const next = stateAt(scenario, run, "next turn");
         const drawPayload = receivedPayload(transcript, "next turn");
 
-        expect(stateAt(scenario, run, "pon prompt").decision).toMatchObject({
+        expect(decisionOf(stateAt(scenario, run, "pon prompt"))).toMatchObject({
             fromSeat: 2,
             offers: [{ kind: "pon", tileId: 98 }],
         });
-        expect(stateAt(scenario, run, "passed").decision?.status.kind).toBe("submitted");
-        expect(next.decision).toMatchObject({
+        expect(decisionOf(stateAt(scenario, run, "passed"))?.status.kind).toBe("submitted");
+        expect(decisionOf(next)).toMatchObject({
             deadline: 14_000 + (5 + 28) * 1000,
             kind: "turn",
             kuikaeTileTypes: [],
@@ -368,15 +370,15 @@ describe("stepGameClient - generated call prompt", () => {
         const tickedRun = runClean(ticked);
         const untickedRun = runClean(unticked);
 
-        expect(stateAt(ticked, tickedRun, "just before").decision?.status).toEqual({
+        expect(decisionOf(stateAt(ticked, tickedRun, "just before"))?.status).toEqual({
             kind: "open",
         });
-        expect(stateAt(ticked, tickedRun, "deadline").decision?.status).toEqual({
+        expect(decisionOf(stateAt(ticked, tickedRun, "deadline"))?.status).toEqual({
             kind: "expired",
         });
         expect(nextDeadline(stateAt(ticked, tickedRun, "deadline"))).toBeNull();
-        expect(stateAt(ticked, tickedRun, "late").decision).toEqual(
-            stateAt(unticked, untickedRun, "late").decision,
+        expect(decisionOf(stateAt(ticked, tickedRun, "late"))).toEqual(
+            decisionOf(stateAt(unticked, untickedRun, "late")),
         );
     });
 });
@@ -387,7 +389,7 @@ describe("stepGameClient - generated own turn", () => {
     it("opens the first draw's riichi and closed-kan offers, the kan answered with a tile of its type", () => {
         const run = runClean(scenario);
 
-        expect(stateAt(scenario, run, "first draw").decision).toEqual({
+        expect(decisionOf(stateAt(scenario, run, "first draw"))).toEqual({
             baseDeadline: 3000 + 5 * 1000,
             deadline: 3000 + (5 + 30) * 1000,
             drawnTileId: 3,
@@ -412,16 +414,16 @@ describe("stepGameClient - generated own turn", () => {
         const resent = stateAt(scenario, run, "draw re-sent");
         const [, alice] = resent.table.players;
 
-        expect([dropped.decision, dropped.session?.status]).toEqual([null, "awaiting_retry"]);
-        expect(stateAt(scenario, run, "reconnected").decision).toBeNull();
-        expect(resent.decision).toMatchObject({
+        expect([decisionOf(dropped), dropped.session?.status]).toEqual([null, "awaiting_retry"]);
+        expect(decisionOf(stateAt(scenario, run, "reconnected"))).toBeNull();
+        expect(decisionOf(resent)).toMatchObject({
             deadline: 3000 + (5 + 30) * 1000,
             openedAt: 4500,
             status: { kind: "open" },
             waitId: receivedPayload(transcript, "draw re-sent").wi,
         });
-        expect(resent.decision?.offers).toEqual(
-            stateAt(scenario, run, "first draw").decision?.offers,
+        expect(decisionOf(resent)?.offers).toEqual(
+            decisionOf(stateAt(scenario, run, "first draw"))?.offers,
         );
         expect([alice.tiles.length, alice.drawnTileId, resent.table.tilesRemaining]).toEqual([
             14, 3, 68,
@@ -433,7 +435,7 @@ describe("stepGameClient - generated own turn", () => {
         const rinshan = stateAt(scenario, run, "rinshan");
         const [, alice] = rinshan.table.players;
 
-        expect(rinshan.decision).toMatchObject({
+        expect(decisionOf(rinshan)).toMatchObject({
             offers: [{ kind: "riichi", tileId: 120 }],
             waitId: receivedPayload(transcript, "rinshan").wi,
         });
@@ -448,7 +450,7 @@ describe("stepGameClient - generated own turn", () => {
     it("offers only ron on a ron prompt in riichi, and passing it leaves the seat furiten", () => {
         const run = runClean(scenario);
 
-        expect(stateAt(scenario, run, "ron prompt").decision).toMatchObject({
+        expect(decisionOf(stateAt(scenario, run, "ron prompt"))).toMatchObject({
             callType: CALL_TYPE.RON,
             fromSeat: 2,
             offers: [{ kind: "ron" }],
@@ -469,8 +471,8 @@ describe("stepGameClient - generated own turn", () => {
         ]);
         const run = runClean(riichiTurn);
 
-        expect(stateAt(riichiTurn, run, "not the drawn tile").decision).toBe(
-            stateAt(riichiTurn, run, "tsumo draw").decision,
+        expect(decisionOf(stateAt(riichiTurn, run, "not the drawn tile"))).toBe(
+            decisionOf(stateAt(riichiTurn, run, "tsumo draw")),
         );
     });
 
@@ -478,20 +480,26 @@ describe("stepGameClient - generated own turn", () => {
         const run = runClean(scenario);
         const roundEnd = stateAt(scenario, run, "round end");
 
-        expect(stateAt(scenario, run, "tsumo draw").decision?.offers).toEqual([{ kind: "tsumo" }]);
-        expect(roundEnd.decision).toBeNull();
+        expect(decisionOf(stateAt(scenario, run, "tsumo draw"))?.offers).toEqual([
+            { kind: "tsumo" },
+        ]);
+        expect(decisionOf(roundEnd)).toBeNull();
         expect(roundEnd.table.roundEndResult?.winners.map((winner) => winner.seat)).toEqual([1]);
         expect(roundEnd.table.players.map((player) => player.score)).toEqual([
             21_000, 33_000, 23_000, 23_000,
         ]);
         const waitId = receivedPayload(transcript, "round end").wi;
-        expect(roundEnd.roundConfirm).toEqual({ deadline: 15_000 + 10_000, kind: "owed", waitId });
-        expect(stateAt(scenario, run, "confirmed").roundConfirm).toEqual({
+        expect(roundConfirmOf(roundEnd)).toEqual({
+            deadline: 15_000 + 10_000,
+            kind: "owed",
+            waitId,
+        });
+        expect(roundConfirmOf(stateAt(scenario, run, "confirmed"))).toEqual({
             deadline: 25_000,
             kind: "sent",
             waitId,
         });
-        expect(stateAt(scenario, run, "next round").roundConfirm).toBeNull();
+        expect(roundConfirmOf(stateAt(scenario, run, "next round"))).toBeNull();
     });
 
     it("deals the next round to the winner as dealer, furiten cleared and the round bonus in the bank", () => {
@@ -505,7 +513,7 @@ describe("stepGameClient - generated own turn", () => {
         expect(nextRound.table.players[1].tiles).toEqual(
             receivedPayload(transcript, "next round").mt,
         );
-        expect(stateAt(scenario, run, "dealer draw").decision?.deadline).toBe(
+        expect(decisionOf(stateAt(scenario, run, "dealer draw"))?.deadline).toBe(
             16_000 + (5 + 39) * 1000,
         );
     });
@@ -521,7 +529,9 @@ describe("stepGameClient - generated own turn", () => {
         });
         const variant = { ...scenario, steps: noBank };
 
-        expect(stateAt(variant, runClean(variant), "dealer draw").decision?.deadline).toBeNull();
+        const dealerDraw = stateAt(variant, runClean(variant), "dealer draw");
+
+        expect(decisionOf(dealerDraw)?.deadline).toBeNull();
     });
 });
 
@@ -529,14 +539,14 @@ describe("stepGameClient - generated first turns", () => {
     const KYUUSHU = { offer: { kind: "kyuushu" }, type: "choose" } as const;
 
     /** Each seat's river as its tiles' ids, and the open decision's offers. */
-    function firstTurnAt(state: GameClientState): unknown[] {
+    function firstTurnAt(state: LiveClient): unknown[] {
         return [
             state.table.players.map((player) => player.discards.map((discard) => discard.tileId)),
-            state.decision?.offers,
+            decisionOf(state)?.offers,
         ];
     }
 
-    function winnersAndScores(state: GameClientState): unknown[] {
+    function winnersAndScores(state: LiveClient): unknown[] {
         return [
             state.table.roundEndResult?.winners.map((winner) => winner.seat),
             state.table.players.map((player) => player.score),
@@ -560,8 +570,8 @@ describe("stepGameClient - generated first turns", () => {
             [[124], [], [], []],
             [{ kind: "kyuushu" }],
         ]);
-        expect(stateAt(twice, run, "kyuushu chosen").decision?.status).toEqual(submitted);
-        expect(stateAt(twice, run, "kyuushu again").decision?.status).toEqual(submitted);
+        expect(decisionOf(stateAt(twice, run, "kyuushu chosen"))?.status).toEqual(submitted);
+        expect(decisionOf(stateAt(twice, run, "kyuushu again"))?.status).toEqual(submitted);
     });
 
     it("tenhou: the dealer's first draw offers tsumo over empty rivers, and the win takes 16,000 from each seat", () => {
@@ -595,7 +605,7 @@ describe("stepGameClient - generated first turns", () => {
 describe("stepGameClient - generated riichi reconnect", () => {
     const { scenario } = RIICHI_RECONNECT;
 
-    function sticksAndScores(state: GameClientState): (number | number[])[] {
+    function sticksAndScores(state: LiveClient): (number | number[])[] {
         return [state.table.riichiSticks, state.table.players.map((player) => player.score)];
     }
 
@@ -653,11 +663,11 @@ describe("stepGameClient - generated round advance", () => {
         const run = runClean(scenario);
         const nextRound = stateAt(scenario, run, "next round");
 
-        expect(stateAt(scenario, run, "round end").roundConfirm).toMatchObject({
+        expect(roundConfirmOf(stateAt(scenario, run, "round end"))).toMatchObject({
             deadline: 7000 + 10_000,
             kind: "owed",
         });
-        expect([nextRound.roundConfirm, nextRound.table.phase]).toEqual([null, "in_round"]);
+        expect([roundConfirmOf(nextRound), nextRound.table.phase]).toEqual([null, "in_round"]);
     });
 
     it("counts a double ron's confirm down for both results, and a reconnect's snapshot keeps that deadline", () => {
@@ -669,9 +679,9 @@ describe("stepGameClient - generated round advance", () => {
             waitId: receivedPayload(transcript, "round end").wi,
         };
 
-        expect(stateAt(scenario, run, "round end").roundConfirm).toEqual(owed);
-        expect(stateAt(scenario, run, "dropped").roundConfirm).toBeNull();
-        expect(stateAt(scenario, run, "reconnected").roundConfirm).toEqual(owed);
+        expect(roundConfirmOf(stateAt(scenario, run, "round end"))).toEqual(owed);
+        expect(roundConfirmOf(stateAt(scenario, run, "dropped"))).toBeNull();
+        expect(roundConfirmOf(stateAt(scenario, run, "reconnected"))).toEqual(owed);
     });
 
     it("keeps an owed confirm through late errors for an earlier move, then sends it once and waits", () => {
@@ -701,9 +711,9 @@ describe("stepGameClient - generated round advance", () => {
         const owed = { deadline: 25_000, kind: "owed", waitId };
 
         expect(receivedPayload(transcript, "round end").wi).toBe(waitId);
-        expect(stateAt(branch, run, "late stale").roundConfirm).toEqual(owed);
-        expect(stateAt(branch, run, "late refusal").roundConfirm).toEqual(owed);
-        expect(stateAt(branch, run, "refusal after confirm").roundConfirm).toEqual({
+        expect(roundConfirmOf(stateAt(branch, run, "late stale"))).toEqual(owed);
+        expect(roundConfirmOf(stateAt(branch, run, "late refusal"))).toEqual(owed);
+        expect(roundConfirmOf(stateAt(branch, run, "refusal after confirm"))).toEqual({
             ...owed,
             kind: "sent",
         });
@@ -722,13 +732,16 @@ describe("stepGameClient - generated round advance", () => {
             { effects: [sent], event: { ...confirm, at: 15_600 } },
         ]);
         const run = runClean(branch);
-        const confirmSent = { notice: null, roundConfirm: { kind: "sent", waitId: 5 } };
+        const confirmSent = {
+            notice: null,
+            sync: { pending: { confirm: { kind: "sent", waitId: 5 } } },
+        };
 
         expect(stateAt(branch, run, "unnamed")).toMatchObject(confirmSent);
         expect(stateAt(branch, run, "earlier")).toMatchObject(confirmSent);
         expect(stateAt(branch, run, "matching")).toMatchObject({
             notice: { code: rateLimited, kind: "refused" },
-            roundConfirm: { kind: "owed", waitId: 5 },
+            sync: { pending: { confirm: { kind: "owed", waitId: 5 } } },
         });
     });
 
@@ -736,8 +749,8 @@ describe("stepGameClient - generated round advance", () => {
         const { scenario } = CHANKAN_ROBBED_ROBBER;
         const run = runClean(scenario);
 
-        expect(stateAt(scenario, run, "confirmed").roundConfirm).toMatchObject({ kind: "sent" });
-        expect(lastState(run).roundConfirm).toBeNull();
+        expect(roundConfirmOf(stateAt(scenario, run, "confirmed"))).toMatchObject({ kind: "sent" });
+        expect(roundConfirmOf(lastState(run))).toBeNull();
     });
 
     it("keeps the game's last result over the standings until the player dismisses it, sending nothing", () => {
@@ -751,14 +764,11 @@ describe("stepGameClient - generated round advance", () => {
             kind: "intent",
         });
 
-        expect(roundEnd.roundConfirm).toBeNull();
-        expect([gameEnd.roundConfirm, gameEnd.table.phase]).toEqual([
-            { kind: "final" },
-            "game_ended",
-        ]);
+        expect(roundConfirmOf(roundEnd)).toBeNull();
+        expect([gameEnd.showsLastResult, gameEnd.table.phase]).toEqual([true, "game_ended"]);
         expect(gameEnd.table.roundEndResult).toBe(roundEnd.table.roundEndResult);
         expect(lastState(run).session?.status).toBe("ended");
-        expect([dismissed.effects, dismissed.state.roundConfirm]).toEqual([[], null]);
+        expect([dismissed.effects, dismissed.state.showsLastResult]).toEqual([[], false]);
     });
 
     it("keeps the last win's call through the game's end and the socket's close, until its own time ends it", () => {
@@ -794,16 +804,16 @@ describe("stepGameClient - generated reconnect", () => {
         const reconnected = stateAt(scenario, run, "reconnected");
         const resent = stateAt(scenario, run, "prompt re-sent");
 
-        expect(stateAt(scenario, run, "prompt").decision?.deadline).toBe(8000);
-        expect([dropped.decision, dropped.session?.status]).toEqual([null, "awaiting_retry"]);
-        expect([reconnected.decision, reconnected.session?.status]).toEqual([null, "playing"]);
+        expect(decisionOf(stateAt(scenario, run, "prompt"))?.deadline).toBe(8000);
+        expect([decisionOf(dropped), dropped.session?.status]).toEqual([null, "awaiting_retry"]);
+        expect([decisionOf(reconnected), reconnected.session?.status]).toEqual([null, "playing"]);
         expect(seatsAt(reconnected)).toEqual([
             [0, 13, [HAKU]],
             [13, 0, []],
             [0, 13, []],
             [0, 13, []],
         ]);
-        expect(resent.decision).toMatchObject({
+        expect(decisionOf(resent)).toMatchObject({
             deadline: 8000,
             offers: [{ kind: "pon", tileId: HAKU }],
             status: { kind: "open" },
@@ -816,15 +826,15 @@ describe("stepGameClient - generated reconnect", () => {
         const turn = stateAt(scenario, run, "turn");
         const roundEnd = stateAt(scenario, run, "round end");
 
-        expect(turn.decision).toMatchObject({ kind: "turn", kuikaeTileTypes: [31] });
+        expect(decisionOf(turn)).toMatchObject({ kind: "turn", kuikaeTileTypes: [31] });
         expect(turn.table.players[1].melds.map((meld) => meld.tileIds)).toEqual([[124, 125, HAKU]]);
-        expect(stateAt(scenario, run, "ron prompt").decision?.offers).toEqual([{ kind: "ron" }]);
-        expect(roundEnd.decision).toBeNull();
+        expect(decisionOf(stateAt(scenario, run, "ron prompt"))?.offers).toEqual([{ kind: "ron" }]);
+        expect(decisionOf(roundEnd)).toBeNull();
         expect(roundEnd.table.roundEndResult?.winners.map((winner) => winner.seat)).toEqual([1]);
         expect(roundEnd.table.players.map((player) => player.score)).toEqual([
             25_000, 26_000, 24_000, 25_000,
         ]);
-        expect(roundEnd.roundConfirm).toMatchObject({ deadline: 20_000, kind: "owed" });
+        expect(roundConfirmOf(roundEnd)).toMatchObject({ deadline: 20_000, kind: "owed" });
     });
 
     it("ends on a newer tab's 4002 takeover: no confirm, retry or deadline left pending", () => {
@@ -834,7 +844,11 @@ describe("stepGameClient - generated reconnect", () => {
             reason: { code: 4002, kind: "closed", reason: "replaced_by_new_connection" },
             status: "ended",
         });
-        expect([last.decision, last.roundConfirm, nextDeadline(last)]).toEqual([null, null, null]);
+        expect([decisionOf(last), roundConfirmOf(last), nextDeadline(last)]).toEqual([
+            null,
+            null,
+            null,
+        ]);
     });
 
     it("reopens an answer the game refused or the rate limit dropped, not one refused as stale", () => {
@@ -850,7 +864,7 @@ describe("stepGameClient - generated reconnect", () => {
         const run = runClean(refused);
 
         expect(stateAt(refused, run, "refused").notice).toMatchObject({ code: "invalid_pon" });
-        expect(stateAt(refused, run, "stale").decision?.status).toMatchObject({
+        expect(decisionOf(stateAt(refused, run, "stale"))?.status).toMatchObject({
             at: 6900,
             kind: "submitted",
         });
@@ -865,10 +879,10 @@ describe("stepGameClient - generated reconnect", () => {
         const run = runClean(late);
         const refused = stateAt(late, run, "refused late");
 
-        expect(refused.decision).toMatchObject({ deadline: 8000, status: { kind: "expired" } });
+        expect(decisionOf(refused)).toMatchObject({ deadline: 8000, status: { kind: "expired" } });
         expect(refused.notice).toMatchObject({ code: "invalid_pon", kind: "refused" });
         expect(nextDeadline(refused)).toBe(refused.notice?.until);
-        expect(stateAt(late, run, "again").decision?.status).toMatchObject({
+        expect(decisionOf(stateAt(late, run, "again"))?.status).toMatchObject({
             at: 8200,
             kind: "submitted",
         });
@@ -885,18 +899,18 @@ describe("stepGameClient - generated reconnect", () => {
         ]);
         const run = runClean(branch);
         const chosen = stateAt(branch, run, "pon chosen");
-        const unchanged = [chosen.decision?.status, chosen.notice];
+        const unchanged = [decisionOf(chosen)?.status, chosen.notice];
 
-        expect(chosen.decision?.status.kind).toBe("submitted");
+        expect(decisionOf(chosen)?.status.kind).toBe("submitted");
         expect(
             [stateAt(branch, run, "unnamed"), stateAt(branch, run, "another wait")].map((state) => [
-                state.decision?.status,
+                decisionOf(state)?.status,
                 state.notice,
             ]),
         ).toEqual([unchanged, unchanged]);
         expect(stateAt(branch, run, "matching")).toMatchObject({
-            decision: { status: { kind: "open" } },
             notice: { code: rateLimited, kind: "refused" },
+            sync: { pending: { decision: { status: { kind: "open" } } } },
         });
     });
 });
@@ -910,7 +924,7 @@ describe("stepGameClient - generated anchor", () => {
     const BOB_IN_RIICHI = [false, false, false, true];
 
     /** The round shown, the viewer, each seat's river length, Charlie's melds, who is in riichi and the viewer's melds. */
-    function boardAt(state: GameClientState): unknown[] {
+    function boardAt(state: LiveClient): unknown[] {
         const { players } = state.table;
         return [
             tableStateToDisplayState(state.table, ALICE_VIEW)?.center.roundDisplay,
@@ -935,7 +949,7 @@ describe("stepGameClient - generated anchor", () => {
         );
         expect(boardAt(turn)).toEqual(["East 2", 1, [9, 9, 9, 9], CHUN_PON, BOB_IN_RIICHI, []]);
         expect([turn.now, turn.table.players[1].drawnTileId]).toEqual([20_000, SIX_PIN]);
-        expect(turn.decision).toMatchObject({
+        expect(decisionOf(turn)).toMatchObject({
             baseDeadline: 20_000 + 5000,
             deadline: 20_000 + (5 + 40) * 1000,
             kind: "turn",
@@ -950,7 +964,7 @@ describe("stepGameClient - generated anchor", () => {
 
         expect(boardAt(offer)).toEqual(["East 2", 1, [9, 10, 10, 9], CHUN_PON, BOB_IN_RIICHI, []]);
         expect(offer.now).toBe(21_000);
-        expect(offer.decision).toEqual({
+        expect(decisionOf(offer)).toEqual({
             callType: CALL_TYPE.MELD,
             deadline: 21_000 + 5000,
             fromSeat: 2,
@@ -961,12 +975,12 @@ describe("stepGameClient - generated anchor", () => {
             tileId: CHARLIES_FIVE_SOU,
             waitId: receivedPayload(transcript, "call offer").wi,
         });
-        expect(stateAt(scenario, run, "passed").decision?.status.kind).toBe("submitted");
+        expect(decisionOf(stateAt(scenario, run, "passed"))?.status.kind).toBe("submitted");
     });
 
     it("riichi offer: the eleventh draw offers riichi on 3p or 6p, and the toggle leaves only those to discard", () => {
         const riichi = stateAt(scenario, runClean(scenario), "riichi offer");
-        const picking = { ...NO_PLAY_UI, riichiPickWaitId: riichi.decision?.waitId ?? null };
+        const picking = { ...NO_PLAY_UI, riichiPickWaitId: decisionOf(riichi)?.waitId ?? null };
 
         expect(boardAt(riichi)).toEqual([
             "East 2",
@@ -977,7 +991,7 @@ describe("stepGameClient - generated anchor", () => {
             [],
         ]);
         expect(riichi.now).toBe(22_500);
-        expect(riichi.decision).toMatchObject({
+        expect(decisionOf(riichi)).toMatchObject({
             deadline: 22_500 + (5 + 40) * 1000,
             kind: "turn",
             offers: [
@@ -990,7 +1004,7 @@ describe("stepGameClient - generated anchor", () => {
 });
 
 /** The wall, then the kan declarer's (seat 1's) closed hand size, its melds' types and tile ids. */
-function declarerAt(state: GameClientState): unknown[] {
+function declarerAt(state: LiveClient): unknown[] {
     const [, declarer] = state.table.players;
     return [
         state.table.tilesRemaining,
@@ -1000,7 +1014,7 @@ function declarerAt(state: GameClientState): unknown[] {
 }
 
 /** The state after the step labelled `label`, stepped once more with the same event, as no transcript sends it. */
-function steppedAgain(scenario: SeatScenario, run: ScenarioRun, label: string): GameClientState {
+function steppedAgain(scenario: SeatScenario, run: ScenarioRun, label: string): LiveClient {
     const index = scenarioStateIndex(scenario, label);
     return stepGameClient(timelineStates(run.timeline)[index], scenario.steps[index - 1].event)
         .state;
@@ -1016,7 +1030,7 @@ describe("stepGameClient - generated chankan", () => {
 
         expect(declarerAt(stateAt(scenario, run, "discarded"))).toEqual([66, 13, []]);
         expect(declarerAt(prompt)).toEqual([64, ...kan]);
-        expect(prompt.decision).toMatchObject({
+        expect(decisionOf(prompt)).toMatchObject({
             callType: CALL_TYPE.CHANKAN,
             offers: [{ kind: "ron" }],
         });
@@ -1033,7 +1047,7 @@ describe("stepGameClient - generated chankan", () => {
         const roundEnd = stateAt(scenario, run, "round end");
 
         expect(declarerAt(kanDraw)).toEqual([64, 14, []]);
-        expect(kanDraw.decision?.offers).toEqual([
+        expect(decisionOf(kanDraw)?.offers).toEqual([
             { kanType: KAN_TYPE.CLOSED, kind: "kan", tileId: 32 },
         ]);
         expect(declarerAt(roundEnd)).toEqual([64, 10, [["closed_kan", NINE_MAN_COPIES]]]);
@@ -1049,7 +1063,7 @@ describe("stepGameClient - generated chankan", () => {
         expect(reconnected.table.phase).toBe("round_ended");
         expect(declarerAt(reconnected)).toEqual(declarerAt(roundEnd));
         expect(reconnected.table.players[1].tiles).toEqual(roundEnd.table.players[1].tiles);
-        expect(reconnected.roundConfirm).toEqual(roundEnd.roundConfirm);
+        expect(roundConfirmOf(reconnected)).toEqual(roundConfirmOf(roundEnd));
     });
 
     it("robber who passes: the prompt shows the added kan, a reconnect re-shows it once, the meld completes it", () => {
@@ -1070,6 +1084,6 @@ describe("stepGameClient - generated chankan", () => {
         const completed = stateAt(scenario, run, "kan");
         expect(declarerAt(completed)).toEqual(kan);
         expect(completed.table.players[1].melds[0]).toMatchObject({ addedTileId: 59 });
-        expect(completed.decision).toBeNull();
+        expect(decisionOf(completed)).toBeNull();
     });
 });

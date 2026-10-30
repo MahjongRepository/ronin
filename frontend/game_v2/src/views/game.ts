@@ -3,8 +3,8 @@ import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
     type ClientEffect,
-    type ClientEvent,
-    type GameClientState,
+    type LiveClient,
+    type LiveEvent,
     NO_PLAY_UI,
     PlayBoard,
     type PlayCommand,
@@ -95,7 +95,7 @@ interface GameViewProps {
     readonly links: GameLinks;
     readonly standings: StandingsRenderer | null;
     readonly log: readonly LogEntry[] | null;
-    readonly state: GameClientState;
+    readonly state: LiveClient;
     readonly ui: PlayUi;
     readonly panel: Ref<HTMLElement>;
     readonly onCommand: (command: PlayCommand) => void;
@@ -133,7 +133,7 @@ function describeRecovery(recovery: HandoffRecovery): string {
 /** The system line of the debug log for the transport's events and the lobby's answer for the handoff. */
 function systemLogText(
     event: Extract<
-        ClientEvent,
+        LiveEvent,
         {
             kind:
                 | "transport_opened"
@@ -167,7 +167,7 @@ function systemLogText(
 }
 
 /** The log line an event adds, or null for one that only moves time or carries an intent. */
-function logEntryFor(event: ClientEvent): LogEntry | null {
+function logEntryFor(event: LiveEvent): LogEntry | null {
     const { at } = event;
     switch (event.kind) {
         case "server_message": {
@@ -181,7 +181,6 @@ function logEntryFor(event: ClientEvent): LogEntry | null {
         case "handoff_recovered": {
             return { at, kind: LOG_TYPE_SYSTEM, text: systemLogText(event) };
         }
-        case "replay_line":
         case "tick":
         case "intent": {
             return null;
@@ -205,7 +204,7 @@ function logEntryTemplate(entry: LogEntry): TemplateResult {
 function logTemplate(
     log: readonly LogEntry[],
     panel: Ref<HTMLElement>,
-    state: GameClientState,
+    state: LiveClient,
 ): TemplateResult {
     return html`<details class="game-log">
         <summary>Log: ${describeClientStatus(state).label}</summary>
@@ -251,7 +250,7 @@ function failedRecovery(error: unknown, signal: AbortSignal): HandoffRecovery | 
 }
 
 /** The next logical time the driver must tick at: a deadline the state holds, or a change of its countdown. */
-function nextWake(state: GameClientState): number | null {
+function nextWake(state: LiveClient): number | null {
     const wakes = [nextDeadline(state), nextCountdownChange(state)].filter((at) => at !== null);
     return wakes.length === 0 ? null : Math.min(...wakes);
 }
@@ -269,9 +268,9 @@ class GameViewController {
     private readonly host: HTMLElement;
     private readonly deps: GameViewDeps;
     private readonly panel = createRef<HTMLElement>();
-    private readonly queue: ClientEvent[] = [];
+    private readonly queue: LiveEvent[] = [];
     private readonly log: LogEntry[] | null;
-    private state: GameClientState;
+    private state: LiveClient;
     private ui: PlayUi;
     private readonly stopTileSprite: () => void;
     private readonly standings: RetryingLoad<StandingsRenderer>;
@@ -354,7 +353,7 @@ class GameViewController {
         return focused instanceof HTMLElement && this.host.contains(focused) ? focused : null;
     }
 
-    private dispatch(event: ClientEvent): void {
+    private dispatch(event: LiveEvent): void {
         if (this.disposed) {
             return;
         }
@@ -564,7 +563,7 @@ class GameViewController {
     /** Socket callbacks that reach the dispatcher only while their socket is the current one. */
     private handlersFor(generation: number): SocketHandlers {
         const { clock } = this.deps;
-        const fromCurrent = (event: ClientEvent): void => {
+        const fromCurrent = (event: LiveEvent): void => {
             if (generation === this.socketGeneration && this.socket !== null) {
                 this.dispatch(event);
             }

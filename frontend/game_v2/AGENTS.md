@@ -75,12 +75,23 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   cannot take throws a `DesyncError`. Display-only data (the game view's debug log) stays in the
   view, out of the state.
 * **One client state.** The dispatcher composes the session, the table (`entities/table`) and the
-  viewer's interaction into one immutable state: the viewer's seat, its open decision, its
-  furiten, the timer settings, the round confirm it owes, when the first deal is due, the calls
-  the board shows, the play switches the player turned on and the highest wait id the game has opened. A replay is the same state with no
-  session and no viewer; visibility (a replay's every hand, a live seat's own) is what the source
-  showed and how the board is drawn, never a second model, and the seat at the bottom is the
-  view's choice (the replay's is the recorded first dealer's, `docs/architecture.md`, Replays).
+  viewer's interaction into one immutable state, a union a field's absence never stands in for: a
+  replay's client holds the table and its calls alone (no session, viewer, switches, notices or
+  sync, so it takes only replay lines and nothing live can be asked of it), and a live seat's adds
+  its session, its seat, furiten, timer settings, the first deal's due time, the play switches, the
+  highest wait id opened, the notices, the game's last result shown and its sync. The sync is in
+  step, holding what the seat owes, or out of step, holding the desync record and its failure
+  count, so an out-of-step client owes nothing by construction. What the seat owes is one field,
+  a decision or a round confirm, never both: a round end closes every decision and only the next
+  deal opens one, and an opening replaces whatever was owed. The seat owes only while its session
+  holds the seat (playing): every step ends by dropping it otherwise (`settledPending`), whether
+  the socket dropped, the session ended or the server has not admitted the identity yet, since the
+  server re-sends every wait it still owes after the admission and its snapshot says whether the
+  confirm is. Read them through `decisionOf`, `roundConfirmOf` and `desyncOf`. The game's last
+  result shown over the standings is not owed (it sends nothing) and survives a loss of step.
+  Visibility (a replay's every hand, a live seat's own) is what the source showed and how the board
+  is drawn, never a second model, and the seat at the bottom is the view's choice (the replay's is
+  the recorded first dealer's, `docs/architecture.md`, Replays).
 * **Decisions.** A decision opens only from a message carrying a wait id to the viewer's seat (its
   draw, its `turn` event, its call prompt), with the offers the server listed and nothing the
   client judged but the discard rule (kuikae, riichi's drawn tile). Its deadline is the client's
@@ -96,8 +107,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   id once and marks it submitted with the intent it took, which the display reads for the tile
   played and the control that answered, never the wire message; the server's next move closes
   it, a refusal while its wait goes on (a game error but a stale one, or the socket's rate limit)
-  reopens it, and a dropped socket drops it, since the reconnect re-sends a wait the server still
-  owes the seat. A refusal counts only when it names the decision's wait id (`refusalOf`): the rate
+  reopens it, and a session that holds no seat drops it (One client state), since the admission
+  re-sends a wait the server still owes the seat. A refusal counts only when it names the decision's wait id (`refusalOf`): the rate
   limit can answer an older frame after the game moved on, so one naming no wait or another wait
   reopens nothing and shows no notice.
 * **Play switches** (`model/play-switches.ts`): Auto win, No calls and Auto discard are the player's standing
@@ -111,7 +122,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   opened decision, the switches on or off, and is never lowered; it is kept across a drop (which drops the decision
   itself), a refusal and a deal, forgotten only on a table of another game, and never taken from a snapshot's `wi`:
   a wait the server opened while the socket was down is new to the client, and a switch answers it when the
-  reconnect sends it. `switchAnswer` is the policy (the spec's Play switches): a win first (a turn's tsumo, a prompt's
+  reconnect sends it. A wait the client sees before the server admits the seat raises it too, though the seat does
+  not owe that wait (One client state), so the wait re-sent after the admission opens for the player's own answer,
+  never a switch's. `switchAnswer` is the policy (the spec's Play switches): a win first (a turn's tsumo, a prompt's
   ron), then No calls' pass of a prompt offering a call and no ron, then Auto discard's discard of the drawn tile on
   a turn offering nothing else (`TurnDecision.drawnTileId`, null on the turn after the seat's chi or pon); no timer,
   since ron is taken at once. A deal turns all three off, as does a reconnect's snapshot that leaves the hand
@@ -125,8 +138,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   that wait id, then the seat waits for the others. Only the next deal (the last confirm's or the
   timeout's) closes it, and only a refusal naming its wait id reopens a sent one, as it does a
   decision; a late refusal of an earlier move names that move's wait, and the confirm's own stale
-  reply follows the deal that closed it. A dropped socket drops it, since the snapshot says again
-  whether it is owed. Its deadline is one per round, armed at the round end: the round advance timeout times
+  reply follows the deal that closed it. A session that holds no seat drops it, since the snapshot
+  says again whether it is owed. Its deadline is one per round, armed at the round end: the round advance timeout times
   the result's pages (the server's `results_shown`, a double ron's winners), backdated by the
   snapshot's elapsed time, and none when the snapshot names none: never a fresh full timeout. It is
   display only, shown labelled and kept while the seat waits: the client never confirms on its own
@@ -142,8 +155,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   `DesyncError` (`entities/table`); a silent fallback that guesses (an offer dropped for want of its
   tile, an added kan drawn as a closed one for want of its pon) is one too, and an offer of an unknown
   code or shape never parses, so no turn opens offering less than the server's for a switch to answer. Out of step, the client
-  answers nothing, drops the open decision and an owed or sent round confirm, never resends what it
-  sent, and keeps `highestOpenedWaitId`, so a wait re-sent
+  owes and answers nothing (its sync has no room for a decision or a round confirm), never resends
+  what it sent, and keeps `highestOpenedWaitId`, so a wait re-sent
   after the snapshot is the player's to answer; the session still takes every message, but only the
   snapshot, the game's end and the round end before it (the game's last, which carries no wait)
   reach the table, every other message dropped. Those two carry the scores and the result the server
@@ -162,8 +175,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   and never while a session retry waits (the socket then holds no seat; the resent identity's
   snapshot gets its own wait), so out of step and identifying always has a deadline, and the session admits it by the snapshot
   that answers, never by other traffic (`not_in_game` in answer means the socket holds no seat:
-  Session). A snapshot it takes puts it back in step
-  and alone resets the board's count of failures (`unreadMessages`). A second snapshot that answers a
+  Session). A snapshot puts it back in step before it is taken, so what it says the seat owes is
+  owed in step, and alone resets the board's count of failures (`unreadMessages`, the desync
+  record's). A second snapshot that answers a
   request sent again can follow the player's answer to the first one's wait: a snapshot or re-sent
   opening naming the wait of a submitted decision or a sent round confirm leaves it submitted, so the
   wait is never answered twice. The requests are counted for the page, never reset by a snapshot or

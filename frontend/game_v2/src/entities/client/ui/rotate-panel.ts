@@ -8,28 +8,15 @@ import {
     failureDisplay,
     leaveControls,
 } from "@/entities/client/model/session-end";
-import { type GameClientState } from "@/entities/client/model/types";
+import { type LiveClient } from "@/entities/client/model/types";
 import {
     type SessionStatusDisplay,
     describePlayerSessionStatus,
     describeSessionStatus,
 } from "@/entities/session";
 import { assertNever } from "@/shared/lib";
-import { CONNECTION_STATUS } from "@/shared/protocol";
 
 import { FailurePanel, LeaveConfirm } from "./session-panels";
-
-const NO_SESSION_STATUS: SessionStatusDisplay = {
-    label: "No session",
-    tone: CONNECTION_STATUS.ERROR,
-    word: "Error",
-};
-
-const NOT_CONNECTED_STATUS: SessionStatusDisplay = {
-    label: "Not connected",
-    tone: CONNECTION_STATUS.ERROR,
-    word: "Error",
-};
 
 /** The seconds left at which the countdown is announced to a screen reader, the largest first. */
 const ANNOUNCED_SECONDS = [10, 5] as const;
@@ -44,19 +31,17 @@ export interface RotatePanelProps {
 }
 
 /** The session's status line for a live client's state, in the machine's own terms, for the debug view. */
-export function describeClientStatus(state: GameClientState): SessionStatusDisplay {
-    return state.session === null ? NO_SESSION_STATUS : describeSessionStatus(state.session);
+export function describeClientStatus(state: LiveClient): SessionStatusDisplay {
+    return describeSessionStatus(state.session);
 }
 
 /** The session's status in a player's terms, for the live page and its rotate panel. */
-export function describePlayerClientStatus(state: GameClientState): SessionStatusDisplay {
-    return state.session === null
-        ? NOT_CONNECTED_STATUS
-        : describePlayerSessionStatus(state.session);
+export function describePlayerClientStatus(state: LiveClient): SessionStatusDisplay {
+    return describePlayerSessionStatus(state.session);
 }
 
 export function rotatePanelProps(
-    state: GameClientState,
+    state: LiveClient,
     ui: PlayUi,
     onCommand: (command: PlayCommand) => void,
 ): RotatePanelProps {

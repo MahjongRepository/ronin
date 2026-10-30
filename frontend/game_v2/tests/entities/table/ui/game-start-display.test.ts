@@ -2,11 +2,11 @@ import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
 import { checkpointState } from "#tests/fixtures/seat-transcripts";
-import { type GameClientState, NO_PLAY_UI, PlayBoard, playDisplay } from "@/entities/client";
+import { type LiveClient, NO_PLAY_UI, PlayBoard, playDisplay } from "@/entities/client";
 
 const STARTED = checkpointState("own_turn_seat_1", "game started");
 
-function renderBoard(state: GameClientState): HTMLElement {
+function renderBoard(state: LiveClient): HTMLElement {
     const host = document.createElement("div");
     render(
         PlayBoard({

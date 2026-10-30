@@ -1,14 +1,16 @@
 import { assert, describe, expect, test } from "vitest";
 
 import { ENGINE_REPLAYS, type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
-import { REPLAY_GAME_STARTED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
+import { GAME_ID, HANDOFF, clientEvent } from "#tests/fixtures/scenario";
+import { REPLAY_GAME_STARTED, WIRE_GAME_JOINED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
 import {
     type ClientStep,
     type ClientTimeline,
     type GameClientState,
+    type LiveClient,
     type TimelineEntry,
     readReplayTimeline,
-    startReplayClient,
+    startGameClient,
     stepGameClient,
 } from "@/entities/client";
 import {
@@ -610,20 +612,34 @@ function endsLine(entry: TimelineEntry): boolean {
     return entry.parsed?.type !== "kan_declared";
 }
 
-function divergenceAt(entry: TimelineEntry, step: ClientStep, seat: number): string | null {
+function divergenceAt(
+    entry: TimelineEntry,
+    step: ClientStep<LiveClient>,
+    seat: number,
+): string | null {
     const expected = JSON.stringify(seatKnowledge(entry.state, seat));
     const actual = JSON.stringify(seatKnowledge(step.state, seat));
-    if (step.effects.length === 0 && expected === actual) {
+    const effects = step.effects.filter((effect) => effect.type !== "clear_handoff");
+    if (effects.length === 0 && expected === actual) {
         return null;
     }
-    return `${entry.parsed?.type}: replay ${expected}, view ${actual}, effects ${step.effects.length}`;
+    return `${entry.parsed?.type}: replay ${expected}, view ${actual}, effects ${effects.length}`;
+}
+
+/** A seat's live client holding its seat: its socket open and its join admitted. */
+function seatedClient(): LiveClient {
+    const { state } = startGameClient(GAME_ID, HANDOFF, 0);
+    return [clientEvent.opened(0), clientEvent.message(0, WIRE_GAME_JOINED)].reduce(
+        (client, event) => stepGameClient(client, event).state,
+        state,
+    );
 }
 
 function firstDivergence(timeline: ClientTimeline, seat: number): string | null {
-    let view = startReplayClient(0);
+    let view = seatedClient();
     for (const [index, entry] of timeline.entries.entries()) {
         const raw = projectedEntry(entry, seat);
-        const step: ClientStep =
+        const step: ClientStep<LiveClient> =
             raw === null
                 ? { effects: [], state: view }
                 : stepGameClient(view, { at: 0, kind: "server_message", raw });

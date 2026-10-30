@@ -28,6 +28,7 @@ import {
     tilePlays,
 } from "./decision-controls";
 import { takesIntent } from "./dispatch";
+import { decisionOf } from "./pending";
 import { PLAY_SWITCHES } from "./play-switches";
 import { type PlayAction, type PlayCommand, type PlayUi, intentCommand } from "./play-ui";
 import {
@@ -42,7 +43,7 @@ import {
     failureDisplay,
     leaveControls,
 } from "./session-end";
-import { type GameClientState, type LocalIntent, type PlayIntent, type PlaySwitch } from "./types";
+import { type LiveClient, type LocalIntent, type PlayIntent, type PlaySwitch } from "./types";
 
 /**
  * A play switch on the board: its label, whether it is on, and the command turning it, which sends nothing itself.
@@ -130,8 +131,9 @@ function playHand(
  * A chankan offer's source, the kan it may rob, as the declarer's board position and the meld's index (oldest first);
  * null for any other decision, so the mark goes once the offer resolves.
  */
-function kanSource(state: GameClientState): { position: number; meld: number } | null {
-    const { decision, table, viewerSeat } = state;
+function kanSource(state: LiveClient): { position: number; meld: number } | null {
+    const { table, viewerSeat } = state;
+    const decision = decisionOf(state);
     if (
         decision?.kind !== "call" ||
         decision.callType !== CALL_TYPE.CHANKAN ||
@@ -150,7 +152,7 @@ function kanSource(state: GameClientState): { position: number; meld: number } |
 }
 
 function viewerBoard(
-    state: GameClientState,
+    state: LiveClient,
     plays: ReadonlyMap<number, TilePlay>,
 ): BoardDisplayState | null {
     const { table, viewerSeat } = state;
@@ -185,7 +187,7 @@ function markSource(
 }
 
 /** The play switches as the board shows them, each turned by its intent, while the dispatcher takes that. */
-function switchControls(state: GameClientState): SwitchControl[] {
+function switchControls(state: LiveClient): SwitchControl[] {
     return PLAY_SWITCHES.flatMap((playSwitch): SwitchControl[] => {
         const intent: PlayIntent = { playSwitch, type: "toggle_switch" };
         if (!takesIntent(state, intent)) {
@@ -203,7 +205,7 @@ function switchControls(state: GameClientState): SwitchControl[] {
 }
 
 /** The live calls as the viewer's board shows them, keyed by when they were made. */
-function liveCallouts(state: GameClientState): BoardCallouts | null {
+function liveCallouts(state: LiveClient): BoardCallouts | null {
     const { calls, viewerSeat } = state;
     if (calls === null || viewerSeat === null) {
         return null;
@@ -217,7 +219,7 @@ function liveCallouts(state: GameClientState): BoardCallouts | null {
  * What may be played is the dispatcher's answer (`takesIntent`), never a rule restated here, so the board offers
  * exactly what stepping the intent would send.
  */
-export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
+export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const { furiten, table, viewerSeat } = state;
     const viewer = table.players.find((player) => player.seat === viewerSeat);
     const picking = pickingRiichi(state, ui);
@@ -242,7 +244,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         notices,
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
-        resultOverStandings: state.roundConfirm?.kind === "final",
+        resultOverStandings: state.showsLastResult,
         resultPage,
         switches: switchControls(state),
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,

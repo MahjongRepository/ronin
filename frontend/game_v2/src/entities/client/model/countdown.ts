@@ -1,6 +1,7 @@
 import { CALL_TYPE } from "@/shared/protocol";
 
-import { type Decision, type GameClientState } from "./types";
+import { decisionOf, roundConfirmOf } from "./pending";
+import { type Decision, type LiveClient } from "./types";
 
 /** The countdown's display step: it shows whole seconds left. */
 const COUNTDOWN_STEP_MS = 1000;
@@ -59,8 +60,8 @@ function turnClock(decision: Decision, deadline: number, now: number): TurnClock
 }
 
 /** The countdown of the viewer's unanswered decision, read from the state's `now`; null with none awaiting it. */
-export function decisionCountdown(state: GameClientState): DecisionCountdown | null {
-    const { decision, now } = state;
+export function decisionCountdown(state: LiveClient): DecisionCountdown | null {
+    const decision = decisionOf(state);
     if (decision === null || decision.status.kind === "submitted") {
         return null;
     }
@@ -75,13 +76,14 @@ export function decisionCountdown(state: GameClientState): DecisionCountdown | n
     return {
         kind: "running",
         move,
-        secondsLeft: secondsLeft(deadline, now),
-        turn: turnClock(decision, deadline, now),
+        secondsLeft: secondsLeft(deadline, state.now),
+        turn: turnClock(decision, deadline, state.now),
     };
 }
 
 /** The round advance deadline of a round result the viewer owes or sent a confirm; null otherwise or unknown. */
-function roundConfirmDeadline({ roundConfirm }: GameClientState): number | null {
+function roundConfirmDeadline(state: LiveClient): number | null {
+    const roundConfirm = roundConfirmOf(state);
     return roundConfirm?.kind === "owed" || roundConfirm?.kind === "sent"
         ? roundConfirm.deadline
         : null;
@@ -91,8 +93,8 @@ function roundConfirmDeadline({ roundConfirm }: GameClientState): number | null 
  * The countdown to the server's round advance of the round result the viewer owes a confirm or waits on after
  * sending it, read from the state's `now`; null otherwise. Past its deadline it shows as expired, for display only.
  */
-export function roundConfirmCountdown(state: GameClientState): DecisionCountdown | null {
-    const { now, roundConfirm } = state;
+export function roundConfirmCountdown(state: LiveClient): DecisionCountdown | null {
+    const roundConfirm = roundConfirmOf(state);
     if (roundConfirm?.kind !== "owed" && roundConfirm?.kind !== "sent") {
         return null;
     }
@@ -101,16 +103,16 @@ export function roundConfirmCountdown(state: GameClientState): DecisionCountdown
     if (deadline === null) {
         return { kind: "untimed", move };
     }
-    if (now >= deadline) {
+    if (state.now >= deadline) {
         return { kind: "expired", move };
     }
-    return { kind: "running", move, secondsLeft: secondsLeft(deadline, now), turn: null };
+    return { kind: "running", move, secondsLeft: secondsLeft(deadline, state.now), turn: null };
 }
 
 /** The countdown of what awaits the viewer now: its unanswered decision, else a round result it owes a confirm. */
-export function pendingCountdown(state: GameClientState): DecisionCountdown | null {
+export function pendingCountdown(state: LiveClient): DecisionCountdown | null {
     const decision = decisionCountdown(state);
-    if (decision !== null || state.roundConfirm?.kind !== "owed") {
+    if (decision !== null || roundConfirmOf(state)?.kind !== "owed") {
         return decision;
     }
     return roundConfirmCountdown(state);
@@ -120,7 +122,7 @@ export function pendingCountdown(state: GameClientState): DecisionCountdown | nu
  * The whole seconds left of the server's game start pause while the table waits for its first deal, rounded up; null
  * before the game starts, once it deals, with no pause known, or once the pause ran out ahead of the deal.
  */
-export function firstDealCountdown(state: GameClientState): number | null {
+export function firstDealCountdown(state: LiveClient): number | null {
     const { firstDealDue, now, table } = state;
     if (table.phase !== "pre_game" || firstDealDue === null || now >= firstDealDue) {
         return null;
@@ -133,20 +135,25 @@ function nextShownChange(deadline: number, seconds: number): number {
     return deadline - (seconds - 1) * COUNTDOWN_STEP_MS;
 }
 
+/** When a turn's base time runs out, or null for a turn without a deadline, a call or no decision. */
+function turnBaseDeadline(decision: Decision | null): number | null {
+    return decision?.kind === "turn" ? decision.baseDeadline : null;
+}
+
 /** Every time a running countdown next shows a different number: its seconds left and, in a turn's base, the base's. */
-function countdownChanges(countdown: DecisionCountdown | null, state: GameClientState): number[] {
+function countdownChanges(countdown: DecisionCountdown | null, state: LiveClient): number[] {
     if (countdown?.kind !== "running") {
         return [];
     }
     const deadline =
         countdown.move === "result"
             ? roundConfirmDeadline(state)
-            : (state.decision?.deadline ?? null);
+            : (decisionOf(state)?.deadline ?? null);
     if (deadline === null) {
         return [];
     }
     const changes = [nextShownChange(deadline, countdown.secondsLeft)];
-    const baseDeadline = state.decision?.kind === "turn" ? state.decision.baseDeadline : null;
+    const baseDeadline = turnBaseDeadline(decisionOf(state));
     if (countdown.turn !== null && !countdown.turn.inBank && baseDeadline !== null) {
         changes.push(nextShownChange(baseDeadline, countdown.turn.baseSeconds));
     }
@@ -158,7 +165,7 @@ function countdownChanges(countdown: DecisionCountdown | null, state: GameClient
  * shows a different number, for the live driver to tick at, so the countdown moves with `now` rather than the wall
  * clock; null when none runs.
  */
-export function nextCountdownChange(state: GameClientState): number | null {
+export function nextCountdownChange(state: LiveClient): number | null {
     const decision = decisionCountdown(state);
     const shown = decision ?? roundConfirmCountdown(state);
     const changes = countdownChanges(shown, state);

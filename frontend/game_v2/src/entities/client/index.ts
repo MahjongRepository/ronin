@@ -9,13 +9,20 @@ export type {
     Desync,
     DesyncCause,
     GameClientState,
+    InStep,
+    LiveClient,
+    LiveEvent,
     LocalIntent,
     Offer,
+    Pending,
     PlayIntent,
     PlaySwitch,
     PlaySwitches,
+    ReplayClient,
+    ReplayLineEvent,
     RoundConfirm,
     ShownCalls,
+    Sync,
     TurnDecision,
 } from "./model/types";
 export {
@@ -25,7 +32,8 @@ export {
     startReplayClient,
     stepGameClient,
 } from "./model/dispatch";
-export { MAX_RESYNC_REQUESTS, RESYNC_ANSWER_MS, failGameClient } from "./model/desync";
+export { decisionOf, roundConfirmOf } from "./model/pending";
+export { MAX_RESYNC_REQUESTS, RESYNC_ANSWER_MS, desyncOf, failGameClient } from "./model/desync";
 export { PLAY_SWITCHES } from "./model/play-switches";
 export type { DecisionCountdown, TurnClock } from "./model/countdown";
 export {

@@ -12,6 +12,7 @@ import { KAN_TYPE } from "@/shared/protocol";
 
 import { sameIntent } from "./decision";
 import { takesIntent } from "./dispatch";
+import { decisionOf, replaceDecision } from "./pending";
 import {
     type PlayAction,
     type PlayCommand,
@@ -22,7 +23,7 @@ import {
 import {
     type Decision,
     type DecisionIntent,
-    type GameClientState,
+    type LiveClient,
     type LocalIntent,
     type Offer,
 } from "./types";
@@ -87,28 +88,28 @@ function submittedTileId(decision: Decision | null): number | null {
  * The state as the decision stood for its answer: an answered decision reopened, so its controls are drawn as they
  * were when the player answered, and never move under the answer.
  */
-function asAnswered(state: GameClientState): GameClientState {
-    const { decision } = state;
+function asAnswered(state: LiveClient): LiveClient {
+    const decision = decisionOf(state);
     if (decision?.status.kind !== "submitted") {
         return state;
     }
-    return { ...state, decision: { ...decision, status: { kind: "open" } } };
+    return replaceDecision(state, { ...decision, status: { kind: "open" } });
 }
 
 /** The offers the client would answer now, in the order the server listed them. */
-function takenOffers(state: GameClientState): Offer[] {
-    const offers = state.decision?.offers ?? [];
+function takenOffers(state: LiveClient): Offer[] {
+    const offers = decisionOf(state)?.offers ?? [];
     return offers.filter((offer) => takesIntent(state, choose(offer)));
 }
 
 /** The riichi offers the client would answer now: what the riichi toggle picks from. */
-function takenRiichiOffers(state: GameClientState): Offer[] {
+function takenRiichiOffers(state: LiveClient): Offer[] {
     return takenOffers(state).filter((offer) => offer.kind === "riichi");
 }
 
 /** Whether the player is picking riichi's discard: toggled for this decision, which still takes a riichi. */
-export function pickingRiichi(state: GameClientState, ui: PlayUi): boolean {
-    const { decision } = state;
+export function pickingRiichi(state: LiveClient, ui: PlayUi): boolean {
+    const decision = decisionOf(state);
     return (
         decision !== null &&
         decision.waitId === ui.riichiPickWaitId &&
@@ -121,8 +122,8 @@ function isTileChoiceKind(kind: Offer["kind"]): kind is TileChoiceKind {
 }
 
 /** The kind of call whose tiles the player is choosing: toggled for this decision, which still takes two of it. */
-export function choosingTiles(state: GameClientState, ui: PlayUi): TileChoiceKind | null {
-    const { decision } = state;
+export function choosingTiles(state: LiveClient, ui: PlayUi): TileChoiceKind | null {
+    const decision = decisionOf(state);
     const choice = ui.tileChoice;
     if (decision === null || choice === null || decision.waitId !== choice.waitId) {
         return null;
@@ -143,11 +144,11 @@ function tileIntent(tileId: number, picking: boolean): DecisionIntent {
  * tile stays a button, so focus stays in the hand.
  */
 export function tilePlays(
-    state: GameClientState,
+    state: LiveClient,
     viewer: PlayerState,
     picking: boolean,
 ): Map<number, TilePlay> {
-    const { decision } = state;
+    const decision = decisionOf(state);
     const played = submittedTileId(decision);
     const openTurn = decision?.kind === "turn" && decision.status.kind !== "submitted";
     return new Map(
@@ -221,7 +222,7 @@ function typeCopies(tileId: number): number[] {
  * An added kan laid as it will lie: the pon it adds to, with the added tile stacked on its called one. Opening the
  * decision checked the pon is there (Desync), so a missing one is a bug.
  */
-function addedKanGroup(state: GameClientState, tileId: number): MeldTile[] {
+function addedKanGroup(state: LiveClient, tileId: number): MeldTile[] {
     const { table, viewerSeat } = state;
     const copies = typeCopies(tileId);
     const viewer = table.players.find((player) => player.seat === viewerSeat);
@@ -242,10 +243,11 @@ function addedKanGroup(state: GameClientState, tileId: number): MeldTile[] {
  * face down, an added kan's added tile stacked on its pon's called one, an open kan's called tile turned.
  */
 function offerGroup(
-    state: GameClientState,
+    state: LiveClient,
     offer: Extract<Offer, { kind: TileChoiceKind }>,
 ): MeldTile[] {
-    const { decision, viewerSeat } = state;
+    const { viewerSeat } = state;
+    const decision = decisionOf(state);
     if (viewerSeat === null) {
         throw new Error("a choice of tiles needs the viewer's seat, which every decision has");
     }
@@ -262,7 +264,7 @@ function offerGroup(
 
 /** A kan laid as it will lie: an open one's called tile turned, an added one stacked, a closed one's ends face down. */
 function kanGroup(
-    state: GameClientState,
+    state: LiveClient,
     offer: Extract<Offer, { kind: "kan" }>,
     seats: Pick<MeldInput, "callerSeat" | "fromSeat">,
 ): MeldTile[] {
@@ -283,7 +285,7 @@ function kanGroup(
  * band; and Back in the place of Pass.
  */
 function tileChoiceActions(
-    state: GameClientState,
+    state: LiveClient,
     kind: TileChoiceKind,
     offers: readonly Offer[],
 ): DecisionAction[] {
@@ -310,7 +312,7 @@ function tileChoiceActions(
  * step), then a pass.
  */
 function firstStepActions(
-    state: GameClientState,
+    state: LiveClient,
     offers: readonly Offer[],
     picking: boolean,
 ): DecisionAction[] {
@@ -354,7 +356,7 @@ function sentBy(candidate: DecisionAction, sent: DecisionIntent): boolean {
  * chooses a call's tiles. An answered decision keeps the controls it was answered from, marking the one that sent the
  * answer, so nothing moves while the server answers.
  */
-export function decisionActions(state: GameClientState, ui: PlayUi): DecisionAction[] {
+export function decisionActions(state: LiveClient, ui: PlayUi): DecisionAction[] {
     if (passedByNoCalls(state)) {
         return [];
     }
@@ -365,7 +367,7 @@ export function decisionActions(state: GameClientState, ui: PlayUi): DecisionAct
         choosing === null
             ? firstStepActions(answered, offers, pickingRiichi(answered, ui))
             : tileChoiceActions(answered, choosing, offers);
-    const status = state.decision?.status;
+    const status = decisionOf(state)?.status;
     if (status?.kind !== "submitted") {
         return controls;
     }
@@ -377,8 +379,8 @@ function answeredBy(candidate: DecisionAction, chosen: boolean): DecisionAction 
 }
 
 /** What Escape steps back from: a call's choice of tiles, else the riichi toggle; neither once answered. */
-export function escapeCommand(state: GameClientState, ui: PlayUi): PlayCommand | null {
-    if (state.decision?.status.kind === "submitted") {
+export function escapeCommand(state: LiveClient, ui: PlayUi): PlayCommand | null {
+    if (decisionOf(state)?.status.kind === "submitted") {
         return null;
     }
     const stepping = choosingTiles(state, ui) !== null || pickingRiichi(state, ui);
@@ -386,11 +388,11 @@ export function escapeCommand(state: GameClientState, ui: PlayUi): PlayCommand |
 }
 
 /** Whether No calls passed the decision, which then shows nothing: its controls never appear. */
-function passedByNoCalls(state: GameClientState): boolean {
-    const status = state.decision?.status;
+function passedByNoCalls(state: LiveClient): boolean {
+    const status = decisionOf(state)?.status;
     return status?.kind === "submitted" && status.bySwitch === "no_calls";
 }
 
-export function decisionStanding(state: GameClientState): DecisionStanding | null {
-    return passedByNoCalls(state) ? null : (state.decision?.status.kind ?? null);
+export function decisionStanding(state: LiveClient): DecisionStanding | null {
+    return passedByNoCalls(state) ? null : (decisionOf(state)?.status.kind ?? null);
 }

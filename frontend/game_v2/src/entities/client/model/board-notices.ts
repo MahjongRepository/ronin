@@ -5,9 +5,10 @@ import { type LoadStatus } from "@/shared/lib";
 import { GAME_ERROR_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
 import { type DecisionCountdown, pendingCountdown } from "./countdown";
+import { desyncOf } from "./desync";
 import { type NoticeKind, type PlayCommand, type PlayUi } from "./play-ui";
 import { failureDisplay } from "./session-end";
-import { type GameClientState, type TimedNotice } from "./types";
+import { type LiveClient, type TimedNotice } from "./types";
 
 /** A notice over the table, with what it tells and the one control it may offer. */
 export interface PlayNotice extends Omit<BoardNotice, "action" | "id" | "onShowAll"> {
@@ -31,8 +32,8 @@ export interface NoticeSheetDisplay {
  * same across the retries, so the live region reads them once. A page that only resumes its seat (a reload) shows
  * none.
  */
-function connectionNotice(session: SessionState | null): PlayNotice | null {
-    if (session === null || session.status === "ended" || session.status === "playing") {
+function connectionNotice(session: SessionState): PlayNotice | null {
+    if (session.status === "ended" || session.status === "playing") {
         return null;
     }
     if (session.status === "recovering") {
@@ -113,13 +114,13 @@ function standingsNotice(table: TableState, status: LoadStatus): PlayNotice | nu
 }
 
 /** The notices over the table, ongoing conditions before acknowledgements (`NoticeKind`); none while a failure blocks it. */
-export function boardNotices(state: GameClientState, ui: PlayUi): PlayNotice[] {
+export function boardNotices(state: LiveClient, ui: PlayUi): PlayNotice[] {
     if (failureDisplay(state.session) !== null) {
         return [];
     }
     return [
         connectionNotice(state.session),
-        unreadNotice(state.unreadMessages),
+        unreadNotice(desyncOf(state)?.unreadMessages ?? 0),
         tileSpriteNotice(ui.tileSprite),
         standingsNotice(state.table, ui.standings),
         timedNotice(state.notice),
@@ -132,7 +133,7 @@ export function boardNotices(state: GameClientState, ui: PlayUi): PlayNotice[] {
  * countdown of the decision or round confirm that goes on beneath it.
  */
 export function noticeSheet(
-    state: GameClientState,
+    state: LiveClient,
     ui: PlayUi,
     notices: readonly PlayNotice[],
 ): NoticeSheetDisplay | null {

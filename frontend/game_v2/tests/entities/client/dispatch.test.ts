@@ -13,10 +13,12 @@ import {
 } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
-    type ClientEvent,
-    type GameClientState,
+    type LiveClient,
+    type LiveEvent,
     RESYNC_ANSWER_MS,
+    desyncOf,
     nextDeadline,
+    roundConfirmOf,
     stepGameClient,
     takesIntent,
 } from "@/entities/client";
@@ -25,7 +27,7 @@ import { buildConfirmRoundAction, buildResyncMessage } from "@/shared/protocol";
 
 const { closed, confirm, message, opened, tick } = clientEvent;
 
-function collectEffects(events: readonly ClientEvent[]): {
+function collectEffects(events: readonly LiveEvent[]): {
     effects: ClientEffect[];
     deadline: number | null;
 } {
@@ -37,18 +39,18 @@ function collectEffects(events: readonly ClientEvent[]): {
     return { deadline: nextDeadline(scenario.state), effects };
 }
 
-function socketError(at: number): ClientEvent {
+function socketError(at: number): LiveEvent {
     return { at, detail: "", kind: "transport_error" };
 }
 
 /** What `event` asks for at the connect deadline of a socket that never opened. */
-function connectTimeoutEffects(event: (at: number) => ClientEvent): readonly ClientEffect[] {
+function connectTimeoutEffects(event: (at: number) => LiveEvent): readonly ClientEffect[] {
     const { state } = clientScenario();
     return stepGameClient(state, event(nextDeadline(state) ?? 0)).effects;
 }
 
 /** What a socket error asks for once the resync request of a client that lost step at 5000 comes due. */
-function resyncDueEffects(state: GameClientState): readonly ClientEffect[] {
+function resyncDueEffects(state: LiveClient): readonly ClientEffect[] {
     const desynced = stepGameClient(state, message(5000, { t: 999 })).state;
     return stepGameClient(desynced, socketError(5000 + RESYNC_ANSWER_MS)).effects;
 }
@@ -74,7 +76,7 @@ describe("stepGameClient - round confirm", () => {
         ]);
         expect(scenario.step(tick(60_000))).toEqual([]);
         expect(scenario.step(confirm(60_100))).toEqual([sent]);
-        expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "sent", waitId: 5 });
+        expect(roundConfirmOf(scenario.state)).toEqual({ deadline: null, kind: "sent", waitId: 5 });
         expect(scenario.step(confirm(60_200))).toEqual([]);
     });
 
@@ -83,7 +85,7 @@ describe("stepGameClient - round confirm", () => {
         scenario.step(message(100, wireRoundEnd(5)));
 
         scenario.step(message(600, WIRE_ROUND_STARTED));
-        expect([scenario.state.roundConfirm, scenario.state.table.phase]).toEqual([
+        expect([roundConfirmOf(scenario.state), scenario.state.table.phase]).toEqual([
             null,
             "in_round",
         ]);
@@ -106,12 +108,12 @@ describe("stepGameClient - round confirm", () => {
 
         expect(scenario.step(message(100, owed))).toEqual([]);
         expect(scenario.state.table.phase).toBe("round_ended");
-        expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "owed", waitId: 9 });
+        expect(roundConfirmOf(scenario.state)).toEqual({ deadline: null, kind: "owed", waitId: 9 });
         expect(scenario.step(confirm(200))).toEqual([
             { message: buildConfirmRoundAction(9), type: "send" },
         ]);
         expect(scenario.step(message(300, owed))).toEqual([]);
-        expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "sent", waitId: 9 });
+        expect(roundConfirmOf(scenario.state)).toEqual({ deadline: null, kind: "sent", waitId: 9 });
         expect(scenario.step(confirm(400))).toEqual([]);
     });
 
@@ -121,7 +123,7 @@ describe("stepGameClient - round confirm", () => {
         const confirmed = wireRoundAdvanceSnapshot(false, 9);
 
         scenario.step(message(100, confirmed));
-        expect(scenario.state.roundConfirm).toEqual({ kind: "confirmed" });
+        expect(roundConfirmOf(scenario.state)).toEqual({ kind: "confirmed" });
         expect(scenario.step(confirm(200))).toEqual([]);
     });
 });
@@ -129,7 +131,7 @@ describe("stepGameClient - round confirm", () => {
 describe("stepGameClient", () => {
     it("keeps the furiten last reported to the seat until a new deal clears it", () => {
         const scenario = playingScenario();
-        function furitenAfter(event: ClientEvent): boolean {
+        function furitenAfter(event: LiveEvent): boolean {
             scenario.step(event);
             return scenario.state.furiten;
         }
@@ -156,22 +158,21 @@ describe("stepGameClient", () => {
         const scenario = playingScenario();
         scenario.step(message(100, WIRE_GAME_END));
         const ended = scenario.state;
-        expect(ended.roundConfirm).toBeNull();
+        expect(roundConfirmOf(ended)).toBeNull();
         expect(takesIntent(ended, { type: "show_last_result" })).toBe(false);
 
         expect(scenario.step(message(200, WIRE_ROUND_STARTED))).toEqual([]);
         expect(scenario.step(message(300, { t: 99 }))).toEqual([]);
         expect(scenario.state.table).toBe(ended.table);
-        expect([scenario.state.table.phase, scenario.state.unreadMessages]).toEqual([
-            "game_ended",
-            ended.unreadMessages,
-        ]);
+        expect([scenario.state.table.phase, desyncOf(scenario.state)?.unreadMessages ?? 0]).toEqual(
+            ["game_ended", desyncOf(ended)?.unreadMessages ?? 0],
+        );
     });
 
     it("takes a valid event it otherwise ignores as advancing the time and settling expiry and resync, while only a tick drives the session's deadlines", () => {
         const scenario = playingScenario();
         const before = scenario.state;
-        const ignored: ClientEvent[] = [
+        const ignored: LiveEvent[] = [
             tick(500),
             socketError(600),
             { at: 700, intent: { type: "pass" }, kind: "intent" },

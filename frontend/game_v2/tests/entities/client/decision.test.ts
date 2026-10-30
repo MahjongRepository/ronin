@@ -2,6 +2,7 @@ import { assert, describe, expect, it } from "vitest";
 
 import { checkpointState, loadSeatScenario } from "#tests/fixtures/seat-transcripts";
 import { wireRuleRefusal, wireSessionError } from "#tests/fixtures/wire";
+import { decisionOf } from "@/entities/client";
 import { followDecision } from "@/entities/client/model/decision";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
@@ -36,7 +37,7 @@ function messageOfEachType(waitId: number): ReadonlyMap<string, ParsedServerMess
 
 describe("followDecision", () => {
     it("closes an open decision on a message of the server moving on, and keeps it through any other", () => {
-        const { decision } = checkpointState("call_prompt_seat_1", "prompt");
+        const decision = decisionOf(checkpointState("call_prompt_seat_1", "prompt"));
         assert(decision?.status.kind === "open");
         const followed = [...messageOfEachType(decision.waitId)].map(
             ([type, message]) => [type, followDecision(decision, message)] as const,

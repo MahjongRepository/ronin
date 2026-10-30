@@ -16,12 +16,15 @@ import {
 } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
-    type ClientEvent,
     type DesyncCause,
-    type GameClientState,
+    type LiveClient,
+    type LiveEvent,
     MAX_RESYNC_REQUESTS,
     RESYNC_ANSWER_MS,
+    decisionOf,
+    desyncOf,
     nextDeadline,
+    roundConfirmOf,
     stepGameClient,
 } from "@/entities/client";
 import { boardOverlay } from "@/entities/table";
@@ -47,16 +50,16 @@ const RESYNC: ClientEffect = { message: buildResyncMessage(), type: "send" };
 const AT = 3100;
 
 /** The seat's turn as the transcript opened it, its draw at 3000, playing on an open socket. */
-function onTurn(): GameClientState {
+function onTurn(): LiveClient {
     return checkpointState(SCENARIO, "first draw");
 }
 
-function viewerTiles(state: GameClientState): readonly number[] {
+function viewerTiles(state: LiveClient): readonly number[] {
     return state.table.players.find((player) => player.seat === state.viewerSeat)?.tiles ?? [];
 }
 
 /** A discard by the viewer's seat of a tile its hand, known whole, does not hold: a table step that throws. */
-function impossibleDiscard(state: GameClientState): WirePayload {
+function impossibleDiscard(state: LiveClient): WirePayload {
     const seat = state.viewerSeat ?? 0;
     const tileId = [...Array.from({ length: NUM_TILES }).keys()].find(
         (candidate) => !viewerTiles(state).includes(candidate),
@@ -65,7 +68,7 @@ function impossibleDiscard(state: GameClientState): WirePayload {
 }
 
 /** The viewer's own draw offering a closed kan of a tile type the hand holds none of, beside the drawn tile's. */
-function unmatchedKanDraw(state: GameClientState): WirePayload {
+function unmatchedKanDraw(state: LiveClient): WirePayload {
     const seat = state.viewerSeat ?? 0;
     const held = new Set(viewerTiles(state).map((tileId) => Math.floor(tileId / 4)));
     const absentType =
@@ -81,7 +84,7 @@ function unmatchedKanDraw(state: GameClientState): WirePayload {
 }
 
 /** The viewer's own draw offering an added kan of a tile type the hand holds but the seat has no pon of. */
-function ponlessAddedKanDraw(state: GameClientState): WirePayload {
+function ponlessAddedKanDraw(state: LiveClient): WirePayload {
     const seat = state.viewerSeat ?? 0;
     const drawnTile = viewerTiles(state).at(0) ?? 0;
     return {
@@ -97,7 +100,7 @@ interface FailureCase {
     readonly name: string;
     readonly cause: DesyncCause;
     readonly detail: string;
-    readonly event: (state: GameClientState) => ClientEvent;
+    readonly event: (state: LiveClient) => LiveEvent;
 }
 
 const FAILURES: readonly FailureCase[] = [
@@ -185,9 +188,9 @@ const INCOMPLETE_SNAPSHOTS: readonly { name: string; payload: WirePayload }[] = 
 
 /** Step `events` from `state`, returning the state after them and every effect they asked for. */
 function run(
-    state: GameClientState,
-    events: readonly ClientEvent[],
-): { state: GameClientState; effects: ClientEffect[] } {
+    state: LiveClient,
+    events: readonly LiveEvent[],
+): { state: LiveClient; effects: ClientEffect[] } {
     let current = state;
     const effects: ClientEffect[] = [];
     for (const event of events) {
@@ -202,7 +205,7 @@ function sends(effects: readonly ClientEffect[]): ClientEffect[] {
     return effects.filter((effect) => effect.type === "send" || effect.type === "close_socket");
 }
 
-function discardIntent(at: number, tileId: number): ClientEvent {
+function discardIntent(at: number, tileId: number): LiveEvent {
     return { at, intent: { tileId, type: "discard" }, kind: "intent" };
 }
 
@@ -217,16 +220,16 @@ const OPENED_AT = 5001;
 const LOST_AT = 5002;
 const RECONNECT: ClientEffect = { message: buildReconnectMessage("ticket-1"), type: "send" };
 
-function undecodable(at: number): ClientEvent {
+function undecodable(at: number): LiveEvent {
     return { at, detail: "Received a non-binary frame", kind: "frame_undecodable" };
 }
 
-function drawNotice(at: number): ClientEvent {
+function drawNotice(at: number): LiveEvent {
     return message(at, { s: 2, t: EVENT_TYPE.DRAW_NOTICE });
 }
 
 /** The first draw's socket dropped and reopened, the RECONNECT sent and its snapshot frame undecodable. */
-function lostWhileIdentifying(): GameClientState {
+function lostWhileIdentifying(): LiveClient {
     const reopened = run(onTurn(), [
         closed(DROPPED_AT, 1006),
         tick(OPENED_AT - 1),
@@ -249,16 +252,16 @@ describe("stepGameClient - desync", () => {
                 "send",
             ]);
             expect(failed.effects[1]).toEqual(RESYNC);
-            expect(failed.state.desync).toMatchObject({
+            expect(desyncOf(failed.state)).toMatchObject({
                 answerDue: AT + RESYNC_ANSWER_MS,
                 cause,
                 detail: expect.stringContaining(detail),
                 since: AT,
             });
             expect([
-                failed.state.decision,
+                decisionOf(failed.state),
                 failed.state.resyncRequests,
-                failed.state.unreadMessages,
+                desyncOf(failed.state)?.unreadMessages ?? 0,
             ]).toEqual([null, 1, 1]);
             expect(stepGameClient(failed.state, discardIntent(AT + 10, tile)).effects).toEqual([]);
             expect(failed.state.session).toBe(turn.session);
@@ -271,7 +274,7 @@ describe("stepGameClient - desync", () => {
         const dropped = run(desynced, [message(AT + 50, { s: 2, t: EVENT_TYPE.DRAW_NOTICE })]);
         expect(dropped.effects).toEqual([]);
         expect(dropped.state.table).toBe(desynced.table);
-        expect(dropped.state.desync).toBe(desynced.desync);
+        expect(desyncOf(dropped.state)).toBe(desyncOf(desynced));
     });
 
     it("takes the snapshot and the re-sent wait, back in step, and answers again, its seen wait kept", () => {
@@ -282,8 +285,8 @@ describe("stepGameClient - desync", () => {
             message(AT + 100, RESENT_DRAW),
         ]);
         expect(resynced.effects).toEqual([]);
-        expect([resynced.state.desync, resynced.state.unreadMessages]).toEqual([null, 0]);
-        expect(resynced.state.decision).toMatchObject({
+        expect(desyncOf(resynced.state)).toBeNull();
+        expect(decisionOf(resynced.state)).toMatchObject({
             kind: "turn",
             status: { kind: "open" },
             waitId: TURN_WAIT_ID,
@@ -306,7 +309,10 @@ describe("stepGameClient - desync", () => {
                 reason: { kind: "failed" },
                 status: "ended",
             });
-            expect(failed.state.desync).toMatchObject({ cause: "unreadable_message", since: AT });
+            expect(desyncOf(failed.state)).toMatchObject({
+                cause: "unreadable_message",
+                since: AT,
+            });
             expect(failed.state.table).toBe(desynced.table);
             expect(nextDeadline(failed.state)).toBeNull();
         },
@@ -316,7 +322,7 @@ describe("stepGameClient - desync", () => {
         const failed = run(onTurn(), [message(AT, withoutSeatState(2))]);
 
         expect(failed.state.session).toMatchObject({ reason: { kind: "failed" } });
-        expect(failed.state.desync).toMatchObject({ cause: "unreadable_message", since: AT });
+        expect(desyncOf(failed.state)).toMatchObject({ cause: "unreadable_message", since: AT });
         expect(failed.state.table.roundHistoryInStep).toBe(false);
     });
 
@@ -335,8 +341,11 @@ describe("stepGameClient - desync", () => {
             const lost = run(checkpointState("double_ron_seat_1", "ron chosen"), [
                 message(5500, payload),
             ]);
-            expect(lost.state.desync).toMatchObject({ cause: "unreadable_message" });
-            expect([lost.state.roundConfirm, lost.state.table.phase]).toEqual([null, "in_round"]);
+            expect(desyncOf(lost.state)).toMatchObject({ cause: "unreadable_message" });
+            expect([roundConfirmOf(lost.state), lost.state.table.phase]).toEqual([
+                null,
+                "in_round",
+            ]);
         },
     );
 
@@ -349,7 +358,7 @@ describe("stepGameClient - desync", () => {
         expect(sends(early.effects)).toEqual([]);
         const late = run(early.state, [tick(due)]);
         expect(sends(late.effects)).toEqual([RESYNC]);
-        expect([late.state.resyncRequests, late.state.desync?.answerDue]).toEqual([
+        expect([late.state.resyncRequests, desyncOf(late.state)?.answerDue]).toEqual([
             2,
             due + RESYNC_ANSWER_MS,
         ]);
@@ -361,7 +370,7 @@ describe("stepGameClient - desync", () => {
             const at = AT + attempt * 1000;
             const recovered = run(state, [message(at, { t: 999 }), message(at + 100, SNAPSHOT)]);
             expect(sends(recovered.effects)).toEqual([RESYNC]);
-            expect(recovered.state.desync).toBeNull();
+            expect(desyncOf(recovered.state)).toBeNull();
             ({ state } = recovered);
         }
 
@@ -374,7 +383,7 @@ describe("stepGameClient - desync", () => {
         const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
 
         const dropped = run(desynced, [closed(AT + 100, 1006)]);
-        expect(dropped.state.desync?.answerDue).toBeNull();
+        expect(desyncOf(dropped.state)?.answerDue).toBeNull();
         const retryAt = nextDeadline(dropped.state) ?? 0;
         const reconnected = run(dropped.state, [
             tick(retryAt),
@@ -384,7 +393,7 @@ describe("stepGameClient - desync", () => {
         expect(sends(reconnected.effects)).toEqual([
             { message: buildReconnectMessage("ticket-1"), type: "send" },
         ]);
-        expect([reconnected.state.desync, reconnected.state.resyncRequests]).toEqual([null, 1]);
+        expect([desyncOf(reconnected.state), reconnected.state.resyncRequests]).toEqual([null, 1]);
         expect(reconnected.state.session).toMatchObject({ status: "playing" });
     });
 });
@@ -402,7 +411,7 @@ describe("stepGameClient - a game's end its table refuses in step", () => {
             table.phase,
             table.gameEndResult?.standings.length,
             table.roundEndResult,
-            ended.state.roundConfirm,
+            roundConfirmOf(ended.state),
             sends(ended.effects),
             standings?.ledgerComplete,
         ]).toEqual(["game_ended", 4, null, null, [], false]);
@@ -415,13 +424,13 @@ describe("stepGameClient - desync around the game's start and end", () => {
     const finalRoundEnd = receivedPayload(finalRound, "round end");
     const gameEnd = receivedPayload(finalRound, "game end");
 
-    function ledgerOf(state: GameClientState): { rows: number; complete: boolean } {
+    function ledgerOf(state: LiveClient): { rows: number; complete: boolean } {
         const display = standingsDisplay(state.table, state.viewerSeat);
         return { complete: display?.ledgerComplete ?? false, rows: display?.ledger.length ?? -1 };
     }
 
     /** The note the last result's panel, shown over the standings, gives when its details may be wrong, or null. */
-    function resultNote(state: GameClientState): string | null {
+    function resultNote(state: LiveClient): string | null {
         const host = document.createElement("div");
         render(boardOverlay(state.table, { paging: { overStandings: true, page: 0 } }), host);
         expect(host.querySelector(".round-end-result")).not.toBeNull();
@@ -440,9 +449,9 @@ describe("stepGameClient - desync around the game's start and end", () => {
             reason: { kind: "game_ended" },
             status: "ended",
         });
-        expect([ended.state.table.phase, ended.state.roundConfirm]).toEqual([
+        expect([ended.state.table.phase, ended.state.showsLastResult]).toEqual([
             "game_ended",
-            { kind: "final" },
+            true,
         ]);
         expect([ledgerOf(ended.state), resultNote(ended.state)]).toEqual([
             { complete: false, rows: 1 },
@@ -462,7 +471,10 @@ describe("stepGameClient - desync around the game's start and end", () => {
             message(5200, receivedPayload(reconnectGame, "game end")),
         ]);
         expect(ended.state.session).toMatchObject({ reason: { kind: "game_ended" } });
-        expect([ended.state.table.roundEndResult, ended.state.roundConfirm]).toEqual([null, null]);
+        expect([ended.state.table.roundEndResult, ended.state.showsLastResult]).toEqual([
+            null,
+            false,
+        ]);
         expect(ledgerOf(ended.state).complete).toBe(false);
     });
 
@@ -496,7 +508,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
         const refused = run(desynced.state, [
             message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
         ]);
-        expect([refused.effects, refused.state.desync?.answerDue]).toEqual([[], firstDealDue]);
+        expect([refused.effects, desyncOf(refused.state)?.answerDue]).toEqual([[], firstDealDue]);
         const dealDue = run(refused.state, [tick(firstDealDue)]);
         expect(sends(dealDue.effects)).toEqual([RESYNC]);
     });
@@ -510,14 +522,14 @@ describe("stepGameClient - a late second snapshot", () => {
             message(resentAt, SNAPSHOT),
             message(resentAt, RESENT_DRAW),
         ]).state;
-        const first = resynced.decision;
+        const first = decisionOf(resynced);
         assert(first?.kind === "turn" && first.deadline !== null && first.baseDeadline !== null);
         const expired = run(resynced, [tick(first.deadline)]).state;
         const shift = first.deadline + 500 - resentAt;
         const reopened = run(expired, [message(resentAt + shift, RESENT_DRAW)]);
 
-        expect(expired.decision?.status.kind).toBe("expired");
-        expect([reopened.effects, reopened.state.decision]).toEqual([
+        expect(decisionOf(expired)?.status.kind).toBe("expired");
+        expect([reopened.effects, decisionOf(reopened.state)]).toEqual([
             [],
             {
                 ...first,
@@ -548,14 +560,14 @@ describe("stepGameClient - a late second snapshot", () => {
             discardIntent(AT + 10_400, tile),
         ]);
         expect(repeated.effects).toEqual([]);
-        expect(repeated.state.decision?.status).toMatchObject({ kind: "submitted" });
+        expect(decisionOf(repeated.state)?.status).toMatchObject({ kind: "submitted" });
     });
 });
 
 describe("stepGameClient - out of step while the reconnect identifies", () => {
     it("asks for a snapshot on the open socket once the reconnect's own goes unanswered, and is admitted by it", () => {
         const lost = lostWhileIdentifying();
-        expect([lost.session?.status, lost.desync?.cause]).toEqual([
+        expect([lost.session?.status, desyncOf(lost)?.cause]).toEqual([
             "identifying",
             "undecodable_frame",
         ]);
@@ -568,8 +580,11 @@ describe("stepGameClient - out of step while the reconnect identifies", () => {
             message(due + 100, SNAPSHOT),
             message(due + 100, RESENT_DRAW),
         ]);
-        expect([admitted.state.session?.status, admitted.state.desync]).toEqual(["playing", null]);
-        expect(admitted.state.decision).toMatchObject({ status: { kind: "open" } });
+        expect([admitted.state.session?.status, desyncOf(admitted.state)]).toEqual([
+            "playing",
+            null,
+        ]);
+        expect(decisionOf(admitted.state)).toMatchObject({ status: { kind: "open" } });
     });
 
     it("ends the page once its requests are spent on answers that never decode, whatever deltas arrive", () => {
@@ -599,7 +614,10 @@ describe("stepGameClient - out of step while the reconnect identifies", () => {
         const resent = run(refused.state, [tick(nextDeadline(refused.state) ?? 0)]);
         expect(sends(resent.effects)).toEqual([RECONNECT]);
         const admitted = run(resent.state, [message(due + 2000, SNAPSHOT)]);
-        expect([admitted.state.session?.status, admitted.state.desync]).toEqual(["playing", null]);
+        expect([admitted.state.session?.status, desyncOf(admitted.state)]).toEqual([
+            "playing",
+            null,
+        ]);
     });
 
     it("takes a rate limit while its request is outstanding as the request's, asking again when it comes due and never resending the identity", () => {
