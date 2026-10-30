@@ -18,7 +18,7 @@ import { applyGameReconnected } from "./handlers/reconnect";
 import { applyRoundEnd } from "./handlers/round-end";
 import { requirePlayer, requireRiichiCost, takeFromHand, updatePlayer } from "./helpers";
 import { createInitialPlayerState } from "./initial-state";
-import { type PlayerState, type TableEvent, type TableState } from "./types";
+import { type GamePhase, type PlayerState, type TableEvent, type TableState } from "./types";
 
 /** Live wall size after dealing: 136 total - 14 dead wall - 52 dealt (13 × 4 players). */
 const TILES_AFTER_DEAL = 136 - 14 - 13 * 4;
@@ -36,15 +36,11 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         ...state,
         dealerSeat: event.dealerSeat,
         firstDealerSeat: event.dealerSeat,
-        gameEndResult: null,
         gameId: event.gameId,
         gameType: event.gameType,
         phase: "pre_game",
         players,
-        revealedSeats: [],
         riichiCost: event.riichiCost,
-        roundEndResult: null,
-        roundHistory: [],
     };
 }
 
@@ -213,10 +209,61 @@ function applySeatControl(state: TableState, line: SeatControlLine): TableState 
 }
 
 /**
- * The table transition: the next table after one event, never changing the one it was given. The draw, discard,
- * meld and kan declaration handlers throw a `DesyncError` on an impossible state (a missing tile, player or caller).
+ * Where the table stands for the order of events: `unseated` before any game start, `out_of_step` from a live
+ * client's loss of step until a snapshot, else the table's phase.
+ */
+type OrderPhase = GamePhase | "unseated" | "out_of_step";
+
+const ANY_PHASE: readonly OrderPhase[] = [
+    "unseated",
+    "pre_game",
+    "in_round",
+    "round_ended",
+    "game_ended",
+    "out_of_step",
+];
+const IN_ROUND: readonly OrderPhase[] = ["in_round"];
+
+/**
+ * The phases that take each event; any other is an impossible server sequence. The snapshot rebuilds the table
+ * whatever it held, and a seat control line or a loss of step changes no order. Out of step, the table missed the
+ * messages that would have moved its phase, so it takes the game's last round end and the game's end on any table.
+ */
+const PHASES_TAKING: Readonly<Record<TableEvent["type"], readonly OrderPhase[]>> = {
+    ai_replacement: ANY_PHASE,
+    discard: IN_ROUND,
+    dora_revealed: IN_ROUND,
+    draw: IN_ROUND,
+    draw_notice: IN_ROUND,
+    game_end: ["round_ended", "out_of_step"],
+    game_reconnected: ANY_PHASE,
+    game_started: ["unseated"],
+    human_return: ANY_PHASE,
+    kan_declared: IN_ROUND,
+    lost_step: ANY_PHASE,
+    meld: IN_ROUND,
+    riichi_declared: IN_ROUND,
+    round_end: ["in_round", "out_of_step"],
+    round_started: ["pre_game", "round_ended"],
+};
+
+function orderPhase(state: TableState): OrderPhase {
+    if (!state.roundHistoryInStep) {
+        return "out_of_step";
+    }
+    return state.phase === "pre_game" && state.players.length === 0 ? "unseated" : state.phase;
+}
+
+/**
+ * The table transition: the next table after one event, never changing the one it was given. An event outside the
+ * phases that take it (`PHASES_TAKING`) throws a `DesyncError`, as do the draw, discard, meld and kan declaration
+ * handlers on an impossible state (a missing tile, player or caller).
  */
 export function applyEvent(state: TableState, event: TableEvent): TableState {
+    const phase = orderPhase(state);
+    if (!PHASES_TAKING[event.type].includes(phase)) {
+        throw new DesyncError(`A ${event.type} event reached a table in phase ${phase}`);
+    }
     switch (event.type) {
         case "game_started": {
             return applyGameStarted(state, event);

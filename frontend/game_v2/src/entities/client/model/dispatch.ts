@@ -291,12 +291,34 @@ function takeMessage(
     return switchStep(noticed, viewed.highestOpenedWaitId);
 }
 
+/** Whether a message the client cannot take ends the page: a snapshot, or a game's end out of step already. */
+function failsRecovery(stepped: GameClientState, message: ParsedServerMessage): boolean {
+    return (
+        message.type === "game_reconnected" ||
+        (message.type === "game_end" && stepped.desync !== null)
+    );
+}
+
+/**
+ * A game's end its in-step table refused, the first sign the client missed the round end before it, taken once more
+ * by the client that loss put out of step (`lost`), since its standings are the server's whatever the table missed.
+ */
+function gameEndOutOfStep(
+    before: GameClientState,
+    lost: ClientStep,
+    message: ParsedServerMessage,
+): ClientStep {
+    const ended = takeMessageInStep(before, lost.state, message);
+    return { effects: [...lost.effects, ...ended.effects], state: ended.state };
+}
+
 /**
  * Take a server message the session took, as `takeMessage` does, where a `DesyncError` (a message the table or the
  * decision cannot take) is a protocol failure rather than a bug: it puts the client out of step, and it ends the page
- * for a snapshot or the game's end, since no snapshot can rebuild the client then; out of step, the game's last round
- * end it cannot take is one more message dropped. A snapshot it takes puts it back in step. Any other error is the
- * client's own and propagates.
+ * for a snapshot or a game's end out of step already, since no snapshot can rebuild the client then; a game's end in
+ * step is taken once more out of step (`gameEndOutOfStep`), and out of step, the game's last round end it cannot take
+ * is one more message dropped. A snapshot it takes puts it back in step. Any other error is the client's own and
+ * propagates.
  */
 function takeMessageInStep(
     before: GameClientState,
@@ -312,9 +334,11 @@ function takeMessageInStep(
         if (!(error instanceof DesyncError)) {
             throw error;
         }
-        return message.type === "game_reconnected" || message.type === "game_end"
-            ? recoveryFailedStep(stepped, error.message)
-            : desyncStep(stepped, "impossible_state", error.message);
+        if (failsRecovery(stepped, message)) {
+            return recoveryFailedStep(stepped, error.message);
+        }
+        const lost = desyncStep(stepped, "impossible_state", error.message);
+        return message.type === "game_end" ? gameEndOutOfStep(before, lost, message) : lost;
     }
 }
 

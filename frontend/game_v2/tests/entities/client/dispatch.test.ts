@@ -55,6 +55,7 @@ function playingScenario(): ReturnType<typeof clientScenario> {
     const scenario = clientScenario();
     scenario.step(opened(0));
     scenario.step(message(0, WIRE_GAME_STARTED));
+    scenario.step(message(0, WIRE_ROUND_STARTED));
     return scenario;
 }
 
@@ -129,12 +130,14 @@ describe("stepGameClient", () => {
             scenario.step(event);
             return scenario.state.furiten;
         }
+        const roundEnd = message(250, wireRoundEnd(5));
 
         expect([
             furitenAfter(message(100, { f: true, t: 11 })),
             furitenAfter(message(200, WIRE_DRAW)),
+            furitenAfter(roundEnd),
             furitenAfter(message(300, WIRE_ROUND_STARTED)),
-        ]).toEqual([true, true, false]);
+        ]).toEqual([true, true, true, false]);
     });
 
     it("reports a message it cannot parse and leaves the session as it was", () => {
@@ -158,7 +161,7 @@ describe("stepGameClient", () => {
         expect(scenario.state.table).toBe(ended.table);
         expect([scenario.state.table.phase, scenario.state.unreadMessages]).toEqual([
             "game_ended",
-            0,
+            ended.unreadMessages,
         ]);
     });
 
@@ -197,6 +200,7 @@ describe("stepGameClient", () => {
             collectEffects([
                 opened(0),
                 message(10, WIRE_GAME_STARTED),
+                message(15, WIRE_ROUND_STARTED),
                 message(20, wireRoundEnd(5)),
                 closed(30, 1006),
                 tick(1030),

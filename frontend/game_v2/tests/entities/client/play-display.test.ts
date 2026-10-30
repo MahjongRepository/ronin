@@ -9,6 +9,7 @@ import {
 import {
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
+    WIRE_ROUND_STARTED,
     wireGameError,
     wireRoundEnd,
     wireSessionError,
@@ -442,6 +443,7 @@ function playingScenario(): ReturnType<typeof clientScenario> {
     const scenario = clientScenario();
     scenario.step(clientEvent.opened(0));
     scenario.step(clientEvent.message(0, WIRE_GAME_STARTED));
+    scenario.step(clientEvent.message(0, WIRE_ROUND_STARTED));
     return scenario;
 }
 

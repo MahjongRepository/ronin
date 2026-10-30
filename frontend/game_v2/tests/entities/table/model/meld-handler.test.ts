@@ -8,6 +8,7 @@ import {
     makeRoundStartedEvent,
 } from "#tests/fixtures/events";
 import { applyEvent } from "@/entities/table/model/apply-event";
+import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type GameStartedEvent, type MeldEvent, type RoundStartedEvent } from "@/shared/protocol";
 
@@ -187,6 +188,26 @@ describe("applyEvent - meld - pon", () => {
 
         const bobDiscards = next.players[1].discards;
         expect(bobDiscards[bobDiscards.length - 1].claimed).toBe(true);
+    });
+
+    test("refuses a call on a tile that is not the table's latest discard as a desync", () => {
+        const state = stateWithDiscard(1, 38);
+        const passed = applyEvent(
+            drawTile(state, 2, 120),
+            makeDiscardEvent({ seat: 2, tileId: 120 }),
+        );
+        function pon(calledTileId: number): MeldEvent {
+            return makeMeldEvent({
+                calledTileId,
+                callerSeat: 0,
+                fromSeat: 1,
+                meldType: "pon",
+                tileIds: [36, 37, calledTileId],
+            });
+        }
+
+        expect(() => applyEvent(state, pon(39))).toThrow(DesyncError);
+        expect(() => applyEvent(passed, pon(38))).toThrow(DesyncError);
     });
 });
 

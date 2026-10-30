@@ -150,7 +150,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`lost_step`), dropping any result it kept, so only a result taken in step or that last round end
   opens the final result, its panel noting what may be wrong, and the standings mark their ledger
   incomplete (`entities/table/AGENTS.md`); a last round end it cannot take is one more message
-  dropped. It sends one resync request on the open
+  dropped. A game's end its in-step table refuses (the round end before it missed) is the first sign
+  of the loss of step: the client goes out of step and takes that end once more, so the game still
+  ends on the server's standings. It sends one resync request on the open
   socket and again only once one goes unanswered for `RESYNC_ANSWER_MS`, or, refused because the
   game has not dealt yet, when the first deal is due (`firstDealDue`); a dropped socket forgets the
   request, since the reconnect's own snapshot rebuilds it. A snapshot it takes puts it back in step
@@ -159,7 +161,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   opening naming the wait of a submitted decision or a sent round confirm leaves it submitted, so the
   wait is never answered twice. The requests are counted for the page, never reset by a snapshot or
   the session's admission, so one past `MAX_RESYNC_REQUESTS` ends the page as failed, as does a
-  snapshot that does not parse or that it cannot take, or a game's end it cannot take. A server
+  snapshot that does not parse or that it cannot take, or a game's end it cannot take out of step. A server
   message or an undecodable frame that arrives while the session has no open socket (it recovers
   its handoff, connects, awaits a transport retry or ended) is dropped, as the session drops it. An error
   that is not a `DesyncError` is a bug and propagates to the driver.

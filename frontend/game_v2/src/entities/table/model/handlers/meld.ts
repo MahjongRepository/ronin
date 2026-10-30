@@ -10,13 +10,6 @@ import { type MeldEvent } from "@/shared/protocol";
 
 import { shownKanIndex } from "./kan-declared";
 
-function markLastDiscardClaimed(discards: readonly DiscardRecord[]): readonly DiscardRecord[] {
-    if (discards.length === 0) {
-        return discards;
-    }
-    return discards.map((d, idx) => (idx === discards.length - 1 ? { ...d, claimed: true } : d));
-}
-
 function buildMeldRecord(event: MeldEvent, addedTileId?: number): MeldRecord {
     const record: MeldRecord = {
         calledTileId: event.calledTileId,
@@ -65,7 +58,29 @@ function meldFromHand(
     };
 }
 
-function markFromSeatDiscard(state: TableState, fromSeat: number | null): TableState {
+/** The discard a call takes: the table's latest, from the discarder's river, unclaimed and the called tile. */
+function requireCalledDiscard(
+    state: TableState,
+    fromPlayer: PlayerState,
+    calledTileId: number | null,
+): DiscardRecord {
+    const latest = fromPlayer.discards.at(-1);
+    const isCalled =
+        state.lastDiscardSeat === fromPlayer.seat &&
+        latest !== undefined &&
+        !latest.claimed &&
+        latest.tileId === calledTileId;
+    if (!isCalled) {
+        throw new DesyncError(
+            `Called tile ${String(calledTileId)} is not the table's latest discard, from seat ${fromPlayer.seat}`,
+        );
+    }
+    return latest;
+}
+
+/** Mark the called tile claimed in its discarder's river. */
+function markFromSeatDiscard(state: TableState, event: MeldEvent): TableState {
+    const { fromSeat } = event;
     if (fromSeat === null) {
         return state;
     }
@@ -73,10 +88,11 @@ function markFromSeatDiscard(state: TableState, fromSeat: number | null): TableS
     if (!fromPlayer) {
         throw new DesyncError(`fromSeat player not found for seat ${fromSeat}`);
     }
+    const latest = requireCalledDiscard(state, fromPlayer, event.calledTileId);
     return {
         ...state,
         players: updatePlayer(state.players, fromSeat, {
-            discards: markLastDiscardClaimed(fromPlayer.discards),
+            discards: [...fromPlayer.discards.slice(0, -1), { ...latest, claimed: true }],
         }),
     };
 }
@@ -86,7 +102,7 @@ function applyOpenMeld(state: TableState, event: MeldEvent): TableState {
     const tilesFromHand = event.tileIds.filter((id) => id !== event.calledTileId);
     const melds = [...caller.melds, buildMeldRecord(event)];
     const moved = meldFromHand(state, event, { fromHand: tilesFromHand, melds });
-    return markFromSeatDiscard(moved, event.fromSeat);
+    return markFromSeatDiscard(moved, event);
 }
 
 function applyClosedKan(state: TableState, event: MeldEvent): TableState {

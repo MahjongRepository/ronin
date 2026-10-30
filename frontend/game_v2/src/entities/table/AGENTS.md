@@ -31,8 +31,17 @@ replay view, the live game and the storybook read the tables it produces.
   that robbed a kan in two steps, the kan declared and then the result, and the replay stops on
   the kan. A seat control line between the declarer's draw and that round end therefore shows from
   the kan's stop: the replay cannot tell whether the seat changed before the declaration or after.
+- Out-of-order rule: a recognized event outside its phase throws a `DesyncError`. `applyEvent`
+  checks every event against one table of the phases that take it (`PHASES_TAKING`) before any
+  handler runs: a game start only on a table no game started, a deal only before the first deal or
+  after a round end, a round's moves and its end only in a round, the game's end only after a round
+  end. The snapshot, a seat control line and a loss of step are taken in any phase. Out of step
+  (`roundHistoryInStep` false) the table missed the messages that moved its phase, so it takes any
+  round end and the game's end whatever its phase (the dispatcher lets only the game's last round
+  end and the game's end reach it then); a snapshot puts it back in step.
 - The draw, discard, meld, kan declaration and riichi handlers throw a `DesyncError` on an
-  impossible state (a tile neither shown nor covered by the count, a missing player or caller); a
+  impossible state (a tile neither shown nor covered by the count, a missing player or caller, a
+  call on a tile that is not the table's latest discard, a deposit with no riichi cost); a
   new check throws the same way rather than returning the state unchanged, since the live client
   recovers from that error alone by a fresh snapshot and takes any other as a bug. The other handlers
   tolerate a missing player or result.

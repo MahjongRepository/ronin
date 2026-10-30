@@ -267,6 +267,26 @@ describe("stepGameClient - desync", () => {
     });
 });
 
+describe("stepGameClient - a game's end its table refuses in step", () => {
+    it("ends on the server's standings when the game's end is the first sign of a missed round end, sending nothing", () => {
+        const final = loadSeatScenario("final_round_seat_1").transcript;
+        const gameEnd = message(5000, receivedPayload(final, "game end"));
+
+        const ended = run(checkpointState("final_round_seat_1", "ron chosen"), [gameEnd]);
+        const { session, table } = ended.state;
+        const standings = standingsDisplay(table, ended.state.viewerSeat);
+        expect(session).toMatchObject({ reason: { kind: "game_ended" }, status: "ended" });
+        expect([
+            table.phase,
+            table.gameEndResult?.standings.length,
+            table.roundEndResult,
+            ended.state.roundConfirm,
+            sends(ended.effects),
+            standings?.ledgerComplete,
+        ]).toEqual(["game_ended", 4, null, null, [], false]);
+    });
+});
+
 describe("stepGameClient - desync around the game's start and end", () => {
     const FINAL = "final_round_seat_1";
     const finalRound = loadSeatScenario(FINAL).transcript;

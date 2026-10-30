@@ -4,7 +4,13 @@ import { ManualClock } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
 import { FakeStandingsLoad } from "#tests/fixtures/standings";
-import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
+import {
+    WIRE_GAME_END,
+    WIRE_GAME_STARTED,
+    WIRE_ROUND_STARTED,
+    wireRoundEnd,
+    wireSessionError,
+} from "#tests/fixtures/wire";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
 import { type LoadStatus } from "@/shared/lib";
@@ -122,6 +128,8 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
 function endGame(socket: FakeConnection): void {
     socket.handlers.onOpen();
     socket.handlers.onMessage(WIRE_GAME_STARTED);
+    socket.handlers.onMessage(WIRE_ROUND_STARTED);
+    socket.handlers.onMessage(wireRoundEnd(null));
     socket.handlers.onMessage(WIRE_GAME_END);
 }
 
@@ -385,6 +393,11 @@ function standingsShown(host: HTMLElement): [boolean, string | undefined] {
     ];
 }
 
+function endGameOnStandings(socket: FakeConnection, host: HTMLElement): void {
+    endGame(socket);
+    press(host, ".round-end-result__confirm");
+}
+
 function moveStandings(
     standings: FakeStandingsLoad,
     status: LoadStatus,
@@ -398,7 +411,7 @@ describe("mountGameView final standings", () => {
     it("shows the standings once their load lands, says so with a reload when it fails, and stops it on dispose", () => {
         const standings = new FakeStandingsLoad("loading");
         const { connections, dispose, host, sink } = mountWithFakes({ standings });
-        endGame(connections[0]);
+        endGameOnStandings(connections[0], host);
 
         const loading = standingsShown(host);
         const failed = moveStandings(standings, "failed", host);

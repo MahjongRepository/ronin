@@ -28,7 +28,7 @@ export function requirePlayer(state: TableState, seat: number): PlayerState {
 /** The table's riichi cost; a deposit on a table that never learned its game's cost is an impossible state. */
 export function requireRiichiCost(state: TableState): number {
     if (state.riichiCost === null) {
-        throw new Error("The table holds no riichi cost");
+        throw new DesyncError("The table holds no riichi cost");
     }
     return state.riichiCost;
 }

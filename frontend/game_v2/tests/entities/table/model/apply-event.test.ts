@@ -21,8 +21,9 @@ import {
 import { WIRE_GAME_RECONNECTED } from "#tests/fixtures/wire";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { applyEvent } from "@/entities/table/model/apply-event";
+import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
-import { type ReplayEvent, type TableState } from "@/entities/table/model/types";
+import { type ReplayEvent, type TableEvent, type TableState } from "@/entities/table/model/types";
 import { MELD_TYPE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
@@ -198,6 +199,39 @@ function stateAfterRoundStarted() {
     const s1 = applyEvent(createInitialTableState(), makeGameStartedEvent());
     return applyEvent(s1, makeRoundStartedEvent());
 }
+
+function stateAfterRoundEnded(): TableState {
+    return applyEvent(stateAfterRoundStarted(), makeExhaustiveDrawRoundEnd());
+}
+
+describe("applyEvent - event order", () => {
+    const unseated = createInitialTableState();
+    const seated = applyEvent(unseated, makeGameStartedEvent());
+    const roundEnded = stateAfterRoundEnded();
+    const ended = applyEvent(roundEnded, makeGameEndEvent());
+    const [heldTile] = roundEnded.players[0].tiles;
+    const outOfOrder: [string, TableState, TableEvent][] = [
+        ["a deal before the game start", unseated, makeRoundStartedEvent()],
+        ["a second game start", seated, makeGameStartedEvent()],
+        ["a draw before the deal", seated, makeDrawEvent()],
+        ["the game's end with no round end", stateAfterRoundStarted(), makeGameEndEvent()],
+        ["a discard after the round end", roundEnded, makeDiscardEvent({ tileId: heldTile })],
+        ["a round end outside a round", roundEnded, makeTsumoRoundEnd()],
+        ["a deal after the game end", ended, makeRoundStartedEvent()],
+    ];
+
+    test.each(outOfOrder)("refuses %s as a desync", (_name, state, event) => {
+        expect(() => applyEvent(state, event)).toThrow(DesyncError);
+    });
+
+    test("takes the snapshot on a fresh page, in a round and after a round end", () => {
+        const [error, snapshot] = parseServerMessage(WIRE_GAME_RECONNECTED);
+        assert(error === null && snapshot.type === "game_reconnected");
+        for (const state of [unseated, stateAfterRoundStarted(), roundEnded]) {
+            expect(applyEvent(state, snapshot).phase).toBe("in_round");
+        }
+    });
+});
 
 function shownRound(state: TableState): string | undefined {
     return tableStateToDisplayState(state, { bottomSeat: 0, reveal: "bottom" })?.center
@@ -495,14 +529,14 @@ describe("applyEvent - game_reconnected", () => {
 
 describe("applyEvent - game_end", () => {
     test("sets phase to game_ended", () => {
-        const state = stateAfterRoundStarted();
+        const state = stateAfterRoundEnded();
         const next = applyEvent(state, makeGameEndEvent());
 
         expect(next.phase).toBe("game_ended");
     });
 
     test("updates scores from standings array", () => {
-        const state = stateAfterRoundStarted();
+        const state = stateAfterRoundEnded();
         const next = applyEvent(state, makeGameEndEvent());
 
         expect(next.players.map((player) => player.score)).toEqual([
@@ -711,7 +745,7 @@ describe("applyEvent - round_end result data", () => {
 
 describe("applyEvent - game_end result data", () => {
     test("populates gameEndResult with standings and finalScore, the leftover sticks counted by the server", () => {
-        const state = { ...stateAfterRoundStarted(), riichiSticks: 3 };
+        const state = { ...stateAfterRoundEnded(), riichiSticks: 3 };
         const event = makeGameEndEvent({
             leftoverRiichiBonus: 2000,
             leftoverRiichiSticks: 2,
@@ -746,17 +780,6 @@ describe("applyEvent - result clearing", () => {
         const gameEndState = applyEvent(roundEndState, makeGameEndEvent());
         expect(gameEndState.roundEndResult).toBe(roundEndState.roundEndResult);
         expect(gameEndState.gameEndResult).not.toBeNull();
-    });
-
-    test("game_started clears both roundEndResult and gameEndResult", () => {
-        const state = stateAfterRoundStarted();
-        const roundEndState = applyEvent(state, makeTsumoRoundEnd());
-        const gameEndState = applyEvent(roundEndState, makeGameEndEvent());
-        expect(gameEndState.gameEndResult).not.toBeNull();
-
-        const newGameState = applyEvent(gameEndState, makeGameStartedEvent());
-        expect(newGameState.roundEndResult).toBeNull();
-        expect(newGameState.gameEndResult).toBeNull();
     });
 });
 
