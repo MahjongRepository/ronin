@@ -18,7 +18,12 @@ import { CONNECTION_STATUS } from "@/shared/protocol";
 const LEAVE: LeaveControls = { command: { kind: "ask_leave" }, confirming: false };
 
 function running(secondsLeft: number): DecisionCountdown {
-    return { kind: "running", move: "turn", secondsLeft };
+    return { kind: "running", move: "turn", secondsLeft, turn: null };
+}
+
+function inBank(secondsLeft: number): DecisionCountdown {
+    const turn = { bankSeconds: secondsLeft, baseSeconds: 0, inBank: true };
+    return { kind: "running", move: "turn", secondsLeft, turn };
 }
 
 function renderPanel(props: RotatePanelProps): HTMLElement {
@@ -64,9 +69,9 @@ describe("RotatePanel", () => {
         expect(host.querySelector(".rotate-panel__seconds")?.textContent).toBe("10");
     });
 
-    it("announces the countdown only when it crosses 10 and 5 seconds and when it expires", () => {
+    it("announces the countdown only when its turn enters the bank, crosses 10 and 5 seconds and expires", () => {
         const status = { label: "Connected", tone: CONNECTION_STATUS.CONNECTED };
-        const countdowns = [12, 10, 6, 5, 1].map(running);
+        const countdowns = [running(12), inBank(12), ...[10, 6, 5, 1].map(running), inBank(8)];
         const expired: DecisionCountdown = { kind: "expired", move: "turn" };
 
         const announced = [...countdowns, expired].map(
@@ -82,10 +87,12 @@ describe("RotatePanel", () => {
 
         expect(announced).toEqual([
             "",
+            "Your time bank is running",
             "10 seconds or less left",
             "10 seconds or less left",
             "5 seconds or less left",
             "5 seconds or less left",
+            "10 seconds or less left",
             "Time is up",
         ]);
     });

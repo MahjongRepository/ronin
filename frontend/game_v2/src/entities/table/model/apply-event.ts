@@ -45,6 +45,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         firstDealerSeat: event.dealerSeat,
         gameEndResult: null,
         gameId: event.gameId,
+        gameType: event.gameType,
         phase: "pre_game",
         players,
         revealedSeats: [],

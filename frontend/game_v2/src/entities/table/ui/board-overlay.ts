@@ -1,5 +1,6 @@
 import { type TemplateResult } from "lit-html";
 
+import { type GameStartView, gameStartDisplay } from "@/entities/table/lib/game-start-display";
 import { roundEndDisplay } from "@/entities/table/lib/round-end-display";
 import { type TableState } from "@/entities/table/model/types";
 import { type RetryingLoad, type RetryingLoadDeps, startRetryingLoad } from "@/shared/lib";
@@ -38,6 +39,15 @@ export interface StandingsView {
 }
 
 const NO_STANDINGS_VIEW: StandingsView = { actions: [], renderer: null, viewerSeat: null };
+const NO_START_VIEW: GameStartView = { secondsLeft: null, viewerSeat: null };
+const FIRST_PAGE: ResultPaging = { page: 0 };
+
+/** How the view shows each panel: the seating's, a result's page, the standings'; each left out shows its default. */
+export interface OverlayView {
+    readonly start?: GameStartView;
+    readonly paging?: ResultPaging;
+    readonly standings?: StandingsView;
+}
 
 async function loadStandingsRenderer(): Promise<StandingsRenderer> {
     const { renderStandings } = await import("./standings");
@@ -55,22 +65,28 @@ export function startStandingsLoad(
 }
 
 /**
- * The panel a table shows over its board: the seating once the game starts, until its first deal; the round's
- * result once it ends, at the page the view picked; the standings once the game does, unless the view still shows
- * the last round's result over them, and only once the view holds the standings' renderer.
+ * Whether the panel a table shows over its board is its round's result: once the round ends, and once the game does
+ * while the view still shows the last round's result over the standings.
+ */
+export function showsRoundResult(table: TableState, overStandings = false): boolean {
+    const shown = table.phase === "round_ended" || (table.phase === "game_ended" && overStandings);
+    return shown && table.roundEndResult !== null;
+}
+
+/**
+ * The panel a table shows over its board: the seating once the game starts, until its first deal, from the view's
+ * seat with the start pause it counts down; the round's result once it ends, at the page the view picked; the
+ * standings once the game does, unless the view still shows the last round's result over them, and only once the
+ * view holds the standings' renderer.
  */
 export function boardOverlay(
     table: TableState,
-    paging: ResultPaging = { page: 0 },
-    standings: StandingsView = NO_STANDINGS_VIEW,
+    { paging = FIRST_PAGE, standings = NO_STANDINGS_VIEW, start = NO_START_VIEW }: OverlayView = {},
 ): TemplateResult | undefined {
     if (table.phase === "pre_game" && table.players.length > 0) {
-        return GameStartDisplay(table.players, table.firstDealerSeat);
+        return GameStartDisplay(gameStartDisplay(table, start));
     }
-    const resultShows =
-        table.phase === "round_ended" ||
-        (table.phase === "game_ended" && paging.overStandings === true);
-    if (resultShows && table.roundEndResult) {
+    if (showsRoundResult(table, paging.overStandings) && table.roundEndResult) {
         return RoundEndDisplay({
             controls: paging.controls,
             display: roundEndDisplay(

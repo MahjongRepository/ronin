@@ -101,7 +101,8 @@ def _own_turn_wall() -> StagedWall:
 
 def own_turn() -> tuple[SeatTranscript, ...]:
     """
-    Deal Alice (seat 1) three 1m and draw her the fourth, which offers a closed kan and riichi.
+    Seat Alice (seat 1) with the game start pause still to run, then deal her three 1m and draw her the fourth, which
+    offers a closed kan and riichi.
 
     Her socket dies unseen during the turn, and her reconnect takes it over: the snapshot, then the draw re-sent with
     the time its timer has run. She declares the kan and riichi on its rinshan draw.
@@ -112,6 +113,7 @@ def own_turn() -> tuple[SeatTranscript, ...]:
     with seated_game("seat-own-turn", _own_turn_wall(), players=(PLAYER,)) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
+        alice.label("game started", WireEventType.GAME_STARTED)
         alice.drop_unseen(at=3.5, label="dropped")
         alice.label("first draw", WireEventType.DRAW)
         alice.reconnect(at=4.5, label="reopened")
@@ -131,6 +133,27 @@ def own_turn() -> tuple[SeatTranscript, ...]:
         alice.label("dealer draw", WireEventType.DRAW)
 
         return game.transcripts("own_turn", PLAYER)
+
+
+def bank_reconnect() -> tuple[SeatTranscript, ...]:
+    """
+    Alice's (seat 1) socket dies unseen during her first turn, and she reconnects only after its base time ran out: the
+    draw re-sent says how far into her bank the turn has run.
+
+    She discards from the bank.
+    """
+    with seated_game("seat-bank-reconnect", _own_turn_wall(), players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("first draw", WireEventType.DRAW)
+        alice.drop_unseen(at=8.5, label="dropped")
+        alice.reconnect(at=9.5, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.label("draw re-sent", WireEventType.DRAW)
+        alice.discard(tile(3, man="1"), at=11, label="discarded")
+
+        return game.transcripts("bank_reconnect", PLAYER)
 
 
 def reconnect() -> tuple[SeatTranscript, ...]:
@@ -461,6 +484,7 @@ def seat_left() -> tuple[SeatTranscript, ...]:
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
+    "bank_reconnect": bank_reconnect,
     "reconnect": reconnect,
     "riichi_reconnect": riichi_reconnect,
     "chankan_robbed": chankan_robbed,

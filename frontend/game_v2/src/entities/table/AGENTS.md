@@ -127,6 +127,13 @@ replay view, the live game and the storybook read the tables it produces.
   mapper's, from a decision this slice does not know.
   `ui/board-overlay.ts` picks the panel a table shows over its board (the seating, a round's
   result, the standings) for every board that shows a table.
+- `lib/callouts.ts` says which calls a table event makes aloud (`eventCalls`, read with the tables it
+  found and left, so a round end's winners come from its result and a kan the table already showed is
+  not called again) and null for an event that is no move of its own, which leaves the calls shown; a
+  kan's call names its tile type, so a live call can be told from another kan of the same seat. It
+  holds `CALLOUT_MS`, the one length of a live call, which the board hands its stylesheet. The client's
+  dispatcher keeps the calls, and a replay's display takes each stop's from its state
+  (`ReplaySource.calls`), keyed by the stop.
 - `model/replay-file.ts` reads a replay file: it refuses one whose version line is not
   `REPLAY_VERSION` and hands back each event line as a JSON object for the dispatcher to parse
   (`parseReplayLine`), reporting a line that is not one without dropping the rest.

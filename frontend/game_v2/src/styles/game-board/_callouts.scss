@@ -1,0 +1,174 @@
+$overlay-hold-ms: 1000ms;
+$callout-text-min: 18px;
+$callout-text-max: 72px;
+$callout-text-units: 64;
+
+.board-callouts {
+    display: contents;
+}
+
+.board-callout {
+    z-index: 5;
+    place-self: center;
+    max-width: 100%;
+    padding: 0.05em 0.35em;
+    border: 2px solid currentcolor;
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--ronin-surface) 92%, transparent);
+    box-shadow: 0 0 0.4em rgb(0 0 0 / 60%);
+    font-family: var(--ronin-font-display);
+    font-size: clamp(
+        #{$callout-text-min},
+        calc(#{$callout-text-units} * var(--board-table-unit)),
+        #{$callout-text-max}
+    );
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+    color: var(--ronin-gold);
+    pointer-events: none;
+    animation: callout-show var(--callout-ms) ease-out both;
+
+    &--bottom {
+        grid-area: bottom-near / center / frame-end / right-river;
+    }
+
+    &--top {
+        grid-area: top-far / center / center / right-river;
+    }
+
+    &--right {
+        grid-area: center / right-river / bottom-near / right-wrap;
+    }
+
+    &--left {
+        grid-area: center / left-river / bottom-near / center;
+    }
+
+    &--ron,
+    &--tsumo {
+        color: var(--ronin-danger);
+    }
+
+    &--riichi {
+        color: var(--ronin-success);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .board-callout {
+        animation-name: callout-fade;
+        animation-duration: var(--callout-ms) !important;
+        animation-delay: 0s !important;
+    }
+}
+
+@keyframes callout-show {
+    0% {
+        opacity: 0;
+        transform: scale(0.6);
+    }
+
+    12% {
+        opacity: 1;
+        transform: scale(1.08);
+    }
+
+    22% {
+        transform: scale(1);
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes callout-fade {
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* A win's panel waits until its call has been seen; a redraw keeps the same element, so the wait runs once. */
+.board-overlay--after-call {
+    animation: overlay-after-call 200ms ease-out $overlay-hold-ms backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .board-overlay--after-call {
+        animation-delay: $overlay-hold-ms !important;
+    }
+}
+
+@keyframes overlay-after-call {
+    from {
+        visibility: hidden;
+        opacity: 0;
+    }
+}
+
+.board-local {
+    position: relative;
+}
+
+.game-board--your-turn,
+.game-board--your-call {
+    .board-local :is(.board-area--bottom-hand, .board-area--bottom-melds:has(.meld)) {
+        position: relative;
+
+        &::after {
+            position: absolute;
+            inset: calc(100% + 1px) 0 auto;
+            height: 3px;
+            border-radius: 2px;
+            background: var(--ronin-gold);
+            box-shadow: 0 0 8px var(--ronin-gold);
+            content: "";
+            pointer-events: none;
+        }
+    }
+}
+
+.game-board--your-turn .nameplate--bottom,
+.game-board--your-call .nameplate--bottom {
+    border-color: var(--ronin-gold);
+    box-shadow: 0 0 0 1px var(--ronin-gold);
+}
+
+.board-cue {
+    position: absolute;
+    right: calc(100% - var(--board-plate-reserve));
+    bottom: 100%;
+    z-index: 2;
+    margin-bottom: 2px;
+    padding: 0.1em 0.45em;
+    border-radius: 0.3em;
+    background: var(--ronin-gold);
+    font-family: var(--ronin-font-body);
+    font-size: max(10px, calc(16 * var(--board-table-unit)));
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--ronin-surface);
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    :is(.game-board--your-turn, .game-board--your-call) .board-local .board-area::after {
+        animation: cue-pulse 1.6s ease-in-out infinite alternate;
+    }
+}
+
+@keyframes cue-pulse {
+    to {
+        opacity: 0.45;
+    }
+}

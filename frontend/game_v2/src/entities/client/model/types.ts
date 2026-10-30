@@ -1,5 +1,5 @@
 import { type SessionEffect, type SessionState } from "@/entities/session";
-import { type KanDeclaredEvent, type TableState } from "@/entities/table";
+import { type Call, type KanDeclaredEvent, type TableState } from "@/entities/table";
 import { type HandoffRecovery } from "@/shared/api";
 import {
     type CallType,
@@ -52,6 +52,11 @@ interface DecisionBase {
 /** The seat's own turn, opened by its draw, or by the `turn` event after its own pon or chi. */
 export interface TurnDecision extends DecisionBase {
     readonly kind: "turn";
+    /**
+     * When the turn's base time likely runs out and its bank starts to drain, in logical time: the server's base time
+     * from the opening, less what a re-sent wait says has run. Null when the turn has no deadline.
+     */
+    readonly baseDeadline: number | null;
     /** The tile types kuikae forbids discarding on the turn after the seat's own pon or chi. */
     readonly kuikaeTileTypes: readonly number[];
 }
@@ -144,6 +149,16 @@ export type RoundConfirm =
     | { readonly kind: "final" };
 
 /**
+ * The calls the board shows, made aloud by one move at logical time `at`. A live server message's last until `until`
+ * or a newer call; a replay line's until the next move, since a replay's stop is a move and its time never runs.
+ */
+export interface ShownCalls {
+    readonly calls: readonly Call[];
+    readonly at: number;
+    readonly until: number;
+}
+
+/**
  * The game client's state at logical time `now`, the `at` of the last event it took, so a state kept at a
  * historical cursor keeps the time it was taken at. A replay has no session: no socket drives it and it sends
  * nothing. The table holds what the source showed: one seat's view for a live seat (`viewerSeat`), every hand for
@@ -163,6 +178,13 @@ export interface GameClientState {
     readonly notice: TimedNotice | null;
     /** How many server messages the client could not read: the table may be wrong from the first. */
     readonly unreadMessages: number;
+    /** The calls the board shows by their seats, or null. */
+    readonly calls: ShownCalls | null;
+    /**
+     * When the server's game start pause likely ends with the first deal, in logical time, from the game start's timer
+     * settings; null without them.
+     */
+    readonly firstDealDue: number | null;
 }
 
 /** The session's IO plus a report of a message or replay line the client could not parse, for the driver to show. */

@@ -1,6 +1,6 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
-import { type DecisionCountdown } from "@/entities/client/model/countdown";
+import { type DecisionCountdown, type TurnClock } from "@/entities/client/model/countdown";
 import {
     type PlayAction,
     type PlayCommand,
@@ -16,6 +16,7 @@ import {
     type StandingsRenderer,
     type TableState,
     boardOverlay,
+    showsRoundResult,
 } from "@/entities/table";
 import { Tile } from "@/entities/tile";
 
@@ -44,8 +45,28 @@ export interface PlayBoardProps {
     readonly standings: StandingsRenderer | null;
 }
 
+/**
+ * A turn's time as two numbers, its base and then its bank (`5 +20`), until the base runs out; then the bank alone,
+ * marked, so entering it reads as a warning.
+ */
+function TurnCountdownView({ bankSeconds, baseSeconds, inBank }: TurnClock): TemplateResult {
+    if (inBank) {
+        return html`<span
+            class="decision-controls__countdown decision-controls__countdown--bank"
+            title="Seconds left in your time bank"
+            ><span class="decision-controls__bank-label">Bank</span>${bankSeconds}</span
+        >`;
+    }
+    return html`<span class="decision-controls__countdown" title="Seconds left, then your time bank"
+        >${baseSeconds}<span class="decision-controls__bank">+${bankSeconds}</span></span
+    >`;
+}
+
 function CountdownView(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
     if (countdown?.kind === "running") {
+        if (countdown.turn !== null) {
+            return TurnCountdownView(countdown.turn);
+        }
         return html`<span class="decision-controls__countdown" title="Seconds left"
             >${countdown.secondsLeft}</span
         >`;
@@ -83,7 +104,7 @@ function ActionButton(action: PlayAction, onCommand: PlayBoardProps["onCommand"]
 
 /**
  * The decision's corner of the board: the countdown read from the state's logical time, the seat's furiten, and a
- * button per thing the decision takes besides a tile. Only the countdown's thresholds are announced.
+ * button per thing the decision takes besides a tile. Only the countdown's thresholds and its bank are announced.
  */
 function DecisionControls(
     display: PlayDisplay,
@@ -193,37 +214,51 @@ function standingsActions(
     return actions;
 }
 
+/** The panel over the board, and whether it is a round's result, which alone waits for a win's call. */
+interface PlayPanel {
+    readonly panel: TemplateResult | undefined;
+    readonly isResult: boolean;
+}
+
 /**
- * The panel over the board: an end that blocks it, else the question leaving mid-game asks, else the table's own
- * (seating, a result, the standings from the viewer's seat).
+ * The panel over the board: an end that blocks it, else the question leaving mid-game asks, both shown at once, else
+ * the table's own (seating, a result, the standings from the viewer's seat).
  */
-function PlayOverlay({
+function PlayOverlay(props: PlayBoardProps): PlayPanel {
+    const { display, onCommand, table } = props;
+    if (display.failure !== null) {
+        return { isResult: false, panel: FailurePanel(display.failure, onCommand) };
+    }
+    if (display.leave.confirming) {
+        return { isResult: false, panel: LeaveConfirm(onCommand) };
+    }
+    return {
+        isResult: showsRoundResult(table, display.resultOverStandings),
+        panel: tablePanel(props),
+    };
+}
+
+function tablePanel({
     display,
     links,
     onCommand,
     standings,
     table,
 }: PlayBoardProps): TemplateResult | undefined {
-    if (display.failure !== null) {
-        return FailurePanel(display.failure, onCommand);
-    }
-    if (display.leave.confirming) {
-        return LeaveConfirm(onCommand);
-    }
-    return boardOverlay(
-        table,
-        {
+    return boardOverlay(table, {
+        paging: {
             controls: ResultControlsView(display.result, onCommand),
             onPage: (page) => onCommand({ kind: "show_result_page", page }),
             overStandings: display.resultOverStandings,
             page: display.resultPage,
         },
-        {
+        standings: {
             actions: standingsActions(display, links, onCommand),
             renderer: standings,
             viewerSeat: display.viewerSeat,
         },
-    );
+        start: { secondsLeft: display.firstDealSeconds, viewerSeat: display.viewerSeat },
+    });
 }
 
 function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"]): BoardNotice {
@@ -254,8 +289,10 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             onCommand({ intent, kind: "intent" });
         }
     }
+    const { isResult, panel } = PlayOverlay(props);
     return GameBoard({
         actions: DecisionControls(display, onCommand),
+        callouts: display.callouts,
         debug: false,
         inert: display.failure !== null || display.leave.confirming,
         localHand: { onTile, tileAction: display.tileAction },
@@ -264,11 +301,13 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
                 ? undefined
                 : GameMenu({ extra: menuExtra, leave: display.leave, onCommand, status }),
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
-        overlay: PlayOverlay(props),
+        overlay: panel,
+        overlayIsResult: isResult,
         scoreDiff: {
             onPin: (seat) => onCommand({ kind: "pin_nameplate", seat }),
             pinned: display.pinnedNameplate,
         },
         state: display.board,
+        yourMove: display.cue,
     });
 }

@@ -61,16 +61,19 @@ interface DecisionStory {
 }
 
 /**
- * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, the round
- * results the player confirms, the standings and the last result reopened from them, then another player's seat left
- * to an AI, the board's notices, a kick and the leave question.
+ * The stories in the order the page lists them: the seating before the first deal, the call prompts, the turns (in
+ * their base time and in the bank), what follows an answer, the round results the player confirms, the standings and
+ * the last result reopened from them, then another player's seat left to an AI, the board's notices, a kick and the
+ * leave question.
  */
 const STORY_KEYS = [
+    "game_start",
     "call_prompt",
     "ron_prompt",
     "chankan_prompt",
     "kuikae_turn",
     "own_turn",
+    "turn_in_bank",
     "riichi_pick",
     "riichi_turn",
     "answered",
@@ -88,6 +91,7 @@ const STORY_KEYS = [
     "faces_missing",
     "kicked",
     "leave_confirm",
+    "leave_after_win",
 ] as const;
 
 type DecisionStoryKey = (typeof STORY_KEYS)[number];
@@ -119,6 +123,11 @@ function closedWith(code: number): (state: GameClientState) => readonly ClientEv
     return (state) => [{ at: state.now + 500, code, kind: "transport_closed", reason: "" }];
 }
 
+/** A tick `seconds` after the checkpoint, the time the player let run. */
+function after(seconds: number): (state: GameClientState) => readonly ClientEvent[] {
+    return (state) => [{ at: state.now + seconds * 1000, kind: "tick" }];
+}
+
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
@@ -136,12 +145,17 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "turn", "Faces missing"),
         tileSprite: "failed",
     },
+    game_start: checkpoint("own_turn_seat_1", "game started", "Game start"),
     kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
     last_result_reopened: {
         ...checkpoint("final_round_seat_1", "game end", "Last result reopened"),
         followUp: intents({ type: "confirm_result" }, { type: "show_last_result" }),
+    },
+    leave_after_win: {
+        ...checkpoint("own_turn_seat_1", "round end", "Leave after a win"),
+        confirmingLeave: true,
     },
     leave_confirm: {
         ...checkpoint("call_prompt_seat_1", "turn", "Leave?"),
@@ -164,6 +178,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     standings: {
         ...checkpoint("final_round_seat_1", "game end", "Standings"),
         followUp: intents({ type: "confirm_result" }),
+    },
+    turn_in_bank: {
+        ...checkpoint("own_turn_seat_1", "rinshan", "Turn in bank"),
+        followUp: after(6),
     },
     waiting: checkpoint("chankan_robbed_seat_3", "confirmed", "Waiting"),
 };

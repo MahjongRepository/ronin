@@ -74,12 +74,22 @@ function storyProps(
 }
 
 const STORY_PROPS: Readonly<Record<RotateStory, RotatePanelProps>> = {
-    countdown: storyProps(PLAYING, { kind: "running", move: "turn", secondsLeft: 17 }),
+    countdown: storyProps(PLAYING, {
+        kind: "running",
+        move: "turn",
+        secondsLeft: 17,
+        turn: { bankSeconds: 17, baseSeconds: 0, inBank: true },
+    }),
     ended: storyProps(RETRIES_SPENT, null),
     expired: storyProps(PLAYING, { kind: "expired", move: "call" }),
     leave: storyProps(PLAYING, null, { ...ASKS_TO_LEAVE, confirming: true }),
     reconnecting: storyProps(RECONNECTING, null),
-    result: storyProps(PLAYING, { kind: "running", move: "result", secondsLeft: 8 }),
+    result: storyProps(PLAYING, {
+        kind: "running",
+        move: "result",
+        secondsLeft: 8,
+        turn: null,
+    }),
     untimed: storyProps(PLAYING, { kind: "untimed", move: "turn" }),
     waiting: storyProps(PLAYING, null),
 };

@@ -11,6 +11,7 @@ export type {
     Offer,
     PlayIntent,
     RoundConfirm,
+    ShownCalls,
     TurnDecision,
 } from "./model/types";
 export {
@@ -21,9 +22,10 @@ export {
     startReplayClient,
     stepGameClient,
 } from "./model/dispatch";
-export type { DecisionCountdown } from "./model/countdown";
+export type { DecisionCountdown, TurnClock } from "./model/countdown";
 export {
     decisionCountdown,
+    firstDealCountdown,
     nextCountdownChange,
     pendingCountdown,
     roundConfirmCountdown,
@@ -32,6 +34,7 @@ export type {
     LeaveControls,
     PlayAction,
     PlayCommand,
+    PlayCue,
     PlayDisplay,
     PlayNotice,
     PlayUi,

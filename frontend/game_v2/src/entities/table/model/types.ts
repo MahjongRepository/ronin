@@ -6,6 +6,7 @@ import {
     type GameEndEvent,
     type GameReconnectedEvent,
     type GameStartedEvent,
+    type GameType,
     type KanType,
     type MeldEvent,
     type MeldType,
@@ -180,6 +181,8 @@ export type GamePhase = "pre_game" | "in_round" | "round_ended" | "game_ended";
 
 export interface TableState {
     readonly gameId: string;
+    /** The game's length (east-only or hanchan) from its start; null when the table began at a reconnect's snapshot. */
+    readonly gameType: GameType | null;
     readonly players: readonly PlayerState[];
     /** The game's first dealer (East 1's), from which a round's number within its wind counts. */
     readonly firstDealerSeat: number;

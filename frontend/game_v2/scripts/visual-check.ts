@@ -177,6 +177,8 @@ interface BoardMeasure {
     /** Every board tile but the local hand's and the decision buttons': rivers, other seats, melds, dora. */
     readonly otherTiles: readonly Box[];
     readonly actions: readonly Box[];
+    /** The calls shown by their seats. */
+    readonly callouts: readonly Box[];
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly nameplates: readonly Box[];
@@ -397,6 +399,8 @@ const PAGES: readonly PageCase[] = [
     documentCase("storybook-discards", "/play/storybook/discards", ".storybook .discards .tile"),
     documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
     boardCase("board-full-rivers", "?state=full_rivers"),
+    boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
+    boardCase("board-callouts-tsumo", "?state=full_rivers&callout=tsumo", [".board-callout"]),
     boardCase("board-worst", "?state=worst&pin=right", [
         ".board-strip .meld",
         ".board-dora .tile",
@@ -413,10 +417,22 @@ const PAGES: readonly PageCase[] = [
         ".standings__cell .standings__mark--deal-in",
         ".standings__legend",
     ]),
-    decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
+    {
+        kind: "board",
+        name: "decisions-game-start",
+        path: "/play/storybook/decisions?state=game_start",
+        required: { visible: [".game-start__seat--viewer", ".game-start__status", ".nameplate"] },
+    },
+    decisionCase("call_prompt", [ACTION, ".decision-controls__countdown", ".board-cue"]),
     decisionCase("chankan_prompt", [ACTION, ".board-strip .meld"]),
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
-    decisionCase("riichi_turn", [ACTION, ".decision-controls__furiten", ".hand-tile--selectable"]),
+    decisionCase("riichi_turn", [
+        ACTION,
+        ".decision-controls__furiten",
+        ".hand-tile--selectable",
+        ".decision-controls__bank",
+    ]),
+    decisionCase("turn_in_bank", [".decision-controls__countdown--bank", ".board-cue"]),
     decisionCase("answered", [".hand-tile--selected"]),
     decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("double_ron_first", [".round-end-result__pager", ".round-end-result__confirm"]),
@@ -434,6 +450,7 @@ const PAGES: readonly PageCase[] = [
     decisionCase("faces_missing", [".board-notice__action", ".hand-tile--selectable"]),
     decisionCase("kicked", [".failure-panel__leave", ".game-menu__status-word"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
+    decisionCase("leave_after_win", [".leave-confirm__stay"]),
     {
         countdown: false,
         kind: "panel",
@@ -669,13 +686,16 @@ async function startServer(): Promise<{ server: Server; origin: string }> {
     return { origin: `http://127.0.0.1:${address.port}`, server };
 }
 
-/** A context that keeps the run offline and deterministic: no web fonts, the handoff set, the socket mocked. */
+/**
+ * A context that keeps the run offline and deterministic: reduced motion, so a shot shows each animation's resting
+ * state, no web fonts, the handoff set, the socket mocked.
+ */
 async function openContext(
     browser: Browser,
     viewport: Viewport,
     { frames, origin }: { readonly frames: readonly Uint8Array[]; readonly origin: string },
 ): Promise<BrowserContext> {
-    const context = await browser.newContext(viewport.context);
+    const context = await browser.newContext({ ...viewport.context, reducedMotion: "reduce" });
     await context.route(
         (url) => url.origin !== origin,
         (route) => route.fulfill({ body: "", contentType: "text/css", status: 200 }),
@@ -846,6 +866,9 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const menu of board.querySelectorAll(".board-menu")) {
             grouped.push({ box: box(menu), group: "menu" });
         }
+        for (const cue of board.querySelectorAll(".board-cue")) {
+            grouped.push({ box: box(cue), group: "cue" });
+        }
         const nameplates = [...board.querySelectorAll(".nameplate")].map((plate) => ({
             box: box(plate),
             group: plate.className.split(" ")[1] ?? "nameplate",
@@ -953,6 +976,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             board: box(board),
             boardClient: { height: board.clientHeight, width: board.clientWidth },
             boardScroll: { height: board.scrollHeight, width: board.scrollWidth },
+            callouts: [...board.querySelectorAll(".board-callout")].map(box),
             center: center === null ? null : box(center),
             centerTexts,
             fonts,
@@ -1022,6 +1046,8 @@ const BOARD_TEXT = {
         ".nameplate__wind",
         ".nameplate__riichi",
         ".nameplate__ai",
+        ".board-callout",
+        ".board-cue",
     ].join(", "),
 } as const;
 
@@ -1367,6 +1393,19 @@ function checkPhoneNarration(board: BoardMeasure, screen: Box, report: PageRepor
     );
 }
 
+/** A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps. */
+function checkCallouts(board: BoardMeasure, report: PageReport): void {
+    const outside = board.callouts.filter((callout) => !contains(board.board, callout));
+    report.expect(outside.length === 0, `${outside.length} call(s) off the board`);
+    const overHand = board.callouts.filter((callout) =>
+        board.localTiles.some((tile) => intersects(callout, tile)),
+    );
+    report.expect(
+        overHand.length === 0,
+        `call(s) over the local hand: ${overHand.map(describeBox).join(", ")}`,
+    );
+}
+
 /** Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap. */
 function checkActions(board: BoardMeasure, screen: Box, report: PageReport): void {
     const outside = board.actions.filter(
@@ -1400,6 +1439,7 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }
     checkOverlay(board, viewport, report);
+    checkCallouts(board, report);
     checkStandings(board, { screen, viewport }, report);
     const pageExtent = { height: measure.scrollHeight, left: 0, top: 0, width: measure.innerWidth };
     if (viewport.portrait) {

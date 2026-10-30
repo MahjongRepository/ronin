@@ -103,3 +103,69 @@ describe("replayDisplay", () => {
         expect(end.endNotice).toBe("The replay stops here: line 11 could not be read");
     });
 });
+
+describe("replayDisplay callouts", () => {
+    function stopWhere(replay: LoadedReplay, type: string): number {
+        return replay.navigation.stops.findIndex((stop) => {
+            const move = replay.events[stop.moveEntry];
+            return move.type === type && (move.type !== "discard" || move.isRiichi);
+        });
+    }
+
+    test("shows the calls a stop's own move made by their seats, and none on the next move's stop", () => {
+        const replay = replayOf(engineReplayText("kans"));
+        const kan = stopWhere(replay, "meld");
+        const fromKanSeat = { bottomSeat: 2, reveal: "all" } as const;
+
+        expect(replayDisplay(replay, { page: 0, stop: kan }, ALL).callouts).toEqual({
+            items: [{ kind: "kan", label: "Kan", position: "top" }],
+            key: `stop-${kan}`,
+        });
+        expect(replayDisplay(replay, { page: 0, stop: kan }, fromKanSeat).callouts?.items).toEqual([
+            { kind: "kan", label: "Kan", position: "bottom" },
+        ]);
+        expect(replayDisplay(replay, { page: 0, stop: kan + 1 }, ALL).callouts).toBeNull();
+    });
+
+    test("calls a riichi on its declaring discard, its accepted stick kept with it", () => {
+        const replay = replayOf(engineReplayText("double_ron"));
+        const riichi = stopWhere(replay, "discard");
+
+        expect(replayDisplay(replay, { page: 0, stop: riichi }, ALL).callouts?.items).toEqual([
+            { kind: "riichi", label: "Riichi", position: "right" },
+        ]);
+        expect(replayDisplay(replay, { page: 0, stop: riichi + 1 }, ALL).callouts).toBeNull();
+    });
+
+    test("calls a triple ron's three rons by their seats, though the round ends drawn", () => {
+        const replay = replayOf(engineReplayText("triple_ron"));
+        const result = stopWhere(replay, "round_end");
+
+        expect(replayDisplay(replay, { page: 0, stop: result }, ALL).callouts?.items).toEqual([
+            { kind: "ron", label: "Ron", position: "right" },
+            { kind: "ron", label: "Ron", position: "top" },
+            { kind: "ron", label: "Ron", position: "left" },
+        ]);
+    });
+
+    test("keeps a double ron's two calls as its pages turn, and calls a robbed kan on its own stop first", () => {
+        const doubleRon = replayOf(engineReplayText("double_ron"));
+        const result = stopWhere(doubleRon, "round_end");
+        const chankan = replayOf(engineReplayText("chankan_added"));
+        const declared = stopWhere(chankan, "kan_declared");
+
+        expect(replayDisplay(doubleRon, { page: 1, stop: result }, ALL).callouts).toEqual(
+            replayDisplay(doubleRon, { page: 0, stop: result }, ALL).callouts,
+        );
+        expect(replayDisplay(doubleRon, { page: 0, stop: result }, ALL).callouts?.items).toEqual([
+            { kind: "ron", label: "Ron", position: "right" },
+            { kind: "ron", label: "Ron", position: "top" },
+        ]);
+        expect(replayDisplay(chankan, { page: 0, stop: declared }, ALL).callouts?.items).toEqual([
+            { kind: "kan", label: "Kan", position: "right" },
+        ]);
+        expect(
+            replayDisplay(chankan, { page: 0, stop: declared + 1 }, ALL).callouts?.items,
+        ).toEqual([{ kind: "ron", label: "Ron", position: "top" }]);
+    });
+});

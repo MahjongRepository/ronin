@@ -75,6 +75,38 @@ $action-tile-share: 0.45;
         font-size: var(--action-text);
         color: var(--ronin-danger);
     }
+
+    &--bank {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.25em;
+        color: color-mix(in srgb, var(--ronin-warning) 50%, var(--ronin-danger));
+    }
+}
+
+.decision-controls__bank {
+    margin-inline-start: 0.2em;
+    font-size: 0.6em;
+    color: var(--ronin-text-secondary);
+}
+
+.decision-controls__bank-label {
+    font-family: var(--ronin-font-body);
+    font-size: 0.45em;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .decision-controls__countdown--bank {
+        animation: bank-warning 0.6s ease-out 2;
+    }
+}
+
+@keyframes bank-warning {
+    50% {
+        opacity: 0.35;
+    }
 }
 
 .decision-controls__furiten {

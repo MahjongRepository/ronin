@@ -152,16 +152,18 @@ function completeShownKan(state: TableState, event: MeldEvent, shownIndex: numbe
     };
 }
 
+/** The index of the caller's kan declared open to chankan that the meld completes, or -1 for any other meld. */
+export function shownKanOfMeld(state: TableState, event: MeldEvent): number {
+    if (event.meldType !== "closed_kan" && event.meldType !== "added_kan") {
+        return -1;
+    }
+    return shownKanIndex(findCaller(state, event), event.meldType, event.tileIds[0]);
+}
+
 function applyMeldByType(state: TableState, event: MeldEvent): TableState {
-    if (event.meldType === "closed_kan" || event.meldType === "added_kan") {
-        const shownIndex = shownKanIndex(
-            findCaller(state, event),
-            event.meldType,
-            event.tileIds[0],
-        );
-        if (shownIndex !== -1) {
-            return completeShownKan(state, event, shownIndex);
-        }
+    const shownIndex = shownKanOfMeld(state, event);
+    if (shownIndex !== -1) {
+        return completeShownKan(state, event, shownIndex);
     }
     switch (event.meldType) {
         case "chi":

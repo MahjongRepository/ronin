@@ -64,7 +64,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   stays in the view, out of the state.
 * **One client state.** The dispatcher composes the session, the table (`entities/table`) and the
   viewer's interaction into one immutable state: the viewer's seat, its open decision, its
-  furiten, the timer settings and the round confirm it owes. A replay is the same state with no
+  furiten, the timer settings, the round confirm it owes, when the first deal is due and the calls
+  the board shows. A replay is the same state with no
   session and no viewer; visibility (a replay's every hand, a live seat's own) is what the source
   showed and how the board is drawn, never a second model, and the seat at the bottom is the
   view's choice (the replay's is the recorded first dealer's, `docs/architecture.md`, Replays).
@@ -73,7 +74,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   client judged but the discard rule (kuikae, riichi's drawn tile). Its deadline is the client's
   estimate of the server's timer, in logical time from the timer settings and the bank the opening
   message names (none when it names no bank), backdated by a re-sent wait's elapsed time, so a
-  countdown reads from `now`, never the wall clock. Past it the decision shows as expired, for
+  countdown reads from `now`, never the wall clock. A turn also keeps when its base time runs out
+  (the elapsed time comes off the base first), so its countdown shows the base and the bank apart, then
+  the bank alone, marked and announced, as the server drains it; a reconnect's re-sent wait resumes
+  both where the server stands, never a fresh full turn. Past it the decision shows as expired, for
   display only: the server alone decides by the wait id whether an answer counts, so an expired
   decision still takes one answer, and the client never answers on its own. Answering sends the
   action with the decision's wait id once and marks it submitted; the server's next move closes
@@ -95,6 +99,25 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   carries no wait and its game end follows at once: the table keeps that result and the live board
   shows it over the standings until the player dismisses it, which sends nothing; the standings'
   Last hand (the `show_last_result` intent) reopens it, on its first page, sending nothing either.
+* **Game start and calls.** Before the first deal the board's panel is the seating (`gameStartDisplay`):
+  the game's length and first round, each seat's wind and player, the dealer, AI players and the viewer
+  marked, and the server's game start pause counted down (`firstDealCountdown`, from the game start's
+  timer settings), or only "Starting…" where none is known or it ran out. A call (chi, pon, kan of any
+  kind, a riichi declaration's discard, ron, tsumo, a triple ron's three rons) shows by its seat for a
+  moment, from the dispatcher's state (`calls`): a table event's calls (`eventCalls`) replace the
+  ones shown. A kan is called once, when the table first shows it: neither the meld that completes a kan
+  its chankan prompt showed nor the prompt a reconnect re-sends calls it again, however long the prompt
+  waited, while another kan of the same seat is called afresh. A live message's last `CALLOUT_MS`
+  (`entities/table`, which the board hands its stylesheet as `--callout-ms`) or until a newer
+  call, never ended by a move that calls nothing, since one may follow at once (an AI player's discard
+  after its pon, the viewer's draw after a riichi), nor by the game's end, so the last win shows its call;
+  a failed or left session drops them. A replay line's last until the next move, so each
+  stop shows its own move's calls and stepping or autoplay leaves none behind. The board keys each
+  showing, so a new one replays its CSS animation and a redraw does not; it takes no input, and a
+  win's call shows before the result panel, which waits for it by CSS alone; the board waits only when
+  told its panel is a result (`overlayIsResult`), so the leave question and an end show, and take the
+  focus, at once. The viewer's turn and call prompt are cued under its hand and melds and on its plate
+  (`PlayDisplay.cue`) without moving anything; furiten shows only while a round plays.
 * **Final standings** (`boardOverlay`, live and replay alike): the seats in the server's placement
   order with its uma/oka results, the ledger of every finished round with a line saying what its marks
   mean, the leftover sticks, the viewer's seat (the live seat, the replay's bottom seat) marked. Their
@@ -316,17 +339,19 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
-  dora, long names, AI marks and a pinned nameplate; the dense round results; the decisions
-  stories, the live standings and the last result reopened from them among them; the board's
+  dora, long names, AI marks and a pinned nameplate; a call at every seat; the dense round results; the
+  decisions stories, the seating before the first deal, a turn in its bank, the live standings and the
+  last result reopened from them among them; the board's
   standings over a hand-written short game; and the replay page's stories: its opening, autoplay
   running, another seat's view with the hands hidden, a result with them hidden, its round list,
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
   its call prompt and at its turn, at 1280x800 and 1920x1080
   (Chromium), iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
-  two engines run at once and each checks several pages at a time, each in its own context. It
-  fails on content that is hidden or empty, tiles of different areas or a nameplate overlapping,
-  anything outside the board or the screen, page overflow, board text under 10px, local hand tiles under
+  two engines run at once and each checks several pages at a time, each in its own context, which
+  asks for reduced motion so each shot shows an animation's resting state. It
+  fails on content that is hidden or empty, tiles of different areas, a nameplate or the turn's cue overlapping,
+  anything outside the board or the screen, a call over the local hand's tiles, page overflow, board text under 10px, local hand tiles under
   the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800 and 93x124 at 1920x1080) or no
   larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or

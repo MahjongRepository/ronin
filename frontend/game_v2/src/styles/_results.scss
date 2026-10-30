@@ -1,41 +1,101 @@
-/* ─── Game-Start Result Panel ────────────────────────────────── */
+/* ─── Game Start Panel ────────────────────────────────────────── */
 
-.game-start-result {
-    padding: 1rem;
-    background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
+.game-start {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-}
-
-.game-start-result__title {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--pico-color);
+    min-width: min(18rem, 100%);
     font-family: var(--ronin-font-body);
-    padding-bottom: 0.25rem;
+    color: var(--pico-color);
 }
 
-.game-start-result__row {
-    display: flex;
+.game-start__title {
+    margin: 0;
+    font-family: var(--ronin-font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--pico-color);
+}
+
+.game-start__seats {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.25rem 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.game-start__seat {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 0.75rem;
+    margin: 0;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
     font-size: 0.85rem;
+    list-style: none;
+
+    &--viewer {
+        border-color: color-mix(in srgb, var(--ronin-gold) 60%, transparent);
+        background: color-mix(in srgb, var(--ronin-gold) 10%, transparent);
+    }
+}
+
+.game-start__wind {
+    display: inline-grid;
+    place-items: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.25rem;
     font-family: var(--ronin-font-mono);
-    padding: 0.2rem 0;
+    font-weight: 700;
+
+    .game-start__seat--dealer & {
+        border-color: var(--ronin-danger);
+        color: var(--ronin-danger);
+    }
 }
 
-.game-start-result__wind {
-    min-width: 3rem;
-    font-weight: 600;
-    color: var(--pico-color);
+.game-start__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.game-start-result__name {
-    color: var(--pico-color);
-    font-family: var(--ronin-font-body);
+.game-start__marks {
+    display: inline-flex;
+    gap: 0.25rem;
+}
+
+.game-start__mark {
+    padding: 0 0.3rem;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--ronin-text-secondary);
+
+    &--dealer {
+        border-color: color-mix(in srgb, var(--ronin-danger) 60%, transparent);
+        color: var(--ronin-danger);
+    }
+
+    &--viewer {
+        border-color: color-mix(in srgb, var(--ronin-gold) 60%, transparent);
+        color: var(--ronin-gold);
+    }
+}
+
+.game-start__status {
+    margin: 0;
+    font-family: var(--ronin-font-mono);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ronin-gold);
+    text-align: center;
 }
 
 /* ─── Round-End Result Panel ───────────────────────────────── */

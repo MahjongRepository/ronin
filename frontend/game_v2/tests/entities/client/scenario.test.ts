@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { forbiddingIo } from "#tests/fixtures/scenario";
+import { clientEvent, forbiddingIo } from "#tests/fixtures/scenario";
 import {
     loadSeatScenario,
     receivedPayload,
@@ -50,6 +50,7 @@ const CHANKAN_ROBBED_ROBBER = loadSeatScenario("chankan_robbed_seat_3");
 const CHANKAN_PASSED = loadSeatScenario("chankan_passed_seat_3");
 const DOUBLE_RON = loadSeatScenario("double_ron_seat_1");
 const FINAL_ROUND = loadSeatScenario("final_round_seat_1");
+const { closed } = clientEvent;
 const NINE_MAN_COPIES = [32, 33, 34, 35];
 const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
 
@@ -102,6 +103,7 @@ function seatsAt(state: GameClientState): (number | number[])[][] {
 describe("seatScenarioFromTranscript", () => {
     it("runs every generated transcript with exactly the effects the client's policy adds to it", () => {
         expect([...SEAT_TRANSCRIPTS.keys()].toSorted()).toEqual([
+            "bank_reconnect_seat_1",
             "call_prompt_seat_1",
             "chankan_passed_seat_3",
             "chankan_robbed_seat_1",
@@ -352,6 +354,7 @@ describe("stepGameClient - generated own turn", () => {
         const run = runClean(scenario);
 
         expect(stateAt(scenario, run, "first draw").decision).toEqual({
+            baseDeadline: 3000 + 5 * 1000,
             deadline: 3000 + (5 + 30) * 1000,
             kind: "turn",
             kuikaeTileTypes: [],
@@ -596,6 +599,26 @@ describe("stepGameClient - generated round advance", () => {
         expect(gameEnd.table.roundEndResult).toBe(roundEnd.table.roundEndResult);
         expect(lastState(run).session?.status).toBe("ended");
         expect([dismissed.effects, dismissed.state.roundConfirm]).toEqual([[], null]);
+    });
+
+    it("keeps the last win's call through the game's end and the socket's close, until its own time ends it", () => {
+        const { scenario } = FINAL_ROUND;
+        const run = runClean(scenario);
+        const ron = { at: 5000, calls: [{ kind: "ron", seat: 1 }], until: 6500 };
+        const afterClose = lastState(run);
+
+        expect(stateAt(scenario, run, "round end").calls).toEqual(ron);
+        expect(stateAt(scenario, run, "game end").calls).toEqual(ron);
+        expect([afterClose.calls, nextDeadline(afterClose)]).toEqual([ron, 6500]);
+        expect(stepGameClient(afterClose, { at: 6500, kind: "tick" }).state.calls).toBeNull();
+    });
+
+    it("drops the last win's call when the session fails instead", () => {
+        const { scenario } = FINAL_ROUND;
+        const roundEnd = stateAt(scenario, runClean(scenario), "round end");
+        const failed = stepGameClient(roundEnd, closed(5100, 4002)).state;
+
+        expect([failed.session?.status, failed.calls]).toEqual(["ended", null]);
     });
 });
 

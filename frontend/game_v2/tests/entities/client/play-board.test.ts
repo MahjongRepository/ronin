@@ -59,4 +59,29 @@ describe("PlayBoard", () => {
             { intent: { type: "leave" }, kind: "intent" },
         ]);
     });
+
+    it("holds a won round's result back for its call, but asks about leaving over it at once, with no furiten", () => {
+        const roundEnd = checkpointState("own_turn_seat_1", "round end");
+        function renderAt(confirmingLeave: boolean): HTMLElement {
+            const host = document.createElement("div");
+            render(
+                PlayBoard({
+                    display: playDisplay(roundEnd, { ...NO_PLAY_UI, confirmingLeave }),
+                    onCommand: () => {},
+                    standings: null,
+                    table: roundEnd.table,
+                }),
+                host,
+            );
+            return host;
+        }
+        const result = renderAt(false);
+        const leaving = renderAt(true);
+
+        expect(roundEnd.furiten).toBe(true);
+        expect(result.querySelector(".board-overlay--after-call .round-end-result")).not.toBeNull();
+        expect(result.querySelector(".decision-controls")).toBeNull();
+        expect(leaving.querySelector(".board-overlay .leave-confirm__stay")).not.toBeNull();
+        expect(leaving.querySelector(".board-overlay--after-call")).toBeNull();
+    });
 });

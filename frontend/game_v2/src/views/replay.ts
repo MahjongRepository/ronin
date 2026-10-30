@@ -34,6 +34,7 @@ import {
     replayMoves,
     resolveReplayAddress,
     roundResultCursor,
+    showsRoundResult,
     tableStateToDisplayState,
 } from "@/entities/table";
 import {
@@ -441,12 +442,12 @@ function loadedTemplate(
     return html`
         <div class="board-page__board">
             ${GameBoard({
+                callouts: display.callouts,
                 debug: false,
                 notices: standingsNotices(display.table, standings),
-                overlay: boardOverlay(
-                    display.table,
-                    { onPage: handlers.showResultPage, page: view.cursor.page },
-                    {
+                overlay: boardOverlay(display.table, {
+                    paging: { onPage: handlers.showResultPage, page: view.cursor.page },
+                    standings: {
                         actions: [
                             { href: links.lobby, kind: "link", label: "Lobby" },
                             {
@@ -460,7 +461,8 @@ function loadedTemplate(
                         renderer: standings.renderer,
                         viewerSeat: view.bottomSeat,
                     },
-                ),
+                }),
+                overlayIsResult: showsRoundResult(display.table),
                 scoreDiff,
                 state: tableStateToDisplayState(display.table, perspective),
             })}

@@ -73,20 +73,26 @@ function deadlineAfter(at: number, seconds: number, elapsedSeconds: number | nul
     return at + Math.max(0, seconds - (elapsedSeconds ?? 0)) * MS_PER_SECOND;
 }
 
+const UNTIMED_TURN = { baseDeadline: null, deadline: null } as const;
+
 /**
- * A turn runs its base time, then the bank its opening message names. The client keeps no bank of its own, so a
- * turn message without one gets no deadline rather than a guess.
+ * A turn runs its base time, then the bank its opening message names, which drains only once the base ran out; a
+ * re-sent wait's elapsed time comes off the base first. The client keeps no bank of its own, so a turn message without
+ * one gets no deadline rather than a guess.
  */
-function turnDeadline(
+function turnDeadlines(
     timer: TimerSettings | null,
     at: number,
     event: DrawEvent | TurnEvent,
-): number | null {
+): Pick<TurnDecision, "baseDeadline" | "deadline"> {
     if (timer === null || event.bankSeconds === null) {
-        return null;
+        return UNTIMED_TURN;
     }
-    const seconds = timer.baseTurnSeconds + event.bankSeconds;
-    return deadlineAfter(at, seconds, event.elapsedSeconds);
+    const { baseTurnSeconds } = timer;
+    return {
+        baseDeadline: deadlineAfter(at, baseTurnSeconds, event.elapsedSeconds),
+        deadline: deadlineAfter(at, baseTurnSeconds + event.bankSeconds, event.elapsedSeconds),
+    };
 }
 
 function kanOffer(kanType: KanType, tileId: number | undefined): Offer[] {
@@ -156,7 +162,7 @@ function openTurn(
             ? event.availableActions.flatMap((action) => actionOffers(action, context.hand))
             : [];
     return {
-        deadline: turnDeadline(context.timer, context.at, event),
+        ...turnDeadlines(context.timer, context.at, event),
         kind: "turn",
         kuikaeTileTypes: event.type === "turn" ? event.kuikaeTileTypes : [],
         offers,

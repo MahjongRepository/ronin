@@ -42,6 +42,25 @@ interface BoardNameplate {
     readonly aiMark: NameplateAiMark | null;
 }
 
+/** A call a seat makes aloud, which the board shows by its seat for a moment. */
+type CalloutKind = "ron" | "tsumo" | "pon" | "chi" | "kan" | "riichi";
+
+/** A call shown on the board: its kind, its word and the position of the seat that made it. */
+interface BoardCallout {
+    readonly kind: CalloutKind;
+    readonly label: string;
+    readonly position: SeatPosition;
+}
+
+/**
+ * The calls a board shows at once, made by one move: the key that tells this showing from the next, so a new one plays
+ * its animation afresh while a redraw of the same one does not.
+ */
+interface BoardCallouts {
+    readonly key: string;
+    readonly items: readonly BoardCallout[];
+}
+
 interface BoardPlayerDisplay {
     readonly hand: readonly HandTile[];
     readonly drawnTile?: HandTile;
@@ -73,7 +92,10 @@ interface BoardPerspective {
 
 export { SEAT_POSITIONS };
 export type {
+    BoardCallout,
+    BoardCallouts,
     BoardCenterInfo,
+    CalloutKind,
     BoardPerspective,
     BoardDisplayState,
     BoardNameplate,

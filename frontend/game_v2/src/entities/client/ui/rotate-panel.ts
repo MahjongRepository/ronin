@@ -101,8 +101,8 @@ function expiryNote(move: DecisionCountdown["move"]): string {
 }
 
 /**
- * What the polite live region says: it changes only when the countdown crosses a threshold or expires, so a screen
- * reader is not read the seconds every second.
+ * What the polite live region says: it changes only when the countdown crosses a threshold, a turn's base time runs
+ * out into its bank, or it expires, so a screen reader is not read the seconds every second.
  */
 export function countdownAnnouncement(countdown: DecisionCountdown | null): string {
     if (countdown?.kind === "expired") {
@@ -112,7 +112,10 @@ export function countdownAnnouncement(countdown: DecisionCountdown | null): stri
         return "";
     }
     const crossed = ANNOUNCED_SECONDS.findLast((seconds) => countdown.secondsLeft <= seconds);
-    return crossed === undefined ? "" : `${crossed} seconds or less left`;
+    if (crossed !== undefined) {
+        return `${crossed} seconds or less left`;
+    }
+    return countdown.turn?.inBank === true ? "Your time bank is running" : "";
 }
 
 function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
@@ -124,7 +127,9 @@ function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
     const left =
         countdown.kind === "running"
             ? html`<p class="rotate-panel__countdown" aria-live="off">
-                  <span class="rotate-panel__seconds">${countdown.secondsLeft}</span> s left
+                  <span class="rotate-panel__seconds">${countdown.secondsLeft}</span> s left${
+                      countdown.turn?.inBank === true ? " in your time bank" : ""
+                  }
               </p>`
             : "";
     return html`<div class="rotate-panel__decision">

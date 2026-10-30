@@ -1,9 +1,11 @@
 import { type TemplateResult, html, render } from "lit-html";
 
 import {
+    type BoardCallouts,
     type BoardCenterInfo,
     type BoardDisplayState,
     type BoardPlayerDisplay,
+    type CalloutKind,
     GameBoard,
     type PlayerState,
     RoundEndDisplay,
@@ -13,6 +15,7 @@ import {
     type StandingsAction,
     type StandingsRenderer,
     type TableState,
+    boardCallouts,
     boardOverlay,
     createInitialPlayerState,
     createInitialTableState,
@@ -57,8 +60,13 @@ const BOARD_STORY_LABELS: Readonly<Record<BoardStory, string>> = {
 
 const DEFAULT_STORY: BoardStory = "full_rivers";
 
+/** Every call the board shows, one of which the story shows at every seat at once. */
+const CALLOUT_KINDS: readonly CalloutKind[] = ["ron", "tsumo", "pon", "chi", "kan", "riichi"];
+
 interface BoardStoryState {
     readonly debug: boolean;
+    /** The call shown at every seat, held still, kept in the page's `?callout=`; null for none. */
+    readonly callout: CalloutKind | null;
     /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
     readonly pinned: SeatPosition | null;
     readonly overlay: OverlayMode;
@@ -82,6 +90,20 @@ function parsePageParam(search: string): number {
 function parseOverlayParam(search: string): OverlayMode {
     const param = new URLSearchParams(search).get("overlay");
     return OVERLAY_MODES.find((mode) => mode === param) ?? "none";
+}
+
+function parseCalloutParam(search: string): CalloutKind | null {
+    const param = new URLSearchParams(search).get("callout");
+    return CALLOUT_KINDS.find((kind) => kind === param) ?? null;
+}
+
+/** The story's call at every seat, which the storybook's stylesheet holds still so it can be read and measured. */
+function storyCallouts(kind: CalloutKind | null): BoardCallouts | null {
+    if (kind === null) {
+        return null;
+    }
+    const calls = SEAT_POSITIONS.map((_position, seat) => ({ kind, seat }));
+    return { items: boardCallouts(calls, 0), key: kind };
 }
 
 function parsePinParam(search: string): SeatPosition | null {
@@ -521,11 +543,9 @@ function buildOverlay(
         });
     }
     if (overlay === "game_end") {
-        return boardOverlay(
-            STANDINGS_TABLE,
-            { page: 0 },
-            { actions: STANDINGS_ACTIONS, renderer: standings, viewerSeat: 0 },
-        );
+        return boardOverlay(STANDINGS_TABLE, {
+            standings: { actions: STANDINGS_ACTIONS, renderer: standings, viewerSeat: 0 },
+        });
     }
     return undefined;
 }
@@ -534,6 +554,7 @@ interface BoardStoryHandlers {
     readonly showStory: (story: BoardStory) => void;
     readonly showResult: (result: ResultStory) => void;
     readonly showPage: (page: number) => void;
+    readonly showCallout: (kind: CalloutKind | null) => void;
     readonly pin: (seat: SeatPosition | null) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
@@ -553,6 +574,7 @@ function storybookBoardTemplate(
         <div class="board-page board-storybook">
             <div class="board-page__board">
                 ${GameBoard({
+                    callouts: storyCallouts(story.callout),
                     debug: story.debug,
                     overlay: buildOverlay(story, handlers, standings),
                     scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
@@ -606,6 +628,21 @@ function storybookBoardTemplate(
                     class="board-storybook__btn ${activeClass(story.overlay === "game_end")}"
                     @click=${() => handlers.toggleOverlay("game_end")}
                 >Game end</button>
+                <div class="board-storybook__picker"><select
+                    class="board-storybook__select"
+                    aria-label="Call shown"
+                    @change=${(event: Event) => {
+                        const { target } = event;
+                        const value = target instanceof HTMLSelectElement ? target.value : "";
+                        handlers.showCallout(CALLOUT_KINDS.find((kind) => kind === value) ?? null);
+                    }}
+                >
+                    <option value="" ?selected=${story.callout === null}>No call</option>
+                    ${CALLOUT_KINDS.map(
+                        (kind) =>
+                            html`<option value=${kind} ?selected=${kind === story.callout}>Call: ${kind}</option>`,
+                    )}
+                </select></div>
             </div>
         </div>
     `;
@@ -615,6 +652,7 @@ function storybookBoardTemplate(
 export function mountStorybookBoard(host: HTMLElement): () => void {
     const standings = startStorybookStandings(browserClock.setTimer);
     let story: BoardStoryState = {
+        callout: parseCalloutParam(window.location.search),
         debug: true,
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
@@ -632,6 +670,10 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         pin(seat) {
             syncQueryParam("pin", seat ?? "", "");
             show({ ...story, pinned: seat });
+        },
+        showCallout(callout) {
+            syncQueryParam("callout", callout ?? "", "");
+            show({ ...story, callout });
         },
         showPage(page) {
             syncQueryParam("page", String(page), "0");

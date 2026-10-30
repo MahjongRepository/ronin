@@ -13,7 +13,7 @@ function lastRoundEndTable(name: string): TableState {
 }
 
 function renderResult(table: TableState, page = 0, onPage?: (page: number) => void): HTMLElement {
-    const template = boardOverlay(table, { onPage, page });
+    const template = boardOverlay(table, { paging: { onPage, page } });
     assert(template !== undefined);
     const el = document.createElement("div");
     render(template, el);

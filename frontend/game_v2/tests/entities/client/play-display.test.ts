@@ -18,9 +18,11 @@ import {
     playDisplay,
     stepGameClient,
 } from "@/entities/client";
+import { CALLOUT_MS } from "@/entities/table";
 import { type HandTile } from "@/entities/tile";
 
 const KUIKAE_BLOCKED = [9, 10, 11];
+const CLOSED_KAN_OFFSET = 6072;
 
 /** The viewer's hand on the board as `[tileId, mark]`, the drawn tile last, an unmarked tile as "idle". */
 function handMarks(display: PlayDisplay): [number | undefined, string][] {
@@ -66,7 +68,12 @@ describe("playDisplay", () => {
             intent: { offer: { kind: "chi", sequence: [4, 12], tileId: 8 }, type: "choose" },
             kind: "intent",
         });
-        expect(display.countdown).toEqual({ kind: "running", move: "call", secondsLeft: 5 });
+        expect(display.countdown).toEqual({
+            kind: "running",
+            move: "call",
+            secondsLeft: 5,
+            turn: null,
+        });
         expect(display.tileIntents.size).toBe(0);
         expect(handMarks(display).every(([, mark]) => mark === "waiting")).toBe(true);
         expect(expired.actions).toEqual(display.actions);
@@ -156,7 +163,7 @@ describe("playDisplay", () => {
                 pressed: null,
                 tiles: [],
             },
-            countdown: { kind: "running", move: "result", secondsLeft: 20 },
+            countdown: { kind: "running", move: "result", secondsLeft: 20, turn: null },
             waiting: false,
         });
         expect(last?.action).toMatchObject({
@@ -170,7 +177,7 @@ describe("playDisplay", () => {
 
         expect(playDisplay(confirmed, NO_PLAY_UI).result).toEqual({
             action: null,
-            countdown: { kind: "running", move: "result", secondsLeft: 9 },
+            countdown: { kind: "running", move: "result", secondsLeft: 9, turn: null },
             waiting: true,
         });
         expect(nextCountdownChange(confirmed)).toBeGreaterThan(confirmed.now);
@@ -477,5 +484,90 @@ describe("playDisplay failure", () => {
             ["Session error", true],
             ["Game unavailable", true],
         ]);
+    });
+});
+
+describe("playDisplay callouts", () => {
+    function calloutsAt(name: string, label: string): PlayDisplay["callouts"] {
+        return playDisplay(checkpointState(name, label), NO_PLAY_UI).callouts;
+    }
+
+    it("calls the viewer's chi by its seat for a while, then drops it once its time ran out", () => {
+        const turn = checkpointState("call_prompt_seat_1", "turn");
+        const later = stepGameClient(turn, { at: turn.now + CALLOUT_MS, kind: "tick" }).state;
+
+        expect(playDisplay(turn, NO_PLAY_UI).callouts).toEqual({
+            items: [{ kind: "chi", label: "Chi", position: "bottom" }],
+            key: "call-5000",
+        });
+        expect(nextDeadline(turn)).toBe(turn.now + CALLOUT_MS);
+        expect(playDisplay(later, NO_PLAY_UI).callouts).toBeNull();
+    });
+
+    it("keeps a call through the viewer's draw that follows it at once, and shows each win's call by its winner", () => {
+        expect(calloutsAt("own_turn_seat_1", "rinshan")?.items).toEqual([
+            { kind: "kan", label: "Kan", position: "bottom" },
+        ]);
+        expect(calloutsAt("own_turn_seat_1", "ron prompt")?.items).toEqual([
+            { kind: "riichi", label: "Riichi", position: "bottom" },
+        ]);
+        expect(calloutsAt("double_ron_seat_1", "round end")?.items).toEqual([
+            { kind: "ron", label: "Ron", position: "bottom" },
+            { kind: "ron", label: "Ron", position: "top" },
+        ]);
+    });
+
+    it("calls a kan open to chankan once: not again for the prompt a reconnect re-sends, nor as nobody robs it", () => {
+        function callsAt(label: string): GameClientState["calls"] {
+            return checkpointState("chankan_passed_seat_3", label).calls;
+        }
+        const kan = { at: 8000, calls: [{ kanTileType: 14, kind: "kan", seat: 1 }], until: 9500 };
+
+        expect(calloutsAt("chankan_passed_seat_3", "chankan prompt")?.items).toEqual([
+            { kind: "kan", label: "Kan", position: "top" },
+        ]);
+        expect(callsAt("chankan prompt")).toEqual(kan);
+        expect(callsAt("prompt re-sent")).toEqual(kan);
+        expect(callsAt("kan")).toBeNull();
+    });
+
+    it("calls each of two kans one seat declares in quick succession", () => {
+        const dealt = checkpointState("call_prompt_seat_1", "dealt");
+        function closedKan(tileType: number): Record<string, unknown> {
+            return { m: (CLOSED_KAN_OFFSET + tileType) * 4 + 2, t: 0 };
+        }
+        const first = stepGameClient(dealt, {
+            at: 3100,
+            kind: "server_message",
+            raw: closedKan(33),
+        }).state;
+        const second = stepGameClient(first, {
+            at: 3600,
+            kind: "server_message",
+            raw: closedKan(32),
+        }).state;
+
+        expect(second.calls).toEqual({
+            at: 3600,
+            calls: [{ kanTileType: 32, kind: "kan", seat: 2 }],
+            until: 3600 + CALLOUT_MS,
+        });
+        expect(playDisplay(second, NO_PLAY_UI).callouts?.key).not.toBe(
+            playDisplay(first, NO_PLAY_UI).callouts?.key,
+        );
+    });
+});
+
+describe("playDisplay cue", () => {
+    it("cues the viewer's turn and its call prompt until it answers them", () => {
+        expect(playDisplay(checkpointState("call_prompt_seat_1", "prompt"), NO_PLAY_UI).cue).toBe(
+            "call",
+        );
+        expect(playDisplay(checkpointState("call_prompt_seat_1", "turn"), NO_PLAY_UI).cue).toBe(
+            "turn",
+        );
+        expect(
+            playDisplay(checkpointState("call_prompt_seat_1", "chi chosen"), NO_PLAY_UI).cue,
+        ).toBeNull();
     });
 });

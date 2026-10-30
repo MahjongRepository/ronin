@@ -1,5 +1,5 @@
 import { type StepEvent } from "@/entities/table/model/action-steps";
-import { type BoardPerspective } from "@/entities/table/model/board-types";
+import { type BoardCallouts, type BoardPerspective } from "@/entities/table/model/board-types";
 import { type NavigationIndex } from "@/entities/table/model/navigation-index";
 import {
     type ReplayCursor,
@@ -16,6 +16,7 @@ import {
 import { type ReplayLineError } from "@/entities/table/model/replay-file";
 import { type TableState } from "@/entities/table/model/types";
 
+import { type Call, boardCallouts } from "./callouts";
 import { narrateStop } from "./replay-narration";
 import { formatRoundName, honbaName, roundName } from "./round-name";
 import { roundResultSummary } from "./round-summary";
@@ -26,10 +27,14 @@ export interface ReplayIncompleteness {
     readonly detail: string;
 }
 
-/** A replay as its page reads it: the timeline's step events and tables, its navigation, and where it broke off. */
+/**
+ * A replay as its page reads it: the timeline's step events, and its tables with the calls each state shows (index by
+ * index), its navigation, and where it broke off.
+ */
 export interface ReplaySource {
     readonly events: readonly StepEvent[];
     readonly tables: readonly TableState[];
+    readonly calls: readonly (readonly Call[])[];
     readonly navigation: NavigationIndex;
     readonly damage: ReplayLineError | null;
 }
@@ -55,6 +60,8 @@ export interface ReplayRoundRow {
 /** What a replay page shows at a cursor beside the board: where it stands, what happened, where it can go. */
 export interface ReplayDisplay {
     readonly table: TableState;
+    /** The calls the stop's own move made, by their seats from the perspective's; null for a move that made none. */
+    readonly callouts: BoardCallouts | null;
     /** The round's whole name, its honba included: "East 2, 1 honba". */
     readonly roundName: string;
     /** The round's name alone and its honba apart, which a narrow column leaves to the board: "East 2", "1 honba". */
@@ -125,6 +132,18 @@ function roundRows(nav: NavigationIndex, current: number): ReplayRoundRow[] {
     });
 }
 
+/** The calls a stop shows, keyed by the stop, so arriving on it plays them afresh and turning its pages does not. */
+function stopCallouts(
+    calls: readonly Call[],
+    stop: number,
+    perspective: BoardPerspective,
+): BoardCallouts | null {
+    if (calls.length === 0) {
+        return null;
+    }
+    return { items: boardCallouts(calls, perspective.bottomSeat), key: `stop-${stop}` };
+}
+
 /** What the page shows at `cursor` from `perspective`: the table, the round and step, the narration and the moves. */
 export function replayDisplay(
     source: ReplaySource,
@@ -136,6 +155,7 @@ export function replayDisplay(
     const round = cursorRound(nav, cursor);
     const position = roundPosition(nav, cursor);
     return {
+        callouts: stopCallouts(source.calls[stop.stateIndex] ?? [], cursor.stop, perspective),
         endNotice: endNotice(source, cursor),
         honbaLabel: honbaName(round.honba),
         incomplete: incompleteness(source),

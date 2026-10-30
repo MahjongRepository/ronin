@@ -7,10 +7,15 @@ import {
     stepSession,
 } from "@/entities/session";
 import {
+    CALLOUT_MS,
+    type Call,
     type TableEvent,
+    type TableState,
     applyEvent,
+    callsShownKan,
     chankanKanDeclared,
     createInitialTableState,
+    eventCalls,
     replayLineTableEvent,
     robbedKanDeclared,
     roundEndPages,
@@ -43,6 +48,7 @@ import {
     type LocalIntent,
     type PlayIntent,
     type RoundConfirm,
+    type ShownCalls,
     type TimedNotice,
     type TracedStep,
 } from "./types";
@@ -89,11 +95,17 @@ function keptNotice(notice: TimedNotice | null, session: SessionState): TimedNot
     return notice?.kind === "reconnected" && session.status !== "playing" ? null : notice;
 }
 
+/** Whether the session ended other than by the game's end: it failed, or the player left. */
+function endedEarly(session: SessionState): boolean {
+    return session.status === "ended" && session.reason.kind !== "game_ended";
+}
+
 /**
  * Step the session, then drop what the session can no longer send: a round confirm (but the game's last result, which
  * sends nothing), and the open decision once the socket drops, since the reconnect re-sends any wait the server still
- * owes the seat and its snapshot says whether the round confirm is still owed; and the notices it outdates. A replay
- * has no session.
+ * owes the seat and its snapshot says whether the round confirm is still owed; the notices it outdates; and the calls
+ * shown once it failed or the player left, so nothing is left pending. The game's end keeps them, so its last win
+ * shows its call, and only their time ends them. A replay has no session.
  */
 function withSession(state: GameClientState, input: SessionInput): ClientStep {
     if (state.session === null) {
@@ -105,6 +117,7 @@ function withSession(state: GameClientState, input: SessionInput): ClientStep {
         effects: step.effects,
         state: {
             ...state,
+            calls: endedEarly(step.state) ? null : state.calls,
             decision: isLinked(step.state) ? state.decision : null,
             notice: keptNotice(state.notice, step.state),
             roundConfirm:
@@ -153,9 +166,12 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
 function withViewer(state: GameClientState, message: ParsedServerMessage): GameClientState {
     switch (message.type) {
         case "game_started": {
+            const { timer } = message;
             return {
                 ...state,
-                timer: message.timer ?? state.timer,
+                firstDealDue:
+                    timer === null ? null : state.now + timer.gameStartPauseSeconds * MS_PER_SECOND,
+                timer: timer ?? state.timer,
                 viewerSeat: message.seat ?? state.viewerSeat,
             };
         }
@@ -313,6 +329,45 @@ function withNotice(
     return { ...state, notice: notice ?? state.notice, unreadMessages };
 }
 
+function shownCalls(calls: readonly Call[], at: number): ShownCalls {
+    return { at, calls, until: at + CALLOUT_MS };
+}
+
+/**
+ * The calls a live board shows after a server message's table event, from the table it found (`state`'s) to the one it
+ * left: the calls the event makes, but a kan the calls still showing call already (the declaration a reconnect's re-sent prompt repeats); else
+ * those still showing, which only their time ends, since a move that calls nothing may follow a call at once (an AI
+ * player's discard after its pon, the viewer's own draw after a riichi).
+ */
+function liveCalls(
+    state: GameClientState,
+    event: TableEvent,
+    table: TableState,
+): ShownCalls | null {
+    const shown = state.calls;
+    const live = shown !== null && shown.until > state.now ? shown.calls : [];
+    const calls = (eventCalls(event, state.table, table) ?? []).filter(
+        (call) => !callsShownKan(live, call),
+    );
+    return calls.length === 0 ? shown : shownCalls(calls, state.now);
+}
+
+/**
+ * The calls a replay's board shows after a line's table event: the calls a move makes, none for a move that makes
+ * none, and those of the move before for its bookkeeping and annotations, so each stop shows its own move's calls.
+ */
+function replayCalls(
+    state: GameClientState,
+    event: TableEvent,
+    table: TableState,
+): ShownCalls | null {
+    const calls = eventCalls(event, state.table, table);
+    if (calls === null) {
+        return state.calls;
+    }
+    return calls.length === 0 ? null : shownCalls(calls, state.now);
+}
+
 function onServerMessage(state: GameClientState, raw: Record<string, unknown>): TracedStep {
     const [error, message] = parseServerMessage(raw);
     if (error) {
@@ -320,10 +375,11 @@ function onServerMessage(state: GameClientState, raw: Record<string, unknown>): 
     }
     const step = withSession(state, { at: state.now, kind: "message", message });
     const tableEvent = serverTableEvent(message);
+    const table = tableEvent === null ? step.state.table : applyEvent(step.state.table, tableEvent);
     const tabled =
         tableEvent === null
             ? step.state
-            : { ...step.state, table: applyEvent(step.state.table, tableEvent) };
+            : { ...step.state, calls: liveCalls(step.state, tableEvent, table), table };
     const decided = withDecision(withViewer(tabled, message), message);
     const next = withNotice(state.session, withRoundConfirm(decided, message), message);
     return { effects: step.effects, parsed: message, partial: false, state: next };
@@ -342,7 +398,15 @@ function robbedKanPart(state: GameClientState, line: ReplayLine): TracedStep | n
     if (table === state.table) {
         return null;
     }
-    return { effects: [], parsed: declared, partial: true, state: { ...state, table } };
+    const calls = replayCalls(state, declared, table);
+    return { effects: [], parsed: declared, partial: true, state: { ...state, calls, table } };
+}
+
+/** A replay line's whole step: its table event applied, and the calls the move makes. */
+function replayLineStep(state: GameClientState, line: ReplayLine, event: TableEvent): TracedStep {
+    const table = applyEvent(state.table, event);
+    const calls = replayCalls(state, event, table);
+    return { effects: [], parsed: line, partial: false, state: { ...state, calls, table } };
 }
 
 /**
@@ -358,14 +422,7 @@ function onReplayLine(state: GameClientState, raw: Record<string, unknown>): Tra
     if (tableEvent === null) {
         return reportParseError(state, `Non-replay event type: ${line.type}`);
     }
-    return (
-        robbedKanPart(state, line) ?? {
-            effects: [],
-            parsed: line,
-            partial: false,
-            state: { ...state, table: applyEvent(state.table, tableEvent) },
-        }
-    );
+    return robbedKanPart(state, line) ?? replayLineStep(state, line, tableEvent);
 }
 
 function onTick(state: GameClientState): ClientStep {
@@ -518,7 +575,9 @@ function stepEvent(timed: GameClientState, event: ClientEvent): TracedStep {
 
 function emptyClient(at: number, session: SessionState | null): GameClientState {
     return {
+        calls: null,
         decision: null,
+        firstDealDue: null,
         furiten: false,
         notice: null,
         now: at,
@@ -550,17 +609,18 @@ export function startReplayClient(at: number): GameClientState {
 }
 
 /**
- * When the client next needs a tick: the earliest of its session's deadline, its open decision's and its notice's
- * expiry, or null. A round confirm's deadline needs none: the client never confirms on its own, and its countdown
- * reads `now`.
+ * When the client next needs a tick: the earliest of its session's deadline, its open decision's, its notice's and its
+ * calls' expiry, or null. A round confirm's deadline needs none: the client never confirms on its own, and its
+ * countdown reads `now`.
  */
 export function nextDeadline(state: GameClientState): number | null {
-    const { decision, notice, session } = state;
+    const { calls, decision, notice, session } = state;
     const decisionDue = decision?.status.kind === "open" ? decision.deadline : null;
     const deadlines = [
         session === null ? null : sessionDeadline(session),
         decisionDue,
         notice?.until ?? null,
+        calls?.until ?? null,
     ].filter((deadline) => deadline !== null);
     return deadlines.length === 0 ? null : Math.min(...deadlines);
 }
@@ -568,17 +628,18 @@ export function nextDeadline(state: GameClientState): number | null {
 /** End the client because its driver failed while stepping it; nothing is pending afterwards. */
 export function failGameClient(state: GameClientState, detail: string): GameClientState {
     const session = state.session === null ? null : failSession(state.session, detail);
-    return { ...state, decision: null, notice: null, roundConfirm: null, session };
+    return { ...state, calls: null, decision: null, notice: null, roundConfirm: null, session };
 }
 
-/** The state at logical time `at`: an open decision past its deadline expired, a notice past its time gone. */
+/** The state at logical time `at`: an open decision past its deadline expired, a notice or calls past their time gone. */
 function expireAt(state: GameClientState, at: number): GameClientState {
-    const { decision, notice } = state;
+    const { calls, decision, notice } = state;
     const current = decision === null ? null : expireDecision(decision, at);
     const shown = notice !== null && at >= notice.until ? null : notice;
-    return current === decision && shown === notice
+    const called = calls !== null && at >= calls.until ? null : calls;
+    return current === decision && shown === notice && called === calls
         ? state
-        : { ...state, decision: current, notice: shown };
+        : { ...state, calls: called, decision: current, notice: shown };
 }
 
 /** One part of the dispatcher's step with what it took of its event, as parsed. */

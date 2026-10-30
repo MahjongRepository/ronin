@@ -1,8 +1,8 @@
-import { render } from "lit-html";
+import { html, render } from "lit-html";
 import { describe, expect, it, vi } from "vitest";
 
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
-import { type SeatPosition } from "@/entities/table/model/board-types";
+import { type BoardCallouts, type SeatPosition } from "@/entities/table/model/board-types";
 import {
     createInitialPlayerState,
     createInitialTableState,
@@ -109,5 +109,54 @@ describe("GameBoard nameplates", () => {
         press(host, ".board-center");
         press(host, ".board-center", { key: "Escape" });
         expect(onPin).not.toHaveBeenCalled();
+    });
+});
+
+describe("GameBoard callouts", () => {
+    function renderCallouts(
+        callouts: BoardCallouts,
+        host: HTMLElement = document.createElement("div"),
+    ): HTMLElement {
+        render(
+            GameBoard({
+                callouts,
+                debug: false,
+                overlay: html`<p>Result</p>`,
+                overlayIsResult: true,
+                scoreDiff: { onPin: vi.fn(), pinned: null },
+                state: null,
+            }),
+            host,
+        );
+        return host;
+    }
+
+    const RON: BoardCallouts = {
+        items: [{ kind: "ron", label: "Ron", position: "right" }],
+        key: "call-1",
+    };
+    const PON: BoardCallouts = {
+        items: [{ kind: "pon", label: "Pon", position: "top" }],
+        key: "call-2",
+    };
+
+    it("holds a result's panel back while a win's call shows, never for another call", () => {
+        const held = ".board-overlay--after-call";
+
+        expect(renderCallouts(RON).querySelector(held)).not.toBeNull();
+        expect(renderCallouts(PON).querySelector(held)).toBeNull();
+    });
+
+    it("draws a new showing afresh, so its animation replays, and keeps the element through a redraw", () => {
+        const host = renderCallouts(PON);
+        const first = host.querySelector(".board-callout");
+        renderCallouts(PON, host);
+        const redrawn = host.querySelector(".board-callout");
+        renderCallouts({ ...PON, key: "call-3" }, host);
+
+        expect(first?.textContent?.trim()).toBe("Pon");
+        expect(first?.classList.contains("board-callout--top")).toBe(true);
+        expect(redrawn).toBe(first);
+        expect(host.querySelector(".board-callout")).not.toBe(first);
     });
 });

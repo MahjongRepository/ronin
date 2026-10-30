@@ -1,6 +1,10 @@
 import { type TemplateResult, html, nothing } from "lit-html";
+import { keyed } from "lit-html/directives/keyed.js";
 
+import { CALLOUT_MS } from "@/entities/table/lib/callouts";
 import {
+    type BoardCallout,
+    type BoardCallouts,
     type BoardCenterInfo,
     type BoardDisplayState,
     type BoardNameplate,
@@ -36,6 +40,12 @@ interface GameBoardProps {
     readonly scoreDiff: ScoreDiffPin;
     /** The page's own controls (the way back, the connection), in the board's top-right corner. */
     readonly menu?: TemplateResult;
+    /** The calls shown by their seats for a moment, over the table and never over the local hand; they take no input. */
+    readonly callouts?: BoardCallouts | null;
+    /** The overlay's panel is a round's result, which waits until a win's call has been seen; any other shows at once. */
+    readonly overlayIsResult?: boolean;
+    /** What the bottom seat is to play now, which the board cues along its hand: its turn, or a call prompt. */
+    readonly yourMove?: "turn" | "call" | null;
 }
 
 function HandArea(
@@ -155,6 +165,33 @@ function CenterInfo(
     `;
 }
 
+function Callout({ kind, label, position }: BoardCallout): TemplateResult {
+    return html`<div class="board-callout board-callout--${position} board-callout--${kind}">
+        <span class="board-callout__word">${label}</span>
+    </div>`;
+}
+
+/**
+ * The calls by their seats; a new showing (a new key) is drawn afresh, so its animation plays from the start, over the
+ * time a live call shows.
+ */
+function Callouts(callouts: BoardCallouts): TemplateResult {
+    return html`${keyed(
+        callouts.key,
+        html`<div class="board-callouts" style="--callout-ms: ${CALLOUT_MS}ms">${callouts.items.map(Callout)}</div>`,
+    )}`;
+}
+
+/** Whether the calls shown are a win's (ron, tsumo), whose result panel waits until they have been seen. */
+function callsAWin(callouts: BoardCallouts | null | undefined): boolean {
+    return callouts?.items.some((item) => item.kind === "ron" || item.kind === "tsumo") ?? false;
+}
+
+const YOUR_MOVE_LABELS: Readonly<Record<"turn" | "call", string>> = {
+    call: "Your call",
+    turn: "Your turn",
+};
+
 function EmptyCenterArea(): TemplateResult {
     return html`
         <div class="board-area board-center" data-area="center"></div>
@@ -167,7 +204,8 @@ function EmptyCenterArea(): TemplateResult {
  * in the top-right, and the decision's controls, when given, right of the table above the hand) over the local strip
  * (the bottom seat's plate, hand and melds), which spans the board's width so its tiles stay the largest on the
  * board. The top seat's plate leads its strip. A pinned plate unpins on a click anywhere else on the board or on
- * Escape.
+ * Escape. Calls show by their seats inside the table for a moment, and a win's call shows before the panel over the
+ * board does.
  */
 function GameBoard(props: GameBoardProps): TemplateResult {
     const { scoreDiff, state } = props;
@@ -175,6 +213,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         "game-board",
         props.debug ? "game-board--debug" : "",
         scoreDiff.pinned === null ? "" : `game-board--diff-${scoreDiff.pinned}`,
+        props.yourMove ? `game-board--your-${props.yourMove}` : "",
     ]
         .filter(Boolean)
         .join(" ");
@@ -205,14 +244,16 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${props.actions ? html`<div class="board-actions" data-area="actions">${props.actions}</div>` : ""}
                     ${props.notices ? BoardNotices(props.notices) : ""}
+                    ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 <div class="board-local">
+                    ${props.yourMove ? html`<span class="board-cue">${YOUR_MOVE_LABELS[props.yourMove]}</span>` : ""}
                     ${plates?.bottom ?? ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
                 </div>
             </div>
             ${
                 props.overlay
-                    ? html`<div class="board-overlay">
+                    ? html`<div class="board-overlay ${props.overlayIsResult === true && callsAWin(props.callouts) ? "board-overlay--after-call" : ""}">
                       <div class="board-overlay__panel">${props.overlay}</div>
                   </div>`
                     : ""

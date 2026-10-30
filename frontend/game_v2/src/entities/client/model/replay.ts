@@ -140,6 +140,15 @@ export type ReplayRead =
     | { readonly ok: true; readonly replay: LoadedReplay }
     | { readonly ok: false; readonly unshowable: ReplayUnshowable };
 
+/** Each timeline state's table, and the calls it shows. */
+function timelineTablesAndCalls(timeline: ClientTimeline): Pick<ReplaySource, "calls" | "tables"> {
+    const states = timelineStates(timeline);
+    return {
+        calls: states.map((state) => state.calls?.calls ?? []),
+        tables: states.map((state) => state.table),
+    };
+}
+
 /** Read a replay file for its page: its timeline, its stops by round from the first deal, and where it broke off. */
 export function readReplay(text: string): ReplayRead {
     const read = readReplayTimeline(text);
@@ -147,7 +156,7 @@ export function readReplay(text: string): ReplayRead {
         return { ok: false, unshowable: read.refusal };
     }
     const events = timelineStepEvents(read.timeline);
-    const tables = timelineStates(read.timeline).map((state) => state.table);
+    const { calls, tables } = timelineTablesAndCalls(read.timeline);
     const navigation = buildNavigationIndex(events, tables);
     if (navigation.rounds.length === 0) {
         return { ok: false, unshowable: { damage: read.damage, kind: "no_deal" } };
@@ -156,6 +165,7 @@ export function readReplay(text: string): ReplayRead {
     return {
         ok: true,
         replay: {
+            calls,
             damage: read.damage,
             events,
             firstDealerSeat: last.firstDealerSeat,

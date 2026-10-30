@@ -1,11 +1,13 @@
 import { type EndReason, type SessionState } from "@/entities/session";
 import {
+    type BoardCallouts,
     type BoardDisplayState,
     type BoardNotice,
     type BoardPlayerDisplay,
     type PlayerState,
     type SeatPosition,
     type TableState,
+    boardCallouts,
     roundEndPageAt,
     tableStateToDisplayState,
 } from "@/entities/table";
@@ -25,7 +27,12 @@ import {
     SESSION_ERROR_CODE,
 } from "@/shared/protocol";
 
-import { type DecisionCountdown, decisionCountdown, roundConfirmCountdown } from "./countdown";
+import {
+    type DecisionCountdown,
+    decisionCountdown,
+    firstDealCountdown,
+    roundConfirmCountdown,
+} from "./countdown";
 import { takesIntent } from "./dispatch";
 import {
     type Decision,
@@ -119,16 +126,26 @@ export interface ResultControls {
     readonly countdown: DecisionCountdown | null;
 }
 
+/** What the viewer is to play now: its own turn's discard, or an answer to a call prompt. */
+export type PlayCue = "turn" | "call";
+
 /**
  * The live board as the viewer plays it: the table from its seat, its own hand's tiles marked by the open decision
  * (with the intent tapping each selectable one sends), the decision's buttons, its countdown and the seat's furiten.
  */
 export interface PlayDisplay {
     readonly board: BoardDisplayState | null;
+    /** The cue that the viewer is to play, while its decision awaits an answer; else null. */
+    readonly cue: PlayCue | null;
+    /** The calls the board shows by their seats, from the viewer's seat; null with none. */
+    readonly callouts: BoardCallouts | null;
+    /** The whole seconds left of the game start pause, which the seating before the first deal counts down. */
+    readonly firstDealSeconds: number | null;
     readonly tileAction: string;
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
     readonly actions: readonly PlayAction[];
     readonly countdown: DecisionCountdown | null;
+    /** The seat is furiten, shown only while a round plays, never under its result or the standings. */
     readonly furiten: boolean;
     /** The page of the round's result the panel shows, clamped to its pages; 0 with no result. */
     readonly resultPage: number;
@@ -632,6 +649,23 @@ function boardNotices(state: GameClientState, ui: PlayUi): PlayNotice[] {
     ].filter((notice) => notice !== null);
 }
 
+/** The cue of a decision that awaits the viewer's answer: open, or past its time but still taking one. */
+function playCue(decision: Decision | null): PlayCue | null {
+    if (decision === null || decision.status.kind === "submitted") {
+        return null;
+    }
+    return decision.kind;
+}
+
+/** The live calls as the viewer's board shows them, keyed by when they were made. */
+function liveCallouts(state: GameClientState): BoardCallouts | null {
+    const { calls, viewerSeat } = state;
+    if (calls === null || viewerSeat === null) {
+        return null;
+    }
+    return { items: boardCallouts(calls.calls, viewerSeat), key: `call-${calls.at}` };
+}
+
 /**
  * The live board a client state shows its viewer, with the view's `ui` beside it: the table from the viewer's seat
  * with only its own hand face up, and the open decision as the hand's playable tiles and the buttons around them.
@@ -649,9 +683,12 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
     return {
         actions: decisionActions(state, picking),
         board: viewerBoard(state, plays),
+        callouts: liveCallouts(state),
         countdown: decisionCountdown(state),
+        cue: playCue(state.decision),
         failure,
-        furiten: furiten && viewer !== undefined,
+        firstDealSeconds: firstDealCountdown(state),
+        furiten: furiten && viewer !== undefined && table.phase === "in_round",
         lastResult: lastResultAction(state),
         leave: leaveControls(state, ui),
         notices: failure === null ? boardNotices(state, ui) : [],

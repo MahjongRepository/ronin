@@ -10,6 +10,7 @@ import {
     wireSessionError,
 } from "#tests/fixtures/wire";
 import { type ClientEffect, type ClientEvent, nextDeadline } from "@/entities/client";
+import { CALLOUT_MS } from "@/entities/table";
 import { SESSION_ERROR_CODE, buildConfirmRoundAction } from "@/shared/protocol";
 
 const { closed, confirm, message, opened, tick } = clientEvent;
@@ -39,7 +40,10 @@ describe("stepGameClient - round confirm", () => {
         const roundEnd = message(100, wireRoundEnd(5));
         const sent = { message: buildConfirmRoundAction(5), type: "send" } as const;
 
-        expect([scenario.step(roundEnd), nextDeadline(scenario.state)]).toEqual([[], null]);
+        expect([scenario.step(roundEnd), nextDeadline(scenario.state)]).toEqual([
+            [],
+            100 + CALLOUT_MS,
+        ]);
         expect(scenario.step(tick(60_000))).toEqual([]);
         expect(scenario.step(confirm(60_100))).toEqual([sent]);
         expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "sent", waitId: 5 });
