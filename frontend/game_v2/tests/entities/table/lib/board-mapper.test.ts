@@ -171,7 +171,7 @@ describe("tableStateToDisplayState", () => {
                             {
                                 calledTileId: 0,
                                 callerSeat: 0,
-                                fromSeat: 1,
+                                fromSeat: 3,
                                 meldType: "pon",
                                 tileIds: [0, 1, 2],
                             },

@@ -19,150 +19,76 @@ function laidTiles(el: HTMLElement): NodeListOf<Element> {
     return el.querySelectorAll(".meld > .meld-tile");
 }
 
+/** The index of each laid tile carrying `cls`, left to right. */
+function slotsWith(el: HTMLElement, cls: string): number[] {
+    return [...laidTiles(el)].flatMap((tile, idx) => (tile.classList.contains(cls) ? [idx] : []));
+}
+
+function faces(el: HTMLElement): (string | null)[] {
+    return [...laidTiles(el)].map((tile) => tile.querySelector("svg")!.getAttribute("aria-label"));
+}
+
 describe("Meld - chi", () => {
-    test("renders 3 tiles with called tile sideways", () => {
-        const input: MeldInput = {
-            calledTileId: 0,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "chi",
-            tileIds: [4, 0, 8],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        expect(laidTiles(el)).toHaveLength(3);
-        expect(el.querySelectorAll(".meld .meld-tile-sideways")).toHaveLength(1);
-    });
-
-    test("tiles sorted by type-34 ascending regardless of input order", () => {
-        // Chi 7s-8s-9s: tileIds in reverse order
-        const input: MeldInput = {
-            calledTileId: 100,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "chi",
-            tileIds: [104, 100, 96],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        expect(laidTiles(el)).toHaveLength(3);
-    });
-
-    test("called tile at middle position after sorting gets sideways class", () => {
-        // Chi 1m-2m-3m, called tile 4 (2m)
+    test("called tile sideways at the left, the other two sorted after it", () => {
         const input: MeldInput = {
             calledTileId: 4,
             callerSeat: 0,
             fromSeat: 3,
             meldType: "chi",
-            tileIds: [0, 8, 4],
+            tileIds: [8, 4, 0],
         };
         const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        // After sorting: [0(1m), 4(2m), 8(3m)] — index 1 is sideways
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
-        expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
+        expect(slotsWith(el, "meld-tile-sideways")).toEqual([0]);
+        expect(faces(el)).toEqual(["2m", "1m", "3m"]);
     });
 });
 
-describe("Meld - pon", () => {
-    test("sideways tile on left when called from kamicha (relative 1)", () => {
-        // Seat 0 calls pon from seat 1 → relative = (1-0+4)%4 = 1 → position 0 (left)
+describe("Meld - pon (seat + 1 plays next: the caller's right, shimocha)", () => {
+    test.each([
+        { feeder: "kamicha", fromSeat: 3, slot: 0 },
+        { feeder: "toimen", fromSeat: 2, slot: 1 },
+        { feeder: "shimocha", fromSeat: 1, slot: 2 },
+    ])("called from $feeder lies sideways at slot $slot", ({ fromSeat, slot }) => {
         const input: MeldInput = {
             calledTileId: 2,
             callerSeat: 0,
-            fromSeat: 1,
+            fromSeat,
             meldType: "pon",
             tileIds: [0, 1, 2],
         };
         const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles).toHaveLength(3);
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(true);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
+        expect(slotsWith(el, "meld-tile-sideways")).toEqual([slot]);
     });
 
-    test("sideways tile in middle when called from toimen (relative 2)", () => {
-        // Seat 0 calls pon from seat 2 → position 1 (middle)
-        const input: MeldInput = {
-            calledTileId: 2,
-            callerSeat: 0,
-            fromSeat: 2,
-            meldType: "pon",
-            tileIds: [0, 1, 2],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
-        expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
-    });
-
-    test("sideways tile on right when called from shimocha (relative 3)", () => {
-        // Seat 0 calls pon from seat 3 → position 2 (right)
-        const input: MeldInput = {
-            calledTileId: 2,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "pon",
-            tileIds: [0, 1, 2],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(true);
-    });
-
-    test("handles wrap-around seat positions", () => {
-        // Seat 3 calls pon from seat 1 → relative = (1-3+4)%4 = 2 → position 1 (middle)
+    test("called from kamicha across seat 0 lies sideways at the left", () => {
         const input: MeldInput = {
             calledTileId: 38,
-            callerSeat: 3,
-            fromSeat: 1,
+            callerSeat: 1,
+            fromSeat: 0,
             meldType: "pon",
             tileIds: [36, 37, 38],
         };
         const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
-        expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
+        expect(slotsWith(el, "meld-tile-sideways")).toEqual([0]);
     });
 });
 
 describe("Meld - open kan", () => {
-    test("renders 4 tiles with sideways at correct position", () => {
-        // Seat 0 calls open_kan from seat 1 → position 0 (left)
+    test.each([
+        { feeder: "kamicha", fromSeat: 3, slot: 0 },
+        { feeder: "toimen", fromSeat: 2, slot: 1 },
+        { feeder: "shimocha", fromSeat: 1, slot: 3 },
+    ])("called from $feeder lies sideways at slot $slot of 4", ({ fromSeat, slot }) => {
         const input: MeldInput = {
             calledTileId: 3,
             callerSeat: 0,
-            fromSeat: 1,
+            fromSeat,
             meldType: "open_kan",
             tileIds: [0, 1, 2, 3],
         };
         const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles).toHaveLength(4);
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(true);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[2].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[3].classList.contains("meld-tile-sideways")).toBe(false);
-    });
-
-    test("sideways tile from toimen (relative 2)", () => {
-        // Seat 0 from seat 2 → position 1
-        const input: MeldInput = {
-            calledTileId: 3,
-            callerSeat: 0,
-            fromSeat: 2,
-            meldType: "open_kan",
-            tileIds: [0, 1, 2, 3],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles[0].classList.contains("meld-tile-sideways")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-sideways")).toBe(true);
+        expect(laidTiles(el)).toHaveLength(4);
+        expect(slotsWith(el, "meld-tile-sideways")).toEqual([slot]);
     });
 });
 
@@ -195,57 +121,22 @@ describe("Meld - closed kan", () => {
 });
 
 describe("Meld - added kan", () => {
-    test("stacked tile at correct position from kamicha (left)", () => {
-        // Seat 0 added_kan, original pon from seat 1 → position 0 (left)
+    test.each([
+        { feeder: "kamicha", fromSeat: 3, slot: 0 },
+        { feeder: "toimen", fromSeat: 2, slot: 1 },
+        { feeder: "shimocha", fromSeat: 1, slot: 2 },
+    ])("called from $feeder stacks at slot $slot", ({ fromSeat, slot }) => {
         const input: MeldInput = {
             addedTileId: 3,
             calledTileId: 2,
             callerSeat: 0,
-            fromSeat: 1,
+            fromSeat,
             meldType: "added_kan",
             tileIds: [0, 1, 2, 3],
         };
         const el = renderTo(Meld(meldTiles(input)));
-        expect(el.querySelector(".meld-tile-stacked")).not.toBeNull();
-        const tiles = laidTiles(el);
-        expect(tiles).toHaveLength(3);
-        expect(tiles[0].classList.contains("meld-tile-stacked")).toBe(true);
-        expect(tiles[1].classList.contains("meld-tile-stacked")).toBe(false);
-        expect(tiles[2].classList.contains("meld-tile-stacked")).toBe(false);
-    });
-
-    test("stacked tile at correct position from toimen (middle)", () => {
-        // Seat 0 from seat 2 → position 1 (middle)
-        const input: MeldInput = {
-            addedTileId: 3,
-            calledTileId: 2,
-            callerSeat: 0,
-            fromSeat: 2,
-            meldType: "added_kan",
-            tileIds: [0, 1, 2, 3],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles[0].classList.contains("meld-tile-stacked")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-stacked")).toBe(true);
-        expect(tiles[2].classList.contains("meld-tile-stacked")).toBe(false);
-    });
-
-    test("stacked tile at correct position from shimocha (right)", () => {
-        // Seat 0 from seat 3 → position 2 (right)
-        const input: MeldInput = {
-            addedTileId: 3,
-            calledTileId: 2,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "added_kan",
-            tileIds: [0, 1, 2, 3],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        const tiles = laidTiles(el);
-        expect(tiles[0].classList.contains("meld-tile-stacked")).toBe(false);
-        expect(tiles[1].classList.contains("meld-tile-stacked")).toBe(false);
-        expect(tiles[2].classList.contains("meld-tile-stacked")).toBe(true);
+        expect(laidTiles(el)).toHaveLength(3);
+        expect(slotsWith(el, "meld-tile-stacked")).toEqual([slot]);
     });
 
     test("stacked tile has bottom and top sideways children", () => {

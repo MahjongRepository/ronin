@@ -5,7 +5,7 @@ import { storybookNav } from "@/views/storybook-nav";
 
 type Direction = "left" | "across" | "right";
 
-const FROM_SEAT_MAP: Record<Direction, number> = { across: 2, left: 1, right: 3 };
+const FROM_SEAT_MAP: Record<Direction, number> = { across: 2, left: 3, right: 1 };
 
 function chiMeld(): MeldInput {
     return {

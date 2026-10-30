@@ -21,26 +21,35 @@ export type MeldTile =
     | { readonly kind: "stacked"; readonly bottom: TileFace; readonly top: TileFace };
 
 /**
- * Sideways tile position based on relative seat distance: (fromSeat - callerSeat + 4) % 4 is 1 for kamicha (left),
- * 2 for toimen (centre), 3 for shimocha (right), so one less is the 0-based slot.
+ * The slot of the sideways tile among `slotCount`, turned toward the seat it came from. Play runs to the caller's
+ * right, so (fromSeat - callerSeat + 4) % 4 is 1 for shimocha (right: the last slot), 2 for toimen (the middle: slot
+ * 1, also of a four-tile kan) and 3 for kamicha (left: the first slot).
  */
-function sidewaysPosition(callerSeat: number, fromSeat: number): number {
-    return ((fromSeat - callerSeat + 4) % 4) - 1;
+function sidewaysPosition(callerSeat: number, fromSeat: number, slotCount: number): number {
+    const distance = (fromSeat - callerSeat + 4) % 4;
+    return distance === 1 ? slotCount - 1 : 3 - distance;
 }
 
+/** A chi is always fed by kamicha: its called tile sideways at the left, the other two in order after it. */
 function chiTiles(input: MeldInput): MeldTile[] {
-    const sorted = input.tileIds.toSorted((tileA, tileB) => ((tileA / 4) | 0) - ((tileB / 4) | 0));
-    return sorted.map((tileId) => ({
-        face: tile136toString(tileId),
-        kind: tileId === input.calledTileId ? "sideways" : "upright",
-    }));
+    const calledId = input.calledTileId;
+    if (calledId === null || !input.tileIds.includes(calledId)) {
+        throw new Error("calledTileId is required for chi and must be one of its tiles");
+    }
+    const others = input.tileIds
+        .filter((tileId) => tileId !== calledId)
+        .toSorted((tileA, tileB) => ((tileA / 4) | 0) - ((tileB / 4) | 0));
+    return [
+        { face: tile136toString(calledId), kind: "sideways" },
+        ...others.map((tileId): MeldTile => ({ face: tile136toString(tileId), kind: "upright" })),
+    ];
 }
 
 function openMeldTiles(input: MeldInput, tileCount: number): MeldTile[] {
     if (input.fromSeat === null || input.calledTileId === null) {
         throw new Error(`fromSeat and calledTileId are required for ${input.meldType}`);
     }
-    const pos = sidewaysPosition(input.callerSeat, input.fromSeat);
+    const pos = sidewaysPosition(input.callerSeat, input.fromSeat, tileCount);
     const calledId = input.calledTileId;
     const otherTiles = input.tileIds.filter((id) => id !== calledId);
     let otherIdx = 0;
@@ -62,7 +71,7 @@ function addedKanTiles(input: MeldInput, addedId: number): MeldTile[] {
     if (input.fromSeat === null || input.calledTileId === null) {
         throw new Error("fromSeat and calledTileId are required for added_kan");
     }
-    const pos = sidewaysPosition(input.callerSeat, input.fromSeat);
+    const pos = sidewaysPosition(input.callerSeat, input.fromSeat, 3);
     const calledId = input.calledTileId;
     const otherTiles = input.tileIds.filter((id) => id !== addedId && id !== calledId);
     let otherIdx = 0;
