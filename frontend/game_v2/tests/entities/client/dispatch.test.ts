@@ -9,9 +9,17 @@ import {
     WIRE_ROUND_STARTED,
     wireRoundEnd,
 } from "#tests/fixtures/wire";
-import { type ClientEffect, type ClientEvent, nextDeadline } from "@/entities/client";
+import {
+    type ClientEffect,
+    type ClientEvent,
+    type GameClientState,
+    RESYNC_ANSWER_MS,
+    nextDeadline,
+    stepGameClient,
+    takesIntent,
+} from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { buildConfirmRoundAction } from "@/shared/protocol";
+import { buildConfirmRoundAction, buildResyncMessage } from "@/shared/protocol";
 
 const { closed, confirm, message, opened, tick } = clientEvent;
 
@@ -25,6 +33,22 @@ function collectEffects(events: readonly ClientEvent[]): {
         effects.push(...scenario.step(event));
     }
     return { deadline: nextDeadline(scenario.state), effects };
+}
+
+function socketError(at: number): ClientEvent {
+    return { at, detail: "", kind: "transport_error" };
+}
+
+/** What `event` asks for at the connect deadline of a socket that never opened. */
+function connectTimeoutEffects(event: (at: number) => ClientEvent): readonly ClientEffect[] {
+    const { state } = clientScenario();
+    return stepGameClient(state, event(nextDeadline(state) ?? 0)).effects;
+}
+
+/** What a socket error asks for once the resync request of a client that lost step at 5000 comes due. */
+function resyncDueEffects(state: GameClientState): readonly ClientEffect[] {
+    const desynced = stepGameClient(state, message(5000, { t: 999 })).state;
+    return stepGameClient(desynced, socketError(5000 + RESYNC_ANSWER_MS)).effects;
 }
 
 function playingScenario(): ReturnType<typeof clientScenario> {
@@ -71,7 +95,7 @@ describe("stepGameClient - round confirm", () => {
         expect(nextDeadline(scenario.state)).toBe(1500);
     });
 
-    it("owes the confirm a reconnect's snapshot names, untimed when the snapshot says nothing of its timer", () => {
+    it("owes the confirm a reconnect's snapshot names, untimed when the snapshot says nothing of its timer, and keeps it sent when a second snapshot repeats its wait", () => {
         const scenario = clientScenario();
         scenario.step(opened(0));
         const owed = { ...WIRE_GAME_RECONNECTED, oc: true, re: wireRoundEnd(null), wi: 9 };
@@ -82,6 +106,9 @@ describe("stepGameClient - round confirm", () => {
         expect(scenario.step(confirm(200))).toEqual([
             { message: buildConfirmRoundAction(9), type: "send" },
         ]);
+        expect(scenario.step(message(300, owed))).toEqual([]);
+        expect(scenario.state.roundConfirm).toEqual({ deadline: null, kind: "sent", waitId: 9 });
+        expect(scenario.step(confirm(400))).toEqual([]);
     });
 
     it("waits for the others when a reconnect's snapshot of a round advance owes no confirm", () => {
@@ -119,10 +146,12 @@ describe("stepGameClient", () => {
         expect(scenario.state.session).toBe(session);
     });
 
-    it("takes no server message once its session ended, so the table stays as the game's end left it", () => {
+    it("ends a game no round result preceded on its standings alone, and takes no server message after it, so the table stays as the game's end left it", () => {
         const scenario = playingScenario();
         scenario.step(message(100, WIRE_GAME_END));
         const ended = scenario.state;
+        expect(ended.roundConfirm).toBeNull();
+        expect(takesIntent(ended, { type: "show_last_result" })).toBe(false);
 
         expect(scenario.step(message(200, WIRE_ROUND_STARTED))).toEqual([]);
         expect(scenario.step(message(300, { t: 99 }))).toEqual([]);
@@ -133,13 +162,34 @@ describe("stepGameClient", () => {
         ]);
     });
 
-    it("keeps the logical time of its last event, so a tick with nothing due changes only the time", () => {
+    it("takes a valid event it otherwise ignores as advancing the time and settling expiry and resync, while only a tick drives the session's deadlines", () => {
         const scenario = playingScenario();
         const before = scenario.state;
+        const ignored: ClientEvent[] = [
+            tick(500),
+            socketError(600),
+            { at: 700, intent: { type: "pass" }, kind: "intent" },
+            confirm(800),
+        ];
 
-        expect(scenario.step(tick(500))).toEqual([]);
-        expect(scenario.state).toEqual({ ...before, now: 500 });
-        expect(before.now).toBe(0);
+        expect(ignored.map((event) => scenario.step(event))).toEqual([[], [], [], []]);
+        expect([scenario.state, before.now]).toEqual([{ ...before, now: 800 }, 0]);
+        scenario.step(message(1000, wireRoundEnd(5)));
+        const called = scenario.state;
+        scenario.step(socketError(1000 + CALLOUT_MS));
+        expect([called.calls === null, scenario.state]).toEqual([
+            false,
+            { ...called, calls: null, now: 1000 + CALLOUT_MS },
+        ]);
+        expect([
+            connectTimeoutEffects(tick),
+            connectTimeoutEffects(socketError),
+            resyncDueEffects(scenario.state),
+        ]).toEqual([
+            [{ type: "close_socket" }],
+            [],
+            [{ message: buildResyncMessage(), type: "send" }],
+        ]);
     });
 
     it("runs no IO and reads no clock: every socket, storage and navigation effect is only described", () => {

@@ -4,13 +4,14 @@ import {
     type GeneratedScenario,
     answeredBySwitch,
     branchAfter,
+    checkpointState,
     expecting,
     insertedAfter,
     loadSeatScenario,
     receivedPayload,
     switchedOnBefore,
 } from "#tests/fixtures/seat-transcripts";
-import { wireRuleRefusal } from "#tests/fixtures/wire";
+import { REPLAY_GAME_STARTED, WIRE_ROUND_STARTED, wireRuleRefusal } from "#tests/fixtures/wire";
 import {
     type ClientEffect,
     type GameClientState,
@@ -21,6 +22,9 @@ import {
     playDisplay,
     runSeatScenario,
     scenarioStateIndex,
+    startReplayClient,
+    stepGameClient,
+    takesIntent,
     timelineStates,
 } from "@/entities/client";
 import {
@@ -261,6 +265,59 @@ describe("stepGameClient - play switches", () => {
         const run = runClean(missed);
 
         expect(bySwitch(stateAt(missed, run, "ron prompt"))).toBe("auto_win");
+    });
+
+    it("never answers a new wait while the client cannot send: a prompt before the snapshot admits the reconnect stays the player's", () => {
+        const { scenario, transcript } = loadSeatScenario("reconnect_seat_1");
+        const switched = switchedOnBefore(scenario, "dropped", ["no_calls"]);
+        const prompt = receivedPayload(transcript, "prompt re-sent");
+        const unseen = { ...prompt, wi: Number(prompt.wi) + 1 };
+        const early = branchAfter(switched, "reopened", [
+            { event: { at: 5500, kind: "server_message", raw: unseen }, label: "early prompt" },
+        ]);
+        const state = stateAt(early, runClean(early), "early prompt");
+
+        expect(state.session).toMatchObject({ link: "open", status: "reconnecting" });
+        expect([state.switches.no_calls, state.decision?.waitId, bySwitch(state)]).toEqual([
+            true,
+            unseen.wi,
+            "open",
+        ]);
+    });
+
+    it("takes a play switch only on a live seat: never once the session ended, nor on a replay's board", () => {
+        const toggle = {
+            at: 4000,
+            intent: { playSwitch: "auto_win", type: "toggle_switch" },
+            kind: "intent",
+        } as const;
+        const ended = stepGameClient(checkpointState("own_turn_seat_1", "first draw"), {
+            at: 3900,
+            code: 4002,
+            kind: "transport_closed",
+            reason: "",
+        }).state;
+        const replay = [REPLAY_GAME_STARTED, WIRE_ROUND_STARTED].reduce(
+            (state, raw) => stepGameClient(state, { at: 0, kind: "replay_line", raw }).state,
+            startReplayClient(0),
+        );
+
+        expect([ended.session?.status, ended.table.phase, replay.table.phase]).toEqual([
+            "ended",
+            "in_round",
+            "in_round",
+        ]);
+        expect(
+            [ended, replay].map((state) => [
+                takesIntent(state, toggle.intent),
+                stepGameClient(state, toggle),
+            ]),
+        ).toEqual(
+            [ended, replay].map((state) => [
+                false,
+                { effects: [], state: { ...state, now: 4000 } },
+            ]),
+        );
     });
 
     it("never answers again a decision the server's refusal reopened", () => {

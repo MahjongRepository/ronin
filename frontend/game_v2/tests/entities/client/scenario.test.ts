@@ -283,18 +283,26 @@ describe("stepGameClient - generated call prompt", () => {
         expect(turn.table.players[1].tiles).toHaveLength(11);
     });
 
-    it("keeps the turn open on a discard kuikae forbids, sending nothing", () => {
+    it("keeps a decision open on an intent it does not take, sending nothing: a discard kuikae forbids or a pass on the turn, a discard on the prompt", () => {
+        const pass = { at: 6100, intent: { type: "pass" }, kind: "intent" } as const;
         const kuikae = branchAfter(scenario, "turn", [
-            {
-                event: { at: 6000, intent: { tileId: 9, type: "discard" }, kind: "intent" },
-                label: "kuikae discard",
-            },
+            { event: discardAt(6000, 9), label: "kuikae discard" },
+            { event: pass, label: "pass" },
+        ]);
+        const onPrompt = branchAfter(scenario, "pon prompt", [
+            { event: discardAt(12_100, 56), label: "prompt discard" },
         ]);
         const run = runClean(kuikae);
+        const promptRun = runClean(onPrompt);
+        const turn = stateAt(kuikae, run, "turn").decision;
+        const prompt = stateAt(onPrompt, promptRun, "pon prompt").decision;
 
-        expect(stateAt(kuikae, run, "kuikae discard").decision).toBe(
-            stateAt(kuikae, run, "turn").decision,
-        );
+        expect([turn?.status.kind, prompt?.kind]).toEqual(["open", "call"]);
+        expect([
+            stateAt(kuikae, run, "kuikae discard").decision,
+            stateAt(kuikae, run, "pass").decision,
+            stateAt(onPrompt, promptRun, "prompt discard").decision,
+        ]).toEqual([turn, turn, prompt]);
     });
 
     it("moves the turn, the wall and the drawer's hand on another seat's draw notice, ahead of its discard", () => {
@@ -758,6 +766,24 @@ describe("stepGameClient - generated reconnect", () => {
         expect(stateAt(refused, run, "refused").notice).toMatchObject({ code: "invalid_pon" });
         expect(stateAt(refused, run, "stale").decision?.status).toMatchObject({
             at: 6900,
+            kind: "submitted",
+        });
+    });
+
+    it("reopens a refused answer past the prompt's deadline as expired at once, still taking one answer", () => {
+        const late = branchAfter(scenario, "pon chosen", [
+            lateError(8100, wireRuleRefusal(resentWaitId), "refused late"),
+            { effects: [ponHakuSent], event: { at: 8200, intent: ponHaku, kind: "intent" } },
+            { event: { at: 8300, intent: ponHaku, kind: "intent" }, label: "again" },
+        ]);
+        const run = runClean(late);
+        const refused = stateAt(late, run, "refused late");
+
+        expect(refused.decision).toMatchObject({ deadline: 8000, status: { kind: "expired" } });
+        expect(refused.notice).toMatchObject({ code: "invalid_pon", kind: "refused" });
+        expect(nextDeadline(refused)).toBe(refused.notice?.until);
+        expect(stateAt(late, run, "again").decision?.status).toMatchObject({
+            at: 8200,
             kind: "submitted",
         });
     });

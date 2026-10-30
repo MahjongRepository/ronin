@@ -1,5 +1,5 @@
 import { render } from "lit-html";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { clientEvent } from "#tests/fixtures/scenario";
 import {
@@ -341,6 +341,31 @@ describe("stepGameClient - desync around the game's start and end", () => {
 });
 
 describe("stepGameClient - a late second snapshot", () => {
+    it("replaces an expired decision the player left unanswered when its wait is opened again, timed afresh from the server's elapsed time", () => {
+        const resentAt = AT + 100;
+        const resynced = run(onTurn(), [
+            message(AT, { t: 999 }),
+            message(resentAt, SNAPSHOT),
+            message(resentAt, RESENT_DRAW),
+        ]).state;
+        const first = resynced.decision;
+        assert(first?.kind === "turn" && first.deadline !== null && first.baseDeadline !== null);
+        const expired = run(resynced, [tick(first.deadline)]).state;
+        const shift = first.deadline + 500 - resentAt;
+        const reopened = run(expired, [message(resentAt + shift, RESENT_DRAW)]);
+
+        expect(expired.decision?.status.kind).toBe("expired");
+        expect([reopened.effects, reopened.state.decision]).toEqual([
+            [],
+            {
+                ...first,
+                baseDeadline: first.baseDeadline + shift,
+                deadline: first.deadline + shift,
+                openedAt: resentAt + shift,
+            },
+        ]);
+    });
+
     it("keeps the answer the player sent to the first snapshot's wait when a second repeats it", () => {
         const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
         const askedTwice = run(desynced, [tick(AT + RESYNC_ANSWER_MS)]);

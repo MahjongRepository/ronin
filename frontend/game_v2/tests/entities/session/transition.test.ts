@@ -109,6 +109,33 @@ describe("stepSession", () => {
         });
     });
 
+    it("ignores a valid input it has no transition for in its state, keeping its state and asking for nothing", () => {
+        const recovering = sessionScenario(null);
+        const open = playing();
+        const down = playing();
+        down.step(dropped(100));
+        const found = recovered(200, {
+            gameClientUrl: "/play",
+            gameId: "g1",
+            handoff: HANDOFF,
+            kind: "found",
+        });
+        const outside: [SessionScenario, SessionInput][] = [
+            [recovering, opened(200)],
+            [recovering, closed(200, 1006)],
+            [open, opened(200)],
+            [open, found],
+            [down, dropped(200)],
+        ];
+
+        expect(
+            outside.map(([scenario, input]) => {
+                const before = scenario.state;
+                return [scenario.step(input), scenario.state === before];
+            }),
+        ).toEqual(outside.map(() => [[], true]));
+    });
+
     describe("retries", () => {
         it("resends RECONNECT on the open socket after each reconnect_retry_later, backing off to 15 s, and gives up after 15 tries", () => {
             const scenario = resumingAtJoin();

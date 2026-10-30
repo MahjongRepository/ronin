@@ -66,8 +66,14 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`ClientEffect`), and only the live driver (`views/game.ts`) executes them. Timers are not
   effects: the state holds its pending deadlines, `nextDeadline` derives the earliest, and the
   driver keeps one timer armed to it that comes back as a tick. A tick before a deadline, or with
-  none, does nothing, so a stale timer cannot act. Display-only data (the game view's debug log)
-  stays in the view, out of the state.
+  none, does nothing, so a stale timer cannot act. A valid event the dispatcher otherwise ignores
+  (a socket error, an intent with nothing to answer) is not a tick: it advances `now` and runs the
+  expiry and the resync settlement every event runs, so it can send a resync request that came
+  due, but only a tick drives the session's deadlines (a connect timeout, a retry). An event tag
+  the client does not know is a bug, thrown as an ordinary error (`assertNever`); malformed wire
+  input puts the client out of step through parsing (Desync), and a recognized message the table
+  cannot take throws a `DesyncError`. Display-only data (the game view's debug log) stays in the
+  view, out of the state.
 * **One client state.** The dispatcher composes the session, the table (`entities/table`) and the
   viewer's interaction into one immutable state: the viewer's seat, its open decision, its
   furiten, the timer settings, the round confirm it owes, when the first deal is due, the calls
@@ -312,7 +318,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   and a spent retry budget end the session, cancel its retry and forget the handoff, and stay on the
   page, whose board says why with a way back; a game end ends it on the page and forgets the handoff,
   since its ticket will never hold the seat again; any other close is
-  retried, 1000 included (`docs/architecture.md`, Game client contract). An ended session ignores
+  retried, 1000 included (`docs/architecture.md`, Game client contract). A valid input the machine
+  has no transition for in its state changes nothing and asks for nothing. An ended session ignores
   everything after, except that leaving still goes to the lobby from an end that stayed on the page.
   Leaving while the session holds or works for the seat hands it to an AI, so the page asks first
   (`PlayUi`), modally: the rest of the page is inert, Stay is the primary action and takes the focus,
