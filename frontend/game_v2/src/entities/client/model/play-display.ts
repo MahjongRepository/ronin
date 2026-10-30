@@ -24,10 +24,7 @@ import {
 import { type LoadStatus, assertNever } from "@/shared/lib";
 import {
     CALL_TYPE,
-    CLIENT_MESSAGE_TYPE,
     CLOSE_CODE,
-    type ClientMessage,
-    GAME_ACTION,
     GAME_ERROR_CODE,
     KAN_TYPE,
     SESSION_ERROR_CODE,
@@ -39,7 +36,7 @@ import {
     firstDealCountdown,
     roundConfirmCountdown,
 } from "./countdown";
-import { answerDecision } from "./decision";
+import { sameIntent } from "./decision";
 import { takesIntent } from "./dispatch";
 import { PLAY_SWITCHES } from "./play-switches";
 import {
@@ -264,12 +261,11 @@ function submittedTileId(decision: Decision | null): number | null {
     if (decision?.status.kind !== "submitted") {
         return null;
     }
-    const { message } = decision.status;
-    if (message.t !== CLIENT_MESSAGE_TYPE.GAME_ACTION) {
-        return null;
+    const { intent } = decision.status;
+    if (intent.type === "discard") {
+        return intent.tileId;
     }
-    const played = message.a === GAME_ACTION.DISCARD || message.a === GAME_ACTION.DECLARE_RIICHI;
-    return played ? message.ti : null;
+    return intent.type === "choose" && intent.offer.kind === "riichi" ? intent.offer.tileId : null;
 }
 
 /**
@@ -530,18 +526,16 @@ function firstStepActions(
     return [...wins, ...riichi, ...perKind, ...pass];
 }
 
-/** Whether pressing `candidate` sends what the answered decision sent. */
-function sentBy(state: GameClientState, candidate: DecisionAction, sent: ClientMessage): boolean {
-    const { decision, table, viewerSeat } = state;
-    if (decision === null || candidate.command.kind !== "intent") {
+/** Whether pressing `candidate` gives the answer the decision was answered with. */
+function sentBy(candidate: DecisionAction, sent: DecisionIntent): boolean {
+    if (candidate.command.kind !== "intent") {
         return false;
     }
     const { intent } = candidate.command;
     if (intent.type !== "choose" && intent.type !== "pass" && intent.type !== "discard") {
         return false;
     }
-    const viewer = table.players.find((player) => player.seat === viewerSeat);
-    return JSON.stringify(answerDecision(decision, intent, viewer)) === JSON.stringify(sent);
+    return sameIntent(intent, sent);
 }
 
 /**
@@ -564,9 +558,7 @@ function decisionActions(state: GameClientState, ui: PlayUi): DecisionAction[] {
     if (status?.kind !== "submitted") {
         return controls;
     }
-    return controls.map((candidate) =>
-        answeredBy(candidate, sentBy(answered, candidate, status.message)),
-    );
+    return controls.map((candidate) => answeredBy(candidate, sentBy(candidate, status.intent)));
 }
 
 function answeredBy(candidate: DecisionAction, chosen: boolean): DecisionAction {

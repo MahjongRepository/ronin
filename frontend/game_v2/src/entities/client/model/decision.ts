@@ -318,6 +318,24 @@ function offerKey(offer: Offer): string {
     }
 }
 
+/** Whether two intents give a decision the same answer: the same offer chosen, the same tile discarded, or a pass. */
+export function sameIntent(first: DecisionIntent, second: DecisionIntent): boolean {
+    switch (first.type) {
+        case "choose": {
+            return second.type === "choose" && offerKey(first.offer) === offerKey(second.offer);
+        }
+        case "discard": {
+            return second.type === "discard" && first.tileId === second.tileId;
+        }
+        case "pass": {
+            return second.type === "pass";
+        }
+        default: {
+            return assertNever(first);
+        }
+    }
+}
+
 function offerMessage(offer: Offer, waitId: number): ClientMessage {
     switch (offer.kind) {
         case "tsumo": {

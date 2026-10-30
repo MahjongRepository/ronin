@@ -86,8 +86,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   both where the server stands, never a fresh full turn. Past it the decision shows as expired, for
   display only: the server alone decides by the wait id whether an answer counts, so an expired
   decision still takes one answer, and the client never answers without the player's instruction,
-  standing (a play switch) or given (a press). Answering sends the
-  action with the decision's wait id once and marks it submitted; the server's next move closes
+  standing (a play switch) or given (a press). Answering sends the action with the decision's wait
+  id once and marks it submitted with the intent it took, which the display reads for the tile
+  played and the control that answered, never the wire message; the server's next move closes
   it, a refusal while its wait goes on (a game error but a stale one, or the socket's rate limit)
   reopens it, and a dropped socket drops it, since the reconnect re-sends a wait the server still
   owes the seat. A refusal counts only when it names the decision's wait id (`refusalOf`): the rate

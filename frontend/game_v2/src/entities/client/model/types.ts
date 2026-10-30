@@ -3,7 +3,6 @@ import { type Call, type KanDeclaredEvent, type TableState } from "@/entities/ta
 import { type HandoffRecovery } from "@/shared/api";
 import {
     type CallType,
-    type ClientMessage,
     type KanType,
     type ReplayLine,
     type TimerSettings,
@@ -38,8 +37,8 @@ export type PlaySwitch = "auto_win" | "no_calls" | "auto_discard";
 export type PlaySwitches = Readonly<Record<PlaySwitch, boolean>>;
 
 /**
- * Where a decision stands: open for an answer, answered with the action sent (by the player's press, or by the play
- * switch that answered it, `bySwitch`), or past its deadline in logical time. Expired is for display: it still takes
+ * Where a decision stands: open for an answer, answered with the intent the dispatcher took and sent (by the player's
+ * press, or by the play switch that answered it, `bySwitch`), or past its deadline in logical time. Expired is for display: it still takes
  * one answer, which the server judges by its wait id, and the client never sends one without the player's
  * instruction.
  */
@@ -48,7 +47,7 @@ export type DecisionStatus =
     | {
           readonly kind: "submitted";
           readonly at: number;
-          readonly message: ClientMessage;
+          readonly intent: DecisionIntent;
           readonly bySwitch: PlaySwitch | null;
       }
     | { readonly kind: "expired" };

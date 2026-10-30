@@ -422,7 +422,7 @@ function onDecisionIntent(
     if (decision === null || message === null) {
         return { effects: [], state };
     }
-    const status = { at: state.now, bySwitch, kind: "submitted", message } as const;
+    const status = { at: state.now, bySwitch, intent, kind: "submitted" } as const;
     return {
         effects: [{ message, type: "send" }],
         state: { ...state, decision: { ...decision, status } },

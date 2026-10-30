@@ -39,7 +39,6 @@ import {
     GAME_ERROR_CODE,
     KAN_TYPE,
     SESSION_ERROR_CODE,
-    buildChiAction,
     buildConfirmRoundAction,
     buildDiscardAction,
     buildJoinGameMessage,
@@ -259,8 +258,8 @@ describe("stepGameClient - generated call prompt", () => {
         const submitted = {
             at: 5000,
             bySwitch: null,
+            intent: chi,
             kind: "submitted",
-            message: buildChiAction(CALLED_THREE_MAN, [0, 4], 1),
         };
 
         expect(stateAt(twice, run, "chi chosen").decision?.status).toEqual(submitted);
