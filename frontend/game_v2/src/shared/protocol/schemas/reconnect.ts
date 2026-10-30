@@ -2,12 +2,15 @@ import { z } from "zod/mini";
 
 import {
     ABORTIVE_DRAW_TYPE,
+    NUM_PLAYERS,
     ROUND_RESULT_TYPE,
     SESSION_MESSAGE_TYPE,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
+import { meldCompactCaller } from "@/shared/protocol/decoders/meld";
 
 import {
+    compactMeldSchema,
     gamePlayerInfoSchema,
     seatSchema,
     secondsSchema,
@@ -36,15 +39,35 @@ const discardInfoSchema = z.pipe(
 
 // --- Player reconnect state (inside `pst` array) ---
 
+const DEALT_HAND_SIZE = 13;
+
+/** The tiles a meld takes from the closed hand's count: a kan's fourth comes back as its replacement draw. */
+const TILES_PER_MELD = 3;
+
+/** Whether a closed hand's count is one a turn leaves beside its melds: the dealt 13 less a meld's 3, a draw's 1 more. */
+function isHandCount(tileCount: number, meldCount: number): boolean {
+    const dealt = tileCount + meldCount * TILES_PER_MELD;
+    return dealt === DEALT_HAND_SIZE || dealt === DEALT_HAND_SIZE + 1;
+}
+
 const playerReconnectStateSchema = z.pipe(
-    z.object({
-        dsc: z.array(discardInfoSchema),
-        ml: z.array(z.int()),
-        ri: z.boolean(),
-        s: seatSchema,
-        sc: z.number(),
-        tc: z.int().check(z.gte(0)),
-    }),
+    z
+        .object({
+            dsc: z.array(discardInfoSchema),
+            ml: z.array(compactMeldSchema),
+            ri: z.boolean(),
+            s: seatSchema,
+            sc: z.number(),
+            tc: z.int().check(z.gte(0)),
+        })
+        .check(
+            z.refine((raw) => raw.ml.every((meld) => meldCompactCaller(meld) === raw.s), {
+                message: "a seat's state lists a meld another seat called",
+            }),
+            z.refine((raw) => isHandCount(raw.tc, raw.ml.length), {
+                message: "a seat's state holds a closed hand no turn leaves beside its melds",
+            }),
+        ),
     z.transform((raw) => ({
         discards: raw.dsc,
         isRiichi: raw.ri,
@@ -86,34 +109,76 @@ const roundHistoryEntrySchema = z.pipe(
 
 // --- Game reconnected ---
 
+/** Whether a snapshot's list names each of the four seats once, in seat order, as the server lists them. */
+function coversEverySeat(entries: readonly { readonly seat: number }[]): boolean {
+    return entries.length === NUM_PLAYERS && entries.every((entry, index) => entry.seat === index);
+}
+
+interface SnapshotWhole {
+    readonly mt: readonly number[];
+    readonly n: number;
+    readonly p: readonly { readonly seat: number }[];
+    readonly pst: readonly { readonly seat: number; readonly tileCount: number }[];
+    readonly re?: unknown;
+    readonly rh: readonly unknown[];
+    readonly s: number;
+}
+
+/** Whether the viewer's own tiles are its whole closed hand: as many as its seat's count, each tile once. */
+function holdsOwnHand(raw: SnapshotWhole): boolean {
+    return raw.mt.length === raw.pst[raw.s].tileCount && new Set(raw.mt).size === raw.mt.length;
+}
+
+/**
+ * A snapshot whole enough to rebuild the table from it alone: every seat's player and state, the viewer's whole hand,
+ * and the round history's every finished round, one per deal before the one it shows (`n` counts the deals) and that
+ * one too once it ended. A snapshot lacking any of them is refused rather than made whole with a guess.
+ */
+function isComplete(raw: SnapshotWhole): boolean {
+    const finished = raw.n + (raw.re === undefined ? 0 : 1);
+    return (
+        coversEverySeat(raw.p) &&
+        coversEverySeat(raw.pst) &&
+        holdsOwnHand(raw) &&
+        raw.rh.length === finished
+    );
+}
+
 export const gameReconnectedSchema = z.pipe(
-    z.object({
-        cp: seatSchema,
-        dc: z.tuple([z.number(), z.number()]),
-        dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
-        di: z.array(tileIdSchema),
-        dl: seatSchema,
-        el: z.optional(secondsSchema),
-        f: z.boolean(),
-        gid: z.string(),
-        h: z.int(),
-        ld: z.optional(seatSchema),
-        mt: z.array(tileIdSchema),
-        n: z.int(),
-        oc: z.optional(z.boolean()),
-        p: z.array(gamePlayerInfoSchema),
-        pst: z.array(playerReconnectStateSchema),
-        r: z.int(),
-        rc: wireScoreSchema,
-        re: z.optional(z.record(z.string(), z.unknown())),
-        rh: z.array(roundHistoryEntrySchema),
-        s: seatSchema,
-        tm: timerSettingsSchema,
-        tr: z.int(),
-        type: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
-        w: z.int(),
-        wi: waitIdSchema,
-    }),
+    z
+        .object({
+            cp: seatSchema,
+            dc: z.tuple([z.number(), z.number()]),
+            dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
+            di: z.array(tileIdSchema),
+            dl: seatSchema,
+            el: z.optional(secondsSchema),
+            f: z.boolean(),
+            gid: z.string(),
+            h: z.int(),
+            ld: z.optional(seatSchema),
+            mt: z.array(tileIdSchema),
+            n: z.int(),
+            oc: z.optional(z.boolean()),
+            p: z.array(gamePlayerInfoSchema),
+            pst: z.array(playerReconnectStateSchema),
+            r: z.int(),
+            rc: wireScoreSchema,
+            re: z.optional(z.record(z.string(), z.unknown())),
+            rh: z.array(roundHistoryEntrySchema),
+            s: seatSchema,
+            tm: timerSettingsSchema,
+            tr: z.int(),
+            type: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
+            w: z.int(),
+            wi: waitIdSchema,
+        })
+        .check(
+            z.refine(isComplete, {
+                message:
+                    "the snapshot lacks a seat's player or state, or a finished round of its history",
+            }),
+        ),
     z.transform((raw) => ({
         confirmationOwed: raw.oc ?? false,
         currentPlayerSeat: raw.cp,

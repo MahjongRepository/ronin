@@ -35,7 +35,7 @@ describe("parseServerMessage", () => {
                 gid: "game-123",
                 h: 0,
                 mt: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                n: 1,
+                n: 0,
                 p: [
                     { ai: 0, nm: "Alice", s: 0 },
                     { ai: 1, nm: "Bot1", s: 1 },
@@ -44,7 +44,7 @@ describe("parseServerMessage", () => {
                 ],
                 pst: [
                     { dsc: [], ml: [], ri: false, s: 0, sc: 250, tc: 13 },
-                    { dsc: [{ tg: true, ti: 50 }], ml: [100], ri: false, s: 1, sc: 250, tc: 13 },
+                    { dsc: [{ tg: true, ti: 50 }], ml: [101], ri: false, s: 1, sc: 250, tc: 10 },
                     { dsc: [], ml: [], ri: false, s: 2, sc: 250, tc: 13 },
                     { dsc: [], ml: [], ri: false, s: 3, sc: 250, tc: 13 },
                 ],

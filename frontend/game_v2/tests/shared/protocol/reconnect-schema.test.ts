@@ -7,6 +7,17 @@ import {
 } from "@/shared/protocol/constants";
 import { gameReconnectedSchema } from "@/shared/protocol/schemas/reconnect";
 
+const FINISHED_ROUND = {
+    dl: 0,
+    h: 0,
+    ps: [],
+    rs: [],
+    rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
+    sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
+    w: 0,
+    ws: [],
+};
+
 function makeReconnectPayload(overrides?: Record<string, unknown>): Record<string, unknown> {
     return {
         cp: 2,
@@ -39,7 +50,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
             },
             {
                 dsc: [{ rd: true, tg: false, ti: 100 }],
-                ml: [6080],
+                ml: [6081],
                 ri: true,
                 s: 1,
                 sc: 240,
@@ -64,7 +75,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         ],
         r: 1,
         rc: 20,
-        rh: [],
+        rh: [FINISHED_ROUND, FINISHED_ROUND],
         s: 0,
         tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
         tr: 52,
@@ -111,11 +122,12 @@ describe("gameReconnectedSchema", () => {
     it("reads a round advance's result, owed confirmation and the finished rounds' ledger", () => {
         const result = parsePayload({
             el: 4.5,
+            n: 1,
             oc: true,
             re: {
                 rn: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
                 rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-                sch: {},
+                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
                 scs: { "0": 250, "1": 240, "2": 260, "3": 250 },
             },
             rh: [
@@ -126,11 +138,21 @@ describe("gameReconnectedSchema", () => {
                     ps: [3],
                     rs: [1],
                     rt: 1,
-                    sch: { "0": 39, "2": -39 },
+                    sch: { "0": 39, "1": 0, "2": -39, "3": 0 },
                     w: 0,
                     ws: [0],
                 },
-                { dl: 1, h: 0, ps: [], rn: "four_winds", rs: [], rt: 4, sch: {}, w: 0, ws: [] },
+                {
+                    dl: 1,
+                    h: 0,
+                    ps: [],
+                    rn: "four_winds",
+                    rs: [],
+                    rt: 4,
+                    sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
+                    w: 0,
+                    ws: [],
+                },
             ],
         });
 
@@ -150,7 +172,7 @@ describe("gameReconnectedSchema", () => {
                 paoSeats: [3],
                 resultType: ROUND_RESULT_TYPE.RON,
                 riichiSeats: [1],
-                scoreChanges: { "0": 3900, "2": -3900 },
+                scoreChanges: { "0": 3900, "1": 0, "2": -3900, "3": 0 },
                 tenpaiSeats: null,
                 wind: 0,
                 winnerSeats: [0],
@@ -163,7 +185,7 @@ describe("gameReconnectedSchema", () => {
                 paoSeats: [],
                 resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
                 riichiSeats: [],
-                scoreChanges: {},
+                scoreChanges: { "0": 0, "1": 0, "2": 0, "3": 0 },
                 tenpaiSeats: null,
                 wind: 0,
                 winnerSeats: [],
@@ -219,7 +241,7 @@ describe("gameReconnectedSchema", () => {
 
         expect(state1.seat).toBe(1);
         expect(state1.isRiichi).toBe(true);
-        expect(state1.melds).toEqual([6080]);
+        expect(state1.melds).toEqual([6081]);
         expect(state1.discards).toEqual([
             { isRiichiDiscard: true, isTsumogiri: false, tileId: 100 },
         ]);

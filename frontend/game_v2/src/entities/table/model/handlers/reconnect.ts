@@ -21,13 +21,7 @@ function claimedDiscardKeys(melds: readonly MeldRecord[]): ReadonlySet<string> {
     );
 }
 
-function snapshotDiscards(
-    seat: SnapshotSeat | undefined,
-    claimed: ReadonlySet<string>,
-): DiscardRecord[] {
-    if (seat === undefined) {
-        return [];
-    }
+function snapshotDiscards(seat: SnapshotSeat, claimed: ReadonlySet<string>): DiscardRecord[] {
     return seat.discards.map((discard) => ({
         claimed: claimed.has(`${seat.seat}:${discard.tileId}`),
         isRiichi: discard.isRiichiDiscard,
@@ -37,23 +31,24 @@ function snapshotDiscards(
 }
 
 /**
- * One seat of the snapshot: the reconnected seat's own hand by its tiles, every other by its closed-hand count,
- * since the snapshot shows other hands face down.
+ * The snapshot's seat `seat`, from its player and its state, which the snapshot lists in seat order: the reconnected
+ * seat's own hand by its tiles, every other by its closed-hand count, since the snapshot shows other hands face down.
  */
 function snapshotPlayer(
     snapshot: GameReconnectedEvent,
-    info: GameReconnectedEvent["players"][number],
+    seat: number,
     claimed: ReadonlySet<string>,
 ): PlayerState {
-    const seatState = snapshot.playerStates.find((state) => state.seat === info.seat);
+    const info = snapshot.players[seat];
+    const seatState = snapshot.playerStates[seat];
     const isViewer = info.seat === snapshot.seat;
     return {
-        ...createInitialPlayerState({ ...info, score: seatState?.score ?? 0 }),
+        ...createInitialPlayerState({ ...info, score: seatState.score }),
         aiStandIn: info.aiStandIn,
-        concealedCount: isViewer ? 0 : (seatState?.tileCount ?? 0),
+        concealedCount: isViewer ? 0 : seatState.tileCount,
         discards: snapshotDiscards(seatState, claimed),
-        isRiichi: seatState?.isRiichi ?? false,
-        melds: (seatState?.melds ?? []).map(decodeMeldCompact),
+        isRiichi: seatState.isRiichi,
+        melds: seatState.melds.map(decodeMeldCompact),
         tiles: isViewer ? snapshot.myTiles : [],
     };
 }
@@ -72,6 +67,8 @@ function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
  * hands it reveals, and the kan its win robbed as declared: the server never completes a robbed kan, so the snapshot's hand still holds its
  * tiles. Its scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
  * Its round history lists every finished round, the one whose result it shows included, which the table takes whole.
+ * The parsed snapshot is complete (`gameReconnectedSchema`): each seat's player and state, in seat order, so nothing
+ * of a seat is filled in here.
  */
 export function applyGameReconnected(
     state: TableState,
@@ -91,7 +88,7 @@ export function applyGameReconnected(
         honbaSticks: snapshot.honbaSticks,
         lastDiscardSeat: snapshot.latestDiscardSeat,
         phase: roundResult === null ? "in_round" : "round_ended",
-        players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),
+        players: snapshot.players.map((info) => snapshotPlayer(snapshot, info.seat, claimed)),
         revealedSeats: [],
         riichiCost: snapshot.riichiCost,
         riichiSticks: snapshot.riichiSticks,

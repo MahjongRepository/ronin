@@ -66,7 +66,13 @@ describe("isReplayEvent", () => {
             game_started: WIRE_GAME_STARTED,
             meld: { m: 24_384, t: 0 },
             riichi_declared: { s: 0, t: 5 },
-            round_end: { rn: "four_riichi", rt: 4, sch: {}, scs: { "0": 250 }, t: 4 },
+            round_end: {
+                rn: "four_riichi",
+                rt: 4,
+                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
+                scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
+                t: 4,
+            },
             round_started: {
                 cp: 0,
                 di: [0],

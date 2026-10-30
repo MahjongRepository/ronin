@@ -1,6 +1,7 @@
 import { z } from "zod/mini";
 
-import { SEAT_CONTROL_REASON, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import { NUM_PLAYERS, SEAT_CONTROL_REASON, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import { MAX_MELD_COMPACT } from "@/shared/protocol/decoders/meld";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
 export const tileIdSchema = z.int().check(z.gte(0), z.lte(135));
@@ -11,6 +12,9 @@ export const tileTypeSchema = z.int().check(z.gte(0), z.lte(33));
 export const seatSchema = z.int().check(z.gte(0), z.lte(3));
 
 export const waitIdSchema = z.int().check(z.gte(0));
+
+/** A meld in its compact (IMME) value, which `decodeMeldCompact` unpacks: only a value it can decode parses. */
+export const compactMeldSchema = z.int().check(z.gte(0), z.lte(MAX_MELD_COMPACT));
 
 export const seatControlReasonSchema = z.union([
     z.literal(SEAT_CONTROL_REASON.LEFT),
@@ -24,11 +28,23 @@ export const wireScoreSchema = z.pipe(
     z.transform((value) => value * WIRE_SCORE_DIVISOR),
 );
 
-// Wire score map: Record of string-keyed scores divided by WIRE_SCORE_DIVISOR.
-// Transforms wire values (e.g. 250) back to real scores (e.g. 25000).
-// Uses plain objects (not Map) so JSON.stringify works correctly.
+const SEAT_KEYS = Array.from({ length: NUM_PLAYERS }, (_seat, index) => String(index));
+
+/** Whether a score map names every seat once and nothing else, as every map the server builds does. */
+function namesEverySeat(rec: Readonly<Record<string, number>>): boolean {
+    const keys = Object.keys(rec);
+    return keys.length === NUM_PLAYERS && SEAT_KEYS.every((key) => key in rec);
+}
+
+/**
+ * A score per seat keyed by the seat, wire values (250) back to real scores (25000), as a plain object so it
+ * serializes. The server always sends every seat's, a zero included, so a map missing one does not parse rather than
+ * reading the missing seat as zero.
+ */
 export const wireScoreMapSchema = z.pipe(
-    z.record(z.string(), z.number()),
+    z
+        .record(z.string(), z.number())
+        .check(z.refine(namesEverySeat, { message: "a score map does not name every seat" })),
     z.transform((rec) =>
         Object.fromEntries(
             Object.entries(rec).map(([key, value]) => [key, value * WIRE_SCORE_DIVISOR]),

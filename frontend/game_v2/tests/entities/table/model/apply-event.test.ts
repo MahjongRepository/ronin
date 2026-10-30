@@ -473,8 +473,10 @@ describe("applyEvent - seat presence", () => {
 
 describe("applyEvent - game_reconnected", () => {
     test("rebuilds the seat's own hand by its tiles, every other by its count, and claimed river tiles", () => {
+        const ownHand = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40];
         const [error, snapshot] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
+            mt: ownHand,
             pst: [
                 {
                     dsc: [{ ti: 100 }, { rd: true, ti: 33 }],
@@ -485,6 +487,8 @@ describe("applyEvent - game_reconnected", () => {
                     tc: 13,
                 },
                 { dsc: [], ml: [17_409], ri: false, s: 1, sc: 250, tc: 11 },
+                { dsc: [], ml: [], ri: false, s: 2, sc: 250, tc: 13 },
+                { dsc: [], ml: [], ri: false, s: 3, sc: 260, tc: 14 },
             ],
             s: 1,
         });
@@ -493,9 +497,9 @@ describe("applyEvent - game_reconnected", () => {
 
         expect(next.players.map((p) => [p.name, p.tiles, p.concealedCount])).toEqual([
             ["P1", [], 13],
-            ["P2", [0, 1, 2], 0],
-            ["B1", [], 0],
-            ["B2", [], 0],
+            ["P2", ownHand, 0],
+            ["B1", [], 13],
+            ["B2", [], 14],
         ]);
         expect(next.players[0].discards).toEqual([
             { claimed: false, isRiichi: false, isTsumogiri: false, tileId: 100 },
@@ -505,18 +509,31 @@ describe("applyEvent - game_reconnected", () => {
     });
 
     test("names the round from the first dealer its history lists, else from the dealer in play", () => {
-        const history = { h: 0, ps: [], rs: [], rt: 3, sch: {}, w: 0, ws: [] };
+        const history = {
+            h: 0,
+            ps: [],
+            rs: [],
+            rt: 3,
+            sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
+            w: 0,
+            ws: [],
+        };
         const [error, later] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
             dl: 1,
-            n: 5,
+            n: 2,
             rh: [
                 { ...history, dl: 3 },
                 { ...history, dl: 0 },
             ],
             w: 1,
         });
-        const [firstError, first] = parseServerMessage({ ...WIRE_GAME_RECONNECTED, dl: 2 });
+        const [firstError, first] = parseServerMessage({
+            ...WIRE_GAME_RECONNECTED,
+            dl: 2,
+            n: 0,
+            rh: [],
+        });
         assert(error === null && later.type === "game_reconnected");
         assert(firstError === null && first.type === "game_reconnected");
 

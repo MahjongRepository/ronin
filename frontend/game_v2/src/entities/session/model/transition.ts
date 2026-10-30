@@ -308,9 +308,13 @@ function onTick(session: ActiveSession, at: number): SessionStep {
 /**
  * Answer a session error. A refusal ends the session. The others answer an identity message, so only an identifying
  * session takes them: `join_game_already_started` turns a JOIN_GAME into RECONNECT, and `reconnect_retry_later` (to a
- * RECONNECT) or a rate limit resends the identity message after a session retry.
+ * RECONNECT) or a rate limit resends the identity message after a session retry, as does `not_in_game` while
+ * identifying, the answer to an out-of-step client's resync request on a socket that holds no seat.
  */
 function onSessionError(session: ActiveSession, code: string, at: number): SessionStep {
+    if (session.status === "identifying" && code === SESSION_ERROR_CODE.NOT_IN_GAME) {
+        return scheduleSessionRetry(session, at);
+    }
     if (isRefusal(code)) {
         return endSession(session, { code, kind: "refused" });
     }

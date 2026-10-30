@@ -335,7 +335,7 @@ function takeMessageInStep(
             throw error;
         }
         if (failsRecovery(stepped, message)) {
-            return recoveryFailedStep(stepped, error.message);
+            return recoveryFailedStep(stepped, "impossible_state", error.message);
         }
         const lost = desyncStep(stepped, "impossible_state", error.message);
         return message.type === "game_end" ? gameEndOutOfStep(before, lost, message) : lost;
@@ -367,7 +367,7 @@ function onServerMessage(state: GameClientState, raw: Record<string, unknown>): 
     if (error) {
         return untraced(
             isSnapshotPayload(raw)
-                ? recoveryFailedStep(state, error.message)
+                ? recoveryFailedStep(state, "unreadable_message", error.message)
                 : desyncStep(state, "unreadable_message", error.message),
         );
     }

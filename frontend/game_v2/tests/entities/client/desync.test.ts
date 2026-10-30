@@ -7,7 +7,13 @@ import {
     loadSeatScenario,
     receivedPayload,
 } from "#tests/fixtures/seat-transcripts";
-import { type WirePayload, wireSessionError } from "#tests/fixtures/wire";
+import {
+    type WirePayload,
+    wireNumberList,
+    wirePayloadList,
+    wirePayloadOf,
+    wireSessionError,
+} from "#tests/fixtures/wire";
 import {
     type ClientEffect,
     type ClientEvent,
@@ -127,6 +133,56 @@ const FAILURES: readonly FailureCase[] = [
     },
 ];
 
+const SNAPSHOT_SEATS = wirePayloadList(SNAPSHOT, "pst");
+const OWN_TILES = wireNumberList(SNAPSHOT, "mt");
+const PENDING_SNAPSHOT = receivedPayload(
+    loadSeatScenario("chankan_robbed_seat_1").transcript,
+    "reconnected",
+);
+const PENDING_RESULT = wirePayloadOf(PENDING_SNAPSHOT, "re");
+
+/** The snapshot with one seat's state left out, the others as the server sent them. */
+function withoutSeatState(seat: number): WirePayload {
+    return { ...SNAPSHOT, pst: SNAPSHOT_SEATS.filter((state) => state.s !== seat) };
+}
+
+/** The snapshot with seat 2's melds replaced by `melds`. */
+function withSeat2Melds(melds: readonly number[]): WirePayload {
+    return {
+        ...SNAPSHOT,
+        pst: SNAPSHOT_SEATS.map((state) => (state.s === 2 ? { ...state, ml: melds } : state)),
+    };
+}
+
+const INCOMPLETE_SNAPSHOTS: readonly { name: string; payload: WirePayload }[] = [
+    { name: "that does not parse", payload: { ...SNAPSHOT, mt: "not tiles" } },
+    { name: "missing a seat's state", payload: withoutSeatState(2) },
+    { name: "with no players", payload: { ...SNAPSHOT, p: [] } },
+    {
+        name: "listing a seat's state twice",
+        payload: { ...SNAPSHOT, pst: SNAPSHOT_SEATS.map((state) => ({ ...state, s: 0 })) },
+    },
+    { name: "with a meld that does not decode", payload: withSeat2Melds([-1]) },
+    { name: "with another seat's meld", payload: withSeat2Melds([6080]) },
+    { name: "whose history misses a finished round", payload: { ...SNAPSHOT, n: 1 } },
+    { name: "whose own hand misses a tile", payload: { ...SNAPSHOT, mt: OWN_TILES.slice(1) } },
+    {
+        name: "whose own hand holds a tile twice",
+        payload: { ...SNAPSHOT, mt: [OWN_TILES[1], ...OWN_TILES.slice(1)] },
+    },
+    {
+        name: "whose seat holds a count no turn leaves",
+        payload: {
+            ...SNAPSHOT,
+            pst: SNAPSHOT_SEATS.map((state) => (state.s === 2 ? { ...state, tc: 12 } : state)),
+        },
+    },
+    {
+        name: "whose pending result misses a seat's score",
+        payload: { ...PENDING_SNAPSHOT, re: { ...PENDING_RESULT, scs: { "0": 250, "2": 250 } } },
+    },
+];
+
 /** Step `events` from `state`, returning the state after them and every effect they asked for. */
 function run(
     state: GameClientState,
@@ -148,6 +204,36 @@ function sends(effects: readonly ClientEffect[]): ClientEffect[] {
 
 function discardIntent(at: number, tileId: number): ClientEvent {
     return { at, intent: { tileId, type: "discard" }, kind: "intent" };
+}
+
+const DOUBLE_RON_END = receivedPayload(
+    loadSeatScenario("double_ron_seat_1").transcript,
+    "round end",
+);
+const [firstWinner, ...otherWinners] = wirePayloadList(DOUBLE_RON_END, "wn");
+
+const DROPPED_AT = 4000;
+const OPENED_AT = 5001;
+const LOST_AT = 5002;
+const RECONNECT: ClientEffect = { message: buildReconnectMessage("ticket-1"), type: "send" };
+
+function undecodable(at: number): ClientEvent {
+    return { at, detail: "Received a non-binary frame", kind: "frame_undecodable" };
+}
+
+function drawNotice(at: number): ClientEvent {
+    return message(at, { s: 2, t: EVENT_TYPE.DRAW_NOTICE });
+}
+
+/** The first draw's socket dropped and reopened, the RECONNECT sent and its snapshot frame undecodable. */
+function lostWhileIdentifying(): GameClientState {
+    const reopened = run(onTurn(), [
+        closed(DROPPED_AT, 1006),
+        tick(OPENED_AT - 1),
+        opened(OPENED_AT),
+    ]);
+    expect(sends(reopened.effects)).toEqual([RECONNECT]);
+    return run(reopened.state, [undecodable(LOST_AT), drawNotice(6000)]).state;
 }
 
 describe("stepGameClient - desync", () => {
@@ -209,14 +295,50 @@ describe("stepGameClient - desync", () => {
         ]);
     });
 
-    it("ends the page as failed, closing its socket, when the snapshot that would rebuild it does not parse", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+    it.each(INCOMPLETE_SNAPSHOTS)(
+        "ends the page as failed, still out of step and closing its socket, on a snapshot $name",
+        ({ payload }) => {
+            const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
 
-        const failed = run(desynced, [message(AT + 100, { ...SNAPSHOT, mt: "not tiles" })]);
-        expect(sends(failed.effects)).toEqual([{ type: "close_socket" }]);
-        expect(failed.state.session).toMatchObject({ reason: { kind: "failed" }, status: "ended" });
-        expect(nextDeadline(failed.state)).toBeNull();
+            const failed = run(desynced, [message(AT + 100, payload)]);
+            expect(sends(failed.effects)).toEqual([{ type: "close_socket" }]);
+            expect(failed.state.session).toMatchObject({
+                reason: { kind: "failed" },
+                status: "ended",
+            });
+            expect(failed.state.desync).toMatchObject({ cause: "unreadable_message", since: AT });
+            expect(failed.state.table).toBe(desynced.table);
+            expect(nextDeadline(failed.state)).toBeNull();
+        },
+    );
+
+    it("records a loss of step when the snapshot that ends the page came while it was in step", () => {
+        const failed = run(onTurn(), [message(AT, withoutSeatState(2))]);
+
+        expect(failed.state.session).toMatchObject({ reason: { kind: "failed" } });
+        expect(failed.state.desync).toMatchObject({ cause: "unreadable_message", since: AT });
+        expect(failed.state.table.roundHistoryInStep).toBe(false);
     });
+
+    it.each([
+        {
+            name: "a winner's meld does not decode",
+            payload: { ...DOUBLE_RON_END, wn: [{ ...firstWinner, ml: [-1] }, ...otherWinners] },
+        },
+        {
+            name: "a seat's score is missing",
+            payload: { ...DOUBLE_RON_END, scs: { "0": 250, "1": 250, "3": 250 } },
+        },
+    ])(
+        "puts the client out of step on a round end where $name, opening no confirm",
+        ({ payload }) => {
+            const lost = run(checkpointState("double_ron_seat_1", "ron chosen"), [
+                message(5500, payload),
+            ]);
+            expect(lost.state.desync).toMatchObject({ cause: "unreadable_message" });
+            expect([lost.state.roundConfirm, lost.state.table.phase]).toEqual([null, "in_round"]);
+        },
+    );
 
     it("asks again when its request goes unanswered past its due time", () => {
         const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
@@ -427,5 +549,72 @@ describe("stepGameClient - a late second snapshot", () => {
         ]);
         expect(repeated.effects).toEqual([]);
         expect(repeated.state.decision?.status).toMatchObject({ kind: "submitted" });
+    });
+});
+
+describe("stepGameClient - out of step while the reconnect identifies", () => {
+    it("asks for a snapshot on the open socket once the reconnect's own goes unanswered, and is admitted by it", () => {
+        const lost = lostWhileIdentifying();
+        expect([lost.session?.status, lost.desync?.cause]).toEqual([
+            "identifying",
+            "undecodable_frame",
+        ]);
+        const due = LOST_AT + RESYNC_ANSWER_MS;
+        expect(nextDeadline(lost)).toBe(due);
+
+        const asked = run(lost, [tick(due - 1), tick(due)]);
+        expect(sends(asked.effects)).toEqual([RESYNC]);
+        const admitted = run(asked.state, [
+            message(due + 100, SNAPSHOT),
+            message(due + 100, RESENT_DRAW),
+        ]);
+        expect([admitted.state.session?.status, admitted.state.desync]).toEqual(["playing", null]);
+        expect(admitted.state.decision).toMatchObject({ status: { kind: "open" } });
+    });
+
+    it("ends the page once its requests are spent on answers that never decode, whatever deltas arrive", () => {
+        let state = lostWhileIdentifying();
+        for (let request = 1; request <= MAX_RESYNC_REQUESTS; request += 1) {
+            const due = nextDeadline(state) ?? 0;
+            const asked = run(state, [tick(due), undecodable(due + 10), drawNotice(due + 20)]);
+            expect(sends(asked.effects)).toEqual([RESYNC]);
+            ({ state } = asked);
+        }
+
+        const spent = run(state, [tick(nextDeadline(state) ?? 0)]);
+        expect(sends(spent.effects)).toEqual([{ type: "close_socket" }]);
+        expect(spent.state.session).toMatchObject({ reason: { kind: "failed" }, status: "ended" });
+        expect(nextDeadline(spent.state)).toBeNull();
+    });
+
+    it("resends the identity message when the server says the reopened socket holds no seat", () => {
+        const lost = lostWhileIdentifying();
+        const due = LOST_AT + RESYNC_ANSWER_MS;
+        const refused = run(lost, [
+            tick(due),
+            message(due + 10, wireSessionError(SESSION_ERROR_CODE.NOT_IN_GAME)),
+        ]);
+        expect(refused.state.session).toMatchObject({ status: "identifying" });
+
+        const resent = run(refused.state, [tick(nextDeadline(refused.state) ?? 0)]);
+        expect(sends(resent.effects)).toEqual([RECONNECT]);
+        const admitted = run(resent.state, [message(due + 2000, SNAPSHOT)]);
+        expect([admitted.state.session?.status, admitted.state.desync]).toEqual(["playing", null]);
+    });
+
+    it("asks nothing while a session retry waits, then gives the resent identity's snapshot its time", () => {
+        const lost = lostWhileIdentifying();
+        const due = LOST_AT + RESYNC_ANSWER_MS;
+        const later = run(lost, [
+            message(due - 1, wireSessionError(SESSION_ERROR_CODE.RECONNECT_RETRY_LATER)),
+        ]).state;
+        const retryAt = nextDeadline(later) ?? 0;
+        expect(retryAt).toBeGreaterThan(due);
+
+        const waiting = run(later, [tick(due), tick(retryAt - 1)]);
+        expect(sends(waiting.effects)).toEqual([]);
+        const resent = run(waiting.state, [tick(retryAt)]);
+        expect([sends(resent.effects), resent.state.resyncRequests]).toEqual([[RECONNECT], 0]);
+        expect(nextDeadline(resent.state)).toBe(retryAt + RESYNC_ANSWER_MS);
     });
 });

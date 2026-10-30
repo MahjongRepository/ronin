@@ -94,15 +94,18 @@ export function desyncStep(state: GameClientState, cause: DesyncCause, detail: s
 }
 
 /**
- * A snapshot that does not parse or that the client cannot take, or a game's end it cannot take while out of step: no
- * fresh snapshot can rebuild a client that cannot take one, so the page ends as failed.
+ * A snapshot that does not parse (an incomplete one included) or that the client cannot take, or a game's end it
+ * cannot take while out of step: no fresh snapshot can rebuild a client that cannot take one, so the page ends as
+ * failed, out of step with the server, which it stays if it was already.
  */
-export function recoveryFailedStep(state: GameClientState, detail: string): ClientStep {
-    const failed = failStep(state, `The server's game state could not be shown: ${detail}`);
-    return {
-        effects: [{ detail, type: "report_protocol_failure" }, ...failed.effects],
-        state: failed.state,
-    };
+export function recoveryFailedStep(
+    state: GameClientState,
+    cause: DesyncCause,
+    detail: string,
+): ClientStep {
+    const lost = desyncStep(state, cause, detail);
+    const failed = failStep(lost.state, `The server's game state could not be shown: ${detail}`);
+    return { effects: [...lost.effects, ...failed.effects], state: failed.state };
 }
 
 /**
@@ -132,10 +135,24 @@ export function resynced(state: GameClientState): GameClientState {
 }
 
 /**
- * Ask an out-of-step client's server for a fresh snapshot once it can send and has no request outstanding, or its
- * request went unanswered past its due time. A dropped socket forgets the request, since its reconnect brings a
- * snapshot of its own. The requests are counted for the page, whatever the session's own retries reset: one past
- * `MAX_RESYNC_REQUESTS` ends the page as failed.
+ * Whether an out-of-step client can ask its session's server for a snapshot: on an open socket, the session playing
+ * or identifying with no session retry waiting, since a socket whose identity message the server refused holds no
+ * seat to resync until the retry resends it. Identifying, only the request is sent, never an answer to the game.
+ */
+function canRequestResync(session: SessionState | null): boolean {
+    return (
+        session?.status === "playing" ||
+        (session?.status === "identifying" && session.sessionRetryAt === null)
+    );
+}
+
+/**
+ * Ask an out-of-step client's server for a fresh snapshot once it holds the seat and has no request outstanding, or
+ * its request went unanswered past its due time. A dropped socket forgets the request, since its reconnect brings a
+ * snapshot of its own. While the reopened socket identifies, that snapshot is the request's answer: the client asks
+ * only once it goes unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not decode), on the same socket, which
+ * a RECONNECT the server took binds. The requests are counted for the page, whatever the session's own retries reset:
+ * one past `MAX_RESYNC_REQUESTS` ends the page as failed.
  */
 export function settleDesync(step: ClientStep): ClientStep {
     const { state } = step;
@@ -143,12 +160,26 @@ export function settleDesync(step: ClientStep): ClientStep {
     if (desync === null) {
         return step;
     }
-    if (!canSend(state.session)) {
-        const forgotten = { ...state, desync: { ...desync, answerDue: null } };
-        return desync.answerDue === null ? step : { ...step, state: forgotten };
+    const answerDue = awaitedAnswerDue(state, desync);
+    if (answerDue !== desync.answerDue) {
+        return { ...step, state: { ...state, desync: { ...desync, answerDue } } };
     }
-    const due = desync.answerDue === null || state.now >= desync.answerDue;
-    return due ? requestResync(step, desync) : step;
+    const due = answerDue === null || state.now >= answerDue;
+    return canRequestResync(state.session) && due ? requestResync(step, desync) : step;
+}
+
+/**
+ * When an out-of-step client's snapshot counts as unanswered before it sends a request: none with no socket to ask
+ * on (the request forgotten), `RESYNC_ANSWER_MS` from now for an identifying session's own snapshot, else as it was.
+ */
+function awaitedAnswerDue(state: GameClientState, desync: Desync): number | null {
+    if (!canRequestResync(state.session)) {
+        return null;
+    }
+    if (desync.answerDue === null && !canSend(state.session)) {
+        return state.now + RESYNC_ANSWER_MS;
+    }
+    return desync.answerDue;
 }
 
 /** Send a resync request after `step`, or end the page once the page's requests are spent. */
@@ -171,5 +202,5 @@ function requestResync(step: ClientStep, desync: Desync): ClientStep {
 
 /** When an out-of-step client's resync request counts as unanswered, or null. */
 export function desyncDeadline(state: GameClientState): number | null {
-    return canSend(state.session) ? (state.desync?.answerDue ?? null) : null;
+    return canRequestResync(state.session) ? (state.desync?.answerDue ?? null) : null;
 }

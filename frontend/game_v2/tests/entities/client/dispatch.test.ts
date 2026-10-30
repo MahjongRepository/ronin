@@ -7,6 +7,7 @@ import {
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
+    wireRoundAdvanceSnapshot,
     wireRoundEnd,
 } from "#tests/fixtures/wire";
 import {
@@ -99,7 +100,7 @@ describe("stepGameClient - round confirm", () => {
     it("owes the confirm a reconnect's snapshot names, untimed when the snapshot says nothing of its timer, and keeps it sent when a second snapshot repeats its wait", () => {
         const scenario = clientScenario();
         scenario.step(opened(0));
-        const owed = { ...WIRE_GAME_RECONNECTED, oc: true, re: wireRoundEnd(null), wi: 9 };
+        const owed = wireRoundAdvanceSnapshot(true, 9);
 
         expect(scenario.step(message(100, owed))).toEqual([]);
         expect(scenario.state.table.phase).toBe("round_ended");
@@ -115,7 +116,7 @@ describe("stepGameClient - round confirm", () => {
     it("waits for the others when a reconnect's snapshot of a round advance owes no confirm", () => {
         const scenario = clientScenario();
         scenario.step(opened(0));
-        const confirmed = { ...WIRE_GAME_RECONNECTED, oc: false, re: wireRoundEnd(null), wi: 9 };
+        const confirmed = wireRoundAdvanceSnapshot(false, 9);
 
         scenario.step(message(100, confirmed));
         expect(scenario.state.roundConfirm).toEqual({ kind: "confirmed" });

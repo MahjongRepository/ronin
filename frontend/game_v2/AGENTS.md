@@ -155,13 +155,21 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   ends on the server's standings. It sends one resync request on the open
   socket and again only once one goes unanswered for `RESYNC_ANSWER_MS`, or, refused because the
   game has not dealt yet, when the first deal is due (`firstDealDue`); a dropped socket forgets the
-  request, since the reconnect's own snapshot rebuilds it. A snapshot it takes puts it back in step
+  request, since the reconnect's own snapshot rebuilds it. While the reopened socket identifies, that
+  snapshot is the answer awaited: the client asks on the same socket (which a RECONNECT the server
+  took binds) only once it goes unanswered for `RESYNC_ANSWER_MS`, as when its frame did not decode,
+  and never while a session retry waits (the socket then holds no seat; the resent identity's
+  snapshot gets its own wait), so out of step and identifying always has a deadline, and the session admits it by the snapshot
+  that answers, never by other traffic (`not_in_game` in answer means the socket holds no seat:
+  Session). A snapshot it takes puts it back in step
   and alone resets the board's count of failures (`unreadMessages`). A second snapshot that answers a
   request sent again can follow the player's answer to the first one's wait: a snapshot or re-sent
   opening naming the wait of a submitted decision or a sent round confirm leaves it submitted, so the
   wait is never answered twice. The requests are counted for the page, never reset by a snapshot or
   the session's admission, so one past `MAX_RESYNC_REQUESTS` ends the page as failed, as does a
-  snapshot that does not parse or that it cannot take, or a game's end it cannot take out of step. A server
+  snapshot that does not parse (an incomplete one does not: `shared/protocol/AGENTS.md`) or that it
+  cannot take, or a game's end it cannot take out of step, the page ending out of step, never put
+  back in step by what it refused. A server
   message or an undecodable frame that arrives while the session has no open socket (it recovers
   its handoff, connects, awaits a transport retry or ended) is dropped, as the session drops it. An error
   that is not a `DesyncError` is a bug and propagates to the driver.
@@ -334,7 +342,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   A refusal ends any active session; only identifying schedules identity retries:
   `join_game_already_started` turns a JOIN_GAME into RECONNECT and is ignored once the session
   reconnects or plays, and `reconnect_retry_later` (to a RECONNECT) and a rate limit schedule a
-  session retry. Any other handling of a session error (a rate limit or `game_not_started` answering
+  session retry, as does `not_in_game` while identifying, which answers only an out-of-step client's
+  resync request (Desync) and says the server took no identity message on the socket. Any other handling of a session error (a rate limit or `game_not_started` answering
   a resync request or an action) is the client's. Two retries stay distinct, each with its own
   backoff and budget: a transport retry reopens a dropped socket, a session retry resends the
   identity message on the open socket. A drop supersedes a waiting session retry, since the reopened

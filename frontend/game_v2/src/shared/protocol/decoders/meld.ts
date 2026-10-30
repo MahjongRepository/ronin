@@ -21,7 +21,12 @@ const ANKAN_OFFSET = DAIMINKAN_OFFSET + DAIMINKAN_COUNT; // 6072
 const ANKAN_COUNT = 34;
 
 // Total: 6106 meld indices x 4 seats = 24424 values (fits in 15 bits)
-const MAX_VALUE = (ANKAN_OFFSET + ANKAN_COUNT) * 4 - 1; // 24423
+export const MAX_MELD_COMPACT = (ANKAN_OFFSET + ANKAN_COUNT) * 4 - 1; // 24423
+
+/** The seat that called a compact meld: its value modulo the four seats. */
+export function meldCompactCaller(value: number): number {
+    return value % 4;
+}
 
 const CHI_SEQS_PER_SUIT = 7;
 const MISSING_COPIES = 4;
@@ -130,11 +135,11 @@ const MELD_RANGES: [number, number, MeldDecoder][] = [
 ];
 
 export function decodeMeldCompact(value: number): DecodedMeld {
-    if (!Number.isInteger(value) || value < 0 || value > MAX_VALUE) {
-        throw new RangeError(`IMME value must be 0-${MAX_VALUE}, got ${value}`);
+    if (!Number.isInteger(value) || value < 0 || value > MAX_MELD_COMPACT) {
+        throw new RangeError(`IMME value must be 0-${MAX_MELD_COMPACT}, got ${value}`);
     }
 
-    const callerSeat = value % 4;
+    const callerSeat = meldCompactCaller(value);
     const meldIndex = Math.trunc(value / 4);
 
     for (const [offset, count, decoder] of MELD_RANGES) {

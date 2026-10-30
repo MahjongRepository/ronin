@@ -73,8 +73,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
-                sch: { "0": 80 },
-                scs: { "0": 330 },
+                sch: { "0": 80, "1": 0, "2": 0, "3": 0 },
+                scs: { "0": 330, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 8,
@@ -101,8 +101,8 @@ describe("parseRoundEnd", () => {
                 ps: 2,
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
-                sch: { "0": 320 },
-                scs: { "0": 570 },
+                sch: { "0": 320, "1": 0, "2": 0, "3": 0 },
+                scs: { "0": 570, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 0,
@@ -118,8 +118,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
-                sch: { "0": 10 },
-                scs: { "0": 260 },
+                sch: { "0": 10, "1": 0, "2": 0, "3": 0 },
+                scs: { "0": 260, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 0,
@@ -135,8 +135,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 1,
                 rt: ROUND_RESULT_TYPE.TSUMO,
-                sch: { "0": 30 },
-                scs: { "0": 280 },
+                sch: { "0": 30, "1": 0, "2": 0, "3": 0 },
+                scs: { "0": 280, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ud: [56, 60],
                 ws: 0,
@@ -153,8 +153,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.TSUMO,
-                sch: { "0": 10 },
-                scs: { "0": 260 },
+                sch: { "0": 10, "1": 0, "2": 0, "3": 0 },
+                scs: { "0": 260, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 0,
@@ -190,8 +190,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.RON,
-                sch: { "0": 40, "1": -40 },
-                scs: { "0": 290, "1": 210 },
+                sch: { "0": 40, "1": -40, "2": 0, "3": 0 },
+                scs: { "0": 290, "1": 210, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 48,
@@ -216,8 +216,8 @@ describe("parseRoundEnd", () => {
                 ps: 3,
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.RON,
-                sch: { "0": 320, "2": -320 },
-                scs: { "0": 570, "2": 180 },
+                sch: { "0": 320, "1": 0, "2": -320, "3": 0 },
+                scs: { "0": 570, "1": 250, "2": 180, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 0,
@@ -234,8 +234,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.RON,
-                sch: { "0": 10, "1": -10 },
-                scs: { "0": 260, "1": 240 },
+                sch: { "0": 10, "1": -10, "2": 0, "3": 0 },
+                scs: { "0": 260, "1": 240, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 0,
@@ -252,8 +252,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 1,
                 rt: ROUND_RESULT_TYPE.RON,
-                sch: { "0": 30, "1": -30 },
-                scs: { "0": 280, "1": 220 },
+                sch: { "0": 30, "1": -30, "2": 0, "3": 0 },
+                scs: { "0": 280, "1": 220, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ud: [56],
                 ws: 0,
@@ -271,8 +271,8 @@ describe("parseRoundEnd", () => {
                 ml: [],
                 rc: 0,
                 rt: ROUND_RESULT_TYPE.RON,
-                sch: { "0": 20, "1": -20 },
-                scs: { "0": 270, "1": 230 },
+                sch: { "0": 20, "1": -20, "2": 0, "3": 0 },
+                scs: { "0": 270, "1": 230, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 ws: 0,
                 wt: 9,
@@ -290,7 +290,7 @@ describe("parseRoundEnd", () => {
         const doubleRonWire = {
             ls: 3,
             rt: ROUND_RESULT_TYPE.DOUBLE_RON,
-            sch: { "0": 40, "1": 30, "3": -70 },
+            sch: { "0": 40, "1": 30, "2": 0, "3": -70 },
             scs: { "0": 290, "1": 280, "2": 250, "3": 180 },
             t: EVENT_TYPE.ROUND_END,
             wn: [
@@ -307,7 +307,7 @@ describe("parseRoundEnd", () => {
                     },
                     ml: [],
                     rc: 1,
-                    sch: { "0": 40, "3": -40 },
+                    sch: { "0": 40, "1": 0, "2": 0, "3": -40 },
                     ws: 0,
                 },
                 {
@@ -315,7 +315,7 @@ describe("parseRoundEnd", () => {
                     hr: { fu: 30, han: 2, pt: 20, yk: [{ han: 2, yi: 7 }] },
                     ml: [],
                     rc: 0,
-                    sch: { "1": 30, "3": -30 },
+                    sch: { "0": 0, "1": 30, "2": 0, "3": -30 },
                     ws: 1,
                 },
             ],
@@ -342,8 +342,8 @@ describe("parseRoundEnd", () => {
             expect(result.winners[1].winnerSeat).toBe(1);
             expect(result.winners[1].handResult.han).toBe(2);
             expect(result.winners.map((winner) => winner.scoreChanges)).toEqual([
-                { "0": 4000, "3": -4000 },
-                { "1": 3000, "3": -3000 },
+                { "0": 4000, "1": 0, "2": 0, "3": -4000 },
+                { "0": 0, "1": 3000, "2": 0, "3": -3000 },
             ]);
         });
 
@@ -351,8 +351,8 @@ describe("parseRoundEnd", () => {
             const wire = {
                 ls: 2,
                 rt: ROUND_RESULT_TYPE.DOUBLE_RON,
-                sch: { "0": 160, "1": 160, "2": -320 },
-                scs: { "0": 410, "1": 410, "2": -70 },
+                sch: { "0": 160, "1": 160, "2": -320, "3": 0 },
+                scs: { "0": 410, "1": 410, "2": -70, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 wn: [
                     {
@@ -361,7 +361,7 @@ describe("parseRoundEnd", () => {
                         ml: [6100],
                         ps: 2,
                         rc: 0,
-                        sch: { "0": 160, "2": -160 },
+                        sch: { "0": 160, "1": 0, "2": -160, "3": 0 },
                         ud: [56],
                         ws: 0,
                     },
@@ -370,7 +370,7 @@ describe("parseRoundEnd", () => {
                         hr: { fu: 30, han: 13, pt: 130, yk: [{ han: 13, yi: 41 }] },
                         ml: [],
                         rc: 0,
-                        sch: { "1": 160, "2": -160 },
+                        sch: { "0": 0, "1": 160, "2": -160, "3": 0 },
                         ws: 1,
                     },
                 ],
@@ -438,8 +438,8 @@ describe("parseRoundEnd", () => {
             const wire = {
                 ns: [1],
                 rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
-                sch: { "0": 30, "1": -30 },
-                scs: { "0": 280, "1": 220 },
+                sch: { "0": 30, "1": -30, "2": 0, "3": 0 },
+                scs: { "0": 280, "1": 220, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 th: [{ ct: [0], ml: [], s: 0 }],
                 ts: [0],
@@ -452,15 +452,15 @@ describe("parseRoundEnd", () => {
             const wire = {
                 ns: [1],
                 rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
-                sch: { "0": 30, "1": -30 },
-                scs: { "0": 280, "1": 220 },
+                sch: { "0": 30, "1": -30, "2": 0, "3": 0 },
+                scs: { "0": 280, "1": 220, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
                 th: [{ ct: [0], ml: [], s: 0 }],
                 ts: [0],
             };
             const result = parseRoundEnd(wire);
-            expect(result.scores).toEqual({ "0": 28_000, "1": 22_000 });
-            expect(result.scoreChanges).toEqual({ "0": 3000, "1": -3000 });
+            expect(result.scores).toEqual({ "0": 28_000, "1": 22_000, "2": 25_000, "3": 25_000 });
+            expect(result.scoreChanges).toEqual({ "0": 3000, "1": -3000, "2": 0, "3": 0 });
         });
     });
 
@@ -469,7 +469,7 @@ describe("parseRoundEnd", () => {
             const wire = {
                 rn: ABORTIVE_DRAW_TYPE.FOUR_RIICHI,
                 rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-                sch: {},
+                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
                 scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
             };
@@ -481,7 +481,7 @@ describe("parseRoundEnd", () => {
             }
             expect(result.reason).toBe("four_riichi");
             expect(result.scores).toEqual({ "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 });
-            expect(result.scoreChanges).toEqual({});
+            expect(result.scoreChanges).toEqual({ "0": 0, "1": 0, "2": 0, "3": 0 });
         });
 
         it("includes seat when present (nine terminals)", () => {
@@ -489,7 +489,7 @@ describe("parseRoundEnd", () => {
                 rn: ABORTIVE_DRAW_TYPE.NINE_TERMINALS,
                 rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
                 s: 2,
-                sch: {},
+                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
                 scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
             };
@@ -504,7 +504,7 @@ describe("parseRoundEnd", () => {
             const wire = {
                 rn: ABORTIVE_DRAW_TYPE.TRIPLE_RON,
                 rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-                sch: {},
+                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
                 scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
             };
@@ -520,7 +520,7 @@ describe("parseRoundEnd", () => {
                 rcl: [0, 1, 2],
                 rn: ABORTIVE_DRAW_TYPE.TRIPLE_RON,
                 rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
-                sch: {},
+                sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
                 scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
             };
@@ -564,7 +564,7 @@ describe("parseRoundEnd", () => {
         it("throws on unknown rt value", () => {
             const wire = {
                 rt: 99,
-                scs: { "0": 250 },
+                scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
                 t: EVENT_TYPE.ROUND_END,
             };
             expect(() => parseRoundEnd(wire)).toThrow("Unknown round result type: rt=99");

@@ -7,7 +7,13 @@ import {
     ROUND_RESULT_TYPE,
 } from "@/shared/protocol/constants";
 
-import { seatSchema, tileIdSchema, waitIdSchema, wireScoreMapSchema } from "./common";
+import {
+    compactMeldSchema,
+    seatSchema,
+    tileIdSchema,
+    waitIdSchema,
+    wireScoreMapSchema,
+} from "./common";
 import { handResultSchema } from "./events";
 
 // --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
@@ -15,7 +21,7 @@ import { handResultSchema } from "./events";
 const tenpaiHandSchema = z.pipe(
     z.object({
         ct: z.array(tileIdSchema),
-        ml: z.array(z.int()),
+        ml: z.array(compactMeldSchema),
         s: seatSchema,
     }),
     z.transform((raw) => ({
@@ -44,7 +50,7 @@ const doubleRonWinnerSchema = z.pipe(
     z.object({
         ct: z.array(tileIdSchema),
         hr: handResultSchema,
-        ml: z.array(z.int()),
+        ml: z.array(compactMeldSchema),
         ps: z.optional(seatSchema),
         rc: z.int(),
         sch: wireScoreMapSchema,
@@ -69,7 +75,7 @@ const tsumoSchema = z.pipe(
     z.object({
         ct: z.array(tileIdSchema),
         hr: handResultSchema,
-        ml: z.array(z.int()),
+        ml: z.array(compactMeldSchema),
         ps: z.optional(seatSchema),
         rc: z.int(),
         rt: z.literal(ROUND_RESULT_TYPE.TSUMO),
@@ -106,7 +112,7 @@ const ronSchema = z.pipe(
         hbs: z.optional(z.array(seatSchema)),
         hr: handResultSchema,
         ls: seatSchema,
-        ml: z.array(z.int()),
+        ml: z.array(compactMeldSchema),
         ps: z.optional(seatSchema),
         rc: z.int(),
         rk: z.optional(robbedKanSchema),
