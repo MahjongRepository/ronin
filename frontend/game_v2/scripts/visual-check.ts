@@ -39,6 +39,10 @@ const GAME_ID = "visual-check";
 
 /** The smallest local hand tile a landscape table may draw on a supported phone, in CSS pixels: a tap target. */
 const MIN_TAP: Size = { height: 42, width: 32 };
+/** The notch phone's capture model: an iPhone 13's full display in landscape, less the insets the gate emulates. */
+const NOTCH_VIEWPORT: Size = { height: 390, width: 844 };
+const NOTCH_INSETS: Insets = { bottom: 21, left: 47, right: 47 };
+const NOTCH_SAFE_AREA: Box = { height: 369, left: 47, top: 0, width: 750 };
 /** The smallest decision button and leave button, in CSS pixels: a tap target. */
 const MIN_ACTION_SIZE = 40;
 /** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
@@ -56,14 +60,6 @@ const MIN_RESULT_NAME_GAP = 12;
 
 /** The fewest lines of the replay's narration a landscape phone's column shows without scrolling it. */
 const MIN_PHONE_NARRATION_LINES = 3;
-/** A desktop river tile's long side as a share of the local hand tile's: the hierarchy the references keep. */
-const RIVER_TO_HAND = { max: 0.75, min: 0.55 } as const;
-/** How far a desktop side seat's hand may stand from the centre, as a share of the board's width. */
-const MAX_SIDE_DISTANCE_SHARE = 0.25;
-/** How close a nameplate sits to its own seat's tiles, in CSS pixels. */
-const MAX_PLATE_DISTANCE = 16;
-/** The centre's wall count and the sticks against the score: never under this share of its size. */
-const MIN_COUNTER_TO_SCORE = 0.8;
 /** The smallest computed font size of the board's centre text, dora label and nameplates, in CSS pixels. */
 const MIN_TEXT_PX = 10;
 /** Sub-pixel slack for comparing layout boxes. */
@@ -121,13 +117,15 @@ interface Viewport {
     readonly portrait: boolean;
     /** The live game shows its rotate panel here (an upright phone). */
     readonly rotates: boolean;
-    /** A supported device size, where the tap minimum holds and the round end fits without scrolling. */
+    /** A supported device size, where the tap minimum holds. */
     readonly supported: boolean;
-    /** The smallest local hand tile it may draw in landscape: a tap target, and on a desktop a hand that fills it. */
-    readonly handFloor: Size;
-    /** A desktop, where the river to hand ratio and the side seats' distance from the centre hold. */
+    /** The smallest local hand tile it may draw in landscape, on a phone: a tap target. A desktop has none. */
+    readonly ownTileFloor?: Size;
+    /** A desktop, where the replay aside's text limits hold. */
     readonly desktop: boolean;
     readonly insets?: Insets;
+    /** The viewport and safe-area box a capture model must produce, asserted on every page before its checks. */
+    readonly captureModel?: { readonly viewport: Size; readonly safeArea: Box };
 }
 
 interface Required {
@@ -139,7 +137,12 @@ interface Required {
 
 type PageKind =
     | { readonly kind: "document" }
-    | { readonly kind: "board"; readonly prepare?: (page: Page) => Promise<void> }
+    | {
+          readonly kind: "board";
+          readonly prepare?: (page: Page) => Promise<void>;
+          /** The round result's panel is made shorter than its content, which must then scroll. */
+          readonly panelScrolls?: boolean;
+      }
     | { readonly kind: "panel"; readonly countdown: boolean }
     | { readonly kind: "game"; readonly checkpoint: (typeof LIVE_CHECKPOINTS)[number] };
 
@@ -148,6 +151,8 @@ type PageCase = PageKind & {
     readonly path: string;
     readonly required: Required;
 };
+
+type BoardCase = Extract<PageCase, { readonly kind: "board" }>;
 
 interface Box {
     readonly left: number;
@@ -172,7 +177,13 @@ interface BoardMeasure {
     readonly boardScroll: Size;
     readonly boardClient: Size;
     readonly aside: { readonly box: Box; readonly scroll: Size; readonly overflowY: string } | null;
-    readonly overlay: { readonly box: Box; readonly scroll: Size; readonly client: Size } | null;
+    readonly overlay: {
+        readonly box: Box;
+        readonly scroll: Size;
+        readonly client: Size;
+        /** A round result's panel, which may scroll under its foot (`checkResultPanel`); any other panel fits. */
+        readonly result: boolean;
+    } | null;
     readonly tiles: readonly Box[];
     readonly hiddenTiles: number;
     readonly grouped: readonly GroupedBox[];
@@ -193,12 +204,7 @@ interface BoardMeasure {
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly nameplates: readonly Box[];
-    /** Each plate by its seat, and each seat's tiles (its hand and melds; the bottom seat's in the local strip). */
-    readonly plates: readonly { readonly seat: string; readonly box: Box }[];
-    readonly seatTiles: Readonly<Record<string, readonly Box[]>>;
-    readonly riverTiles: readonly Box[];
     readonly opponentFaces: readonly Box[];
-    readonly center: Box | null;
     readonly leave: Box | null;
     /** The page's corner on the board: the session's status and the way back, which no panel over the board covers. */
     readonly menu: readonly Box[];
@@ -287,15 +293,17 @@ function deviceOptions(name: string): BrowserContextOptions {
 }
 
 /**
- * The acceptance viewports: two 16:10 desktops and a 16:9 one, the upright phone that gets the rotate panel, the notched landscape phone
- * (its insets cover the plain one), and the smallest supported landscape, which also keeps the aside's scroll honest.
+ * The acceptance viewports: two 16:10 desktops and a 16:9 one, the upright phone that gets the rotate panel, the notched
+ * landscape phone (its insets cover the plain one), and the smallest supported landscape, which also keeps the aside's
+ * scroll honest. The notched phone is the agreed capture model, not measured Safari chrome: Playwright's "iPhone 13
+ * landscape" options with the viewport and screen set to the full 844x390 display after them (the device's own 750x342
+ * is Safari's viewport with its chrome), then the insets, so its safe area is 750x369.
  */
 const VIEWPORTS: readonly Viewport[] = [
     {
         context: { viewport: { height: 800, width: 1280 } },
         desktop: true,
         engine: chromium,
-        handFloor: { height: 93, width: 70 },
         name: "desktop",
         portrait: false,
         rotates: false,
@@ -305,7 +313,6 @@ const VIEWPORTS: readonly Viewport[] = [
         context: { viewport: { height: 900, width: 1440 } },
         desktop: true,
         engine: chromium,
-        handFloor: { height: 104, width: 78 },
         name: "desktop-1440",
         portrait: false,
         rotates: false,
@@ -315,7 +322,6 @@ const VIEWPORTS: readonly Viewport[] = [
         context: { viewport: { height: 1080, width: 1920 } },
         desktop: true,
         engine: chromium,
-        handFloor: { height: 124, width: 93 },
         name: "desktop-wide",
         portrait: false,
         rotates: false,
@@ -325,19 +331,24 @@ const VIEWPORTS: readonly Viewport[] = [
         context: deviceOptions("iPhone 13"),
         desktop: false,
         engine: webkit,
-        handFloor: MIN_TAP,
         name: "phone-portrait",
+        ownTileFloor: MIN_TAP,
         portrait: true,
         rotates: true,
         supported: true,
     },
     {
-        context: deviceOptions("iPhone 13 landscape"),
+        captureModel: { safeArea: NOTCH_SAFE_AREA, viewport: NOTCH_VIEWPORT },
+        context: {
+            ...deviceOptions("iPhone 13 landscape"),
+            screen: NOTCH_VIEWPORT,
+            viewport: NOTCH_VIEWPORT,
+        },
         desktop: false,
         engine: webkit,
-        handFloor: MIN_TAP,
-        insets: { bottom: 21, left: 47, right: 47 },
+        insets: NOTCH_INSETS,
         name: "phone-notch-landscape",
+        ownTileFloor: MIN_TAP,
         portrait: false,
         rotates: false,
         supported: true,
@@ -346,8 +357,8 @@ const VIEWPORTS: readonly Viewport[] = [
         context: deviceOptions("iPhone SE (3rd gen) landscape"),
         desktop: false,
         engine: webkit,
-        handFloor: MIN_TAP,
         name: "phone-se-landscape",
+        ownTileFloor: MIN_TAP,
         portrait: false,
         rotates: false,
         supported: true,
@@ -380,13 +391,32 @@ function resultCase(result: string, query: string, extra: readonly string[]): Pa
 }
 
 /** A decisions story: the live board at a checkpoint of a generated seat transcript. */
-function decisionCase(story: string, extra: readonly string[]): PageCase {
+function decisionCase(story: string, extra: readonly string[]): BoardCase {
     return {
         kind: "board",
         name: `decisions-${story.replaceAll("_", "-")}`,
         path: `/play/storybook/decisions?state=${story}`,
         required: { visible: [...BOARD_VISIBLE, ...extra] },
     };
+}
+
+/** A decisions story whose result panel is forced shorter than its content: the live confirm must stay in view. */
+function scrollingResultCase(story: string, extra: readonly string[]): PageCase {
+    return {
+        ...decisionCase(story, extra),
+        name: `decisions-${story.replaceAll("_", "-")}-scrolling`,
+        panelScrolls: true,
+        prepare: forceResultPanelShort,
+    };
+}
+
+/** The forced result panel's height: under every result's content, above its foot of scores and controls. */
+const FORCED_PANEL_HEIGHT = "12rem";
+
+async function forceResultPanelShort(page: Page): Promise<void> {
+    await page.addStyleTag({
+        content: `.board-overlay__panel:has(> .round-end-result) { max-height: ${FORCED_PANEL_HEIGHT} !important; }`,
+    });
 }
 
 const ACTION = ".board-actions .decision-controls__action";
@@ -445,9 +475,9 @@ const PAGES: readonly PageCase[] = [
         required: { visible: [".game-start__seat--viewer", ".game-start__status", ".nameplate"] },
     },
     decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-    decisionCase("anchor_call", [ACTION, ".decision-controls__countdown", ".board-cue"]),
+    decisionCase("anchor_call", [ACTION, ".decision-controls__countdown"]),
     decisionCase("anchor_riichi", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
-    decisionCase("call_prompt", [ACTION, ".decision-controls__countdown", ".board-cue"]),
+    decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
     decisionCase("chankan_prompt", [ACTION, ".board-strip .meld"]),
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
     decisionCase("riichi_turn", [
@@ -456,10 +486,19 @@ const PAGES: readonly PageCase[] = [
         ".hand-tile--selectable",
         ".decision-controls__bank",
     ]),
-    decisionCase("turn_in_bank", [".decision-controls__countdown--bank", ".board-cue"]),
+    decisionCase("turn_in_bank", [".decision-controls__countdown--bank"]),
     decisionCase("answered", [".hand-tile--selected"]),
     decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
+    scrollingResultCase("round_end", [
+        ".round-end-result__confirm",
+        ".round-end-result__countdown",
+    ]),
     decisionCase("double_ron_first", [".round-end-result__pager", ".round-end-result__confirm"]),
+    scrollingResultCase("double_ron_first", [
+        ".round-end-result__pager",
+        ".round-end-result__confirm",
+        ".round-end-result__countdown",
+    ]),
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("last_result", [".round-end-result__confirm"]),
@@ -748,6 +787,40 @@ async function openContext(
     return context;
 }
 
+/** The page sees the capture model's viewport, and the emulated insets leave exactly its safe area. */
+async function checkCaptureModel(
+    page: Page,
+    viewport: Viewport,
+    report: PageReport,
+): Promise<void> {
+    const { captureModel } = viewport;
+    if (captureModel === undefined) {
+        return;
+    }
+    const seen = await page.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.cssText =
+            "position: fixed; top: var(--ronin-safe-top); right: var(--ronin-safe-right); bottom: var(--ronin-safe-bottom); left: var(--ronin-safe-left); pointer-events: none;";
+        document.body.append(probe);
+        const { height, left, top, width } = probe.getBoundingClientRect();
+        probe.remove();
+        return {
+            safeArea: { height, left, top, width },
+            viewport: { height: window.innerHeight, width: window.innerWidth },
+        };
+    });
+    report.expect(
+        seen.viewport.width === captureModel.viewport.width &&
+            seen.viewport.height === captureModel.viewport.height,
+        `the viewport is ${describeSize(seen.viewport)}, not the capture model's ${describeSize(captureModel.viewport)}`,
+    );
+    const { safeArea } = captureModel;
+    report.expect(
+        contains(safeArea, seen.safeArea) && contains(seen.safeArea, safeArea),
+        `the safe area is ${describeBox(seen.safeArea)}, not the capture model's ${describeBox(safeArea)}`,
+    );
+}
+
 async function emulateInsets(page: Page, insets: Insets | undefined): Promise<void> {
     if (insets === undefined) {
         return;
@@ -945,19 +1018,6 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             .map((word) => `${word.className.split(" ")[0]} "${word.textContent.trim()}"`);
         const aside = document.querySelector(".board-page__aside");
         const overlay = board.querySelector(".board-overlay__panel");
-        const seatTileSelectors: Readonly<Record<string, string>> = {
-            bottom: ".board-local .tile",
-            left: ".board-strip--left .tile",
-            right: ".board-strip--right .tile",
-            top: ".board-strip--top .tile",
-        };
-        const seatTiles = Object.fromEntries(
-            Object.entries(seatTileSelectors).map(([seat, selector]) => [
-                seat,
-                [...board.querySelectorAll(selector)].map(box),
-            ]),
-        );
-        const center = board.querySelector(".board-center");
         const leave = board.querySelector(".game-menu__leave");
         const menu = [...board.querySelectorAll(".game-menu__status, .game-menu__leave")].map(box);
         const roundList = document.querySelector(".round-list");
@@ -1036,7 +1096,6 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             boardClient: { height: board.clientHeight, width: board.clientWidth },
             boardScroll: { height: board.scrollHeight, width: board.scrollWidth },
             callouts: [...board.querySelectorAll(".board-callout")].map(box),
-            center: center === null ? null : box(center),
             centerTexts,
             clippedWords,
             decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },
@@ -1066,24 +1125,15 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
                     : {
                           box: box(overlay),
                           client: { height: overlay.clientHeight, width: overlay.clientWidth },
+                          result: overlay.querySelector(":scope > .round-end-result") !== null,
                           scroll: { height: overlay.scrollHeight, width: overlay.scrollWidth },
                       },
-            plates: nameplates.map((plate) => ({
-                box: plate.box,
-                seat: plate.group.replace("nameplate--", ""),
-            })),
             replayControls,
             replayText,
             resultNames: [
                 ...board.querySelectorAll(".board-overlay .round-end-result__score-name"),
             ].map(box),
-            riverTiles: [
-                ...board.querySelectorAll(
-                    ".board-river .discard-tile:not(.discard-tile-riichi) .tile",
-                ),
-            ].map(box),
             roundList: roundList === null ? null : box(roundList),
-            seatTiles,
             standings: measureStandings(),
             tiles: tableTiles.map(box),
         };
@@ -1199,11 +1249,178 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
     );
     if (viewport.supported) {
         report.expect(
-            overlay.scroll.height <= overlay.client.height + EPSILON &&
-                overlay.scroll.width <= overlay.client.width + EPSILON,
+            overlay.scroll.width <= overlay.client.width + EPSILON &&
+                (overlay.result || overlay.scroll.height <= overlay.client.height + EPSILON),
             `the overlay panel's content overflows it: ${describeSize(overlay.scroll)} > ${describeSize(overlay.client)}`,
         );
     }
+}
+
+/** What a round result's panel shows at one end of its scroll. */
+interface ResultPanelView {
+    readonly scrollTop: number;
+    /** The panel's visible area, inside its border. */
+    readonly shown: Box;
+    /** The primary button and its countdown, which stay in view at either end. */
+    readonly kept: readonly { readonly name: string; readonly box: Box }[];
+    readonly pager: readonly Box[];
+    readonly foot: Box | null;
+    /** The lowest edge of the result's content above its foot. */
+    readonly contentBottom: number;
+}
+
+/** A round result's panel at the start and the end of its scroll, restored to its start after. */
+interface ResultPanelMeasure {
+    readonly overflowY: string;
+    readonly scroll: Size;
+    readonly client: Size;
+    readonly start: ResultPanelView;
+    readonly end: ResultPanelView;
+}
+
+function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
+    return page.evaluate(async () => {
+        const panel = document.querySelector(".board-overlay__panel:has(> .round-end-result)");
+        if (!(panel instanceof HTMLElement)) {
+            return null;
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function box(element: Element): Box {
+            const rect = element.getBoundingClientRect();
+            return {
+                height: rect.height,
+                left: rect.left + window.scrollX,
+                top: rect.top + window.scrollY,
+                width: rect.width,
+            };
+        }
+        function view(shownPanel: HTMLElement): ResultPanelView {
+            const outer = box(shownPanel);
+            const foot = shownPanel.querySelector(".round-end-result__foot");
+            const content = [
+                ...shownPanel.querySelectorAll(".round-end-result > :not(.round-end-result__foot)"),
+            ].map(box);
+            return {
+                contentBottom: Math.max(...content.map((part) => part.top + part.height)),
+                foot: foot === null ? null : box(foot),
+                kept: [
+                    ...shownPanel.querySelectorAll(
+                        ".round-end-result__confirm, .round-end-result__countdown",
+                    ),
+                ].map((element) => ({ box: box(element), name: element.className.split(" ")[0] })),
+                pager: [...shownPanel.querySelectorAll(".round-end-result__page-btn")].map(box),
+                scrollTop: shownPanel.scrollTop,
+                shown: {
+                    height: shownPanel.clientHeight,
+                    left: outer.left + shownPanel.clientLeft,
+                    top: outer.top + shownPanel.clientTop,
+                    width: shownPanel.clientWidth,
+                },
+            };
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function nextFrame(): Promise<void> {
+            return new Promise((done) => {
+                requestAnimationFrame(() => done());
+            });
+        }
+        panel.scrollTo({ behavior: "instant", top: 0 });
+        await nextFrame();
+        const start = view(panel);
+        panel.scrollTo({ behavior: "instant", top: panel.scrollHeight });
+        await nextFrame();
+        const end = view(panel);
+        panel.scrollTo({ behavior: "instant", top: 0 });
+        await nextFrame();
+        return {
+            client: { height: panel.clientHeight, width: panel.clientWidth },
+            end,
+            overflowY: getComputedStyle(panel).overflowY,
+            scroll: { height: panel.scrollHeight, width: panel.scrollWidth },
+            start,
+        };
+    });
+}
+
+/**
+ * A round result that does not fit its panel scrolls inside it, never clipped: its content reaches past its foot at the
+ * scroll's end, and its primary button and countdown stay wholly in view at both ends, the winner pager at the start.
+ * A case that forces the panel short first proves that it overflows.
+ */
+function checkResultPanel(
+    panel: ResultPanelMeasure | null,
+    mustScroll: boolean,
+    report: PageReport,
+): void {
+    if (panel === null) {
+        report.expect(!mustScroll, "no round result panel to scroll");
+        return;
+    }
+    const overflows = panel.scroll.height > panel.client.height + EPSILON;
+    report.expect(
+        overflows || !mustScroll,
+        `the result panel forced short still fits: ${describeSize(panel.scroll)} in ${describeSize(panel.client)}`,
+    );
+    const ends = [
+        ["start", panel.start],
+        ["end", panel.end],
+    ] as const;
+    for (const [end, view] of ends) {
+        const hidden = view.kept.filter(({ box }) => !contains(view.shown, box));
+        report.expect(
+            hidden.length === 0,
+            `at the scroll's ${end}, the result's ${hidden.map(({ name }) => name).join(", ")} leave(s) its panel's view`,
+        );
+    }
+    const hiddenPager = panel.start.pager.filter((button) => !contains(panel.start.shown, button));
+    report.expect(
+        hiddenPager.length === 0,
+        `the winner pager leaves the result panel's view: ${hiddenPager.map(describeBox).join(", ")}`,
+    );
+    if (!overflows) {
+        return;
+    }
+    report.expect(
+        panel.overflowY === "auto" || panel.overflowY === "scroll",
+        `the result overflows its panel (${describeSize(panel.scroll)} in ${describeSize(panel.client)}) with overflow-y ${panel.overflowY}`,
+    );
+    report.expect(
+        panel.end.scrollTop > panel.start.scrollTop + EPSILON,
+        "the result overflows its panel but does not scroll",
+    );
+    const { contentBottom, foot, shown } = panel.end;
+    const limit = Math.min(shown.top + shown.height, foot?.top ?? Infinity);
+    report.expect(
+        contentBottom <= limit + EPSILON,
+        `at the scroll's end the result's content ends at ${contentBottom.toFixed(0)}px, under its foot or panel at ${limit.toFixed(0)}px`,
+    );
+}
+
+/** The winner pager of a double ron's result moves one page: on, or back from the last page. */
+async function checkWinnerPaging(page: Page, report: PageReport): Promise<void> {
+    if ((await page.locator(".board-overlay .round-end-result__page-btn").count()) === 0) {
+        return;
+    }
+    const label = page.locator(".board-overlay .round-end-result__page");
+    const before = Number.parseInt((await label.textContent()) ?? "", 10);
+    const next = page.locator(".board-overlay [aria-label='Next winner']");
+    const forward = await next.isEnabled();
+    const step = forward ? 1 : -1;
+    await (forward ? next : page.locator(".board-overlay [aria-label='Previous winner']")).click();
+    const moved = await page
+        .waitForFunction(
+            (expected) =>
+                Number.parseInt(
+                    document.querySelector(".board-overlay .round-end-result__page")?.textContent ??
+                        "",
+                    10,
+                ) === expected,
+            before + step,
+            { timeout: SELECTOR_TIMEOUT_MS },
+        )
+        .then(() => true)
+        .catch(() => false);
+    report.expect(moved, `the winner pager did not move from page ${before} to ${before + step}`);
 }
 
 function longSide(box: Box): number {
@@ -1211,68 +1428,31 @@ function longSide(box: Box): number {
 }
 
 /**
- * The local hand stays on the screen, at least the viewport's floor, and its tiles are the board's largest: larger
- * than any river, other seat's hand or meld, or dora tile.
+ * The local hand stays on the screen, at least the viewport's floor where it has one (a phone's tap target), and its
+ * tiles are the board's largest: larger than any river, other seat's hand or meld, or dora tile.
  */
 function checkLocalHand(
     board: BoardMeasure,
-    { floor, screen }: { readonly floor: Size; readonly screen: Box },
+    { floor, screen }: { readonly floor: Size | undefined; readonly screen: Box },
     report: PageReport,
 ): void {
     const hidden = board.localTiles.filter((tile) => !contains(screen, tile));
     report.expect(hidden.length === 0, `${hidden.length} local hand tile(s) outside the viewport`);
-    const small = board.localTiles.filter(
-        (tile) => tile.width < floor.width - EPSILON || tile.height < floor.height - EPSILON,
-    );
-    report.expect(
-        small.length === 0,
-        `local hand tiles under ${describeSize(floor)}: ${small.map(describeBox).join(", ")}`,
-    );
+    if (floor !== undefined) {
+        const small = board.localTiles.filter(
+            (tile) => tile.width < floor.width - EPSILON || tile.height < floor.height - EPSILON,
+        );
+        report.expect(
+            small.length === 0,
+            `local hand tiles under ${describeSize(floor)}: ${small.map(describeBox).join(", ")}`,
+        );
+    }
     const smallestOwn = Math.min(...board.localTiles.map(longSide));
     const largestOther = Math.max(0, ...board.otherTiles.map(longSide));
     report.expect(
         smallestOwn > largestOther + EPSILON,
         `a local hand tile (${smallestOwn.toFixed(1)}px) is no larger than another tile on the board (${largestOther.toFixed(1)}px)`,
     );
-}
-
-/** The gap between two boxes, 0 when they touch or overlap. */
-function gapBetween(first: Box, second: Box): number {
-    const dx = Math.max(
-        0,
-        first.left - (second.left + second.width),
-        second.left - (first.left + first.width),
-    );
-    const dy = Math.max(
-        0,
-        first.top - (second.top + second.height),
-        second.top - (first.top + first.height),
-    );
-    return Math.hypot(dx, dy);
-}
-
-/**
- * Each nameplate reads as its own seat's: close to that seat's tiles, and nearer them than any other seat's. A seat
- * with no tiles (an empty board) is skipped.
- */
-function checkPlateOwnership(board: BoardMeasure, report: PageReport): void {
-    for (const { box, seat } of board.plates) {
-        const distances = Object.entries(board.seatTiles)
-            .filter(([, tiles]) => tiles.length > 0)
-            .map(([owner, tiles]) => ({
-                distance: Math.min(...tiles.map((tile) => gapBetween(box, tile))),
-                owner,
-            }));
-        const own = distances.find((entry) => entry.owner === seat);
-        const nearestOther = Math.min(
-            ...distances.filter((entry) => entry.owner !== seat).map((entry) => entry.distance),
-        );
-        report.expect(
-            own === undefined ||
-                (own.distance <= MAX_PLATE_DISTANCE && own.distance < nearestOther),
-            `the ${seat} plate stands ${own?.distance.toFixed(0)}px from its seat's tiles, another seat's at ${nearestOther.toFixed(0)}px`,
-        );
-    }
 }
 
 /** Another seat's face-up tiles stay readable in landscape. */
@@ -1285,52 +1465,6 @@ function checkOpponentFaces(board: BoardMeasure, report: PageReport): void {
     report.expect(
         small.length === 0,
         `face-up tiles of other seats under ${describeSize(MIN_OPPONENT_FACE)}: ${small.slice(0, 3).map(describeBox).join(", ")}`,
-    );
-}
-
-/**
- * On a desktop the table keeps the references' proportions: a river tile between a share of the local hand tile's
- * size, and each side seat's hand near the centre, so the board's spare width goes to its margins.
- */
-function checkDesktopTable(board: BoardMeasure, report: PageReport): void {
-    const [river] = board.riverTiles;
-    const [own] = board.localTiles;
-    if (river !== undefined && own !== undefined) {
-        const ratio = longSide(river) / longSide(own);
-        report.expect(
-            ratio >= RIVER_TO_HAND.min && ratio <= RIVER_TO_HAND.max,
-            `a river tile is ${ratio.toFixed(2)} of a local hand tile, outside ${RIVER_TO_HAND.min}-${RIVER_TO_HAND.max}`,
-        );
-    }
-    const { center } = board;
-    const left = board.seatTiles.left ?? [];
-    const right = board.seatTiles.right ?? [];
-    if (center === null || left.length === 0 || right.length === 0) {
-        return;
-    }
-    const limit = MAX_SIDE_DISTANCE_SHARE * board.board.width;
-    const leftGap = center.left - Math.max(...left.map((tile) => tile.left + tile.width));
-    const rightGap = Math.min(...right.map((tile) => tile.left)) - (center.left + center.width);
-    report.expect(
-        leftGap <= limit && rightGap <= limit,
-        `a side hand stands ${Math.max(leftGap, rightGap).toFixed(0)}px from the centre, over ${limit.toFixed(0)}px`,
-    );
-}
-
-/** The wall count and the sticks read at no less than a share of the scores' size. */
-function fontSizes(board: BoardMeasure, name: string): number[] {
-    return board.fonts.filter((font) => font.name === name).map((font) => font.px);
-}
-
-function checkCounters(board: BoardMeasure, report: PageReport): void {
-    const score = Math.max(0, ...fontSizes(board, "board-center__score-line"));
-    const smallest = Math.min(
-        ...fontSizes(board, "board-center__wall"),
-        ...fontSizes(board, "board-dora__sticks"),
-    );
-    report.expect(
-        smallest >= MIN_COUNTER_TO_SCORE * score - EPSILON,
-        `a counter reads ${smallest}px beside ${score}px scores`,
     );
 }
 
@@ -1546,7 +1680,10 @@ function describeLocalTile(tiles: readonly Box[]): string {
     return tile ? `${tile.width.toFixed(1)}x${tile.height.toFixed(1)}` : "none";
 }
 
-async function checkBoard({ measure, page, report, viewport }: PageRun): Promise<string> {
+async function checkBoard(
+    { measure, page, report, viewport }: PageRun,
+    panelScrolls = false,
+): Promise<string> {
     const board = await measureBoard(page);
     const screen = await viewportBox(page);
     checkBoardContent(board, report);
@@ -1555,6 +1692,9 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }
     checkOverlay(board, viewport, report);
+    if (viewport.supported) {
+        checkResultPanel(await measureResultPanel(page), panelScrolls, report);
+    }
     checkCallouts(board, report);
     checkStandings(board, { screen, viewport }, report);
     const pageExtent = { height: measure.scrollHeight, left: 0, top: 0, width: measure.innerWidth };
@@ -1572,18 +1712,15 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         checkAside(board, screen, report);
     }
     if (viewport.supported && !viewport.portrait) {
-        checkLocalHand(board, { floor: viewport.handFloor, screen }, report);
+        checkLocalHand(board, { floor: viewport.ownTileFloor, screen }, report);
         checkActions(board, screen, report);
         checkNotices(board, report);
         checkResultNames(board, report);
         checkLeave(board, screen, report);
         checkReplayControls(board, screen, report);
         checkOpponentFaces(board, report);
-        checkPlateOwnership(board, report);
-        checkCounters(board, report);
     }
     if (viewport.desktop) {
-        checkDesktopTable(board, report);
         checkReplayText(board, report);
     } else if (viewport.supported && !viewport.portrait) {
         checkPhoneNarration(board, screen, report);
@@ -1685,7 +1822,7 @@ async function checkPage(
             return `page ${measure.scrollWidth}x${measure.scrollHeight}`;
         }
         case "board": {
-            return checkBoard(run);
+            return checkBoard(run, pageCase.panelScrolls);
         }
         case "panel": {
             return checkPanel(page, pageCase.countdown, report);
@@ -1780,11 +1917,15 @@ async function runPage(
     try {
         await loadPage(page, pageCase, origin);
         await emulateInsets(page, viewport.insets);
+        await checkCaptureModel(page, viewport, report);
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         await page.waitForTimeout(SETTLE_MS);
         await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);
         await page.screenshot({ path: join(shots, `${viewport.name}-${pageCase.name}.png`) });
+        if (pageCase.kind === "board") {
+            await checkWinnerPaging(page, report);
+        }
     } catch (error: unknown) {
         report.failures.push(error instanceof Error ? error.message : String(error));
     } finally {

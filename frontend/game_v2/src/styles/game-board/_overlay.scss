@@ -57,6 +57,16 @@ $indicator-scale: 0.6;
     width: min(100%, #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
 }
 
+/* A result taller than its panel scrolls under its foot, which stays at the panel's bottom with the scores, the
+   primary button and its countdown; its shadow covers the panel's bottom padding, so nothing scrolls beneath it. */
+.board-overlay__panel > .round-end-result > .round-end-result__foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    background: var(--ronin-surface);
+    box-shadow: 0 1.25rem 0 var(--ronin-surface);
+}
+
 .board-overlay__panel:has(> .standings) {
     container: overlay-panel / inline-size;
 }
