@@ -10,6 +10,7 @@ import {
     type PlayDisplay,
     type PlayNotice,
     type ResultControls,
+    type SwitchControl,
 } from "@/entities/client/model/play-display";
 import { type SessionStatusDisplay } from "@/entities/session";
 import {
@@ -210,6 +211,43 @@ export function DecisionControls(
             ${band === null ? nothing : ActionButton(band, answered, onCommand)}${DecisionTimer(display)}
         </div>
         <span class="decision-controls__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>
+    </div>`;
+}
+
+/**
+ * A play switch: a native button (focus, Enter and Space) with the switch role, its state told by the knob's side,
+ * the track's fill and a mark on the track's free side (a bar while on, a ring while off), never by colour alone.
+ */
+function SwitchButton(
+    control: SwitchControl,
+    onCommand: PlayBoardProps["onCommand"],
+): TemplateResult {
+    return html`<button
+        type="button"
+        role="switch"
+        class="play-switch ${control.on ? "play-switch--on" : ""}"
+        aria-checked=${String(control.on)}
+        @click=${() => onCommand(control.command)}
+    >
+        <span class="play-switch__track" aria-hidden="true"><span class="play-switch__knob"></span></span
+        ><span class="play-switch__label">${control.label}</span>
+    </button>`;
+}
+
+/** The play switches in their slot on the band, or none while the player may not turn them. */
+export function PlaySwitches(
+    switches: readonly SwitchControl[],
+    onCommand: PlayBoardProps["onCommand"],
+): TemplateResult | undefined {
+    if (switches.length === 0) {
+        return undefined;
+    }
+    return html`<div class="play-switches" role="group" aria-label="Play switches">
+        ${repeat(
+            switches,
+            (control) => control.playSwitch,
+            (control) => SwitchButton(control, onCommand),
+        )}
     </div>`;
 }
 
@@ -417,5 +455,6 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             pinned: display.pinnedNameplate,
         },
         state: display.board,
+        switches: PlaySwitches(display.switches, onCommand),
     });
 }

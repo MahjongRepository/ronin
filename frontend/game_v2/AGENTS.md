@@ -69,8 +69,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   stays in the view, out of the state.
 * **One client state.** The dispatcher composes the session, the table (`entities/table`) and the
   viewer's interaction into one immutable state: the viewer's seat, its open decision, its
-  furiten, the timer settings, the round confirm it owes, when the first deal is due and the calls
-  the board shows. A replay is the same state with no
+  furiten, the timer settings, the round confirm it owes, when the first deal is due, the calls
+  the board shows, the play switches the player turned on and the wait ids the hand has opened. A replay is the same state with no
   session and no viewer; visibility (a replay's every hand, a live seat's own) is what the source
   showed and how the board is drawn, never a second model, and the seat at the bottom is the
   view's choice (the replay's is the recorded first dealer's, `docs/architecture.md`, Replays).
@@ -84,11 +84,29 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the bank alone, marked and announced, as the server drains it; a reconnect's re-sent wait resumes
   both where the server stands, never a fresh full turn. Past it the decision shows as expired, for
   display only: the server alone decides by the wait id whether an answer counts, so an expired
-  decision still takes one answer, and the client never answers on its own. Answering sends the
+  decision still takes one answer, and the client never answers without the player's instruction,
+  standing (a play switch) or given (a press). Answering sends the
   action with the decision's wait id once and marks it submitted; the server's next move closes
   it, a refusal while its wait goes on (a game error but a stale one, or the socket's rate limit)
   reopens it, and a dropped socket drops it, since the reconnect re-sends a wait the server still
   owes the seat.
+* **Play switches** (`model/play-switches.ts`): Auto win, No calls and Auto discard are the player's standing
+  answers, a field of the client state. Turning one (the `toggle_switch` intent, taken only on a live seat while a
+  round plays) sends nothing; the dispatcher answers for it where a message opens a decision on a wait id the client
+  has not seen before (`seenWaitIds`, each opened decision's id), stepping the switch's intent exactly as the player's
+  press would be stepped: the same send with the decision's wait id, once, marked submitted with the switch that sent
+  it (`bySwitch`). So the decision already open when a switch is turned on, a wait the client saw before, re-sent
+  after a reconnect, and a decision a refusal reopened are never answered by a switch: the seen ids are kept across a
+  drop, which drops the decision itself. A wait the server opened while the socket was down is new to the client,
+  and a switch answers it when the reconnect sends it. `switchAnswer` is the policy (the spec's Play switches): a win first (a turn's tsumo, a prompt's
+  ron), then No calls' pass of a prompt offering a call and no ron, then Auto discard's discard of the drawn tile on
+  a turn offering nothing else (`TurnDecision.drawnTileId`, null on the turn after the seat's chi or pon); no timer,
+  since ron is taken at once. A deal turns all three off and forgets the seen ids, as does a reconnect's snapshot
+  that leaves the hand (`snapshotLeftHand`: the table before it was not in a round (before the game, at a result or
+  after the game), or the snapshot is of another game or another count of finished rounds, which a snapshot of the
+  hand's own result pending is too); a snapshot of the same hand keeps them, and a reload starts with them off. A decision No
+  calls passed shows no controls; one Auto win or Auto discard answered shows as answered. The board shows them
+  (`PlayDisplay.switches`) only while the dispatcher takes their intent, never on a replay board.
 * **Round confirm.** A round end's wait, or a reconnect's snapshot of a round advance that says the
   seat still owes it, opens the round confirm like a decision: one confirm intent sends it once with
   that wait id, then the seat waits for the others. Only the next deal (the last confirm's or the
@@ -368,8 +386,8 @@ follows holds through the rebuild to it.
     in its river's frame, in the table's neutral latest colour; a claimed tile has left the river. A chankan
     offer's kan is ringed whole in its meld (`meld--source`) until the offer resolves.
   * The decisions' place (`_decision-controls.scss`): on a desktop one row in the foreground band, from past
-    the play switches' slot (`--switches-left`/`--switches-right`, on the band's side away from the decisions,
-    kept empty until the switches land) to the own row's right end, the timer's fixed slot (`--timer-w`, a
+    the play switches' slot (`--switches-left`/`--switches-right`, on the band's side away from the decisions) to
+    the own row's right end, the timer's fixed slot (`--timer-w`, a
     caption line over the digits: Time up, Sent, Bank) last; a row too narrow for its controls (a narrow
     desktop's) wraps the higher-ranked above the band's control and the timer, and four or more under 800px
     shed their tile previews and spare width. On a phone the lowest-ranked control that is neither a win, a
@@ -380,6 +398,11 @@ follows holds through the rebuild to it.
     column (a size container, `decisions`) is too short for one a row (the count `data-upper`). Rings lie
     inside a control's box. The board's container is named `game-board` and its viewport mixins query it by
     name, so a container inside the board never answers them.
+  * The play switches (`_play-switches.scss`) stand in their slot on the band row, bottom-aligned with the band:
+    each a native button with the switch role and `aria-checked`, at least 40x40, its knob over its label on a phone
+    and a narrow desktop, before it on a desktop; on and off differ by the knob's side, the track's fill and a mark
+    on the track's free side (a bar on, a ring off), never by colour alone. They follow the decision controls in the
+    board's order, so Shift+Tab from the hand reaches them; an upright board has no slot and hides them.
   * Own tiles: a held-back tile (kuikae, riichi) is recessed, never darkened: lower, smaller, flat, a dashed
     inner rim, its face and glyph colours kept; while some are held back the playable ones stand raised; a
     declaring or played tile is lifted and outlined in the accent, never into the 4px kept under the band.
@@ -425,6 +448,8 @@ follows holds through the rebuild to it.
   fails on content that is hidden or empty (a decision control's tile previews aside, which a pair may
   shed), rivers within 3px of each other or the centre, a strip within
   6px of a river, a badge of a decisions story off the place it holds on the others at that viewport, a
+  play switch under 40x40, off the board or screen, within 4px of a tile, over a decision control or the timer, or
+  whose knob's side or track's fill does not match its `aria-checked`, a
   decision's controls or timer off the place they hold while it is open once it is answered or expired
   (`CONTROL_FAMILIES`: the anchor's call), a landscape phone's toggle off its place once pressed (`TOGGLE_FAMILIES`:
   riichi in the band, a chi's and a kan's first step in the column), decision buttons over each other or the timer, a decision control
@@ -443,7 +468,9 @@ follows holds through the rebuild to it.
   round and step under 13px or past two, or incompleteness under 12px; on a landscape phone, a
 replay narration showing fewer than three lines at once or leaving its column. On the replay's route,
 in both engines, a click, Enter and Space on Next must each step exactly once; the replay stories that
-show a board run on the browser's clock for that reason, so their input keeps its real timing. It also fails on a round end that does not scroll inside its panel where it does not fit (its content
+show a board run on the browser's clock for that reason, so their input keeps its real timing. On the decisions
+story with every switch on beside furiten, Shift+Tab from the hand's first tile must reach a switch, and Space and
+Enter on Auto win must each turn it once, sending nothing. It also fails on a round end that does not scroll inside its panel where it does not fit (its content
   past its foot at the scroll's end, its primary button and countdown wholly in view at both ends; a case
   forces a live result's panel short to prove it), a winner pager that does not page, any other panel that
   does not fit, a panel over a landscape board covering the
@@ -558,8 +585,11 @@ is a new scenario there, labelling the messages and actions its tests look up. E
 runs through `runSeatScenario` with no mismatch, and the tests assert named checkpoints apart from
 the effects (the open decision with its offers, wait id and deadline, the table, the result), since
 matching effects alone passes with a wrong hand or decision. What the server cannot produce is a
-hand-written branch on a generated scenario: the client's own intents and ticks (a kuikae or
-riichi discard it refuses, an expired prompt), an answer racing a newer wait or the endpoint's rate
+hand-written branch on a generated scenario (`tests/fixtures/seat-transcripts.ts`): the client's own intents and
+ticks (a kuikae or riichi discard it refuses, an expired prompt, a play switch turned on, `switchedOnBefore`),
+a switch's send (the send the transcript recorded for the player's answer moved onto the message whose wait the
+switch answers, the press after it then sending nothing, `answeredBySwitch`; written by hand with `expecting` where
+the transcript recorded another answer), an answer racing a newer wait or the endpoint's rate
 limit (the harness skips the endpoint, and a transcript keeps the server's order), and a payload
 edited to a shape the server never sends.
 

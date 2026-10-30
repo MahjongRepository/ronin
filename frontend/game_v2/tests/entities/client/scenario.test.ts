@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { clientEvent, forbiddingIo } from "#tests/fixtures/scenario";
 import {
+    branchAfter,
     loadSeatScenario,
     receivedPayload,
     scenarioFromTranscript,
@@ -75,15 +76,6 @@ function stateAt(scenario: SeatScenario, run: ScenarioRun, label: string): GameC
 
 function lastState(run: ScenarioRun): GameClientState {
     return timelineStates(run.timeline).at(-1) ?? run.timeline.start;
-}
-
-function branchAfter(
-    scenario: SeatScenario,
-    label: string,
-    steps: readonly ScenarioStep[],
-): SeatScenario {
-    const kept = scenario.steps.slice(0, scenarioStateIndex(scenario, label));
-    return { ...scenario, steps: [...kept, ...steps] };
 }
 
 function lateError(at: number, raw: WirePayload, label: string): ScenarioStep {
@@ -264,6 +256,7 @@ describe("stepGameClient - generated call prompt", () => {
         const run = runClean(twice);
         const submitted = {
             at: 5000,
+            bySwitch: null,
             kind: "submitted",
             message: buildChiAction(CALLED_THREE_MAN, [0, 4], 1),
         };
@@ -361,6 +354,7 @@ describe("stepGameClient - generated own turn", () => {
         expect(stateAt(scenario, run, "first draw").decision).toEqual({
             baseDeadline: 3000 + 5 * 1000,
             deadline: 3000 + (5 + 30) * 1000,
+            drawnTileId: 3,
             kind: "turn",
             kuikaeTileTypes: [],
             offers: [

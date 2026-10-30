@@ -259,10 +259,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   win always outranks a discard or a pass, so with both switches on a tsumo offer wins. A switch
   answers a wait the first time the client sees its id while the switch is on, and never a wait it
   has already seen: not the decision already open when the switch is turned on, so nothing moves
-  under the player's finger; not the same wait re-sent after a reconnect, which resumes the decision
-  as it was, answered or not; and not a decision the server's refusal reopened, which is the
-  player's to answer again. Decision: all three reset at each deal, and when a reconnect's snapshot
-  shows another hand or a round result pending, since a switch is an instruction about this hand.
+  under the player's finger; not the same wait re-sent after a reconnect, which the server re-sends
+  only while it still owes the seat an answer (one given before the drop never reached it), so the
+  decision resumes answerable, for the player to answer again, never a switch; and not a decision
+  the server's refusal reopened, which is the player's to answer again. Decision: all three reset
+  at each deal, and when a reconnect's snapshot shows another hand or a round result pending,
+  since a switch is an instruction about this hand.
   This goes against the precedents for Auto win (Tenhou's manual clears only its no-call every hand
   and its auto-discard when the mouse was touched; Mahjong Soul players ask for auto-win to
   persist): one rule for all three switches, and no win taken on a later hand the player might have

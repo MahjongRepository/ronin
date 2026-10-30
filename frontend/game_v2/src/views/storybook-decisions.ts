@@ -6,6 +6,7 @@ import {
     type GameClientState,
     type LocalIntent,
     NO_PLAY_UI,
+    PLAY_SWITCHES,
     PlayBoard,
     type PlayCommand,
     type PlayUi,
@@ -70,8 +71,9 @@ interface DecisionStory {
 /**
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
  * three checkpoints and its call answered and expired, the seating before the first deal, the call prompts and a
- * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), what follows an answer, the round results the player confirms, the standings and the last result reopened
- * from them, then another player's seat left to an AI, the board's notices, a kick and the leave question.
+ * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
+ * beside furiten, what follows an answer, the round results the player confirms, the standings and the last result
+ * reopened from them, then another player's seat left to an AI, the board's notices, a kick and the leave question.
  */
 const STORY_KEYS = [
     "anchor_turn",
@@ -92,6 +94,7 @@ const STORY_KEYS = [
     "turn_in_bank",
     "riichi_pick",
     "riichi_turn",
+    "switches_furiten",
     "answered",
     "round_end",
     "double_ron_first",
@@ -149,6 +152,15 @@ function closedWith(code: number): (state: GameClientState) => readonly ClientEv
 /** The player's answer at the checkpoint. */
 function answering(intent: LocalIntent): (state: GameClientState) => readonly ClientEvent[] {
     return (state) => [{ at: state.now, intent, kind: "intent" }];
+}
+
+/** Every play switch turned on at the checkpoint, which answers none of the decision already open. */
+function allSwitchesOn(state: GameClientState): readonly ClientEvent[] {
+    return PLAY_SWITCHES.map((playSwitch) => ({
+        at: state.now,
+        intent: { playSwitch, type: "toggle_switch" },
+        kind: "intent",
+    }));
 }
 
 /** A tick `seconds` after the checkpoint, the time the player let run. */
@@ -230,6 +242,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     standings: {
         ...checkpoint("final_round_seat_1", "game end", "Standings"),
         followUp: intentsAfterCall({ type: "confirm_result" }),
+    },
+    switches_furiten: {
+        ...checkpoint("own_turn_seat_1", "furiten", "Switches on, furiten"),
+        followUp: allSwitchesOn,
     },
     turn_in_bank: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Turn in bank"),

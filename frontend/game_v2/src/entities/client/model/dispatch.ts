@@ -40,6 +40,7 @@ import {
     openDecision,
     refusesSubmission,
 } from "./decision";
+import { SWITCHES_OFF, snapshotLeftHand, switchAnswer } from "./play-switches";
 import {
     type ClientEvent,
     type ClientStep,
@@ -47,6 +48,7 @@ import {
     type GameClientState,
     type LocalIntent,
     type PlayIntent,
+    type PlaySwitch,
     type RoundConfirm,
     type ShownCalls,
     type TimedNotice,
@@ -191,12 +193,31 @@ function withViewer(state: GameClientState, message: ParsedServerMessage): GameC
     }
 }
 
+/**
+ * The play switches after a message, from the table it found (`before`): a deal turns them off, as does a reconnect's
+ * snapshot of another hand or of a round result pending, and either forgets the hand's wait ids. Any other message
+ * leaves them, a snapshot of the same hand included.
+ */
+function withSwitches(
+    state: GameClientState,
+    before: TableState,
+    message: ParsedServerMessage,
+): GameClientState {
+    const leaves =
+        message.type === "round_started" ||
+        (message.type === "game_reconnected" && snapshotLeftHand(before, state.table));
+    return leaves ? { ...state, seenWaitIds: [], switches: SWITCHES_OFF } : state;
+}
+
 function withDecision(state: GameClientState, message: ParsedServerMessage): GameClientState {
-    const { now, table, timer, viewerSeat } = state;
+    const { now, seenWaitIds, table, timer, viewerSeat } = state;
     const hand = table.players.find((player) => player.seat === viewerSeat)?.tiles ?? [];
     const opened = openDecision(message, { at: now, hand, timer, viewerSeat });
     if (opened !== null) {
-        return { ...state, decision: opened };
+        const seen = seenWaitIds.includes(opened.waitId)
+            ? seenWaitIds
+            : [...seenWaitIds, opened.waitId];
+        return { ...state, decision: opened, seenWaitIds: seen };
     }
     const decision = state.decision === null ? null : followDecision(state.decision, message);
     return { ...state, decision };
@@ -368,21 +389,41 @@ function replayCalls(
     return calls.length === 0 ? null : shownCalls(calls, state.now);
 }
 
+/**
+ * The client after a server message the session took (`stepped`, from `before`): the table event it carries and its
+ * calls, the viewer's facts, the play switches, the decision it opens or follows, the round confirm and the notices,
+ * then the switches' answer to a decision it opened on an unseen wait.
+ */
+function takeMessage(
+    before: GameClientState,
+    stepped: GameClientState,
+    message: ParsedServerMessage,
+): ClientStep {
+    const tableEvent = serverTableEvent(message);
+    const table = tableEvent === null ? stepped.table : applyEvent(stepped.table, tableEvent);
+    const tabled =
+        tableEvent === null
+            ? stepped
+            : { ...stepped, calls: liveCalls(stepped, tableEvent, table), table };
+    const viewed = withSwitches(withViewer(tabled, message), before.table, message);
+    const decided = withDecision(viewed, message);
+    const noticed = withNotice(before.session, withRoundConfirm(decided, message), message);
+    return switchStep(noticed, viewed.seenWaitIds);
+}
+
 function onServerMessage(state: GameClientState, raw: Record<string, unknown>): TracedStep {
     const [error, message] = parseServerMessage(raw);
     if (error) {
         return reportUnreadMessage(state, error.message);
     }
     const step = withSession(state, { at: state.now, kind: "message", message });
-    const tableEvent = serverTableEvent(message);
-    const table = tableEvent === null ? step.state.table : applyEvent(step.state.table, tableEvent);
-    const tabled =
-        tableEvent === null
-            ? step.state
-            : { ...step.state, calls: liveCalls(step.state, tableEvent, table), table };
-    const decided = withDecision(withViewer(tabled, message), message);
-    const next = withNotice(state.session, withRoundConfirm(decided, message), message);
-    return { effects: step.effects, parsed: message, partial: false, state: next };
+    const taken = takeMessage(state, step.state, message);
+    return {
+        effects: [...step.effects, ...taken.effects],
+        parsed: message,
+        partial: false,
+        state: taken.state,
+    };
 }
 
 /**
@@ -472,8 +513,8 @@ function reopenResultStep(state: GameClientState): ClientStep | null {
 }
 
 /**
- * Whether stepping `intent` now would answer the open decision, confirm the round result or reopen the game's last
- * one: the one test of what the client may play, so the board offers exactly the intents the dispatcher takes.
+ * Whether stepping `intent` now would answer the open decision, confirm the round result, reopen the game's last
+ * one or turn a play switch: the one test of what the client may play, so the board offers exactly the intents the dispatcher takes.
  */
 export function takesIntent(state: GameClientState, intent: PlayIntent): boolean {
     if (intent.type === "confirm_result") {
@@ -482,21 +523,67 @@ export function takesIntent(state: GameClientState, intent: PlayIntent): boolean
     if (intent.type === "show_last_result") {
         return reopenResultStep(state) !== null;
     }
+    if (intent.type === "toggle_switch") {
+        return takesSwitch(state);
+    }
     return decisionAnswer(state, intent) !== null;
 }
 
-/** Answer the open decision: send the action it takes and mark it submitted, or change nothing. */
-function onDecisionIntent(state: GameClientState, intent: DecisionIntent): ClientStep {
+/**
+ * Answer the open decision, by the player's press or by the play switch `bySwitch`: send the action it takes and mark
+ * it submitted, or change nothing.
+ */
+function onDecisionIntent(
+    state: GameClientState,
+    intent: DecisionIntent,
+    bySwitch: PlaySwitch | null,
+): ClientStep {
     const { decision } = state;
     const message = decisionAnswer(state, intent);
     if (decision === null || message === null) {
         return { effects: [], state };
     }
-    const status = { at: state.now, kind: "submitted", message } as const;
+    const status = { at: state.now, bySwitch, kind: "submitted", message } as const;
     return {
         effects: [{ message, type: "send" }],
         state: { ...state, decision: { ...decision, status } },
     };
+}
+
+/**
+ * The play switches' standing answer to a decision a message opened on a wait the client had not seen before it
+ * (`seenBefore`), taken exactly where the player's press would be; nothing for a decision already open, re-sent after
+ * a reconnect or reopened by a refusal, which stay the player's.
+ */
+function switchStep(state: GameClientState, seenBefore: readonly number[]): ClientStep {
+    const { decision, switches } = state;
+    if (decision?.status.kind !== "open" || seenBefore.includes(decision.waitId)) {
+        return { effects: [], state };
+    }
+    const answer = switchAnswer(decision, switches);
+    return answer === null
+        ? { effects: [], state }
+        : onDecisionIntent(state, answer.intent, answer.bySwitch);
+}
+
+/** Whether the player may turn a play switch on or off now: on a live seat while a round plays. */
+function takesSwitch(state: GameClientState): boolean {
+    const { session, table, viewerSeat } = state;
+    return (
+        session !== null &&
+        session.status !== "ended" &&
+        viewerSeat !== null &&
+        table.phase === "in_round"
+    );
+}
+
+/** Turn a play switch on or off, sending nothing: it answers the waits the client sees from then on. */
+function toggleSwitchStep(state: GameClientState, playSwitch: PlaySwitch): ClientStep | null {
+    if (!takesSwitch(state)) {
+        return null;
+    }
+    const switches = { ...state.switches, [playSwitch]: !state.switches[playSwitch] };
+    return { effects: [], state: { ...state, switches } };
 }
 
 function onIntent(state: GameClientState, intent: LocalIntent): ClientStep {
@@ -507,7 +594,10 @@ function onIntent(state: GameClientState, intent: LocalIntent): ClientStep {
         case "discard":
         case "choose":
         case "pass": {
-            return onDecisionIntent(state, intent);
+            return onDecisionIntent(state, intent, null);
+        }
+        case "toggle_switch": {
+            return toggleSwitchStep(state, intent.playSwitch) ?? { effects: [], state };
         }
         case "confirm_result": {
             return confirmStep(state) ?? { effects: [], state };
@@ -582,7 +672,9 @@ function emptyClient(at: number, session: SessionState | null): GameClientState 
         notice: null,
         now: at,
         roundConfirm: null,
+        seenWaitIds: [],
         session,
+        switches: SWITCHES_OFF,
         table: createInitialTableState(),
         timer: null,
         unreadMessages: 0,

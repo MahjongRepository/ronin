@@ -43,7 +43,7 @@ const MIN_TAP: Size = { height: 42, width: 32 };
 const NOTCH_VIEWPORT: Size = { height: 390, width: 844 };
 const NOTCH_INSETS: Insets = { bottom: 21, left: 47, right: 47 };
 const NOTCH_SAFE_AREA: Box = { height: 369, left: 47, top: 0, width: 750 };
-/** The smallest decision button and leave button, in CSS pixels: a tap target. */
+/** The smallest decision button, leave button and play switch, in CSS pixels: a tap target. */
 const MIN_ACTION_SIZE = 40;
 /** The least room between a decision control and any tile outside the controls, so a tap meant for one never lands on the other. */
 const MIN_CONTROL_TILE_GAP = 4;
@@ -206,6 +206,17 @@ interface GroupedBox {
     readonly box: Box;
 }
 
+/**
+ * A play switch: its box, the state it announces, and how it shows it apart from colour (the knob right of its track's
+ * middle) and by its fill (the track's background not transparent).
+ */
+interface SwitchMeasure {
+    readonly box: Box;
+    readonly checked: boolean;
+    readonly knobRight: boolean;
+    readonly filled: boolean;
+}
+
 interface BoardMeasure {
     readonly board: Box;
     readonly boardScroll: Size;
@@ -247,6 +258,8 @@ interface BoardMeasure {
     readonly timer: Box | null;
     /** The decision's first toggle (riichi, a call's first step), pressed or not. */
     readonly toggle: Box | null;
+    /** The play switches on the band. */
+    readonly switches: readonly SwitchMeasure[];
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly nameplates: readonly Box[];
@@ -604,6 +617,20 @@ const PAGES: readonly PageCase[] = [
         ".hand-tile--selectable",
         ".decision-controls__bank",
     ]),
+    {
+        ...decisionCase("switches_furiten", [
+            ".play-switch--on .play-switch__knob",
+            ".board-furiten__word",
+        ]),
+        onlyAt: [
+            "desktop",
+            "desktop-1440",
+            "desktop-wide",
+            "phone-notch-landscape",
+            "phone-se-landscape",
+        ],
+        prepare: checkSwitchKeys,
+    },
     decisionCase("turn_in_bank", [".decision-controls__bank--draining", ".decision-timer--bank"]),
     decisionCase("answered", [".hand-tile--selected"]),
     decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
@@ -771,6 +798,44 @@ async function checkStepButton(page: Page): Promise<void> {
             throw new Error(`${name} on Next stepped from ${before} to ${after}, not once`);
         }
     }
+}
+
+async function switchChecked(page: Page, name: string): Promise<boolean> {
+    return (await page.getByRole("switch", { name }).getAttribute("aria-checked")) === "true";
+}
+
+/**
+ * The play switches by keyboard: Shift+Tab from the hand's first tile reaches one within a few presses (no focus moved
+ * for the player), and Space and Enter on the focused Auto win each turn it once, sending nothing; it ends on, as the
+ * story opened.
+ */
+async function checkSwitchKeys(page: Page): Promise<void> {
+    await page.waitForSelector(".play-switch", { timeout: SELECTOR_TIMEOUT_MS });
+    await page.locator(".board-local .hand-tile").first().focus();
+    let reached = false;
+    for (let press = 0; press < 4 && !reached; press += 1) {
+        await page.keyboard.press("Shift+Tab");
+        reached = await page.evaluate(
+            () => document.activeElement?.classList.contains("play-switch") ?? false,
+        );
+    }
+    if (!reached) {
+        throw new Error("Shift+Tab from the hand never reached a play switch");
+    }
+    const autoWin = page.getByRole("switch", { name: "Auto win" });
+    for (const [key, expected] of [
+        [" ", false],
+        ["Enter", true],
+    ] as const) {
+        await autoWin.press(key);
+        if ((await switchChecked(page, "Auto win")) !== expected) {
+            throw new Error(`${key === " " ? "Space" : key} on Auto win did not turn it once`);
+        }
+    }
+    if ((await page.locator(".decisions-storybook__sent").count()) > 0) {
+        throw new Error("turning a play switch sent a message");
+    }
+    await autoWin.blur();
 }
 
 async function stepReplayToLocalMelds(page: Page): Promise<void> {
@@ -1115,6 +1180,26 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const action of decisionActions) {
             grouped.push({ box: action, group: "actions" });
         }
+        const switchElements = [...board.querySelectorAll(".play-switch")];
+        for (const element of switchElements) {
+            grouped.push({ box: box(element), group: "switches" });
+        }
+        const switches = switchElements.map((element) => {
+            const track = element.querySelector(".play-switch__track");
+            const knob = element.querySelector(".play-switch__knob");
+            const trackBox = track?.getBoundingClientRect();
+            const knobBox = knob?.getBoundingClientRect();
+            const fill = track === null ? "" : getComputedStyle(track).backgroundColor;
+            return {
+                box: box(element),
+                checked: element.getAttribute("aria-checked") === "true",
+                filled: fill !== "" && fill !== "transparent" && fill !== "rgba(0, 0, 0, 0)",
+                knobRight:
+                    trackBox !== undefined &&
+                    knobBox !== undefined &&
+                    knobBox.left + knobBox.width / 2 > trackBox.left + trackBox.width / 2,
+            };
+        });
         const resultActions = [
             ...board.querySelectorAll(".board-overlay .round-end-result__confirm"),
         ].map(box);
@@ -1282,6 +1367,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             roundList: roundList === null ? null : box(roundList),
             standings: measureStandings(),
             stripTiles: bySeat(board, ".board-strip .tile", ".board-strip"),
+            switches,
             tiles: tableTiles.map(box),
             timer: timer === null ? null : box(timer),
             toggle: toggle === null ? null : box(toggle),
@@ -1937,6 +2023,49 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
     );
 }
 
+/**
+ * The play switches sit wholly on the board and the screen, each large enough to tap, clear of every tile by the gap
+ * a decision control keeps and off every decision control and the timer, and each shows the state it announces apart
+ * from colour (its knob's side) and by its fill.
+ */
+function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): void {
+    const { switches } = board;
+    if (switches.length === 0) {
+        return;
+    }
+    const boxes = switches.map((control) => control.box);
+    const outside = boxes.filter((box) => !contains(board.board, box) || !contains(screen, box));
+    report.expect(
+        outside.length === 0,
+        `${outside.length} play switch(es) off the board or screen`,
+    );
+    const small = boxes.filter(
+        (box) => box.width < MIN_ACTION_SIZE - EPSILON || box.height < MIN_ACTION_SIZE - EPSILON,
+    );
+    report.expect(
+        small.length === 0,
+        `play switches under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
+    );
+    const tiles = [...board.otherTiles, ...board.localTiles];
+    const controls = [...board.actions, ...(board.timer ? [board.timer] : [])];
+    const crowded = boxes.filter(
+        (box) =>
+            tiles.some((tile) => intersects(grown(box, MIN_CONTROL_TILE_GAP), tile)) ||
+            controls.some((control) => intersects(box, control)),
+    );
+    report.expect(
+        crowded.length === 0,
+        `play switch(es) within ${MIN_CONTROL_TILE_GAP}px of a tile or over a decision control: ${crowded.map(describeBox).join(", ")}`,
+    );
+    const misread = switches.filter(
+        (control) => control.knobRight !== control.checked || control.filled !== control.checked,
+    );
+    report.expect(
+        misread.length === 0,
+        `play switch(es) whose knob or fill does not show their state: ${misread.map((control) => describeBox(control.box)).join(", ")}`,
+    );
+}
+
 function describeLocalTile(tiles: readonly Box[]): string {
     const [tile] = tiles;
     return tile ? `${tile.width.toFixed(1)}x${tile.height.toFixed(1)}` : "none";
@@ -1986,6 +2115,7 @@ async function checkBoard(
         report.controlPlaces =
             board.timer === null ? null : [...(board.decisionCorner?.buttons ?? []), board.timer];
         checkActions(board, screen, report);
+        checkSwitches(board, screen, report);
         checkNotices(board, report);
         checkResultNames(board, report);
         checkLeave(board, screen, report);

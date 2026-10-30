@@ -163,6 +163,7 @@ function openTurn(
             : [];
     return {
         ...turnDeadlines(context.timer, context.at, event),
+        drawnTileId: event.type === "draw" ? event.tileId : null,
         kind: "turn",
         kuikaeTileTypes: event.type === "turn" ? event.kuikaeTileTypes : [],
         offers,
@@ -320,7 +321,8 @@ function takesDiscard(decision: TurnDecision, player: PlayerState, tileId: numbe
 /**
  * The action that answers a decision with `intent`, or null when it was already answered or does not take it: a
  * choice the server did not offer, a discard on a call prompt, a pass on a turn. A decision past its deadline still
- * takes one answer, which the server accepts or refuses as stale; the client never answers on its own.
+ * takes one answer, which the server accepts or refuses as stale; the client never answers without the player's
+ * instruction, standing (a play switch) or given.
  */
 export function answerDecision(
     decision: Decision,

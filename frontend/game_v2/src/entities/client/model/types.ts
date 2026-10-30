@@ -28,13 +28,29 @@ export type Offer =
       };
 
 /**
- * Where a decision stands: open for an answer, answered with the action sent, or past its deadline in logical
- * time. Expired is for display: it still takes one answer, which the server judges by its wait id, and the client
- * never sends one on its own.
+ * A play switch: a standing answer the player turns on for the rest of the hand. Auto win takes a tsumo or ron offer,
+ * No calls passes a call prompt that offers chi, pon or open kan and no ron, Auto discard discards the drawn tile on a
+ * turn that offers nothing else.
+ */
+export type PlaySwitch = "auto_win" | "no_calls" | "auto_discard";
+
+/** Which play switches are on. */
+export type PlaySwitches = Readonly<Record<PlaySwitch, boolean>>;
+
+/**
+ * Where a decision stands: open for an answer, answered with the action sent (by the player's press, or by the play
+ * switch that answered it, `bySwitch`), or past its deadline in logical time. Expired is for display: it still takes
+ * one answer, which the server judges by its wait id, and the client never sends one without the player's
+ * instruction.
  */
 export type DecisionStatus =
     | { readonly kind: "open" }
-    | { readonly kind: "submitted"; readonly at: number; readonly message: ClientMessage }
+    | {
+          readonly kind: "submitted";
+          readonly at: number;
+          readonly message: ClientMessage;
+          readonly bySwitch: PlaySwitch | null;
+      }
     | { readonly kind: "expired" };
 
 interface DecisionBase {
@@ -59,6 +75,8 @@ export interface TurnDecision extends DecisionBase {
     readonly baseDeadline: number | null;
     /** The tile types kuikae forbids discarding on the turn after the seat's own pon or chi. */
     readonly kuikaeTileTypes: readonly number[];
+    /** The tile the turn's draw drew; null on the turn after the seat's own pon or chi, which draws none. */
+    readonly drawnTileId: number | null;
 }
 
 /** A call prompt on another seat's discard, or on a kan it may rob. */
@@ -72,8 +90,8 @@ export interface CallDecision extends DecisionBase {
 export type Decision = TurnDecision | CallDecision;
 
 /**
- * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, or reopen the
- * game's last result from the standings.
+ * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, reopen the
+ * game's last result from the standings, or turn a play switch on or off, which sends nothing itself.
  */
 export type LocalIntent =
     | { readonly type: "leave" }
@@ -81,15 +99,16 @@ export type LocalIntent =
     | { readonly type: "choose"; readonly offer: Offer }
     | { readonly type: "pass" }
     | { readonly type: "confirm_result" }
-    | { readonly type: "show_last_result" };
+    | { readonly type: "show_last_result" }
+    | { readonly type: "toggle_switch"; readonly playSwitch: PlaySwitch };
 
 /** An intent that answers the open decision. */
 export type DecisionIntent = Exclude<
     LocalIntent,
-    { readonly type: "leave" | "confirm_result" | "show_last_result" }
+    { readonly type: "leave" | "confirm_result" | "show_last_result" | "toggle_switch" }
 >;
 
-/** An intent the board offers: an answer to the open decision, or the round result's confirm. */
+/** An intent the board offers: an answer to the open decision, the round result's confirm, or a play switch. */
 export type PlayIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
 
 /**
@@ -185,6 +204,13 @@ export interface GameClientState {
      * settings; null without them.
      */
     readonly firstDealDue: number | null;
+    /** The play switches the player turned on for this hand; a deal turns them off. */
+    readonly switches: PlaySwitches;
+    /**
+     * The wait ids of the decisions opened this hand, kept across a dropped socket, so a switch answers a wait only the
+     * first time the client sees it: never one re-sent after a reconnect or reopened by a refusal.
+     */
+    readonly seenWaitIds: readonly number[];
 }
 
 /** The session's IO plus a report of a message or replay line the client could not parse, for the driver to show. */

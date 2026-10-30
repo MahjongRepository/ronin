@@ -99,7 +99,9 @@
                     "IncompleteNote",
                     "OptionButton",
                     "PlaybackOptions",
-                    "StepButton"
+                    "StepButton",
+                    "SwitchButton",
+                    "PlaySwitches"
                 ]
             }
         ],

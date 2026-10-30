@@ -41,6 +41,7 @@ import {
 } from "./countdown";
 import { answerDecision } from "./decision";
 import { takesIntent } from "./dispatch";
+import { PLAY_SWITCHES } from "./play-switches";
 import {
     type Decision,
     type DecisionIntent,
@@ -48,6 +49,7 @@ import {
     type LocalIntent,
     type Offer,
     type PlayIntent,
+    type PlaySwitch,
     type RoundConfirm,
     type TimedNotice,
 } from "./types";
@@ -97,6 +99,16 @@ export interface DecisionAction extends PlayAction {
     readonly group: readonly MeldTile[] | null;
     /** Once the decision is answered, whether this control sent the answer; false while it is open. */
     readonly chosen: boolean;
+}
+
+/**
+ * A play switch on the board: its label, whether it is on, and the command turning it, which sends nothing itself.
+ */
+export interface SwitchControl {
+    readonly playSwitch: PlaySwitch;
+    readonly label: string;
+    readonly on: boolean;
+    readonly command: PlayCommand;
 }
 
 /** Where the open decision stands for its controls: open, past its deadline (still answerable), or answered. */
@@ -183,6 +195,8 @@ export interface PlayDisplay {
     readonly countdown: DecisionCountdown | null;
     /** The seat is furiten, shown only while a round plays, never under its result or the standings. */
     readonly furiten: boolean;
+    /** The play switches, while the player may turn them (a live seat in a round); else none. */
+    readonly switches: readonly SwitchControl[];
     /** The page of the round's result the panel shows, clamped to its pages; 0 with no result. */
     readonly resultPage: number;
     /** The nameplate pinned for the others' score differences, or null. */
@@ -219,6 +233,12 @@ const OFFER_LABELS: Readonly<Record<Offer["kind"], string>> = {
     riichi: "Riichi",
     ron: "Ron",
     tsumo: "Tsumo",
+};
+
+const SWITCH_LABELS: Readonly<Record<PlaySwitch, string>> = {
+    auto_discard: "Auto discard",
+    auto_win: "Auto win",
+    no_calls: "No calls",
 };
 
 const PASS: DecisionIntent = { type: "pass" };
@@ -530,6 +550,9 @@ function sentBy(state: GameClientState, candidate: DecisionAction, sent: ClientM
  * answer, so nothing moves while the server answers.
  */
 function decisionActions(state: GameClientState, ui: PlayUi): DecisionAction[] {
+    if (passedByNoCalls(state)) {
+        return [];
+    }
     const answered = asAnswered(state);
     const offers = takenOffers(answered);
     const choosing = choosingTiles(answered, ui);
@@ -625,8 +648,32 @@ function markSource(
     return [bottom, right, top, left];
 }
 
+/** Whether No calls passed the decision, which then shows nothing: its controls never appear. */
+function passedByNoCalls(state: GameClientState): boolean {
+    const status = state.decision?.status;
+    return status?.kind === "submitted" && status.bySwitch === "no_calls";
+}
+
 function decisionStanding(state: GameClientState): DecisionStanding | null {
-    return state.decision?.status.kind ?? null;
+    return passedByNoCalls(state) ? null : (state.decision?.status.kind ?? null);
+}
+
+/** The play switches as the board shows them, each turned by its intent, while the dispatcher takes that. */
+function switchControls(state: GameClientState): SwitchControl[] {
+    return PLAY_SWITCHES.flatMap((playSwitch): SwitchControl[] => {
+        const intent: PlayIntent = { playSwitch, type: "toggle_switch" };
+        if (!takesIntent(state, intent)) {
+            return [];
+        }
+        return [
+            {
+                command: intentCommand(intent),
+                label: SWITCH_LABELS[playSwitch],
+                on: state.switches[playSwitch],
+                playSwitch,
+            },
+        ];
+    });
 }
 
 /**
@@ -955,6 +1002,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         result: resultControls(state, resultPage),
         resultOverStandings: state.roundConfirm?.kind === "final",
         resultPage,
+        switches: switchControls(state),
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
         tileIntents: intentsOf(plays),
         viewerSeat,

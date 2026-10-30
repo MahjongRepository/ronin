@@ -10,6 +10,8 @@ export type {
     LocalIntent,
     Offer,
     PlayIntent,
+    PlaySwitch,
+    PlaySwitches,
     RoundConfirm,
     ShownCalls,
     TurnDecision,
@@ -22,6 +24,7 @@ export {
     startReplayClient,
     stepGameClient,
 } from "./model/dispatch";
+export { PLAY_SWITCHES } from "./model/play-switches";
 export type { DecisionCountdown, TurnClock } from "./model/countdown";
 export {
     decisionCountdown,
@@ -41,6 +44,7 @@ export type {
     PlayNotice,
     PlayUi,
     ResultControls,
+    SwitchControl,
     TileChoiceKind,
 } from "./model/play-display";
 export { NO_PLAY_UI, failureDisplay, nextPlayUi, playDisplay } from "./model/play-display";

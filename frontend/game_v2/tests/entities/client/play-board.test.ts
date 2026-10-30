@@ -35,6 +35,24 @@ function timer(host: HTMLElement): [string | undefined, string | undefined, bool
     ];
 }
 
+/** The play switches a live board draws for a state, each press going to `onCommand`. */
+function renderSwitches(
+    state: GameClientState,
+    onCommand: (command: PlayCommand) => void,
+): HTMLButtonElement[] {
+    const host = document.createElement("div");
+    render(
+        PlayBoard({
+            display: playDisplay(state, NO_PLAY_UI),
+            onCommand,
+            standings: null,
+            table: state.table,
+        }),
+        host,
+    );
+    return [...host.querySelectorAll<HTMLButtonElement>(".play-switch")];
+}
+
 const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
 
 function renderLiveStandings(): { host: HTMLElement; commands: PlayCommand[] } {
@@ -125,5 +143,29 @@ describe("PlayBoard", () => {
         expect(timer(renderPlay(turn))).toEqual(["", "5+30", false]);
         expect(timer(renderPlay(inBank))).toEqual(["Bank", "0+29", true]);
         expect(timer(renderPlay(sent))).toEqual(["Sent", "", false]);
+    });
+
+    it("draws each play switch as a switch announcing its state, a press turning it and sending nothing", () => {
+        const turn = checkpointState("anchor_seat_1", "own turn");
+        const commands: PlayCommand[] = [];
+        const [autoWin] = renderSwitches(turn, (command) => commands.push(command));
+        autoWin.click();
+        const toggle = { playSwitch: "auto_win", type: "toggle_switch" } as const;
+        const step = stepGameClient(turn, { at: turn.now, intent: toggle, kind: "intent" });
+        const switches = renderSwitches(step.state, () => {});
+
+        expect(commands).toEqual([{ intent: toggle, kind: "intent" }]);
+        expect(step.effects).toEqual([]);
+        expect(
+            switches.map((button) => [
+                button.textContent?.trim(),
+                button.getAttribute("role"),
+                button.getAttribute("aria-checked"),
+            ]),
+        ).toEqual([
+            ["Auto win", "switch", "true"],
+            ["No calls", "switch", "false"],
+            ["Auto discard", "switch", "false"],
+        ]);
     });
 });

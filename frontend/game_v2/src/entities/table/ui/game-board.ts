@@ -48,6 +48,8 @@ interface GameBoardProps {
     readonly overlayIsResult?: boolean;
     /** The bottom seat is furiten: its mark shows in the slot by the hand that a played board keeps for it. */
     readonly furiten?: boolean;
+    /** The play switches, in their slot on the foreground band's side away from the decisions. */
+    readonly switches?: TemplateResult;
     /**
      * What Escape does once no badge is pinned (stepping back from a decision's step), given the board; none when it
      * does nothing. An Escape something on the board already took (a panel's) is left alone.
@@ -388,8 +390,8 @@ function EmptyCenterArea(): TemplateResult {
  * The board, sized from its own box (docs/game-client-look.md, Composition): the core of the centre and the four
  * rivers in their pinwheel, the other seats' strips and badges in their zones toward the edges, the pooled counters in
  * the top-left corner and the page's own controls (`menu`) in the top-right, and over the foreground band the bottom
- * seat's badge, hand and melds with the decision's controls, when given, by the hand; a board the viewer plays
- * (`localHand`) also keeps the furiten mark's slot beside the hand. A pinned badge unpins on a click anywhere else on
+ * seat's badge, hand and melds with the decision's controls and the play switches, when given, by the hand; a board
+ * the viewer plays (`localHand`) also keeps the furiten mark's slot beside the hand. A pinned badge unpins on a click anywhere else on
  * the board or on Escape; with none pinned, Escape steps back from a decision's step. Calls show over their seats' rivers for a
  * moment, clear of the latest discard, and a win's call shows before the panel over the board does.
  */
@@ -437,6 +439,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${props.actions ? html`<div class="board-actions" data-area="actions" style=${styleMap(rightStripStyle(state?.players[1] ?? null))}>${props.actions}</div>` : ""}
+                    ${props.switches ?? ""}
                     ${props.notices ? BoardNotices(props.notices) : ""}
                     ${props.callouts ? Callouts(props.callouts, state) : ""}
                 </div>
