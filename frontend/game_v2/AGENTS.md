@@ -140,8 +140,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`frame_undecodable`, apart from the browser's socket error, `transport_error`, which only its
   close follows), or a message its table or decision cannot take, which they report by throwing a
   `DesyncError` (`entities/table`); a silent fallback that guesses (an offer dropped for want of its
-  tile) is one too. Out of step, the client answers nothing, drops the open decision and an owed or
-  sent round confirm, never resends what it sent, and keeps `highestOpenedWaitId`, so a wait re-sent
+  tile, an added kan drawn as a closed one for want of its pon) is one too. Out of step, the client
+  answers nothing, drops the open decision and an owed or sent round confirm, never resends what it
+  sent, and keeps `highestOpenedWaitId`, so a wait re-sent
   after the snapshot is the player's to answer; the session still takes every message, but only the
   snapshot, the game's end and the round end before it (the game's last, which carries no wait)
   reach the table, every other message dropped. Those two carry the scores and the result the server

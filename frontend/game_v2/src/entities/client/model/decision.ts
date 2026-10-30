@@ -57,12 +57,16 @@ const CLOSING_TYPES: ReadonlySet<ParsedServerMessage["type"]> = new Set([
     "turn",
 ]);
 
-/** What opening a decision reads besides its message: when it opens, the timer settings, the viewer's known hand. */
+/**
+ * What opening a decision reads besides its message: when it opens, the timer settings, the viewer's known hand and
+ * its melds.
+ */
 export interface DecisionContext {
     readonly at: number;
     readonly timer: TimerSettings | null;
     readonly viewerSeat: number | null;
     readonly hand: readonly number[];
+    readonly melds: PlayerState["melds"];
 }
 
 function tileType(tileId: number): number {
@@ -96,16 +100,31 @@ function turnDeadlines(
     };
 }
 
+function hasPonOf(melds: DecisionContext["melds"], type: number): boolean {
+    return melds.some(
+        (meld) => meld.meldType === "pon" && meld.tileIds.some((id) => tileType(id) === type),
+    );
+}
+
 /**
  * A turn's offers from the draw's available actions; a kan names a tile type, answered with a tile of it. A kan of a
- * type the hand holds no tile of means the hand the client holds is not the server's.
+ * type the hand holds no tile of, or an added kan of a type the seat has no pon of, means the hand the client holds is
+ * not the server's.
  */
-function actionOffers(action: AvailableAction, hand: readonly number[]): Offer[] {
+function actionOffers(
+    action: AvailableAction,
+    { hand, melds }: Pick<DecisionContext, "hand" | "melds">,
+): Offer[] {
     const tiles = action.tiles ?? [];
     function kanOffer(kanType: KanType, type: number): Offer {
         const tileId = hand.find((handTile) => tileType(handTile) === type);
         if (tileId === undefined) {
             throw new DesyncError(`A kan of tile type ${type} is offered, but the hand holds none`);
+        }
+        if (kanType === KAN_TYPE.ADDED && !hasPonOf(melds, type)) {
+            throw new DesyncError(
+                `An added kan of tile type ${type} is offered, but the seat has no pon of it`,
+            );
         }
         return { kanType, kind: "kan", tileId };
     }
@@ -168,7 +187,7 @@ function openTurn(
 ): TurnDecision {
     const offers =
         event.type === "draw"
-            ? event.availableActions.flatMap((action) => actionOffers(action, context.hand))
+            ? event.availableActions.flatMap((action) => actionOffers(action, context))
             : [];
     return {
         ...turnDeadlines(context.timer, context.at, event),
@@ -203,7 +222,8 @@ function openCall(prompt: CallPromptEvent, waitId: number, context: DecisionCont
 /**
  * The decision a message opens for the viewer's seat, or null: the seat's own draw or `turn` event opens its turn,
  * a call prompt its call. Only a message that carries a wait id opens one, so a replay never does. An offer the client
- * cannot resolve (a kan of a type the hand lacks, a chi with no pair) throws a `DesyncError` rather than being dropped.
+ * cannot resolve (a kan of a type the hand lacks, an added kan with no pon, a chi with no pair) throws a `DesyncError`
+ * rather than being dropped.
  */
 export function openDecision(
     message: ParsedServerMessage,

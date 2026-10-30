@@ -74,6 +74,19 @@ function unmatchedKanDraw(state: GameClientState): WirePayload {
     };
 }
 
+/** The viewer's own draw offering an added kan of a tile type the hand holds but the seat has no pon of. */
+function ponlessAddedKanDraw(state: GameClientState): WirePayload {
+    const seat = state.viewerSeat ?? 0;
+    const drawnTile = viewerTiles(state).at(0) ?? 0;
+    return {
+        aa: [{ a: PLAYER_ACTION.ADDED_KAN, tl: [Math.floor(drawnTile / 4)] }],
+        bk: 30,
+        d: seat * NUM_TILES + drawnTile,
+        t: EVENT_TYPE.DRAW,
+        wi: TURN_WAIT_ID + 1,
+    };
+}
+
 interface FailureCase {
     readonly name: string;
     readonly cause: DesyncCause;
@@ -105,6 +118,12 @@ const FAILURES: readonly FailureCase[] = [
         detail: "but the hand holds none",
         event: (state) => message(AT, unmatchedKanDraw(state)),
         name: "an offer the hand holds no tile for",
+    },
+    {
+        cause: "impossible_state",
+        detail: "but the seat has no pon of it",
+        event: (state) => message(AT, ponlessAddedKanDraw(state)),
+        name: "an added kan with no pon to add to",
     },
 ];
 

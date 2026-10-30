@@ -32,6 +32,7 @@ import {
 import { type GameSessionData } from "@/shared/session";
 
 import {
+    type DecisionContext,
     answerDecision,
     expireDecision,
     followDecision,
@@ -201,13 +202,18 @@ function withSwitches(
         : { ...switched, highestOpenedWaitId: null };
 }
 
+function decisionContext(state: GameClientState): DecisionContext {
+    const { now, table, timer, viewerSeat } = state;
+    const viewer = table.players.find((player) => player.seat === viewerSeat);
+    return { at: now, hand: viewer?.tiles ?? [], melds: viewer?.melds ?? [], timer, viewerSeat };
+}
+
 function withDecision(state: GameClientState, message: ParsedServerMessage): GameClientState {
-    const { highestOpenedWaitId, now, table, timer, viewerSeat } = state;
+    const { highestOpenedWaitId } = state;
     if (state.decision !== null && isAnsweredWait(state.decision, message)) {
         return state;
     }
-    const hand = table.players.find((player) => player.seat === viewerSeat)?.tiles ?? [];
-    const opened = openDecision(message, { at: now, hand, timer, viewerSeat });
+    const opened = openDecision(message, decisionContext(state));
     if (opened !== null) {
         const highest = Math.max(opened.waitId, highestOpenedWaitId ?? opened.waitId);
         return { ...state, decision: opened, highestOpenedWaitId: highest };

@@ -217,8 +217,11 @@ function typeCopies(tileId: number): number[] {
     return COPIES.map((copy) => type * 4 + copy);
 }
 
-/** An added kan laid as it will lie: the pon it adds to, with the added tile stacked on its called one. */
-function addedKanGroup(state: GameClientState, tileId: number): MeldTile[] | null {
+/**
+ * An added kan laid as it will lie: the pon it adds to, with the added tile stacked on its called one. Opening the
+ * decision checked the pon is there (Desync), so a missing one is a bug.
+ */
+function addedKanGroup(state: GameClientState, tileId: number): MeldTile[] {
     const { table, viewerSeat } = state;
     const copies = typeCopies(tileId);
     const viewer = table.players.find((player) => player.seat === viewerSeat);
@@ -226,7 +229,9 @@ function addedKanGroup(state: GameClientState, tileId: number): MeldTile[] | nul
         (meld) => meld.meldType === "pon" && meld.tileIds.some((id) => copies.includes(id)),
     );
     if (pon === undefined) {
-        return null;
+        throw new Error(
+            `an added kan of tile ${tileId} needs a pon of its type, which opening it checked`,
+        );
     }
     const tileIds = [...pon.tileIds, tileId];
     return meldTiles({ ...pon, addedTileId: tileId, meldType: "added_kan", tileIds });
@@ -265,9 +270,11 @@ function kanGroup(
     if (offer.kanType === KAN_TYPE.OPEN) {
         return meldTiles({ ...seats, calledTileId: offer.tileId, meldType: "open_kan", tileIds });
     }
-    const added = offer.kanType === KAN_TYPE.ADDED ? addedKanGroup(state, offer.tileId) : null;
+    if (offer.kanType === KAN_TYPE.ADDED) {
+        return addedKanGroup(state, offer.tileId);
+    }
     const closed = { calledTileId: null, callerSeat: seats.callerSeat, fromSeat: null } as const;
-    return added ?? meldTiles({ ...closed, meldType: "closed_kan", tileIds });
+    return meldTiles({ ...closed, meldType: "closed_kan", tileIds });
 }
 
 /**
