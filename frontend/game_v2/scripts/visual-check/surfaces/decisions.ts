@@ -184,6 +184,27 @@ const PAGES: readonly PageCase[] = [
     },
     decisionCase("turn_in_bank", [".decision-controls__bank--draining", ".decision-timer--bank"]),
     decisionCase("answered", [".hand-tile--selected"]),
+    decisionCase("kyuushu_offer", [
+        `${ACTION}[aria-label="Kyuushu"]`,
+        ".decision-controls__countdown",
+    ]),
+    decisionCase("tenhou_offer", [
+        `${ACTION}[aria-label="Tsumo"]`,
+        ".decision-controls__countdown",
+    ]),
+    decisionCase("chiihou_offer", [
+        `${ACTION}[aria-label="Tsumo"]`,
+        ".decision-controls__countdown",
+    ]),
+    decisionCase("tenhou_result", [".round-end-result__confirm", ".round-end-result__countdown"]),
+    decisionCase("player_left", [".nameplate__ai--away"]),
+    decisionCase("player_back", [".board-notice--success"]),
+    decisionCase("seat_back", [".board-notice--success"]),
+    decisionCase("replaced", [
+        ".failure-panel__leave",
+        ".failure-panel__title",
+        ".failure-panel__detail",
+    ]),
     gameCase("prompt", ".game__play .decision-controls__action"),
     {
         ...gameCase("turn", ".game__play .board-local .hand-tile--selectable"),
