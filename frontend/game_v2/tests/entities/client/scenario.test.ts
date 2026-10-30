@@ -55,6 +55,9 @@ const CHANKAN_ROBBED_ROBBER = loadSeatScenario("chankan_robbed_seat_3");
 const CHANKAN_PASSED = loadSeatScenario("chankan_passed_seat_3");
 const DOUBLE_RON = loadSeatScenario("double_ron_seat_1");
 const FINAL_ROUND = loadSeatScenario("final_round_seat_1");
+const FIRST_TURN_WIN_DEALER = loadSeatScenario("first_turn_win_seat_1");
+const FIRST_TURN_WIN_LAST_SEAT = loadSeatScenario("first_turn_win_seat_3");
+const GAME_END_RECONNECT = loadSeatScenario("game_end_reconnect_seat_1");
 const { closed } = clientEvent;
 const NINE_MAN_COPIES = [32, 33, 34, 35];
 const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
@@ -107,6 +110,8 @@ describe("seatScenarioFromTranscript", () => {
             "chankan_robbed_seat_3",
             "double_ron_seat_1",
             "final_round_seat_1",
+            "first_turn_win_seat_1",
+            "first_turn_win_seat_3",
             "game_end_reconnect_seat_1",
             "kan_choice_seat_1",
             "own_turn_seat_1",
@@ -517,6 +522,73 @@ describe("stepGameClient - generated own turn", () => {
         const variant = { ...scenario, steps: noBank };
 
         expect(stateAt(variant, runClean(variant), "dealer draw").decision?.deadline).toBeNull();
+    });
+});
+
+describe("stepGameClient - generated first turns", () => {
+    const KYUUSHU = { offer: { kind: "kyuushu" }, type: "choose" } as const;
+
+    /** Each seat's river as its tiles' ids, and the open decision's offers. */
+    function firstTurnAt(state: GameClientState): unknown[] {
+        return [
+            state.table.players.map((player) => player.discards.map((discard) => discard.tileId)),
+            state.decision?.offers,
+        ];
+    }
+
+    function winnersAndScores(state: GameClientState): unknown[] {
+        return [
+            state.table.roundEndResult?.winners.map((winner) => winner.seat),
+            state.table.players.map((player) => player.score),
+        ];
+    }
+
+    it("offers kyuushu alone on the first draw and sends it once: pressed again before the round end, nothing", () => {
+        const { scenario } = GAME_END_RECONNECT;
+        const twice = branchAfter(scenario, "kyuushu chosen", [
+            { event: { at: 5000, intent: KYUUSHU, kind: "intent" }, label: "kyuushu again" },
+        ]);
+        const run = runClean(twice);
+        const submitted = {
+            at: 5000,
+            bySwitch: null,
+            intent: KYUUSHU,
+            kind: "submitted",
+        };
+
+        expect(firstTurnAt(stateAt(twice, run, "first draw"))).toEqual([
+            [[124], [], [], []],
+            [{ kind: "kyuushu" }],
+        ]);
+        expect(stateAt(twice, run, "kyuushu chosen").decision?.status).toEqual(submitted);
+        expect(stateAt(twice, run, "kyuushu again").decision?.status).toEqual(submitted);
+    });
+
+    it("tenhou: the dealer's first draw offers tsumo over empty rivers, and the win takes 16,000 from each seat", () => {
+        const { scenario } = FIRST_TURN_WIN_DEALER;
+        const run = runClean(scenario);
+
+        const [discards, offers] = firstTurnAt(stateAt(scenario, run, "tenhou draw"));
+
+        expect(discards).toEqual([[], [], [], []]);
+        expect(offers).toContainEqual({ kind: "tsumo" });
+        expect(winnersAndScores(stateAt(scenario, run, "round end"))).toEqual([
+            [1],
+            [-7000, 65_000, 1000, 41_000],
+        ]);
+    });
+
+    it("chiihou: the last seat's first draw offers tsumo over the three earlier seats' first discards", () => {
+        const { scenario } = FIRST_TURN_WIN_LAST_SEAT;
+        const run = runClean(scenario);
+        const [discards, offers] = firstTurnAt(stateAt(scenario, run, "chiihou draw"));
+
+        expect(discards).toEqual([[112], [116], [120], []]);
+        expect(offers).toContainEqual({ kind: "tsumo" });
+        expect(winnersAndScores(stateAt(scenario, run, "round end"))).toEqual([
+            [3],
+            [9000, 17_000, 17_000, 57_000],
+        ]);
     });
 });
 

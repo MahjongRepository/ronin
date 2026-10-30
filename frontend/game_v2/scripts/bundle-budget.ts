@@ -72,6 +72,8 @@ interface RouteBudget {
  * (every opponent's full hand, faces or backs, and legal mixed hands at one to three melds a seat).
  * The standings' JS re-set on 2026-10-31 from 7 / 2.4 to 8 / 2.7 at 7.0 / 2.4: the table's riichi cost in the
  * ledger and its incomplete note. Size is optimised later, outside the redesign.
+ * The storybook's JS re-set on 2026-10-31 from 74 / 18 to 116 / 23.5 at 105.0 / 21.1: the sparse and interrupted
+ * stories run two more transcripts (the first-turn wins) and the out-of-step branch.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
@@ -88,7 +90,7 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     storybook: {
         chunk: "src/views/storybook-routes.ts",
         css: { gzip: 1.4, raw: 2.1 },
-        js: { gzip: 18, raw: 74 },
+        js: { gzip: 23.5, raw: 116 },
     },
 };
 

@@ -270,8 +270,8 @@ describe("stepGameClient - desync around the game's start and end", () => {
     it("ends on the server's last result and standings out of step, its ledger and result marked uncertain", () => {
         const inStep = checkpointState(FINAL, "game end");
         expect([ledgerOf(inStep), resultNote(inStep)]).toEqual([{ complete: true, rows: 1 }, null]);
-        const desynced = run(checkpointState(FINAL, "ron prompt"), [
-            message(4000, { t: 999 }),
+        const desynced = run(checkpointState(FINAL, "ron chosen"), [
+            message(5000, { t: 999 }),
         ]).state;
 
         const ended = run(desynced, [message(5000, finalRoundEnd), message(5000, gameEnd)]);
@@ -306,8 +306,8 @@ describe("stepGameClient - desync around the game's start and end", () => {
     });
 
     it("marks the ledger incomplete when the last round end itself could not be read", () => {
-        const desynced = run(checkpointState(FINAL, "ron prompt"), [
-            message(4000, { t: 999 }),
+        const desynced = run(checkpointState(FINAL, "ron chosen"), [
+            message(5000, { t: 999 }),
         ]).state;
 
         const ended = run(desynced, [

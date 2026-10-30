@@ -109,9 +109,9 @@ describe("PlayBoard", () => {
     });
 
     it("says on the standings that the rounds may be wrong when the page lost step before the game's end", () => {
-        const before = checkpointState("final_round_seat_1", "ron prompt");
+        const before = checkpointState("final_round_seat_1", "ron chosen");
         const lostStep = stepGameClient(before, {
-            at: 4000,
+            at: 5000,
             kind: "server_message",
             raw: { t: 999 },
         });

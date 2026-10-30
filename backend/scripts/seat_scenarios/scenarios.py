@@ -236,7 +236,7 @@ def reconnect() -> tuple[SeatTranscript, ...]:
         alice.label("ron prompt", WireEventType.CALL_PROMPT)
         alice.ron(at=10, label="ron chosen")
         alice.label("round end", WireEventType.ROUND_END)
-        alice.be_replaced_by_another_tab(at=10.5)
+        alice.be_replaced_by_another_tab(at=10.5, label="replaced")
 
         return game.transcripts("reconnect", PLAYER)
 
@@ -524,6 +524,64 @@ def seat_left() -> tuple[SeatTranscript, ...]:
         return game.transcripts("seat_left", PLAYER, ROBBER)
 
 
+def first_turn_win() -> tuple[SeatTranscript, ...]:
+    """
+    Two first-turn wins.
+
+    In East 1 the AI dealer, Alice (seat 1) and the AI at seat 2 each discard a wind nobody else holds, and Bob (seat
+    3), dealt a hand waiting on the east wind, draws it: chiihou over their three discards. Both confirm, and in East 2
+    Alice, now dealer, is dealt a complete hand with her first draw: tenhou over empty rivers.
+
+    No one can call a discard (nobody holds a second copy of a discarded wind), and tobi is off, so the tenhou the AI
+    dealer of East 1 pays leaves the game going. Both confirm two seconds after the chiihou, once its call has gone, as
+    it has before a player can see the result.
+    """
+    east_wind = tile(1, honors="1")
+    east_1 = StagedWall(
+        hands=(
+            tile_copies(1, man="123456789", pin="1234"),
+            tile_copies(0, pin="456789", sou="13579", honors="56"),
+            tile_copies(2, man="123456789", pin="1234"),
+            tile_copies(0, man="123456789", pin="123", honors="1"),
+        ),
+        draws=((0, tile(0, honors="2")), (1, tile(0, honors="3")), (2, tile(0, honors="4")), (3, east_wind)),
+    )
+    east_2 = StagedWall(
+        hands=(
+            tile_copies(3, man="123456789", sou="1234"),
+            (*tile_copies(0, man="123456789", pin="123"), tile(1, pin="1")),
+            tile_copies(1, man="123456789", sou="1234"),
+            tile_copies(2, man="123456789", sou="1234"),
+        ),
+        draws=((1, tile(0, pin="4")),),
+        dealer=1,
+    )
+
+    settings = GameSettings(tobi_enabled=False)
+    with seated_game(
+        "seat-first-turn-win", east_1, players=(PLAYER, ROBBER), settings=settings, later_rounds=(east_2,)
+    ) as game:
+        alice = game.clients[PLAYER]
+        bob = game.clients[ROBBER]
+        alice.join(at=0)
+        bob.join(at=0)
+        game.wait_until(3.5)
+        alice.label("first draw", WireEventType.DRAW)
+        alice.discard(tile(0, honors="3"), at=4, label="discarded")
+        bob.label("chiihou draw", WireEventType.DRAW)
+        bob.tsumo(at=5, label="tsumo chosen")
+        bob.label("round end", WireEventType.ROUND_END)
+        alice.label("chiihou round end", WireEventType.ROUND_END)
+        alice.confirm_round(at=7, label="confirmed")
+        bob.confirm_round(at=7, label="confirmed")
+        alice.label("tenhou deal", WireEventType.ROUND_STARTED)
+        alice.label("tenhou draw", WireEventType.DRAW)
+        alice.tsumo(at=8, label="tsumo chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+
+        return game.transcripts("first_turn_win", PLAYER, ROBBER)
+
+
 ANCHOR_BOB = "Bob"
 ANCHOR_CHARLIE = "Charlie"
 ANCHOR_SEVEN_SOU = tile(0, sou="7")
@@ -676,5 +734,6 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "final_round": final_round,
     "game_end_reconnect": game_end_reconnect,
     "seat_left": seat_left,
+    "first_turn_win": first_turn_win,
     "anchor": anchor,
 }

@@ -10,6 +10,7 @@ import {
     PlayBoard,
     type PlayCommand,
     type PlayUi,
+    type SeatTranscript,
     type TileChoiceKind,
     describePlayerClientStatus,
     nextPlayUi,
@@ -26,10 +27,14 @@ import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.jso
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
 import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json";
 import FINAL_ROUND_SEAT_1 from "@/fixtures/seat-scenarios/final_round_seat_1.json";
+import FIRST_TURN_WIN_SEAT_1 from "@/fixtures/seat-scenarios/first_turn_win_seat_1.json";
+import FIRST_TURN_WIN_SEAT_3 from "@/fixtures/seat-scenarios/first_turn_win_seat_3.json";
+import GAME_END_RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/game_end_reconnect_seat_1.json";
 import KAN_CHOICE_SEAT_1 from "@/fixtures/seat-scenarios/kan_choice_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
+import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
 
@@ -42,10 +47,14 @@ const TRANSCRIPTS = {
     chankan_robbed_seat_3: CHANKAN_ROBBED_SEAT_3,
     double_ron_seat_1: DOUBLE_RON_SEAT_1,
     final_round_seat_1: FINAL_ROUND_SEAT_1,
+    first_turn_win_seat_1: FIRST_TURN_WIN_SEAT_1,
+    first_turn_win_seat_3: FIRST_TURN_WIN_SEAT_3,
+    game_end_reconnect_seat_1: GAME_END_RECONNECT_SEAT_1,
     kan_choice_seat_1: KAN_CHOICE_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
     seat_left_seat_1: SEAT_LEFT_SEAT_1,
+    seat_left_seat_3: SEAT_LEFT_SEAT_3,
 } as const satisfies Readonly<Record<string, unknown>>;
 
 type TranscriptName = keyof typeof TRANSCRIPTS;
@@ -72,8 +81,10 @@ interface DecisionStory {
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
  * three checkpoints and its call answered and expired, the seating before the first deal, the call prompts and a
  * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
- * beside furiten, what follows an answer, the round results the player confirms, the standings and the last result
- * reopened from them, then another player's seat left to an AI, the board's notices, a kick and the leave question.
+ * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou, chiihou), the round results the
+ * player confirms, the standings and the last result reopened from them, a game ended out of step, then another
+ * player's seat left to an AI and back, the viewer's own seat back, the board's notices, the ends (a kick, another
+ * tab) and the leave question.
  */
 const STORY_KEYS = [
     "anchor_turn",
@@ -96,7 +107,11 @@ const STORY_KEYS = [
     "riichi_turn",
     "switches_furiten",
     "answered",
+    "kyuushu_offer",
+    "tenhou_offer",
+    "chiihou_offer",
     "round_end",
+    "tenhou_result",
     "double_ron_first",
     "double_ron_last",
     "waiting",
@@ -104,11 +119,16 @@ const STORY_KEYS = [
     "last_result",
     "standings",
     "last_result_reopened",
+    "out_of_step_result",
+    "out_of_step_standings",
     "player_left",
+    "player_back",
+    "seat_back",
     "connection_lost",
     "move_refused",
     "faces_missing",
     "kicked",
+    "replaced",
     "leave_confirm",
     "leave_after_win",
 ] as const;
@@ -150,6 +170,40 @@ function intentsAfterCall(
         const at = state.now + CALLOUT_MS;
         const answers: ClientEvent[] = picked.map((intent) => ({ at, intent, kind: "intent" }));
         return [{ at, kind: "tick" }, ...answers];
+    };
+}
+
+/** The payload of the message labelled `label` that the transcript named `transcriptName` received. */
+function receivedPayload(
+    transcriptName: TranscriptName,
+    label: string,
+): Readonly<Record<string, unknown>> {
+    const event = parsedTranscript(transcriptName).events.find(
+        (candidate) => candidate.label === label,
+    );
+    if (event?.kind !== "received") {
+        throw new Error(`${transcriptName} received no message labelled ${label}`);
+    }
+    return event.payload;
+}
+
+/**
+ * Right after the player's ron, a message the client cannot read, which puts it out of step with the server, then the
+ * ron's round end, the game's last, and its end as the final round's transcript received them, which reach the table
+ * out of step; then the player's intents once the win's call has gone.
+ */
+function endedOutOfStep(
+    ...picked: readonly LocalIntent[]
+): (state: GameClientState) => readonly ClientEvent[] {
+    return (state) => {
+        const at = state.now;
+        const unreadable: ClientEvent = { at, kind: "server_message", raw: { t: 999 } };
+        const ends = ["round end", "game end"].map((label): ClientEvent => ({
+            at,
+            kind: "server_message",
+            raw: receivedPayload("final_round_seat_1", label),
+        }));
+        return [unreadable, ...ends, ...intentsAfterCall(...picked)(state)];
     };
 }
 
@@ -199,6 +253,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "prompt", "Chi: choose the tiles"),
         chooseTiles: "chi",
     },
+    chiihou_offer: checkpoint("first_turn_win_seat_3", "chiihou draw", "Chiihou offered"),
     connection_lost: {
         ...checkpoint("call_prompt_seat_1", "turn", "Connection lost"),
         followUp: closedWith(1006),
@@ -220,6 +275,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     kan_offer: checkpoint("kan_choice_seat_1", "kan offer", "Kan of either of two types"),
     kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
+    kyuushu_offer: checkpoint("game_end_reconnect_seat_1", "first draw", "First turn: kyuushu"),
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
     last_result_reopened: {
         ...checkpoint("final_round_seat_1", "game end", "Last result reopened"),
@@ -237,9 +293,19 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "turn", "Move refused"),
         followUp: refusedDiscard,
     },
+    out_of_step_result: {
+        ...checkpoint("final_round_seat_1", "ron chosen", "Out of step: last result"),
+        followUp: endedOutOfStep(),
+    },
+    out_of_step_standings: {
+        ...checkpoint("final_round_seat_1", "ron chosen", "Out of step: standings"),
+        followUp: endedOutOfStep({ type: "confirm_result" }),
+    },
     own_turn: checkpoint("own_turn_seat_1", "first draw", "Own turn"),
+    player_back: checkpoint("seat_left_seat_1", "player back", "Player back"),
     player_left: checkpoint("seat_left_seat_1", "player left", "Player left"),
     reconnect_owed: checkpoint("double_ron_seat_1", "reconnected", "Reconnect owed"),
+    replaced: checkpoint("reconnect_seat_1", "replaced", "Opened elsewhere"),
     riichi_pick: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Riichi pick"),
         pickRiichi: true,
@@ -247,6 +313,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     riichi_turn: checkpoint("own_turn_seat_1", "tsumo draw", "In riichi"),
     ron_prompt: checkpoint("reconnect_seat_1", "ron prompt", "Ron prompt"),
     round_end: checkpoint("own_turn_seat_1", "round end", "Round end"),
+    seat_back: checkpoint("seat_left_seat_3", "reconnected", "Own seat back"),
     standings: {
         ...checkpoint("final_round_seat_1", "game end", "Standings"),
         followUp: intentsAfterCall({ type: "confirm_result" }),
@@ -255,6 +322,8 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("own_turn_seat_1", "furiten", "Switches on, furiten"),
         followUp: allSwitchesOn,
     },
+    tenhou_offer: checkpoint("first_turn_win_seat_1", "tenhou draw", "Tenhou offered"),
+    tenhou_result: checkpoint("first_turn_win_seat_1", "round end", "Tenhou"),
     turn_in_bank: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Turn in bank"),
         followUp: after(6),
@@ -272,12 +341,17 @@ interface StoryScreen {
     readonly sent: readonly ClientEffect[];
 }
 
-/** The client state after the transcript's step labelled `label`, run as the live driver would run it. */
-function checkpointState(transcriptName: TranscriptName, label: string): GameClientState {
+function parsedTranscript(transcriptName: TranscriptName): SeatTranscript {
     const [error, transcript] = parseSeatTranscript(TRANSCRIPTS[transcriptName]);
     if (error) {
         throw new Error(`${transcriptName}: ${error.message}`);
     }
+    return transcript;
+}
+
+/** The client state after the transcript's step labelled `label`, run as the live driver would run it. */
+function checkpointState(transcriptName: TranscriptName, label: string): GameClientState {
+    const transcript = parsedTranscript(transcriptName);
     const handoff = { gameTicket: "storybook", wsUrl: `ws://storybook/ws/${transcript.gameId}` };
     return scenarioCheckpoint(seatScenarioFromTranscript(transcript, handoff), label);
 }

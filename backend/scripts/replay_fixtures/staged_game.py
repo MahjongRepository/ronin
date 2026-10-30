@@ -192,11 +192,11 @@ class StagedWall:
     """
     A round's wall of a staged game, dealt from the dealer's seat: seat 0 for the first round.
 
-    hands are by seat; draws are the live wall's first draws as (seat, tile) pairs (StagedGame checks each against the
-    seat that draws it; the seat scenarios use only the tiles), and later live draws take the tiles nobody placed, in
-    ascending id order; rinshan are the kan replacement tiles in draw order and ura the ura dora indicators in reveal
-    order. A staged game stages only its first round: a later round is dealt from the recorded seed, which does not
-    reproduce the first round's wall. The seat scenarios alone also stage a later round, with that round's dealer.
+    hands are by seat; draws are the live wall's first draws as (seat, tile) pairs (StagedGame and the seat scenarios'
+    engine check each against the seat that draws it), and later live draws take the tiles nobody placed, in ascending
+    id order; rinshan are the kan replacement tiles in draw order and ura the ura dora indicators in reveal order. A
+    staged game stages only its first round: a later round is dealt from the recorded seed, which does not reproduce the
+    first round's wall. The seat scenarios alone also stage a later round, with that round's dealer.
     """
 
     hands: Sequence[Sequence[int]]

@@ -25,6 +25,6 @@
     {"at": 8000, "kind": "received", "label": "ron prompt", "payload": {"clt": 0, "cs": 1, "frs": 2, "t": 3, "ti": 92, "wi": 3}},
     {"at": 10000, "kind": "sent", "label": "ron chosen", "message": {"a": 3, "t": 3, "wi": 3}},
     {"at": 10000, "kind": "received", "label": "round end", "payload": {"ct": [4, 8, 12, 53, 57, 61, 89, 90, 96, 100], "hr": {"fu": 30, "han": 1, "pt": 10, "yk": [{"han": 1, "yi": 15}]}, "ls": 2, "ml": [20733], "rc": 0, "rt": 1, "sch": {"0": 0, "1": 10, "2": -10, "3": 0}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "wi": 4, "ws": 1, "wt": 92}},
-    {"at": 10500, "code": 4002, "kind": "closed", "reason": "replaced_by_new_connection"}
+    {"at": 10500, "code": 4002, "kind": "closed", "label": "replaced", "reason": "replaced_by_new_connection"}
   ]
 }

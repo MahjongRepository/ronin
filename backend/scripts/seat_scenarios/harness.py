@@ -8,8 +8,9 @@ import selectors
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, NoReturn, override
 
+from game.logic.events import DrawEvent, RoundStartedEvent
 from game.logic.game import init_round
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
@@ -32,8 +33,10 @@ if TYPE_CHECKING:
     from concurrent.futures import Executor
     from contextvars import Context
 
-    from game.logic.enums import KanType
-    from game.logic.service import GameStart
+    from game.logic.enums import GameAction, KanType, TimeoutType
+    from game.logic.events import GameEvent
+    from game.logic.runtime import GameRuntime
+    from game.logic.service import GameStart, GameUpdate
     from game.logic.state import MahjongGameState
     from scripts.replay_fixtures.staged_game import StagedWall
 
@@ -133,7 +136,9 @@ class _StagedEngine(MahjongGameService):
     The real engine, dealing every game it starts from the staged seed and wall, as the session starts one with neither.
 
     The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
-    the game advanced to, and from the seed once those run out.
+    the game advanced to, and from the seed once those run out. Each staged draw of a round is checked against the seat
+    that draws it, in order. A check that fails inside the session, which answers the client with a server error, is
+    kept as the engine's failure for the scenario to raise with its cause.
     """
 
     def __init__(self, staged: StagedWall, settings: GameSettings, later_rounds: Sequence[StagedWall]) -> None:
@@ -145,6 +150,10 @@ class _StagedEngine(MahjongGameService):
         self._settings = settings
         self._later_rounds = tuple(later_rounds)
         self._later_rounds_dealt = 0
+        self._rounds_to_deal: list[Sequence[tuple[int, int]]] = [staged.draws, *(r.draws for r in later_rounds)]
+        self._round_draws: Sequence[tuple[int, int]] = ()
+        self._next_draw = 0
+        self.failure: ScenarioError | None = None
 
     def require_later_rounds_dealt(self, game_id: str) -> None:
         if self._later_rounds_dealt != len(self._later_rounds):
@@ -165,9 +174,29 @@ class _StagedEngine(MahjongGameService):
         if seed is not None or settings is not None or wall is not None:
             raise ScenarioError(f"{game_id}: the session started a game with its own seed, settings or wall")
 
-        return super().start_game(
+        start = super().start_game(
             game_id, player_names, seed=STAGED_SEED, settings=self._settings, wall=list(self._wall)
         )
+        self._check_draws(start.events)
+        return start
+
+    @override
+    def handle_action(self, runtime: GameRuntime, *, seat: int, action: GameAction, data: dict[str, Any]) -> GameUpdate:
+        update = super().handle_action(runtime, seat=seat, action=action, data=data)
+        self._check_draws(update.events)
+        return update
+
+    @override
+    def handle_timeout(self, runtime: GameRuntime, *, seat: int, timeout_type: TimeoutType) -> GameUpdate:
+        update = super().handle_timeout(runtime, seat=seat, timeout_type=timeout_type)
+        self._check_draws(update.events)
+        return update
+
+    @override
+    def process_ai_player_actions_after_replacement(self, runtime: GameRuntime, seat: int) -> GameUpdate:
+        update = super().process_ai_player_actions_after_replacement(runtime, seat)
+        self._check_draws(update.events)
+        return update
 
     @override
     def _deal_next_round(self, game_state: MahjongGameState) -> MahjongGameState:
@@ -177,12 +206,47 @@ class _StagedEngine(MahjongGameService):
         staged = self._later_rounds[self._later_rounds_dealt]
         dealer = game_state.round_state.dealer_seat
         if staged.dealer != dealer:
-            raise ScenarioError(
-                f"later round {self._later_rounds_dealt} was staged for dealer {staged.dealer}, not {dealer}"
-            )
+            self._fail(f"later round {self._later_rounds_dealt} was staged for dealer {staged.dealer}, not {dealer}")
 
         self._later_rounds_dealt += 1
         return init_round(game_state, wall=list(staged.tiles()))
+
+    def _check_draws(self, events: Sequence[GameEvent]) -> None:
+        """
+        Check each draw of a staged tile in the events against the seat and the order the round staged it in.
+
+        A deal (its run of round starts) begins the next staged round's draws, or none once a round is dealt from the
+        seed, whose tile ids say nothing of the staged walls.
+        """
+        dealing = False
+        for event in events:
+            if isinstance(event, RoundStartedEvent):
+                if not dealing:
+                    self._round_draws = self._rounds_to_deal.pop(0) if self._rounds_to_deal else ()
+                    self._next_draw = 0
+
+                dealing = True
+                continue
+
+            dealing = False
+            if isinstance(event, DrawEvent):
+                self._check_draw(event)
+
+    def _check_draw(self, draw: DrawEvent) -> None:
+        staged = [index for index, (_, tile_id) in enumerate(self._round_draws) if tile_id == draw.tile_id]
+        if not staged:
+            return
+
+        (index,) = staged
+        seat = self._round_draws[index][0]
+        if index != self._next_draw or draw.seat != seat:
+            self._fail(f"seat {draw.seat} drew staged draw {index} (staged for seat {seat}) as draw {self._next_draw}")
+
+        self._next_draw += 1
+
+    def _fail(self, message: str) -> NoReturn:
+        self.failure = ScenarioError(message)
+        raise self.failure
 
 
 class _ClientSocket(ConnectionProtocol):
@@ -350,9 +414,10 @@ class SeatClient:
         """
         self._drop(at=at, label=label, server_sees=True)
 
-    def be_replaced_by_another_tab(self, *, at: float) -> None:
+    def be_replaced_by_another_tab(self, *, at: float, label: str | None = None) -> None:
         """
-        Let another client of the same player, unrecorded, RECONNECT and take the seat over from this one's socket.
+        Let another client of the same player, unrecorded, RECONNECT and take the seat over from this one's socket,
+        whose close the label names.
         """
 
         def replace() -> None:
@@ -360,6 +425,10 @@ class SeatClient:
             rival = _ClientSocket(self, f"{self.name}-rival-{self._sockets_opened}")
             self.router.handle_connect(rival)
             self.router.handle_message(rival, _as_wire(self._identity(WireClientMessageType.RECONNECT)))
+            if self._socket is not None:
+                raise ScenarioError(f"{self.name}: another tab reconnected, and this one's socket stayed open")
+
+            self._label_last(label)
 
         self._game.run_at(at, replace)
 
@@ -586,6 +655,14 @@ class SeatedGame:
         step()
 
     def _require_no_refusal(self) -> None:
+        """
+        Raise ScenarioError for the engine's failed check, the cause of the server error a client got for it, else for
+        any client's refusal.
+        """
+        failure = self._engine.failure
+        if failure is not None:
+            raise ScenarioError(f"{self.game_id}: {failure}") from failure
+
         for client in self.clients.values():
             refusals = client.refusals()
             if refusals:

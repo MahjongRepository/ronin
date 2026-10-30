@@ -1,7 +1,8 @@
 import { type TemplateResult, render } from "lit-html";
 import { describe, expect, test } from "vitest";
 
-import { buildRiichiAction } from "@/shared/protocol";
+import { loadSeatScenario, receivedPayload } from "#tests/fixtures/seat-transcripts";
+import { CLIENT_MESSAGE_TYPE, GAME_ACTION, buildRiichiAction } from "@/shared/protocol";
 import { storybookView } from "@/views/storybook";
 import { mountStorybookDecisions } from "@/views/storybook-decisions";
 import { storybookDiscardsView } from "@/views/storybook-discards";
@@ -107,11 +108,19 @@ describe("storybookHandView", () => {
     });
 });
 
+const CALL_PROMPT = loadSeatScenario("call_prompt_seat_1").transcript;
+
+/** The decisions storybook mounted on the story `story` names. */
+function mountStory(story: string): HTMLElement {
+    history.replaceState(null, "", `/play/storybook/decisions?state=${story}`);
+    const host = document.createElement("div");
+    mountStorybookDecisions(host);
+    return host;
+}
+
 describe("mountStorybookDecisions", () => {
     test("shows a transcript's checkpoint and, when its board is played, the answer the client describes", () => {
-        history.replaceState(null, "", "/play/storybook/decisions?state=riichi_pick");
-        const host = document.createElement("div");
-        mountStorybookDecisions(host);
+        const host = mountStory("riichi_pick");
 
         const pressed = host.querySelector('.decision-controls__action[aria-pressed="true"]');
         const tiles = host.querySelectorAll(".board-local button.hand-tile--declaring");
@@ -120,5 +129,33 @@ describe("mountStorybookDecisions", () => {
 
         expect([pressed?.textContent?.trim(), tiles.length]).toEqual(["Riichi", 1]);
         expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 2), type: "send" });
+    });
+
+    test("builds every story the picker lists from its transcript's checkpoint", () => {
+        const picker = mountStory("call_prompt");
+        const stories = [...picker.querySelectorAll("option")].map((option) => option.value);
+
+        expect(stories).not.toEqual([]);
+        for (const story of stories) {
+            expect(mountStory(story).querySelector(".game-board"), story).not.toBeNull();
+        }
+    });
+
+    test("reopens the kuikae turn on the move_refused story's scripted refusal: its notice, and a discard sends again", () => {
+        const host = mountStory("move_refused");
+        const turnWaitId = Number(receivedPayload(CALL_PROMPT, "turn").wi);
+        const [playable] = host.querySelectorAll<HTMLElement>(
+            ".board-local .hand-tile--selectable",
+        );
+        playable.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        const sent = JSON.parse(
+            host.querySelector(".decisions-storybook__sent")?.textContent ?? "",
+        );
+
+        expect(host.querySelector(".board-notice--warning")).not.toBeNull();
+        expect(sent).toMatchObject({
+            message: { t: CLIENT_MESSAGE_TYPE.GAME_ACTION, wi: turnWaitId },
+        });
+        expect(sent.message.a).toBe(GAME_ACTION.DISCARD);
     });
 });
