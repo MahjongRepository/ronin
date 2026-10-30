@@ -3,9 +3,11 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ManualClock } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
+import { FakeStandingsLoad } from "#tests/fixtures/standings";
 import { WIRE_GAME_END, WIRE_GAME_STARTED, wireSessionError } from "#tests/fixtures/wire";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
+import { type LoadStatus } from "@/shared/lib";
 import {
     type ClientMessage,
     buildConfirmRoundAction,
@@ -61,6 +63,7 @@ interface FakeOverrides {
     readonly clearHandoff?: () => void;
     readonly handoff?: GameViewDeps["handoff"];
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
+    readonly standings?: FakeStandingsLoad;
 }
 
 /** A socket factory that keeps every connection it opens. */
@@ -84,6 +87,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
 } {
     const clock = new ManualClock();
     const tileSprite = new FakeTileSprite();
+    const standings = overrides.standings ?? new FakeStandingsLoad();
     const { connect, connections } = fakeConnector();
     const sink = {
         clearHandoff: vi.fn(overrides.clearHandoff),
@@ -98,13 +102,25 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         connect: overrides.connect ?? connect,
         debug: overrides.debug ?? false,
         handoff: overrides.handoff === undefined ? HANDOFF : overrides.handoff,
+        links: {
+            history: "/history",
+            replay: (seat) => `/play/history/${GAME_ID}?v=2&seat=${String(seat)}`,
+        },
         recoverHandoff:
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
         sink,
+        startStandings: () => standings,
         tileSprite,
     });
     return { clock, connections, dispose, host, sink, tileSprite };
+}
+
+/** Join, see the game start, then its end. */
+function endGame(socket: FakeConnection): void {
+    socket.handlers.onOpen();
+    socket.handlers.onMessage(WIRE_GAME_STARTED);
+    socket.handlers.onMessage(WIRE_GAME_END);
 }
 
 /** Join a game that already started, then get told to retry the RECONNECT later. */
@@ -234,11 +250,10 @@ describe("mountGameView", () => {
         expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);
     });
 
-    it("on Back to Lobby after the game ended closes the socket, clears the handoff and leaves", () => {
+    it("clears the handoff at the game end, so a return to the page joins with no dead ticket, and leaves on Back to Lobby", () => {
         const { connections, host, sink } = mountWithFakes();
-        connections[0].handlers.onOpen();
-        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
-        connections[0].handlers.onMessage(WIRE_GAME_END);
+        endGame(connections[0]);
+        expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);
 
         host.querySelector("button")?.click();
 
@@ -330,6 +345,44 @@ describe("mountGameView tile faces", () => {
         expect(shown).toEqual([expect.stringMatching(notice), expect.stringMatching(notice)]);
         expect(sink.reload).toHaveBeenCalledOnce();
         expect(spriteNotice(host)).toBeUndefined();
+    });
+});
+
+/** Whether the board shows the final standings, and the error notice it shows. */
+function standingsShown(host: HTMLElement): [boolean, string | undefined] {
+    return [
+        host.querySelector(".game__play .standings") !== null,
+        host.querySelector(".game__play .board-notice--error")?.textContent?.trim(),
+    ];
+}
+
+function moveStandings(
+    standings: FakeStandingsLoad,
+    status: LoadStatus,
+    host: HTMLElement,
+): [boolean, string | undefined] {
+    standings.moveTo(status);
+    return standingsShown(host);
+}
+
+describe("mountGameView final standings", () => {
+    it("shows the standings once their load lands, says so with a reload when it fails, and stops it on dispose", () => {
+        const standings = new FakeStandingsLoad("loading");
+        const { connections, dispose, host, sink } = mountWithFakes({ standings });
+        endGame(connections[0]);
+
+        const loading = standingsShown(host);
+        const failed = moveStandings(standings, "failed", host);
+        press(host, ".board-notice__action");
+        const ready = moveStandings(standings, "ready", host);
+        dispose();
+
+        expect([loading, failed, ready]).toEqual([
+            [false, undefined],
+            [false, expect.stringMatching(/^The final standings did not load\s*Reload$/)],
+            [true, undefined],
+        ]);
+        expect([vi.mocked(sink.reload).mock.calls.length, standings.stopped]).toEqual([1, true]);
     });
 });
 

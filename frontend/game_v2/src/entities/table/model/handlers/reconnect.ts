@@ -8,6 +8,7 @@ import {
 import { type GameReconnectedEvent, decodeMeldCompact } from "@/shared/protocol";
 
 import { extractRoundEndResult, showRobbedKan } from "./round-end";
+import { roundRecordOfHistory } from "./round-record";
 
 type SnapshotSeat = GameReconnectedEvent["playerStates"][number];
 
@@ -83,6 +84,7 @@ function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
  * no wait: when the game awaits the seat, the server re-sends the event that opened it. A snapshot taken during a round advance shows the round that ended, with its result, and
  * the kan its win robbed as declared: the server never completes a robbed kan, so the snapshot's hand still holds its
  * tiles. Its scores and riichi sticks already hold every accepted riichi's deposit, so the table takes them as they are.
+ * Its round history lists every finished round, the one whose result it shows included, which the table takes whole.
  */
 export function applyGameReconnected(
     state: TableState,
@@ -105,6 +107,7 @@ export function applyGameReconnected(
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),
         riichiSticks: snapshot.riichiSticks,
         roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
+        roundHistory: snapshot.roundHistory.map(roundRecordOfHistory),
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,
     };

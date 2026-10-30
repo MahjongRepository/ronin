@@ -11,6 +11,8 @@ export type {
     HandValue,
     GameEndResult,
     GamePhase,
+    RoundOutcome,
+    RoundRecord,
     KanDeclaredEvent,
 } from "./model/types";
 export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
@@ -45,6 +47,7 @@ export {
     prevCursor,
     prevRoundCursor,
     roundPosition,
+    roundResultCursor,
     roundStartCursor,
 } from "./model/replay-cursor";
 export type { ReplayAddress, ReplayView } from "./model/replay-address";
@@ -70,8 +73,8 @@ export { BoardNotices } from "./ui/board-notices";
 export type { BoardNotice } from "./ui/board-notices";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
 export type { ScoreDiffPin } from "./ui/nameplate";
-export { boardOverlay } from "./ui/board-overlay";
-export type { ResultPaging } from "./ui/board-overlay";
+export { boardOverlay, startStandingsLoad } from "./ui/board-overlay";
+export type { ResultPaging, StandingsRenderer, StandingsView } from "./ui/board-overlay";
 export { SEAT_POSITIONS } from "./model/board-types";
 export type {
     BoardCenterInfo,
@@ -96,7 +99,7 @@ export type {
 } from "./lib/round-end-display";
 export { handLimitName } from "./lib/hand-limit";
 export { drawName } from "./lib/draw-name";
-export { GameEndDisplay } from "./ui/game-end-display";
+export type { StandingsAction } from "./ui/standings-panel";
 export { GameStartDisplay } from "./ui/game-start-display";
 export { REPLAY_ROUND_LIST_ID, ReplayControls } from "./ui/replay-controls";
 export type { ReplayControlsProps } from "./ui/replay-controls";

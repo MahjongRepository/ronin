@@ -28,7 +28,7 @@ const DEALT_HAND_SIZE = 13;
  * What an accepted riichi takes from its declarer onto the table: the server's `riichi_cost`, which no live message
  * carries, at its default, the one every game is played with.
  */
-const RIICHI_DEPOSIT = 1000;
+export const RIICHI_DEPOSIT = 1000;
 
 function applyGameStarted(state: TableState, event: GameStartedEvent): TableState {
     const players = event.players.map((p) =>
@@ -48,6 +48,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         phase: "pre_game",
         players,
         roundEndResult: null,
+        roundHistory: [],
     };
 }
 

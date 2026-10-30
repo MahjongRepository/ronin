@@ -22,6 +22,12 @@ export function roundStartCursor(nav: NavigationIndex, round: number): ReplayCur
     return round < 0 || start === undefined ? null : { page: 0, stop: start.firstStop };
 }
 
+/** The cursor at a round's result, at its first page; null for a round the replay does not hold or holds no result of. */
+export function roundResultCursor(nav: NavigationIndex, round: number): ReplayCursor | null {
+    const stop = round < 0 ? null : (nav.rounds.at(round)?.resultStop ?? null);
+    return stop === null ? null : { page: 0, stop };
+}
+
 /** The replay's opening: the first deal; null for a replay with none. */
 export function firstCursor(nav: NavigationIndex): ReplayCursor | null {
     return roundStartCursor(nav, 0);

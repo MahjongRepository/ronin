@@ -45,6 +45,8 @@ $local-span: 14.6;
 $local-height-share: 11.4cqh;
 $local-height-base: 12px;
 $wide-board: "4 / 3";
+$corner-reserve: 10rem;
+$corner-reserve-short: 5rem;
 $table-columns: [outer-left] minmax(var(--board-outer), 1fr) [left-edge] var(--board-corner-left)
     [left-col] var(--board-strip) [left-gap] var(--board-gap-u) [left-reach] var(--board-reach-left)
     [left-wrap] var(--board-wrap) [left-river] var(--board-river) [center] var(--board-center)

@@ -5,12 +5,15 @@ import {
     type BoardDisplayState,
     type BoardPlayerDisplay,
     GameBoard,
-    GameEndDisplay,
-    type GameEndResult,
     type PlayerState,
     RoundEndDisplay,
+    type RoundRecord,
     SEAT_POSITIONS,
     type SeatPosition,
+    type StandingsAction,
+    type StandingsRenderer,
+    type TableState,
+    boardOverlay,
     createInitialPlayerState,
     createInitialTableState,
     roundEndDisplay,
@@ -23,6 +26,7 @@ import {
     type MeldTile,
     meldTiles,
 } from "@/entities/tile";
+import { browserClock } from "@/shared/clock";
 import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 import {
@@ -31,6 +35,7 @@ import {
     resultStoryLabel,
     resultStoryTable,
 } from "./storybook-results";
+import { startStorybookStandings } from "./storybook-standings";
 
 type OverlayMode = "none" | "round_end" | "game_end";
 
@@ -397,37 +402,116 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
     },
 };
 
-// Mock players for overlay displays
-const mockPlayers: readonly PlayerState[] = [
-    createInitialPlayerState({ isAiPlayer: false, name: "You", score: 33_000, seat: 0 }),
-    createInitialPlayerState({ isAiPlayer: true, name: "Bot South", score: 21_000, seat: 1 }),
-    createInitialPlayerState({ isAiPlayer: true, name: "Bot West", score: 25_000, seat: 2 }),
+const STANDINGS_PLAYERS: readonly PlayerState[] = [
+    createInitialPlayerState({ isAiPlayer: false, name: "You", score: 39_500, seat: 0 }),
+    createInitialPlayerState({ isAiPlayer: true, name: "Bot South", score: 12_000, seat: 1 }),
+    createInitialPlayerState({ isAiPlayer: true, name: "Bot West", score: 29_100, seat: 2 }),
+    createInitialPlayerState({ isAiPlayer: true, name: "Bot North", score: 19_400, seat: 3 }),
+];
+
+const NO_RIICHI: readonly number[] = [];
+
+/**
+ * A short East-only game that ends on a draw with a riichi stick left: a ron on a riichi, a tenpai draw, a tsumo on
+ * honba, a draw that keeps a riichi stick on the table, a ron collecting it, then a draw leaving one to the winner.
+ */
+const STANDINGS_HISTORY: readonly RoundRecord[] = [
     {
-        ...createInitialPlayerState({
-            isAiPlayer: true,
-            name: "Bot North",
-            score: 21_000,
-            seat: 3,
-        }),
-        isRiichi: true,
+        dealerSeat: 0,
+        honba: 0,
+        loserSeat: 3,
+        outcome: "ron",
+        riichiSeats: [0],
+        scoreChanges: { "0": 4900, "3": -3900 },
+        tenpaiSeats: null,
+        wind: 0,
+        winnerSeats: [0],
+    },
+    {
+        dealerSeat: 0,
+        honba: 1,
+        loserSeat: null,
+        outcome: "exhaustive",
+        riichiSeats: NO_RIICHI,
+        scoreChanges: { "0": 1500, "1": -1500, "2": 1500, "3": -1500 },
+        tenpaiSeats: [0, 2],
+        wind: 0,
+        winnerSeats: [],
+    },
+    {
+        dealerSeat: 0,
+        honba: 2,
+        loserSeat: null,
+        outcome: "tsumo",
+        riichiSeats: NO_RIICHI,
+        scoreChanges: { "0": -2200, "1": -1200, "2": 4600, "3": -1200 },
+        tenpaiSeats: null,
+        wind: 0,
+        winnerSeats: [2],
+    },
+    {
+        dealerSeat: 1,
+        honba: 0,
+        loserSeat: null,
+        outcome: "exhaustive",
+        riichiSeats: [3],
+        scoreChanges: { "0": -1000, "1": -1000, "2": -1000, "3": 3000 },
+        tenpaiSeats: [3],
+        wind: 0,
+        winnerSeats: [],
+    },
+    {
+        dealerSeat: 2,
+        honba: 1,
+        loserSeat: 1,
+        outcome: "ron",
+        riichiSeats: NO_RIICHI,
+        scoreChanges: { "0": 9300, "1": -8300 },
+        tenpaiSeats: null,
+        wind: 0,
+        winnerSeats: [0],
+    },
+    {
+        dealerSeat: 3,
+        honba: 0,
+        loserSeat: null,
+        outcome: "exhaustive",
+        riichiSeats: [0],
+        scoreChanges: { "0": 3000, "1": -1000, "2": -1000, "3": -1000 },
+        tenpaiSeats: [0],
+        wind: 0,
+        winnerSeats: [],
     },
 ];
 
-// Mock game-end result: 4 player standings
-const mockGameEnd: GameEndResult = {
-    leftoverRiichiBonus: 1000,
-    standings: [
-        { finalScore: 52, score: 42_000, seat: 0 },
-        { finalScore: -2, score: 28_000, seat: 2 },
-        { finalScore: -22, score: 18_000, seat: 1 },
-        { finalScore: -28, score: 12_000, seat: 3 },
-    ],
-    winnerSeat: 0,
+/** The table that short game ends on, its standings as the server ranks them with uma and oka. */
+const STANDINGS_TABLE: TableState = {
+    ...createInitialTableState(),
+    dealerSeat: 3,
+    gameEndResult: {
+        leftoverRiichiBonus: 1000,
+        standings: [
+            { finalScore: 50, score: 39_500, seat: 0 },
+            { finalScore: 9, score: 29_100, seat: 2 },
+            { finalScore: -21, score: 19_400, seat: 3 },
+            { finalScore: -38, score: 12_000, seat: 1 },
+        ],
+        winnerSeat: 0,
+    },
+    phase: "game_ended",
+    players: STANDINGS_PLAYERS,
+    roundHistory: STANDINGS_HISTORY,
 };
+
+const STANDINGS_ACTIONS: readonly StandingsAction[] = [
+    { href: "/play/storybook/replay?state=standings", kind: "link", label: "Replay" },
+    { href: "/play/storybook", kind: "link", label: "Storybook", primary: true },
+];
 
 function buildOverlay(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
+    standings: StandingsRenderer | null,
 ): TemplateResult | undefined {
     const { overlay } = story;
     if (overlay === "round_end") {
@@ -437,7 +521,11 @@ function buildOverlay(
         });
     }
     if (overlay === "game_end") {
-        return GameEndDisplay(mockGameEnd, mockPlayers);
+        return boardOverlay(
+            STANDINGS_TABLE,
+            { page: 0 },
+            { actions: STANDINGS_ACTIONS, renderer: standings, viewerSeat: 0 },
+        );
     }
     return undefined;
 }
@@ -458,6 +546,7 @@ function activeClass(active: boolean): string {
 function storybookBoardTemplate(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
+    standings: StandingsRenderer | null,
 ): TemplateResult {
     const state = BOARD_STATES[story.story];
     return html`
@@ -465,7 +554,7 @@ function storybookBoardTemplate(
             <div class="board-page__board">
                 ${GameBoard({
                     debug: story.debug,
-                    overlay: buildOverlay(story, handlers),
+                    overlay: buildOverlay(story, handlers, standings),
                     scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
                     state,
                 })}
@@ -524,6 +613,7 @@ function storybookBoardTemplate(
 
 /** Mount the board storybook into `host`; its story and overlay are kept in the page's `?state=` and `?overlay=`. */
 export function mountStorybookBoard(host: HTMLElement): () => void {
+    const standings = startStorybookStandings(browserClock.setTimer);
     let story: BoardStoryState = {
         debug: true,
         overlay: parseOverlayParam(window.location.search),
@@ -535,7 +625,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
 
     function show(next: BoardStoryState): void {
         story = next;
-        render(storybookBoardTemplate(story, handlers), host);
+        render(storybookBoardTemplate(story, handlers, standings.value()), host);
     }
 
     const handlers: BoardStoryHandlers = {
@@ -564,6 +654,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         },
     };
 
+    standings.subscribe(() => show(story));
     show(story);
-    return () => {};
+    return () => standings.stop();
 }

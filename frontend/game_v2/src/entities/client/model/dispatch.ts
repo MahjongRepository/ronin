@@ -403,12 +403,27 @@ function confirmStep(state: GameClientState): ClientStep | null {
 }
 
 /**
- * Whether stepping `intent` now would answer the open decision or confirm the round result: the one test of what the
- * client may play, so the board offers exactly the intents the dispatcher takes.
+ * Reopen the game's last result over the standings it was dismissed for, sending nothing. Null unless the game ended on
+ * a result the standings show.
+ */
+function reopenResultStep(state: GameClientState): ClientStep | null {
+    const { roundConfirm, table } = state;
+    if (table.phase !== "game_ended" || table.roundEndResult === null || roundConfirm !== null) {
+        return null;
+    }
+    return { effects: [], state: { ...state, roundConfirm: FINAL } };
+}
+
+/**
+ * Whether stepping `intent` now would answer the open decision, confirm the round result or reopen the game's last
+ * one: the one test of what the client may play, so the board offers exactly the intents the dispatcher takes.
  */
 export function takesIntent(state: GameClientState, intent: PlayIntent): boolean {
     if (intent.type === "confirm_result") {
         return confirmStep(state) !== null;
+    }
+    if (intent.type === "show_last_result") {
+        return reopenResultStep(state) !== null;
     }
     return decisionAnswer(state, intent) !== null;
 }
@@ -439,6 +454,9 @@ function onIntent(state: GameClientState, intent: LocalIntent): ClientStep {
         }
         case "confirm_result": {
             return confirmStep(state) ?? { effects: [], state };
+        }
+        case "show_last_result": {
+            return reopenResultStep(state) ?? { effects: [], state };
         }
         default: {
             return assertNever(intent);

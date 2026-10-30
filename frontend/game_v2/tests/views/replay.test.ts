@@ -2,6 +2,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ManualClock } from "#tests/fixtures/clock";
 import { engineReplayText } from "#tests/fixtures/replays";
+import { FakeStandingsLoad } from "#tests/fixtures/standings";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { REPLAY_VERSION } from "@/shared/protocol";
 import { REPLAY_URL_WRITE_INTERVAL_MS, type ReplayLocation, mountReplayView } from "@/views/replay";
@@ -79,20 +80,30 @@ function fakeLoader(): FakeLoader {
 }
 
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
-function mountReplay(search = "?v=2"): MountedReplay {
+function mountReplay(search = "?v=2", standings = new FakeStandingsLoad()): MountedReplay {
     const host = document.createElement("div");
     document.body.append(host);
     const clock = new ManualClock();
     const { hidePage, location, written } = fakeLocation(search);
     const { answer, loadReplay, signals } = fakeLoader();
-    const dispose = mountReplayView(host, "g1", { clock, links: LINKS, loadReplay, location });
+    const dispose = mountReplayView(host, "g1", {
+        clock,
+        links: LINKS,
+        loadReplay,
+        location,
+        startStandings: () => standings,
+    });
     const mounted: MountedReplay = { answer, clock, dispose, hidePage, host, signals, written };
     mounts.push(mounted);
     return mounted;
 }
 
-async function mountLoadedReplay(name = "riichi", search = "?v=2"): Promise<MountedReplay> {
-    const mounted = mountReplay(search);
+async function mountLoadedReplay(
+    name = "riichi",
+    search = "?v=2",
+    standings = new FakeStandingsLoad(),
+): Promise<MountedReplay> {
+    const mounted = mountReplay(search, standings);
     await mounted.answer({ ok: true, text: engineReplayText(name) });
     return mounted;
 }
@@ -238,6 +249,50 @@ describe("mountReplayView - moving", () => {
 
         button(host, ".replay-controls__move--prev").click();
         expect(textOf(host, ".round-end-result__title")).toBe("Alice South");
+    });
+});
+
+describe("mountReplayView - standings", () => {
+    it("shows the standings at the game's end with a row per round and the ways back, the wheel left to scroll them", async () => {
+        const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141");
+        const links = [...host.querySelectorAll<HTMLAnchorElement>(".standings__action")];
+
+        expect(host.querySelectorAll(".standings__round--jump")).toHaveLength(12);
+        expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+            ["Lobby", LINKS.lobby],
+            ["Game history", LINKS.history],
+        ]);
+        expect(wheel(element(host, ".standings__sheet"), -100)).toBe(false);
+    });
+
+    it("says at the game's end that the standings failed to load, and shows them once a retry lands", async () => {
+        const standings = new FakeStandingsLoad("failed");
+        const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141", standings);
+        const failed = [host.querySelector(".standings"), textOf(host, ".board-notice--error")];
+
+        standings.moveTo("ready");
+
+        expect(failed).toEqual([
+            null,
+            "The final standings did not load; reload the page to try again",
+        ]);
+        expect([host.querySelector(".standings") !== null, textOf(host, ".board-notice")]).toEqual([
+            true,
+            undefined,
+        ]);
+    });
+
+    it("jumps from a round's row to that round's result, its arrow keys stepping on from there", async () => {
+        const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141");
+        const [, , row] = host.querySelectorAll<HTMLButtonElement>(".standings__round--jump");
+        row.focus();
+
+        row.click();
+        const shown = [position(host), textOf(host, ".round-end-result__title")];
+        pressOnFocus(host, "ArrowRight");
+
+        expect(shown).toEqual(["East 3, 2 honba Step 141/141", "Exhaustive draw"]);
+        expect(position(host)).toBe("East 4, 3 honba Step 1/141");
     });
 });
 

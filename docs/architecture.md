@@ -393,7 +393,8 @@ honours this contract can replace it.
   storage is per origin, which is why the game client must be served by the lobby. A game page
   whose tab holds no entry recovers it from `GET /api/game-session` (`game_id`, `ws_url`,
   `game_ticket`, `game_client_url`; 404 when the player plays no game, 503 when the lookup failed)
-  and stores it under the same key.
+  and stores it under the same key. The v2 client forgets it at the game end, since its ticket will never
+  hold the seat again.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
   (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect.
 * **Closes:** the client reconnects after any close but two terminal ones, after which it stops

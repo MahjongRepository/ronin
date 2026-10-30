@@ -49,7 +49,19 @@ replay view, the live game and the storybook read the tables it produces.
   the table settled. A game end's standings already hold
   the leftover sticks paid to the winner (`lb`); the table takes them and empties the sticks, and
   keeps the last round's result, which `boardOverlay` shows over the standings only when the view
-  asks (the live game, until the player dismisses it).
+  asks (the live game, until the player dismisses it, and again when the player reopens it).
+- The table keeps every finished round as a `RoundRecord` (`roundHistory`) for the final standings'
+  ledger, built from its own round end or taken whole from a reconnect's snapshot history, which
+  names the same fields (the result type and an abortive draw's reason included), so a reconnect
+  rebuilds the ledger the seat built. A record's payments exclude riichi deposits; the ledger nets
+  each standing riichi's deposit out of its round, so the rounds and the leftover sticks add up to
+  each final score. `lib/standings-display.ts` maps an ended table to the standings (seats in the
+  server's placement order with its uma/oka results, never recomputed; a ledger row per record;
+  the leftover sticks), which `ui/standings-panel.ts` renders. A ledger cell's text is its change, net of
+  a riichi deposit; a round with no payments names each seat's tenpai on a draw that judges it, so a
+  deposit never hides another seat's tenpai. The mapper, the panel and their stylesheet are one lazy
+  chunk (`ui/standings.ts`, started by `startStandingsLoad`), so `boardOverlay` draws the standings only
+  through the renderer the view hands it.
 - A round end's result (`RoundEndResult`) keeps what the panel shows: per winner its hand, value
   (`handResult.points`, the hand alone), dora kinds, ura indicators, its own payments, honba bonus
   (its gain beyond hand value and sticks), sticks and pao seat; for a draw its kind and the seats it
@@ -85,7 +97,8 @@ replay view, the live game and the storybook read the tables it produces.
   deposit, and otherwise a seat's change of hands is told and marked from the move after its line.
   Every stop is a timeline state; none is a table patched outside the dispatcher. The
   replay opens on the first deal: nothing before it is a stop. Stops are numbered within their
-  round from 0 at its deal, the game's end the last round's last stop. A result stop has a page
+  round from 0 at its deal, the game's end the last round's last stop, and a round's result
+  (`roundResultCursor`, where the standings' rows go) the stop whose table shows it ended. A result stop has a page
   per winner; stepping pages through them, and stepping back into a result lands on its last page.
   The address (`?seat=&round=&step=`, `docs/architecture.md`, Replays) resolves through the same
   index, every bad part falling back as the contract says, and never names a page.

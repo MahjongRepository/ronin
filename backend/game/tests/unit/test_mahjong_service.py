@@ -34,6 +34,7 @@ from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
 )
+from game.messaging.event_payload import reconnection_payload
 from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall, make_wall
@@ -405,13 +406,14 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.handle_timeout(runtime, seat=alice.seat, timeout_type=TimeoutType.ROUND_ADVANCE)
         assert runtime.state.round_number == 1
 
-        payload = service.build_reconnection_snapshot(runtime, alice.seat).model_dump(by_alias=True, exclude_none=True)
+        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat))
         assert payload["h"] == 1
         assert payload["rh"] == [
             {
                 "w": 0,
                 "dl": first_dealer,
                 "h": 0,
+                "rt": 3,
                 "rs": (riichi_seat,),
                 "ws": (),
                 "ts": (riichi_seat,),

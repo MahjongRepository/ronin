@@ -1,0 +1,209 @@
+import { RIICHI_DEPOSIT } from "@/entities/table/model/apply-event";
+import { RIICHI_STICK_VALUE } from "@/entities/table/model/handlers/round-end";
+import { roundInWind } from "@/entities/table/model/helpers";
+import { type PlayerState, type RoundRecord, type TableState } from "@/entities/table/model/types";
+
+import { drawName } from "./draw-name";
+import { formatDelta, formatPoints } from "./round-end-display";
+import { roundName } from "./round-name";
+
+export type StandingsTone = "positive" | "negative" | "even";
+
+/** A seat's column of the standings, the columns in placement order. */
+export interface StandingsSeat {
+    readonly seat: number;
+    readonly name: string;
+    /** "1st" through "4th". */
+    readonly placement: string;
+    /** The final score, the leftover riichi sticks included. */
+    readonly score: string;
+    /** The uma/oka-adjusted result, in thousands: "+42.0". */
+    readonly result: string;
+    readonly resultTone: StandingsTone;
+    /** The seat the standings are read from: the live player's, or the replay's bottom seat. */
+    readonly viewer: boolean;
+}
+
+/** One seat's cell of a ledger row: its change in the round, net of its riichi deposit. */
+export interface LedgerCell {
+    readonly text: string;
+    readonly tone: StandingsTone;
+    /** The seat won the round, or paid its ron (dealt in, or had its kan robbed). */
+    readonly mark: "win" | "deal_in" | null;
+    readonly riichi: boolean;
+    readonly dealer: boolean;
+}
+
+/** One finished round of the ledger, its cells in the columns' order. */
+export interface LedgerRow {
+    /** The round's place in the game's history, from 0. */
+    readonly round: number;
+    /** "East 1". */
+    readonly name: string;
+    readonly honba: number;
+    /** "Ron", "Tsumo", "Double ron", or the draw's name. */
+    readonly outcome: string;
+    /** The outcome with who won from whom, as a sentence: "Ron by Bob from Alice". */
+    readonly summary: string;
+    readonly cells: readonly LedgerCell[];
+}
+
+/** The riichi sticks left on the table at the game's end and where they went: the winner's score holds them. */
+export interface LeftoverSticks {
+    readonly sticks: number;
+    /** The points they paid, by column: the winner's, blank for the others. */
+    readonly cells: readonly string[];
+}
+
+/** The final standings as the panel shows them: a column per seat, a ledger row per round, the leftover sticks. */
+export interface StandingsDisplay {
+    readonly seats: readonly StandingsSeat[];
+    readonly ledger: readonly LedgerRow[];
+    readonly leftover: LeftoverSticks | null;
+}
+
+const PLACEMENTS = ["1st", "2nd", "3rd", "4th"] as const;
+
+function tone(value: number): StandingsTone {
+    if (value > 0) {
+        return "positive";
+    }
+    return value < 0 ? "negative" : "even";
+}
+
+function formatResult(finalScore: number): string {
+    const digits = Math.abs(finalScore).toFixed(1);
+    if (finalScore > 0) {
+        return `+${digits}`;
+    }
+    return finalScore < 0 ? `−${digits}` : digits;
+}
+
+function nameOf(players: readonly PlayerState[]): (seat: number) => string {
+    return (seat) => players.find((player) => player.seat === seat)?.name ?? `Seat ${seat}`;
+}
+
+function outcomeName(record: RoundRecord): string {
+    const { outcome } = record;
+    if (outcome === "tsumo") {
+        return "Tsumo";
+    }
+    if (outcome === "ron") {
+        return record.winnerSeats.length > 1 ? "Double ron" : "Ron";
+    }
+    return outcome === "exhaustive" ? "Draw" : drawName(outcome);
+}
+
+function outcomeSummary(record: RoundRecord, name: (seat: number) => string): string {
+    const title = outcomeName(record);
+    if (record.winnerSeats.length === 0) {
+        return title;
+    }
+    const winners = record.winnerSeats.map(name).join(" and ");
+    const from = record.loserSeat === null ? "" : ` from ${name(record.loserSeat)}`;
+    return `${title} by ${winners}${from}`;
+}
+
+function paidIn(record: RoundRecord, seat: number): number {
+    return record.scoreChanges[String(seat)] ?? 0;
+}
+
+/** A seat's change in a round: its payments less the deposit of a riichi that stood. */
+function ledgerDelta(record: RoundRecord, seat: number): number {
+    const paid = paidIn(record, seat);
+    return record.riichiSeats.includes(seat) ? paid - RIICHI_DEPOSIT : paid;
+}
+
+/**
+ * A cell's words: its change, else on a round with no payments, the seat's tenpai on a draw that judges it or ±0; a
+ * seat that kept its points while others were paid shows nothing. A riichi deposit is a change but never a payment,
+ * so it hides no other seat's tenpai.
+ */
+function cellText(record: RoundRecord, seat: number, seats: readonly number[]): string {
+    const delta = ledgerDelta(record, seat);
+    if (delta !== 0) {
+        return formatDelta(delta);
+    }
+    if (seats.some((other) => paidIn(record, other) !== 0)) {
+        return "";
+    }
+    if (record.tenpaiSeats !== null) {
+        return record.tenpaiSeats.includes(seat) ? "Tenpai" : "Noten";
+    }
+    return "±0";
+}
+
+function cellMark(record: RoundRecord, seat: number): LedgerCell["mark"] {
+    if (record.winnerSeats.includes(seat)) {
+        return "win";
+    }
+    return record.loserSeat === seat ? "deal_in" : null;
+}
+
+/** The table a ledger reads its names and first dealer from, and its seats in column order. */
+interface LedgerColumns {
+    readonly table: TableState;
+    readonly seats: readonly number[];
+}
+
+function ledgerRow({ seats, table }: LedgerColumns, record: RoundRecord, round: number): LedgerRow {
+    const name = nameOf(table.players);
+    return {
+        cells: seats.map((seat) => ({
+            dealer: seat === record.dealerSeat,
+            mark: cellMark(record, seat),
+            riichi: record.riichiSeats.includes(seat),
+            text: cellText(record, seat, seats),
+            tone: tone(ledgerDelta(record, seat)),
+        })),
+        honba: record.honba,
+        name: roundName(
+            record.wind,
+            roundInWind({ dealerSeat: record.dealerSeat, firstDealerSeat: table.firstDealerSeat }),
+        ),
+        outcome: outcomeName(record),
+        round,
+        summary: outcomeSummary(record, name),
+    };
+}
+
+/**
+ * The standings of a table whose game ended, read from `viewerSeat` (the live player's seat, the replay's bottom seat,
+ * or none): the seats in placement order with their scores and uma/oka results as the server gave them, the ledger of
+ * every round the table recorded, and the leftover riichi sticks paid to the winner. Null before the game ends.
+ */
+export function standingsDisplay(
+    table: TableState,
+    viewerSeat: number | null,
+): StandingsDisplay | null {
+    const end = table.gameEndResult;
+    if (table.phase !== "game_ended" || end === null) {
+        return null;
+    }
+    const name = nameOf(table.players);
+    const seats = end.standings.map((standing) => standing.seat);
+    const sticks = end.leftoverRiichiBonus / RIICHI_STICK_VALUE;
+    return {
+        ledger: table.roundHistory.map((record, round) =>
+            ledgerRow({ seats, table }, record, round),
+        ),
+        leftover:
+            sticks === 0
+                ? null
+                : {
+                      cells: seats.map((seat) =>
+                          seat === end.winnerSeat ? formatDelta(end.leftoverRiichiBonus) : "",
+                      ),
+                      sticks,
+                  },
+        seats: end.standings.map((standing, index) => ({
+            name: name(standing.seat),
+            placement: PLACEMENTS[index] ?? `${index + 1}th`,
+            result: formatResult(standing.finalScore),
+            resultTone: tone(standing.finalScore),
+            score: formatPoints(standing.score),
+            seat: standing.seat,
+            viewer: standing.seat === viewerSeat,
+        })),
+    };
+}

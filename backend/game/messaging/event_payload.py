@@ -98,9 +98,13 @@ def round_result_payload(result: RoundResult) -> dict[str, Any]:
 
 def reconnection_payload(snapshot: ReconnectionSnapshot) -> dict[str, Any]:
     """
-    Return the wire-format dict of a reconnect snapshot, its round result (`re`) shaped as a round end's.
+    Return the wire-format dict of a reconnect snapshot, its round result (`re`) shaped as a round end's and each round
+    history entry's result type (`rt`) as its integer.
     """
     payload = snapshot.model_dump(by_alias=True, exclude_none=True, exclude={"result"})
+    for entry in payload["rh"]:
+        entry["rt"] = _ROUND_RESULT_TYPE_TO_WIRE[entry["rt"]]
+
     if snapshot.result is not None:
         payload[ROUND_RESULT_KEY] = round_result_payload(snapshot.result)
 

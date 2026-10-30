@@ -116,7 +116,10 @@ describe("gameReconnectedSchema", () => {
                 sch: {},
                 scs: { "0": 250, "1": 240, "2": 260, "3": 250 },
             },
-            rh: [{ dl: 0, h: 0, ls: 2, rs: [1], sch: { "0": 39, "2": -39 }, w: 0, ws: [0] }],
+            rh: [
+                { dl: 0, h: 0, ls: 2, rs: [1], rt: 1, sch: { "0": 39, "2": -39 }, w: 0, ws: [0] },
+                { dl: 1, h: 0, rn: "four_winds", rs: [], rt: 4, sch: {}, w: 0, ws: [] },
+            ],
         });
 
         expect(result.confirmationOwed).toBe(true);
@@ -128,14 +131,28 @@ describe("gameReconnectedSchema", () => {
         });
         expect(result.roundHistory).toEqual([
             {
+                abortiveReason: null,
                 dealerSeat: 0,
                 honbaSticks: 0,
                 loserSeat: 2,
+                resultType: ROUND_RESULT_TYPE.RON,
                 riichiSeats: [1],
                 scoreChanges: { "0": 3900, "2": -3900 },
                 tenpaiSeats: null,
                 wind: 0,
                 winnerSeats: [0],
+            },
+            {
+                abortiveReason: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
+                dealerSeat: 1,
+                honbaSticks: 0,
+                loserSeat: null,
+                resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+                riichiSeats: [],
+                scoreChanges: {},
+                tenpaiSeats: null,
+                wind: 0,
+                winnerSeats: [],
             },
         ]);
     });

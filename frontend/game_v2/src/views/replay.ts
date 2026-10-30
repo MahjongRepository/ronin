@@ -5,6 +5,7 @@ import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import { type LoadedReplay, type ReplayUnshowable, readReplay } from "@/entities/client";
 import {
+    type BoardNotice,
     GameBoard,
     REPLAY_ROUND_LIST_ID,
     ROUND_LIST_ROW_CLASS,
@@ -14,6 +15,8 @@ import {
     RoundList,
     type ScoreDiffPin,
     type SeatPosition,
+    type StandingsRenderer,
+    type TableState,
     boardOverlay,
     nextCursor,
     parseReplayAddress,
@@ -21,6 +24,7 @@ import {
     replayAddressSearch,
     replayDisplay,
     resolveReplayAddress,
+    roundResultCursor,
     tableStateToDisplayState,
 } from "@/entities/table";
 import {
@@ -30,7 +34,13 @@ import {
     loadReplayUntilFound,
 } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import { type ThrottledWriter, assertNever, createThrottledWriter } from "@/shared/lib";
+import {
+    type LoadStatus,
+    type RetryingLoad,
+    type ThrottledWriter,
+    assertNever,
+    createThrottledWriter,
+} from "@/shared/lib";
 
 /** The page's address, which the view reads once and keeps on the position it shows. */
 export interface ReplayLocation {
@@ -53,6 +63,8 @@ export interface ReplayViewDeps {
     readonly clock: Clock;
     readonly location: ReplayLocation;
     readonly links: ReplayLinks;
+    /** Start loading the final standings, which the view does as it mounts and stops on dispose. */
+    readonly startStandings: () => RetryingLoad<StandingsRenderer>;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
 }
@@ -85,6 +97,18 @@ type ReplayScreen =
     | { readonly kind: "failed"; readonly failure: ReplayFailure }
     | LoadedScreen;
 
+/** The final standings' load as the page draws it: the renderer once loaded, and where the load stands. */
+interface StandingsState {
+    readonly renderer: StandingsRenderer | null;
+    readonly status: LoadStatus;
+}
+
+/** What the page draws beside its screen: its ways back and the final standings' load. */
+interface ReplayPage {
+    readonly links: ReplayLinks;
+    readonly standings: StandingsState;
+}
+
 interface ReplayHandlers {
     readonly root: Ref<HTMLElement>;
     readonly keydown: (event: KeyboardEvent) => void;
@@ -94,6 +118,7 @@ interface ReplayHandlers {
     readonly toggleRoundList: () => void;
     readonly closeRoundList: () => void;
     readonly selectRound: (start: ReplayCursor) => void;
+    readonly showRoundResult: (round: number) => void;
     readonly retry: () => void;
     readonly wheel: { handleEvent: (event: WheelEvent) => void; passive: false };
 }
@@ -225,7 +250,21 @@ function elementOf(target: EventTarget | null): Element | null {
     return target instanceof Element ? target : null;
 }
 
-function loadedTemplate(screen: LoadedScreen, handlers: ReplayHandlers): TemplateResult {
+/** Says the final standings failed to load, where the table shown has ended and would show them. */
+function standingsNotices(table: TableState, standings: StandingsState): BoardNotice[] {
+    if (table.phase !== "game_ended" || standings.status !== "failed") {
+        return [];
+    }
+    return [
+        { text: "The final standings did not load; reload the page to try again", tone: "error" },
+    ];
+}
+
+function loadedTemplate(
+    screen: LoadedScreen,
+    { links, standings }: ReplayPage,
+    handlers: ReplayHandlers,
+): TemplateResult {
     const { pinnedNameplate, replay, roundListOpen, view } = screen;
     const perspective = { bottomSeat: view.bottomSeat, reveal: "all" } as const;
     const display = replayDisplay(replay, view.cursor, perspective);
@@ -234,10 +273,25 @@ function loadedTemplate(screen: LoadedScreen, handlers: ReplayHandlers): Templat
         <div class="board-page__board">
             ${GameBoard({
                 debug: false,
-                overlay: boardOverlay(display.table, {
-                    onPage: handlers.showResultPage,
-                    page: view.cursor.page,
-                }),
+                notices: standingsNotices(display.table, standings),
+                overlay: boardOverlay(
+                    display.table,
+                    { onPage: handlers.showResultPage, page: view.cursor.page },
+                    {
+                        actions: [
+                            { href: links.lobby, kind: "link", label: "Lobby" },
+                            {
+                                href: links.history,
+                                kind: "link",
+                                label: "Game history",
+                                primary: true,
+                            },
+                        ],
+                        onRound: handlers.showRoundResult,
+                        renderer: standings.renderer,
+                        viewerSeat: view.bottomSeat,
+                    },
+                ),
                 scoreDiff,
                 state: tableStateToDisplayState(display.table, perspective),
             })}
@@ -290,15 +344,15 @@ function loadingTemplate(waiting: boolean): TemplateResult {
 
 function screenTemplate(
     screen: ReplayScreen,
-    links: ReplayLinks,
+    page: ReplayPage,
     handlers: ReplayHandlers,
 ): TemplateResult {
     switch (screen.kind) {
         case "loaded": {
-            return loadedTemplate(screen, handlers);
+            return loadedTemplate(screen, page, handlers);
         }
         case "failed": {
-            return failedTemplate(screen.failure, links, handlers);
+            return failedTemplate(screen.failure, page.links, handlers);
         }
         case "loading": {
             return loadingTemplate(screen.waiting);
@@ -311,7 +365,7 @@ function screenTemplate(
 
 function replayTemplate(
     screen: ReplayScreen,
-    links: ReplayLinks,
+    page: ReplayPage,
     handlers: ReplayHandlers,
 ): TemplateResult {
     return html`
@@ -322,7 +376,7 @@ function replayTemplate(
             @keydown=${handlers.keydown}
             @wheel=${handlers.wheel}
         >
-            ${screenTemplate(screen, links, handlers)}
+            ${screenTemplate(screen, page, handlers)}
         </div>
     `;
 }
@@ -343,6 +397,7 @@ class ReplayViewController {
     private readonly gameId: string;
     private readonly addressWriter: ThrottledWriter<string>;
     private readonly removePageHide: () => void;
+    private readonly standings: RetryingLoad<StandingsRenderer>;
     private abort = new AbortController();
     private screen: ReplayScreen = { kind: "loading", waiting: false };
     private disposed = false;
@@ -356,6 +411,7 @@ class ReplayViewController {
         root: createRef<HTMLElement>(),
         selectRound: (start) => this.selectRound(start),
         showResultPage: (page) => this.showResultPage(page),
+        showRoundResult: (round) => this.showRoundResult(round),
         toggleRoundList: () => this.toggleRoundList(),
         wheel: { handleEvent: (event) => this.onWheel(event), passive: false },
     };
@@ -371,15 +427,24 @@ class ReplayViewController {
         );
         this.removePageHide = deps.location.onPageHide(() => this.addressWriter.flush());
         host.ownerDocument.addEventListener("click", this.onClickOutside);
+        this.standings = this.startStandings();
         this.show(this.screen);
         this.focusRootUnlessFocusIsElsewhere();
         this.startLoad();
+    }
+
+    /** Start loading the final standings, drawing the page again as their load moves on. */
+    private startStandings(): RetryingLoad<StandingsRenderer> {
+        const standings = this.deps.startStandings();
+        standings.subscribe(() => this.show(this.screen));
+        return standings;
     }
 
     dispose(): void {
         this.disposed = true;
         this.host.ownerDocument.removeEventListener("click", this.onClickOutside);
         this.removePageHide();
+        this.standings.stop();
         this.addressWriter.cancel();
         this.abort.abort();
         render(nothing, this.host);
@@ -479,7 +544,9 @@ class ReplayViewController {
             return;
         }
         this.screen = screen;
-        render(replayTemplate(screen, this.deps.links, this.handlers), this.host);
+        const standings = { renderer: this.standings.value(), status: this.standings.status() };
+        const page = { links: this.deps.links, standings };
+        render(replayTemplate(screen, page, this.handlers), this.host);
     }
 
     private writeAddress(): void {
@@ -535,6 +602,21 @@ class ReplayViewController {
         }
     }
 
+    /**
+     * A standings row: its round's result, where the replay holds one. The result replaces the row that held the
+     * focus, so the focus goes back to the page's root, where the arrow keys step on from the result.
+     */
+    private showRoundResult(round: number): void {
+        if (this.screen.kind !== "loaded") {
+            return;
+        }
+        const target = roundResultCursor(this.screen.replay.navigation, round);
+        if (target !== null) {
+            this.moveTo(target);
+            this.handlers.root.value?.focus({ preventScroll: true });
+        }
+    }
+
     private toggleRoundList(): void {
         if (this.screen.kind !== "loaded") {
             return;
@@ -561,13 +643,16 @@ class ReplayViewController {
         this.closeRoundList();
     }
 
-    /** The wheel steps only over the board, outside the round list, and only where a step goes: else it scrolls. */
+    /**
+     * The wheel steps only over the board, outside the round list and the standings' rounds, and only where a step
+     * goes: else it scrolls.
+     */
     private onWheel(event: WheelEvent): void {
         const over = elementOf(event.target);
         if (
             event.deltaY === 0 ||
             !over?.closest(".board-page__board") ||
-            over.closest(".round-list")
+            over.closest(".round-list, .standings__sheet")
         ) {
             return;
         }

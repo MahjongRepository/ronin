@@ -3,12 +3,15 @@ import { type Clock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
 import { REPLAY_VERSION } from "@/shared/protocol";
 
+import { startStorybookStandings } from "./storybook-standings";
+
 /** The replay page's stories: positions of generated replays, and every way a replay may fail to show. */
 export const REPLAY_STORIES = [
     "start",
     "mid",
     "double_ron",
     "standings",
+    "standings_long",
     "round_list",
     "incomplete",
     "ends_on_result",
@@ -89,6 +92,10 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         search: "?round=1&step=3",
     },
     standings: { load: servesFixture(paoReplay), search: "?round=0&step=24" },
+    standings_long: {
+        load: servesFixture(() => import("@/fixtures/replays/full_game.txt?raw")),
+        search: "?round=11&step=141",
+    },
     start: { load: servesFixture(paoReplay), search: "" },
     unreachable: { load: () => Promise.reject(new TypeError("Failed to fetch")), search: "" },
     unsupported: { load: serves('{"version": "0.1"}\n{"t": 8}'), search: "" },
@@ -129,6 +136,7 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             loadReplay: story.load,
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
             roundListOpen: story.roundListOpen ?? false,
+            startStandings: () => startStorybookStandings(HURRIED_CLOCK.setTimer),
         });
     }
     void mount();

@@ -20,6 +20,8 @@ export interface ReplayRound {
     readonly dealerSeat: number;
     /** The round's result, or null when the recording stops before it. */
     readonly result: RoundEndResult | null;
+    /** The stop that shows the round's result, or null when the recording stops before it. */
+    readonly resultStop: number | null;
     /** The table at the round's last stop, after its payments: the names and scores its result reads. */
     readonly endTable: TableState;
 }
@@ -41,10 +43,10 @@ function resultPages(table: TableState): number {
     return roundEndPages(table.roundEndResult).length;
 }
 
-/** A round from the table its deal shows, its stops, and the table at its last stop. */
+/** A round from the table its deal shows, its stops, the one showing its result, and the table at its last stop. */
 function roundOf(
     deal: TableState,
-    stops: { readonly first: number; readonly count: number },
+    stops: { readonly first: number; readonly count: number; readonly result: number | null },
     endTable: TableState,
 ): ReplayRound {
     return {
@@ -53,6 +55,7 @@ function roundOf(
         firstStop: stops.first,
         honba: deal.honbaSticks,
         result: endTable.roundEndResult,
+        resultStop: stops.result,
         roundInWind: roundInWind(deal),
         stopCount: stops.count,
         wind: deal.roundWind,
@@ -78,9 +81,16 @@ function collectRounds(
     }
     const rounds = deals.map((firstStop, index) => {
         const end = deals[index + 1] ?? stops.length;
+        const resultAt = stops
+            .slice(firstStop, end)
+            .findIndex((stop) => tables[stop.stateIndex].phase === "round_ended");
         return roundOf(
             tables[stops[firstStop].moveEntry + 1],
-            { count: end - firstStop, first: firstStop },
+            {
+                count: end - firstStop,
+                first: firstStop,
+                result: resultAt === -1 ? null : firstStop + resultAt,
+            },
             tables[stops[end - 1].stateIndex],
         );
     });

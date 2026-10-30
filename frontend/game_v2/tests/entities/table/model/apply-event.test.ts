@@ -520,7 +520,7 @@ describe("applyEvent - game_reconnected", () => {
     });
 
     test("names the round from the first dealer its history lists, else from the dealer in play", () => {
-        const history = { h: 0, rs: [], sch: {}, w: 0, ws: [] };
+        const history = { h: 0, rs: [], rt: 3, sch: {}, w: 0, ws: [] };
         const [error, later] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
             dl: 1,

@@ -181,13 +181,15 @@ $plate-seats: bottom, right, top, left;
     grid-area: top-strip / outer-right / top-far / end;
     place-self: start end;
     min-width: 0;
-    max-width: 100%;
+    max-width: min(100%, #{$corner-reserve});
 
     @container (height < #{$short-height}) and (aspect-ratio >= 1) {
         grid-area: top-near / outer-right / center / end;
+        max-width: min(100%, #{$corner-reserve-short});
     }
 
     @container (aspect-ratio < 1) {
         grid-area: head / center / top-strip / end;
+        max-width: 100%;
     }
 }

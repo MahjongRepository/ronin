@@ -14,14 +14,15 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * `index.html` is the app's page and `src/index.ts` its entry. Vite builds with base
   `/game-assets/v2/`; the lobby answers a `?v=2` game page with `dist/index.html` and serves `dist/`
   under `/game-assets/v2/`, or proxies both to this app's Vite dev server under
-  `make run-local-server` (`frontend/AGENTS.md`, Tooling). The `v=2` parameter does not survive
-  the client's own links, so open each page with it by hand.
+  `make run-local-server` (`frontend/AGENTS.md`, Tooling). The lobby never adds `v=2`, so open the
+  first page with it by hand; the client's own links to its pages (another game's page, a game's replay)
+  keep the page's query, and with it the parameter.
 * `npm run sprite` (Node runs the TypeScript script directly) rebuilds the tile sprite from the
   tile SVGs after one changes; the sprite is committed. `entities/tile/lib/tile-config.ts` is the
   single source for the active tile set. The sprite ships as an asset of its own, cached apart from the
   code: `index.html` preloads it, `index.ts` fetches and injects it before the first route mounts, retrying
-  a failed fetch with backoff and again when the browser comes back online (`loadTileSprite`, IO the
-  entry owns), and a face drawn before it lands shows once it does. Until then each face shows its short
+  a failed fetch with backoff and again when the browser comes back online (`loadTileSprite` over
+  `shared/lib`'s `startRetryingLoad`, IO the entry owns), and a face drawn before it lands shows once it does. Until then each face shows its short
   name (`5m`, `E`), so a tile is never blank; the live game's board says so with a reload while a load
   has failed (`PlayUi`'s sprite status, which the driver keeps from the loader, never the dispatcher).
 * `package.json`'s `sideEffects` names the only modules with an import-time effect (the stylesheets,
@@ -92,7 +93,19 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   and arms no timer for it. A double ron's pages each show Next until the last, which alone
   confirms, so the player has seen every winner before confirming. The game's last round end
   carries no wait and its game end follows at once: the table keeps that result and the live board
-  shows it over the standings until the player dismisses it, which sends nothing.
+  shows it over the standings until the player dismisses it, which sends nothing; the standings'
+  Last hand (the `show_last_result` intent) reopens it, on its first page, sending nothing either.
+* **Final standings** (`boardOverlay`, live and replay alike): the seats in the server's placement
+  order with its uma/oka results, the ledger of every finished round with a line saying what its marks
+  mean, the leftover sticks, the viewer's seat (the live seat, the replay's bottom seat) marked. Their
+  panel, mapper and stylesheet are a lazy chunk (`startStandingsLoad`, with the sprite's retries), which
+  each view that may show them starts as it mounts and stops on dispose; the view hands the loaded
+  renderer to `boardOverlay`, which shows no standings until it has one, and a board notice says so once
+  every try failed. The live standings lead to the
+  last result, this game's replay from the player's seat (the page's `v` kept), the game history
+  and the lobby (the leave intent); the view is given the links (`GameLinks`). The replay's lead
+  to the game history and the lobby, and each round's row is a button to its result
+  (`roundResultCursor`), after which the focus returns to the replay's root, so its arrow keys go on.
 * **Timelines, not history in the driver.** `buildClientTimeline` steps any event sequence into
   the state after each event; stepping back selects an earlier state, never an inverse event, and
   nothing in a timeline executes an effect, so revisiting a prompt sends nothing and arms no
@@ -118,7 +131,7 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   recorded time (an answer or a round confirm as the intent choosing it, a send the client makes on
   its own, a resent identity, as a tick then, the identity after an open as that open's effect), a
   reopened socket asked for at its recorded open, the handoff forgotten after a close the contract
-  makes terminal (its own copy of the codes), and nothing from any other tick, so an automatic send that is
+  makes terminal (its own copy of the codes) and after the game's end, and nothing from any other tick, so an automatic send that is
   early, late or missing is a mismatch. Because sent messages parse strictly, an expected send also
   pins the builders' wire shape to what the server accepted. The tests run the generated ones;
   nothing in the app runs one yet.
@@ -165,7 +178,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   deal) gets a screen saying why with the way back to the game history and the lobby, and a retry
   where one may help: only a failed fetch counts as unreachable, while a throw in reading or drawing
   the replay says it cannot be shown, its error on the console, with no retry. The wheel steps only
-  over the board, outside the round list, and only where a step goes; anywhere else it scrolls.
+  over the board, outside the round list and the standings' rounds, and only where a step goes;
+  anywhere else it scrolls.
 * **Session** (`entities/session`): one machine owns finding the handoff, joining, playing,
   reconnecting and the end. It joins with the lobby's ticket (`shared/session` holds the handoff) and
   resumes the seat with the same ticket. A tab that holds no ticket asks the lobby
@@ -180,7 +194,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   state deadline like the others) is closed and retried as a drop. The stop policy follows the
   server: the 4002 and 1008 closes, a refusal that means the ticket will never hold the seat again,
   and a spent retry budget end the session, cancel its retry and forget the handoff, and stay on the
-  page, whose board says why with a way back; a game end ends it on the page; any other close is
+  page, whose board says why with a way back; a game end ends it on the page and forgets the handoff,
+  since its ticket will never hold the seat again; any other close is
   retried, 1000 included (`docs/architecture.md`, Game client contract). An ended session ignores
   everything after, except that leaving still goes to the lobby from an end that stayed on the page.
   Leaving while the session holds or works for the seat hands it to an AI, so the page asks first
@@ -203,8 +218,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **The live game's page** is the board alone: the page's own controls (`GameMenu`: the way back and the
   session's status as a dot, with one short word by its tone unless connected, the player's whole wording in
   its title and read out, the notices saying more) sit in the board's top-right corner, so a phone gives the
-  board its whole width; `PlayBoard` draws them when given the status, the decisions storybook too. The board
-  carries the notices
+  board its whole width; `PlayBoard` draws them when given the status, the decisions storybook too. A panel
+  over the board leaves the corner clear: the corner is capped to a
+  reserve the overlay keeps free beside the panel, on the corner's side alone on a short board, and the
+  overlay's tiles size from the width left (`game-board/_overlay.scss`); an upright board does not keep it
+  clear yet. The board carries the notices
   (`playDisplay`'s, in the table's own area so they never cover the hand or the decision's corner): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
   opened, each worded the same across its retries so it is announced once (a page that only resumes
@@ -276,9 +294,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
   dora, long names, AI marks and a pinned nameplate; the dense round results; the decisions
-  stories; and the replay page's stories: its opening, its round list, a double ron's result, the
-  standings, an incomplete replay, one ending on a round's result, a damaged one, loading and a replay
-  not found), the replay and the live game, at its call prompt and at its turn, at 1280x800 and 1920x1080
+  stories, the live standings and the last result reopened from them among them; the board's
+  standings over a hand-written short game; and the replay page's stories: its opening, its round list,
+  a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
+  on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
+  its call prompt and at its turn, at 1280x800 and 1920x1080
   (Chromium), iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context. It
   fails on content that is hidden or empty, tiles of different areas or a nameplate overlapping,
@@ -290,10 +310,14 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   under 40x40 or off the screen, or a round list off the board; on a desktop, on a
   river tile outside 0.55-0.75 of the local hand tile, a side seat's hand further from the centre than a
   quarter of the board's width, or replay controls whose narration reads under 13px or past three lines,
-  round and step under 13px or past two, or incompleteness under 12px. It also fails on a round end that does not fit its panel, an aside that
+  round and step under 13px or past two, or incompleteness under 12px. It also fails on a round end that does not fit its panel, a panel over a landscape board covering the
+  page's corner, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, and on a tile sprite that never loaded or a face whose
-  symbol it lacks. It writes a screenshot per page to
+  symbol it lacks. The standings must keep their rounds scrolling inside their sheet, never sideways in landscape,
+  with the totals in view at its foot, no text under 10px, each round's and result's gain or loss in its
+  tone's colour, and on a landscape phone their ways on
+  and the rounds shown on the screen and at least 40x40. It writes a screenshot per page to
   `thoughts/screenshots/visual-check/`. `make install-frontend` installs its Chromium and WebKit
   (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host their system
   libraries come from `npx playwright install-deps`, which needs root. A board state worth checking
@@ -309,8 +333,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   writes (`vite build --manifest`; it deletes it, so `dist/` never serves one) and fails when a
   route loads more JavaScript or CSS than its budget, raw or gzipped (the game route is the entry
   and its static imports; a lazy route is what it adds; the tile sprite has its own, and the cold start,
-  the entry with the sprite, is reported), the budgets set about a tenth over the measured sizes, a lazy
-  route's CSS at least 1 KiB over. Then the replay load budget loads the
+  the entry with the sprite, is reported; the standings' chunk, which no route imports statically, has its
+  own), the budgets set about a tenth over the measured sizes, a lazy route's CSS at least 1 KiB
+  over. Then the replay load budget loads the
   largest engine replay fixture on the same server and Chromium, slowed sixfold
   (`Emulation.setCPUThrottlingRate`), and fails when the median of a few reads of the replay view's
   `replay-load` measure (parse, reduce into the client timeline, steps and navigation index, before

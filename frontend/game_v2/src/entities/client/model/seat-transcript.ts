@@ -5,6 +5,7 @@ import {
     CLIENT_MESSAGE_TYPE,
     CLOSE_CODE,
     type ClientMessage,
+    EVENT_TYPE,
     GAME_ACTION,
     KAN_TYPE,
     NUM_PLAYERS,
@@ -236,6 +237,19 @@ function closedStep(
     return { effects, event: { at, code, kind: "transport_closed", reason }, label };
 }
 
+/**
+ * A server message as the step the client takes it in: after the game's end the seat's ticket will never hold it
+ * again, so the client forgets the handoff and a return to the page joins with no dead ticket.
+ */
+function receivedStep(
+    { at, label, payload }: Extract<TranscriptEvent, { kind: "received" }>,
+    gameId: string,
+): ScenarioStep {
+    const effects: ClientEffect[] =
+        payload.t === EVENT_TYPE.GAME_END ? [{ gameId, type: "clear_handoff" }] : [];
+    return { effects, event: { at, kind: "server_message", raw: payload }, label };
+}
+
 /** Where the converter is in a transcript: its events and the index of the next one to take. */
 interface Cursor {
     readonly events: readonly TranscriptEvent[];
@@ -309,11 +323,7 @@ function eventSteps(cursor: Cursor, context: DriveContext): Taken {
             return openedSteps(cursor, context);
         }
         case "received": {
-            const { at, label, payload } = event;
-            return {
-                covered: 1,
-                steps: [{ event: { at, kind: "server_message", raw: payload }, label }],
-            };
+            return { covered: 1, steps: [receivedStep(event, context.gameId)] };
         }
         case "sent": {
             return { covered: 1, steps: [sentStep(event, context.handoff)] };

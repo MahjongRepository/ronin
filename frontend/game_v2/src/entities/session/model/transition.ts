@@ -79,10 +79,10 @@ function forgetsHandoff(reason: EndReason): boolean {
         case "refused":
         case "retries_exhausted":
         case "no_handoff":
+        case "game_ended":
         case "left": {
             return true;
         }
-        case "game_ended":
         case "failed":
         case "recovery_failed":
         case "moved": {

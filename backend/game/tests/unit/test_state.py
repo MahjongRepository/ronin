@@ -1,6 +1,6 @@
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import WindName
+from game.logic.enums import AbortiveDrawType, RoundResultType, WindName
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import (
     MahjongGameState,
@@ -9,7 +9,7 @@ from game.logic.state import (
     get_player_view,
 )
 from game.logic.state_utils import finish_round
-from game.logic.types import DoubleRonResult, DoubleRonWinner, HandResultInfo, YakuInfo
+from game.logic.types import AbortiveDrawResult, DoubleRonResult, DoubleRonWinner, HandResultInfo, YakuInfo
 from game.tests.helpers.wall import make_wall
 
 
@@ -129,3 +129,19 @@ class TestFinishRound:
         entry = new_game_state.round_history[-1]
         assert len(new_game_state.round_history) == 1
         assert (entry.winner_seats, entry.loser_seat, entry.tenpai_seats) == ((3, 0), 2, None)
+        assert (entry.result_type, entry.abortive_reason) == (RoundResultType.DOUBLE_RON, None)
+
+    def test_finish_round__when_abortive_draw__should_record_its_reason_in_round_history(self):
+        game_state = MahjongGameService().start_game("game1", ["Alice"], seed="a" * 192).runtime.state
+        scores = dict.fromkeys(range(4), 25000)
+        result = AbortiveDrawResult(
+            reason=AbortiveDrawType.NINE_TERMINALS, scores=scores, score_changes=dict.fromkeys(scores, 0), seat=1
+        )
+
+        new_game_state, _ = finish_round(game_state, result)
+        entry = new_game_state.round_history[-1]
+        assert (entry.result_type, entry.abortive_reason, entry.winner_seats) == (
+            RoundResultType.ABORTIVE_DRAW,
+            AbortiveDrawType.NINE_TERMINALS,
+            (),
+        )

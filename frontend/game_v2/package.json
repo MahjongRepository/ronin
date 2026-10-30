@@ -13,7 +13,7 @@
         "dev": "vite",
         "build": "vite build",
         "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.scripts.json",
-        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/game-app.scss:/dev/null src/styles/replay-page.scss:/dev/null src/styles/storybook-page.scss:/dev/null",
+        "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && sass --fatal-deprecation=\"$(sass --version | cut -d ' ' -f 1)\" --quiet-deps --no-source-map --style=compressed --load-path=node_modules src/styles/game-app.scss:/dev/null src/styles/replay-page.scss:/dev/null src/styles/storybook-page.scss:/dev/null src/styles/standings.scss:/dev/null",
         "lint:fix": "oxlint --fix . && stylelint --fix 'src/**/*.scss'",
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",

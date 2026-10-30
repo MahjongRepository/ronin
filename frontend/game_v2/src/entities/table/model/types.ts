@@ -143,6 +143,28 @@ export type RoundEndPage =
     | { readonly kind: "win"; readonly winner: WinnerResult }
     | { readonly kind: "draw"; readonly draw: DrawResult };
 
+/** What ended a finished round: a tsumo, a ron (a double ron's too), or a draw of its kind. */
+export type RoundOutcome = "tsumo" | "ron" | DrawKind;
+
+/**
+ * A finished round as the final standings' ledger reads it, the same whether the table saw the round end or a
+ * reconnect's snapshot listed it: its wind, dealer and honba, its outcome, the seats it names and its payments.
+ * `riichiSeats` are the seats whose riichi stood, so each paid its deposit in the round; `tenpaiSeats` is set only on
+ * a draw that judges tenpai (exhaustive or nagashi mangan).
+ */
+export interface RoundRecord {
+    readonly wind: number;
+    readonly dealerSeat: number;
+    readonly honba: number;
+    readonly outcome: RoundOutcome;
+    readonly winnerSeats: readonly number[];
+    readonly loserSeat: number | null;
+    readonly riichiSeats: readonly number[];
+    readonly tenpaiSeats: readonly number[] | null;
+    /** The round's payments, collected riichi sticks and honba included, riichi deposits not. */
+    readonly scoreChanges: Readonly<Record<string, number>>;
+}
+
 export interface GameEndResult {
     readonly winnerSeat: number;
     /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */
@@ -178,6 +200,8 @@ export interface TableState {
     /** The ended round's result, kept through the game end that follows the last round's, until a new deal. */
     readonly roundEndResult: RoundEndResult | null;
     readonly gameEndResult: GameEndResult | null;
+    /** Every finished round of the game in play order, for the final standings' ledger. */
+    readonly roundHistory: readonly RoundRecord[];
 }
 
 export type ReplayEvent =

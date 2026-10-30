@@ -11,15 +11,21 @@ $overlay-chrome: 3rem;
 $tenpai-scale: 0.5;
 $indicator-scale: 0.6;
 
-.board-overlay {
+/* The overlay's unit, from the board's width less what the panel leaves free beside it, and the board's height. */
+@mixin overlay-unit($beside: 0px) {
     --board-unit: clamp(
         #{$overlay-unit-min},
         min(
-            (100cqw - #{$overlay-chrome}) / #{$overlay-hand-units},
+            (100cqw - #{$overlay-chrome} - #{$beside}) / #{$overlay-hand-units},
             100cqh / #{$overlay-height-units}
         ),
         #{$overlay-unit-max}
     );
+}
+
+.board-overlay {
+    @include overlay-unit;
+
     --board-tile-w: calc(#{$tile-w} * var(--board-unit));
     --board-tile-h: calc(#{$tile-h} * var(--board-unit));
 
@@ -44,6 +50,24 @@ $indicator-scale: 0.6;
 
     @container (width >= 640px) and (height >= 480px) {
         padding: 1.25rem 1.5rem;
+    }
+}
+
+/* A board with the page's corner keeps it clear of the panel: the corner is capped to a reserve the overlay leaves
+   free beside the panel, on the corner's side alone where a short board has no width to spare. */
+@container (aspect-ratio >= 1) {
+    .game-board:has(.board-menu) > .board-overlay {
+        @include overlay-unit(2 * $corner-reserve);
+
+        padding-inline: calc(#{$corner-reserve} + 1rem);
+    }
+}
+
+@container (height < #{$short-height}) and (aspect-ratio >= 1) {
+    .game-board:has(.board-menu) > .board-overlay {
+        @include overlay-unit($corner-reserve-short);
+
+        padding-inline: 0.25rem calc(#{$corner-reserve-short} + 0.25rem);
     }
 }
 
@@ -72,6 +96,10 @@ $indicator-scale: 0.6;
 /* On a narrow board the controls beside the scores leave each score little width, so the controls tighten and each
    score's wind moves down beside its score after the payments, its name taking the whole line. */
 @container (width < 800px) {
+    .board-overlay .round-end-result__head {
+        column-gap: 0.4rem;
+    }
+
     .board-overlay .round-end-result__foot:has(.round-end-result__controls) {
         gap: 0.5rem;
 

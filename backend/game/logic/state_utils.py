@@ -11,6 +11,7 @@ from game.logic.state import (
     wind_name,
 )
 from game.logic.types import (
+    AbortiveDrawResult,
     DoubleRonResult,
     ExhaustiveDrawResult,
     NagashiManganResult,
@@ -200,6 +201,8 @@ def _round_history_entry(game_state: MahjongGameState, result: RoundResult) -> R
         round_wind=wind_name(round_state.round_wind),
         dealer_seat=round_state.dealer_seat,
         honba_sticks=game_state.honba_sticks,
+        result_type=result.type,
+        abortive_reason=result.reason if isinstance(result, AbortiveDrawResult) else None,
         riichi_seats=tuple(p.seat for p in round_state.players if p.is_riichi),
         winner_seats=get_winner_seats(result),
         loser_seat=result.loser_seat if isinstance(result, RonResult | DoubleRonResult) else None,

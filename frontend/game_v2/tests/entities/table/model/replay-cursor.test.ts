@@ -14,12 +14,36 @@ import {
     prevCursor,
     prevRoundCursor,
     roundPosition,
+    roundResultCursor,
 } from "@/entities/table/model/replay-cursor";
 
 function navigationOf(name: string): NavigationIndex {
     const { events, tables } = loadEngineReplay(name);
     return buildNavigationIndex(events, tables);
 }
+
+describe("roundResultCursor", () => {
+    test("lands on each round's result, the last one's before the game's end, and nowhere for a round without one", () => {
+        const { events, tables } = loadEngineReplay("full_game");
+        const nav = buildNavigationIndex(events, tables);
+        const landed = nav.rounds.map((_round, index) => {
+            const cursor = roundResultCursor(nav, index);
+            const stop = cursor === null ? undefined : nav.stops[cursor.stop];
+            return [stop?.round, stop === undefined ? null : tables[stop.stateIndex].phase];
+        });
+
+        expect(landed).toEqual(nav.rounds.map((_round, index) => [index, "round_ended"]));
+        expect(roundResultCursor(nav, nav.rounds.length - 1)).toEqual({
+            page: 0,
+            stop: nav.stops.length - 2,
+        });
+        expect([roundResultCursor(nav, -1), roundResultCursor(nav, nav.rounds.length)]).toEqual([
+            null,
+            null,
+        ]);
+        expect(roundResultCursor(navigationOf("truncated_mid_round"), 0)).toBeNull();
+    });
+});
 
 describe("replay cursor", () => {
     test("pages through a double ron's winners before leaving its result, and back in at its last page", () => {

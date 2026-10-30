@@ -1,5 +1,3 @@
-/* The board overlay's result panels: the game start, a round's result and the final standings */
-
 /* ─── Game-Start Result Panel ────────────────────────────────── */
 
 .game-start-result {
@@ -417,63 +415,4 @@
 
 .round-end-result__score-after {
     color: var(--ronin-text-muted);
-}
-
-/* ─── Game-End Result Panel ───────────────────────────────── */
-
-.game-end-result {
-    padding: 1rem;
-    background: var(--ronin-surface);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.game-end-result__title {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--pico-color);
-    font-family: var(--ronin-font-body);
-    padding-bottom: 0.25rem;
-}
-
-.game-end-result__row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.85rem;
-    font-family: var(--ronin-font-mono);
-    padding: 0.2rem 0;
-}
-
-.game-end-result__rank {
-    min-width: 1.5rem;
-    font-weight: 600;
-    color: var(--pico-color);
-}
-
-.game-end-result__name {
-    min-width: 6rem;
-    color: var(--pico-color);
-    font-family: var(--ronin-font-body);
-}
-
-.game-end-result__score {
-    min-width: 5rem;
-    text-align: right;
-    color: var(--ronin-text-secondary);
-}
-
-.game-end-result__final-score {
-    min-width: 4rem;
-    text-align: right;
-    color: var(--ronin-text-secondary);
-}
-
-.game-end-result__leftover {
-    font-size: 0.8rem;
-    color: var(--ronin-text-secondary);
-    font-family: var(--ronin-font-body);
 }

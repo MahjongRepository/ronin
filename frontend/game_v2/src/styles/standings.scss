@@ -1,0 +1,321 @@
+$label-width: 7.75rem;
+$tap: 2.5rem;
+$tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
+
+.board-overlay__panel:has(> .standings) {
+    display: flex;
+    flex-direction: column;
+    width: min(100%, 54rem);
+    overflow: hidden;
+}
+
+.standings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 0;
+    margin: 0;
+    font-family: var(--ronin-font-body);
+    color: var(--pico-color);
+}
+
+.standings__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+}
+
+.standings__title {
+    margin: 0;
+    font-family: var(--ronin-font-display);
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.standings__sheet {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+
+    &:focus-visible {
+        outline: 2px solid var(--ronin-gold);
+        outline-offset: 1px;
+    }
+}
+
+.standings__table {
+    width: 100%;
+    margin: 0;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+
+    th,
+    td {
+        padding: 0.2rem 0.35rem;
+        border: 0;
+        border-bottom: 1px solid var(--ronin-border-subtle);
+        background: var(--ronin-surface);
+        color: inherit;
+        vertical-align: middle;
+    }
+
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        border-bottom-color: var(--ronin-border);
+    }
+
+    tfoot {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+    }
+
+    tfoot tr:first-child > * {
+        border-top: 1px solid var(--ronin-border);
+    }
+}
+
+.standings__label {
+    width: $label-width;
+    text-align: left;
+    font-weight: 400;
+}
+
+.standings__seat {
+    text-align: right;
+}
+
+.standings__placement {
+    display: block;
+    font-size: 0.85em;
+    color: var(--ronin-text-secondary);
+}
+
+.standings__name,
+.standings__round-name,
+.standings__outcome {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.standings__name {
+    font-weight: 600;
+}
+
+.standings__table .standings__col--viewer {
+    background: linear-gradient($tint, $tint), var(--ronin-surface);
+}
+
+.standings__round {
+    display: block;
+    min-width: 0;
+}
+
+.standings__round--jump {
+    width: 100%;
+    min-height: $tap;
+    margin: 0;
+    padding: 0.15rem 0.35rem;
+    text-align: left;
+    font-size: inherit;
+    line-height: 1.25;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.35rem;
+    touch-action: manipulation;
+
+    &:hover {
+        border-color: var(--pico-primary);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--ronin-gold);
+        outline-offset: 1px;
+    }
+}
+
+.standings__table th:has(> .standings__round--jump) {
+    padding-block: 0.15rem;
+}
+
+.standings__honba,
+.standings__note,
+.standings__hint {
+    font-size: 0.85em;
+    color: var(--ronin-text-secondary);
+}
+
+.standings__honba::before {
+    content: " · ";
+}
+
+.standings__note {
+    margin-left: 0.3em;
+    white-space: nowrap;
+}
+
+.standings__outcome {
+    color: var(--ronin-text-secondary);
+}
+
+.standings__cell {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.standings__table .standings__cell--positive {
+    color: var(--ronin-score-positive);
+}
+
+.standings__table .standings__cell--negative {
+    color: var(--ronin-score-negative);
+}
+
+.standings__table .standings__cell--even {
+    color: var(--ronin-text-secondary);
+}
+
+.standings__cell--win .standings__delta {
+    font-weight: 700;
+}
+
+.standings__mark {
+    display: inline-block;
+    width: 0.6em;
+    height: 0.6em;
+    margin-right: 0.3em;
+    vertical-align: middle;
+}
+
+.standings__mark--dealer {
+    width: 0.45em;
+    height: 0.45em;
+    border-radius: 50%;
+    background: var(--ronin-gold);
+}
+
+.standings__mark--win {
+    background: var(--ronin-score-positive);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.standings__mark--deal-in {
+    background: var(--ronin-score-negative);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.standings__riichi {
+    display: inline-block;
+    margin-right: 0.25em;
+    vertical-align: middle;
+
+    .board-stick-icon {
+        display: block;
+        width: 0.45em;
+        height: 1.1em;
+    }
+}
+
+.standings__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.75rem;
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    color: var(--ronin-text-secondary);
+}
+
+.standings__legend-item {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.standings__foot-row--score .standings__cell,
+.standings__foot-row--result .standings__cell {
+    font-weight: 700;
+}
+
+.standings__foot-row--score .standings__cell {
+    color: inherit;
+}
+
+.standings__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-left: auto;
+
+    .standings__action {
+        min-height: $tap;
+        margin: 0;
+        padding: 0.25rem 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.2;
+        font-size: 0.85rem;
+        touch-action: manipulation;
+    }
+}
+
+@container (height >= 560px) {
+    .standings__title {
+        font-size: 1.3rem;
+    }
+
+    .standings__table {
+        font-size: 0.9rem;
+
+        th,
+        td {
+            padding: 0.35rem 0.6rem;
+        }
+    }
+
+    .standings__label {
+        width: 9rem;
+    }
+
+    .standings__legend {
+        font-size: 0.8rem;
+    }
+}
+
+@container (width < 480px) {
+    .standings__label {
+        width: 5.5rem;
+    }
+}
+
+@container (width < 680px) and (aspect-ratio >= 1) {
+    .standings__head {
+        row-gap: 0.25rem;
+    }
+
+    .standings__legend {
+        order: 1;
+        flex-basis: 100%;
+    }
+
+    .game-board:has(.board-menu) .standings__label {
+        width: 5.75rem;
+    }
+}

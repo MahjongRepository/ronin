@@ -1,6 +1,11 @@
 import { z } from "zod/mini";
 
-import { SESSION_MESSAGE_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import {
+    ABORTIVE_DRAW_TYPE,
+    ROUND_RESULT_TYPE,
+    SESSION_MESSAGE_TYPE,
+    WIRE_SCORE_DIVISOR,
+} from "@/shared/protocol/constants";
 
 import {
     gamePlayerInfoSchema,
@@ -54,16 +59,20 @@ const roundHistoryEntrySchema = z.pipe(
         dl: seatSchema,
         h: z.int(),
         ls: z.optional(seatSchema),
+        rn: z.optional(z.enum(ABORTIVE_DRAW_TYPE)),
         rs: z.array(seatSchema),
+        rt: z.enum(ROUND_RESULT_TYPE),
         sch: wireScoreMapSchema,
         ts: z.optional(z.array(seatSchema)),
         w: z.int(),
         ws: z.array(seatSchema),
     }),
     z.transform((raw) => ({
+        abortiveReason: raw.rn ?? null,
         dealerSeat: raw.dl,
         honbaSticks: raw.h,
         loserSeat: raw.ls ?? null,
+        resultType: raw.rt,
         riichiSeats: raw.rs,
         scoreChanges: raw.sch,
         tenpaiSeats: raw.ts ?? null,

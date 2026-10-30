@@ -223,10 +223,10 @@ describe("stepSession", () => {
             },
         );
 
-        it("stays on the page at the game end, ignores the server's 1000 close after it, and still leaves on request", () => {
+        it("forgets the handoff and stays on the page at the game end, ignores the server's 1000 close after it, and still leaves on request", () => {
             const scenario = playing();
 
-            expect(scenario.step(message(100, WIRE_GAME_END))).toEqual([]);
+            expect(scenario.step(message(100, WIRE_GAME_END))).toEqual([FORGET_HANDOFF]);
             expect(scenario.state).toMatchObject({
                 reason: { kind: "game_ended" },
                 status: "ended",
@@ -234,7 +234,7 @@ describe("stepSession", () => {
             expect(scenario.step(closed(200, 1000))).toEqual([]);
             expect(scenario.step(leave(300))).toEqual([
                 { type: "close_socket" },
-                ...LEAVE_FOR_LOBBY,
+                { type: "redirect_to_lobby" },
             ]);
             expect(scenario.step(leave(400))).toEqual([]);
         });

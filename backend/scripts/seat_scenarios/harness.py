@@ -349,6 +349,9 @@ class SeatClient:
     def kan(self, tile_id: int, kan_type: KanType, *, at: float, label: str | None = None) -> None:
         self._act(WireGameAction.CALL_KAN, {"ti": tile_id, "kan_type": kan_type.value}, at=at, label=label)
 
+    def kyuushu(self, *, at: float, label: str | None = None) -> None:
+        self._act(WireGameAction.CALL_KYUUSHU, {}, at=at, label=label)
+
     def pass_(self, *, at: float, label: str | None = None) -> None:
         self._act(WireGameAction.PASS, {}, at=at, label=label)
 

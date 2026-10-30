@@ -45,13 +45,22 @@ interface RouteBudget {
  * 20.5 / 7.3 and 5.9 / 1.5: its cursor, address, narration, round list, load retries, failure screens and its
  * desktop bar. The storybook's JS from 50 / 12.4 to 56 / 14.2 at 50.8 / 12.9: the replay stories load the replay
  * view from its own route's chunk and each generated replay they open in a chunk of its own.
+ * The final standings, a lazy chunk of their own (`startStandingsLoad`: their panel, mapper and stylesheet), which
+ * each view that may show them loads as it mounts, set on 2026-10-30 at 6.3 / 2.2 JS and 4.5 / 1.3 CSS. The game's
+ * budgets re-set the same day from 178 / 54 JS and 81 / 13.5 CSS to 188 / 57.7 and 88 / 14.8, at 170.6 / 52.4 and
+ * 79.7 / 13.4: the standings left the entry, and the board keeps its corner clear of a panel over it.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 13.5, raw: 81 }, js: { gzip: 54, raw: 178 } },
+    game: { chunk: "index.html", css: { gzip: 14.8, raw: 88 }, js: { gzip: 57.7, raw: 188 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 2.5, raw: 7 },
         js: { gzip: 7.9, raw: 22 },
+    },
+    standings: {
+        chunk: "src/entities/table/ui/standings.ts",
+        css: { gzip: 2.3, raw: 5.5 },
+        js: { gzip: 2.4, raw: 7 },
     },
     storybook: {
         chunk: "src/views/storybook-routes.ts",

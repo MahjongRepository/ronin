@@ -1,11 +1,19 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
+import { type StandingsRenderer, startStandingsLoad } from "@/entities/table";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
-import { gamePageUrl, getLobbyHistoryUrl, getLobbyUrl, isDebugRequested } from "@/shared/config";
+import {
+    gamePageUrl,
+    getLobbyHistoryUrl,
+    getLobbyUrl,
+    isDebugRequested,
+    replayPageUrl,
+} from "@/shared/config";
+import { type RetryingLoad } from "@/shared/lib";
 import {
     type GameSessionData,
     clearSessionData,
@@ -56,12 +64,24 @@ function startTileSprite(): TileSprite {
     });
 }
 
+function startStandings(): RetryingLoad<StandingsRenderer> {
+    return startStandingsLoad({
+        onOnline,
+        reportFailure: (error) => console.warn("The final standings failed to load:", error),
+        setTimer: browserClock.setTimer,
+    });
+}
+
 function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     return {
         clock: browserClock,
         connect: (url, handlers) => new GameSocket(url, handlers),
         debug: isDebugRequested(window.location.search),
         handoff: getGameSession(gameId),
+        links: {
+            history: getLobbyHistoryUrl(),
+            replay: (seat) => replayPageUrl(gameId, seat, window.location.search),
+        },
         recoverHandoff: fetchGameHandoff,
         sink: {
             clearHandoff: clearSessionData,
@@ -70,6 +90,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
             reload: () => window.location.reload(),
             storeHandoff,
         },
+        startStandings,
         tileSprite,
     };
 }
@@ -100,6 +121,7 @@ function replayDeps() {
         links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
         loadReplay: fetchReplay,
         location: { onPageHide, replaceSearch, search: window.location.search },
+        startStandings,
     };
 }
 

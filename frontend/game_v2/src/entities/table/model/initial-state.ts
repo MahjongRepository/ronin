@@ -14,6 +14,7 @@ export function createInitialTableState(): TableState {
         players: [],
         riichiSticks: 0,
         roundEndResult: null,
+        roundHistory: [],
         roundWind: 0,
         tilesRemaining: 0,
     };

@@ -185,11 +185,37 @@ interface BoardMeasure {
     readonly opponentFaces: readonly Box[];
     readonly center: Box | null;
     readonly leave: Box | null;
+    /** The page's corner on the board: the session's status and the way back, which no panel over the board covers. */
+    readonly menu: readonly Box[];
     /** The replay's move buttons and round toggle beside the board, and its round list's rows over it. */
     readonly replayControls: readonly Box[];
     readonly roundList: Box | null;
     /** The replay aside's text: each part's font size and the lines it wraps to; empty on any other page. */
     readonly replayText: readonly ReplayText[];
+    readonly standings: StandingsMeasure | null;
+}
+
+/**
+ * The final standings over the board: its panel, the sheet its rounds scroll in, the totals that stick to the sheet's
+ * foot, its controls (its ways on and the rounds shown whole in the sheet) and its smallest text.
+ */
+interface StandingsMeasure {
+    readonly panel: Box;
+    readonly sheet: Box;
+    readonly sheetScroll: Size;
+    readonly sheetClient: Size;
+    readonly sheetOverflowY: string;
+    readonly totals: Box | null;
+    readonly controls: readonly Box[];
+    readonly minFontPx: number;
+    /** A positive and a negative round's cell and result, where the ledger has one: the colour each shows and its tone's. */
+    readonly tones: readonly ToneColour[];
+}
+
+interface ToneColour {
+    readonly cell: string;
+    readonly shown: string | null;
+    readonly tone: string;
 }
 
 interface ReplayText {
@@ -372,6 +398,12 @@ const PAGES: readonly PageCase[] = [
     resultCase("sanbaiman", "", [".round-end-result__hand .meld"]),
     resultCase("pao", "", [".round-end-result__notes"]),
     resultCase("exhaustive", "", [".round-end-result__tenpai .tile"]),
+    boardCase("board-standings", "?overlay=game_end", [
+        ".standings__foot-row--leftover",
+        ".standings__cell .standings__riichi",
+        ".standings__cell .standings__mark--deal-in",
+        ".standings__legend",
+    ]),
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
     decisionCase("chankan_prompt", [ACTION, ".board-strip .meld"]),
     decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
@@ -382,6 +414,12 @@ const PAGES: readonly PageCase[] = [
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("last_result", [".round-end-result__confirm"]),
+    decisionCase("standings", [
+        ".standings__cell--win",
+        ".standings__foot-row--result",
+        ".standings__actions a[href*='seat=1']",
+    ]),
+    decisionCase("last_result_reopened", [".round-end-result__confirm"]),
     decisionCase("connection_lost", [".board-notice--warning", ".game-menu__status-word"]),
     decisionCase("move_refused", [".board-notice--warning", ".hand-tile--selectable"]),
     decisionCase("faces_missing", [".board-notice__action", ".hand-tile--selectable"]),
@@ -421,7 +459,8 @@ const PAGES: readonly PageCase[] = [
     replayCase("ends_on_result", [".round-end-result__title", ".replay-controls__incomplete--end"]),
     replayCase("damaged", [".replay-controls__incomplete--end"]),
     replayCase("double_ron", [".round-end-result__pager"]),
-    replayCase("standings", [".game-end-result"]),
+    replayCase("standings", [".standings__round--jump", ".standings__cell--win"]),
+    replayCase("standings_long", [".standings__round--jump", ".standings__foot-row--result"]),
     replayStateCase("loading", ".replay-state"),
     replayStateCase("not_found", ".replay-state__links a"),
     {
@@ -674,6 +713,71 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
                 width: rect.width,
             };
         }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function measureStandings(): StandingsMeasure | null {
+            const panel = document.querySelector(".board-overlay__panel:has(> .standings)");
+            const sheet = panel?.querySelector(".standings__sheet");
+            if (panel === null || panel === undefined || sheet === null || sheet === undefined) {
+                return null;
+            }
+            const shown = sheet.getBoundingClientRect();
+            const rounds = [...sheet.querySelectorAll(".standings__round--jump")].filter((row) => {
+                const { bottom, top } = row.getBoundingClientRect();
+                return top >= shown.top && bottom <= shown.bottom;
+            });
+            const totals = sheet.querySelector("tfoot");
+            // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+            function toneOf(token: string, within: Element): string {
+                const probe = document.createElement("span");
+                probe.style.color = `var(${token})`;
+                within.append(probe);
+                const { color } = getComputedStyle(probe);
+                probe.remove();
+                return color;
+            }
+            const toneCells = [
+                ["round +", "tbody .standings__cell--positive", "--ronin-score-positive"],
+                ["round −", "tbody .standings__cell--negative", "--ronin-score-negative"],
+                [
+                    "result +",
+                    ".standings__foot-row--result .standings__cell--positive",
+                    "--ronin-score-positive",
+                ],
+                [
+                    "result −",
+                    ".standings__foot-row--result .standings__cell--negative",
+                    "--ronin-score-negative",
+                ],
+            ] as const;
+            const tones = toneCells.map(([cell, selector, token]) => {
+                const found = sheet.querySelector(selector);
+                return {
+                    cell,
+                    shown: found === null ? null : getComputedStyle(found).color,
+                    tone: toneOf(token, panel),
+                };
+            });
+            const texts = [
+                ...panel.querySelectorAll(
+                    ".standings th, .standings td, .standings__action, .standings__legend-item",
+                ),
+            ];
+            return {
+                controls: [...panel.querySelectorAll(".standings__action"), ...rounds].map(box),
+                minFontPx: Math.min(
+                    ...texts.map((element) =>
+                        Number.parseFloat(getComputedStyle(element).fontSize),
+                    ),
+                ),
+                panel: box(panel),
+                sheet: box(sheet),
+                sheetClient: { height: sheet.clientHeight, width: sheet.clientWidth },
+                sheetOverflowY: getComputedStyle(sheet).overflowY,
+                sheetScroll: { height: sheet.scrollHeight, width: sheet.scrollWidth },
+                tones,
+                totals: totals === null ? null : box(totals),
+            };
+        }
         const board = document.querySelector(".game-board");
         if (board === null) {
             throw new Error("no .game-board");
@@ -726,6 +830,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         );
         const center = board.querySelector(".board-center");
         const leave = board.querySelector(".game-menu__leave");
+        const menu = [...board.querySelectorAll(".game-menu__status, .game-menu__leave")].map(box);
         const roundList = document.querySelector(".round-list");
         const roundRows = document.querySelector(".round-list__rows");
         const shownRows =
@@ -802,6 +907,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             localTiles: [
                 ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
             ].map(box),
+            menu,
             nameplates: nameplates.map((plate) => plate.box),
             opponentFaces: [...board.querySelectorAll(".board-strip .tile:not(.tile-back)")].map(
                 box,
@@ -830,6 +936,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             ].map(box),
             roundList: roundList === null ? null : box(roundList),
             seatTiles,
+            standings: measureStandings(),
             tiles: tableTiles.map(box),
         };
     }, BOARD_TEXT);
@@ -929,6 +1036,13 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
         return;
     }
     report.expect(contains(board.board, overlay.box), "the overlay panel leaves the board");
+    const covered = viewport.portrait
+        ? []
+        : board.menu.filter((control) => intersects(control, overlay.box));
+    report.expect(
+        covered.length === 0,
+        `the overlay panel ${describeBox(overlay.box)} covers the page's corner: ${covered.map(describeBox).join(", ")}`,
+    );
     if (viewport.supported) {
         report.expect(
             overlay.scroll.height <= overlay.client.height + EPSILON &&
@@ -1102,6 +1216,68 @@ function checkReplayControls(board: BoardMeasure, screen: Box, report: PageRepor
     }
 }
 
+/**
+ * The final standings fit their panel: the rounds scroll inside the sheet rather than past the board, and in landscape
+ * never sideways (an upright page may scroll), the totals stay in view at the sheet's foot, no text is under the
+ * floor, and on a supported landscape screen every control (its ways on, the rounds shown) is on the screen and large
+ * enough to tap.
+ */
+function checkStandings(
+    board: BoardMeasure,
+    { screen, viewport }: { readonly screen: Box; readonly viewport: Viewport },
+    report: PageReport,
+): void {
+    const { standings } = board;
+    if (standings === null) {
+        return;
+    }
+    const scrolls = standings.sheetScroll.height > standings.sheetClient.height + EPSILON;
+    report.expect(
+        !scrolls || standings.sheetOverflowY === "auto" || standings.sheetOverflowY === "scroll",
+        "the standings' rounds overflow their sheet with no way to scroll to them",
+    );
+    report.expect(
+        viewport.portrait || standings.sheetScroll.width <= standings.sheetClient.width + EPSILON,
+        `the standings' sheet scrolls sideways: ${describeSize(standings.sheetScroll)} > ${describeSize(standings.sheetClient)}`,
+    );
+    report.expect(
+        contains(standings.panel, standings.sheet),
+        `the standings' sheet ${describeBox(standings.sheet)} leaves its panel`,
+    );
+    report.expect(
+        standings.totals !== null && contains(standings.sheet, standings.totals),
+        "the standings' totals are not in view at the sheet's foot",
+    );
+    const toned = standings.tones.filter(({ shown }) => shown !== null);
+    const offTone = toned.filter(({ shown, tone }) => shown !== tone);
+    report.expect(
+        toned.length > 0 && offTone.length === 0,
+        `standings cells not in their tone: ${offTone.map(({ cell, shown, tone }) => `${cell} ${shown} for ${tone}`).join(", ") || "none to check"}`,
+    );
+    report.expect(
+        standings.minFontPx >= MIN_TEXT_PX,
+        `standings text at ${standings.minFontPx}px, under ${MIN_TEXT_PX}px`,
+    );
+    if (!viewport.supported || viewport.portrait) {
+        return;
+    }
+    const outside = standings.controls.filter(
+        (control) => !contains(screen, control) || !contains(standings.panel, control),
+    );
+    report.expect(
+        outside.length === 0,
+        `${outside.length} standings control(s) off the panel or screen`,
+    );
+    const small = standings.controls.filter(
+        (control) =>
+            control.width < MIN_ACTION_SIZE - EPSILON || control.height < MIN_ACTION_SIZE - EPSILON,
+    );
+    report.expect(
+        small.length === 0,
+        `standings controls under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
+    );
+}
+
 /** On a desktop the replay's aside reads at a glance: its narration and round, and its incompleteness label. */
 function checkReplayText(board: BoardMeasure, report: PageReport): void {
     for (const { lines, part, px } of board.replayText) {
@@ -1146,6 +1322,7 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         report.expect(crowded.length === 0, `centre pieces overlap: ${crowded.join(", ")}`);
     }
     checkOverlay(board, viewport, report);
+    checkStandings(board, { screen, viewport }, report);
     const pageExtent = { height: measure.scrollHeight, left: 0, top: 0, width: measure.innerWidth };
     if (viewport.portrait) {
         report.expect(

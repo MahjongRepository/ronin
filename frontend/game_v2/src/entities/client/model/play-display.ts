@@ -16,7 +16,7 @@ import {
     type TileSpriteStatus,
     tile136toString,
 } from "@/entities/tile";
-import { assertNever } from "@/shared/lib";
+import { type LoadStatus, assertNever } from "@/shared/lib";
 import {
     CLIENT_MESSAGE_TYPE,
     CLOSE_CODE,
@@ -67,7 +67,7 @@ export interface PlayAction {
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player asked to leave mid-game and has yet to confirm it; and where the
- * tile sprite's load stands, which the page's IO owns.
+ * tile sprite's load and the final standings' stand, which the page's IO owns.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
@@ -75,6 +75,7 @@ export interface PlayUi {
     readonly pinnedNameplate: SeatPosition | null;
     readonly confirmingLeave: boolean;
     readonly tileSprite: TileSpriteStatus;
+    readonly standings: LoadStatus;
 }
 
 export const NO_PLAY_UI: PlayUi = {
@@ -82,6 +83,7 @@ export const NO_PLAY_UI: PlayUi = {
     pinnedNameplate: null,
     resultPage: null,
     riichiPickWaitId: null,
+    standings: "loading",
     tileSprite: "loading",
 };
 
@@ -136,6 +138,10 @@ export interface PlayDisplay {
     readonly result: ResultControls | null;
     /** Whether the game's last result still shows over the standings, until the player dismisses it. */
     readonly resultOverStandings: boolean;
+    /** The standings' way back to the game's last result once the player dismissed it; else null. */
+    readonly lastResult: PlayAction | null;
+    /** The viewer's seat, which the standings mark; null before the seat is known. */
+    readonly viewerSeat: number | null;
     /** The notices over the table, the connection's first; none while a failure blocks the board. */
     readonly notices: readonly PlayNotice[];
     /** The end that blocks the board with its reason and a way back, or null. */
@@ -164,6 +170,7 @@ const OFFER_LABELS: Readonly<Record<Offer["kind"], string>> = {
 
 const PASS: DecisionIntent = { type: "pass" };
 const CONFIRM_RESULT: PlayIntent = { type: "confirm_result" };
+const SHOW_LAST_RESULT: PlayIntent = { type: "show_last_result" };
 
 const CONFIRM_LABELS: Readonly<Record<"owed" | "final", string>> = {
     final: "Standings",
@@ -398,6 +405,19 @@ function resultControls(state: GameClientState, page: number): ResultControls | 
     return { action, countdown, waiting: false };
 }
 
+/** The standings' button back to the game's last result, when the dispatcher takes it now. */
+function lastResultAction(state: GameClientState): PlayAction | null {
+    if (!takesIntent(state, SHOW_LAST_RESULT)) {
+        return null;
+    }
+    return {
+        command: intentCommand(SHOW_LAST_RESULT),
+        label: "Last hand",
+        pressed: null,
+        tiles: [],
+    };
+}
+
 const LEAVE: PlayCommand = { intent: { type: "leave" }, kind: "intent" };
 const ASK_LEAVE: PlayCommand = { kind: "ask_leave" };
 
@@ -587,12 +607,28 @@ function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
     };
 }
 
+/**
+ * The final standings' notice once the game ended and every try at loading them failed: the board shows no panel
+ * meanwhile, and a reload is the player's way to try at once.
+ */
+function standingsNotice(table: TableState, status: LoadStatus): PlayNotice | null {
+    if (table.phase !== "game_ended" || status !== "failed") {
+        return null;
+    }
+    return {
+        action: { command: { kind: "reload" }, label: "Reload" },
+        text: "The final standings did not load",
+        tone: "error",
+    };
+}
+
 function boardNotices(state: GameClientState, ui: PlayUi): PlayNotice[] {
     return [
         connectionNotice(state.session),
         timedNotice(state.notice),
         unreadNotice(state.unreadMessages),
         tileSpriteNotice(ui.tileSprite),
+        standingsNotice(state.table, ui.standings),
     ].filter((notice) => notice !== null);
 }
 
@@ -616,6 +652,7 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         countdown: decisionCountdown(state),
         failure,
         furiten: furiten && viewer !== undefined,
+        lastResult: lastResultAction(state),
         leave: leaveControls(state, ui),
         notices: failure === null ? boardNotices(state, ui) : [],
         pinnedNameplate: ui.pinnedNameplate,
@@ -624,18 +661,25 @@ export function playDisplay(state: GameClientState, ui: PlayUi): PlayDisplay {
         resultPage,
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
         tileIntents: intentsOf(plays),
+        viewerSeat,
     };
+}
+
+/** The game's last result reopens on its first page; any other intent leaves the view's `ui` as it was. */
+function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
+    return intent.type === "show_last_result" ? { ...ui, resultPage: null } : ui;
 }
 
 /**
  * The view's `ui` after a command: picking riichi's discard turns on or off for the open decision; the result's panel
- * turns to a page of the result showing; a nameplate is pinned, or none.
+ * turns to a page of the result showing, and the game's last result reopens on its first; a nameplate is pinned, or
+ * none.
  */
 export function nextPlayUi(state: GameClientState, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
         case "intent":
         case "reload": {
-            return ui;
+            return command.kind === "intent" ? uiAfterIntent(ui, command.intent) : ui;
         }
         case "ask_leave": {
             return { ...ui, confirmingLeave: true };

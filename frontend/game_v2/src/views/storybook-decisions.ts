@@ -4,6 +4,7 @@ import {
     type ClientEffect,
     type ClientEvent,
     type GameClientState,
+    type LocalIntent,
     NO_PLAY_UI,
     PlayBoard,
     type PlayCommand,
@@ -16,6 +17,7 @@ import {
     seatScenarioFromTranscript,
     stepGameClient,
 } from "@/entities/client";
+import { type StandingsRenderer } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
@@ -24,6 +26,10 @@ import FINAL_ROUND_SEAT_1 from "@/fixtures/seat-scenarios/final_round_seat_1.jso
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
+import { browserClock } from "@/shared/clock";
+import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
+
+import { startStorybookStandings } from "./storybook-standings";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
 const TRANSCRIPTS = {
@@ -56,8 +62,8 @@ interface DecisionStory {
 
 /**
  * The stories in the order the page lists them: the call prompts, the turns, what follows an answer, the round
- * results the player confirms, then another player's seat left to an AI, the board's notices, a kick and the leave
- * question.
+ * results the player confirms, the standings and the last result reopened from them, then another player's seat left
+ * to an AI, the board's notices, a kick and the leave question.
  */
 const STORY_KEYS = [
     "call_prompt",
@@ -74,6 +80,8 @@ const STORY_KEYS = [
     "waiting",
     "reconnect_owed",
     "last_result",
+    "standings",
+    "last_result_reopened",
     "player_left",
     "connection_lost",
     "move_refused",
@@ -100,6 +108,13 @@ function refusedDiscard(state: GameClientState): readonly ClientEvent[] {
     ];
 }
 
+/** The player's intents, one after another, from the checkpoint on. */
+function intents(
+    ...picked: readonly LocalIntent[]
+): (state: GameClientState) => readonly ClientEvent[] {
+    return (state) => picked.map((intent) => ({ at: state.now, intent, kind: "intent" }));
+}
+
 function closedWith(code: number): (state: GameClientState) => readonly ClientEvent[] {
     return (state) => [{ at: state.now + 500, code, kind: "transport_closed", reason: "" }];
 }
@@ -124,6 +139,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     kicked: { ...checkpoint("call_prompt_seat_1", "turn", "Kicked"), followUp: closedWith(1008) },
     kuikae_turn: checkpoint("call_prompt_seat_1", "turn", "Kuikae turn"),
     last_result: checkpoint("final_round_seat_1", "game end", "Last result"),
+    last_result_reopened: {
+        ...checkpoint("final_round_seat_1", "game end", "Last result reopened"),
+        followUp: intents({ type: "confirm_result" }, { type: "show_last_result" }),
+    },
     leave_confirm: {
         ...checkpoint("call_prompt_seat_1", "turn", "Leave?"),
         confirmingLeave: true,
@@ -142,6 +161,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     riichi_turn: checkpoint("own_turn_seat_1", "tsumo draw", "In riichi"),
     ron_prompt: checkpoint("reconnect_seat_1", "ron prompt", "Ron prompt"),
     round_end: checkpoint("own_turn_seat_1", "round end", "Round end"),
+    standings: {
+        ...checkpoint("final_round_seat_1", "game end", "Standings"),
+        followUp: intents({ type: "confirm_result" }),
+    },
     waiting: checkpoint("chankan_robbed_seat_3", "confirmed", "Waiting"),
 };
 
@@ -216,10 +239,16 @@ function pickStory(event: Event, show: (story: DecisionStoryKey) => void): void 
     }
 }
 
+/** The page's controls: the story picker's and the board's. */
+interface StoryHandlers {
+    readonly show: (story: DecisionStoryKey) => void;
+    readonly onCommand: (command: PlayCommand) => void;
+}
+
 function storybookTemplate(
     screen: StoryScreen,
-    show: (story: DecisionStoryKey) => void,
-    onCommand: (command: PlayCommand) => void,
+    standings: StandingsRenderer | null,
+    { onCommand, show }: StoryHandlers,
 ): TemplateResult {
     const { sent, state, story, ui } = screen;
     return html`
@@ -227,7 +256,16 @@ function storybookTemplate(
             <div class="board-page__board">
                 ${PlayBoard({
                     display: playDisplay(state, ui),
+                    links: {
+                        history: getLobbyHistoryUrl(),
+                        replay: replayPageUrl(
+                            state.table.gameId,
+                            state.viewerSeat,
+                            window.location.search,
+                        ),
+                    },
                     onCommand,
+                    standings,
                     status: describePlayerClientStatus(state),
                     table: state.table,
                 })}
@@ -254,10 +292,11 @@ function storybookTemplate(
  * live game would send and the state it leaves, with no socket behind it.
  */
 export function mountStorybookDecisions(host: HTMLElement): () => void {
+    const standings = startStorybookStandings(browserClock.setTimer);
     let screen = storyScreen(parseStory(window.location.search));
 
     function draw(): void {
-        render(storybookTemplate(screen, show, onCommand), host);
+        render(storybookTemplate(screen, standings.value(), { onCommand, show }), host);
     }
 
     function show(key: DecisionStoryKey): void {
@@ -274,13 +313,22 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
                 intent: command.intent,
                 kind: "intent",
             });
-            screen = { ...screen, sent: step.effects, state: step.state };
+            screen = {
+                ...screen,
+                sent: step.effects,
+                state: step.state,
+                ui: nextPlayUi(state, ui, command),
+            };
         } else {
             screen = { ...screen, ui: nextPlayUi(state, ui, command) };
         }
         draw();
     }
 
+    standings.subscribe(draw);
     draw();
-    return () => render(nothing, host);
+    return () => {
+        standings.stop();
+        render(nothing, host);
+    };
 }

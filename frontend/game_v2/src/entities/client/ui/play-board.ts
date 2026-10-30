@@ -9,12 +9,25 @@ import {
     type ResultControls,
 } from "@/entities/client/model/play-display";
 import { type SessionStatusDisplay } from "@/entities/session";
-import { type BoardNotice, GameBoard, type TableState, boardOverlay } from "@/entities/table";
+import {
+    type BoardNotice,
+    GameBoard,
+    type StandingsAction,
+    type StandingsRenderer,
+    type TableState,
+    boardOverlay,
+} from "@/entities/table";
 import { Tile } from "@/entities/tile";
 
 import { GameMenu } from "./game-menu";
 import { countdownAnnouncement } from "./rotate-panel";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
+
+/** Where the standings lead the player once the game ends: this game's replay and the game history. */
+export interface StandingsLinks {
+    readonly replay: string;
+    readonly history: string;
+}
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
@@ -25,6 +38,10 @@ export interface PlayBoardProps {
     readonly status?: SessionStatusDisplay;
     /** What the page adds to the corner before the status (the debug log). */
     readonly menuExtra?: TemplateResult;
+    /** The standings' links; without them the standings offer only the game's last result and the way back. */
+    readonly links?: StandingsLinks;
+    /** What draws the final standings once the view loaded it; until then the ended game shows no panel. */
+    readonly standings: StandingsRenderer | null;
 }
 
 function CountdownView(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
@@ -141,27 +158,72 @@ function ResultControlsView(
     </span>`;
 }
 
+function commandAction(
+    action: PlayAction,
+    onCommand: PlayBoardProps["onCommand"],
+): StandingsAction {
+    return { kind: "button", label: action.label, onClick: () => onCommand(action.command) };
+}
+
+/**
+ * The standings' ways on: back to the game's last result while it can reopen, this game's replay, the game history,
+ * and the lobby, the primary one.
+ */
+function standingsActions(
+    display: PlayDisplay,
+    links: StandingsLinks | undefined,
+    onCommand: PlayBoardProps["onCommand"],
+): StandingsAction[] {
+    const actions: StandingsAction[] = [];
+    if (display.lastResult !== null) {
+        actions.push(commandAction(display.lastResult, onCommand));
+    }
+    if (links !== undefined) {
+        actions.push(
+            { href: links.replay, kind: "link", label: "Replay" },
+            { href: links.history, kind: "link", label: "Game history" },
+        );
+    }
+    actions.push({
+        kind: "button",
+        label: "Lobby",
+        onClick: () => onCommand(display.leave.command),
+        primary: true,
+    });
+    return actions;
+}
+
 /**
  * The panel over the board: an end that blocks it, else the question leaving mid-game asks, else the table's own
- * (seating, a result, the standings).
+ * (seating, a result, the standings from the viewer's seat).
  */
-function PlayOverlay(
-    display: PlayDisplay,
-    table: TableState,
-    onCommand: PlayBoardProps["onCommand"],
-): TemplateResult | undefined {
+function PlayOverlay({
+    display,
+    links,
+    onCommand,
+    standings,
+    table,
+}: PlayBoardProps): TemplateResult | undefined {
     if (display.failure !== null) {
         return FailurePanel(display.failure, onCommand);
     }
     if (display.leave.confirming) {
         return LeaveConfirm(onCommand);
     }
-    return boardOverlay(table, {
-        controls: ResultControlsView(display.result, onCommand),
-        onPage: (page) => onCommand({ kind: "show_result_page", page }),
-        overStandings: display.resultOverStandings,
-        page: display.resultPage,
-    });
+    return boardOverlay(
+        table,
+        {
+            controls: ResultControlsView(display.result, onCommand),
+            onPage: (page) => onCommand({ kind: "show_result_page", page }),
+            overStandings: display.resultOverStandings,
+            page: display.resultPage,
+        },
+        {
+            actions: standingsActions(display, links, onCommand),
+            renderer: standings,
+            viewerSeat: display.viewerSeat,
+        },
+    );
 }
 
 function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"]): BoardNotice {
@@ -184,13 +246,8 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * nothing; turning the result's page is a command too. While an end or the leave question blocks the board, the board
  * under it is inert.
  */
-export function PlayBoard({
-    display,
-    menuExtra,
-    onCommand,
-    status,
-    table,
-}: PlayBoardProps): TemplateResult {
+export function PlayBoard(props: PlayBoardProps): TemplateResult {
+    const { display, menuExtra, onCommand, status } = props;
     function onTile(tileId: number): void {
         const intent = display.tileIntents.get(tileId);
         if (intent !== undefined) {
@@ -207,7 +264,7 @@ export function PlayBoard({
                 ? undefined
                 : GameMenu({ extra: menuExtra, leave: display.leave, onCommand, status }),
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
-        overlay: PlayOverlay(display, table, onCommand),
+        overlay: PlayOverlay(props),
         scoreDiff: {
             onPin: (seat) => onCommand({ kind: "pin_nameplate", seat }),
             pinned: display.pinnedNameplate,

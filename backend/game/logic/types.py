@@ -415,9 +415,10 @@ class RoundHistoryEntry(BaseModel):
     """
     A finished round as the final standings' ledger shows it: its wind, dealer and honba, and its outcome.
 
-    riichi_seats are the seats whose riichi stood, so their deposit counts against the round; winner_seats is empty on a
-    draw and holds every winner of a double ron; loser_seat is set on a ron; tenpai_seats only on a draw that judges
-    tenpai (exhaustive or nagashi mangan).
+    result_type is the result's type, and abortive_reason is set only on an abortive draw. riichi_seats are the seats
+    whose riichi stood, so their deposit counts against the round; winner_seats is empty on a draw and holds every
+    winner of a double ron; loser_seat is set on a ron; tenpai_seats only on a draw that judges tenpai (exhaustive or
+    nagashi mangan).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -425,6 +426,8 @@ class RoundHistoryEntry(BaseModel):
     round_wind: WireWindField = Field(serialization_alias="w")
     dealer_seat: int = Field(serialization_alias="dl")
     honba_sticks: int = Field(serialization_alias="h")
+    result_type: RoundResultType = Field(serialization_alias="rt")
+    abortive_reason: AbortiveDrawType | None = Field(default=None, serialization_alias="rn")
     riichi_seats: tuple[int, ...] = Field(serialization_alias="rs")
     winner_seats: tuple[int, ...] = Field(serialization_alias="ws")
     loser_seat: int | None = Field(default=None, serialization_alias="ls")

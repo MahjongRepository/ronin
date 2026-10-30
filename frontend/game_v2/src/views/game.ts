@@ -22,10 +22,11 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
+import { type StandingsRenderer } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type CancelTimer, type Clock } from "@/shared/clock";
-import { assertNever } from "@/shared/lib";
+import { type RetryingLoad, assertNever } from "@/shared/lib";
 import { CLOSE_CODE, EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
@@ -51,6 +52,15 @@ export interface GameViewDeps {
     readonly debug: boolean;
     /** The tile sprite's load, which the board's notice reports while the faces are missing. */
     readonly tileSprite: TileSprite;
+    /** Start loading the final standings, which the view does as it mounts and stops on dispose. */
+    readonly startStandings: () => RetryingLoad<StandingsRenderer>;
+    readonly links: GameLinks;
+}
+
+/** Where the standings lead once the game ends: the game history, and this game's replay from a seat. */
+export interface GameLinks {
+    readonly history: string;
+    readonly replay: (seat: number | null) => string;
 }
 
 const MAX_LOG_ENTRIES = 500;
@@ -81,6 +91,8 @@ interface LogEntry {
 }
 
 interface GameViewProps {
+    readonly links: GameLinks;
+    readonly standings: StandingsRenderer | null;
     readonly log: readonly LogEntry[] | null;
     readonly state: GameClientState;
     readonly ui: PlayUi;
@@ -197,12 +209,14 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { log, onCommand, panel, state, ui } = props;
+    const { links, log, onCommand, panel, standings, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         display,
+        links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
+        standings,
         status: describePlayerClientStatus(state),
         table: state.table,
     });
@@ -247,6 +261,7 @@ class GameViewController {
     private state: GameClientState;
     private ui: PlayUi;
     private readonly stopTileSprite: () => void;
+    private readonly standings: RetryingLoad<StandingsRenderer>;
     /** The control that opened the leave question, which takes the focus back when the player stays. */
     private leaveOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
@@ -262,9 +277,18 @@ class GameViewController {
         this.host = host;
         this.deps = deps;
         this.log = deps.debug ? [] : null;
-        this.ui = { ...NO_PLAY_UI, tileSprite: deps.tileSprite.status() };
+        this.standings = deps.startStandings();
+        this.ui = {
+            ...NO_PLAY_UI,
+            standings: this.standings.status(),
+            tileSprite: deps.tileSprite.status(),
+        };
         this.stopTileSprite = deps.tileSprite.subscribe((tileSprite) => {
             this.ui = { ...this.ui, tileSprite };
+            this.draw();
+        });
+        this.standings.subscribe((standings) => {
+            this.ui = { ...this.ui, standings };
             this.draw();
         });
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
@@ -275,6 +299,7 @@ class GameViewController {
     dispose(): void {
         this.disposed = true;
         this.stopTileSprite();
+        this.standings.stop();
         this.recovery.abort();
         this.queue.length = 0;
         this.disarm();
@@ -288,6 +313,7 @@ class GameViewController {
      */
     private readonly command = (command: PlayCommand): void => {
         if (command.kind === "intent") {
+            this.ui = nextPlayUi(this.state, this.ui, command);
             this.dispatch({ at: this.deps.clock.now(), intent: command.intent, kind: "intent" });
             return;
         }
@@ -382,7 +408,15 @@ class GameViewController {
             return;
         }
         const { command, log, panel, state, ui } = this;
-        const props = { log, onCommand: command, panel, state, ui };
+        const props = {
+            links: this.deps.links,
+            log,
+            onCommand: command,
+            panel,
+            standings: this.standings.value(),
+            state,
+            ui,
+        };
         render(gameTemplate(props), this.host);
         if (panel.value && this.logAppended !== this.logAppendedAtDraw) {
             panel.value.scrollTop = panel.value.scrollHeight;

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType
-from game.logic.settings import GameSettings
+from game.logic.settings import EnchousenType, GameSettings, GameType
 from game.messaging.types import SessionMessageType
 from game.tests.helpers.hands import tile_copies
 from game.wire.enums import WireEventType
@@ -378,6 +378,45 @@ def final_round() -> tuple[SeatTranscript, ...]:
         return game.transcripts("final_round", PLAYER)
 
 
+def game_end_reconnect() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1) declares kyuushu kyuuhai on her first draw: an abortive draw that moves no points, so the dealer
+    deals again with a honba.
+
+    In that deal, which the seed deals, her socket dies unseen and her reconnect's snapshot lists the first round in its
+    history. She plays no move after it: the server's timeouts play her seat, and the AI players discard what they draw.
+    The game is East only with no extension, so it ends with East 4.
+    """
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="258", pin="258", sou="258", honors="1234"),
+            tile_copies(0, man="159", pin="159", sou="159", honors="1234"),
+            tile_copies(3, man="258", pin="258", sou="258", honors="1234"),
+            tile_copies(1, man="2345678", pin="2346", sou="23"),
+        ),
+        draws=((0, tile(0, honors="5")), (1, tile(1, honors="5"))),
+    )
+
+    settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.NONE)
+    with seated_game("seat-game-end-reconnect", staged, players=(PLAYER,), settings=settings) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("first draw", WireEventType.DRAW)
+        alice.kyuushu(at=5, label="kyuushu chosen")
+        alice.label("kyuushu round end", WireEventType.ROUND_END)
+        alice.confirm_round(at=6, label="confirmed")
+        alice.label("second deal", WireEventType.ROUND_STARTED)
+        alice.drop_unseen(at=7.5, label="dropped")
+        alice.reconnect(at=8.5, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        game.wait_until(6000)
+        alice.label("last round end", WireEventType.ROUND_END)
+        alice.label("game end", WireEventType.GAME_END)
+
+        return game.transcripts("game_end_reconnect", PLAYER)
+
+
 def seat_left() -> tuple[SeatTranscript, ...]:
     """
     Bob (seat 3) loses his connection during Alice's (seat 1) first turn, and the server notices: Alice is told he left,
@@ -428,5 +467,6 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "chankan_passed": chankan_passed,
     "double_ron": double_ron,
     "final_round": final_round,
+    "game_end_reconnect": game_end_reconnect,
     "seat_left": seat_left,
 }

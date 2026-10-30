@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { clientEvent, clientScenario } from "#tests/fixtures/scenario";
 import { checkpointState } from "#tests/fixtures/seat-transcripts";
@@ -187,6 +187,35 @@ describe("playDisplay", () => {
             playDisplay(dismissed, NO_PLAY_UI).resultOverStandings,
             playDisplay(dismissed, NO_PLAY_UI).result,
         ]).toEqual([false, null]);
+    });
+
+    it("offers the game's last result again from the standings, reopening it on its first page", () => {
+        const gameEnd = checkpointState("final_round_seat_1", "game end");
+        const dismissed = stepGameClient(gameEnd, {
+            at: gameEnd.now,
+            intent: { type: "confirm_result" },
+            kind: "intent",
+        });
+        const { lastResult } = playDisplay(dismissed.state, NO_PLAY_UI);
+        assert(lastResult?.command.kind === "intent");
+        const reopened = stepGameClient(dismissed.state, {
+            at: gameEnd.now,
+            intent: lastResult.command.intent,
+            kind: "intent",
+        });
+        const turned = { ...NO_PLAY_UI, resultPage: { page: 1, round: "any" } };
+
+        expect([playDisplay(gameEnd, NO_PLAY_UI).lastResult, lastResult.label]).toEqual([
+            null,
+            "Last hand",
+        ]);
+        expect(reopened.effects).toEqual([]);
+        expect(playDisplay(reopened.state, NO_PLAY_UI)).toMatchObject({
+            lastResult: null,
+            result: { action: { label: "Standings" } },
+            resultOverStandings: true,
+        });
+        expect(nextPlayUi(reopened.state, turned, lastResult.command).resultPage).toBeNull();
     });
 
     it("once a discard is sent marks the tile it played and offers nothing more", () => {

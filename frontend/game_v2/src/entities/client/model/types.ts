@@ -66,16 +66,23 @@ export interface CallDecision extends DecisionBase {
 
 export type Decision = TurnDecision | CallDecision;
 
-/** A local user intent: leave for the lobby, answer the open decision, or confirm the round result read. */
+/**
+ * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, or reopen the
+ * game's last result from the standings.
+ */
 export type LocalIntent =
     | { readonly type: "leave" }
     | { readonly type: "discard"; readonly tileId: number }
     | { readonly type: "choose"; readonly offer: Offer }
     | { readonly type: "pass" }
-    | { readonly type: "confirm_result" };
+    | { readonly type: "confirm_result" }
+    | { readonly type: "show_last_result" };
 
 /** An intent that answers the open decision. */
-export type DecisionIntent = Exclude<LocalIntent, { readonly type: "leave" | "confirm_result" }>;
+export type DecisionIntent = Exclude<
+    LocalIntent,
+    { readonly type: "leave" | "confirm_result" | "show_last_result" }
+>;
 
 /** An intent the board offers: an answer to the open decision, or the round result's confirm. */
 export type PlayIntent = Exclude<LocalIntent, { readonly type: "leave" }>;
@@ -128,7 +135,7 @@ export type TimedNotice =
  * only: the server's timeout advances the game, and the client never confirms on its own. Sent: the player confirmed
  * it once and waits for the others, unless the rate limit reopens it as owed. Confirmed: a reconnect's snapshot owes
  * no confirm, so the seat waits too. Final: the game's last result, which the game end follows at once; the player
- * dismisses it to read the standings, which sends nothing.
+ * dismisses it to read the standings and may reopen it from them, neither of which sends anything.
  */
 export type RoundConfirm =
     | { readonly kind: "owed"; readonly waitId: number; readonly deadline: number | null }
