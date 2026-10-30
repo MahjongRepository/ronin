@@ -5,6 +5,7 @@ import {
     type DoraRevealedEvent,
     type DoubleRonRoundEnd,
     type DrawEvent,
+    type DrawNoticeEvent,
     type ExhaustiveDrawRoundEnd,
     GAME_TYPE,
     type GameEndEvent,
@@ -90,6 +91,10 @@ export function makeDrawEvent(overrides: Partial<DrawEvent> = {}): DrawEvent {
         waitId: null,
         ...overrides,
     };
+}
+
+export function makeDrawNoticeEvent(seat: number): DrawNoticeEvent {
+    return { seat, type: "draw_notice" };
 }
 
 export function makeDiscardEvent(overrides: Partial<DiscardEvent> = {}): DiscardEvent {

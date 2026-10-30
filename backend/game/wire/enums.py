@@ -3,7 +3,8 @@ from enum import IntEnum
 
 class WireEventType(IntEnum):
     """
-    Integer wire encoding for EventType.
+    Integer wire encoding for EventType, plus DRAW_NOTICE, which no EventType carries: the session shapes it from a draw
+    for every seat but the drawer's (`draw_notice_payload`), naming the drawer and never the tile.
     """
 
     MELD = 0
@@ -19,6 +20,7 @@ class WireEventType(IntEnum):
     GAME_END = 10
     FURITEN = 11
     TURN = 12
+    DRAW_NOTICE = 13
 
 
 class WireRoundResultType(IntEnum):

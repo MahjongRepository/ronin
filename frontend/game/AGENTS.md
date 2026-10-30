@@ -85,8 +85,9 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   refusal leads to the lobby.
   Server events are translated into majiang-core model events the UI plays as if it ran the game
   itself; the UI's decisions are translated back into wire actions. A client-side shadow of the
-  seat state supplies what the translation needs and the wire messages omit: physical tile ids,
-  other seats' hidden draws and the live wall count.
+  seat state supplies what the translation needs and the wire messages omit: physical tile ids and
+  the live wall count. Another seat's draw arrives as its notice and plays into the model then as a
+  face-down tile (a replacement draw after its kan from the dead wall), moving the turn and the wall.
   The round-result builders (`results.js`) take the dealer, a winner's riichi and the pon lookup as
   arguments, not the shadow, so other drivers can share them with the live client.
 * **The server judges every decision.** majiang-core's own rule checks never decide a button or a
@@ -142,8 +143,8 @@ ronin's game protocol and drives that model. Plain JavaScript ES modules, built 
   (and runs on if it is refused). A countdown that runs out stops at 0 and sends nothing, never
   majiang-ui's default reply (a riichi discard, say), which could reach the server before its own
   deadline: a turn stays open until the server's timeout plays its discard, and a call prompt
-  closes, since the server has passed for the seat by then and the next seat's draw, which ends
-  the wait, goes only to that seat. The countdown starts after the prompt is shown, so one re-sent
+  closes, since the server has passed for the seat by then; the next draw, the seat's own or
+  another seat's notice of one, ends the wait too. The countdown starts after the prompt is shown, so one re-sent
   with its time already run closes at once. A dropped socket closes the open decision the same way;
   the reconnect re-sends any wait the server still owes the seat.
 * **Inputs:** each decision binds one default action to a right-click on the board and to Escape:

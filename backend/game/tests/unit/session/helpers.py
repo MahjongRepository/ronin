@@ -43,6 +43,7 @@ def create_started_game(
     *,
     game_id: str = "game1",
     player_names: list[str] | None = None,
+    keep_start_messages: bool = False,
 ) -> list[MockConnection]:
     player_names = player_names or ["Player0"]
     specs = []
@@ -61,9 +62,9 @@ def create_started_game(
         manager.join_game(conn, session_token=tickets[i])
         connections.append(conn)
 
-    # clear message history for clean test assertions
-    for conn in connections:
-        conn._outbox.clear()
+    if not keep_start_messages:
+        for conn in connections:
+            conn._outbox.clear()
 
     return connections
 

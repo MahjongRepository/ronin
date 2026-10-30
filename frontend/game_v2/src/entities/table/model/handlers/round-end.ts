@@ -1,4 +1,4 @@
-import { drewUnseen, updatePlayer } from "@/entities/table/model/helpers";
+import { updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DrawKind,
     type DrawResult,
@@ -212,55 +212,6 @@ export function roundEndPages(result: RoundEndResult): readonly RoundEndPage[] {
     return result.winners.map((winner) => ({ kind: "win", winner }));
 }
 
-/**
- * The seats whose own draw the round ended on, before any discard or kan: the tsumo winner and the kyuushu declarer.
- * A robbed kan's declarer took its draw at the declaration.
- */
-function seatsEndingOnOwnDraw(event: RoundEndEvent): number[] {
-    switch (event.resultType) {
-        case ROUND_RESULT_TYPE.TSUMO: {
-            return [event.winnerSeat];
-        }
-        case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return event.seat === null ? [] : [event.seat];
-        }
-        case ROUND_RESULT_TYPE.RON:
-        case ROUND_RESULT_TYPE.DOUBLE_RON:
-        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
-            return [];
-        }
-        default: {
-            return assertNever(event);
-        }
-    }
-}
-
-/**
- * Take into the table the draws a hidden hand made unseen before the round ended on it: no discard or kan follows
- * them to show them. A hand that already holds its draw (a reconnect snapshot's 3n+2) took it already.
- */
-function settleUnseenDraw(table: TableState, seat: number): TableState {
-    const player = table.players.find((p) => p.seat === seat);
-    if (player === undefined || !drewUnseen(player)) {
-        return table;
-    }
-    return {
-        ...table,
-        currentPlayerSeat: seat,
-        players: updatePlayer(table.players, seat, { concealedCount: player.concealedCount + 1 }),
-        tilesRemaining: table.tilesRemaining - 1,
-    };
-}
-
-function settleUnseenDraws(state: TableState, event: RoundEndEvent): TableState {
-    let table = state;
-    for (const seat of seatsEndingOnOwnDraw(event)) {
-        table = settleUnseenDraw(table, seat);
-    }
-    return table;
-}
-
 interface RevealedHand {
     readonly seat: number;
     readonly tiles: readonly number[];
@@ -347,17 +298,17 @@ export function showRobbedKan(state: TableState, event: RoundEndEvent): TableSta
 }
 
 /**
- * End the round: the kan a win robbed shows as declared first, then the unseen draws settle, the scores pay out and
- * the hands the result reveals show.
+ * End the round: the kan a win robbed shows as declared first, then the scores pay out and the hands the result
+ * reveals show.
  */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
-    const drawn = settleUnseenDraws(showRobbedKan(state, event), event);
+    const declared = showRobbedKan(state, event);
     const result = extractRoundEndResult(event, state);
     return revealHands(
         {
-            ...drawn,
+            ...declared,
             phase: "round_ended",
-            players: settleScores(drawn.players, event),
+            players: settleScores(declared.players, event),
             riichiSticks: state.riichiSticks - riichiSticksCollected(event),
             roundEndResult: result,
             roundHistory: [...state.roundHistory, roundRecordOfResult(state, result)],

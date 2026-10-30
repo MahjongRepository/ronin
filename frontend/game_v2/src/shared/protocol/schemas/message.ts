@@ -6,6 +6,7 @@ import { type CallPromptEvent, parseCallPrompt } from "./call-prompt";
 import {
     discardSchema,
     doraRevealedSchema,
+    drawNoticeSchema,
     drawSchema,
     errorEventSchema,
     furitenSchema,
@@ -26,6 +27,7 @@ export type GameEvent =
     | z.output<typeof gameStartedSchema>
     | z.output<typeof roundStartedSchema>
     | z.output<typeof drawSchema>
+    | z.output<typeof drawNoticeSchema>
     | z.output<typeof discardSchema>
     | z.output<typeof meldSchema>
     | z.output<typeof riichiDeclaredSchema>
@@ -45,8 +47,7 @@ export type ParseResult = [Error, null] | [null, ParsedServerMessage];
 
 // --- Internal game event dispatcher ---
 
-function parseGameEvent(raw: Record<string, unknown>): GameEvent {
-    const t = raw.t as number;
+function parseGameEvent(raw: Record<string, unknown>, t: number): GameEvent {
     switch (t) {
         case EVENT_TYPE.MELD: {
             return meldSchema.parse(raw);
@@ -87,6 +88,9 @@ function parseGameEvent(raw: Record<string, unknown>): GameEvent {
         case EVENT_TYPE.TURN: {
             return turnSchema.parse(raw);
         }
+        case EVENT_TYPE.DRAW_NOTICE: {
+            return drawNoticeSchema.parse(raw);
+        }
         default: {
             throw new Error(`Unknown game event type: t=${String(t)}`);
         }
@@ -103,7 +107,7 @@ function tryParse(raw: Record<string, unknown>): ParsedServerMessage {
         return parseSessionMessage(raw);
     }
     if (typeof raw.t === "number") {
-        return parseGameEvent(raw);
+        return parseGameEvent(raw, raw.t);
     }
     throw new Error("Message has neither 'type' (string) nor 't' (number) field");
 }

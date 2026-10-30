@@ -169,6 +169,18 @@ export const drawSchema = z.pipe(
     })),
 );
 
+/** Another seat's draw, told to every seat but the drawer's: its seat alone, the tile private to the drawer. */
+export const drawNoticeSchema = z.pipe(
+    z.object({
+        s: seatSchema,
+        t: z.literal(EVENT_TYPE.DRAW_NOTICE),
+    }),
+    z.transform((raw) => ({
+        seat: raw.s,
+        type: "draw_notice" as const,
+    })),
+);
+
 export const turnSchema = z.pipe(
     z.object({
         bk: z.optional(secondsSchema),

@@ -7,6 +7,7 @@
     {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
     {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-bank-reconnect", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}}},
     {"at": 3000, "kind": "received", "payload": {"cp": 0, "dc": [1, 1], "di": [123], "dl": 0, "h": 0, "mt": [0, 1, 2, 40, 44, 48, 53, 57, 61, 89, 90, 96, 100], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "s": 1, "t": 9, "w": 0}},
+    {"at": 3000, "kind": "received", "payload": {"s": 0, "t": 13}},
     {"at": 3000, "kind": "received", "payload": {"d": 656, "t": 2}},
     {"at": 3000, "kind": "received", "label": "first draw", "payload": {"aa": [{"a": 1, "tl": [0, 1, 2, 3]}, {"a": 3, "tl": [0]}], "bk": 30, "d": 139, "t": 1, "wi": 1}},
     {"at": 8500, "code": 1006, "kind": "closed", "label": "dropped", "reason": ""},
@@ -16,9 +17,12 @@
     {"at": 9500, "kind": "received", "label": "draw re-sent", "payload": {"aa": [{"a": 1, "tl": [0, 1, 2, 3]}, {"a": 3, "tl": [0]}], "bk": 30, "d": 139, "el": 6.5, "t": 1, "wi": 1}},
     {"at": 11000, "kind": "sent", "label": "discarded", "message": {"a": 0, "t": 3, "ti": 3, "wi": 1}},
     {"at": 11000, "kind": "received", "payload": {"d": 683, "t": 2}},
+    {"at": 11000, "kind": "received", "payload": {"s": 2, "t": 13}},
     {"at": 11000, "kind": "received", "payload": {"d": 908, "t": 2}},
+    {"at": 11000, "kind": "received", "payload": {"s": 3, "t": 13}},
     {"at": 11000, "kind": "received", "payload": {"f": true, "t": 11}},
     {"at": 11000, "kind": "received", "payload": {"d": 1068, "t": 2}},
+    {"at": 11000, "kind": "received", "payload": {"s": 0, "t": 13}},
     {"at": 11000, "kind": "received", "payload": {"d": 672, "t": 2}},
     {"at": 11000, "kind": "received", "payload": {"aa": [{"a": 1, "tl": [0, 1, 2, 40, 44, 48, 53, 57, 61, 89, 90, 96, 100, 104]}, {"a": 2}], "bk": 27.0, "d": 240, "t": 1, "wi": 2}}
   ]

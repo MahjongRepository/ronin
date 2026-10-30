@@ -3,6 +3,7 @@ import {
     type DiscardEvent,
     type DoraRevealedEvent,
     type DrawEvent,
+    type DrawNoticeEvent,
     type GameEndEvent,
     type GameReconnectedEvent,
     type GameStartedEvent,
@@ -238,7 +239,12 @@ export interface KanDeclaredEvent {
 
 /**
  * Everything that changes the table: the events a replay stores, the seat control lines (a replay's, or the live
- * session's messages, parsed alike), the reconnect snapshot that rebuilds the table, and a kan declared open to
- * chankan.
+ * session's messages, parsed alike), the reconnect snapshot that rebuilds the table, a live seat's notice of another
+ * seat's draw, and a kan declared open to chankan.
  */
-export type TableEvent = ReplayEvent | KanDeclaredEvent | SeatControlLine | GameReconnectedEvent;
+export type TableEvent =
+    | ReplayEvent
+    | DrawNoticeEvent
+    | KanDeclaredEvent
+    | SeatControlLine
+    | GameReconnectedEvent;

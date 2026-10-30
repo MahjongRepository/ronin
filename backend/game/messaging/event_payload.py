@@ -85,6 +85,16 @@ def game_event_payload(event: GameEvent) -> dict[str, Any]:
     }
 
 
+def draw_notice_payload(event: DrawEvent) -> dict[str, Any]:
+    """
+    Return the public notice of a draw that every seat but the drawer's gets in its place: the drawer's seat alone.
+
+    The draw stays private: no tile, offers, bank or wait id, and no `draw` type, so a notice never opens a decision.
+    Only the socket sends it; the replay records the draw itself.
+    """
+    return {"t": WireEventType.DRAW_NOTICE, "s": event.seat}
+
+
 _ROUND_RESULT_TYPE_TO_WIRE: dict[str, int] = {
     rt.value: WireRoundResultType[rt.name] for rt in RoundResultType if rt.name in WireRoundResultType.__members__
 }

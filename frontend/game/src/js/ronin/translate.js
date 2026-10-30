@@ -100,6 +100,7 @@ class Translate {
             case wire.E.GAME_STARTED:  return this.gameStarted(msg);
             case wire.E.ROUND_STARTED: return this.roundStarted(msg);
             case wire.E.DRAW:          return this.draw(msg);
+            case wire.E.DRAW_NOTICE:   return this.drawNotice(msg);
             case wire.E.DISCARD:       return this.discard(msg);
             case wire.E.MELD:          return this.meld(msg);
             case wire.E.TURN:          return this.turn(msg);
@@ -305,13 +306,19 @@ class Translate {
         this.autoAnswer();
     }
 
-    /** Feed another seat's draw, which the server never sends, before the model sees that seat act. */
-    feedHiddenDraw(seat) {
+    /**
+     * Another seat drew: its face-down draw plays into the model now, so the turn and the wall move with it. The draw
+     * also ends any call prompt this seat left unanswered: the server has moved past it.
+     */
+    drawNotice(msg) {
         const s = this.shadow;
-        const l = s.l(seat);
-        if (this.player._model.shoupai[l]._zimo != null) return;
-        const zimo = { p: '_', l };
-        const m = s.noteDraw(seat) ? { gangzimo: zimo } : { zimo };
+        this.endCountdown();
+        this.player.clear_handler();
+        s.prompt = null;
+        this.retry = null;
+        this.open = null;
+        const zimo = { p: '_', l: s.l(msg.s) };
+        const m = s.noteDraw(msg.s) ? { gangzimo: zimo } : { zimo };
         this.feedDraw(m, 'zimo');
         s.logMessage(m);
     }
@@ -338,9 +345,6 @@ class Translate {
             const idx = s.hand.indexOf(tileId);
             if (idx >= 0) s.hand.splice(idx, 1);
             s.drawnTileId = null;
-        }
-        else {
-            this.feedHiddenDraw(seat);
         }
         if (isRiichi) s.riichi[seat] = true;
 
@@ -374,8 +378,6 @@ class Translate {
         s.declaredKan = null;
 
         const kind = mianzi.KIND_OF_MELD[meld.meldType];
-        if (kind == 'gang' && ! mine && ! declared) this.feedHiddenDraw(meld.callerSeat);
-
         if (mine) {
             const fromHand = meld.meldType == wire.MELD.CLOSED_KAN
                 ? meld.tileIds
@@ -410,8 +412,8 @@ class Translate {
     }
 
     /**
-     * A chankan prompt first shows the kan it offers to rob as declared, with no prompt open: the declarer's hidden
-     * draw would answer an open one with a pass. A discard's prompt names the discard it opens on, so a prompt the
+     * A chankan prompt first shows the kan it offers to rob as declared, with no prompt open: feeding the kan into the
+     * model would answer an open one with a pass. A discard's prompt names the discard it opens on, so a prompt the
      * server re-sends after a reconnect reopens its decision too.
      */
     callPrompt(msg) {
@@ -520,12 +522,10 @@ class Translate {
     }
 
     /**
-     * Show a kan open to chankan as declared, with the declarer's hidden draw and its call, once: at the chankan
-     * prompt of a seat offered to rob it, else at the round end that robs it. A declined kan's meld event then plays
-     * only into the shadow.
+     * Show a kan open to chankan as declared, with its call, once: at the chankan prompt of a seat offered to rob it,
+     * else at the round end that robs it. A declined kan's meld event then plays only into the shadow.
      */
     declareKan(kan) {
-        this.feedHiddenDraw(kan.s);
         this.feedKan(kan);
         this.shadow.declaredKan = kan;
         if (this.player._view) this.player._view.say(mianzi.CALLOUT.KAN, this.shadow.l(kan.s));

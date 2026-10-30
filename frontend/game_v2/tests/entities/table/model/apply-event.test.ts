@@ -6,6 +6,7 @@ import {
     makeDoraRevealedEvent,
     makeDoubleRonRoundEnd,
     makeDrawEvent,
+    makeDrawNoticeEvent,
     makeExhaustiveDrawRoundEnd,
     makeGameEndEvent,
     makeGameStartedEvent,
@@ -318,16 +319,23 @@ describe("applyEvent - hidden hands", () => {
         expect(next.tilesRemaining).toBe(70);
     });
 
-    test("a hidden hand discarding without a draw this view saw drew one unseen from the wall", () => {
-        const next = applyEvent(liveDeal(), makeDiscardEvent({ seat: 1, tileId: 100 }));
+    test("another seat's draw notice moves the turn to it and a face-down tile from the wall into its hand", () => {
+        const drawn = applyEvent(liveDeal(), makeDrawNoticeEvent(1));
+        const next = applyEvent(drawn, makeDiscardEvent({ seat: 1, tileId: 100 }));
 
+        expect([
+            drawn.currentPlayerSeat,
+            drawn.players[1].concealedCount,
+            drawn.tilesRemaining,
+        ]).toEqual([1, 14, 69]);
         expect(next.players[1].concealedCount).toBe(13);
         expect(next.players[1].discards.map((d) => d.tileId)).toEqual([100]);
         expect(next.tilesRemaining).toBe(69);
     });
 
     test("a hidden hand calls pon from its count and its discard after the call draws nothing", () => {
-        const afterDiscard = applyEvent(liveDeal(), makeDiscardEvent({ seat: 1, tileId: 100 }));
+        const drawn = applyEvent(liveDeal(), makeDrawNoticeEvent(1));
+        const afterDiscard = applyEvent(drawn, makeDiscardEvent({ seat: 1, tileId: 100 }));
         const pon = makeMeldEvent({
             calledTileId: 100,
             callerSeat: 2,
@@ -342,7 +350,7 @@ describe("applyEvent - hidden hands", () => {
         expect(next.tilesRemaining).toBe(69);
     });
 
-    test("a hidden hand's closed kan follows its unseen draw, so four tiles leave a hand of 14", () => {
+    test("a hidden hand's closed kan after its draw notice takes four tiles from a hand of 14", () => {
         const kan = makeMeldEvent({
             calledTileId: null,
             callerSeat: 3,
@@ -350,7 +358,7 @@ describe("applyEvent - hidden hands", () => {
             meldType: MELD_TYPE.CLOSED_KAN,
             tileIds: [104, 105, 106, 107],
         });
-        const next = applyEvent(liveDeal(), kan);
+        const next = applyEvent(applyEvent(liveDeal(), makeDrawNoticeEvent(3)), kan);
 
         expect(next.players[3].concealedCount).toBe(10);
         expect(next.tilesRemaining).toBe(69);

@@ -22,6 +22,7 @@ import {
     tableStateToDisplayState,
 } from "@/entities/table";
 import {
+    EVENT_TYPE,
     REPLAY_VERSION,
     ROUND_RESULT_TYPE,
     type ReplayLine,
@@ -557,7 +558,7 @@ function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | 
             return { ...raw, mt: own, p: players, s: seat };
         }
         case "draw": {
-            return line.seat === seat ? raw : null;
+            return line.seat === seat ? raw : { s: line.seat, t: EVENT_TYPE.DRAW_NOTICE };
         }
         case "ai_replacement":
         case "human_return": {
@@ -589,6 +590,14 @@ function projectedEntry(entry: TimelineEntry, seat: number): WireLine | null {
     return projectLine(event.raw, parsed, seat);
 }
 
+/**
+ * Whether an entry ends its replay line: the reader takes a round end that robbed a kan as the kan declared, then the
+ * result, and a live seat sees that kan from the round end alone.
+ */
+function endsLine(entry: TimelineEntry): boolean {
+    return entry.parsed?.type !== "kan_declared";
+}
+
 function divergenceAt(entry: TimelineEntry, step: ClientStep, seat: number): string | null {
     const expected = JSON.stringify(seatKnowledge(entry.state, seat));
     const actual = JSON.stringify(seatKnowledge(step.state, seat));
@@ -602,20 +611,21 @@ function firstDivergence(timeline: ClientTimeline, seat: number): string | null 
     let view = startReplayClient(0);
     for (const [index, entry] of timeline.entries.entries()) {
         const raw = projectedEntry(entry, seat);
-        if (raw !== null) {
-            const step = stepGameClient(view, { at: 0, kind: "server_message", raw });
-            view = step.state;
-            const found = divergenceAt(entry, step, seat);
-            if (found !== null) {
-                return `entry ${index}, ${found}`;
-            }
+        const step: ClientStep =
+            raw === null
+                ? { effects: [], state: view }
+                : stepGameClient(view, { at: 0, kind: "server_message", raw });
+        view = step.state;
+        const found = endsLine(entry) ? divergenceAt(entry, step, seat) : null;
+        if (found !== null) {
+            return `entry ${index}, ${found}`;
         }
     }
     return null;
 }
 
 describe("stepGameClient - per-seat projections of the engine replays", () => {
-    test("a seat seeing only its own hand and draws keeps every hand size, its tiles, the wall and the turn", () => {
+    test("a seat seeing its own draws and the others' draw notices keeps every hand size, its tiles, the wall and the turn after every line", () => {
         const divergences = [...ENGINE_REPLAYS.keys()].flatMap((name) => {
             const { timeline } = loadEngineReplay(name);
             return [0, 1, 2, 3].flatMap((seat) => {

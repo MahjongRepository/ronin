@@ -39,14 +39,15 @@ const OPEN = { kind: "open" } as const;
 type AvailableAction = DrawEvent["availableActions"][number];
 
 /**
- * Messages that end the wait a decision answers: the server moved on to a draw, a discard, a meld, the next prompt
- * or turn, or out of the round. A dora reveal, a riichi stick, a furiten notice, an error and a session message do
- * not.
+ * Messages that end the wait a decision answers: the server moved on to a draw (the viewer's, or another seat's
+ * notice of one), a discard, a meld, the next prompt or turn, or out of the round. A dora reveal, a riichi stick, a
+ * furiten notice, an error and a session message do not.
  */
 const CLOSING_TYPES: ReadonlySet<ParsedServerMessage["type"]> = new Set([
     "call_prompt",
     "discard",
     "draw",
+    "draw_notice",
     "game_end",
     "game_reconnected",
     "game_started",

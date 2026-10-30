@@ -12,6 +12,7 @@ export const EVENT_TYPE = {
     DISCARD: 2,
     DORA_REVEALED: 6,
     DRAW: 1,
+    DRAW_NOTICE: 13,
     ERROR: 7,
     FURITEN: 11,
     GAME_END: 10,

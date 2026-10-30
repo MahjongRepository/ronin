@@ -3,6 +3,7 @@ import {
     type DiscardEvent,
     type DoraRevealedEvent,
     type DrawEvent,
+    type DrawNoticeEvent,
     type GameEndEvent,
     type GameStartedEvent,
     type RiichiDeclaredEvent,
@@ -14,7 +15,7 @@ import { applyKanDeclared } from "./handlers/kan-declared";
 import { applyMeld } from "./handlers/meld";
 import { applyGameReconnected } from "./handlers/reconnect";
 import { applyRoundEnd } from "./handlers/round-end";
-import { drewUnseen, requirePlayer, takeFromHand, updatePlayer } from "./helpers";
+import { requirePlayer, takeFromHand, updatePlayer } from "./helpers";
 import { createInitialPlayerState } from "./initial-state";
 import { type PlayerState, type TableEvent, type TableState } from "./types";
 
@@ -114,14 +115,22 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
     };
 }
 
-/** A discard leaves the hand; a hidden hand that discards without a draw this view saw drew one unseen first. */
+/** Another seat's draw, its tile private to that seat: a face-down tile joins its hand, from the wall, in its turn. */
+function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState {
+    const player = requirePlayer(state, event.seat);
+    return {
+        ...state,
+        currentPlayerSeat: event.seat,
+        players: updatePlayer(state.players, event.seat, {
+            concealedCount: player.concealedCount + 1,
+        }),
+        tilesRemaining: state.tilesRemaining - 1,
+    };
+}
+
 function applyDiscard(state: TableState, event: DiscardEvent): TableState {
     const player = requirePlayer(state, event.seat);
-    const unseen = drewUnseen(player) ? 1 : 0;
-    const hand = takeFromHand(
-        { concealedCount: player.concealedCount + unseen, tiles: player.tiles },
-        [event.tileId],
-    );
+    const hand = takeFromHand(player, [event.tileId]);
     if (hand === null) {
         throw new Error(`Discarded tile ${event.tileId} not found in hand of seat ${event.seat}`);
     }
@@ -142,7 +151,6 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
             drawnTileId: null,
             tiles: hand.tiles.toSorted((tileA, tileB) => (tileA >> 2) - (tileB >> 2)),
         }),
-        tilesRemaining: state.tilesRemaining - unseen,
     };
 }
 
@@ -214,6 +222,9 @@ export function applyEvent(state: TableState, event: TableEvent): TableState {
         }
         case "draw": {
             return applyDraw(state, event);
+        }
+        case "draw_notice": {
+            return applyDrawNotice(state, event);
         }
         case "discard": {
             return applyDiscard(state, event);

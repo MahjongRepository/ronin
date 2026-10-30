@@ -101,6 +101,7 @@ export function eventCalls(
         }
         case "round_started":
         case "draw":
+        case "draw_notice":
         case "game_end": {
             return NO_CALLS;
         }

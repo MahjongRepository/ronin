@@ -90,6 +90,7 @@ export type {
     GameStartedEvent,
     RoundStartedEvent,
     DrawEvent,
+    DrawNoticeEvent,
     DiscardEvent,
     MeldEvent,
     RiichiDeclaredEvent,

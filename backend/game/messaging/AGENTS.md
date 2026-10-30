@@ -12,8 +12,13 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
   current bank; the client counts its own turns, the game start pause and the round results down
   from them), and the
-  first deal follows it only after the session's game start pause; a draw goes only to the drawing
-  seat, with its available actions when it has any; no draw follows the seat's own pon or chi: a
+  first deal follows it only after the session's game start pause; a draw (the deal's first, a
+  replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
+  available actions when it has any, and every other connected seat gets its draw notice in its
+  place, shaped from the same engine draw (`draw_notice_payload`): the drawer's seat alone, never the
+  tile, the offers, the bank or a wait id, and a code of its own, so it never opens a decision. The
+  replay records the draw once and no notice; a draw re-sent on a reconnect goes to its seat alone.
+  No draw or notice follows the seat's own pon or chi: a
   `turn` event to that seat names the tile types kuikae forbids it to discard instead; the draw or
   `turn` event that opens a seat's turn names its bank as the turn's timer starts (`bk`), so the
   client's bank never drifts by delivery delays; a discard's
@@ -28,7 +33,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   round end's shape, and whether the seat still owes its confirmation (`oc`), with how long that
   wait's timer has run (`el`) when it does. The snapshot gives
   each seat's closed-hand size, since a client sees other hands face down and never sees their
-  draws. A participant's seat changing hands goes to the others as `seat_control`, by seat and
+  tiles. A participant's seat changing hands goes to the others as `seat_control`, by seat and
   shaped like the replay's seat control line, ahead of the moves that follow; the snapshot marks a
   seat an AI player holds for its participant by why (`sr`), never as an AI player's (`ai`).
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and

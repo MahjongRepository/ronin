@@ -33,6 +33,7 @@ import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
     CALL_TYPE,
     CLIENT_MESSAGE_TYPE,
+    EVENT_TYPE,
     GAME_ACTION,
     GAME_ERROR_CODE,
     KAN_TYPE,
@@ -294,6 +295,28 @@ describe("stepGameClient - generated call prompt", () => {
         expect(stateAt(kuikae, run, "kuikae discard").decision).toBe(
             stateAt(kuikae, run, "turn").decision,
         );
+    });
+
+    it("moves the turn, the wall and the drawer's hand on another seat's draw notice, ahead of its discard", () => {
+        const { table } = stateAt(scenario, runClean(scenario), "seat 2 drew");
+
+        expect({
+            handSizes: table.players.map((player) => player.tiles.length + player.concealedCount),
+            tilesRemaining: table.tilesRemaining,
+            turn: table.currentPlayerSeat,
+        }).toEqual({ handSizes: [13, 10, 14, 13], tilesRemaining: 68, turn: 2 });
+        expect(table.players[2].discards).toEqual([]);
+    });
+
+    it("closes a prompt left open when the next seat's draw notice shows the server passed for it", () => {
+        const notice = { s: 3, t: EVENT_TYPE.DRAW_NOTICE };
+        const passedOver = branchAfter(scenario, "pon prompt", [
+            { event: { at: 13_000, kind: "server_message", raw: notice }, label: "seat 3 drew" },
+        ]);
+        const run = runClean(passedOver);
+
+        expect(stateAt(passedOver, run, "pon prompt").decision?.status.kind).toBe("open");
+        expect(stateAt(passedOver, run, "seat 3 drew").decision).toBeNull();
     });
 
     it("passes the pon prompt, and the next draw opens the turn with the bank the server left", () => {

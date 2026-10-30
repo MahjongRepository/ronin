@@ -1,9 +1,4 @@
-import {
-    drewUnseen,
-    requirePlayer,
-    takeFromHand,
-    updatePlayer,
-} from "@/entities/table/model/helpers";
+import { requirePlayer, takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type KanDeclaredEvent,
     type MeldRecord,
@@ -121,10 +116,9 @@ export function showsDeclaredKan(state: TableState, event: KanDeclaredEvent): bo
 }
 
 /**
- * Show a kan declared open to chankan: its tiles leave the hand for the kan, after the draw a hidden hand took unseen
- * joins its count. It draws no replacement and reveals no dora, since the kan completes only once nobody robs it. A
- * kan the table already shows (the prompt showed it before the round end that robs it) is not taken twice. It claims no
- * discard, so the latest discard stays marked.
+ * Show a kan declared open to chankan: its tiles leave the hand for the kan. It draws no replacement and reveals no
+ * dora, since the kan completes only once nobody robs it. A kan the table already shows (the prompt showed it before
+ * the round end that robs it) is not taken twice. It claims no discard, so the latest discard stays marked.
  */
 export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): TableState {
     if (showsDeclaredKan(state, event)) {
@@ -133,11 +127,7 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
     const player = requirePlayer(state, event.seat);
     const meldType = declaredKanType(player, event);
     const { fromHand, melds } = declaredKan(player, event, meldType);
-    const unseen = drewUnseen(player) ? 1 : 0;
-    const hand = takeFromHand(
-        { concealedCount: player.concealedCount + unseen, tiles: player.tiles },
-        fromHand,
-    );
+    const hand = takeFromHand(player, fromHand);
     if (hand === null) {
         throw new Error(`Tiles ${fromHand.join(", ")} not found in hand of seat ${event.seat}`);
     }
@@ -150,6 +140,5 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
             melds,
             tiles: hand.tiles,
         }),
-        tilesRemaining: state.tilesRemaining - unseen,
     };
 }

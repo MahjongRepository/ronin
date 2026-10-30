@@ -1,15 +1,38 @@
-from game.logic.enums import CallType, GameAction, MeldCallType
+import json
+from typing import TYPE_CHECKING, Any
+
+from game.logic.enums import CallType, GameAction, MeldCallType, WaitKind
 from game.logic.events import (
     CallPromptEvent,
-    DrawEvent,
     EventType,
+    FuritenEvent,
     SeatTarget,
 )
+from game.logic.tiles import NUM_TILES
 from game.logic.types import MeldCaller
+from game.tests.helpers.hands import tile_copies
+from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_AWAITING
+from game.tests.unit.helpers import _update_player
+from game.wire.compact import encode_draw
+from game.wire.enums import WireEventType
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, current_wait_id, participant_of
+from .helpers import (
+    arrange_pon_now_and_on_the_next_draw,
+    create_started_game,
+    current_wait_id,
+    game_of,
+    participant_of,
+    runtime_of,
+)
+
+if TYPE_CHECKING:
+    from game.session.manager import SessionManager
+    from game.tests.mocks import MockConnection
+
+HAKU_COPIES = [tile_copies(copy, honors="5")[0] for copy in range(4)]
+DRAW_MESSAGE_TYPES = (WireEventType.DRAW, WireEventType.DRAW_NOTICE)
 
 
 class TestSessionManager:
@@ -39,12 +62,7 @@ class TestSessionManager:
 
         # manually broadcast a seat-targeted event
         game = manager.get_game("game1")
-        seat_event = DrawEvent(
-            seat=0,
-            tile_id=42,
-            available_actions=[],
-            target=SeatTarget(seat=0),
-        )
+        seat_event = FuritenEvent(is_furiten=True, target=SeatTarget(seat=0))
         manager._broadcast_events(game, [seat_event], MOCK_AWAITING)
         # only conn1 (seat 0) should receive the event
         assert len(conns[0].sent_messages) == 1
@@ -90,3 +108,105 @@ class TestSessionManager:
         assert conns[0].sent_messages[0].get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT]
         # seat 1 (Bob) should not receive it
         assert len(conns[1].sent_messages) == 0
+
+
+def _seen_draws(conn: MockConnection) -> list[dict[str, Any]]:
+    return [
+        {"t": message["t"], "d": message["d"]} if message["t"] == WireEventType.DRAW else message
+        for message in conn.sent_messages
+        if message.get("t") in DRAW_MESSAGE_TYPES
+    ]
+
+
+def _replay_lines(manager: SessionManager) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in game_of(manager).replay.lines]
+
+
+def _discard_drawn_tile(manager: SessionManager, conns: list[MockConnection]) -> None:
+    awaiting = game_of(manager).awaiting
+    assert awaiting.kind == WaitKind.TURN
+    [seat] = awaiting.seats
+    conn = next(conn for conn in conns if participant_of(manager, conn).seat == seat)
+    drawn_tile = runtime_of(manager).state.round_state.players[seat].tiles[-1]
+    manager.handle_game_action(conn, action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=awaiting.wait_id)
+
+
+class TestDrawDelivery:
+    async def test_send_events__when_humans_and_ai_players_draw__should_send_the_drawer_its_draw_and_others_a_notice(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine)
+        conns = create_started_game(manager, player_names=["Alice", "Bob"], keep_start_messages=True)
+        alice, bob = (participant_of(manager, conn) for conn in conns)
+        for _ in range(4):
+            _discard_drawn_tile(manager, conns)
+
+        lines = _replay_lines(manager)
+        replay_draws = [line for line in lines if line["t"] == WireEventType.DRAW]
+        drawers = [line["d"] // NUM_TILES for line in replay_draws]
+        assert drawers[0] == alice.seat
+        assert set(drawers) == {0, 1, 2, 3}
+        assert WireEventType.DRAW_NOTICE not in {line["t"] for line in lines}
+        for participant, conn in zip((alice, bob), conns, strict=True):
+            expected = [
+                {"t": WireEventType.DRAW, "d": line["d"]}
+                if drawer == participant.seat
+                else {"t": WireEventType.DRAW_NOTICE, "s": drawer}
+                for line, drawer in zip(replay_draws, drawers, strict=True)
+            ]
+            assert _seen_draws(conn) == expected
+
+        await manager.shutdown()
+
+    async def test_send_events__when_a_seat_draws_its_kan_replacement__should_send_the_others_its_notice(
+        self, seeded_engine
+    ):
+        manager = make_session_manager(seeded_engine)
+        alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice = participant_of(manager, alice_conn)
+        hand = runtime_of(manager).state.round_state.players[alice.seat].tiles
+        _update_player(
+            runtime_of(manager),
+            seat=alice.seat,
+            tiles=(*[tile for tile in hand if tile not in HAKU_COPIES][:10], *HAKU_COPIES),
+        )
+        replay_size = len(game_of(manager).replay.lines)
+
+        manager.handle_game_action(
+            alice_conn,
+            action=GameAction.CALL_KAN,
+            data={"tile_id": HAKU_COPIES[0], "kan_type": "closed"},
+            wait_id=current_wait_id(manager),
+        )
+        replacement = encode_draw(alice.seat, runtime_of(manager).state.round_state.players[alice.seat].tiles[-1])
+        assert _seen_draws(alice_conn) == [{"t": WireEventType.DRAW, "d": replacement}]
+        assert _seen_draws(bob_conn) == [{"t": WireEventType.DRAW_NOTICE, "s": alice.seat}]
+        new_lines = _replay_lines(manager)[replay_size:]
+        assert [line["d"] for line in new_lines if line["t"] == WireEventType.DRAW] == [replacement]
+
+        await manager.shutdown()
+
+    async def test_send_events__when_a_seat_pons__should_send_nobody_a_draw_or_its_notice(self, seeded_engine):
+        manager = make_session_manager(seeded_engine)
+        alice_conn, bob_conn = create_started_game(manager, player_names=["Alice", "Bob"])
+        alice, bob = participant_of(manager, alice_conn), participant_of(manager, bob_conn)
+        discarded_four_pin = arrange_pon_now_and_on_the_next_draw(
+            runtime_of(manager), discarder=alice.seat, caller=bob.seat
+        )
+        manager.handle_game_action(
+            alice_conn,
+            action=GameAction.DISCARD,
+            data={"tile_id": discarded_four_pin},
+            wait_id=current_wait_id(manager),
+        )
+        assert game_of(manager).awaiting.seats == frozenset({bob.seat})
+        alice_conn._outbox.clear()
+        bob_conn._outbox.clear()
+
+        manager.handle_game_action(
+            bob_conn, action=GameAction.CALL_PON, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+        )
+        assert [message["t"] for message in alice_conn.sent_messages] == [WireEventType.MELD]
+        assert [message["t"] for message in bob_conn.sent_messages] == [WireEventType.MELD, WireEventType.TURN]
+
+        await manager.shutdown()

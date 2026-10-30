@@ -10,6 +10,7 @@ from game.logic.enums import GameAction, GameErrorCode, TimeoutType, WaitKind
 from game.logic.events import (
     BroadcastTarget,
     CallPromptEvent,
+    DrawEvent,
     ErrorEvent,
     GameEndedEvent,
     GameEvent,
@@ -22,6 +23,7 @@ from game.messaging.event_payload import (
     TURN_BANK_KEY,
     WAIT_ELAPSED_KEY,
     WAIT_ID_KEY,
+    draw_notice_payload,
     game_event_payload,
     reconnection_payload,
     shape_call_prompt_payload,
@@ -856,7 +858,8 @@ class SessionManager:
         """
         Record the events for the replay, then send each to its target, the wait's opening messages stamped with `wi`.
 
-        `game_started` is broadcast as one copy per seat, each stamped with its recipient's own seat (`s`).
+        `game_started` is broadcast as one copy per seat, each stamped with its recipient's own seat (`s`). A draw goes
+        whole to the drawer and as its public notice to every other seat, so each seat gets one representation of it.
         """
         if game.replay is not None:
             self._replay_collector.collect_events(game.replay, events)
@@ -875,6 +878,19 @@ class SessionManager:
                 participant = game.at_seat(event.target.seat)
                 if participant is not None and participant.connection is not None:
                     participant.connection.send_message(self._stamp_turn_bank(message, participant, awaiting))
+
+                if isinstance(event, DrawEvent):
+                    self._send_draw_notice(game, event)
+
+    @staticmethod
+    def _send_draw_notice(game: GameSession, event: DrawEvent) -> None:
+        """
+        Send a draw's public notice to every connected participant but the drawer's, whose seat gets the draw itself.
+        """
+        notice = draw_notice_payload(event)
+        for participant in game.participants:
+            if participant.connection is not None and participant.seat != event.seat:
+                participant.connection.send_message(notice)
 
     def _send_to_each_seat(self, game: GameSession, message: dict[str, Any]) -> None:
         """

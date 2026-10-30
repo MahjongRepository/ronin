@@ -38,6 +38,7 @@ const wire = {
         GAME_END:      10,
         FURITEN:       11,
         TURN:          12,
+        DRAW_NOTICE:   13,
     },
 
     /* call_prompt: clt */

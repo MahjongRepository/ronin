@@ -635,8 +635,9 @@ records now. A new replay case is a new scenario there. Tests load them through 
 loader, which reads them into the dispatcher's timeline as the replay view does, and the model's
 tests assert outcomes on them, not only that they run: literals for what the model computes, and a
 field the model passes through compared with the event it came from. Each is also projected per
-seat, as that seat's socket would receive it, to check that a seat's view keeps every hand size,
-its own tiles, the wall and the turn the replay shows.
+seat, as that seat's socket would receive it (another seat's draw as its notice), to check that
+after every line the seat's view keeps every hand size, its own tiles, the wall and the turn the
+replay shows.
 
 The `describe` block names the subject (the module or function under test) and the `it` title says
 what it pins; tests carry no doc comments, and source files carry no file-header comment.

@@ -25,7 +25,8 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
     Offer Alice, the one human at the table (seat 1), a pon, an open kan and a chi two ways on the dealer's 3m; she
     calls chi, and her turn after it opens with the tile types kuikae forbids.
 
-    She passes a pon of 7s from seat 2, and her next draw opens her next turn with what is left of her bank.
+    Seat 2's draw reaches her as its notice before its 7s; she passes the pon of them, and her next draw opens her next
+    turn with what is left of her bank.
     """
     called_tile = tile(0, man="3")
     ponnable_tile = tile(2, sou="7")
@@ -62,6 +63,7 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
         alice.label("turn", WireEventType.TURN)
         alice.discard(tile(0, honors="3"), at=12, label="discarded")
         alice.label("pon prompt", WireEventType.CALL_PROMPT)
+        alice.label("seat 2 drew", WireEventType.DRAW_NOTICE)
         alice.pass_(at=14, label="passed")
         alice.label("next turn", WireEventType.DRAW)
 

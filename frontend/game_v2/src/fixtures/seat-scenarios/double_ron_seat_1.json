@@ -7,6 +7,7 @@
     {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
     {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-double-ron", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 0, "nm": "Bob", "s": 3}], "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}}},
     {"at": 3000, "kind": "received", "payload": {"cp": 0, "dc": [1, 1], "di": [124], "dl": 0, "h": 0, "mt": [4, 8, 12, 16, 20, 24, 40, 44, 80, 84, 88, 92, 93], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "s": 1, "t": 9, "w": 0}},
+    {"at": 3000, "kind": "received", "payload": {"s": 0, "t": 13}},
     {"at": 3000, "kind": "received", "payload": {"d": 594, "t": 2}},
     {"at": 3000, "kind": "received", "label": "ron prompt", "payload": {"ac": [{"clt": 1, "opt": [[40, 44]]}], "clt": 0, "cs": 1, "frs": 0, "t": 3, "ti": 50, "wi": 1}},
     {"at": 5000, "kind": "sent", "label": "ron chosen", "message": {"a": 3, "t": 3, "wi": 1}},

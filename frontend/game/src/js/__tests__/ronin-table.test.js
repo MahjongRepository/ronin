@@ -130,6 +130,7 @@ function startTable(
 }
 
 const draw = (seat, tile, extra = {}) => ({ t: 1, d: seat * 136 + tile, ...extra });
+const drawNotice = (seat) => ({ t: 13, s: seat });
 const discard = (seat, tile) => ({ t: 2, d: seat * 136 + tile });
 const riichiDiscard = (seat, tile) => ({ t: 2, d: 2 * 544 + seat * 136 + tile });
 const WIN_CALL_MS = 500;
@@ -338,6 +339,21 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
     });
 
+    it("drops a call prompt left unanswered when another seat's draw notice follows it, sending nothing for it", () => {
+        const table = startTable();
+        table.receive(draw(0, 120, { wi: 1 }));
+        table.decide({ dapai: "z4_" });
+        table.receive(discard(0, 120));
+        table.receive(drawNotice(1));
+        table.receive(discard(1, 18));
+        table.receive({ t: 3, clt: 1, ti: 18, frs: 1, cs: 0, ac: [{ clt: 0 }], wi: 2 });
+
+        table.receive(drawNotice(2));
+        table.decide({});
+
+        expect(table.sent).toEqual([{ t: 3, a: 0, ti: 120, wi: 1 }]);
+    });
+
     it("sends the hand tiles of the chosen chi option", () => {
         const table = startTable();
         table.receive(draw(0, 120, { wi: 1 }));
@@ -406,20 +422,25 @@ describe("the ronin table (Translate and Reply)", () => {
         ]);
     });
 
-    it("plays other seats' kans with their hidden draws and keeps the live wall count", () => {
+    it("plays other seats' draws at their notices and their kans after them, keeping the live wall count", () => {
         const table = startTable();
+        const model = table.player.model;
         table.receive(draw(0, 116, { wi: 1 }));
         table.decide({ dapai: "z3_" });
         table.receive(discard(0, 116));
+        table.receive(drawNotice(1));
+        expect([model.shan.paishu, model.shoupai[1]._zimo]).toEqual([68, "_"]);
         table.receive(discard(1, 101));
         table.receive({ t: 0, m: 23878 });
+        table.receive(drawNotice(2));
         table.receive(discard(2, 124));
+        table.receive(drawNotice(3));
         table.receive(discard(3, 128));
         table.receive(draw(0, 117, { wi: 2 }));
         table.receive(discard(0, 117));
+        table.receive(drawNotice(1));
         table.receive({ t: 0, m: 24409 });
 
-        const model = table.player.model;
         expect(model.shoupai[2]._fulou).toEqual(["s8888-"]);
         expect(model.shoupai[1]._fulou).toEqual(["z4444"]);
         expect(model.shan.paishu).toBe(63);
@@ -489,16 +510,22 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(draw(0, 120, { wi: 1 }));
         table.decide({ dapai: "z4_" });
         table.receive(discard(0, 120));
+        table.receive(drawNotice(1));
         table.receive(discard(1, 125));
+        table.receive(drawNotice(2));
         table.receive(discard(2, 126));
+        table.receive(drawNotice(3));
         table.receive(discard(3, 64));
         table.receive({ t: 0, m: 18545 });
         table.receive(discard(1, 127));
+        table.receive(drawNotice(2));
         table.receive(discard(2, 128));
+        table.receive(drawNotice(3));
         table.receive(discard(3, 129));
         table.receive(draw(0, 60, { wi: 2 }));
         table.decide({ dapai: "z2" });
         table.receive(discard(0, 112));
+        table.receive(drawNotice(1));
         say.mockClear();
 
         table.receive({ t: 3, clt: 2, ti: 67, frs: 1, cs: 0, wi: 3 });
@@ -539,6 +566,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(draw(0, 129, { wi: 1 }));
         table.decide({ dapai: "z6_" });
         table.receive(discard(0, 129));
+        table.receive(drawNotice(1));
 
         table.receive({ t: 3, clt: 2, ti: 119, frs: 1, cs: 0, wi: 2 });
         const declarer = table.player.model.shoupai[1];
@@ -1431,11 +1459,14 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(discard(0, 64));
         table.receive({ t: 0, m: 18549 });
         table.receive(discard(1, 125));
+        table.receive(drawNotice(2));
         table.receive(discard(2, 126));
+        table.receive(drawNotice(3));
         table.receive(discard(3, 127));
         table.receive(draw(0, 128, { wi: 2 }));
         table.decide({ dapai: "z6_" });
         table.receive(discard(0, 128));
+        table.receive(drawNotice(1));
         say.mockClear();
 
         table.receive({
@@ -1692,7 +1723,9 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(draw(0, 100, { wi: 8 }));
         table.decide({ dapai: "s8_" });
         table.receive(discard(0, 100));
+        table.receive(drawNotice(1));
         table.receive(discard(1, 101));
+        table.receive(drawNotice(2));
         table.receive(discard(2, 102));
         expect(model.shoupai[2]._bingpai._).toBe(7);
         expect(model.shan.paishu).toBe(58);

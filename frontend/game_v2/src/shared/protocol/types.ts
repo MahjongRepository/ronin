@@ -4,6 +4,7 @@ import { type timerSettingsSchema } from "./schemas/common";
 import {
     type discardSchema,
     type doraRevealedSchema,
+    type drawNoticeSchema,
     type drawSchema,
     type errorEventSchema,
     type furitenSchema,
@@ -20,6 +21,7 @@ import {
 export type GameStartedEvent = z.output<typeof gameStartedSchema>;
 export type RoundStartedEvent = z.output<typeof roundStartedSchema>;
 export type DrawEvent = z.output<typeof drawSchema>;
+export type DrawNoticeEvent = z.output<typeof drawNoticeSchema>;
 export type DiscardEvent = z.output<typeof discardSchema>;
 export type MeldEvent = z.output<typeof meldSchema>;
 export type RiichiDeclaredEvent = z.output<typeof riichiDeclaredSchema>;

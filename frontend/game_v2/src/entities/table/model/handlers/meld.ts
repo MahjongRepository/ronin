@@ -1,4 +1,4 @@
-import { drewUnseen, takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
+import { takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DiscardRecord,
     type MeldRecord,
@@ -41,22 +41,14 @@ function findCaller(state: TableState, event: MeldEvent): PlayerState {
     return caller;
 }
 
-/**
- * Move the caller's tiles from hand into its melds. A kan the caller declares on its own turn follows its draw,
- * which a hidden hand took unseen: that draw joins its concealed count first and leaves the wall.
- */
+/** Move the caller's tiles from hand into its melds. */
 function meldFromHand(
     state: TableState,
     event: MeldEvent,
     { fromHand, melds }: MeldMove,
 ): TableState {
     const caller = findCaller(state, event);
-    const ownTurn = event.meldType === "closed_kan" || event.meldType === "added_kan";
-    const unseen = ownTurn && drewUnseen(caller) ? 1 : 0;
-    const hand = takeFromHand(
-        { concealedCount: caller.concealedCount + unseen, tiles: caller.tiles },
-        fromHand,
-    );
+    const hand = takeFromHand(caller, fromHand);
     if (hand === null) {
         throw new Error(`Tiles ${fromHand.join(", ")} not found in hand during meld`);
     }
@@ -68,7 +60,6 @@ function meldFromHand(
             melds,
             tiles: hand.tiles,
         }),
-        tilesRemaining: state.tilesRemaining - unseen,
     };
 }
 

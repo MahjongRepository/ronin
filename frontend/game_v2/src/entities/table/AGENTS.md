@@ -5,25 +5,23 @@ replay view, the live game and the storybook read the tables it produces.
 
 - `TableState` / `PlayerState` (`model/types.ts`) are readonly, and `applyEvent` (`model/`) is the
   table transition: the next table after one `TableEvent` (a replay event, a seat control line, the
-  reconnect snapshot, a seat's human leaving or returning), never changing the one it was given. It
+  reconnect snapshot, a seat's human leaving or returning, another seat's draw notice), never
+  changing the one it was given. It
   is the table's only transition; nothing in this slice folds a sequence of events itself.
 - The table holds what its source showed, not a second model per source. A seat's closed hand is
   the tile ids it was shown plus a count of tiles held face down: a live seat knows only its own
-  tiles (the deal's `myTiles`, the snapshot's), so every other hand is a count. Other seats' draws
-  go only to the drawing seat, so they reach the table through the public event that follows them:
-  a hidden hand of 3n+1 that discards or declares its own kan drew unseen first, and a round that
-  ends on a seat's own draw (its tsumo, its kyuushu) settles that draw at the round end; a hand
-  already holding it (a snapshot's 3n+2) is not counted twice. The wall shrinks then, and the turn
-  moves to that seat. Between a hidden seat's draw and its first public event the wall reads one
-  high and the hand shows 13: the protocol sends nothing to infer the draw from, and that lag is
-  accepted. A replay shows every hand, so its counts stay 0. A draw of a tile the hand already
+  tiles (the deal's `myTiles`, the snapshot's), so every other hand is a count. Another seat's draw
+  reaches a live seat as its notice (`draw_notice`, a table event of its own that never opens a
+  decision): the drawer's count gains a tile, the wall loses one and the turn moves to it, when the
+  draw happens, never inferred from a later discard (a call window may still be open). A replay
+  shows every hand, so its counts stay 0. A draw of a tile the hand already
   holds is the one a reconnect re-sends: it marks the drawn tile and takes nothing from the wall. A
   round end writes the hands it reveals (its winners', a draw's tenpai hands) into the table as
   known tiles and names their seats (`revealedSeats`), which every perspective shows face up until the
   next deal; a reconnect's snapshot of a round advance reveals them the same way.
 - A closed or added kan open to chankan shows as declared (`kan_declared`, a table event no message
-  carries as such) before it resolves: its tiles leave the hand for the kan once, after the
-  declarer's unseen draw joins its count, with no replacement draw or dora, since the server
+  carries as such) before it resolves: its tiles leave the hand for the kan once, with no
+  replacement draw or dora, since the server
   completes the kan only once nobody robs it. A live seat sees it from its chankan prompt (the kan
   type then follows the declarer's pon or the added kan already shown, as the server decides), and
   a round end or reconnect snapshot whose win robbed a kan shows it from `robbedKan` unless it is
@@ -145,5 +143,5 @@ replay view, the live game and the storybook read the tables it produces.
   `REPLAY_VERSION` and hands back each event line as a JSON object for the dispatcher to parse
   (`parseReplayLine`), reporting a line that is not one without dropping the rest.
   `replayLineTableEvent` keeps the replay-only distinction: a replay event or seat control line
-  moves the table; any other message (a prompt, an error, a furiten notice) never belongs in a
-  replay and is reported.
+  moves the table; any other message (a prompt, an error, a furiten or draw notice) never belongs
+  in a replay and is reported.

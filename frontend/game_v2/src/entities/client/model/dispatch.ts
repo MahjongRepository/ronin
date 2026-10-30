@@ -138,6 +138,7 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "game_started":
         case "round_started":
         case "draw":
+        case "draw_notice":
         case "discard":
         case "meld":
         case "riichi_declared":
