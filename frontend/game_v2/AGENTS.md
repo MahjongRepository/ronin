@@ -255,6 +255,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 
 ## Layout
 
+The target look of this board is `docs/game-client-look.md` (a draft until its drawn proposal is
+approved); the rules below predate it and are reconciled with it then, and until that step they
+stay the gate's reference and are not extended.
+
 * **Browser floor: iOS Safari 16.4** (range media syntax; container queries need 16.0, `dvh` 15.4),
   and the smallest supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320
   phones never got iOS 16.4, so they are below the floor.

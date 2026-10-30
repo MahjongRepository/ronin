@@ -29,6 +29,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
   `bin/check_i18n.py` over the lobby's catalogs (the v1 game client's are no longer checked).
+* `docs/game-client-look.md` — the v2 game client's target look (composition, elements, review
+  checklist), a draft until the drawn proposal is approved; read before any v2 board work.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 
 ## Commands
