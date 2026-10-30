@@ -18,7 +18,6 @@ import { Discards, Hand, Meld, type MeldTile, Tile, TileBack } from "@/entities/
 import { type BoardNotice, BoardNotices } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type ScoreDiffPin } from "./nameplate";
-import { PlayerName } from "./player-name";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
@@ -239,13 +238,20 @@ function CenterSeat(plate: BoardNameplate, position: SeatPosition): TemplateResu
 
 /**
  * While a badge's differences show, the label naming whose they are, beside the wall's count, which stays: one per
- * seat, which the board's stylesheet shows for the hovered or pinned badge.
+ * seat, which the board's stylesheet shows for the hovered or pinned badge, naming the seat whole where its name fits
+ * the line, else by its wind, which assistive technology skips for the whole name.
  */
 function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
     return html`${SEAT_POSITIONS.map(
         (position, index) =>
             html`<div class="board-center__diff-label board-center__diff-label--${position}">
-                vs ${PlayerName(plates[index].name, "board-center__diff-name")}
+                <span class="board-center__diff-vs">vs</span>
+                <span class="board-center__diff-slot"
+                    ><span class="board-center__diff-names"
+                        ><span class="board-center__diff-name">${plates[index].name}</span
+                        ><span class="board-center__diff-wind" aria-hidden="true">${plates[index].windName}</span></span
+                    ></span
+                >
             </div>`,
     )}`;
 }

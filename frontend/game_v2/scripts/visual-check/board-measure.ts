@@ -35,6 +35,11 @@ export interface BoardMeasure {
     readonly hiddenTiles: number;
     readonly grouped: readonly GroupedBox[];
     readonly localTiles: readonly Box[];
+    /**
+     * The local hand tiles' slots (each tile's `.hand-tile`, its tap target), as painted: a held-back face's recess
+     * inside its slot does not shrink them, any transform of the slot or above it does; NaN for a tile with no slot.
+     */
+    readonly localTileSizes: readonly Size[];
     /** Every board tile but the local hand's and the decision buttons': rivers, other seats, melds, dora. */
     readonly otherTiles: readonly Box[];
     readonly actions: readonly Box[];
@@ -236,6 +241,9 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 return head !== null && head.scrollWidth > head.getBoundingClientRect().width + 1;
             })
             .map((name) => name.getAttribute("title") ?? "");
+        const localTileElements = [
+            ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
+        ];
         const leave = board.querySelector(".game-menu__leave");
         const menu = [...board.querySelectorAll(".game-menu__status, .game-menu__leave")].map(box);
         const centerTexts = [...board.querySelectorAll(centerTextSelectors)].map(
@@ -280,9 +288,11 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                     !tile.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
             ).length,
             leave: leave === null ? null : box(leave),
-            localTiles: [
-                ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
-            ].map(box),
+            localTileSizes: localTileElements.map((tile) => {
+                const slot = tile.closest(".hand-tile");
+                return slot === null ? { height: Number.NaN, width: Number.NaN } : box(slot);
+            }),
+            localTiles: localTileElements.map(box),
             menu,
             nameplates: nameplates.map((plate) => plate.box),
             opponentFaces: [...board.querySelectorAll(".board-strip .tile:not(.tile-back)")].map(
@@ -336,7 +346,7 @@ const BOARD_TEXT = {
     ].join(", "),
 } as const;
 
-function describeLocalTile(tiles: readonly Box[]): string {
+function describeLocalTile(tiles: readonly Size[]): string {
     const [tile] = tiles;
     return tile ? `${tile.width.toFixed(1)}x${tile.height.toFixed(1)}` : "none";
 }
@@ -346,7 +356,7 @@ export function describeBoard(board: BoardMeasure): string {
     const fonts = Math.min(...board.fonts.map((font) => font.px));
     const scroll = `scroll ${describeSize(board.boardScroll)}`;
     const actions = board.actions.length === 0 ? "" : `, ${board.actions.length} button(s)`;
-    return `board ${describeSize(board.boardClient)} ${scroll}, local tile ${describeLocalTile(board.localTiles)}${actions}, min text ${fonts}px`;
+    return `board ${describeSize(board.boardClient)} ${scroll}, local tile ${describeLocalTile(board.localTileSizes)}${actions}, min text ${fonts}px`;
 }
 
 /** The boxes, in page coordinates, of the elements `selector` matches on the board, in document order. */

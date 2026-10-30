@@ -453,7 +453,9 @@ follows holds through the rebuild to it.
     its end shows; an upright board shows the wind and marks alone, its name in the label.
   * The pooled counters (top-left) hold the dora and the honba and riichi counts as icon and number; the
     centre holds the round, the wall's count, each seat's wind and score in a pinwheel row on its side, its
-    riichi stick inside the edge, the turn's bar on the edge, and while a badge's differences show, whose.
+    riichi stick inside the edge, the turn's bar on the edge, and while a badge's differences show, whose: a label
+    in the round's place, "vs" over the seat's whole name where it fits that line, else its wind: the line clips a
+    column of the name and the wind, which moves up by the name's own height once the name wraps (no script measures it).
   * The latest discard (`lastDiscardSeat`, `entities/table/AGENTS.md`) is ringed with a notch on its far side,
     in its river's frame, in the table's neutral latest colour; a claimed tile has left the river. A chankan
     offer's kan is ringed whole in its meld (`meld--source`) until the offer resolves.
@@ -512,7 +514,10 @@ follows holds through the rebuild to it.
   dora, long names, AI marks and a pinned nameplate, and again with the most offers one discard can make,
   whose phone column ends before the right strip's second meld line; the strips' capacity: every opponent's
   full hand, fourteen faces with the drawn tile apart (with the most offers, and with a pressed riichi toggle
-  beside a full bottom river) or thirteen backs, and legal mixed hands, each seat at one, two and three melds; a call at every seat; the dense round
+  beside a full bottom river) or thirteen backs, and legal mixed hands, each seat at one, two and three melds; a call at every seat; four kans a
+  seat whose open and added kans come from every feeder across two stories, with a different call at every seat and with a triple ron's
+  callouts; four open kans a seat, the longest strip, with the most offers; the worst case with a turn in its bank (these
+  four only at the phones, 800x600 and 1366x657); the dense round
   results; the
   decisions stories, the seating before the first deal, a turn in its bank, the live standings and the
   last result reopened from them among them; the board's
@@ -548,9 +553,12 @@ follows holds through the rebuild to it.
   a call over a decision control, the timer or the action source (the latest discard, an offered kan), tiles
   of different areas, a nameplate overlapping,
   anything outside the board or the screen, a call over the local hand's tiles, a status word, a plate's wind or
-  marks or a name's end cut short, page overflow, board text under 10px, local hand tiles under
-  32x42 on a landscape phone (a desktop's own tile has no separate floor) or, in landscape, no
-  larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
+  marks or a name's end cut short, a differences label missing for the pinned (or hovered) badge, another seat's label
+  beside it, or one under 10px, not wholly shown, leaving the centre, meeting the wall's count or a score, or not
+  reading that seat's whole name where a canvas measure says it fits its line (else that seat's wind), page overflow,
+  board text under 10px, local hand tiles (their `.hand-tile` slots, so a held-back face's recess does not count but a
+  shrunk slot does, and an unmeasurable one fails) under 32x42 on a landscape phone (a desktop's own tile has no separate
+  floor) or, in landscape, no larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   notice over a tile, a plate, a decision button or the panel
   over the board, two names on a line of a result's scores under 12px apart, a decision
   button not wholly inside its container (never scrolled or clipped out of it), and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)

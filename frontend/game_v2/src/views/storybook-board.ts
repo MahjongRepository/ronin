@@ -39,6 +39,7 @@ import {
     meldTiles,
 } from "@/entities/tile";
 import { browserClock } from "@/shared/clock";
+import { assertNever } from "@/shared/lib";
 import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 import {
@@ -55,9 +56,11 @@ const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
 
 /**
  * The board's hand-written stories, the edge cases no generated scenario reaches: full rivers, the worst case of all
- * at once (every seat with four melds, long rivers, five dora, AI marks), and the strips' capacity: every opponent's
+ * at once (every seat with four melds, long rivers, five dora, AI marks), the strips' capacity: every opponent's
  * full hand (fourteen faces with the drawn tile apart, or thirteen backs) and legal mixed hands, each seat at one,
- * two and three melds across the three mixed stories. A board the scenarios reach is a decisions story instead.
+ * two and three melds across the three mixed stories, four kans a seat, every kind, whose open and added kans
+ * between two kan stories come from every feeder, and four open kans a seat, the longest strip. A board the
+ * scenarios reach is a decisions story instead.
  */
 const BOARD_STORIES = [
     "full_rivers",
@@ -68,6 +71,9 @@ const BOARD_STORIES = [
     "mixed_hands_a",
     "mixed_hands_b",
     "mixed_hands_c",
+    "kans_a",
+    "kans_b",
+    "kans_c",
 ] as const;
 
 type BoardStory = (typeof BOARD_STORIES)[number];
@@ -76,6 +82,9 @@ const BOARD_STORY_LABELS: Readonly<Record<BoardStory, string>> = {
     concealed_hands: "Concealed hands",
     full_hands: "Full hands",
     full_rivers: "Full rivers",
+    kans_a: "Kans A",
+    kans_b: "Kans B",
+    kans_c: "Kans C",
     mixed_hands_a: "Mixed hands A",
     mixed_hands_b: "Mixed hands B",
     mixed_hands_c: "Mixed hands C",
@@ -90,17 +99,45 @@ const PLAYED_ROW_STORIES: ReadonlySet<BoardStory> = new Set([
     "mixed_hands_a",
     "mixed_hands_b",
     "mixed_hands_c",
+    "kans_a",
+    "kans_b",
+    "kans_c",
 ]);
 
 const DEFAULT_STORY: BoardStory = "full_rivers";
 
-/** Every call the board shows, one of which the story shows at every seat at once. */
+/** Every call the board shows, one of which the story may show at every seat at once. */
 const CALLOUT_KINDS: readonly CalloutKind[] = ["ron", "tsumo", "pon", "chi", "kan", "riichi"];
+
+/**
+ * The calls a story shows at once: one kind at every seat, a different call at every seat, or a triple ron, whose
+ * three claimants are every seat but the one whose river holds the latest discard.
+ */
+const STORY_CALLS = [...CALLOUT_KINDS, "every", "triple_ron"] as const;
+
+type StoryCall = (typeof STORY_CALLS)[number];
+
+const STORY_CALL_LABELS: Readonly<Record<StoryCall, string>> = {
+    chi: "Call: chi",
+    every: "Calls: one a seat",
+    kan: "Call: kan",
+    pon: "Call: pon",
+    riichi: "Call: riichi",
+    ron: "Call: ron",
+    triple_ron: "Calls: triple ron",
+    tsumo: "Call: tsumo",
+};
+
+/** A different call at each seat, bottom, right, top and left. */
+const EVERY_CALL: readonly CalloutKind[] = ["riichi", "pon", "kan", "chi"];
+
+/** The seat that discards a triple ron's tile where no river holds the latest discard: the left one. */
+const DEFAULT_DISCARDER = 3;
 
 interface BoardStoryState {
     readonly debug: boolean;
-    /** The call shown at every seat, held still, kept in the page's `?callout=`; null for none. */
-    readonly callout: CalloutKind | null;
+    /** The calls shown, held still, kept in the page's `?callout=`; null for none. */
+    readonly callout: StoryCall | null;
     /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
     readonly pinned: SeatPosition | null;
     readonly overlay: OverlayMode;
@@ -131,27 +168,54 @@ function parseOverlayParam(search: string): OverlayMode {
     return OVERLAY_MODES.find((mode) => mode === param) ?? "none";
 }
 
-function parseCalloutParam(search: string): CalloutKind | null {
-    const param = new URLSearchParams(search).get("callout");
-    return CALLOUT_KINDS.find((kind) => kind === param) ?? null;
+function parseStoryCall(value: string | null): StoryCall | null {
+    return STORY_CALLS.find((call) => call === value) ?? null;
 }
 
-/** The story's call at every seat, which the storybook's stylesheet holds still so it can be read and measured. */
-function storyCallouts(kind: CalloutKind | null): BoardCallouts | null {
-    if (kind === null) {
+/** The seat whose river holds the table's latest discard, else the left one. */
+function discarderSeat(state: BoardDisplayState): number {
+    const seat = state.players.findIndex((player) =>
+        player.discards.some((tile) => tile.last === true),
+    );
+    return seat === -1 ? DEFAULT_DISCARDER : seat;
+}
+
+function storyCalls(
+    call: StoryCall,
+    state: BoardDisplayState,
+): readonly { readonly kind: CalloutKind; readonly seat: number }[] {
+    if (call === "every") {
+        return EVERY_CALL.map((kind, seat) => ({ kind, seat }));
+    }
+    const seats = SEAT_POSITIONS.map((_position, seat) => seat);
+    if (call === "triple_ron") {
+        const discarder = discarderSeat(state);
+        return seats.filter((seat) => seat !== discarder).map((seat) => ({ kind: "ron", seat }));
+    }
+    return seats.map((seat) => ({ kind: call, seat }));
+}
+
+/** The story's calls, which the storybook's stylesheet holds still so they can be read and measured. */
+function storyCallouts(call: StoryCall | null, state: BoardDisplayState): BoardCallouts | null {
+    if (call === null) {
         return null;
     }
-    const calls = SEAT_POSITIONS.map((_position, seat) => ({ kind, seat }));
-    return { items: boardCallouts(calls, 0), key: kind };
+    return { items: boardCallouts(storyCalls(call, state), 0), key: call };
 }
 
-const STORY_OFFERS = ["none", "five", "riichi"] as const;
+const STORY_OFFERS = ["none", "five", "riichi", "bank"] as const;
 
 type StoryOffers = (typeof STORY_OFFERS)[number];
 
-function parseOffersParam(search: string): StoryOffers {
-    const param = new URLSearchParams(search).get("offers");
-    return STORY_OFFERS.find((offers) => offers === param) ?? "none";
+const STORY_OFFER_LABELS: Readonly<Record<StoryOffers, string>> = {
+    bank: "Offers: turn in bank",
+    five: "Offers: five on a discard",
+    none: "No offers",
+    riichi: "Offers: riichi pressed",
+};
+
+function parseStoryOffers(value: string | null): StoryOffers {
+    return STORY_OFFERS.find((offers) => offers === value) ?? "none";
 }
 
 /** A control of the story's offers: what it answers with and how it ranks, its label and preview faces. */
@@ -238,12 +302,53 @@ function riichiOffer(): DecisionView {
     };
 }
 
+/** A turn whose base time ran out, its bank draining, with a tsumo, a choice of two kans and riichi to take. */
+function bankOffers(): DecisionView {
+    return {
+        actions: [
+            storyControl({ command: choosing({ kind: "tsumo" }), label: "Tsumo", rank: "win" }),
+            storyControl({
+                command: { kind: "toggle_tile_choice", offer: "kan" },
+                label: "Kan",
+                pressed: false,
+                rank: "call",
+            }),
+            storyControl({
+                command: { kind: "toggle_riichi_pick" },
+                label: "Riichi",
+                pressed: false,
+                rank: "call",
+            }),
+        ],
+        countdown: {
+            kind: "running",
+            move: "turn",
+            secondsLeft: 8,
+            turn: { bankSeconds: 8, baseSeconds: 0, inBank: true },
+        },
+        decisionStanding: "open",
+    };
+}
+
 /** The decision a story's `?offers=` shows over its board, if any. */
 function storyOffers(offers: StoryOffers): DecisionView | null {
-    if (offers === "five") {
-        return fiveOffers();
+    switch (offers) {
+        case "five": {
+            return fiveOffers();
+        }
+        case "riichi": {
+            return riichiOffer();
+        }
+        case "bank": {
+            return bankOffers();
+        }
+        case "none": {
+            return null;
+        }
+        default: {
+            return assertNever(offers);
+        }
     }
-    return offers === "riichi" ? riichiOffer() : null;
 }
 
 function parsePinParam(search: string): SeatPosition | null {
@@ -616,6 +721,95 @@ function worstSeat(seat: number, discards: readonly DiscardTile[] = longRiver): 
     };
 }
 
+/** How many places on from the caller a feeder sits: the next seat is on its right, the one before on its left. */
+const FROM_RIGHT = 1;
+const FROM_ACROSS = 2;
+const FROM_LEFT = 3;
+
+/** A kan's kind and, for an open or added one, how many places on from the caller its feeder sits. */
+type KanFeed = readonly ["closed_kan"] | readonly ["open_kan" | "added_kan", number];
+
+/** A kan for `seat` of the four tiles from `first`, a closed one or fed from the seat its feed names. */
+function feedKan(seat: number, feed: KanFeed, first: number): MeldInput {
+    const tileIds = [first, first + 1, first + 2, first + 3];
+    if (feed[0] === "closed_kan") {
+        return {
+            calledTileId: null,
+            callerSeat: seat,
+            fromSeat: null,
+            meldType: "closed_kan",
+            tileIds,
+        };
+    }
+    const [meldType, offset] = feed;
+    return {
+        ...(meldType === "added_kan" ? { addedTileId: first + 3 } : {}),
+        calledTileId: first + 1,
+        callerSeat: seat,
+        fromSeat: (seat + offset) % 4,
+        meldType,
+        tileIds,
+    };
+}
+
+/** The ids between one kan's first tile and the next's: a kind of tile apart, so each kan shows its own face. */
+const KAN_IDS_APART = 36;
+
+/** A kan per feed for `seat`, oldest first. */
+function kansOf(seat: number, feeds: readonly KanFeed[]): MeldInput[] {
+    return feeds.map((feed, index) => feedKan(seat, feed, KAN_IDS_APART * index));
+}
+
+/** Every kan kind a seat, whose open and added kans between A and B come from each feeder at every seat. */
+const KANS_A_FEEDS: readonly KanFeed[] = [
+    ["closed_kan"],
+    ["open_kan", FROM_LEFT],
+    ["open_kan", FROM_ACROSS],
+    ["added_kan", FROM_RIGHT],
+];
+
+const KANS_B_FEEDS: readonly KanFeed[] = [
+    ["closed_kan"],
+    ["added_kan", FROM_LEFT],
+    ["added_kan", FROM_ACROSS],
+    ["open_kan", FROM_RIGHT],
+];
+
+/** Four open kans, the longest four melds a strip can lay (each four tiles, one sideways). */
+const KANS_C_FEEDS: readonly KanFeed[] = [
+    ["open_kan", FROM_LEFT],
+    ["open_kan", FROM_ACROSS],
+    ["open_kan", FROM_RIGHT],
+    ["open_kan", FROM_LEFT],
+];
+
+/**
+ * Four kans a seat, one concealed tile and the drawn one beside a 24-tile river, with the worst case's long names and
+ * five dora: `show` the opponents' hands, `latest` the seat whose river holds the latest discard.
+ */
+function kanStory(
+    feeds: readonly KanFeed[],
+    { latest, show }: { readonly latest: number; readonly show: "face" | "back" },
+): BoardDisplayState {
+    function seat(index: number): BoardPlayerDisplay {
+        return capacitySeat(1, {
+            discards: index === latest ? latestRiver : longRiver,
+            drawn: true,
+            melds: kansOf(index, feeds),
+            show: index === 0 ? "face" : show,
+        });
+    }
+    return {
+        center: {
+            ...mockCenter,
+            doraIndicators: ["5m", "3p", "7s", "2z", "9m"],
+            tilesRemaining: 0,
+        },
+        nameplates: worstPlates,
+        players: [seat(0), seat(1), seat(2), seat(3)],
+    };
+}
+
 const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
     concealed_hands: {
         center: mockCenter,
@@ -667,6 +861,9 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
             withRiver(leftPlayer, thirteenFaces),
         ],
     },
+    kans_a: kanStory(KANS_A_FEEDS, { latest: 2, show: "back" }),
+    kans_b: kanStory(KANS_B_FEEDS, { latest: 1, show: "face" }),
+    kans_c: kanStory(KANS_C_FEEDS, { latest: 3, show: "back" }),
     mixed_hands_a: mixedHands([1, 3, 2, 1]),
     mixed_hands_b: mixedHands([2, 2, 1, 3]),
     mixed_hands_c: mixedHands([3, 1, 3, 2]),
@@ -828,10 +1025,11 @@ function buildOverlay(
 }
 
 interface BoardStoryHandlers {
-    readonly showStory: (story: BoardStory) => void;
-    readonly showResult: (result: ResultStory) => void;
+    readonly showStory: (story: string) => void;
+    readonly showResult: (result: string) => void;
     readonly showPage: (page: number) => void;
-    readonly showCallout: (kind: CalloutKind | null) => void;
+    readonly showCallout: (call: string) => void;
+    readonly showOffers: (offers: string) => void;
     readonly pin: (seat: SeatPosition | null) => void;
     readonly toggleDebug: () => void;
     readonly toggleOverlay: (mode: OverlayMode) => void;
@@ -840,6 +1038,60 @@ interface BoardStoryHandlers {
 function activeClass(active: boolean): string {
     return active ? "board-storybook__btn--active" : "";
 }
+
+interface PickerOption {
+    readonly value: string;
+    readonly label: string;
+}
+
+/** A select among a story's options, labelled for assistive technology, handing the picked value on. */
+function storyPicker({
+    label,
+    onPick,
+    options,
+    selected,
+}: {
+    readonly label: string;
+    readonly options: readonly PickerOption[];
+    readonly selected: string;
+    readonly onPick: (value: string) => void;
+}): TemplateResult {
+    return html`<div class="board-storybook__picker"><select
+        class="board-storybook__select"
+        aria-label=${label}
+        @change=${(event: Event) => {
+            const { target } = event;
+            if (target instanceof HTMLSelectElement) {
+                onPick(target.value);
+            }
+        }}
+    >
+        ${options.map(
+            ({ label: text, value }) =>
+                html`<option value=${value} ?selected=${value === selected}>${text}</option>`,
+        )}
+    </select></div>`;
+}
+
+const STORY_OPTIONS: readonly PickerOption[] = BOARD_STORIES.map((value) => ({
+    label: BOARD_STORY_LABELS[value],
+    value,
+}));
+
+const RESULT_OPTIONS: readonly PickerOption[] = RESULT_STORIES.map((value) => ({
+    label: resultStoryLabel(value),
+    value,
+}));
+
+const CALL_OPTIONS: readonly PickerOption[] = [
+    { label: "No call", value: "" },
+    ...STORY_CALLS.map((value) => ({ label: STORY_CALL_LABELS[value], value })),
+];
+
+const OFFER_OPTIONS: readonly PickerOption[] = STORY_OFFERS.map((value) => ({
+    label: STORY_OFFER_LABELS[value],
+    value,
+}));
 
 function storybookBoardTemplate(
     story: BoardStoryState,
@@ -853,7 +1105,7 @@ function storybookBoardTemplate(
             <div class="board-page__board">
                 ${GameBoard({
                     actions: offers === null ? undefined : DecisionControls(offers, () => {}),
-                    callouts: storyCallouts(story.callout),
+                    callouts: storyCallouts(story.callout, state),
                     debug: story.debug,
                     localHand:
                         offers !== null || PLAYED_ROW_STORIES.has(story.story)
@@ -866,12 +1118,12 @@ function storybookBoardTemplate(
             </div>
             <div class="board-page__aside">
                 <a class="board-storybook__btn" href="/play/storybook">Back</a>
-                ${BOARD_STORIES.map(
-                    (key) => html`<button
-                        class="board-storybook__btn ${activeClass(story.story === key)}"
-                        @click=${() => handlers.showStory(key)}
-                    >${BOARD_STORY_LABELS[key]}</button>`,
-                )}
+                ${storyPicker({
+                    label: "Story",
+                    onPick: handlers.showStory,
+                    options: STORY_OPTIONS,
+                    selected: story.story,
+                })}
                 <button
                     class="board-storybook__btn ${activeClass(story.debug)}"
                     @click=${handlers.toggleDebug}
@@ -882,50 +1134,30 @@ function storybookBoardTemplate(
                 >Round end</button>
                 ${
                     story.overlay === "round_end"
-                        ? html`<div class="board-storybook__picker"><select
-                              class="board-storybook__select"
-                              aria-label="Round result"
-                              @change=${(event: Event) => {
-                                  const { target } = event;
-                                  const picked = RESULT_STORIES.find(
-                                      (result) =>
-                                          target instanceof HTMLSelectElement &&
-                                          result === target.value,
-                                  );
-                                  if (picked !== undefined) {
-                                      handlers.showResult(picked);
-                                  }
-                              }}
-                          >
-                              ${RESULT_STORIES.map(
-                                  (
-                                      result,
-                                  ) => html`<option value=${result} ?selected=${result === story.result}>
-                                      ${resultStoryLabel(result)}
-                                  </option>`,
-                              )}
-                          </select></div>`
+                        ? storyPicker({
+                              label: "Round result",
+                              onPick: handlers.showResult,
+                              options: RESULT_OPTIONS,
+                              selected: story.result,
+                          })
                         : ""
                 }
                 <button
                     class="board-storybook__btn ${activeClass(story.overlay === "game_end")}"
                     @click=${() => handlers.toggleOverlay("game_end")}
                 >Game end</button>
-                <div class="board-storybook__picker"><select
-                    class="board-storybook__select"
-                    aria-label="Call shown"
-                    @change=${(event: Event) => {
-                        const { target } = event;
-                        const value = target instanceof HTMLSelectElement ? target.value : "";
-                        handlers.showCallout(CALLOUT_KINDS.find((kind) => kind === value) ?? null);
-                    }}
-                >
-                    <option value="" ?selected=${story.callout === null}>No call</option>
-                    ${CALLOUT_KINDS.map(
-                        (kind) =>
-                            html`<option value=${kind} ?selected=${kind === story.callout}>Call: ${kind}</option>`,
-                    )}
-                </select></div>
+                ${storyPicker({
+                    label: "Call shown",
+                    onPick: handlers.showCallout,
+                    options: CALL_OPTIONS,
+                    selected: story.callout ?? "",
+                })}
+                ${storyPicker({
+                    label: "Offers shown",
+                    onPick: handlers.showOffers,
+                    options: OFFER_OPTIONS,
+                    selected: story.offers,
+                })}
             </div>
         </div>
     `;
@@ -934,10 +1166,11 @@ function storybookBoardTemplate(
 /** Mount the board storybook into `host`; its story and overlay are kept in the page's `?state=` and `?overlay=`. */
 export function mountStorybookBoard(host: HTMLElement): () => void {
     const standings = startStorybookStandings(browserClock.setTimer);
+    const query = new URLSearchParams(window.location.search);
     let story: BoardStoryState = {
-        callout: parseCalloutParam(window.location.search),
+        callout: parseStoryCall(query.get("callout")),
         debug: false,
-        offers: parseOffersParam(window.location.search),
+        offers: parseStoryOffers(query.get("offers")),
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
         pinned: parsePinParam(window.location.search),
@@ -955,20 +1188,34 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
             syncQueryParam("pin", seat ?? "", "");
             show({ ...story, pinned: seat });
         },
-        showCallout(callout) {
+        showCallout(value) {
+            const callout = parseStoryCall(value);
             syncQueryParam("callout", callout ?? "", "");
             show({ ...story, callout });
+        },
+        showOffers(value) {
+            const offers = parseStoryOffers(value);
+            syncQueryParam("offers", offers, "none");
+            show({ ...story, offers });
         },
         showPage(page) {
             syncQueryParam("page", String(page), "0");
             show({ ...story, page });
         },
-        showResult(result) {
+        showResult(value) {
+            const result = RESULT_STORIES.find((candidate) => candidate === value);
+            if (result === undefined) {
+                return;
+            }
             syncQueryParam("result", result, DEFAULT_RESULT);
             syncQueryParam("page", "0", "0");
             show({ ...story, page: 0, result });
         },
-        showStory(key) {
+        showStory(value) {
+            const key = BOARD_STORIES.find((candidate) => candidate === value);
+            if (key === undefined) {
+                return;
+            }
             syncQueryParam("state", key, DEFAULT_STORY);
             show({ ...story, story: key });
         },

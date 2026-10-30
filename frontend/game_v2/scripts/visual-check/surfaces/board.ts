@@ -1,3 +1,5 @@
+import { type Page } from "playwright";
+
 import { type BoardMeasure } from "../board-measure.ts";
 import {
     type Box,
@@ -47,6 +49,21 @@ const MIN_STRIP_GAP = 6;
 /** Each badge's fixed point by its seat, where a page measured a board in landscape (`checkBadgePlaces`). */
 const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, readonly [number, number]>>>();
 
+/**
+ * Where density binds, the dense stories' only viewports: the landscape phones, the narrow desktop (a phone's chrome on
+ * a desktop's geometry) and the short desktop (the band's corners shared).
+ */
+const DENSE = {
+    alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...WIDER_PHONES],
+    onlyAt: [
+        "phone-se-landscape",
+        "phone-notch-landscape",
+        SHORT_DESKTOP,
+        NARROW_DESKTOP,
+        ...WIDER_PHONES,
+    ],
+} as const;
+
 const PAGES: readonly PageCase[] = [
     documentCase("storybook", "/play/storybook", ".storybook .tile"),
     documentCase("storybook-hand", "/play/storybook/hand", ".storybook .hand .tile"),
@@ -57,7 +74,10 @@ const PAGES: readonly PageCase[] = [
         ...boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
         longNames: true,
     },
-    boardCase("board-callouts-tsumo", "?state=full_rivers&callout=tsumo", [".board-callout"]),
+    boardCase("board-callouts-tsumo", "?state=full_rivers&callout=tsumo&pin=top", [
+        ".board-callout",
+        ".board-center__diff-label--top",
+    ]),
     {
         ...boardCase("board-callouts-adjacent", "?state=riichi_latest&callout=riichi&offers=five", [
             ".board-callout",
@@ -108,6 +128,40 @@ const PAGES: readonly PageCase[] = [
     {
         ...boardCase("board-mixed-hands-c", "?state=mixed_hands_c", [".board-strip .meld"]),
         alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+    },
+    {
+        ...boardCase("board-kans-a", "?state=kans_a&callout=every&pin=left", [
+            ".board-strip .meld",
+            ".board-callout",
+            ".board-center__diff-label--left",
+        ]),
+        ...DENSE,
+        longNames: true,
+    },
+    {
+        ...boardCase("board-kans-b", "?state=kans_b&callout=triple_ron&pin=bottom", [
+            ".board-strip .meld",
+            ".board-callout--ron",
+            ".discard-tile--last",
+        ]),
+        ...DENSE,
+        longNames: true,
+    },
+    {
+        ...boardCase("board-worst-bank", "?state=worst&offers=bank&pin=left", [
+            ACTION,
+            ".decision-timer--bank .decision-controls__bank--draining",
+        ]),
+        ...DENSE,
+        longNames: true,
+    },
+    {
+        ...boardCase("board-kans-c", "?state=kans_c&offers=five&pin=top", [
+            ACTION,
+            ".board-strip .meld",
+        ]),
+        ...DENSE,
+        longNames: true,
     },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
@@ -198,7 +252,8 @@ function checkPlacement(
 
 /**
  * The local hand stays on the screen, at least the viewport's floor where it has one (a phone's tap target), and its
- * tiles are the board's largest: larger than any river, other seat's hand or meld, or dora tile.
+ * tiles are the board's largest: larger than any river, other seat's hand or meld, or dora tile. Its sizes are the
+ * tiles' slots, the tap targets, so a held-back face's recess inside its slot does not count, but a smaller slot does.
  */
 function checkLocalHand(
     board: BoardMeasure,
@@ -207,16 +262,25 @@ function checkLocalHand(
 ): void {
     const hidden = board.localTiles.filter((tile) => !contains(screen, tile));
     report.expect(hidden.length === 0, `${hidden.length} local hand tile(s) outside the viewport`);
+    const unread = board.localTileSizes.filter(
+        (tile) => !Number.isFinite(tile.width) || !Number.isFinite(tile.height),
+    );
+    report.expect(
+        unread.length === 0,
+        `${unread.length} local hand tile(s) whose slot could not be measured (no .hand-tile)`,
+    );
     if (floor !== undefined) {
-        const small = board.localTiles.filter(
+        const small = board.localTileSizes.filter(
             (tile) => tile.width < floor.width - EPSILON || tile.height < floor.height - EPSILON,
         );
         report.expect(
             small.length === 0,
-            `local hand tiles under ${describeSize(floor)}: ${small.map(describeBox).join(", ")}`,
+            `local hand tiles under ${describeSize(floor)}: ${small.map(describeSize).join(", ")}`,
         );
     }
-    const smallestOwn = Math.min(...board.localTiles.map(longSide));
+    const smallestOwn = Math.min(
+        ...board.localTileSizes.map((tile) => Math.max(tile.width, tile.height)),
+    );
     const largestOther = Math.max(0, ...board.otherTiles.map(longSide));
     report.expect(
         smallestOwn > largestOther + EPSILON,
@@ -380,6 +444,234 @@ function checkCallouts(board: BoardMeasure, report: PageReport): void {
     );
 }
 
+/** One piece of the label: its text, whether it shows, its box and the part of it its clipping ancestors leave. */
+interface LabelPiece {
+    readonly text: string;
+    readonly shown: boolean;
+    readonly box: Box;
+    readonly visible: Box | null;
+}
+
+/**
+ * The centre's label for the badge whose differences show (a hovered badge's on a hovering screen, else the pinned
+ * one's): that badge's name and wind letter, the label's pieces, its font size and the name's width on one line.
+ */
+interface DiffLabelMeasure {
+    readonly seat: string;
+    readonly name: string;
+    readonly windLetter: string;
+    readonly fontPx: number;
+    readonly nameWidth: number;
+    readonly label: LabelPiece;
+    readonly vs: LabelPiece;
+    readonly slot: LabelPiece;
+    readonly nameText: LabelPiece;
+    readonly wind: LabelPiece;
+    readonly otherLabelsShown: number;
+    readonly center: Box;
+    readonly centerPieces: readonly Box[];
+}
+
+type DiffLabelRead =
+    | { readonly kind: "none"; readonly labelsShown: number }
+    | { readonly kind: "unreadable"; readonly why: string }
+    | ({ readonly kind: "label" } & DiffLabelMeasure);
+
+function measureDiffLabel(page: Page): Promise<DiffLabelRead> {
+    return page.evaluate(() => {
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function box(rect: DOMRect | Box): Box {
+            return {
+                height: rect.height,
+                left: rect.left + window.scrollX,
+                top: rect.top + window.scrollY,
+                width: rect.width,
+            };
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function shown(element: Element): boolean {
+            const rect = element.getBoundingClientRect();
+            return (
+                rect.width >= 1 &&
+                rect.height >= 1 &&
+                element.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+            );
+        }
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function piece(element: Element | null): LabelPiece {
+            if (element === null) {
+                return {
+                    box: { height: 0, left: 0, top: 0, width: 0 },
+                    shown: false,
+                    text: "",
+                    visible: null,
+                };
+            }
+            const rect = element.getBoundingClientRect();
+            let { bottom, left, right, top } = rect;
+            for (let above = element.parentElement; above !== null; above = above.parentElement) {
+                const style = getComputedStyle(above);
+                if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+                    const outer = above.getBoundingClientRect();
+                    left = Math.max(left, outer.left);
+                    top = Math.max(top, outer.top);
+                    right = Math.min(right, outer.right);
+                    bottom = Math.min(bottom, outer.bottom);
+                }
+            }
+            return {
+                box: box(rect),
+                shown: shown(element),
+                text: element.textContent.replaceAll(/\s+/gu, " ").trim(),
+                visible:
+                    right - left >= 1 && bottom - top >= 1
+                        ? box({ height: bottom - top, left, top, width: right - left })
+                        : null,
+            };
+        }
+        const labels = [...document.querySelectorAll(".board-center__diff-label")];
+        const hovered = matchMedia("(hover: hover)").matches
+            ? document.querySelector(".nameplate:hover")
+            : null;
+        const plate = hovered ?? document.querySelector(".nameplate[aria-pressed='true']");
+        if (plate === null) {
+            return { kind: "none" as const, labelsShown: labels.filter(shown).length };
+        }
+        const seat = /nameplate--(?<seat>bottom|right|top|left)\b/u.exec(plate.className)?.groups
+            ?.seat;
+        const label = document.querySelector(`.board-center__diff-label--${seat ?? "none"}`);
+        const name = label?.querySelector(".board-center__diff-name") ?? null;
+        const center = document.querySelector(".board-center");
+        const context = document.createElement("canvas").getContext("2d");
+        if (
+            seat === undefined ||
+            label === null ||
+            name === null ||
+            center === null ||
+            context === null
+        ) {
+            return {
+                kind: "unreadable" as const,
+                why: "no label, name or centre for the shown badge",
+            };
+        }
+        const nameStyle = getComputedStyle(name);
+        context.font = `${nameStyle.fontStyle} ${nameStyle.fontWeight} ${nameStyle.fontSize} ${nameStyle.fontFamily}`;
+        return {
+            center: box(center.getBoundingClientRect()),
+            centerPieces: [
+                ...center.querySelectorAll(
+                    ".board-center__round, .board-center__wall, .board-center__score-line",
+                ),
+            ]
+                .filter(shown)
+                .map((element) => box(element.getBoundingClientRect())),
+            fontPx: Number.parseFloat(getComputedStyle(label).fontSize),
+            kind: "label" as const,
+            label: piece(label),
+            name: plate.getAttribute("title") ?? "",
+            nameText: piece(name),
+            nameWidth: context.measureText(name.textContent).width,
+            otherLabelsShown: labels.filter((other) => other !== label && shown(other)).length,
+            seat,
+            slot: piece(label.querySelector(".board-center__diff-slot")),
+            vs: piece(label.querySelector(".board-center__diff-vs")),
+            wind: piece(label.querySelector(".board-center__diff-wind")),
+            windLetter: plate.querySelector(".nameplate__wind")?.textContent.trim() ?? "",
+        };
+    });
+}
+
+/**
+ * How far, in CSS pixels, the name's width measured on a canvas may part from its line's width before the label's
+ * choice between the name and the wind is held to it: within it, the layout's own choice stands.
+ */
+const NAME_FIT_TOLERANCE = 1;
+
+/** Each seat wind's name by the letter its badge shows. */
+const WIND_NAMES: ReadonlyMap<string, string> = new Map([
+    ["E", "East"],
+    ["S", "South"],
+    ["W", "West"],
+    ["N", "North"],
+]);
+
+/** Whether `inner` lies inside `outer`, within a pixel. */
+function within(outer: Box, inner: Box): boolean {
+    const grownOuter = {
+        height: outer.height + 2,
+        left: outer.left - 1,
+        top: outer.top - 1,
+        width: outer.width + 2,
+    };
+    return contains(grownOuter, inner);
+}
+
+/** Whether a piece shows whole: displayed, and no clipping ancestor cuts any of it. */
+function wholeShown(piece: LabelPiece): boolean {
+    return piece.shown && piece.visible !== null && within(piece.visible, piece.box);
+}
+
+/**
+ * While a badge's differences show, the centre shows that badge's label alone, at a readable size: "vs" and, on the
+ * line under it, the seat's whole name where it fits that line, else the seat's own wind, each wholly shown, inside
+ * the centre and clear of the wall's count and every score. With no badge's differences showing, no label shows.
+ */
+async function checkDiffLabel(page: Page, report: PageReport): Promise<void> {
+    const read = await measureDiffLabel(page);
+    if (read.kind === "none") {
+        report.expect(
+            read.labelsShown === 0,
+            `${read.labelsShown} differences label(s) show with no badge pinned`,
+        );
+        return;
+    }
+    if (read.kind === "unreadable") {
+        report.expect(false, `the pinned label could not be read: ${read.why}`);
+        return;
+    }
+    const where = `the ${read.seat} badge's label`;
+    report.expect(read.otherLabelsShown === 0, `another seat's label shows beside ${where}`);
+    report.expect(
+        wholeShown(read.label),
+        `${where} is not shown whole: ${describeBox(read.label.box)}`,
+    );
+    report.expect(
+        read.fontPx >= MIN_TEXT_PX,
+        `${where} is ${read.fontPx}px, under ${MIN_TEXT_PX}px`,
+    );
+    report.expect(
+        read.vs.text === "vs" && wholeShown(read.vs),
+        `${where} does not show "vs" whole`,
+    );
+    const spare = read.slot.box.width - read.nameWidth;
+    const fits = Math.abs(spare) <= NAME_FIT_TOLERANCE ? read.wind.visible === null : spare > 0;
+    const expected = fits ? read.nameText : read.wind;
+    const expectedText = fits
+        ? read.name
+        : (WIND_NAMES.get(read.windLetter) ?? `wind "${read.windLetter}"`);
+    report.expect(
+        expected.text === expectedText &&
+            wholeShown(expected) &&
+            within(read.slot.box, expected.box),
+        `${where} does not show "${expectedText}" whole on its line (name ${read.nameWidth.toFixed(1)}px, line ${read.slot.box.width.toFixed(1)}px): it shows "${expected.text}" at ${describeBox(expected.box)}`,
+    );
+    const other = fits ? read.wind : read.nameText;
+    report.expect(
+        other.visible === null,
+        `${where} shows "${other.text}" beside "${expectedText}"`,
+    );
+    report.expect(
+        contains(read.center, read.label.box),
+        `${where} ${describeBox(read.label.box)} leaves the centre ${describeBox(read.center)}`,
+    );
+    const crowded = read.centerPieces.filter((piece) => intersects(piece, read.label.box));
+    report.expect(
+        crowded.length === 0,
+        `${where} ${describeBox(read.label.box)} meets the centre's ${crowded.map(describeBox).join(", ")}`,
+    );
+}
+
 /**
  * Every badge keeps one place at a viewport, whatever the seats hold: the live board's decisions stories (an anchor's
  * three checkpoints, the dense prompts, panels over it) all put each seat's badge at the same point.
@@ -422,11 +714,20 @@ function checkBadgePlaces(results: readonly TaskResult[]): string[] {
 
 /**
  * The board as a whole: its content inside its box and readable, the table's surface clear of the aside, the board on
- * the page, and in landscape on a supported screen the own hand, the rivers' and strips' gaps, the badges, the page's
- * corner and the side hands' reserved reach.
+ * the page, the pinned badge's label, and in landscape on a supported screen the own hand, the rivers' and strips'
+ * gaps, the badges, the page's corner and the side hands' reserved reach.
  */
-function checkBoard({ board, measure, options, report, screen, viewport }: BoardRun): void {
+async function checkBoard({
+    board,
+    measure,
+    options,
+    page,
+    report,
+    screen,
+    viewport,
+}: BoardRun): Promise<void> {
     checkBoardContent(board, report);
+    await checkDiffLabel(page, report);
     report.expect(
         board.aside === null || board.zones === null || !intersects(board.zones, board.aside.box),
         `the table's surface ${board.zones === null ? "" : describeBox(board.zones)} reaches under the aside`,

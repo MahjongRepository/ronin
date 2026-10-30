@@ -99,7 +99,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   facing it, all four at the same emphasis, tabular digits, the current dealer's wind marked; one
   primary cue on the centre for the seat in turn. Decision: each side's wind and score sit in one
   row, offset toward that seat's right like the rivers' pinwheel, so the four rows never meet at the
-  corners; while a badge is pinned, the wall count stays and a label names whose differences show. A
+  corners; while a badge is pinned, the wall count stays and a label in the round's place names whose
+  differences show: the seat's whole name on one line where it fits at a readable size, never
+  shortened or broken, else the seat's wind. A
   seat's accepted riichi stick lies on its side of the centre, as on a real table; this is where an
   established riichi is read, and the seat's badge only repeats it quietly. Decision: the stick lies
   along that side's edge of the centre panel, inside it, so the gap between the centre and the

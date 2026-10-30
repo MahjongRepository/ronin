@@ -228,8 +228,12 @@ $plate-seats: bottom, right, top, left;
         text-underline-offset: 3px;
     }
 
+    .board-center__round {
+        display: none;
+    }
+
     .board-center__diff-label--#{$seat} {
-        display: flex;
+        display: block;
     }
 }
 
