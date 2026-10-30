@@ -1,10 +1,6 @@
 import { html, svg } from "lit-html";
 
-import backSvgRaw from "@/assets/tiles/backs/classic-yellow.svg?raw";
 import { type TileFace } from "@/entities/tile/lib/tile-utils";
-
-// Strip fixed width/height so the SVG scales to its container via viewBox.
-const backSvg = backSvgRaw.replace(/ width="\d+"/, "").replace(/ height="\d+"/, "");
 
 const HONOR_NAMES = ["E", "S", "W", "N", "Wh", "Gr", "Rd"] as const;
 
@@ -34,10 +30,9 @@ function tileName(face: TileFace): string {
     return `${rank === "0" ? "5" : rank}${suit}`;
 }
 
-/** Render the back of a tile: a hidden tile, or one whose face the view does not know. */
+/** Render the back of a tile, a hidden tile or one whose face the view does not know: the stylesheet draws it whole. */
 function TileBack() {
-    return html`<span class="tile tile-back" aria-label="back"
-          .innerHTML=${backSvg}></span>`;
+    return html`<span class="tile tile-back" aria-label="back"></span>`;
 }
 
 /**
@@ -45,7 +40,7 @@ function TileBack() {
  *
  * "face" renders the tile's face sprite over its short name, which the stylesheet hides once the sprite is in the
  * document, so a tile stays readable while the sprite loads or when it never does.
- * "back" renders the full back SVG image (the face identity is preserved but not visible).
+ * "back" renders the tile's back (the face identity is preserved but not visible).
  */
 function Tile(face: TileFace, show: "face" | "back") {
     if (show === "back") {

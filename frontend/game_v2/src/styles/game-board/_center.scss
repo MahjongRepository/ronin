@@ -10,9 +10,10 @@
     top: calc(var(--cy) - var(--h));
     width: var(--c);
     height: var(--c);
-    background: var(--ronin-surface-elevated);
+    background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 7%;
+    box-shadow: var(--ronin-panel-shadow);
 }
 
 .board-center__seat {
@@ -50,13 +51,22 @@
     bottom: calc(var(--row-edge) * 0.38);
     width: calc(var(--c) * 0.44);
     height: max(4px, calc(var(--c) * 0.04));
-    background:
-        radial-gradient(circle, var(--ronin-danger) 0 32%, transparent 36%) center /
-            max(4px, calc(var(--c) * 0.04)) 100% no-repeat,
-        var(--pico-color);
+    background: var(--ronin-stick);
     border-radius: 999px;
-    box-shadow: 0 0 0 1px rgb(0 0 0 / 45%);
+    box-shadow: 0 0 0 1px var(--ronin-stick-rim);
     transform: translateX(-50%);
+
+    &::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: max(2px, calc(var(--c) * 0.018));
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: var(--ronin-stick-dot);
+        transform: translate(-50%, -50%);
+    }
 
     &--none {
         display: none;
@@ -74,7 +84,7 @@
     font-size: var(--score-size);
     font-weight: 650;
     line-height: 1;
-    color: var(--pico-color);
+    color: var(--ronin-text);
     white-space: nowrap;
 }
 
@@ -84,14 +94,14 @@
     width: 1.3em;
     height: 1.3em;
     font-weight: 750;
-    color: hsl(220deg 30% 90%);
-    border: 1.5px solid hsl(225deg 25% 45%);
+    color: var(--ronin-wind-ink);
+    border: 1.5px solid var(--ronin-wind-rim);
     border-radius: 4px;
 
     .board-center__seat--dealer & {
-        color: hsl(0deg 30% 96%);
-        background: hsl(0deg 55% 45%);
-        border-color: hsl(0deg 55% 45%);
+        color: var(--ronin-dealer-ink);
+        background: var(--ronin-dealer);
+        border-color: var(--ronin-dealer);
         border-radius: 50%;
     }
 }
@@ -123,7 +133,7 @@
     font-size: max(14px, calc(var(--c) * 0.135));
     font-weight: 650;
     letter-spacing: -0.01em;
-    color: var(--pico-color);
+    color: var(--ronin-text);
 }
 
 .board-center__wall,
@@ -133,7 +143,7 @@
     gap: 0.3em;
     font-size: max(11.5px, calc(var(--c) * 0.1));
     font-weight: 650;
-    color: var(--pico-color);
+    color: var(--ronin-text);
 }
 
 .board-center__wall-count {

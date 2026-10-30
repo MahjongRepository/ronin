@@ -20,9 +20,10 @@ $sideways-height: $tile-width; // 60px
     width: $sideways-width;
     height: $sideways-height;
     position: relative;
-    overflow: hidden;
 
     > .tile {
+        --tile-turn: calc(var(--frame-turn, 0deg) + 90deg);
+
         position: absolute;
         left: calc(($sideways-width - $tile-width) / 2);
         top: calc(($sideways-height - $tile-height) / 2);

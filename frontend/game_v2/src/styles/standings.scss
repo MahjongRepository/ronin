@@ -4,7 +4,7 @@ $label-width: 7.75rem;
 $tap: 2.5rem;
 $tap-min: 40px;
 $short-board: 500px;
-$tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
+$tint: color-mix(in srgb, var(--ronin-text) 8%, transparent);
 
 .board-overlay__panel:has(> .standings) {
     display: flex;
@@ -22,7 +22,7 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     gap: 0.5rem;
     min-height: 0;
     margin: 0;
-    color: var(--pico-color);
+    color: var(--ronin-text);
 }
 
 .standings__head {
@@ -54,7 +54,7 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     font-size: 0.75rem;
     line-height: 1.2;
     background:
-        linear-gradient(transparent, rgb(0 0 0 / 75%)) 0 calc(100% - var(--foot-height)) / 100%
+        linear-gradient(transparent, var(--ronin-dim)) 0 calc(100% - var(--foot-height)) / 100%
             1.5rem no-repeat,
         var(--ronin-surface);
 
@@ -63,7 +63,7 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     }
 
     &:focus-visible {
-        outline: 2px solid var(--ronin-gold);
+        outline: 2px solid var(--ronin-accent);
         outline-offset: 1px;
     }
 }
@@ -177,11 +177,11 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     touch-action: manipulation;
 
     &:hover {
-        border-color: var(--pico-primary);
+        border-color: var(--ronin-text);
     }
 
     &:focus-visible {
-        outline: 2px solid var(--ronin-gold);
+        outline: 2px solid var(--ronin-accent);
         outline-offset: 1px;
     }
 }
@@ -257,7 +257,7 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     width: 0.45em;
     height: 0.45em;
     border-radius: 50%;
-    background: var(--ronin-gold);
+    background: var(--ronin-dealer-mark);
 }
 
 .standings__mark--win {

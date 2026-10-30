@@ -65,9 +65,12 @@ interface RouteBudget {
  * The game's JS re-set on 2026-10-30 from 188 / 57.7 to 208 / 64.2 at 188.9 / 58.4 (181.3 / 56.4 before): the
  * decisions' ranking, the two-step choice of tiles, the answered and expired controls, the timer's slot, the furiten
  * mark, the action source and callouts placed clear of the latest discard.
+ * The game's CSS re-set on 2026-10-30 from 116 / 19.2 to 130 / 21.7 at 118.3 / 19.7: the base already stood at
+ * 115.7 / 19.2 (the play switches), and the material pass (the palette's tokens, the tiles' edge and shadow, the
+ * surface under the insets) added 2.4 / 0.6.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 19.2, raw: 116 }, js: { gzip: 64.2, raw: 208 } },
+    game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 2.8, raw: 8.9 },

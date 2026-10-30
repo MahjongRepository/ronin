@@ -56,7 +56,7 @@
     justify-content: center;
     gap: 0.4rem;
     padding: 0.4rem;
-    background: color-mix(in srgb, var(--ronin-surface-elevated) 90%, transparent);
+    background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.5rem;
 
@@ -96,7 +96,7 @@
 
     &--active {
         background: var(--ronin-border);
-        color: var(--ronin-text-primary);
+        color: var(--ronin-text);
     }
 
     @media (orientation: landscape) {

@@ -8,7 +8,7 @@ $aside-phone: calc(2 * #{$move-size} + #{$column-gap} + 2 * #{$column-pad} + 2px
 $bar: "(orientation: landscape) and (width >= 1024px) and (height >= 600px)";
 $bar-text-floor: 12px;
 $narration-hint: color-mix(in srgb, var(--ronin-text-secondary) 55%, transparent);
-$column-surface: var(--ronin-surface-elevated);
+$column-surface: var(--ronin-surface);
 $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape) and (height < 600px)";
 
 .replay-state {
@@ -162,6 +162,16 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     }
 }
 
+/* The replay's moves, options and round toggle are quiet controls, a pressed one ringed. */
+:is(.replay-controls__round, .replay-controls__option, .replay-controls__move) {
+    &,
+    &:is(:hover, :active, :focus) {
+        --pico-background-color: var(--ronin-action-quiet);
+        --pico-border-color: var(--ronin-action-quiet-rim);
+        --pico-color: var(--ronin-action-quiet-ink);
+    }
+}
+
 .replay-controls__round,
 .replay-controls__options,
 .replay-controls__moves {
@@ -182,7 +192,7 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     line-height: 1.2;
 
     &[aria-expanded="true"] {
-        background: var(--pico-primary-hover-background);
+        box-shadow: inset 0 0 0 2px var(--ronin-text);
     }
 
     @media #{$bar} {
@@ -308,14 +318,7 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     }
 
     &[aria-pressed="true"] {
-        background: var(--pico-primary-hover-background);
-        box-shadow: inset 0 0 0 2px var(--pico-primary-focus);
-    }
-
-    &:not([aria-pressed="true"]) {
-        --pico-background-color: var(--ronin-surface-elevated);
-        --pico-border-color: var(--ronin-border);
-        --pico-color: var(--pico-contrast);
+        box-shadow: inset 0 0 0 2px var(--ronin-text);
     }
 }
 
@@ -363,14 +366,14 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     gap: 0;
     width: min(24rem, 100%);
     margin: 0;
-    background: var(--ronin-surface-elevated);
+    background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.5rem;
-    box-shadow: -4px 0 16px rgb(0 0 0 / 45%);
+    box-shadow: var(--ronin-panel-shadow);
 
     @media #{$bar} {
         inset: auto auto 0 0;
-        box-shadow: 4px 0 16px rgb(0 0 0 / 45%);
+        box-shadow: var(--ronin-panel-shadow);
     }
 
     > * {
@@ -443,12 +446,12 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     border-radius: 0.375rem;
 
     &:hover {
-        background: color-mix(in srgb, var(--pico-primary) 10%, transparent);
+        background: var(--ronin-action-quiet);
     }
 
     &[aria-current="true"] {
-        border-color: var(--pico-primary);
-        background: color-mix(in srgb, var(--pico-primary) 15%, transparent);
+        border-color: var(--ronin-text);
+        background: var(--ronin-action-quiet);
     }
 }
 

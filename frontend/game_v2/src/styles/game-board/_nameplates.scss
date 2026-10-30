@@ -20,7 +20,7 @@ $plate-seats: bottom, right, top, left;
     font-weight: 550;
     line-height: 1.2;
     text-align: left;
-    color: var(--pico-color);
+    color: var(--ronin-badge-ink);
     background: none;
     border: 0;
     cursor: pointer;
@@ -38,7 +38,7 @@ $plate-seats: bottom, right, top, left;
     }
 
     &:focus-visible {
-        outline: 3px solid var(--ronin-gold);
+        outline: 3px solid var(--ronin-accent);
         outline-offset: 2px;
     }
 }
@@ -52,8 +52,8 @@ $plate-seats: bottom, right, top, left;
     padding: 0 0.6em 0 0.3em;
     overflow: hidden;
     white-space: nowrap;
-    background: var(--ronin-surface-overlay);
-    border: 1px solid var(--ronin-border);
+    background: var(--ronin-badge);
+    border: 1px solid var(--ronin-badge-rim);
     border-radius: calc(var(--pill-h) * 0.27);
 
     .nameplate--current & {
@@ -61,7 +61,7 @@ $plate-seats: bottom, right, top, left;
     }
 
     .nameplate[aria-pressed="true"] & {
-        outline: 2px solid var(--pico-color);
+        outline: 2px solid var(--ronin-badge-ink);
         outline-offset: 2px;
     }
 }
@@ -160,13 +160,13 @@ $plate-seats: bottom, right, top, left;
     height: 1.55em;
     font-size: max(11.5px, 0.9em);
     font-weight: 700;
-    color: hsl(220deg 30% 92%);
-    background: hsl(225deg 30% 32%);
+    color: var(--ronin-badge-wind-ink);
+    background: var(--ronin-badge-wind);
     border-radius: 5px;
 
     .nameplate--dealer & {
-        color: hsl(0deg 30% 96%);
-        background: hsl(0deg 55% 45%);
+        color: var(--ronin-dealer-ink);
+        background: var(--ronin-dealer);
     }
 }
 
@@ -192,7 +192,7 @@ $plate-seats: bottom, right, top, left;
     font-size: max(11px, 0.78em);
     font-weight: 700;
     letter-spacing: 0.04em;
-    color: var(--ronin-text-secondary);
+    color: var(--ronin-badge-muted);
     border: 1px solid var(--ronin-border-mark);
     border-radius: 4px;
 }

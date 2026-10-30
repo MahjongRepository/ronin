@@ -1,23 +1,42 @@
 /* The tile box, 3:4 from its width (60px standalone; a board sets `--tile-w`): the face artwork inset by the same
    room on every side, 8% of the width (6% of the height), and the corners a share of the box. */
 $glyph-room: 0.08;
+$edge-share: 0.07;
 
+/* A face's material: ivory with a rim, a small edge and a shadow that fall toward the screen's bottom whatever the
+   tile's turn (`--tile-turn`, the frame's turn plus a sideways tile's own), so none of it takes any room. */
 .tile {
     --tile-w: 60px;
+    --tile-turn: var(--frame-turn, 0deg);
+    --edge: max(1px, calc(var(--tile-w) * #{$edge-share}));
+    --edge-x: calc(sin(var(--tile-turn)) * var(--edge));
+    --edge-y: calc(cos(var(--tile-turn)) * var(--edge));
+    --tile-ring: inset 0 0 0 1px var(--ronin-tile-rim);
+    --tile-lift:
+        var(--edge-x) var(--edge-y) 0 var(--ronin-tile-edge),
+        calc(var(--edge-x) * 2) calc(var(--edge-y) * 2) calc(var(--edge) * 2.5)
+            var(--ronin-tile-shadow);
 
     display: inline-block;
     width: var(--tile-w);
     height: calc(var(--tile-w) * 4 / 3);
     padding: calc(var(--tile-w) * #{$glyph-room});
     border-radius: 9% / 7%;
+    background: var(--ronin-tile-face);
+    box-shadow: var(--tile-ring), var(--tile-lift);
+
+    svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
 }
 
-/* A back has no glyph room, only the board's current thin face-coloured rim, 5% of each side's length, which keeps
-   backs in a strip apart until the material pass gives them an edge. */
-$back-rim: 0.05;
-
+/* A back: one quiet colour with its own rim, on the same edge and shadow, so a strip of backs reads tile by tile. */
 .tile-back {
-    padding: calc(var(--tile-w) * #{$back-rim} * 4 / 3) calc(var(--tile-w) * #{$back-rim});
+    --tile-ring: inset 0 0 0 1px var(--ronin-back-rim);
+
+    background: var(--ronin-back);
 }
 
 /* A face's name stands in for it until the sprite is in the document, in the tile's own viewBox units. */
@@ -29,7 +48,7 @@ $back-rim: 0.05;
     fill: var(--ronin-surface);
 
     &--red {
-        fill: var(--ronin-danger);
+        fill: var(--ronin-tile-red);
     }
 
     :root[data-tile-sprite="ready"] & {

@@ -54,18 +54,24 @@ $strip-lengths:
     }
 
     &--right {
+        --frame-turn: -90deg;
+
         left: calc(var(--cx) + var(--h) + var(--g));
         top: calc(var(--cy) + var(--h));
         transform: rotate(-90deg);
     }
 
     &--top {
+        --frame-turn: 180deg;
+
         left: calc(var(--cx) + var(--h));
         top: calc(var(--cy) - var(--h) - var(--g));
         transform: rotate(180deg);
     }
 
     &--left {
+        --frame-turn: 90deg;
+
         left: calc(var(--cx) - var(--h) - var(--g));
         top: calc(var(--cy) - var(--h));
         transform: rotate(90deg);
@@ -93,18 +99,24 @@ $strip-lengths:
     }
 
     &--top {
+        --frame-turn: 180deg;
+
         left: var(--top-strip-x);
         top: var(--m);
         transform: rotate(180deg);
     }
 
     &--right {
+        --frame-turn: -90deg;
+
         left: calc(100cqw - var(--m));
         top: calc(var(--foreground-top) + 2px);
         transform: rotate(-90deg);
     }
 
     &--left {
+        --frame-turn: 90deg;
+
         left: var(--m);
         top: var(--side-start);
         transform: rotate(90deg);

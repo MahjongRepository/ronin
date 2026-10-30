@@ -34,7 +34,7 @@ $indicator-scale: 0.6;
     display: flex;
     justify-content: center;
     align-items: center;
-    background: rgb(0 0 0 / 60%);
+    background: var(--ronin-dim);
     z-index: 20;
     padding: 0.5rem;
 }
@@ -43,6 +43,8 @@ $indicator-scale: 0.6;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
+    box-shadow: var(--ronin-panel-shadow);
+    color: var(--ronin-text);
     padding: 0.6rem 0.75rem;
     max-width: min(100%, 900px);
     max-height: 100%;

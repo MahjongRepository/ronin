@@ -34,7 +34,7 @@ button.hand-tile {
     transition: transform 0.12s ease;
 
     &:focus-visible {
-        outline: 3px solid var(--ronin-gold);
+        outline: 3px solid var(--ronin-accent);
         outline-offset: 2px;
     }
 
@@ -75,7 +75,7 @@ button.hand-tile {
     }
 
     .tile {
-        outline: 3px solid var(--ronin-gold);
+        outline: 3px solid var(--ronin-accent);
         outline-offset: 0;
     }
 }

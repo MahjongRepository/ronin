@@ -1,5 +1,5 @@
-// Ronin Mahjong - "Parlor at Night" dark theme
-// Warm blacks with bamboo green accent, refined Japanese aesthetic
+/* The board's palette: treatment A of the approved look (docs/game-client-look.md, Material and type), a dark teal
+   table, ivory faces, one accent for the player's own action. Components use these tokens, never literal colours. */
 
 /* The one face, self-hosted (assets/fonts/SOURCE.txt). Swap: text never hides while it loads (a countdown reads at
    once); index.html preloads it, so it usually lands before the board does. */
@@ -12,50 +12,58 @@
 }
 
 [data-theme="dark"] {
-    // Warm dark background layers (charcoal with warm brown undertone)
-    --pico-background-color: #0e0f13;
-    --pico-card-background-color: #161821;
-    --pico-card-sectioning-background-color: #1c1e2a;
+    --pico-background-color: #172a2d;
+    --pico-card-background-color: #0f1c1f;
+    --pico-card-sectioning-background-color: #142427;
+    --pico-color: #e8efeb;
+    --pico-muted-color: #a8bab4;
+    --pico-muted-border-color: #2e464b;
 
-    // Text hierarchy (warm off-whites for readability)
-    --pico-color: #e8e4df;
-    --pico-muted-color: #7a7670;
-    --pico-muted-border-color: #2a2621;
-    --ronin-text-secondary: #b0aaa2;
-    --ronin-text-muted: #8a857d;
-
-    // Primary (matcha/bamboo green)
-    --pico-primary: #7bb88a;
-    --pico-primary-hover: #6aaa79;
-    --pico-primary-background: #4a8a58;
+    /* Pico's primary is the accent (the player's own action), its secondary the quiet outlined control. */
+    --pico-primary: #f2b544;
+    --pico-primary-hover: #f6c568;
+    --pico-primary-underline: rgb(242 181 68 / 50%);
+    --pico-primary-background: #f2b544;
     --pico-primary-border: var(--pico-primary-background);
-    --pico-primary-hover-background: #3d7a4b;
+    --pico-primary-hover-background: #f6c568;
     --pico-primary-hover-border: var(--pico-primary-hover-background);
-    --pico-primary-inverse: #e8e4df;
-
-    // Form elements
-    --pico-form-element-background-color: #131419;
-    --pico-form-element-border-color: #2a2621;
-    --pico-form-element-focus-color: #7bb88a;
-
-    // Danger/error
-    --pico-del-color: #d45454;
+    --pico-primary-focus: rgb(242 181 68 / 35%);
+    --pico-primary-inverse: #1d1606;
+    --pico-secondary: #e2eae6;
+    --pico-secondary-background: rgb(255 255 255 / 5%);
+    --pico-secondary-border: #56707a;
+    --pico-secondary-hover: #f4f7f5;
+    --pico-secondary-hover-background: rgb(255 255 255 / 10%);
+    --pico-secondary-hover-border: #6d8a94;
+    --pico-secondary-focus: rgb(214 236 230 / 25%);
+    --pico-secondary-inverse: #e2eae6;
+    --pico-form-element-background-color: #0b1517;
+    --pico-form-element-border-color: #2e464b;
+    --pico-form-element-focus-color: #f2b544;
+    --pico-del-color: #ff9c8f;
 }
 
-// Project-specific tokens
 :root {
-    --ronin-gold: #c9a84c;
-    --ronin-success: #7bb88a;
-    --ronin-danger: #d45454;
-    --ronin-warning: #d4a04c;
+    --ronin-text: var(--pico-color);
+    --ronin-text-secondary: #a8bab4;
+    --ronin-accent: #f2b544;
+    --ronin-accent-ink: #1d1606;
+    --ronin-accent-edge: #b8841a;
+    --ronin-success: #5fd08a;
+    --ronin-warning: #ffb36b;
+    --ronin-danger: #ff9c8f;
+    --ronin-score-positive: #7fe0a5;
+    --ronin-score-negative: #ff9c8f;
 
-    // Warm surfaces
-    --ronin-surface: #161821;
-    --ronin-surface-elevated: #1c1e2a;
-    --ronin-surface-overlay: #222433;
-    --ronin-border: #28261f;
-    --ronin-border-subtle: #1e1c17;
-    --ronin-table: #1c3033;
+    /* Panels (the centre, the overlay's panels, the replay's controls) and their rims. */
+    --ronin-surface: #0f1c1f;
+    --ronin-border: #2e464b;
+    --ronin-border-subtle: #213538;
+    --ronin-border-mark: #4f6a70;
+    --ronin-panel-shadow: 0 6px 18px rgb(0 0 0 / 35%);
+    --ronin-dim: rgb(8 15 17 / 62%);
+
+    /* The table's surface: its gradient, the zone lines and field tints, the neutral latest and turn marks. */
     --ronin-table-fill: radial-gradient(ellipse at 50% 45%, #23393d 0%, #1c3033 55%, #172a2d 100%);
     --ronin-table-edge: #172a2d;
     --ronin-table-zone-line: rgb(214 236 230 / 17%);
@@ -64,21 +72,50 @@
     --ronin-table-latest: #f4f7f5;
     --ronin-table-latest-inner: #26332f;
     --ronin-table-turn: #e8efeb;
-    --ronin-border-mark: #4f6a70;
-    --ronin-text: var(--pico-color);
-    --ronin-accent-ink: #1d1606;
-    --ronin-action-quiet: rgb(255 255 255 / 6%);
-    --ronin-held-rim: #5a6662;
+
+    /* Tiles: an ivory face with a rim, an edge and a shadow that fall toward the screen's bottom; backs one quiet teal. */
+    --ronin-tile-face: #f7f3e7;
+    --ronin-tile-rim: #d9d0b9;
+    --ronin-tile-edge: #a99a74;
+    --ronin-tile-shadow: rgb(0 0 0 / 42%);
+    --ronin-tile-red: #d71e1e;
+    --ronin-back: #4a7a71;
+    --ronin-back-rim: #5d8f85;
+    --ronin-held-rim: #4a5652;
+
+    /* Badges, the pooled counters and the page corner, notices. */
+    --ronin-badge: rgb(11 21 23 / 78%);
+    --ronin-badge-rim: #344b50;
+    --ronin-badge-ink: #eef3ef;
+    --ronin-badge-muted: #b9c9c4;
+    --ronin-badge-wind: #2d4549;
+    --ronin-badge-wind-ink: #f2f5f2;
+    --ronin-chip: rgb(11 21 23 / 62%);
+    --ronin-notice: rgb(11 21 23 / 88%);
+    --ronin-wind-ink: #d3e2dd;
+    --ronin-wind-rim: #46616a;
+    --ronin-dealer: #c2382f;
+    --ronin-dealer-ink: #fff;
+    --ronin-dealer-mark: #ffb36b;
+    --ronin-stick: #f4f1e8;
+    --ronin-stick-rim: rgb(0 0 0 / 45%);
+    --ronin-stick-dot: #c42230;
+    --ronin-honba-dot: #2b2b2b;
+
+    /* Controls: the quiet one (Pass, Back, the replay's moves), the callouts' chips and the play switches. */
+    --ronin-action-quiet: rgb(255 255 255 / 5%);
+    --ronin-action-quiet-ink: #e2eae6;
+    --ronin-action-quiet-rim: #56707a;
+    --ronin-callout: #0f1c1f;
+    --ronin-callout-ink: #f4f7f5;
+    --ronin-callout-rim: #9fb8b2;
+    --ronin-callout-win-rim: #ff8a7a;
     --ronin-switch-face: rgb(11 21 23 / 35%);
     --ronin-switch-rim: #37505a;
     --ronin-switch-track: #8ea39e;
     --ronin-switch-on: #86dfc0;
     --ronin-switch-on-face: rgb(99 199 166 / 14%);
     --ronin-switch-on-knob: #0f1c1f;
-
-    // Score colors
-    --ronin-score-positive: #7bb88a;
-    --ronin-score-negative: #d4726a;
 
     /* Inter, then the system's sans-serif for glyphs outside its Latin subset (a name in another script). Only the
        debug views (the game's ?debug log, the storybook's sent messages) keep a system monospace. */
@@ -92,14 +129,11 @@
     --ronin-safe-left: env(safe-area-inset-left, 0px);
 }
 
-// Sticky footer layout
 body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    background:
-        radial-gradient(ellipse 80% 50% at 50% 0%, rgb(123 184 138 / 3%) 0%, transparent 50%),
-        var(--pico-background-color);
+    background: var(--pico-background-color);
 }
 
 main {

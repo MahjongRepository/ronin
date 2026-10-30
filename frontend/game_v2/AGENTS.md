@@ -407,7 +407,10 @@ follows holds through the rebuild to it.
     inner rim, its face and glyph colours kept; while some are held back the playable ones stand raised; a
     declaring or played tile is lifted and outlined in the accent, never into the 4px kept under the band.
   * The zone device is decoration under every layer: lines and field tints from the centre's corners,
-    drawn with `hypot`/`atan2` and clip paths from the same lengths.
+    drawn with `hypot`/`atan2` and clip paths from the same lengths. On a landscape board page it and the surface's
+    gradient run on under the safe-area insets to the screen's edges the board meets (`--ox`, `--oy`, `--or`, `--ob`),
+    never toward an aside beside or under the board (a storybook's lies below, past a margin of the bottom inset), the
+    upper lines to the screen's top corners.
   * Text the board scales keeps a 10px floor, a safety limit, never the size to design to.
 * **Pages never clip the board.** `.board-page` gives it a definite box, the safe area exactly (sized with
   `dvh` and the theme's `--ronin-safe-*`, which a test can set; the table's surface runs on under the
@@ -468,7 +471,27 @@ follows holds through the rebuild to it.
   round and step under 13px or past two, or incompleteness under 12px; on a landscape phone, a
 replay narration showing fewer than three lines at once or leaving its column. On the replay's route,
 in both engines, a click, Enter and Space on Next must each step exactly once; the replay stories that
-show a board run on the browser's clock for that reason, so their input keeps its real timing. On the decisions
+show a board run on the browser's clock for that reason, so their input keeps its real timing. On the anchor
+checkpoints (the riichi toggle on and off), the worst board, a round result and the switches beside furiten, at the
+spec's three viewports and the narrow desktop (`CONTRAST_VIEWPORTS`: the smallest faces at one device pixel to a CSS
+pixel), every text, mark and face's glyph the page shows (a held-back face included) must keep 4.5:1 against what it is
+painted on (`checkContrast`). The page is shot as drawn, without every text fill and glyph, without its pseudo-elements'
+text, and without each batch of marks. A text (an element's own text nodes, or the text a pseudo-element draws, the
+latter on the area its ink changed) is its painted colour (with every opacity above it) against the background the
+page paints under its glyphs (found from shots painting all text one loud colour), in small square cells across its box
+both ways, the worst kept, so no band or patch is outvoted;
+its ink must also show. A glyph's every ink (its sprite symbol's fills and strokes, with their opacities; white
+highlights aside: a paint the artwork authors white, `SPRITE_HIGHLIGHTS`, never a paint merely pale; the rendered
+instance's and its ancestors' opacity folded in) is checked against the face's painted colour at every size, so a wrong colour fails on a small face
+too; each ink must also be drawn, and its best pixel as drawn must reach the floor on a face of at least 24 device
+pixels, under which a shortfall is reported in the page's summary line, never counted a pass (the spec: reported, not
+redrawn). A mark (`CONTRAST_MARKS`, each piece of information its own mark, such as a stick's body apart from its dots
+and a toggle's check apart from its box) is its best changed pixel against the same pixel without it; an absent mark
+(an unpressed toggle's check) must change none. A target that cannot be read (under a filter, a symbol with no ink) or
+shows no ink fails, listed. The summary line gives each kind's count and lowest ratio. A toggle's lamp must also show
+its check exactly while the toggle is pressed, structurally. The table's surface runs on under the insets but never
+under an aside (its box must not meet the aside's), and the board's content-overflow measure leaves it out.
+On the decisions
 story with every switch on beside furiten, Shift+Tab from the hand's first tile must reach a switch, and Space and
 Enter on Auto win must each turn it once, sending nothing. It also fails on a round end that does not scroll inside its panel where it does not fit (its content
   past its foot at the scroll's end, its primary button and countdown wholly in view at both ends; a case
@@ -537,8 +560,14 @@ rather than introducing new FSD layers:
 * Styles: Pico CSS v2 (`styles/_pico.scss`) styles semantic HTML; add classes only for
   project-specific components. The page is always dark (`index.html`), so `_pico.scss` assembles
   Pico's modules itself with only the dark scheme; a page using an element of a module it leaves
-  out (a table, a dialog, a form control) enables that module there. Use the `--ronin-*` tokens
-  from `styles/_theme.scss` rather than literal colors and fonts. Text has one face, `--ronin-font` (the face, Build),
+  out (a table, a dialog, a form control) enables that module there. Every colour is a `--ronin-*` token of
+  `styles/_theme.scss`, the look spec's treatment A palette, never a literal in a component (a `color-mix` of tokens
+  is fine); a new surface or mark takes an existing token or adds one there. The theme also sets Pico's own: its
+  primary is the accent, so a plain button is the accent (the player's own action, the spec's one accent) and a
+  `secondary` one the quiet outlined control. A tile's material is `styles/_tile.scss`'s alone: an ivory face with a
+  rim (`--tile-ring`), an edge and a shadow (`--tile-lift`) cast toward the screen's bottom whatever the tile's turn
+  (each turned frame sets `--frame-turn`, a sideways tile adds its quarter turn), all box shadows, so the material
+  never moves a box; a back is the same box in one quiet colour, drawn by the stylesheet alone. Text has one face, `--ronin-font` (the face, Build),
   and no monospace: only the debug views (the `?debug` log, the storybook's sent messages) use `--ronin-font-debug`,
   which Pico's code elements take too. A figure that aligns (a score, a count, a timer, a result or standings figure)
   takes `type.figures` (`styles/_type.scss`) on its own numeric element, never on a container holding text: tabular

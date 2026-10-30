@@ -17,8 +17,8 @@
     width: var(--counters-w);
     padding: 8px 14px 8px 8px;
     font-size: 19px;
-    background: var(--ronin-surface-overlay);
-    border: 1px solid var(--ronin-border);
+    background: var(--ronin-chip);
+    border: 1px solid var(--ronin-badge-rim);
     border-radius: 10px;
 
     @include small-chrome {
@@ -52,7 +52,7 @@
     padding-left: 2px;
     font-weight: 600;
     line-height: 1.1;
-    color: var(--pico-color);
+    color: var(--ronin-text);
 
     @include small-chrome {
         font-size: 11.5px;

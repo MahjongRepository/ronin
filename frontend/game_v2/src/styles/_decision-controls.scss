@@ -213,9 +213,10 @@ $pair-gap: 4px;
     min-height: $row;
     margin: 0;
     padding: 0.25rem 0.7em;
-    border: 1px solid var(--ronin-gold);
+    border: 1px solid var(--ronin-accent);
     border-radius: 10px;
-    background-color: var(--ronin-gold);
+    background-color: var(--ronin-accent);
+    box-shadow: 0 2px 0 var(--ronin-accent-edge);
     color: var(--ronin-accent-ink);
     font-size: var(--action-text);
     font-weight: 700;
@@ -224,8 +225,8 @@ $pair-gap: 4px;
     touch-action: manipulation;
 
     &:is(:hover, :active, :focus) {
-        border-color: var(--ronin-gold);
-        background-color: var(--ronin-gold);
+        border-color: var(--ronin-accent);
+        background-color: var(--ronin-accent);
         color: var(--ronin-accent-ink);
     }
 
@@ -243,15 +244,16 @@ $pair-gap: 4px;
 }
 
 .decision-controls .decision-controls__action--pass {
-    border-color: var(--ronin-border-mark);
+    border-color: var(--ronin-action-quiet-rim);
     background-color: var(--ronin-action-quiet);
-    color: var(--ronin-text);
+    box-shadow: none;
+    color: var(--ronin-action-quiet-ink);
     font-weight: 600;
 
     &:is(:hover, :active, :focus) {
-        border-color: var(--ronin-border-mark);
+        border-color: var(--ronin-action-quiet-rim);
         background-color: var(--ronin-action-quiet);
-        color: var(--ronin-text);
+        color: var(--ronin-action-quiet-ink);
     }
 }
 
@@ -261,7 +263,8 @@ $pair-gap: 4px;
     font-size: calc(var(--action-text) * 1.2);
     font-weight: 800;
     box-shadow:
-        inset 0 0 0 2px var(--ronin-gold),
+        0 2px 0 var(--ronin-accent-edge),
+        inset 0 0 0 2px var(--ronin-accent),
         inset 0 0 0 4px var(--ronin-surface);
 
     @include desktop-board {
@@ -270,8 +273,6 @@ $pair-gap: 4px;
     }
 }
 
-/* A choice of tiles stands on a dark face ringed in the accent, so its tiles (backs included) read on it. */
-
 /* A desktop row reads the open call first, before its choices; a phone's column keeps it last, where it stood. */
 .decision-controls .decision-controls__action--step[aria-pressed="true"] {
     @include desktop-board {
@@ -279,12 +280,14 @@ $pair-gap: 4px;
     }
 }
 
+/* A choice of tiles stands on a dark face ringed in the accent, so its tiles (backs included) read on it. */
 .decision-controls .decision-controls__action--choice {
     &,
     &:is(:hover, :active, :focus) {
         padding: 0.3rem 0.5rem;
-        border: 2px solid var(--ronin-gold);
-        background-color: var(--ronin-surface-elevated);
+        border: 2px solid var(--ronin-accent);
+        background-color: var(--ronin-surface);
+        box-shadow: none;
         color: var(--ronin-text);
     }
 }
@@ -292,7 +295,8 @@ $pair-gap: 4px;
 /* Rings lie inside a control's box, so its box is all it takes on the board. */
 .decision-controls .decision-controls__action[aria-pressed="true"] {
     box-shadow:
-        inset 0 0 0 2px var(--ronin-gold),
+        0 2px 0 var(--ronin-accent-edge),
+        inset 0 0 0 2px var(--ronin-accent),
         inset 0 0 0 4px var(--ronin-surface);
 }
 

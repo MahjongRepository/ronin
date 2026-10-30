@@ -1,12 +1,42 @@
 @use "grid" as *;
 
+/* The surface and its zones run on under a landscape page's insets to the screen's edges the board meets (never toward
+   an aside but a storybook's, past its margin); the zones keep the board's lengths, offset by the insets passed. */
 .board-zones {
-    --zone-tl-x: calc(var(--cx) - var(--h));
-    --zone-tr-x: calc(var(--cx) + var(--h));
-    --zone-top-y: calc(var(--cy) - var(--h));
-    --zone-bottom-y: calc(var(--cy) + var(--h));
+    --ox: 0px;
+    --oy: 0px;
+    --or: 0px;
+    --ob: 0px;
+    --zone-w: calc(100cqw + var(--ox) + var(--or));
+    --zone-tl-x: calc(var(--cx) - var(--h) + var(--ox));
+    --zone-tr-x: calc(var(--cx) + var(--h) + var(--ox));
+    --zone-top-y: calc(var(--cy) - var(--h) + var(--oy));
+    --zone-bottom-y: calc(var(--cy) + var(--h) + var(--oy));
+    --zone-band-y: calc(var(--foreground-top) + var(--oy));
 
+    inset: calc(-1 * var(--oy)) calc(-1 * var(--or)) calc(-1 * var(--ob)) calc(-1 * var(--ox));
     pointer-events: none;
+
+    .board-page & {
+        @media (orientation: landscape) {
+            --ox: var(--ronin-safe-left);
+            --oy: var(--ronin-safe-top);
+        }
+    }
+
+    :is(.board-page:not(:has(> .board-page__aside)), .board-storybook, .decisions-storybook) & {
+        @media (orientation: landscape) {
+            --or: var(--ronin-safe-right);
+            --ob: var(--ronin-safe-bottom);
+        }
+    }
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: var(--ronin-table-fill);
+    }
 }
 
 .board-zones__field {
@@ -19,7 +49,7 @@
             0 0,
             var(--zone-tl-x) var(--zone-top-y),
             var(--zone-tl-x) var(--zone-bottom-y),
-            0 var(--foreground-top)
+            0 var(--zone-band-y)
         );
     }
 
@@ -29,7 +59,7 @@
             100% 0,
             var(--zone-tr-x) var(--zone-top-y),
             var(--zone-tr-x) var(--zone-bottom-y),
-            100% var(--foreground-top)
+            100% var(--zone-band-y)
         );
     }
 
@@ -72,21 +102,21 @@
     &--top-right {
         --x1: var(--zone-tr-x);
         --y1: var(--zone-top-y);
-        --x2: 100cqw;
+        --x2: var(--zone-w);
         --y2: 0px;
     }
 
     &--bottom-right {
         --x1: var(--zone-tr-x);
         --y1: var(--zone-bottom-y);
-        --x2: 100cqw;
-        --y2: var(--foreground-top);
+        --x2: var(--zone-w);
+        --y2: var(--zone-band-y);
     }
 
     &--bottom-left {
         --x1: var(--zone-tl-x);
         --y1: var(--zone-bottom-y);
         --x2: 0px;
-        --y2: var(--foreground-top);
+        --y2: var(--zone-band-y);
     }
 }

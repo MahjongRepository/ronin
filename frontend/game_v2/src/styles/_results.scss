@@ -7,14 +7,14 @@
     flex-direction: column;
     gap: 0.5rem;
     min-width: min(18rem, 100%);
-    color: var(--pico-color);
+    color: var(--ronin-text);
 }
 
 .game-start__title {
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
-    color: var(--pico-color);
+    color: var(--ronin-text);
 }
 
 .game-start__seats {
@@ -39,8 +39,8 @@
     list-style: none;
 
     &--viewer {
-        border-color: color-mix(in srgb, var(--ronin-gold) 60%, transparent);
-        background: color-mix(in srgb, var(--ronin-gold) 10%, transparent);
+        border-color: var(--ronin-border-mark);
+        background: var(--ronin-action-quiet);
     }
 }
 
@@ -54,8 +54,9 @@
     font-weight: 700;
 
     .game-start__seat--dealer & {
-        border-color: var(--ronin-danger);
-        color: var(--ronin-danger);
+        border-color: var(--ronin-dealer);
+        background: var(--ronin-dealer);
+        color: var(--ronin-dealer-ink);
     }
 }
 
@@ -94,8 +95,8 @@
     }
 
     &--viewer {
-        border-color: color-mix(in srgb, var(--ronin-gold) 60%, transparent);
-        color: var(--ronin-gold);
+        border-color: var(--ronin-border-mark);
+        color: var(--ronin-text);
     }
 }
 
@@ -103,7 +104,7 @@
     margin: 0;
     font-size: 0.95rem;
     font-weight: 700;
-    color: var(--ronin-gold);
+    color: var(--ronin-text);
     text-align: center;
 }
 
@@ -122,7 +123,7 @@
         "scores";
     gap: 0.4rem 1rem;
     font-size: 0.8rem;
-    color: var(--pico-color);
+    color: var(--ronin-text);
 }
 
 .round-end-result--draw {
@@ -145,7 +146,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: var(--ronin-gold);
+    color: var(--ronin-text);
 }
 
 .round-end-result__title {
@@ -161,7 +162,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--ronin-text-muted);
+    color: var(--ronin-text-secondary);
 }
 
 .round-end-result__from {
@@ -201,7 +202,7 @@
     touch-action: manipulation;
 
     &:focus-visible {
-        outline: 3px solid var(--ronin-gold);
+        outline: 3px solid var(--ronin-accent);
         outline-offset: 2px;
     }
 }
@@ -229,7 +230,7 @@
 
     .round-end-result__countdown {
         font-size: 0.85rem;
-        color: var(--ronin-gold);
+        color: var(--ronin-text);
     }
 }
 
@@ -269,7 +270,8 @@
     row-gap: 0.25rem;
 }
 
-/* The winning tile stands apart from the closed tiles and the melds, framed in gold under the way it was won. */
+/* The winning tile stands apart from the closed tiles and the melds, ringed in the neutral mark under the way it was
+   won. */
 .round-end-result__win-tile {
     display: inline-flex;
     flex-direction: column;
@@ -278,7 +280,10 @@
     margin-inline: 0.6rem 0.3rem;
 
     .tile {
-        box-shadow: 0 0 0 2px var(--ronin-gold);
+        box-shadow:
+            var(--tile-ring),
+            0 0 0 2px var(--ronin-table-latest),
+            var(--tile-lift);
     }
 }
 
@@ -288,7 +293,7 @@
     line-height: 1;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--ronin-gold);
+    color: var(--ronin-text);
 }
 
 .round-end-result__melds {
@@ -318,18 +323,18 @@
 .round-end-result__han {
     @include type.figures;
 
-    color: var(--pico-color);
+    color: var(--ronin-text);
     font-weight: 600;
 
     &::after {
         content: " han";
         font-weight: 400;
-        color: var(--ronin-text-muted);
+        color: var(--ronin-text-secondary);
     }
 }
 
 .round-end-result__yaku-dora > span:first-child {
-    color: var(--ronin-text-muted);
+    color: var(--ronin-text-secondary);
 }
 
 .round-end-result__value {
@@ -352,7 +357,7 @@
 .round-end-result__limit {
     font-size: 1.05rem;
     font-weight: 700;
-    color: var(--ronin-gold);
+    color: var(--ronin-text);
 }
 
 .round-end-result__han-fu {
@@ -465,7 +470,7 @@
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--ronin-text-muted);
+    color: var(--ronin-text-secondary);
 }
 
 .round-end-result__delta {
@@ -489,5 +494,5 @@
     @include type.figures;
 
     grid-row: 4;
-    color: var(--ronin-text-muted);
+    color: var(--ronin-text-secondary);
 }

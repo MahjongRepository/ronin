@@ -15,15 +15,15 @@ $overlay-hold-ms: 1000ms;
     position: absolute;
     z-index: 5;
     padding: 0 0.35em;
-    border: var(--chip-border) solid currentcolor;
+    border: var(--chip-border) solid var(--ronin-callout-rim);
     border-radius: 0.3em;
-    background: color-mix(in srgb, var(--ronin-surface) 92%, transparent);
-    box-shadow: 0 0 0.4em rgb(0 0 0 / 60%);
+    background: var(--ronin-callout);
+    box-shadow: var(--ronin-panel-shadow);
     font-size: min(var(--callout-cap), var(--rh) - 2 * var(--chip-border));
     font-weight: 700;
     line-height: 1;
     white-space: nowrap;
-    color: var(--ronin-gold);
+    color: var(--ronin-callout-ink);
     pointer-events: none;
     translate: -50% -50%;
     animation: callout-show var(--callout-ms) ease-out both;
@@ -58,11 +58,7 @@ $overlay-hold-ms: 1000ms;
 
     &--ron,
     &--tsumo {
-        color: var(--ronin-danger);
-    }
-
-    &--riichi {
-        color: var(--ronin-success);
+        border-color: var(--ronin-callout-win-rim);
     }
 }
 

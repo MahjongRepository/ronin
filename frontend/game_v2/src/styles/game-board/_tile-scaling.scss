@@ -67,7 +67,7 @@
         box-shadow: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
 
         > .tile {
-            box-shadow: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
+            --tile-ring: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
         }
 
         &::after {
@@ -91,11 +91,7 @@
         box-shadow: 0 0 0 1px var(--ronin-table-latest-inner);
     }
 
-    .discard-tile-riichi {
-        overflow: visible;
-
-        &.discard-tile--last {
-            border-radius: 7% / 9%;
-        }
+    .discard-tile-riichi.discard-tile--last {
+        border-radius: 7% / 9%;
     }
 }
