@@ -54,19 +54,43 @@ type OverlayMode = "none" | "round_end" | "game_end";
 const OVERLAY_MODES: readonly OverlayMode[] = ["none", "round_end", "game_end"];
 
 /**
- * The board's hand-written stories, the edge cases no generated scenario reaches: full rivers, and the worst case of
- * all at once (every seat with four melds, long rivers, five dora, AI marks). A board the scenarios reach is a
- * decisions story instead.
+ * The board's hand-written stories, the edge cases no generated scenario reaches: full rivers, the worst case of all
+ * at once (every seat with four melds, long rivers, five dora, AI marks), and the strips' capacity: every opponent's
+ * full hand (fourteen faces with the drawn tile apart, or thirteen backs) and legal mixed hands, each seat at one,
+ * two and three melds across the three mixed stories. A board the scenarios reach is a decisions story instead.
  */
-const BOARD_STORIES = ["full_rivers", "worst", "riichi_latest"] as const;
+const BOARD_STORIES = [
+    "full_rivers",
+    "worst",
+    "riichi_latest",
+    "full_hands",
+    "concealed_hands",
+    "mixed_hands_a",
+    "mixed_hands_b",
+    "mixed_hands_c",
+] as const;
 
 type BoardStory = (typeof BOARD_STORIES)[number];
 
 const BOARD_STORY_LABELS: Readonly<Record<BoardStory, string>> = {
+    concealed_hands: "Concealed hands",
+    full_hands: "Full hands",
     full_rivers: "Full rivers",
+    mixed_hands_a: "Mixed hands A",
+    mixed_hands_b: "Mixed hands B",
+    mixed_hands_c: "Mixed hands C",
     riichi_latest: "Riichi just discarded",
     worst: "Worst case",
 };
+
+/** The capacity stories, drawn as a played board's row (its furiten slot kept), as the live game draws it. */
+const PLAYED_ROW_STORIES: ReadonlySet<BoardStory> = new Set([
+    "full_hands",
+    "concealed_hands",
+    "mixed_hands_a",
+    "mixed_hands_b",
+    "mixed_hands_c",
+]);
 
 const DEFAULT_STORY: BoardStory = "full_rivers";
 
@@ -83,8 +107,11 @@ interface BoardStoryState {
     readonly story: BoardStory;
     readonly result: ResultStory;
     readonly page: number;
-    /** The most controls one discard can offer, over the board, kept in the page's `?offers=`. */
-    readonly offers: boolean;
+    /**
+     * The controls over the board, kept in the page's `?offers=`: the most one discard can offer, or a turn's pressed
+     * riichi toggle (the widest control the band takes beside the timer); none by default.
+     */
+    readonly offers: StoryOffers;
 }
 
 const DEFAULT_RESULT: ResultStory = "tsumo";
@@ -118,8 +145,13 @@ function storyCallouts(kind: CalloutKind | null): BoardCallouts | null {
     return { items: boardCallouts(calls, 0), key: kind };
 }
 
-function parseOffersParam(search: string): boolean {
-    return new URLSearchParams(search).get("offers") === "five";
+const STORY_OFFERS = ["none", "five", "riichi"] as const;
+
+type StoryOffers = (typeof STORY_OFFERS)[number];
+
+function parseOffersParam(search: string): StoryOffers {
+    const param = new URLSearchParams(search).get("offers");
+    return STORY_OFFERS.find((offers) => offers === param) ?? "none";
 }
 
 /** A control of the story's offers: what it answers with and how it ranks, its label and preview faces. */
@@ -183,6 +215,35 @@ function fiveOffers(): DecisionView {
         countdown: { kind: "running", move: "call", secondsLeft: 5, turn: null },
         decisionStanding: "open",
     };
+}
+
+/** A turn's riichi toggle, pressed, with its base and bank: the widest control the band takes beside the timer. */
+function riichiOffer(): DecisionView {
+    return {
+        actions: [
+            storyControl({
+                command: { kind: "toggle_riichi_pick" },
+                label: "Riichi",
+                pressed: true,
+                rank: "call",
+            }),
+        ],
+        countdown: {
+            kind: "running",
+            move: "turn",
+            secondsLeft: 45,
+            turn: { bankSeconds: 40, baseSeconds: 5, inBank: false },
+        },
+        decisionStanding: "open",
+    };
+}
+
+/** The decision a story's `?offers=` shows over its board, if any. */
+function storyOffers(offers: StoryOffers): DecisionView | null {
+    if (offers === "five") {
+        return fiveOffers();
+    }
+    return offers === "riichi" ? riichiOffer() : null;
 }
 
 function parsePinParam(search: string): SeatPosition | null {
@@ -477,6 +538,75 @@ function fourMelds(seat: number): MeldInput[] {
     ];
 }
 
+const THIRTEEN: readonly TileFace[] = [
+    "1m",
+    "2m",
+    "3m",
+    "5p",
+    "6p",
+    "7p",
+    "2s",
+    "3m",
+    "4m",
+    "5m",
+    "7m",
+    "8m",
+    "9m",
+];
+
+/** A hand of `count` concealed tiles (`3n+1` for its melds), shown as faces or backs, with the drawn tile apart. */
+function capacitySeat(
+    count: number,
+    {
+        discards,
+        drawn,
+        melds,
+        show,
+    }: {
+        readonly discards: readonly DiscardTile[];
+        readonly drawn: boolean;
+        readonly melds: readonly MeldInput[];
+        readonly show: "face" | "back";
+    },
+): BoardPlayerDisplay {
+    return {
+        discards,
+        drawnTile: drawn ? { face: "6z", show } : undefined,
+        hand: THIRTEEN.slice(0, count).map((face) => ({ face, show })),
+        melds: laid(melds),
+    };
+}
+
+/** `count` melds for `seat`, every one a kan, an added kan first: the longest and deepest lines a count can lay. */
+function kanMelds(seat: number, count: number): MeldInput[] {
+    const [closed, open, added] = fourMelds(seat);
+    return [added, open, closed].slice(0, count);
+}
+
+/** A seat's legal mixed hand at its turn: `count` melds and the thirteen less three a meld, plus the drawn tile. */
+function mixedSeat(seat: number, count: number): BoardPlayerDisplay {
+    return capacitySeat(13 - 3 * count, {
+        discards: fullRiver.slice(0, 10),
+        drawn: true,
+        melds: kanMelds(seat, count),
+        show: "face",
+    });
+}
+
+/** Each seat's meld count, bottom, right, top and left, in the three mixed stories. */
+function mixedHands(counts: readonly [number, number, number, number]): BoardDisplayState {
+    return {
+        center: mockCenter,
+        nameplates: riverPlates,
+        players: [
+            mixedSeat(0, counts[0]),
+            mixedSeat(1, counts[1]),
+            mixedSeat(2, counts[2]),
+            mixedSeat(3, counts[3]),
+        ],
+    };
+}
+
 function worstSeat(seat: number, discards: readonly DiscardTile[] = longRiver): BoardPlayerDisplay {
     return {
         discards,
@@ -487,6 +617,46 @@ function worstSeat(seat: number, discards: readonly DiscardTile[] = longRiver): 
 }
 
 const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
+    concealed_hands: {
+        center: mockCenter,
+        nameplates: riverPlates,
+        players: [
+            capacitySeat(13, {
+                discards: fullRiver.slice(0, 9),
+                drawn: true,
+                melds: [],
+                show: "face",
+            }),
+            capacitySeat(13, {
+                discards: fullRiver.slice(0, 9),
+                drawn: false,
+                melds: [],
+                show: "back",
+            }),
+            capacitySeat(13, {
+                discards: fullRiver.slice(0, 9),
+                drawn: false,
+                melds: [],
+                show: "back",
+            }),
+            capacitySeat(13, {
+                discards: riichiLatestRiver,
+                drawn: false,
+                melds: [],
+                show: "back",
+            }),
+        ],
+    },
+    full_hands: {
+        center: { ...mockCenter, tilesRemaining: 0 },
+        nameplates: riverPlates,
+        players: [
+            capacitySeat(13, { discards: longRiver, drawn: true, melds: [], show: "face" }),
+            capacitySeat(13, { discards: longRiver, drawn: true, melds: [], show: "face" }),
+            capacitySeat(13, { discards: longRiver, drawn: true, melds: [], show: "face" }),
+            capacitySeat(13, { discards: latestRiver, drawn: true, melds: [], show: "face" }),
+        ],
+    },
     full_rivers: {
         center: { ...mockCenter, tilesRemaining: 2 },
         nameplates: riverPlates,
@@ -497,6 +667,9 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
             withRiver(leftPlayer, thirteenFaces),
         ],
     },
+    mixed_hands_a: mixedHands([1, 3, 2, 1]),
+    mixed_hands_b: mixedHands([2, 2, 1, 3]),
+    mixed_hands_c: mixedHands([3, 1, 3, 2]),
     riichi_latest: {
         center: mockCenter,
         nameplates: riverPlates,
@@ -672,14 +845,18 @@ function storybookBoardTemplate(
     standings: StandingsRenderer | null,
 ): TemplateResult {
     const state = BOARD_STATES[story.story];
+    const offers = storyOffers(story.offers);
     return html`
         <div class="board-page board-storybook">
             <div class="board-page__board">
                 ${GameBoard({
-                    actions: story.offers ? DecisionControls(fiveOffers(), () => {}) : undefined,
+                    actions: offers === null ? undefined : DecisionControls(offers, () => {}),
                     callouts: storyCallouts(story.callout),
                     debug: story.debug,
-                    localHand: story.offers ? PLAYED_HAND : undefined,
+                    localHand:
+                        offers !== null || PLAYED_ROW_STORIES.has(story.story)
+                            ? PLAYED_HAND
+                            : undefined,
                     overlay: buildOverlay(story, handlers, standings),
                     scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
                     state,

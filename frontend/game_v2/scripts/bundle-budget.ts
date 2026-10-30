@@ -68,6 +68,8 @@ interface RouteBudget {
  * The game's CSS re-set on 2026-10-30 from 116 / 19.2 to 130 / 21.7 at 118.3 / 19.7: the base already stood at
  * 115.7 / 19.2 (the play switches), and the material pass (the palette's tokens, the tiles' edge and shadow, the
  * surface under the insets) added 2.4 / 0.6.
+ * The storybook's JS re-set on 2026-10-31 from 66 / 16.3 to 74 / 18 at 67.0 / 16.2: the board's capacity stories
+ * (every opponent's full hand, faces or backs, and legal mixed hands at one to three melds a seat).
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
@@ -84,7 +86,7 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     storybook: {
         chunk: "src/views/storybook-routes.ts",
         css: { gzip: 1.4, raw: 2.1 },
-        js: { gzip: 16.3, raw: 66 },
+        js: { gzip: 18, raw: 74 },
     },
 };
 

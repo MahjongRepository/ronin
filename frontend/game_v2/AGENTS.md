@@ -353,8 +353,11 @@ follows holds through the rebuild to it.
   rivers' capacity reach, the foreground band, a badge's place). Its lengths are registered
   (`@property`, `<length>`), so each computes once to pixels where it is set: an unregistered chain grows
   with every reference until a browser drops the declaration. A desktop's core also stays above the
-  foreground band's controls and below the top strip's slot, which binds a short desktop (1366x657); an
-  upright board takes the desktop rule, its core bounded by the width left beside two lines of side melds.
+  foreground band's controls and below the top strip's slot; a short desktop (`short-desktop-board`: under
+  760px high, at least 1100px wide, such as 1366x657) shares the band's lower corners as a phone does instead;
+  an upright board takes the desktop rule, its core bounded by the width left beside two lines of side melds.
+  A choice the rule makes between two placements is a length selected by `clamp(0px, x * 1000, 1px)` from the
+  viewport's lengths (a full hand's reach, the band's top), never from what a seat holds.
   The perimeter's chrome (badges, counters, the page's corner, callouts) takes a phone's size on a phone,
   upright and on a desktop board under 1100px wide, whose geometry stays the desktop's, and a step larger on
   a board of at least 2000x1200; the top strip's hand starts right of the counters however narrow the board.
@@ -372,11 +375,25 @@ follows holds through the rebuild to it.
     at every seat. A river's tiles touch; the pinwheel's gaps (0.3 of a river tile, rounded) part the rivers
     from each other and the centre at every capacity. A side river wraps past its third row into a fourth
     (`Discards`' `wrap`), a top or bottom one runs its third on (`run-on`).
+  * An opponent's concealed hand is at the river tile's size, its drawn tile 0.15 of one apart (`--dg`), and its
+    full reach (`--full-reach`, fourteen tiles and that gap) has a fixed place per viewport that nothing else
+    enters: the left hand runs down from below the counters and the play switches step in past its depth
+    (`--switches-clear`) where it would meet them; the right hand's origin (`--right-origin`) is the band's top
+    under the corner, else the top margin with the corner stepped in (`--corner-shift`, which the top badge's
+    room and a panel's corner reserve also take), else under the corner across the band, whose phone row then
+    ends before it (`--band-shift`, which a short board's notices over a panel follow). The choice asks
+    whether the hand from that origin enters the band row's height (its box starts at the band's top), with
+    half a pixel's tolerance, so the floor's height keeps two pixels of margin whatever the slots' widths.
+    With the corner stepped in, the strip's melds may rise to the top margin only while none is deeper than a
+    sideways tile (an added kan's stack would meet the corner). A board without the page's corner (a replay's,
+    the board storybook's) reserves none and steps nothing. The top hand stands
+    centred, short of a badge's width (`--top-badge-w`) before the corner and right of the counters.
   * A side strip's melds take its line while they fit and its oldest the second line inside it, from the
     foreground band toward its badge, scaled to end before the badge: each meld's place is chosen in CSS
     from the units the board hands it (`--mu-k`), never by measuring. The top strip keeps one line and
     scales its melds down, above the top river and the side badges and right of the counters; the own melds keep 1.2 river
-    tiles. No meld face goes under 13px wide.
+    tiles, scaled down to end before the board's edge (their area is a size container, from the meld units the board
+    hands the own row). No meld face goes under 13px wide.
   * A badge's place is fixed per viewport and never reads a tile count: the side badges stand clear of the
     deepest a strip's first line can be (two river tiles), and below the top river's capacity row wherever
     they would meet it (always on a phone), the right one level with the left unless that puts it beside the
@@ -395,15 +412,21 @@ follows holds through the rebuild to it.
     the own row's right end, the timer's fixed slot (`--timer-w`, a
     caption line over the digits: Time up, Sent, Bank) last; a row too narrow for its controls (a narrow
     desktop's) wraps the higher-ranked above the band's control and the timer, and four or more under 800px
-    shed their tile previews and spare width. On a phone the lowest-ranked control that is neither a win, a
-    choice of tiles nor a call's first step takes the band row beside the timer (the riichi toggle among them), starting past the own river's
+    shed their tile previews and spare width. A short desktop's row starts past the bottom and right rivers'
+    capacity reach and always stacks the higher-ranked above the band's control and the timer, padded clear
+    of the right strip as drawn (`--upper-clear`, from `--right-depth`); the band's control wraps above the
+    timer where the row cannot hold both, padded the same. A control's tiles stay inside the band's row room
+    (`--row-room`: the control's height and the band's slack less the 4px kept from a tile), so the river's
+    growth on a large board never brings a control within reach of the bottom river. On a phone the
+    lowest-ranked control that is neither a win, a choice of tiles nor a call's first step takes the band row beside the timer (the riichi toggle among them), starting past the own river's
     capacity reach; the rest stack upward, right-aligned, between the right river's capacity reach and the
     right strip as drawn (its second meld line counted, from the per-meld units `rightStripStyle` hands the
     stylesheet), a win or a choice across the column, and pair up, shedding their tile previews, where the
     column (a size container, `decisions`) is too short for one a row (the count `data-upper`). Rings lie
     inside a control's box. The board's container is named `game-board` and its viewport mixins query it by
     name, so a container inside the board never answers them.
-  * The play switches (`_play-switches.scss`) stand in their slot on the band row, bottom-aligned with the band:
+  * The play switches (`_play-switches.scss`) stand in their slot on the band row, bottom-aligned with the band, their
+    height `--switch-h` (which the left hand's reach is measured against):
     each a native button with the switch role and `aria-checked`, at least 40x40, its knob over its label on a phone
     and a narrow desktop, before it on a desktop; on and off differ by the knob's side, the track's fill and a mark
     on the track's free side (a bar on, a ring off), never by colour alone. They follow the decision controls in the
@@ -437,7 +460,9 @@ follows holds through the rebuild to it.
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
   dora, long names, AI marks and a pinned nameplate, and again with the most offers one discard can make,
-  whose phone column ends before the right strip's second meld line; a call at every seat; the dense round
+  whose phone column ends before the right strip's second meld line; the strips' capacity: every opponent's
+  full hand, fourteen faces with the drawn tile apart (with the most offers, and with a pressed riichi toggle
+  beside a full bottom river) or thirteen backs, and legal mixed hands, each seat at one, two and three melds; a call at every seat; the dense round
   results; the
   decisions stories, the seating before the first deal, a turn in its bank, the live standings and the
   last result reopened from them among them; the board's
@@ -447,15 +472,22 @@ follows holds through the rebuild to it.
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
   its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080
   (Chromium), 1366x657 on the anchor, the worst board, a call beside the latest riichi discard's row, the
-  replay and the live turn alone (`onlyPages`: the core bounded by the band, a chip bounded by its row),
-  800x600 on the anchor, the dense and two-step decisions and the worst board with and without offers (a
-  narrow desktop's chrome), iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
+  full and mixed hands, the replay and the live turn alone (`onlyPages`: the band's corners shared, a chip
+  bounded by its row), 800x600 on the anchor, the dense and two-step decisions, the worst board with and
+  without offers and the full and a mixed hand (a narrow desktop's chrome), 1280x720, 1536x730 and 1440x770
+  on the anchor, the offers and the full hands (`laptop-*`: either side of the short desktop's 760px),
+  2560x1440 on the offers, the choices and the full hands (`desktop-large`: a control's height against the
+  band), 680x375 and 700x375 (WebKit, `phone-680`/`phone-700`: wider phones at the floor's height, where the
+  own tile reaches 36px) on the anchor, the switches, the strips' capacity and the replay, iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
   and 21, asserted on every page) and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context, which
   asks for reduced motion so each shot shows an animation's resting state. It
   fails on content that is hidden or empty (a decision control's tile previews aside, which a pair may
   shed), rivers within 3px of each other or the centre, a strip within
-  6px of a river, a badge of a decisions story off the place it holds on the others at that viewport, a
+  6px of a river, an opponent's concealed hand tile off the river tile's width, a side hand's full reach (as its
+  place reserves it, whatever the seat holds) over a play switch, the page's corner, a decision control or the
+  timer, a badge name shortened in the middle on a page whose names are ordinary (`longNames` marks the
+  pages whose names no badge holds), a badge of a decisions story off the place it holds on the others at that viewport, a
   play switch under 40x40, off the board or screen, within 4px of a tile, over a decision control or the timer, or
   whose knob's side or track's fill does not match its `aria-checked`, a
   decision's controls or timer off the place they hold while it is open once it is answered or expired

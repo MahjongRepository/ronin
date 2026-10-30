@@ -88,17 +88,20 @@ $indicator-scale: 0.6;
    free beside the panel, on the corner's side alone where a short board has no width to spare. */
 @container (aspect-ratio >= 1) {
     .game-board:has(.board-menu) > .board-overlay {
-        @include overlay-unit(2 * ($corner-reserve + 1rem));
+        @include overlay-unit(calc(2 * (#{$corner-reserve} + 1rem + var(--corner-shift))));
 
-        padding-inline: calc(#{$corner-reserve} + 1rem);
+        padding-inline: calc(#{$corner-reserve} + 1rem + var(--corner-shift));
     }
 }
 
 @container (height < #{$short-height}) and (aspect-ratio >= 1) {
     .game-board:has(.board-menu) > .board-overlay {
-        @include overlay-unit($corner-reserve-short + 0.25rem);
+        @include overlay-unit(
+            calc(#{$corner-reserve-short} + 0.25rem + var(--corner-shift) + var(--band-shift))
+        );
 
-        padding-inline: 0 calc(#{$corner-reserve-short} + 0.25rem);
+        padding-inline: 0
+            calc(#{$corner-reserve-short} + 0.25rem + var(--corner-shift) + var(--band-shift));
     }
 }
 

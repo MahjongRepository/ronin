@@ -75,6 +75,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         ...p,
         ...dealtHand(event, p.seat),
         discards: [],
+        drawnConcealed: false,
         drawnTileId: null,
         isRiichi: false,
         melds: [],
@@ -124,6 +125,7 @@ function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState 
         currentPlayerSeat: event.seat,
         players: updatePlayer(state.players, event.seat, {
             concealedCount: player.concealedCount + 1,
+            drawnConcealed: true,
         }),
         tilesRemaining: state.tilesRemaining - 1,
     };
@@ -149,6 +151,7 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
                     tileId: event.tileId,
                 },
             ],
+            drawnConcealed: false,
             drawnTileId: null,
             tiles: hand.tiles.toSorted((tileA, tileB) => (tileA >> 2) - (tileB >> 2)),
         }),

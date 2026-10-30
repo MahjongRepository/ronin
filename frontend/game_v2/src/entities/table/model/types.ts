@@ -54,6 +54,8 @@ export interface PlayerState {
     readonly tiles: readonly number[];
     readonly concealedCount: number;
     readonly drawnTileId: number | null;
+    /** One of the face-down tiles is the seat's draw a notice announced, apart from the rest until its discard or call. */
+    readonly drawnConcealed: boolean;
     readonly discards: readonly DiscardRecord[];
     readonly melds: readonly MeldRecord[];
     readonly isRiichi: boolean;

@@ -148,16 +148,25 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   implementation sets the gaps. A kan just declared, while a chankan may still rob it, reads as
   declared, not completed: no replacement draw and no new indicator show until the server sends
   them; a robbed kan stays readable as a robbed attempt in the result.
-- **Opponent strips.** In the zone toward its edge, near the river tile's scale: tile backs in live
+- **Opponent strips.** In the zone toward its edge, at the river tile's scale: tile backs in live
   play, the faces the mode reveals in a replay or a revealed result, in the same place either way;
-  the drawn tile set apart only where the supplied state identifies one (a replay, a revealed hand,
-  a snapshot); the seat's melds beyond the hand's right end at river scale. Live, other seats' draws
-  are not announced to the client, so the strip never invents one and is not a turn cue. Invariant:
-  a strip stands apart from its own river, backs or faces, so that neither reads as a row of the
-  other. Decision: backs are 3:4 like a face, at the ratio Proportions gives. A side strip that
-  cannot hold four melds on its line runs its oldest on a second line inside it, from the foreground
-  band toward its badge; the top strip and the own melds scale down instead; no meld face goes under
-  the 13x17 face floor.
+  the drawn tile set apart by a short gap only where the supplied state identifies one (a replay, a
+  revealed hand, a snapshot, a live draw the server announced); the seat's melds beyond the hand's
+  right end at river scale. The strip is not a turn cue. Invariant: a strip stands apart from its own
+  river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
+  backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
+  opponent's hand reads as plainly as its river. A side strip that cannot hold four melds on its
+  line runs its oldest on a second line inside it, from the foreground band toward its badge; the
+  top strip and the own melds scale down instead; no meld face goes under the 13x17 face floor.
+  Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
+  viewport, never read from the tiles held, and nothing else stands in it. The left hand runs down
+  from below the counters, and the play switches step in past its depth where it would meet them.
+  The right hand runs up from the band's top below the page's corner; where its full reach would
+  then enter the band (a short desktop, the 667x375 floor), it runs up to the top margin instead and
+  the corner steps in past its depth; where even that enters the band (the notch phone's shorter
+  safe area), it runs from below the corner across the band, whose row then ends before it. A
+  board without the page's corner (a replay's) keeps no room for it. The top
+  hand stands centred, short of a badge's width before the page's corner and right of the counters.
 - **Badges.** One fixed shape for every seat: wind, name, and marks for an AI player, a human seat
   an AI stands in for (the human identity kept, the mark cleared when they return), riichi (quiet)
   and disconnected. Each has a fixed place in its zone outside the rivers, the same in every state
@@ -211,7 +220,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   estimate, and the server's resulting move (a timeout's discard or pass) is shown when it arrives.
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
   stale selection survives. Decision: on a desktop the controls and the timer after them stand in
-  one row ending at the hand's right end, its drawn tile included. On a phone the lowest-ranked
+  one row ending at the hand's right end, its drawn tile included; on a short desktop, whose core
+  shares the band's corners, the row starts past the bottom river's capacity reach and the
+  higher-ranked controls stand above the band's control and the timer (the band's control too where
+  the row cannot hold it beside the timer), clear of the right strip as drawn. On a phone the lowest-ranked
   controls, pass last, take the foreground row beside the timer and never reach past the own river's
   capacity edge (a sideways riichi tile counted); the rest rise in rank order, right-aligned,
   between the right river's capacity edge and the right strip as drawn, pairing up before they would
@@ -248,8 +260,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   state says the seat is furiten of any kind and cleared when it says so no longer; it gives no
   reason the state did not supply and never implies tsumo is unavailable.
 - **Play switches.** Three toggles with one fixed place in the foreground, on the hand's side away
-  from the decisions, answering for the player while on: *Auto win* takes a tsumo offer at once and
-  a ron offer at once (decision: no pause, since the callout and the result show the claim and its
+  from the decisions, clear of the left hand's full reach, answering for the player while on:
+  *Auto win* takes a tsumo offer at once and a ron offer at once (decision: no pause, since the callout and the result show the claim and its
   feeder); *No calls* passes a call prompt that offers chi, pon or open kan and no ron, before its
   controls show, and never touches the viewer's own turn (closed kan, added kan, riichi, tsumo and
   kyuushu stay offered); *Auto discard* discards the drawn tile at once on a turn that offers
@@ -368,28 +380,39 @@ Relationships first. The sizes come from one sizing rule; the derived column rec
 gives at the three reference viewports and is not a range for other screens: 1280x800, 1920x1080 and
 other phone heights follow the rule and are checked by the gate, not by this table.
 
-The sizing rule. A landscape play area under 520 px high is a phone, anything taller a desktop. The
-own hand tile is fixed at 36x48 on a phone and min(0.05 of the width, 0.1 of the height) wide on a
-desktop. The river tile is the largest that keeps the centre's side at least 0.39 of the core on a
-phone (0.33 on a desktop), starting from 0.6 of the own tile; the core's side is the centre plus
+The sizing rule. A landscape play area under 520 px high is a phone, anything taller a desktop; a
+desktop under 760 px high and at least 1100 px wide (a laptop's browser window) is a short desktop.
+The own hand tile is fixed at 36x48 on a phone and min(0.05 of the width, 0.1 of the height) wide on
+a desktop. The river tile is the largest that keeps the centre's side at least 0.39 of the core on a
+phone (0.33 on a desktop), starting from 0.65 of the own tile; the core's side is the centre plus
 eight river tiles and two gaps of 0.3 of a river tile. On a desktop the core stands above the
-foreground band, its side at most 0.6 of the height. On a phone the core fills the height between
-the top strip's slot and the own hand, and the foreground band shares its lower corners, which the
-pinwheel leaves empty, its controls kept outside every river's capacity reach.
+foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
+the height between the top strip's slot and the own hand, and the foreground band shares its lower
+corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach.
+An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
+apart.
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.74 / 0.74 / 0.60 |
-| Centre side / core height | 0.3 | 0.41 / 0.40 / 0.33 |
-| River tile width / own hand tile width | 0.6 | 0.53 / 0.53 / 0.58 |
-| Opponent back width / river tile width | 0.75 | 0.70 / 0.70 / 0.75 |
+| Core height / play area height | 0.6 | 0.74 / 0.74 / 0.63 |
+| Centre side / core height | 0.3 | 0.41 / 0.40 / 0.34 |
+| River tile width / own hand tile width | 0.65 | 0.53 / 0.53 / 0.61 |
+| Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
+| Opponent hand tile width / own hand tile width | 0.65 | 0.53 / 0.53 / 0.61 |
 | Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.050 |
 | Own hand tile height / play area height | 0.15 | 0.13 / 0.13 / 0.11 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.32 / 0.31 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.32 / 0.31 (0.3, rounded) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.32 / 0.30 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.32 / 0.30 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.
+
+The opponent's hand at the river tile follows Tenhou (every opponent hand and meld at exactly the
+river tile, its own hand 1.44 of it on a desktop) and Mahjong Soul (the same, once its camera's depth
+is taken out). A phone keeps its river tile, which the height binds; on a desktop the river grows
+toward 0.65 of the own tile until the band or the core's cap binds: 1366x657 gives 0.47, 1920x1080
+0.56. A decision control's tiles stay inside the room the band keeps for its row, so a large board's
+controls never reach the bottom river.
 
 The starting points did not fit together at the 667x375 floor. The rule resolves it by a mix: the
 core grows to about three quarters of the height, since the foreground band shares the core's

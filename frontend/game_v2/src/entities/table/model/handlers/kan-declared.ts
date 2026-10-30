@@ -136,6 +136,7 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
         currentPlayerSeat: event.seat,
         players: updatePlayer(state.players, event.seat, {
             concealedCount: hand.concealedCount,
+            drawnConcealed: false,
             drawnTileId: null,
             melds,
             tiles: hand.tiles,

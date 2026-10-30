@@ -242,6 +242,23 @@ describe("tableStateToDisplayState", () => {
     });
 });
 
+describe("tableStateToDisplayState announced draws", () => {
+    test("sets an announced face-down draw apart from the concealed count", () => {
+        const state = makeTableState({
+            players: [
+                makePlayer({ seat: 0 }),
+                makePlayer({ concealedCount: 3, drawnConcealed: true, seat: 1, tiles: [] }),
+                makePlayer({ seat: 2 }),
+                makePlayer({ seat: 3 }),
+            ],
+        });
+        const right = tableStateToDisplayState(state, SEAT_0_VIEW)?.players[1];
+
+        expect(right?.hand).toHaveLength(2);
+        expect(right?.drawnTile).toEqual({ show: "concealed" });
+    });
+});
+
 describe("tableStateToDisplayState nameplates", () => {
     test("seats the perspective's seat at the bottom whoever deals, its wind still from the dealer", () => {
         const state = makeTableState({ dealerSeat: 0 });

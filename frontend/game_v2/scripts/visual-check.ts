@@ -190,6 +190,8 @@ type PageKind =
           readonly prepare?: (page: Page) => Promise<void>;
           /** The round result's panel is made shorter than its content, which must then scroll. */
           readonly panelScrolls?: boolean;
+          /** Its names are longer than any badge holds, so a badge may shorten them in the middle. */
+          readonly longNames?: boolean;
       }
     | { readonly kind: "panel"; readonly countdown: boolean }
     | { readonly kind: "game"; readonly checkpoint: (typeof LIVE_CHECKPOINTS)[number] };
@@ -297,6 +299,12 @@ interface BoardMeasure {
     /** The rivers' tiles by seat, and every opponent strip's tiles (hand and melds) by seat. */
     readonly riverTiles: readonly GroupedBox[];
     readonly stripTiles: readonly GroupedBox[];
+    /** The whole names of the badges that shorten theirs, their head cut by its ellipsis. */
+    readonly cutNames: readonly string[];
+    /** Each side strip's full hand (fourteen tiles, the drawn one apart) as its place reserves it, by seat. */
+    readonly handReach: readonly GroupedBox[];
+    /** The laid widths of a river tile and of every opponent's concealed hand tile, before the frames turn them. */
+    readonly tileScale: { readonly river: number | null; readonly hands: readonly number[] };
     readonly center: Box | null;
     readonly opponentFaces: readonly Box[];
     readonly leave: Box | null;
@@ -393,6 +401,54 @@ function deviceOptions(name: string): BrowserContextOptions {
 }
 
 /**
+ * Wider phones at the floor's height, where the own tile reaches 36px and the right hand's placement must still keep
+ * the band whole: the anchors, the switches, the strips' capacity and a riichi toggle beside a full bottom river.
+ */
+const PHONE_WIDTH_PAGES: readonly string[] = [
+    "decisions-anchor-turn",
+    "decisions-anchor-call",
+    "decisions-anchor-riichi",
+    "decisions-switches-furiten",
+    "board-worst",
+    "board-worst-offers",
+    "board-full-hands",
+    "board-full-hands-riichi",
+    "board-mixed-hands-a",
+    "board-mixed-hands-b",
+    "board-mixed-hands-c",
+    "replay-start",
+    "game-turn",
+];
+
+/**
+ * Laptop windows on either side of the short desktop's 760px: 1280x720 and 1536x730 share the band's corners,
+ * 1440x770 does not.
+ */
+const LAPTOP_VIEWPORTS: readonly Viewport[] = [
+    [1280, 720],
+    [1536, 730],
+    [1440, 770],
+].map(([width, height]) => ({
+    context: { viewport: { height, width } },
+    desktop: true,
+    engine: chromium,
+    name: `laptop-${height}`,
+    onlyPages: [
+        "decisions-anchor-turn",
+        "decisions-anchor-call",
+        "decisions-anchor-riichi",
+        "board-worst-offers",
+        "board-full-hands",
+        "board-full-hands-riichi",
+        "board-mixed-hands-c",
+        "game-turn",
+    ],
+    portrait: false,
+    rotates: false,
+    supported: true,
+}));
+
+/**
  * The acceptance viewports: two 16:10 desktops and a 16:9 one, a short laptop's window (1366x768 less its browser's
  * chrome), where the core is bounded by the foreground band rather than its share of the height, and a narrow desktop
  * (800x600, a tablet's or a small window's), where the desktop's geometry takes the phone's chrome, each on the pages
@@ -441,6 +497,12 @@ const VIEWPORTS: readonly Viewport[] = [
             "decisions-anchor-riichi",
             "board-worst",
             "board-callouts-adjacent",
+            "board-full-hands",
+            "board-full-hands-riichi",
+            "board-concealed-hands",
+            "board-mixed-hands-a",
+            "board-mixed-hands-b",
+            "board-mixed-hands-c",
             "replay",
             "game-turn",
         ],
@@ -462,6 +524,26 @@ const VIEWPORTS: readonly Viewport[] = [
             "decisions-kan-choice",
             "board-worst",
             "board-worst-offers",
+            "board-full-hands",
+            "board-mixed-hands-c",
+        ],
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    ...LAPTOP_VIEWPORTS,
+    {
+        context: { viewport: { height: 1440, width: 2560 } },
+        desktop: true,
+        engine: chromium,
+        name: "desktop-large",
+        onlyPages: [
+            "decisions-anchor-call",
+            "decisions-chi-choice",
+            "decisions-kan-choice",
+            "board-worst-offers",
+            "board-full-hands",
+            "board-full-hands-riichi",
         ],
         portrait: false,
         rotates: false,
@@ -503,6 +585,21 @@ const VIEWPORTS: readonly Viewport[] = [
         rotates: false,
         supported: true,
     },
+    ...[680, 700].map((width): Viewport => ({
+        context: {
+            ...deviceOptions("iPhone SE (3rd gen) landscape"),
+            screen: { height: 375, width },
+            viewport: { height: 375, width },
+        },
+        desktop: false,
+        engine: webkit,
+        name: `phone-${width}`,
+        onlyPages: PHONE_WIDTH_PAGES,
+        ownTileFloor: MIN_TAP,
+        portrait: false,
+        rotates: false,
+        supported: true,
+    })),
 ];
 
 /** The board's tiles, but a decision control's preview faces, which a paired control may shed (the spec's Decisions). */
@@ -512,7 +609,7 @@ const BOARD_VISIBLE = [
     ".board-table .nameplate",
 ];
 
-function boardCase(name: string, query: string, extra: readonly string[] = []): PageCase {
+function boardCase(name: string, query: string, extra: readonly string[] = []): BoardCase {
     return {
         kind: "board",
         name,
@@ -566,7 +663,7 @@ function documentCase(name: string, path: string, content: string): PageCase {
 }
 
 /** A replay page story: the replay view as on its route, its replay answered from a generated fixture. */
-function replayCase(story: string, extra: readonly string[]): PageCase {
+function replayCase(story: string, extra: readonly string[]): BoardCase {
     return {
         kind: "board",
         name: `replay-${story.replaceAll("_", "-")}`,
@@ -590,7 +687,10 @@ const PAGES: readonly PageCase[] = [
     documentCase("storybook-discards", "/play/storybook/discards", ".storybook .discards .tile"),
     documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
     boardCase("board-full-rivers", "?state=full_rivers"),
-    boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
+    {
+        ...boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
+        longNames: true,
+    },
     boardCase("board-callouts-tsumo", "?state=full_rivers&callout=tsumo", [".board-callout"]),
     boardCase("board-callouts-adjacent", "?state=riichi_latest&callout=riichi&offers=five", [
         ".board-callout",
@@ -605,8 +705,24 @@ const PAGES: readonly PageCase[] = [
             ".nameplate__ai",
         ]),
         contrast: true,
+        longNames: true,
     },
-    boardCase("board-worst-offers", "?state=worst&offers=five", [ACTION, ".board-strip .meld"]),
+    {
+        ...boardCase("board-worst-offers", "?state=worst&offers=five", [
+            ACTION,
+            ".board-strip .meld",
+        ]),
+        longNames: true,
+    },
+    boardCase("board-full-hands", "?state=full_hands&offers=five", [ACTION]),
+    boardCase("board-full-hands-riichi", "?state=full_hands&offers=riichi", [
+        `${ACTION}[aria-pressed="true"]`,
+        ".decision-controls__bank",
+    ]),
+    boardCase("board-concealed-hands", "?state=concealed_hands"),
+    boardCase("board-mixed-hands-a", "?state=mixed_hands_a", [".board-strip .meld"]),
+    boardCase("board-mixed-hands-b", "?state=mixed_hands_b", [".board-strip .meld"]),
+    boardCase("board-mixed-hands-c", "?state=mixed_hands_c", [".board-strip .meld"]),
     resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
     { ...resultCase("sanbaiman", "", [".round-end-result__hand .meld"]), contrast: true },
     resultCase("pao", "", [".round-end-result__notes"]),
@@ -670,6 +786,8 @@ const PAGES: readonly PageCase[] = [
             "desktop-wide",
             "phone-notch-landscape",
             "phone-se-landscape",
+            "phone-680",
+            "phone-700",
         ],
         prepare: checkSwitchKeys,
     },
@@ -735,7 +853,10 @@ const PAGES: readonly PageCase[] = [
     replayCase("start", [".replay-controls__narration"]),
     replayCase("autoplay", [".replay-controls__option--play[aria-pressed='true']"]),
     replayCase("viewpoint_hidden", [".replay-controls__option--hands[aria-pressed='true']"]),
-    replayCase("round_list", [".round-list__row[aria-current]"]),
+    {
+        ...replayCase("round_list", [".round-list__row[aria-current]"]),
+        longNames: true,
+    },
     replayCase("incomplete", [".replay-controls__incomplete--end"]),
     replayCase("ends_on_result", [".round-end-result__title", ".replay-controls__incomplete--end"]),
     replayCase("damaged", [".replay-controls__incomplete--end"]),
@@ -1311,6 +1432,32 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             .map((word) => `${word.className.split(" ")[0]} "${word.textContent.trim()}"`);
         const aside = document.querySelector(".board-page__aside");
         const overlay = board.querySelector(".board-overlay__panel");
+        const handReach = ["left", "right"].flatMap((seat) => {
+            const strip = board.querySelector(`.board-strip--${seat}`);
+            if (strip === null) {
+                return [];
+            }
+            const origin = box(strip);
+            const style = getComputedStyle(strip);
+            const reach = Number.parseFloat(style.getPropertyValue("--full-reach"));
+            const depth = Number.parseFloat(style.getPropertyValue("--bh"));
+            const left = seat === "left" ? origin.left : origin.left - depth;
+            const top = seat === "left" ? origin.top : origin.top - reach;
+            return [{ box: { height: reach, left, top, width: depth }, group: seat }];
+        });
+        const riverTile = board.querySelector<HTMLElement>(".board-river .tile");
+        const tileScale = {
+            hands: [
+                ...board.querySelectorAll<HTMLElement>(".board-strip [data-area$='-hand'] .tile"),
+            ].map((tile) => tile.offsetWidth),
+            river: riverTile?.offsetWidth ?? null,
+        };
+        const cutNames = [...board.querySelectorAll(".nameplate .player-name")]
+            .filter((name) => {
+                const head = name.querySelector(".player-name__head");
+                return head !== null && head.scrollWidth > head.getBoundingClientRect().width + 1;
+            })
+            .map((name) => name.getAttribute("title") ?? "");
         const leave = board.querySelector(".game-menu__leave");
         const menu = [...board.querySelectorAll(".game-menu__status, .game-menu__leave")].map(box);
         const roundList = document.querySelector(".round-list");
@@ -1397,9 +1544,11 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             center: centerElement === null ? null : box(centerElement),
             centerTexts,
             clippedWords,
+            cutNames,
             decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },
             fonts,
             grouped,
+            handReach,
             hiddenTiles: tableTiles.filter(
                 (tile) =>
                     !tile.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
@@ -1438,6 +1587,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             standings: measureStandings(),
             stripTiles: bySeat(board, ".board-strip .tile", ".board-strip"),
             switches,
+            tileScale,
             tiles: tableTiles.map(box),
             timer: timer === null ? null : box(timer),
             toggle: toggle === null ? null : box(toggle),
@@ -1756,6 +1906,46 @@ function checkLocalHand(
     report.expect(
         smallestOwn > largestOther + EPSILON,
         `a local hand tile (${smallestOwn.toFixed(1)}px) is no larger than another tile on the board (${largestOther.toFixed(1)}px)`,
+    );
+}
+
+/**
+ * A side strip's full hand, as its place reserves it whatever the seat holds, stays clear of the play switches, the
+ * page's corner and the decision's controls and timer: a full concealed hand is the strips' binding capacity.
+ */
+function checkHandReach(board: BoardMeasure, report: PageReport): void {
+    const controls = [
+        ...board.switches.map((control) => control.box),
+        ...board.menu,
+        ...board.actions,
+        ...(board.timer === null ? [] : [board.timer]),
+    ];
+    const unread = board.handReach.filter(
+        (reach) => !Number.isFinite(reach.box.width) || !Number.isFinite(reach.box.height),
+    );
+    report.expect(
+        unread.length === 0,
+        `a side hand's full reach could not be read (--full-reach, --bh): ${unread.map((reach) => reach.group).join(", ")}`,
+    );
+    const crowded = board.handReach.filter((reach) =>
+        controls.some((control) => intersects(reach.box, control)),
+    );
+    report.expect(
+        crowded.length === 0,
+        `a side hand's full reach meets a switch, the page's corner or a decision control: ${crowded.map((reach) => `${reach.group} ${describeBox(reach.box)}`).join(", ")}`,
+    );
+}
+
+/** An opponent's concealed hand stands at the river tile's size (the spec's Proportions). */
+function checkHandScale(board: BoardMeasure, report: PageReport): void {
+    const { hands, river } = board.tileScale;
+    if (river === null) {
+        return;
+    }
+    const off = hands.filter((width) => Math.abs(width - river) > 0.5);
+    report.expect(
+        off.length === 0,
+        `opponent hand tiles off the river tile's ${river}px width: ${off.slice(0, 3).join(", ")}px`,
     );
 }
 
@@ -3149,7 +3339,10 @@ function describeLocalTile(tiles: readonly Box[]): string {
 
 async function checkBoard(
     { measure, page, report, viewport }: PageRun,
-    panelScrolls = false,
+    {
+        longNames = false,
+        panelScrolls = false,
+    }: { longNames?: boolean; panelScrolls?: boolean } = {},
 ): Promise<string> {
     const board = await measureBoard(page);
     const screen = await viewportBox(page);
@@ -3202,6 +3395,14 @@ async function checkBoard(
         checkLeave(board, screen, report);
         checkReplayControls(board, screen, report);
         checkOpponentFaces(board, report);
+        checkHandReach(board, report);
+        checkHandScale(board, report);
+        if (!longNames) {
+            report.expect(
+                board.cutNames.length === 0,
+                `badge name(s) shortened though ordinary: ${board.cutNames.join(", ")}`,
+            );
+        }
     }
     if (viewport.desktop) {
         checkReplayText(board, report);
@@ -3305,7 +3506,7 @@ async function checkPage(
             return `page ${measure.scrollWidth}x${measure.scrollHeight}`;
         }
         case "board": {
-            return checkBoard(run, pageCase.panelScrolls);
+            return checkBoard(run, pageCase);
         }
         case "panel": {
             return checkPanel(page, pageCase.countdown, report);

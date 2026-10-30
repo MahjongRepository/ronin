@@ -328,6 +328,10 @@ describe("applyEvent - hidden hands", () => {
             drawn.players[1].concealedCount,
             drawn.tilesRemaining,
         ]).toEqual([1, 14, 69]);
+        expect([drawn.players[1].drawnConcealed, next.players[1].drawnConcealed]).toEqual([
+            true,
+            false,
+        ]);
         expect(next.players[1].concealedCount).toBe(13);
         expect(next.players[1].discards.map((d) => d.tileId)).toEqual([100]);
         expect(next.tilesRemaining).toBe(69);
@@ -361,6 +365,7 @@ describe("applyEvent - hidden hands", () => {
         const next = applyEvent(applyEvent(liveDeal(), makeDrawNoticeEvent(3)), kan);
 
         expect(next.players[3].concealedCount).toBe(10);
+        expect(next.players[3].drawnConcealed).toBe(false);
         expect(next.tilesRemaining).toBe(69);
     });
 });

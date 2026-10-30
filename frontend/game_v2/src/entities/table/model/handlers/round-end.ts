@@ -262,6 +262,7 @@ export function revealHands(state: TableState, event: RoundEndEvent): TableState
         (revealed, hand) =>
             updatePlayer(revealed, hand.seat, {
                 concealedCount: 0,
+                drawnConcealed: false,
                 drawnTileId: hand.drawnTileId,
                 tiles: hand.tiles,
             }),

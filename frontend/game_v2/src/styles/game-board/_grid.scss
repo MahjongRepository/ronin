@@ -1,6 +1,7 @@
 $tile-w: 60;
 $tile-h: 80;
 $short-height: 520px;
+$short-desktop-height: 760px;
 $small-chrome-width: 1100px;
 $large-chrome-width: 2000px;
 $large-chrome-height: 1200px;
@@ -14,6 +15,7 @@ $drawn-gap: 0.35;
 $own-meld-scale: 1.2;
 $river-gap-share: 0.3;
 $core-tiles: 8.6;
+$river-by-own: 0.65;
 $side-reach-tiles: 10.6667;
 
 /* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
@@ -23,7 +25,10 @@ $lengths:
     core-room-h, core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, strip-len,
     foreground-top, band-top, band-bottom, corner-bottom, reach-left, reach-right, reach-top-row3,
     reach-top-left, reach-bottom-right, side-badge-top, left-badge-x, side-badge-max, full-hand-w,
-    own-start, own-hand-right, switches-left, switches-right;
+    own-start, own-hand-right, switches-left, switches-right, dg, full-reach, step-in,
+    right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
+    right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
+    switches-clear, top-badge-right, band-crossed;
 
 @each $name in $lengths {
     @property --#{$name} {
@@ -41,6 +46,14 @@ $lengths:
 
 @mixin desktop-board {
     @container game-board (height >= #{$short-height}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+/* A short desktop (a laptop's window) shares the band's lower corners with the core, as a phone does. */
+@mixin short-desktop-board {
+    @container game-board (height >= #{$short-height}) and (height < #{$short-desktop-height}) and
+        (width >= #{$small-chrome-width}) and (aspect-ratio >= 1) {
         @content;
     }
 }
@@ -87,17 +100,18 @@ $lengths:
     --badge-h: 54px;
     --badge-gap: 16px;
     --corner-h: 48px;
-    --counters-w: 300px;
+    --counters-w: 280px;
     --dora-w: 28px;
     --counters-top: var(--m);
     --top-room-left: calc(var(--m) + var(--counters-w) + 8px);
     --centre-share: 0.33;
-    --back-share: 0.75;
     --own-cap: min(5cqw, 10cqh);
-    --core-cap: 60cqh;
+    --core-cap: 66cqh;
     --row-edge: max(11px, var(--c) * 0.1);
     --text: 17px;
     --switches-w: 470px;
+    --switch-h: 50px;
+    --top-badge-w: 232px;
     --timer-w: 120px;
     --action-min-w: 96px;
     --win-min-w: 150px;
@@ -114,7 +128,7 @@ $lengths:
     --band-reserve: calc(var(--band-gap) + var(--control-h) + 20px);
     --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--m) - var(--sep));
 
-    /* The river tile: the largest that keeps the centre at its share of the core, from 0.6 of the own tile, in each
+    /* The river tile: the largest that keeps the centre at its share of the core, from 0.65 of the own tile, in each
        room the core has (a room's tiles count the core's 8.6 and what else stands in that room per river tile). */
     --spare: calc(1 - var(--centre-share));
     --height-tiles: calc(#{$core-tiles} + var(--spare) * 4 / 3);
@@ -123,7 +137,7 @@ $lengths:
     --rw-by-band: calc(var(--spare) * var(--core-room-band) / var(--height-tiles));
     --rw-by-cap: calc(var(--spare) * var(--core-cap) / #{$core-tiles});
     --rw-by-width: calc(var(--spare) * var(--core-room-w) / var(--width-tiles));
-    --rw-by-own: calc(0.6 * var(--ow));
+    --rw-by-own: calc(#{$river-by-own} * var(--ow));
     --rw: round(
         down,
         min(
@@ -152,15 +166,55 @@ $lengths:
     --cx: calc(100cqw / 2);
     --cy: calc(var(--core-top) + var(--core) / 2);
 
-    /* The perimeter and the foreground band. */
-    --bw: calc(var(--back-share) * var(--rw));
-    --bh: calc(var(--bw) * 4 / 3);
+    /* The perimeter and the foreground band. An opponent's hand is at the river tile's size, its full reach fourteen
+       tiles with the drawn one a short gap apart. */
+    --bw: var(--rw);
+    --bh: var(--rh);
+    --dg: round(calc(0.15 * var(--rw)), 1px);
+    --full-reach: calc(14 * var(--bw) + var(--dg));
     --strip-len: calc(13 * var(--bw));
-    --top-strip-x: max(var(--cx) + var(--strip-len) / 2, var(--top-room-left) + var(--strip-len));
     --foreground-top: calc(var(--hand-top) - 2 * var(--band-gap) - var(--control-h));
     --band-top: calc(var(--foreground-top) + var(--band-gap));
     --band-bottom: calc(var(--hand-top) - var(--band-gap));
     --corner-bottom: calc(var(--m) + var(--corner-h));
+    --step-in: calc(var(--bh) + 6px);
+
+    /* The right hand's origin, from its full reach (never the tiles held): the band's top under the corner, else the
+       top margin with the corner stepped in, else under the corner across the band, whose row then ends before it. */
+    --right-from-band: calc(var(--foreground-top) + 2px);
+    --right-under-corner: max(
+        var(--right-from-band),
+        var(--corner-bottom) + 4px + var(--full-reach)
+    );
+    --right-from-top: max(var(--right-from-band), var(--m) + var(--full-reach));
+
+    /* 1px where a hand from that origin stays out of the band row's height (its box starts at the band's top). */
+    --right-fits: clamp(0px, (var(--band-top) + 0.5px - var(--right-under-corner)) * 1000, 1px);
+    --right-top-fits: clamp(0px, (var(--band-top) + 0.5px - var(--right-from-top)) * 1000, 1px);
+    --corner-in: min(1px - var(--right-fits), var(--right-top-fits));
+    --corner-shift: min(var(--step-in), var(--corner-in) * 100000);
+    --right-pull: min(var(--right-under-corner) - var(--right-from-top), var(--corner-in) * 100000);
+    --right-origin: calc(var(--right-under-corner) - var(--right-pull));
+    --band-crossed: clamp(0px, (var(--right-origin) - var(--band-top) - 0.5px) * 1000, 1px);
+    --band-shift: min(var(--step-in), var(--band-crossed) * 100000);
+
+    /* The left hand runs down from below the counters; the play switches step in past its depth where it meets them. */
+    --switches-top: calc(var(--band-bottom) - var(--switch-h));
+    --left-reach-end: calc(var(--side-start) + var(--full-reach) + 4px);
+    --left-meets: clamp(0px, (var(--left-reach-end) - var(--switches-top)) * 1000, 1px);
+    --switches-clear: calc(var(--m) + var(--step-in) - (1px - var(--left-meets)) * 100000);
+
+    /* The top hand stands centred, short of a badge's width before the page's corner, and right of the counters. */
+    --top-badge-right: calc(
+        100cqw - var(--m) - var(--corner-reserve) - var(--corner-shift) - var(--badge-gap)
+    );
+    --top-strip-x: max(
+        var(--top-room-left) + var(--full-reach),
+        min(
+            var(--cx) + var(--strip-len) / 2,
+            var(--top-badge-right) - var(--top-badge-w) - var(--badge-gap)
+        )
+    );
 
     /* The rivers' reach at their capacity, a row's sideways riichi tile counted: a side river's fourth row, a top or
        bottom river's third row run on to twelve tiles. */
@@ -198,7 +252,7 @@ $lengths:
     );
 
     /* The play switches' slot, on the band's side away from the decisions, which never reach into it. */
-    --switches-left: var(--own-start);
+    --switches-left: max(var(--own-start), var(--switches-clear));
     --switches-right: calc(var(--switches-left) + var(--switches-w));
 
     /* What the stylesheets of the board's other parts count in: a river tile's sixtieth, and the own tile. */
@@ -215,6 +269,8 @@ $lengths:
         --dora-w: 15px;
         --text: 12px;
         --switches-w: 232px;
+        --switch-h: 44px;
+        --top-badge-w: 134px;
         --timer-w: 76px;
         --action-min-w: 64px;
         --win-min-w: 96px;
@@ -229,6 +285,8 @@ $lengths:
         --dora-w: 37px;
         --text: 24px;
         --switches-w: 560px;
+        --switch-h: 60px;
+        --top-badge-w: 260px;
         --timer-w: 150px;
     }
 
@@ -239,13 +297,18 @@ $lengths:
         --control-h: 40px;
         --band-gap: 8px;
         --centre-share: 0.39;
-        --back-share: 0.7;
         --own-cap: 36px;
         --core-cap: 9999px;
         --core-room-band: 9999px;
         --core-top: calc(var(--core-top-slot) + var(--core-top-free));
-        --switches-left: var(--m);
+        --switch-h: var(--control-h);
+        --switches-left: max(var(--m), var(--switches-clear));
         --timer-w: 60px;
+    }
+
+    @include short-desktop-board {
+        --core-room-band: 9999px;
+        --core-top: calc(var(--core-top-slot) + var(--core-top-free));
     }
 
     @include upright-board {
@@ -257,6 +320,10 @@ $lengths:
         --control-h: 40px;
         --band-gap: 8px;
         --own-cap: 10cqh;
+        --top-strip-x: max(
+            var(--top-room-left) + var(--full-reach),
+            var(--cx) + var(--strip-len) / 2
+        );
         --switches-left: var(--m);
         --switches-w: 0px;
         --timer-w: 60px;
@@ -270,7 +337,7 @@ $lengths:
     font-size: var(--text);
 }
 
-.game-board--play .board-layout {
+.game-board--play > :is(.board-layout, .board-overlay) {
     --furiten-slot: 64px;
 
     @include phone-board {

@@ -8,26 +8,37 @@ $win-rise: 4px;
 $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
 
-@property --right-depth {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
+@each $name in right-depth, upper-clear {
+    @property --#{$name} {
+        syntax: "<length>";
+        inherits: true;
+        initial-value: 0;
+    }
 }
 
 /* The decisions' place: a desktop's band row past the switches' slot to the hand's right end; a phone's column beside
    the right river's reach and the right strip as drawn, down to the band, whose row starts past the own river's reach. */
 .board-actions {
-    --right-hand-len: calc(var(--right-hand-n) * var(--bw) + var(--right-drawn) * var(--g));
+    --right-hand-len: calc(var(--right-hand-n) * var(--bw) + var(--right-drawn) * var(--dg));
     --right-melds-len: calc(
         var(--right-meld-n) * (var(--g) + 2px) + var(--right-meld-units) * var(--rw)
     );
     --right-len: calc(var(--right-hand-len) + var(--right-melds-len));
-    --right-room: calc(var(--foreground-top) + 2px - var(--corner-bottom) - 8px);
+    --right-shallow: clamp(0, (1.5 - var(--right-meld-deep)) * 1000, 1);
+    --right-room-top: max(
+        var(--m) - 8px,
+        var(--corner-bottom) - var(--corner-in) * var(--right-shallow) * 100000
+    );
+    --right-room: calc(var(--right-origin) - var(--right-room-top) - 8px);
     --right-line1: max(var(--bh), min(1, var(--right-meld-n)) * var(--right-meld-deep) * var(--rw));
     --right-line2: calc(var(--right-line1) + 4px + var(--right-oldest-deep) * var(--rw));
     --right-depth: max(
         var(--right-line1),
         min(var(--right-line2), (var(--right-len) - var(--right-room)) * 1000)
+    );
+    --upper-clear: max(
+        0px,
+        var(--m) + var(--right-depth) + #{$desktop-gap} - (100cqw - var(--own-hand-right))
     );
 
     container: decisions / inline-size;
@@ -39,6 +50,13 @@ $preview-tile-share: 0.42;
     display: flex;
     justify-content: flex-end;
     min-width: 0;
+
+    @include short-desktop-board {
+        left: max(
+            var(--switches-right) + var(--band-gap),
+            max(var(--reach-bottom-right), var(--reach-right)) + #{$gap}
+        );
+    }
 
     @include phone-board {
         container: decisions / size;
@@ -89,6 +107,25 @@ $preview-tile-share: 0.42;
         justify-content: flex-end;
         gap: $gap;
     }
+
+    @include short-desktop-board {
+        flex-flow: column-reverse nowrap;
+        align-items: flex-end;
+
+        > .decision-controls__band {
+            flex-flow: row-reverse wrap-reverse;
+            justify-content: flex-start;
+            max-width: 100%;
+        }
+
+        > .decision-controls__band > .decision-timer {
+            order: -1;
+        }
+
+        > .decision-controls__band > .decision-controls__action {
+            margin-right: var(--upper-clear);
+        }
+    }
 }
 
 .decision-controls__upper,
@@ -123,6 +160,7 @@ $preview-tile-share: 0.42;
     @include phone-board {
         justify-content: flex-end;
         min-height: var(--control-h);
+        margin-right: var(--band-shift);
         margin-left: max(
             0px,
             var(--reach-bottom-right) + 5px - var(--reach-right) - #{$gap},
@@ -136,8 +174,12 @@ $preview-tile-share: 0.42;
 }
 
 /* A phone's column: one control a row, right-aligned, a win or a choice across it; pairs where it is too short, each
-   pair shedding its previews (the action source shows the tile). */
+   pair shedding its previews (the action source shows the tile). A short desktop's rows stand clear of the right strip. */
 .decision-controls__upper {
+    @include short-desktop-board {
+        padding-right: var(--upper-clear);
+    }
+
     @include phone-board {
         flex-flow: column nowrap;
         align-items: flex-end;
@@ -367,8 +409,14 @@ $pair-gap: 4px;
     gap: 1px;
 }
 
+/* A control's tiles stay inside the room the band keeps for its row: the control's height and the band's slack, less
+   the 4px a control keeps from a tile, so a large board's controls never reach the bottom river. */
+.decision-controls {
+    --row-room: calc(var(--control-h) + 16px);
+}
+
 .decision-controls__tile {
-    --board-tile-w: calc(var(--ow) * #{$preview-tile-share});
+    --board-tile-w: min(var(--ow) * #{$preview-tile-share}, (var(--row-room) - 14px) * 3 / 4);
     --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
 
     display: inline-block;
@@ -376,8 +424,12 @@ $pair-gap: 4px;
 }
 
 .decision-controls__group {
-    --board-tile-w: calc(var(--ow) * #{$choice-tile-share});
+    --board-tile-w: min(var(--ow) * #{$choice-tile-share}, (var(--row-room) - 18px) * 3 / 4);
     --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
+
+    &:has(.meld-tile-stacked) {
+        --board-tile-w: min(var(--ow) * #{$choice-tile-share}, (var(--row-room) - 18px) / 2);
+    }
 }
 
 /* The timer's slot, fixed in size and place: a caption line over the digits, the base large and the bank after it. */

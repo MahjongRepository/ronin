@@ -31,7 +31,7 @@ function toHandTile(tileId: number, show: "face" | "back"): HandTile {
     return { face: tile136toString(tileId), show, tileId };
 }
 
-/** The hand row and the drawn tile apart from it; the drawn tile is the first copy of its id. */
+/** The hand row and the drawn tile apart from it: the first copy of its id, or the face-down draw a notice announced. */
 function buildHandTiles(
     player: PlayerState,
     show: "face" | "back",
@@ -40,10 +40,15 @@ function buildHandTiles(
     const known = player.tiles
         .filter((_tileId, index) => index !== drawnIndex)
         .map((tileId) => toHandTile(tileId, show));
-    const concealed = Array.from({ length: player.concealedCount }, () => CONCEALED_TILE);
+    const concealedDrawn = drawnIndex === -1 && player.drawnConcealed && player.concealedCount > 0;
+    const concealed = Array.from(
+        { length: player.concealedCount - (concealedDrawn ? 1 : 0) },
+        () => CONCEALED_TILE,
+    );
+    const knownDrawn = drawnIndex === -1 ? undefined : toHandTile(player.tiles[drawnIndex], show);
     return {
         baseTiles: [...known, ...concealed],
-        drawnTile: drawnIndex === -1 ? undefined : toHandTile(player.tiles[drawnIndex], show),
+        drawnTile: concealedDrawn ? CONCEALED_TILE : knownDrawn,
     };
 }
 

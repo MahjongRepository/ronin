@@ -68,11 +68,10 @@ $plate-seats: bottom, right, top, left;
 
 .nameplate--top {
     --top-badge-left: calc(var(--top-strip-x) + var(--badge-gap));
-    --top-badge-room: calc(100cqw - var(--m) - var(--corner-reserve) - var(--badge-gap));
 
     left: var(--top-badge-left);
     top: max(0px, var(--m) + var(--rw) / 2 - var(--badge-h) * 0.45);
-    max-width: calc(var(--top-badge-room) - var(--top-badge-left));
+    max-width: calc(var(--top-badge-right) - var(--top-badge-left));
 
     @include upright-board {
         left: calc(var(--m) + var(--counters-w) + var(--badge-gap));
@@ -136,8 +135,14 @@ $plate-seats: bottom, right, top, left;
     align-self: flex-end;
 }
 
+/* A board without the page's corner (a replay's, a storybook's) keeps no room for it. */
+.game-board:not(:has(.board-menu)) > .board-layout {
+    --corner-reserve: 0px;
+    --corner-shift: 0px;
+}
+
 .board-layout {
-    --corner-reserve: #{$corner-reserve};
+    --corner-reserve: 152px;
 
     @include small-chrome {
         --corner-reserve: 88px;
@@ -249,7 +254,7 @@ $plate-seats: bottom, right, top, left;
 .board-menu {
     position: absolute;
     top: var(--m);
-    right: var(--m);
+    right: calc(var(--m) + var(--corner-shift));
     z-index: 3;
     min-width: 0;
     max-width: var(--corner-reserve);

@@ -155,6 +155,12 @@ function rightStripStyle(player: BoardPlayerDisplay | null): Readonly<Record<str
     ]);
 }
 
+/** What the own row's melds scale from to end before the board's edge: how many there are and how long, in tiles. */
+function ownMeldStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
+    const style = stripStyle(player);
+    return { "--meld-n": style["--meld-n"], "--meld-units": style["--meld-units"] };
+}
+
 /** An opponent's strip in its zone toward its edge: its hand, then its melds beyond the hand's right end. */
 function Strip(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     return html`<div class="board-strip board-strip--${seat}" style=${styleMap(stripStyle(player))}>
@@ -443,7 +449,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${props.notices ? BoardNotices(props.notices) : ""}
                     ${props.callouts ? Callouts(props.callouts, state) : ""}
                 </div>
-                <div class="board-local">
+                <div class="board-local" style=${styleMap(ownMeldStyle(bottom))}>
                     ${plates?.bottom ?? ""}${props.localHand ? FuritenSlot(props.furiten ?? false) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
                 </div>
             </div>

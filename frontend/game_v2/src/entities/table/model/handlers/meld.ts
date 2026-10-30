@@ -56,6 +56,7 @@ function meldFromHand(
         ...state,
         players: updatePlayer(state.players, event.callerSeat, {
             concealedCount: hand.concealedCount,
+            drawnConcealed: false,
             drawnTileId: null,
             melds,
             tiles: hand.tiles,

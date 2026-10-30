@@ -35,6 +35,7 @@ export function createInitialPlayerState(params: InitialPlayerParams): PlayerSta
         aiStandIn: null,
         concealedCount: 0,
         discards: [],
+        drawnConcealed: false,
         drawnTileId: null,
         isAiPlayer: params.isAiPlayer,
         isRiichi: false,

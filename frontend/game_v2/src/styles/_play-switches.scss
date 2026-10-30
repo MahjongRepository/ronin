@@ -13,6 +13,10 @@ $gap: 6px;
     gap: $gap;
     max-width: var(--switches-w);
 
+    @include phone-board {
+        gap: 4px;
+    }
+
     @include upright-board {
         display: none;
     }
@@ -34,7 +38,7 @@ $gap: 6px;
     align-items: center;
     gap: 0.45em;
     min-width: 40px;
-    height: 50px;
+    height: var(--switch-h);
     margin: 0;
     padding: 0 0.7em 0 0.55em;
     border: 1px solid var(--ronin-switch-rim);
@@ -61,19 +65,17 @@ $gap: 6px;
     @include small-chrome {
         @include stacked;
 
-        height: 44px;
         font-size: 12px;
     }
 
     @include large-chrome {
-        height: 60px;
         font-size: 22px;
     }
 
     @include phone-board {
         @include stacked;
 
-        height: var(--control-h);
+        padding: 0 0.5em;
         font-size: 11px;
     }
 }
