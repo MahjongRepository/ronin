@@ -276,7 +276,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   fingerprint of its inputs (every non-ignored file under `frontend/game_v2`, tracked or not, and the
   `Makefile`) in `node_modules/.cache/visual-check.pass`; `make run-all-checks` skips the gate only
   when the current fingerprint matches that stamp, so a skip always means these exact inputs passed.
-  Run directly, it always runs.
+  Run directly, it always runs. While iterating, `node scripts/visual-check.ts --page <name>
+  --viewport <name> --shots <dir>` (after `vite build`; each repeatable, matching names by substring)
+  checks and shoots only those pages; it skips the replay load budget and never stamps.
 * **Budgets**, in the same run: `scripts/bundle-budget.ts` reads the manifest the gate's build alone
   writes (`vite build --manifest`; it deletes it, so `dist/` never serves one) and fails when a
   route loads more JavaScript or CSS than its budget, raw or gzipped (the game route is the entry

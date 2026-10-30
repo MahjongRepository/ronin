@@ -1305,15 +1305,27 @@ async function runPooled<Task, Result>(
     return results;
 }
 
-/** Check every page at each of an engine's viewports in one browser, several pages at once. */
+/** The pages and viewports a run checks: all of them, or the ones `--page` and `--viewport` name. */
+interface Selection {
+    readonly pages: readonly PageCase[];
+    readonly viewports: readonly Viewport[];
+    readonly partial: boolean;
+}
+
+/** The selected pages at each of an engine's selected viewports. */
+function tasksOf(engine: BrowserType, selection: Selection): PageTask[] {
+    const viewports = selection.viewports.filter((viewport) => viewport.engine === engine);
+    return viewports.flatMap((viewport) =>
+        selection.pages.map((pageCase) => ({ pageCase, viewport })),
+    );
+}
+
+/** Check an engine's tasks in one browser, several pages at once. */
 async function runEngine(
     browser: Browser,
-    viewports: readonly Viewport[],
+    tasks: readonly PageTask[],
     run: { readonly fixtures: Fixtures; readonly shots: string },
 ): Promise<TaskResult[]> {
-    const tasks = viewports.flatMap((viewport) =>
-        PAGES.map((pageCase) => ({ pageCase, viewport })),
-    );
     return runPooled(tasks, PAGES_AT_ONCE, (task) => runTask(browser, task, run));
 }
 
@@ -1384,12 +1396,12 @@ function reportFailures(results: readonly TaskResult[]): string[] {
     });
 }
 
-function viewportsOf(engine: BrowserType): Viewport[] {
-    return VIEWPORTS.filter((viewport) => viewport.engine === engine);
-}
-
-/** Both engines' pages at once, then the replay load budget on the Chromium browser, the CPU otherwise idle. */
-async function checkAll(fixtures: Fixtures, shots: string): Promise<string[]> {
+/** Both engines' pages at once, then, on a full run, the replay load budget on the Chromium browser, the CPU idle. */
+async function checkAll(
+    fixtures: Fixtures,
+    shots: string,
+    selection: Selection,
+): Promise<string[]> {
     const [chromiumBrowser, webkitBrowser] = await Promise.all([
         chromium.launch(),
         webkit.launch(),
@@ -1397,10 +1409,13 @@ async function checkAll(fixtures: Fixtures, shots: string): Promise<string[]> {
     try {
         const run = { fixtures, shots };
         const results = await Promise.all([
-            runEngine(chromiumBrowser, viewportsOf(chromium), run),
-            runEngine(webkitBrowser, viewportsOf(webkit), run),
+            runEngine(chromiumBrowser, tasksOf(chromium, selection), run),
+            runEngine(webkitBrowser, tasksOf(webkit, selection), run),
         ]);
         const pageFailures = reportFailures(results.flat());
+        if (selection.partial) {
+            return pageFailures;
+        }
         return [...pageFailures, ...(await checkReplayLoad(chromiumBrowser, fixtures.origin))];
     } finally {
         await Promise.all([chromiumBrowser.close(), webkitBrowser.close()]);
@@ -1415,25 +1430,59 @@ async function clearShots(folder: string): Promise<void> {
     );
 }
 
+/** Keep the items whose name contains one of `filters`, or every item when there are none. */
+function matching<Item extends { readonly name: string }>(
+    items: readonly Item[],
+    filters: readonly string[],
+): readonly Item[] {
+    if (filters.length === 0) {
+        return items;
+    }
+    return items.filter((item) => filters.some((filter) => item.name.includes(filter)));
+}
+
+/** The run's selection from `--page` and `--viewport` (each repeatable, matching a name by substring). */
+function selectRun(pageFilters: readonly string[], viewportFilters: readonly string[]): Selection {
+    return {
+        pages: matching(PAGES, pageFilters),
+        partial: pageFilters.length > 0 || viewportFilters.length > 0,
+        viewports: matching(VIEWPORTS, viewportFilters),
+    };
+}
+
 async function main(): Promise<number> {
     const { values } = parseArgs({
-        options: { shots: { default: DEFAULT_SHOTS, type: "string" } },
+        options: {
+            page: { default: [], multiple: true, type: "string" },
+            shots: { default: DEFAULT_SHOTS, type: "string" },
+            viewport: { default: [], multiple: true, type: "string" },
+        },
     });
+    const selection = selectRun(values.page, values.viewport);
+    if (selection.pages.length === 0 || selection.viewports.length === 0) {
+        console.error(
+            `Visual check selected nothing: pages ${PAGES.map(({ name }) => name).join(", ")}; viewports ${VIEWPORTS.map(({ name }) => name).join(", ")}`,
+        );
+        return 1;
+    }
     const shots = resolve(values.shots);
     if (shots === DEFAULT_SHOTS) {
         await clearShots(shots);
     }
     const frames = await transcriptFrames();
     const { origin, server } = await startServer();
-    const failures = await checkAll({ frames, origin }, shots).finally(() => server.close());
+    const failures = await checkAll({ frames, origin }, shots, selection).finally(() =>
+        server.close(),
+    );
     if (failures.length > 0) {
         console.error(
             `Visual check failed:\n${failures.map((failure) => `  ${failure}`).join("\n")}`,
         );
         return 1;
     }
-    const pages = VIEWPORTS.length * PAGES.length;
-    console.info(`Visual check passed: ${pages} pages; screenshots in ${shots}`);
+    const pages = selection.viewports.length * selection.pages.length;
+    const scope = selection.partial ? "partial run, no replay load budget; " : "";
+    console.info(`Visual check passed: ${scope}${pages} pages; screenshots in ${shots}`);
     return 0;
 }
 
