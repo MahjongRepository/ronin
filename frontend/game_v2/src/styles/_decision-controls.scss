@@ -1,4 +1,5 @@
 @use "game-board/grid" as *;
+@use "type";
 
 $action-min-height: 2.5rem;
 $action-short-board: 300px;
@@ -96,8 +97,9 @@ $action-tile-share: 0.45;
 }
 
 .decision-controls__countdown {
+    @include type.figures;
+
     min-width: 2.5ch;
-    font-family: var(--ronin-font-mono);
     font-size: calc(var(--action-text) * 1.6);
     font-weight: 700;
     line-height: 1.1;
@@ -124,7 +126,6 @@ $action-tile-share: 0.45;
 }
 
 .decision-controls__bank-label {
-    font-family: var(--ronin-font-body);
     font-size: 0.45em;
     font-weight: 700;
     text-transform: uppercase;

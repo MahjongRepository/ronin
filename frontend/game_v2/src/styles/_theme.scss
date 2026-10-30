@@ -1,5 +1,16 @@
 // Ronin Mahjong - "Parlor at Night" dark theme
 // Warm blacks with bamboo green accent, refined Japanese aesthetic
+
+/* The one face, self-hosted (assets/fonts/SOURCE.txt). Swap: text never hides while it loads (a countdown reads at
+   once); index.html preloads it, so it usually lands before the board does. */
+@font-face {
+    font-family: Inter;
+    src: url("@/assets/fonts/inter-latin.woff2") format("woff2");
+    font-weight: 400 800;
+    font-style: normal;
+    font-display: swap;
+}
+
 [data-theme="dark"] {
     // Warm dark background layers (charcoal with warm brown undertone)
     --pico-background-color: #0e0f13;
@@ -49,10 +60,12 @@
     --ronin-score-positive: #7bb88a;
     --ronin-score-negative: #d4726a;
 
-    // Typography
-    --ronin-font-display: "Space Grotesk", sans-serif;
-    --ronin-font-body: "DM Sans", sans-serif;
-    --ronin-font-mono: "JetBrains Mono", "SF Mono", monospace;
+    /* Inter, then the system's sans-serif for glyphs outside its Latin subset (a name in another script). Only the
+       debug views (the game's ?debug log, the storybook's sent messages) keep a system monospace. */
+    --ronin-font: "Inter", system-ui, -apple-system, "Segoe UI", "Roboto", "Noto Sans", sans-serif;
+    --ronin-font-debug: ui-monospace, "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
+    --pico-font-family-sans-serif: var(--ronin-font);
+    --pico-font-family-monospace: var(--ronin-font-debug);
     --ronin-safe-top: env(safe-area-inset-top, 0px);
     --ronin-safe-right: env(safe-area-inset-right, 0px);
     --ronin-safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -73,22 +86,6 @@ main {
     flex: 1;
 }
 
-// Apply fonts globally
 html {
-    font-family: var(--ronin-font-body);
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-    font-family: var(--ronin-font-display);
-}
-
-code,
-kbd,
-pre {
-    font-family: var(--ronin-font-mono);
+    font-family: var(--ronin-font);
 }

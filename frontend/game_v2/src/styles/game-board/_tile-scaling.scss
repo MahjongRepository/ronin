@@ -2,10 +2,7 @@
 
 .game-board {
     .tile {
-        width: var(--board-tile-w);
-        height: var(--board-tile-h);
-        border-radius: calc(6 * var(--board-unit));
-        padding: calc(4 * var(--board-unit)) calc(3 * var(--board-unit));
+        --tile-w: var(--board-tile-w);
     }
 
     .hand {

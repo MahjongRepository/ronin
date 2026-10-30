@@ -39,12 +39,15 @@ $corner-short: $river-reach - $side-fixed - $center-size-short;
 $reach-unit: $river-reach - $river-depth - $river-wrap;
 $outer-min-live-short: 260;
 $short-frame: 2 * $side-fixed + $reach-lane + $corner-short + $center-size-short;
-$short-height: 2 * $river-depth;
+$short-table-height: 2 * $river-depth;
 $side-length: 2 * $river-near + $river-far;
 $meld-scale: 0.62;
 $local-span: 14.6;
 $local-height-share: 11.4cqh;
 $local-height-base: 12px;
+$phone-tile-h: 48px;
+$desktop-tile-width-share: 5cqw;
+$desktop-tile-height-share: 10cqh;
 $wide-board: "4 / 3";
 $corner-reserve: 10rem;
 $corner-reserve-short: 5rem;
@@ -71,9 +74,12 @@ $table-rows: [head] var(--board-head) [top-strip] var(--board-top-strip) [top-ga
 .board-layout {
     --board-pad: 4px;
     --board-plate-reserve: clamp(5rem, 8cqw, 10rem);
-    --board-local-tile-h: min(
+    --board-local-fit-h: calc(
         (100cqw - 2 * var(--board-pad) - var(--board-plate-reserve)) / #{$local-span} * #{$tile-h} /
-            #{$tile-w},
+            #{$tile-w}
+    );
+    --board-local-tile-h: min(
+        var(--board-local-fit-h),
         #{$local-height-share} + #{$local-height-base}
     );
     --board-local-tile-w: calc(var(--board-local-tile-h) * #{$tile-w} / #{$tile-h});
@@ -122,11 +128,20 @@ $table-rows: [head] var(--board-head) [top-strip] var(--board-top-strip) [top-ga
         --board-pad: 8px;
     }
 
+    @container (height >= #{$short-height}) and (aspect-ratio >= 1) {
+        --board-local-tile-h: min(
+            min(#{$desktop-tile-width-share}, #{$desktop-tile-height-share}) * #{$tile-h} /
+                #{$tile-w},
+            var(--board-local-fit-h)
+        );
+    }
+
     @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        --board-local-tile-h: min(#{$phone-tile-h}, var(--board-local-fit-h));
         --board-table-unit: min(
             var(--board-table-width) / (#{$short-frame} + 2 * var(--board-outer-units)),
-            var(--board-table-height) / #{$short-height + $center-size-short},
-            (var(--board-table-height) - #{$center-min-short}) / #{$short-height}
+            var(--board-table-height) / #{$short-table-height + $center-size-short},
+            (var(--board-table-height) - #{$center-min-short}) / #{$short-table-height}
         );
         --board-center: max(#{$center-size-short} * var(--board-table-unit), #{$center-min-short});
         --board-opponent-scale: #{$opponent-scale-short};

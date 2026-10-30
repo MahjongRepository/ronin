@@ -1,3 +1,5 @@
+@use "type";
+
 /* ─── Game Start Panel ────────────────────────────────────────── */
 
 .game-start {
@@ -5,13 +7,11 @@
     flex-direction: column;
     gap: 0.5rem;
     min-width: min(18rem, 100%);
-    font-family: var(--ronin-font-body);
     color: var(--pico-color);
 }
 
 .game-start__title {
     margin: 0;
-    font-family: var(--ronin-font-display);
     font-size: 1rem;
     font-weight: 600;
     color: var(--pico-color);
@@ -51,7 +51,6 @@
     height: 1.6rem;
     border: 1px solid var(--ronin-border);
     border-radius: 0.25rem;
-    font-family: var(--ronin-font-mono);
     font-weight: 700;
 
     .game-start__seat--dealer & {
@@ -102,7 +101,6 @@
 
 .game-start__status {
     margin: 0;
-    font-family: var(--ronin-font-mono);
     font-size: 0.95rem;
     font-weight: 700;
     color: var(--ronin-gold);
@@ -124,7 +122,6 @@
         "scores";
     gap: 0.4rem 1rem;
     font-size: 0.8rem;
-    font-family: var(--ronin-font-body);
     color: var(--pico-color);
 }
 
@@ -144,7 +141,6 @@
 }
 
 .round-end-result__kind {
-    font-family: var(--ronin-font-display);
     font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -153,7 +149,6 @@
 }
 
 .round-end-result__title {
-    font-family: var(--ronin-font-display);
     font-size: 1.1rem;
     font-weight: 700;
     line-height: 1.2;
@@ -162,7 +157,6 @@
 .round-end-result__wind,
 .round-end-result__label,
 .round-end-result__score-wind {
-    font-family: var(--ronin-font-mono);
     font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -213,7 +207,8 @@
 }
 
 .round-end-result__countdown {
-    font-family: var(--ronin-font-mono);
+    @include type.figures;
+
     font-size: 0.7rem;
     font-weight: 600;
     line-height: 1;
@@ -240,7 +235,6 @@
 
 .round-end-result__waiting {
     color: var(--ronin-text-secondary);
-    font-style: italic;
 }
 
 .round-end-result__announce {
@@ -253,7 +247,8 @@
 }
 
 .round-end-result__page {
-    font-family: var(--ronin-font-mono);
+    @include type.figures;
+
     color: var(--ronin-text-secondary);
 }
 
@@ -288,7 +283,6 @@
 }
 
 .round-end-result__win-label {
-    font-family: var(--ronin-font-mono);
     font-size: 0.6rem;
     font-weight: 700;
     line-height: 1;
@@ -308,7 +302,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    font-family: var(--ronin-font-mono);
     font-size: 0.75rem;
 
     > li {
@@ -323,6 +316,8 @@
 }
 
 .round-end-result__han {
+    @include type.figures;
+
     color: var(--pico-color);
     font-weight: 600;
 
@@ -347,21 +342,22 @@
 }
 
 .round-end-result__points {
-    font-family: var(--ronin-font-display);
+    @include type.figures;
+
     font-size: 1.9rem;
     font-weight: 700;
     line-height: 1;
 }
 
 .round-end-result__limit {
-    font-family: var(--ronin-font-display);
     font-size: 1.05rem;
     font-weight: 700;
     color: var(--ronin-gold);
 }
 
 .round-end-result__han-fu {
-    font-family: var(--ronin-font-mono);
+    @include type.figures;
+
     color: var(--ronin-text-secondary);
 }
 
@@ -394,7 +390,6 @@
     display: flex;
     flex-wrap: wrap;
     column-gap: 0.9rem;
-    font-family: var(--ronin-font-mono);
     color: var(--ronin-text-secondary);
 
     > li {
@@ -439,7 +434,6 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-rows: repeat(4, auto);
     gap: 0 1rem;
-    font-family: var(--ronin-font-mono);
 }
 
 .round-end-result__score {
@@ -466,10 +460,6 @@
     min-width: 0;
 }
 
-.round-end-result__score-name {
-    font-family: var(--ronin-font-body);
-}
-
 .round-end-result__score-tag {
     grid-row: 2;
     font-size: 0.65rem;
@@ -479,6 +469,8 @@
 }
 
 .round-end-result__delta {
+    @include type.figures;
+
     grid-row: 3;
     font-weight: 700;
     font-size: 0.9rem;
@@ -494,6 +486,8 @@
 }
 
 .round-end-result__score-after {
+    @include type.figures;
+
     grid-row: 4;
     color: var(--ronin-text-muted);
 }

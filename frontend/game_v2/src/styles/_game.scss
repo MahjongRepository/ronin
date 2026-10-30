@@ -25,20 +25,12 @@ section {
 
 .tile {
     background: #fff;
-    border-radius: 6px;
-    padding: 4px 3px;
 
     svg {
         display: block;
         width: 100%;
         height: 100%;
     }
-}
-
-.tile-back,
-.tile-back-color {
-    padding: 0;
-    border-radius: 6px;
 }
 
 // ─── Connection Status Badges ────────────────────────────────
@@ -53,7 +45,6 @@ section {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    font-family: var(--ronin-font-mono);
     white-space: nowrap;
     transition:
         background-color 0.3s ease,
@@ -265,7 +256,7 @@ section {
 
 .log-time {
     color: var(--pico-muted-color);
-    font-family: var(--ronin-font-mono);
+    font-family: var(--ronin-font-debug);
     white-space: nowrap;
     flex-shrink: 0;
     font-size: 0.75rem;
@@ -273,7 +264,7 @@ section {
 
 .log-type {
     color: var(--pico-primary);
-    font-family: var(--ronin-font-mono);
+    font-family: var(--ronin-font-debug);
     font-weight: 600;
     text-transform: lowercase;
     letter-spacing: 0.02em;
@@ -282,7 +273,7 @@ section {
 }
 
 .log-raw {
-    font-family: var(--ronin-font-mono);
+    font-family: var(--ronin-font-debug);
     white-space: pre-wrap;
     overflow-wrap: break-word;
     color: var(--ronin-text-secondary);

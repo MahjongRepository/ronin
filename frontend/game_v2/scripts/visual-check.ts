@@ -94,6 +94,10 @@ const LOAD_EXPECTED = {
     stops: 1693,
 };
 
+/** The app's one face, which every page must have loaded before it is checked and shot. */
+const FONT_FAMILY = "Inter";
+const FONT_EXTENSION = ".woff2";
+
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
     ".css": "text/css",
     ".html": "text/html",
@@ -150,6 +154,10 @@ type PageCase = PageKind & {
     readonly name: string;
     readonly path: string;
     readonly required: Required;
+    /** The face's request is refused, so the page must stay readable in the fallback stack. */
+    readonly fontBlocked?: boolean;
+    /** The only viewports the page is checked at, by name; every viewport when absent. */
+    readonly onlyAt?: readonly string[];
 };
 
 type BoardCase = Extract<PageCase, { readonly kind: "board" }>;
@@ -475,6 +483,12 @@ const PAGES: readonly PageCase[] = [
         required: { visible: [".game-start__seat--viewer", ".game-start__status", ".nameplate"] },
     },
     decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
+    {
+        ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
+        fontBlocked: true,
+        name: "font-blocked-anchor-turn",
+        onlyAt: ["desktop-1440", "phone-se-landscape"],
+    },
     decisionCase("anchor_call", [ACTION, ".decision-controls__countdown"]),
     decisionCase("anchor_riichi", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
@@ -754,18 +768,33 @@ async function startServer(): Promise<{ server: Server; origin: string }> {
 
 /**
  * A context that keeps the run offline and deterministic: reduced motion, so a shot shows each animation's resting
- * state, no web fonts, the handoff set, the socket mocked.
+ * state, nothing off the origin (the app's own face is served with it), the handoff set, the socket mocked. With
+ * `fontBlocked`, the face's request is answered 404.
  */
 async function openContext(
     browser: Browser,
     viewport: Viewport,
-    { frames, origin }: { readonly frames: readonly Uint8Array[]; readonly origin: string },
+    {
+        fontBlocked = false,
+        frames,
+        origin,
+    }: {
+        readonly fontBlocked?: boolean;
+        readonly frames: readonly Uint8Array[];
+        readonly origin: string;
+    },
 ): Promise<BrowserContext> {
     const context = await browser.newContext({ ...viewport.context, reducedMotion: "reduce" });
     await context.route(
         (url) => url.origin !== origin,
         (route) => route.fulfill({ body: "", contentType: "text/css", status: 200 }),
     );
+    if (fontBlocked) {
+        await context.route(
+            (url) => url.pathname.endsWith(FONT_EXTENSION),
+            (route) => route.fulfill({ body: "", status: 404 }),
+        );
+    }
     const wsUrl = `${origin.replace("http", "ws")}/ws/${GAME_ID}`;
     const handoff = JSON.stringify({ gameTicket: "visual-check", wsUrl });
     await context.addInitScript(([key, value]) => sessionStorage.setItem(key, value), [
@@ -1901,6 +1930,61 @@ async function checkTileFaces(page: Page, report: PageReport): Promise<void> {
     report.expect(faces.drawn, "no tile face drew");
 }
 
+/**
+ * Fail a page whose face did not load (its FontFace `loaded` and `document.fonts.check` true, since `check` is also true
+ * for a family no face declares), or, with the face blocked, whose FontFace did not fail once asked to load (WebKit
+ * leaves a face whose preload failed `unloaded` until then): the checks that follow then measure the fallback stack.
+ */
+async function checkFont(page: Page, pageCase: PageCase, report: PageReport): Promise<void> {
+    const expected = pageCase.fontBlocked === true ? "error" : "loaded";
+    if (expected === "error") {
+        await page.evaluate(async (family) => {
+            const faces: FontFace[] = [];
+            document.fonts.forEach((face) => {
+                if (face.family.replaceAll('"', "") === family) {
+                    faces.push(face);
+                }
+            });
+            await Promise.allSettled(faces.map((face) => face.load()));
+        }, FONT_FAMILY);
+    }
+    const font = await page
+        .waitForFunction(
+            (family) => {
+                const statuses: string[] = [];
+                document.fonts.forEach((face) => {
+                    if (face.family.replaceAll('"', "") === family) {
+                        statuses.push(face.status);
+                    }
+                });
+                const settled =
+                    statuses.length > 0 &&
+                    statuses.every((status) => status === "loaded" || status === "error");
+                return settled && { checked: document.fonts.check(`16px "${family}"`), statuses };
+            },
+            FONT_FAMILY,
+            { timeout: SELECTOR_TIMEOUT_MS },
+        )
+        .then((handle) => handle.jsonValue())
+        .catch(() => null);
+    if (font === null || font === false) {
+        report.expect(false, `the ${FONT_FAMILY} face never loaded or failed`);
+        return;
+    }
+    report.expect(
+        font.statuses.length === 1 && font.statuses[0] === expected,
+        `the ${FONT_FAMILY} face is ${font.statuses.join(", ")}, not ${expected}`,
+    );
+    if (expected === "loaded") {
+        report.expect(font.checked, `document.fonts.check says ${FONT_FAMILY} is not ready`);
+    }
+}
+
+/** The request for the face a page was told to fail, which the browser reports as a console error. */
+function isBlockedFont(pageCase: PageCase, url: string): boolean {
+    return pageCase.fontBlocked === true && url.endsWith(FONT_EXTENSION);
+}
+
 async function runPage(
     { context, origin, shots, viewport }: PageLoad,
     pageCase: PageCase,
@@ -1908,17 +1992,22 @@ async function runPage(
     const report = new PageReport();
     const page = await context.newPage();
     page.on("console", (message) => {
-        if (message.type() === "error") {
+        if (message.type() === "error" && !isBlockedFont(pageCase, message.location().url)) {
             report.failures.push(`console error: ${message.text()}`);
         }
     });
     page.on("pageerror", (error) => report.failures.push(`page error: ${error.message}`));
-    page.on("requestfailed", (request) => report.failures.push(`request failed: ${request.url()}`));
+    page.on("requestfailed", (request) => {
+        if (!isBlockedFont(pageCase, request.url())) {
+            report.failures.push(`request failed: ${request.url()}`);
+        }
+    });
     try {
         await loadPage(page, pageCase, origin);
         await emulateInsets(page, viewport.insets);
         await checkCaptureModel(page, viewport, report);
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        await checkFont(page, pageCase, report);
         await page.waitForTimeout(SETTLE_MS);
         await checkTileFaces(page, report);
         report.summary = await checkPage({ page, report, viewport }, pageCase);
@@ -1955,6 +2044,7 @@ async function runTask(
 ): Promise<TaskResult> {
     const frames = pageCase.kind === "game" ? fixtures.frames.get(pageCase.checkpoint) : [];
     const context = await openContext(browser, viewport, {
+        fontBlocked: pageCase.fontBlocked,
         frames: frames ?? [],
         origin: fixtures.origin,
     });
@@ -1997,7 +2087,9 @@ interface Selection {
 function tasksOf(engine: BrowserType, selection: Selection): PageTask[] {
     const viewports = selection.viewports.filter((viewport) => viewport.engine === engine);
     return viewports.flatMap((viewport) =>
-        selection.pages.map((pageCase) => ({ pageCase, viewport })),
+        selection.pages
+            .filter(({ onlyAt }) => onlyAt === undefined || onlyAt.includes(viewport.name))
+            .map((pageCase) => ({ pageCase, viewport })),
     );
 }
 
@@ -2140,7 +2232,7 @@ async function main(): Promise<number> {
         },
     });
     const selection = selectRun(values.page, values.viewport);
-    if (selection.pages.length === 0 || selection.viewports.length === 0) {
+    if (tasksOf(chromium, selection).length + tasksOf(webkit, selection).length === 0) {
         console.error(
             `Visual check selected nothing: pages ${PAGES.map(({ name }) => name).join(", ")}; viewports ${VIEWPORTS.map(({ name }) => name).join(", ")}`,
         );
@@ -2161,7 +2253,7 @@ async function main(): Promise<number> {
         );
         return 1;
     }
-    const pages = selection.viewports.length * selection.pages.length;
+    const pages = tasksOf(chromium, selection).length + tasksOf(webkit, selection).length;
     const scope = selection.partial ? "partial run, no replay load budget; " : "";
     console.info(`Visual check passed: ${scope}${pages} pages; screenshots in ${shots}`);
     return 0;

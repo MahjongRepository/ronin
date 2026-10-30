@@ -1,4 +1,5 @@
 @use "grid" as *;
+@use "../type";
 
 .board-dora {
     --board-unit: calc(var(--board-table-unit) * var(--board-opponent-scale));
@@ -39,7 +40,6 @@
     flex-wrap: wrap;
     justify-content: space-around;
     gap: 0.6em;
-    font-family: var(--ronin-font-mono);
     font-size: var(--dora-text);
     line-height: 1.1;
     color: var(--pico-color);
@@ -52,12 +52,13 @@
 }
 
 .board-dora__label {
-    font-family: var(--ronin-font-body);
     font-size: max(10px, 0.55em);
     color: var(--ronin-text-secondary);
 }
 
 .board-dora__count {
+    @include type.figures;
+
     display: flex;
     align-items: center;
     gap: 0.15em;

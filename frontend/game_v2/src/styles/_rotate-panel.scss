@@ -1,3 +1,5 @@
+@use "type";
+
 /* The live game on an upright touch screen narrower than this shows the rotate panel instead of its table. */
 $rotate-below-width: 600px;
 
@@ -77,7 +79,8 @@ $rotate-below-width: 600px;
 }
 
 .rotate-panel__seconds {
-    font-family: var(--ronin-font-mono);
+    @include type.figures;
+
     font-size: 2.5rem;
     font-weight: 700;
     color: var(--ronin-gold);

@@ -1,3 +1,5 @@
+@use "../type";
+
 $score-text-min: 10px;
 $round-text-min: 12px;
 
@@ -71,7 +73,6 @@ $round-text-min: 12px;
     display: flex;
     align-items: center;
     gap: 0.25em;
-    font-family: var(--ronin-font-mono);
     font-size: var(--center-score-text);
     font-weight: 700;
     line-height: 1.2;
@@ -96,7 +97,13 @@ $round-text-min: 12px;
     }
 }
 
+.board-center__score {
+    @include type.figures;
+}
+
 .board-center__diff {
+    @include type.figures;
+
     display: none;
     color: var(--ronin-gold);
 }
@@ -110,7 +117,6 @@ $round-text-min: 12px;
     justify-content: center;
     gap: max(1px, calc(8 * var(--board-unit)));
     min-width: 0;
-    font-family: var(--ronin-font-mono);
     line-height: 1.1;
     white-space: nowrap;
 }
@@ -130,8 +136,11 @@ $round-text-min: 12px;
     color: var(--ronin-gold);
 }
 
+.board-center__wall-count {
+    @include type.figures;
+}
+
 .board-center__wall-label {
-    font-family: var(--ronin-font-body);
     font-size: max(#{$score-text-min}, 0.45em);
     font-weight: 400;
     color: var(--ronin-text-secondary);

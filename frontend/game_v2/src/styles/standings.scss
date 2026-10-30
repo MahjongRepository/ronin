@@ -1,3 +1,5 @@
+@use "type";
+
 $label-width: 7.75rem;
 $tap: 2.5rem;
 $tap-min: 40px;
@@ -20,7 +22,6 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     gap: 0.5rem;
     min-height: 0;
     margin: 0;
-    font-family: var(--ronin-font-body);
     color: var(--pico-color);
 }
 
@@ -36,7 +37,6 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 
 .standings__title {
     margin: 0;
-    font-family: var(--ronin-font-display);
     font-size: 1rem;
     line-height: 1.2;
 }
@@ -75,7 +75,6 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     border-collapse: separate;
     border-spacing: 0;
     font-size: inherit;
-    font-variant-numeric: tabular-nums;
 
     th,
     td {
@@ -224,6 +223,8 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
 }
 
 .standings__cell {
+    @include type.figures;
+
     text-align: right;
     white-space: nowrap;
 }

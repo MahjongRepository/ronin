@@ -6,8 +6,8 @@ import { gzipSync } from "node:zlib";
  * The v2 client's bundle budget: it reads the built `dist/` through the manifest the gate's build writes
  * (`vite build --manifest`), then deletes it so it is never served, and fails when a route loads more JavaScript or
  * CSS than its budget, raw or gzipped. The game route is the entry and everything it imports statically; a lazy
- * route is what its chunk adds on top of the entry; the tile sprite, an asset every page fetches, has its own. The budgets sit modestly above the measured sizes, so growth
- * is a decision made here, not a drift.
+ * route is what its chunk adds on top of the entry; the tile sprite and the font, assets every page fetches, have their
+ * own. The budgets sit modestly above the measured sizes, so growth is a decision made here, not a drift.
  */
 
 const DIST = resolve(import.meta.dirname, "../dist");
@@ -57,9 +57,11 @@ interface RouteBudget {
  * shadow over rounds hidden under the totals.
  * The storybook's JS re-set on 2026-10-30 from 56 / 14.2 to 66 / 16.3 at 59.7 / 14.8: the decisions stories run the
  * look spec's anchor transcript (East 1 played, East 2 to its riichi offer).
+ * The game's CSS re-set on 2026-10-30 from 88 / 14.8 to 96.5 / 16.4 at 87.7 / 14.9: it had grown to 87.7 / 14.8 by
+ * then (the panels' and the corner's fixes), and the look's type (the self-hosted face, its tabular figures) tipped it.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 14.8, raw: 88 }, js: { gzip: 57.7, raw: 188 } },
+    game: { chunk: "index.html", css: { gzip: 16.4, raw: 96.5 }, js: { gzip: 57.7, raw: 188 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 2.8, raw: 8.9 },
@@ -78,11 +80,14 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
 };
 
 /**
- * The tile sprite, an asset rather than a chunk: every page fetches it beside the entry (the page preloads it), so it
- * has a budget of its own and joins the entry in the cold start the script reports. Set on 2026-10-30, about a tenth
- * over its 213.0 / 20.5.
+ * The assets every page fetches beside the entry, which the page preloads, each with a budget of its own; both join the
+ * entry in the cold start the script reports. The tile sprite set on 2026-10-30, about a tenth over its 213.0 / 20.5;
+ * the font (Inter's Latin subset, already compressed as woff2) on 2026-10-30, about a tenth over its 40.4 / 40.5.
  */
-const SPRITE = { budget: { gzip: 23, raw: 235 }, key: "src/assets/tiles/sprites/fluffy-stuff.svg" };
+const ASSETS: Readonly<Record<string, { readonly key: string; readonly budget: Size }>> = {
+    font: { budget: { gzip: 44.5, raw: 44.5 }, key: "src/assets/fonts/inter-latin.woff2" },
+    sprite: { budget: { gzip: 23, raw: 235 }, key: "src/assets/tiles/sprites/fluffy-stuff.svg" },
+};
 
 interface ManifestChunk {
     readonly file: string;
@@ -160,16 +165,20 @@ async function main(): Promise<number> {
             ),
         );
     }
-    const sprite = manifest[SPRITE.key];
-    if (sprite === undefined) {
-        throw new Error(`the manifest has no asset ${SPRITE.key}`);
+    const assetFiles: string[] = [];
+    for (const [name, asset] of Object.entries(ASSETS)) {
+        const chunk = manifest[asset.key];
+        if (chunk === undefined) {
+            throw new Error(`the manifest has no asset ${asset.key}`);
+        }
+        const size = await measure([chunk.file], "");
+        console.info(`${name}: ${describe(size, asset.budget)}`);
+        failures.push(...overBudget(name, size, asset.budget));
+        assetFiles.push(chunk.file);
     }
-    const spriteSize = await measure([sprite.file], ".svg");
-    console.info(`sprite: ${describe(spriteSize, SPRITE.budget)}`);
-    failures.push(...overBudget("sprite", spriteSize, SPRITE.budget));
-    const coldStart = await measure([...entry, sprite.file], "");
+    const coldStart = await measure([...entry, ...assetFiles], "");
     console.info(
-        `cold start (entry JS and CSS, and the sprite): ${coldStart.raw.toFixed(1)} KiB raw, ${coldStart.gzip.toFixed(1)} KiB gzip`,
+        `cold start (entry JS and CSS, the sprite and the font): ${coldStart.raw.toFixed(1)} KiB raw, ${coldStart.gzip.toFixed(1)} KiB gzip`,
     );
     if (failures.length > 0) {
         console.error(`Bundle budget exceeded:\n${failures.map((line) => `  ${line}`).join("\n")}`);

@@ -17,7 +17,6 @@ $callout-side-ems: 4.4;
     border-radius: 0.3em;
     background: color-mix(in srgb, var(--ronin-surface) 92%, transparent);
     box-shadow: 0 0 0.4em rgb(0 0 0 / 60%);
-    font-family: var(--ronin-font-display);
     font-size: clamp(
         #{$callout-text-min},
         calc(#{$callout-text-units} * var(--board-table-unit)),
@@ -169,7 +168,6 @@ $callout-side-ems: 4.4;
     padding: 0.1em 0.45em;
     border-radius: 0.3em;
     background: var(--ronin-gold);
-    font-family: var(--ronin-font-body);
     font-size: max(10px, calc(16 * var(--board-table-unit)));
     font-weight: 700;
     line-height: 1.2;

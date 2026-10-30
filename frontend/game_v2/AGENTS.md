@@ -25,6 +25,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   `shared/lib`'s `startRetryingLoad`, IO the entry owns), and a face drawn before it lands shows once it does. Until then each face shows its short
   name (`5m`, `E`), so a tile is never blank; the live game's board says so with a reload while a load
   has failed (`PlayUi`'s sprite status, which the driver keeps from the loader, never the dispatcher).
+* The one face is Inter, self-hosted: `src/assets/fonts/inter-latin.woff2`, a Latin subset with its own tabular
+  figures (how it was cut and from which release in `SOURCE.txt`, the licence in `OFL.txt` beside it). `_theme.scss`
+  declares it with `font-display: swap`, so text never waits on it (a countdown reads at once), and `index.html`
+  preloads it like the sprite, so it usually lands before a board does; a glyph outside the subset (a name in another
+  script) falls back to the system sans-serif after it in `--ronin-font`.
 * `package.json`'s `sideEffects` names the only modules with an import-time effect (the stylesheets,
   `zod-setup.ts`), so the build drops a module none of a route's code uses even when a barrel
   re-exports it: the replay's and the scenarios' modules stay out of the entry. A new module with such
@@ -302,8 +307,11 @@ follows holds through the rebuild to it.
   the table counts its lengths in board units (a river tile is 60 x 80): the Sass constants in
   `game-board/_grid.scss` give every track in those units, and `--board-unit` is the length of one
   unit fitted to the table's box (the centre keeps a pixel floor, so its text fits a phone); the overlay
-  sets its own unit. A round result taller than its panel scrolls under its foot, which keeps the
-  scores, the primary button and its countdown at the panel's bottom.
+  sets its own unit. The own tile follows the spec's sizing rule (`docs/game-client-look.md`, Proportions) in
+  `game-board/_grid.scss`, capped by what the hand's row can hold; an upright board keeps the size fitted to its
+  width and height. Every tile's box (its 3:4 from `--tile-w`, the room around the glyph, the corners) is
+  `styles/_tile.scss`'s. A round result taller than its panel scrolls under its foot, which keeps the scores, the
+  primary button and its countdown at the panel's bottom.
 * **The table.** The rivers form a pinwheel around the centre, each starting at the centre's corner on
   its seat's left; a top or bottom river's third row runs on past its corner, up to six tiles past the
   other two (24 discards), and a side river, whose length runs along the short axis, wraps its third
@@ -365,8 +373,13 @@ show a board run on the browser's clock for that reason, so their input keeps it
   does not fit, a panel over a landscape board covering the
   page's corner, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
-  error, failed request or missing element, and on a tile sprite that never loaded or a face whose
-  symbol it lacks. The standings must keep their rounds scrolling inside their sheet, never sideways in landscape,
+  error, failed request or missing element, on a tile sprite that never loaded or a face whose
+  symbol it lacks, and on a page whose face (Build) did not load: its FontFace `loaded` and
+  `document.fonts.check`, which alone is also true of a family nothing declares. Every request off the page's
+  origin is answered empty, so the app's own face is the only one a capture draws; one case
+  (`font-blocked-anchor-turn`, at desktop-1440 and the 667x375 floor) refuses its request instead, and must show
+  the face failed and pass every other check in the fallback stack. The standings must keep their rounds scrolling
+  inside their sheet, never sideways in landscape,
   with the totals in view at its foot, no text under 10px, each round's and result's gain or loss in its
   tone's colour, and on a landscape phone their ways on
   and the rounds shown on the screen and at least 40x40. It writes a screenshot per page to
@@ -384,8 +397,8 @@ show a board run on the browser's clock for that reason, so their input keeps it
 * **Budgets**, in the same run: `scripts/bundle-budget.ts` reads the manifest the gate's build alone
   writes (`vite build --manifest`; it deletes it, so `dist/` never serves one) and fails when a
   route loads more JavaScript or CSS than its budget, raw or gzipped (the game route is the entry
-  and its static imports; a lazy route is what it adds; the tile sprite has its own, and the cold start,
-  the entry with the sprite, is reported; the standings' chunk, which no route imports statically, has its
+  and its static imports; a lazy route is what it adds; the tile sprite and the font have their own, and the
+  cold start, the entry with both, is reported; the standings' chunk, which no route imports statically, has its
   own), the budgets set about a tenth over the measured sizes, a lazy route's CSS at least 1 KiB
   over. Then the replay load budget loads the
   largest engine replay fixture on the same server and Chromium, slowed sixfold
@@ -422,8 +435,12 @@ rather than introducing new FSD layers:
   project-specific components. The page is always dark (`index.html`), so `_pico.scss` assembles
   Pico's modules itself with only the dark scheme; a page using an element of a module it leaves
   out (a table, a dialog, a form control) enables that module there. Use the `--ronin-*` tokens
-  from `styles/_theme.scss` rather than literal colors and fonts. `styles/game-app.scss` is the one entry stylesheet; board layout lives
-  in `styles/game-board/`.
+  from `styles/_theme.scss` rather than literal colors and fonts. Text has one face, `--ronin-font` (the face, Build),
+  and no monospace: only the debug views (the `?debug` log, the storybook's sent messages) use `--ronin-font-debug`,
+  which Pico's code elements take too. A figure that aligns (a score, a count, a timer, a result or standings figure)
+  takes `type.figures` (`styles/_type.scss`) on its own numeric element, never on a container holding text: tabular
+  digits, and `text-rendering: geometricprecision`, which stops headless Chromium snapping each digit's advance to a
+  whole pixel. `styles/game-app.scss` is the one entry stylesheet; board layout lives in `styles/game-board/`.
 * Named exports only in `src/` (tool configs such as `vite.config.ts` keep their default export).
 * No `console.log` in application code.
 * Lint and format follow the lobby's config (keep them in sync); the `.oxlintrc.json` overrides

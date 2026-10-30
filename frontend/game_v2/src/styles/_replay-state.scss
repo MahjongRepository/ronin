@@ -1,3 +1,5 @@
+@use "type";
+
 $move-size: 40px;
 $move-gap: 0.25rem;
 $column-gap: 2px;
@@ -138,7 +140,6 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
         padding: 0 0.2em;
         font-size: 0.9em;
         line-height: 1.1;
-        font-family: var(--ronin-font-body);
         font-weight: 700;
         color: var(--ronin-warning);
         border: 1px solid currentcolor;
@@ -179,7 +180,6 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     padding: 0.25rem 0.4rem;
     font-size: 0.75rem;
     line-height: 1.2;
-    font-family: var(--ronin-font-mono);
 
     &[aria-expanded="true"] {
         background: var(--pico-primary-hover-background);
@@ -198,6 +198,8 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
 }
 
 .replay-controls__step {
+    @include type.figures;
+
     font-size: 0.85em;
     opacity: 0.85;
 
@@ -299,7 +301,6 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     padding: 0;
     font-size: 0.8rem;
     font-weight: 600;
-    font-family: var(--ronin-font-mono);
     touch-action: manipulation;
 
     &:disabled {
@@ -454,7 +455,6 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
 .round-list__name {
     font-size: 0.8rem;
     font-weight: 600;
-    font-family: var(--ronin-font-mono);
 }
 
 .round-list__summary {
