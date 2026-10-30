@@ -177,6 +177,12 @@ interface BoardMeasure {
     /** Every board tile but the local hand's and the decision buttons': rivers, other seats, melds, dora. */
     readonly otherTiles: readonly Box[];
     readonly actions: readonly Box[];
+    /** The decision's corner and its buttons, which must sit wholly in its box, never scrolled or clipped. */
+    readonly decisionCorner: { readonly box: Box; readonly buttons: readonly Box[] } | null;
+    /** The notices over the table. */
+    readonly notices: readonly Box[];
+    /** Text that shows whole or not at all (the status's word, a name's end, a plate's wind and marks), clipped. */
+    readonly clippedWords: readonly string[];
     /** The calls shown by their seats. */
     readonly callouts: readonly Box[];
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
@@ -455,10 +461,13 @@ const PAGES: readonly PageCase[] = [
         ".standings__actions a[href*='seat=1']",
     ]),
     decisionCase("last_result_reopened", [".round-end-result__confirm"]),
-    decisionCase("connection_lost", [".board-notice--warning", ".game-menu__status-word"]),
+    decisionCase("connection_lost", [
+        ".board-notice--warning",
+        ".game-menu__status:not(.status-connected)",
+    ]),
     decisionCase("move_refused", [".board-notice--warning", ".hand-tile--selectable"]),
     decisionCase("faces_missing", [".board-notice__action", ".hand-tile--selectable"]),
-    decisionCase("kicked", [".failure-panel__leave", ".game-menu__status-word"]),
+    decisionCase("kicked", [".failure-panel__leave", ".game-menu__status:not(.status-connected)"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     decisionCase("leave_after_win", [".leave-confirm__stay"]),
     {
@@ -894,6 +903,38 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             ...board.querySelectorAll(".board-overlay .round-end-result__confirm"),
         ].map(box);
         const actions = [...decisionActions, ...resultActions];
+        const corner = board.querySelector(".board-actions");
+        const wholeWords = [
+            ".game-menu__status-word",
+            ".nameplate__wind",
+            ".nameplate__name-tail",
+            ".nameplate__ai",
+            ".nameplate__riichi",
+        ].join(", ");
+        const clippedWords = [...board.querySelectorAll(wholeWords)]
+            .filter((word) => {
+                const shown = word.getBoundingClientRect();
+                if (shown.width === 0) {
+                    return false;
+                }
+                const clips = [".nameplate__name", ".nameplate, .game-menu__status"].flatMap(
+                    (selector) => word.parentElement?.closest(selector) ?? [],
+                );
+                if (clips.some((clip) => clip.getBoundingClientRect().width <= 1)) {
+                    return false;
+                }
+                const inside = clips.every((clip) => {
+                    const outer = clip.getBoundingClientRect();
+                    return (
+                        shown.left >= outer.left - 1 &&
+                        shown.right <= outer.right + 1 &&
+                        shown.top >= outer.top - 1 &&
+                        shown.bottom <= outer.bottom + 1
+                    );
+                });
+                return !inside || word.scrollWidth > word.clientWidth + 1;
+            })
+            .map((word) => `${word.className.split(" ")[0]} "${word.textContent.trim()}"`);
         const aside = document.querySelector(".board-page__aside");
         const overlay = board.querySelector(".board-overlay__panel");
         const seatTileSelectors: Readonly<Record<string, string>> = {
@@ -989,6 +1030,8 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             callouts: [...board.querySelectorAll(".board-callout")].map(box),
             center: center === null ? null : box(center),
             centerTexts,
+            clippedWords,
+            decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },
             fonts,
             grouped,
             hiddenTiles: tableTiles.filter(
@@ -1002,6 +1045,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             menu,
             nameplates: nameplates.map((plate) => plate.box),
             narration,
+            notices: [...board.querySelectorAll(".board-notice")].map(box),
             opponentFaces: [...board.querySelectorAll(".board-strip .tile:not(.tile-back)")].map(
                 box,
             ),
@@ -1099,6 +1143,10 @@ function checkBoardContent(board: BoardMeasure, report: PageReport): void {
     report.expect(strayPlates.length === 0, `${strayPlates.length} nameplate(s) outside the board`);
     const overlaps = findOverlaps(board.grouped);
     report.expect(overlaps.length === 0, `areas overlap: ${overlaps.join(", ")}`);
+    report.expect(
+        board.clippedWords.length === 0,
+        `text cut short: ${board.clippedWords.join(", ")}`,
+    );
 
     const small = board.fonts.filter((font) => font.px < MIN_TEXT_PX);
     report.expect(board.fonts.length > 0, "no board text measured");
@@ -1403,6 +1451,18 @@ function checkPhoneNarration(board: BoardMeasure, screen: Box, report: PageRepor
     );
 }
 
+/** A notice over the table never hides a tile, a nameplate or the decision's corner, however long it stays. */
+function checkNotices(board: BoardMeasure, report: PageReport): void {
+    const covered = [...board.tiles, ...board.nameplates, ...(board.decisionCorner?.buttons ?? [])];
+    const over = board.notices.filter((notice) => covered.some((box) => intersects(notice, box)));
+    report.expect(
+        over.length === 0,
+        `notice(s) over a tile, plate or decision button: ${over.map(describeBox).join(", ")}`,
+    );
+    const outside = board.notices.filter((notice) => !contains(board.board, notice));
+    report.expect(outside.length === 0, `${outside.length} notice(s) off the board`);
+}
+
 /** A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps. */
 function checkCallouts(board: BoardMeasure, report: PageReport): void {
     const outside = board.callouts.filter((callout) => !contains(board.board, callout));
@@ -1416,8 +1476,21 @@ function checkCallouts(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-/** Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap. */
+/**
+ * Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap, and every
+ * decision button wholly inside its corner, never scrolled or clipped out of it.
+ */
 function checkActions(board: BoardMeasure, screen: Box, report: PageReport): void {
+    const { decisionCorner } = board;
+    if (decisionCorner !== null) {
+        const cut = decisionCorner.buttons.filter(
+            (button) => !contains(decisionCorner.box, button),
+        );
+        report.expect(
+            cut.length === 0,
+            `decision button(s) outside their corner ${describeBox(decisionCorner.box)}: ${cut.map(describeBox).join(", ")}`,
+        );
+    }
     const outside = board.actions.filter(
         (action) => !contains(board.board, action) || !contains(screen, action),
     );
@@ -1468,6 +1541,7 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
     if (viewport.supported && !viewport.portrait) {
         checkLocalHand(board, { floor: viewport.handFloor, screen }, report);
         checkActions(board, screen, report);
+        checkNotices(board, report);
         checkLeave(board, screen, report);
         checkReplayControls(board, screen, report);
         checkOpponentFaces(board, report);

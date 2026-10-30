@@ -250,7 +250,7 @@ describe("mountGameView", () => {
         expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);
     });
 
-    it("clears the handoff at the game end, so a return to the page joins with no dead ticket, and leaves on Back to Lobby", () => {
+    it("clears the handoff at the game end, so a return to the page joins with no dead ticket, and leaves on Back to lobby", () => {
         const { connections, host, sink } = mountWithFakes();
         endGame(connections[0]);
         expect(sink.clearHandoff).toHaveBeenCalledExactlyOnceWith(GAME_ID);

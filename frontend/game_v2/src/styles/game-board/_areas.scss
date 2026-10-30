@@ -42,6 +42,27 @@
     }
 }
 
+@container (height < #{$short-height}) and (aspect-ratio >= 1) {
+    .board-layout:not(:has(.board-menu)) .board-strip--top {
+        flex-flow: row-reverse wrap-reverse;
+        align-items: flex-end;
+
+        > .board-area--top-melds {
+            order: -1;
+        }
+
+        > .nameplate {
+            order: 1;
+            max-width: calc(var(--board-outer) - var(--board-plate-gap));
+            max-height: none;
+
+            .nameplate__name {
+                flex: 1 1 3em;
+            }
+        }
+    }
+}
+
 /* A side seat's slot is its column; the strip inside is laid out as long as the column, then turned into it. */
 .board-side {
     position: relative;

@@ -874,8 +874,9 @@ describe("mountReplayView - loading", () => {
         button(host, ".replay-controls__move--last").click();
 
         expect(textOf(host, ".replay-controls__incomplete--end")).toBe(
-            "Incomplete The recording ends here, before the game's end Ends here",
+            "Incomplete The recording ends here, before the game's end",
         );
+        expect(host.querySelector(".replay-controls__round--end")).not.toBeNull();
     });
 
     it("says a replay that throws while it is read cannot be shown, without a retry, the error on the console", async () => {

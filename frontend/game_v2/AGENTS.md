@@ -259,14 +259,16 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   and the smallest supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320
   phones never got iOS 16.4, so they are below the floor.
 * **The live game's page** is the board alone: the page's own controls (`GameMenu`: the way back and the
-  session's status as a dot, with one short word by its tone unless connected, the player's whole wording in
+  session's status as a dot, with one short word by its tone unless connected (a short board, too narrow for a
+  word, shows the dot alone, never part of the word), the player's whole wording in
   its title and read out, the notices saying more) sit in the board's top-right corner, so a phone gives the
   board its whole width; `PlayBoard` draws them when given the status, the decisions storybook too. A panel
   over the board leaves the corner clear: the corner is capped to a
   reserve the overlay keeps free beside the panel, on the corner's side alone on a short board, and the
   overlay's tiles size from the width left (`game-board/_overlay.scss`); an upright board does not keep it
   clear yet. The board carries the notices
-  (`playDisplay`'s, in the table's own area so they never cover the hand or the decision's corner): a
+  (`playDisplay`'s, in the table's own area, in landscape the outer column under the dora, so they never cover a
+  tile, a plate or the decision's corner, however long they stay): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
   opened, each worded the same across its retries so it is announced once (a page that only resumes
   its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
@@ -311,14 +313,18 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the top river, the right column stands past a long bottom third row's reach and the centre is smaller,
   which buys the rivers and faces their size. Each plate (one shape: wind, name, AI and riichi marks,
   sized by the table's unit) reads as its seat's by standing against its hand's start: the top seat's
-  leads its strip and gives up its name's room before the strip leaves the board; a side seat's sits
+  leads its strip and gives up its name's room before the strip leaves the board, except on a short board
+  with no page corner, where a plate the strip leaves too little room wraps, whole, under the strip's end into
+  the free outer column; a side seat's sits
   in the corner on the strip's inner side, which no river reaches; the bottom seat's left of its hand.
   A long name is shortened in the middle by the component so its end, which tells AI players apart,
-  shows; an upright board (a storybook or replay page on an upright phone) shows the wind and marks
+  shows, and its end stands apart from its start, so a plate too narrow for it gives up the start's letters, never
+  the end; an upright board (a storybook or replay page on an upright phone) shows the wind and marks
   alone, its name in the label. The outer columns hold the dora and the table's honba and riichi
   sticks (top-left, at the strips' size, a back in each slot still to turn), the page's corner
   (top-right) and the decision's controls (right, above the hand); the live board's are wider on a
-  short board, so two columns of offers fit; an upright board moves them to rows above and below the
+  short board, so two columns of offers fit, the countdown beside an odd last button there so every button stays in
+  the corner; an upright board moves them to rows above and below the
   table. The centre shows each seat's wind and score on the side facing it, its riichi stick beside
   them, a bar for whose turn it is, and the round and the wall, labelled, in its middle. The overlay
   sets its own unit. Text the board scales keeps a 10px floor. The decision's corner is sized by its
@@ -329,12 +335,12 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   a compact column that scrolls when the window is too short for it. The replay's column is two 40px
   move buttons wide on a phone, the most it may take before the local hand drops under its floor at
   667x375; it stands the board's height and its narration takes the height its buttons leave, at least
-  three lines on the supported phones (for which the round leaves its honba to the board and the end of
-  an incomplete replay says only that it ends there), while a shorter window scrolls a narration it
+  three lines on the supported phones (for which the round leaves its honba to the board and an incomplete
+  replay's note folds into the round's toggle as a mark, at its end in place of the step, read out still), while a shorter window scrolls a narration it
   cannot hold, hinted at its foot. On a landscape window of at least 1024x600 the local hand is bounded by the board's width
   with height to spare, so a column there would push it under its floor before its text read well:
   the replay's controls run instead as one bar of a button's height under the board. Its round list
-  lies over the board's right side, as tall as its rounds, above a result's dimming; a replay that is
+  lies over the board's right side, in the bar over its bottom-left above its toggle, as tall as its rounds, above a result's dimming; a replay that is
   not the whole game says so in the controls, and where it ends at its last stop, never over the board.
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
@@ -351,11 +357,13 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   two engines run at once and each checks several pages at a time, each in its own context, which
   asks for reduced motion so each shot shows an animation's resting state. It
   fails on content that is hidden or empty, tiles of different areas, a nameplate or the turn's cue overlapping,
-  anything outside the board or the screen, a call over the local hand's tiles, page overflow, board text under 10px, local hand tiles under
+  anything outside the board or the screen, a call over the local hand's tiles, a status word, a plate's wind or
+  marks or a name's end cut short, page overflow, board text under 10px, local hand tiles under
   the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800, 78x104 at 1440x900 and 93x124 at 1920x1080) or no
   larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or
-  stick count under 0.8 of the scores' size, and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)
+  stick count under 0.8 of the scores' size, a notice over a tile, a plate or a decision button, a decision
+  button not wholly inside its corner, and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)
   under 40x40 or off the screen, or a round list off the board; on a desktop, on a
   river tile outside 0.55-0.75 of the local hand tile, a side seat's hand further from the centre than a
   quarter of the board's width, or replay controls whose narration reads under 13px or past three lines,

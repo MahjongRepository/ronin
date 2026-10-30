@@ -2,6 +2,7 @@ $overlay-hold-ms: 1000ms;
 $callout-text-min: 18px;
 $callout-text-max: 72px;
 $callout-text-units: 64;
+$callout-side-ems: 4.4;
 
 .board-callouts {
     display: contents;
@@ -31,18 +32,34 @@ $callout-text-units: 64;
 
     &--bottom {
         grid-area: bottom-near / center / frame-end / right-river;
+        place-self: end center;
     }
 
     &--top {
         grid-area: top-far / center / center / right-river;
+        place-self: start center;
     }
 
     &--right {
         grid-area: center / right-river / bottom-near / right-wrap;
+        place-self: center end;
     }
 
     &--left {
         grid-area: center / left-river / bottom-near / center;
+        place-self: center start;
+    }
+
+    &--right,
+    &--left {
+        font-size: min(
+            clamp(
+                #{$callout-text-min},
+                calc(#{$callout-text-units} * var(--board-table-unit)),
+                #{$callout-text-max}
+            ),
+            (var(--board-river) - 4px) / #{$callout-side-ems}
+        );
     }
 
     &--ron,

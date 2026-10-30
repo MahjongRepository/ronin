@@ -57,7 +57,9 @@ function TurnCountdownView({ bankSeconds, baseSeconds, inBank }: TurnClock): Tem
             ><span class="decision-controls__bank-label">Bank</span>${bankSeconds}</span
         >`;
     }
-    return html`<span class="decision-controls__countdown" title="Seconds left, then your time bank"
+    return html`<span
+        class="decision-controls__countdown decision-controls__countdown--split"
+        title="Seconds left, then your time bank"
         >${baseSeconds}<span class="decision-controls__bank">+${bankSeconds}</span></span
     >`;
 }

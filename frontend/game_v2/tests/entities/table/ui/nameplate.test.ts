@@ -78,6 +78,7 @@ describe("Nameplates", () => {
     it("shortens a name too long for its plate in the middle, keeping its end", () => {
         const top = plate(renderPlates(null), "top");
         expect(top.querySelector(".nameplate__name")?.textContent).toBe("Wolfesc…orff");
+        expect(top.querySelector(".nameplate__name-tail")?.textContent).toBe("orff");
         expect(top.getAttribute("aria-label")).toContain(LONG_NAME);
     });
 });

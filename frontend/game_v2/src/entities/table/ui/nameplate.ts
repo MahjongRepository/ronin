@@ -56,17 +56,30 @@ function UnpluggedIcon(): TemplateResult {
     </svg>`;
 }
 
-/** The longest name a plate shows whole; a longer one keeps its start and its end, which tells "… 12" from "… 13". */
+/**
+ * The longest name a plate shows whole; a longer one keeps its start and its end, which tells "… 12" from "… 13". The
+ * end stands apart from the start, so a plate too narrow for the whole name gives up the start's letters, never the end.
+ */
 const NAME_MAX_CHARS = 12;
 const NAME_HEAD_CHARS = 7;
 const NAME_TAIL_CHARS = 4;
 
-function shownName(name: string): string {
+function nameParts(name: string): { readonly head: string; readonly tail: string } {
     const chars = [...name];
-    if (chars.length <= NAME_MAX_CHARS) {
-        return name;
+    if (chars.length <= NAME_TAIL_CHARS) {
+        return { head: "", tail: name };
     }
-    return `${chars.slice(0, NAME_HEAD_CHARS).join("")}…${chars.slice(-NAME_TAIL_CHARS).join("")}`;
+    const tail = chars.slice(-NAME_TAIL_CHARS).join("");
+    const head =
+        chars.length <= NAME_MAX_CHARS
+            ? chars.slice(0, -NAME_TAIL_CHARS).join("")
+            : `${chars.slice(0, NAME_HEAD_CHARS).join("")}…`;
+    return { head, tail };
+}
+
+function nameTemplate(name: string): TemplateResult {
+    const { head, tail } = nameParts(name);
+    return html`<span class="nameplate__name-head">${head}</span><span class="nameplate__name-tail">${tail}</span>`;
 }
 
 /**
@@ -114,7 +127,7 @@ function Nameplate(props: NameplateProps): TemplateResult {
         @click=${onToggle}
     >
         <span class="nameplate__wind">${plate.wind}</span>
-        <span class="nameplate__name">${shownName(plate.name)}</span>
+        <span class="nameplate__name">${nameTemplate(plate.name)}</span>
         ${
             aiMark === null
                 ? nothing

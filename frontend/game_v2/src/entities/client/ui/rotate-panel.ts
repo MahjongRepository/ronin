@@ -91,8 +91,8 @@ function moveName(move: DecisionCountdown["move"]): string {
 /** What runs on while the phone is upright: play and its timer, or the round advance's timer. */
 function runningNote(move: DecisionCountdown["move"]): string {
     return move === "result"
-        ? "Its timer goes on while the phone is upright."
-        : "Play and its timer go on while the phone is upright.";
+        ? "Its timer keeps running while the phone is upright."
+        : "Play continues, and your timer keeps running while the phone is upright.";
 }
 
 /** What the server does once the move's time is up. */
@@ -180,7 +180,7 @@ export function RotatePanel({
             aria-haspopup=${leave.command.kind === "ask_leave" ? "dialog" : nothing}
             @click=${() => onCommand(leave.command)}
         >
-            Back to Lobby
+            Back to lobby
         </button>
     </div>`;
 }

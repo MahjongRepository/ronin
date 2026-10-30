@@ -98,9 +98,9 @@ $plate-seats: bottom, right, top, left;
 }
 
 .nameplate__name {
+    display: inline-flex;
     min-width: auto;
     overflow: hidden;
-    text-overflow: ellipsis;
 
     @container (aspect-ratio < 1) {
         position: absolute;
@@ -108,6 +108,18 @@ $plate-seats: bottom, right, top, left;
         height: 1px;
         clip-path: inset(50%);
     }
+}
+
+.nameplate__name-head {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+}
+
+.nameplate__name-tail {
+    flex: none;
+    white-space: pre;
 }
 
 .nameplate__riichi {
@@ -186,6 +198,10 @@ $plate-seats: bottom, right, top, left;
     @container (height < #{$short-height}) and (aspect-ratio >= 1) {
         grid-area: top-near / outer-right / center / end;
         max-width: min(100%, #{$corner-reserve-short});
+
+        .game-menu__status-word {
+            display: none;
+        }
     }
 
     @container (aspect-ratio < 1) {

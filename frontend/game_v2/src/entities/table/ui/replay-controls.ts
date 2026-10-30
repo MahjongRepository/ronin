@@ -206,8 +206,17 @@ function IncompleteNote(
     >
         <strong class="replay-controls__incomplete-label">${incomplete.label}</strong>
         <span class="replay-controls__incomplete-detail">${endNotice ?? incomplete.detail}</span>
-        ${atEnd ? html`<span class="replay-controls__incomplete-short">Ends here</span>` : nothing}
     </p>`;
+}
+
+/** The note folded into the round's toggle as a mark where the column is too narrow for it, which the end words. */
+function roundMarkClass(incomplete: ReplayIncompleteness | null, endNotice: string | null): string {
+    if (incomplete === null) {
+        return "";
+    }
+    return endNotice === null
+        ? "replay-controls__round--incomplete"
+        : "replay-controls__round--end";
 }
 
 /**
@@ -223,7 +232,7 @@ export function ReplayControls(props: ReplayControlsProps): TemplateResult {
         ${IncompleteNote(display.incomplete, display.endNotice)}
         <button
             type="button"
-            class="replay-controls__round"
+            class="replay-controls__round ${roundMarkClass(display.incomplete, display.endNotice)}"
             aria-expanded=${props.roundListOpen ? "true" : "false"}
             aria-controls=${REPLAY_ROUND_LIST_ID}
             aria-label="Rounds: ${display.roundName}, step ${step.index} of ${step.count}"

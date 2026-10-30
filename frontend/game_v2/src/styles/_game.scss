@@ -166,8 +166,7 @@ section {
 }
 
 .game-menu__status-word {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: none;
 }
 
 /* The debug log (`?debug`): a summary in the board's corner that opens the log as a sheet over the board. */
