@@ -50,6 +50,16 @@ export {
     roundResultCursor,
     roundStartCursor,
 } from "./model/replay-cursor";
+export type { AutoplaySpeed, AutoplayState } from "./model/replay-autoplay";
+export {
+    AUTOPLAY_SPEEDS,
+    autoplayDelayMs,
+    autoplayStep,
+    isPauseStop,
+    nextAutoplaySpeed,
+} from "./model/replay-autoplay";
+export type { ReplayPrefs, ReplayPrefsStore } from "./model/replay-prefs";
+export { DEFAULT_REPLAY_PREFS, localReplayPrefs } from "./model/replay-prefs";
 export type { ReplayAddress, ReplayView } from "./model/replay-address";
 export {
     parseReplayAddress,
@@ -64,7 +74,7 @@ export type {
     ReplayRoundRow,
     ReplaySource,
 } from "./lib/replay-display";
-export { replayDisplay } from "./lib/replay-display";
+export { replayDisplay, replayMoves } from "./lib/replay-display";
 export { roundResultSummary } from "./lib/round-summary";
 export { windName } from "./lib/wind-name";
 export { yakuName } from "./lib/yaku-names";
@@ -101,8 +111,8 @@ export { handLimitName } from "./lib/hand-limit";
 export { drawName } from "./lib/draw-name";
 export type { StandingsAction } from "./ui/standings-panel";
 export { GameStartDisplay } from "./ui/game-start-display";
-export { REPLAY_ROUND_LIST_ID, ReplayControls } from "./ui/replay-controls";
-export type { ReplayControlsProps } from "./ui/replay-controls";
+export { REPLAY_ROUND_LIST_ID, ReplayControls, STEP_BUTTON_ATTRIBUTE } from "./ui/replay-controls";
+export type { ReplayControlsProps, ReplayPlayback, StepDirection } from "./ui/replay-controls";
 export { ROUND_LIST_ROW_CLASS, RoundList } from "./ui/round-list";
 export type { RoundListProps } from "./ui/round-list";
 export { formatRoundName } from "./lib/round-name";

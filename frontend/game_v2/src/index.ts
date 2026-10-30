@@ -1,7 +1,7 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
-import { type StandingsRenderer, startStandingsLoad } from "@/entities/table";
+import { type StandingsRenderer, localReplayPrefs, startStandingsLoad } from "@/entities/table";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";
@@ -121,6 +121,7 @@ function replayDeps() {
         links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
         loadReplay: fetchReplay,
         location: { onPageHide, replaceSearch, search: window.location.search },
+        prefs: localReplayPrefs,
         startStandings,
     };
 }

@@ -47,6 +47,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         gameId: event.gameId,
         phase: "pre_game",
         players,
+        revealedSeats: [],
         roundEndResult: null,
         roundHistory: [],
     };
@@ -89,6 +90,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         lastDiscardSeat: null,
         phase: "in_round",
         players,
+        revealedSeats: [],
         riichiSticks: event.riichiSticks,
         roundEndResult: null,
         roundWind: event.wind,

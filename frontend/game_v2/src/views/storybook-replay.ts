@@ -1,5 +1,6 @@
+import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/table";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
-import { type Clock } from "@/shared/clock";
+import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";
 import { REPLAY_VERSION } from "@/shared/protocol";
 
@@ -9,7 +10,10 @@ import { startStorybookStandings } from "./storybook-standings";
 export const REPLAY_STORIES = [
     "start",
     "mid",
+    "autoplay",
+    "viewpoint_hidden",
     "double_ron",
+    "result_hidden",
     "standings",
     "standings_long",
     "round_list",
@@ -31,6 +35,14 @@ interface StorySetup {
     /** The page's query: the position the story opens at. */
     readonly search: string;
     readonly roundListOpen?: boolean;
+    /** Opens with autoplay running; on `STILL_CLOCK` it holds its stop. */
+    readonly autoplay?: boolean;
+    /**
+     * The clock the view runs on: the browser's, so its input keeps its real timing (a click never lasts as long as a
+     * held button's delay), unless the story needs its timers hurried or stilled.
+     */
+    readonly clock?: Clock;
+    readonly prefs?: ReplayPrefs;
 }
 
 type FixtureImport = () => Promise<{ readonly default: string }>;
@@ -68,7 +80,26 @@ function notFoundThen(next: Promise<ReplayFetch>): LoadReplay {
     };
 }
 
+/** A clock whose timers never fire: autoplay's story stays on the stop it opened on. */
+const STILL_CLOCK: Clock = { now: () => Date.now(), setTimer: () => () => {} };
+
+/** A clock whose timers fire at once, so a story's retries are spent before it is looked at. */
+const HURRIED_CLOCK: Clock = {
+    now: () => Date.now(),
+    setTimer: (_delayMs, callback) => {
+        const handle = setTimeout(callback, 0);
+        return () => clearTimeout(handle);
+    },
+};
+
 const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
+    autoplay: {
+        autoplay: true,
+        clock: STILL_CLOCK,
+        load: servesFixture(paoReplay),
+        prefs: { hideHands: false, speed: 2 },
+        search: "?round=0&step=14",
+    },
     damaged: { load: servesFixture(paoReplay, withBrokenLine), search: "?round=0&step=8" },
     double_ron: {
         load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.txt?raw")),
@@ -85,7 +116,12 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     loading: { load: () => NEVER, search: "" },
     mid: { load: servesFixture(paoReplay), search: "?round=0&step=14" },
     no_round: { load: serves(JSON.stringify({ version: REPLAY_VERSION })), search: "" },
-    not_found: { load: () => Promise.resolve(NOT_FOUND), search: "" },
+    not_found: { clock: HURRIED_CLOCK, load: () => Promise.resolve(NOT_FOUND), search: "" },
+    result_hidden: {
+        load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.txt?raw")),
+        prefs: { hideHands: true, speed: 1 },
+        search: "?round=0&step=2",
+    },
     round_list: {
         load: servesFixture(() => import("@/fixtures/replays/ai_replacements.txt?raw")),
         roundListOpen: true,
@@ -99,16 +135,12 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     start: { load: servesFixture(paoReplay), search: "" },
     unreachable: { load: () => Promise.reject(new TypeError("Failed to fetch")), search: "" },
     unsupported: { load: serves('{"version": "0.1"}\n{"t": 8}'), search: "" },
-    waiting: { load: notFoundThen(NEVER), search: "" },
-};
-
-/** A clock whose timers fire at once, so a story's retries are spent before it is looked at. */
-const HURRIED_CLOCK: Clock = {
-    now: () => Date.now(),
-    setTimer: (_delayMs, callback) => {
-        const handle = setTimeout(callback, 0);
-        return () => clearTimeout(handle);
+    viewpoint_hidden: {
+        load: servesFixture(paoReplay),
+        prefs: { hideHands: true, speed: 1 },
+        search: "?seat=2&round=0&step=18",
     },
+    waiting: { load: notFoundThen(NEVER), search: "" },
 };
 
 function parseStory(search: string): ReplayStory {
@@ -131,10 +163,12 @@ export function mountStorybookReplay(host: HTMLElement): () => void {
             return;
         }
         dispose = mountReplayView(host, "story", {
-            clock: HURRIED_CLOCK,
+            autoplay: story.autoplay ?? false,
+            clock: story.clock ?? browserClock,
             links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
             loadReplay: story.load,
             location: { onPageHide: () => () => {}, replaceSearch: () => {}, search: story.search },
+            prefs: { load: () => story.prefs ?? DEFAULT_REPLAY_PREFS, save: () => {} },
             roundListOpen: story.roundListOpen ?? false,
             startStandings: () => startStorybookStandings(HURRIED_CLOCK.setTimer),
         });

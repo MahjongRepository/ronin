@@ -51,6 +51,8 @@ const REPLAY_TEXT_LIMITS: Readonly<
     narration: { lines: 3, px: 13 },
     round: { lines: 2, px: 13 },
 };
+/** The fewest lines of the replay's narration a landscape phone's column shows without scrolling it. */
+const MIN_PHONE_NARRATION_LINES = 3;
 /** A desktop river tile's long side as a share of the local hand tile's: the hierarchy the references keep. */
 const RIVER_TO_HAND = { max: 0.75, min: 0.55 } as const;
 /** How far a desktop side seat's hand may stand from the centre, as a share of the board's width. */
@@ -187,11 +189,13 @@ interface BoardMeasure {
     readonly leave: Box | null;
     /** The page's corner on the board: the session's status and the way back, which no panel over the board covers. */
     readonly menu: readonly Box[];
-    /** The replay's move buttons and round toggle beside the board, and its round list's rows over it. */
+    /** The replay's move and option buttons and round toggle beside the board, and its round list's rows over it. */
     readonly replayControls: readonly Box[];
     readonly roundList: Box | null;
     /** The replay aside's text: each part's font size and the lines it wraps to; empty on any other page. */
     readonly replayText: readonly ReplayText[];
+    /** The replay's narration: its box and how many of its lines its box shows at once; null on any other page. */
+    readonly narration: NarrationMeasure | null;
     readonly standings: StandingsMeasure | null;
 }
 
@@ -222,6 +226,11 @@ interface ReplayText {
     readonly part: string;
     readonly px: number;
     readonly lines: number;
+}
+
+interface NarrationMeasure {
+    readonly box: Box;
+    readonly visibleLines: number;
 }
 
 interface PageMeasure {
@@ -454,11 +463,17 @@ const PAGES: readonly PageCase[] = [
         required: { visible: [".rotate-panel", ".rotate-panel__seconds"] },
     },
     replayCase("start", [".replay-controls__narration"]),
+    replayCase("autoplay", [".replay-controls__option--play[aria-pressed='true']"]),
+    replayCase("viewpoint_hidden", [".replay-controls__option--hands[aria-pressed='true']"]),
     replayCase("round_list", [".round-list__row[aria-current]"]),
     replayCase("incomplete", [".replay-controls__incomplete--end"]),
     replayCase("ends_on_result", [".round-end-result__title", ".replay-controls__incomplete--end"]),
     replayCase("damaged", [".replay-controls__incomplete--end"]),
     replayCase("double_ron", [".round-end-result__pager"]),
+    replayCase("result_hidden", [
+        ".round-end-result__title",
+        ".replay-controls__option--hands[aria-pressed='true']",
+    ]),
     replayCase("standings", [".standings__round--jump", ".standings__cell--win"]),
     replayCase("standings_long", [".standings__round--jump", ".standings__foot-row--result"]),
     replayStateCase("loading", ".replay-state"),
@@ -534,8 +549,40 @@ async function hideBoardDebug(page: Page): Promise<void> {
     }
 }
 
+/** The step the replay's controls show within its round, as a number. */
+async function replayStep(page: Page): Promise<number> {
+    const text = await page.locator(".replay-controls__step").textContent();
+    const step = /(?<index>\d+)[/]/u.exec(text ?? "")?.groups?.index;
+    if (step === undefined) {
+        throw new Error(`the replay shows no step: ${text}`);
+    }
+    return Number(step);
+}
+
+/**
+ * Next steps exactly once for each native activation, in the browser's own event order: a click (a press that steps
+ * and the click it ends in), and Enter and Space on the focused button, which the page takes as the step.
+ */
+async function checkStepButton(page: Page): Promise<void> {
+    const next = page.locator("[data-step='next']");
+    const activations: readonly [string, () => Promise<void>][] = [
+        ["a click", () => next.click()],
+        ["Enter", () => next.press("Enter")],
+        ["Space", () => next.press(" ")],
+    ];
+    for (const [name, activate] of activations) {
+        const before = await replayStep(page);
+        await activate();
+        const after = await replayStep(page);
+        if (after !== before + 1) {
+            throw new Error(`${name} on Next stepped from ${before} to ${after}, not once`);
+        }
+    }
+}
+
 async function stepReplayToLocalMelds(page: Page): Promise<void> {
     await page.waitForSelector(".replay-controls", { timeout: SELECTOR_TIMEOUT_MS });
+    await checkStepButton(page);
     for (let step = 0; step < REPLAY_MAX_STEPS; step += 1) {
         if ((await page.locator(".board-local .meld").count()) >= REPLAY_LOCAL_MELDS) {
             return;
@@ -866,9 +913,20 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             );
             return [{ lines: lines.length, part, px }];
         });
+        const narrationElement = document.querySelector(".replay-controls__narration");
+        const narration =
+            narrationElement === null
+                ? null
+                : {
+                      box: box(narrationElement),
+                      visibleLines: Math.floor(
+                          (narrationElement.clientHeight + 1) /
+                              Number.parseFloat(getComputedStyle(narrationElement).lineHeight),
+                      ),
+                  };
         const replayControls = [
             ...document.querySelectorAll(
-                ".replay-controls__move, .replay-controls__round, .round-list__close",
+                ".replay-controls__move, .replay-controls__option, .replay-controls__round, .round-list__close",
             ),
             ...shownRows,
         ].map(box);
@@ -909,6 +967,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             ].map(box),
             menu,
             nameplates: nameplates.map((plate) => plate.box),
+            narration,
             opponentFaces: [...board.querySelectorAll(".board-strip .tile:not(.tile-back)")].map(
                 box,
             ),
@@ -1289,6 +1348,25 @@ function checkReplayText(board: BoardMeasure, report: PageReport): void {
     }
 }
 
+/**
+ * On a landscape phone the replay's column keeps room for its narration, at least three lines in view at once
+ * whatever else the column holds, and the narration wholly on the screen and inside the column.
+ */
+function checkPhoneNarration(board: BoardMeasure, screen: Box, report: PageReport): void {
+    const { aside, narration } = board;
+    if (narration === null || aside === null) {
+        return;
+    }
+    report.expect(
+        narration.visibleLines >= MIN_PHONE_NARRATION_LINES,
+        `the replay's narration shows ${narration.visibleLines} line(s) at once, under ${MIN_PHONE_NARRATION_LINES}`,
+    );
+    report.expect(
+        contains(screen, narration.box) && contains(aside.box, narration.box),
+        `the replay's narration ${describeBox(narration.box)} leaves the screen or its column`,
+    );
+}
+
 /** Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap. */
 function checkActions(board: BoardMeasure, screen: Box, report: PageReport): void {
     const outside = board.actions.filter(
@@ -1349,6 +1427,8 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
     if (viewport.desktop) {
         checkDesktopTable(board, report);
         checkReplayText(board, report);
+    } else if (viewport.supported && !viewport.portrait) {
+        checkPhoneNarration(board, screen, report);
     }
     const fonts = Math.min(...board.fonts.map((font) => font.px));
     const scroll = `scroll ${describeSize(board.boardScroll)}`;

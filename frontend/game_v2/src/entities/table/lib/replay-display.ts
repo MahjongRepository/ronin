@@ -17,7 +17,7 @@ import { type ReplayLineError } from "@/entities/table/model/replay-file";
 import { type TableState } from "@/entities/table/model/types";
 
 import { narrateStop } from "./replay-narration";
-import { formatRoundName } from "./round-name";
+import { formatRoundName, honbaName, roundName } from "./round-name";
 import { roundResultSummary } from "./round-summary";
 
 /** A replay that is not the whole game: a short label, and why. */
@@ -55,7 +55,11 @@ export interface ReplayRoundRow {
 /** What a replay page shows at a cursor beside the board: where it stands, what happened, where it can go. */
 export interface ReplayDisplay {
     readonly table: TableState;
+    /** The round's whole name, its honba included: "East 2, 1 honba". */
     readonly roundName: string;
+    /** The round's name alone and its honba apart, which a narrow column leaves to the board: "East 2", "1 honba". */
+    readonly roundTitle: string;
+    readonly honbaLabel: string | null;
     /** The stop within its round, from 1 at the deal: "Step 3 of 42". */
     readonly step: { readonly index: number; readonly count: number };
     readonly narration: string;
@@ -90,7 +94,8 @@ function endNotice(source: ReplaySource, cursor: ReplayCursor): string | null {
         : `The replay stops here: line ${source.damage.lineNumber} could not be read`;
 }
 
-function moves(nav: NavigationIndex, cursor: ReplayCursor): ReplayMoves {
+/** Where each move control goes from the cursor. */
+export function replayMoves(nav: NavigationIndex, cursor: ReplayCursor): ReplayMoves {
     const atFirst = cursor.stop === 0 && cursor.page === 0;
     const last = lastCursor(nav);
     const atLast = last !== null && last.stop === cursor.stop && last.page === cursor.page;
@@ -132,10 +137,12 @@ export function replayDisplay(
     const position = roundPosition(nav, cursor);
     return {
         endNotice: endNotice(source, cursor),
+        honbaLabel: honbaName(round.honba),
         incomplete: incompleteness(source),
-        moves: moves(nav, cursor),
+        moves: replayMoves(nav, cursor),
         narration: narrateStop(source, stop, perspective),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
+        roundTitle: roundName(round.wind, round.roundInWind),
         rounds: roundRows(nav, stop.round),
         step: { count: round.stopCount, index: position.step + 1 },
         table: source.tables[stop.stateIndex],

@@ -12,6 +12,7 @@ export function createInitialTableState(): TableState {
         lastDiscardSeat: null,
         phase: "pre_game",
         players: [],
+        revealedSeats: [],
         riichiSticks: 0,
         roundEndResult: null,
         roundHistory: [],

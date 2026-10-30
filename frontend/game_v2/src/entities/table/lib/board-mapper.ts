@@ -83,7 +83,9 @@ function mapPlayerDisplay(
     atBottom: boolean,
     { perspective, state }: { perspective: BoardPerspective; state: TableState },
 ): BoardPlayerDisplay {
-    const show = perspective.reveal === "all" || atBottom ? "face" : "back";
+    const shown =
+        perspective.reveal === "all" || atBottom || state.revealedSeats.includes(player.seat);
+    const show = shown ? "face" : "back";
     const { baseTiles, drawnTile } = buildHandTiles(player, show);
 
     return {

@@ -49,13 +49,17 @@ interface RouteBudget {
  * each view that may show them loads as it mounts, set on 2026-10-30 at 6.3 / 2.2 JS and 4.5 / 1.3 CSS. The game's
  * budgets re-set the same day from 178 / 54 JS and 81 / 13.5 CSS to 188 / 57.7 and 88 / 14.8, at 170.6 / 52.4 and
  * 79.7 / 13.4: the standings left the entry, and the board keeps its corner clear of a panel over it.
+ * The replay's budgets re-set on 2026-10-30 from 22 / 7.9 JS and 7 / 2.5 CSS to 32.5 / 11.1 and 8.9 / 2.8, at
+ * 29.4 / 10.1 and 7.9 / 1.8: autoplay and its speeds, the round, Home/End and autoplay keys, the wheel's gesture
+ * thresholds, hold-to-repeat, the viewpoint switch, hiding the other hands, the reader's settings and the phone
+ * column's narration room.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 14.8, raw: 88 }, js: { gzip: 57.7, raw: 188 } },
     replay: {
         chunk: "src/views/replay.ts",
-        css: { gzip: 2.5, raw: 7 },
-        js: { gzip: 7.9, raw: 22 },
+        css: { gzip: 2.8, raw: 8.9 },
+        js: { gzip: 11.1, raw: 32.5 },
     },
     standings: {
         chunk: "src/entities/table/ui/standings.ts",

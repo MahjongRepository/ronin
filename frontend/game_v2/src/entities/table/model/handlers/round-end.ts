@@ -301,17 +301,22 @@ function revealedHands(event: RoundEndEvent): RevealedHand[] {
     }
 }
 
-/** Show the hands the result reveals: their tiles become known and nothing of them stays concealed. */
-function revealHands(players: readonly PlayerState[], event: RoundEndEvent): PlayerState[] {
-    return revealedHands(event).reduce(
+/**
+ * Show the hands the result reveals: their tiles become known, nothing of them stays concealed, and their seats show
+ * face up from every perspective.
+ */
+export function revealHands(state: TableState, event: RoundEndEvent): TableState {
+    const hands = revealedHands(event);
+    const players = hands.reduce(
         (revealed, hand) =>
             updatePlayer(revealed, hand.seat, {
                 concealedCount: 0,
                 drawnTileId: hand.drawnTileId,
                 tiles: hand.tiles,
             }),
-        [...players],
+        [...state.players],
     );
+    return { ...state, players, revealedSeats: hands.map((hand) => hand.seat) };
 }
 
 /** The riichi sticks the round's winners take off the table; a draw leaves them for the next deal. */
@@ -348,12 +353,15 @@ export function showRobbedKan(state: TableState, event: RoundEndEvent): TableSta
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     const drawn = settleUnseenDraws(showRobbedKan(state, event), event);
     const result = extractRoundEndResult(event, state);
-    return {
-        ...drawn,
-        phase: "round_ended",
-        players: revealHands(settleScores(drawn.players, event), event),
-        riichiSticks: state.riichiSticks - riichiSticksCollected(event),
-        roundEndResult: result,
-        roundHistory: [...state.roundHistory, roundRecordOfResult(state, result)],
-    };
+    return revealHands(
+        {
+            ...drawn,
+            phase: "round_ended",
+            players: settleScores(drawn.players, event),
+            riichiSticks: state.riichiSticks - riichiSticksCollected(event),
+            roundEndResult: result,
+            roundHistory: [...state.roundHistory, roundRecordOfResult(state, result)],
+        },
+        event,
+    );
 }

@@ -38,6 +38,13 @@ function pastDeadline(state: GameClientState): GameClientState {
     return stepGameClient(state, { at, kind: "tick" }).state;
 }
 
+/** How each seat's hand shows on the viewer's board (bottom, right, top, left): "face", "concealed" or both. */
+function handShows(state: GameClientState): string[] {
+    return (playDisplay(state, NO_PLAY_UI).board?.players ?? []).map((player) =>
+        [...new Set(player.hand.map((tile) => tile.show))].join(","),
+    );
+}
+
 function viewerTiles(state: GameClientState): readonly number[] {
     return state.table.players.find((player) => player.seat === state.viewerSeat)?.tiles ?? [];
 }
@@ -242,6 +249,23 @@ function playingScenario(): ReturnType<typeof clientScenario> {
     scenario.step(clientEvent.message(0, WIRE_GAME_STARTED));
     return scenario;
 }
+
+describe("playDisplay revealed hands", () => {
+    it("shows the hands a result reveals face up on the board, from its round end and a reconnect's snapshot of it", () => {
+        expect(handShows(checkpointState("double_ron_seat_1", "round end"))).toEqual([
+            "face",
+            "concealed",
+            "face",
+            "concealed",
+        ]);
+        expect(handShows(checkpointState("double_ron_seat_1", "reconnected"))).toEqual([
+            "face",
+            "concealed",
+            "face",
+            "concealed",
+        ]);
+    });
+});
 
 describe("playDisplay notices", () => {
     it("shows a dropped connection until the snapshot, then that the seat is back for 3 s", () => {

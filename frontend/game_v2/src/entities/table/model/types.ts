@@ -199,6 +199,11 @@ export interface TableState {
     readonly phase: GamePhase;
     /** The ended round's result, kept through the game end that follows the last round's, until a new deal. */
     readonly roundEndResult: RoundEndResult | null;
+    /**
+     * The seats whose closed hands the ended round's result showed (its winners', a draw's tenpai hands), which every
+     * perspective shows face up until a new deal.
+     */
+    readonly revealedSeats: readonly number[];
     readonly gameEndResult: GameEndResult | null;
     /** Every finished round of the game in play order, for the final standings' ledger. */
     readonly roundHistory: readonly RoundRecord[];

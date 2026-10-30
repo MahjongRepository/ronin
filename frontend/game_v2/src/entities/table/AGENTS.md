@@ -19,7 +19,8 @@ replay view, the live game and the storybook read the tables it produces.
   accepted. A replay shows every hand, so its counts stay 0. A draw of a tile the hand already
   holds is the one a reconnect re-sends: it marks the drawn tile and takes nothing from the wall. A
   round end writes the hands it reveals (its winners', a draw's tenpai hands) into the table as
-  known tiles.
+  known tiles and names their seats (`revealedSeats`), which every perspective shows face up until the
+  next deal; a reconnect's snapshot of a round advance reveals them the same way.
 - A closed or added kan open to chankan shows as declared (`kan_declared`, a table event no message
   carries as such) before it resolves: its tiles leave the hand for the kan once, after the
   declarer's unseen draw joins its count, with no replacement draw or dora, since the server
@@ -85,8 +86,7 @@ replay view, the live game and the storybook read the tables it produces.
   a reconnect a stand-in reads as an AI player, and a live seat never hears of a participant absent
   at the first deal (no `player_left` is sent for one that never joined) until a snapshot.
 - A replay's cursor contract is pure functions over one navigation index (`buildNavigationIndex`),
-  which the controls, the round list, the address and later the ledger and autoplay all move
-  through. A stop is a move: a deal (with its first draw), a draw, a discard (with the riichi its
+  which the controls, the round list, the address, the ledger and autoplay all move through. A stop is a move: a deal (with its first draw), a draw, a discard (with the riichi its
   passing deposits, so the stick shows on the declaring discard), a call, a kan declared open to
   chankan, a round's result, the game's end. Bookkeeping (a deal's first draw, a new dora, an
   accepted riichi) belongs to the move before it; annotations (the game start, a seat control line)
@@ -102,6 +102,8 @@ replay view, the live game and the storybook read the tables it produces.
   per winner; stepping pages through them, and stepping back into a result lands on its last page.
   The address (`?seat=&round=&step=`, `docs/architecture.md`, Replays) resolves through the same
   index, every bad part falling back as the contract says, and never names a page.
+  A continuous move (autoplay, a held button or key, a turning wheel) pauses on every page of a
+  result and at the last stop (`isPauseStop`), so a result is read before the next deal.
 - A replay is whole only when its recording reaches the game's end (`complete`); one that stops
   short, or that its reader cut at a damaged line, keeps what it holds, and the display says so on
   every stop and where it ends at its last, and its unfinished round shows no result.
@@ -110,7 +112,7 @@ replay view, the live game and the storybook read the tables it produces.
   where the perspective shows the drawer's hand.
 - `lib/board-mapper.ts` turns a table into the display state the `ui/` components render, from a
   perspective that is an input, not the dealer: which seat sits at the bottom, and whether every
-  known hand shows face up (a replay) or only the bottom seat's. A known tile keeps its id;
+  known hand shows face up (a replay) or only the bottom seat's and the seats a result revealed. A known tile keeps its id;
   concealed tiles render as backs from the count; melds are laid out as faces; a riichi
   declaration's discard lies sideways, or when called, the declarer's next discard left in the
   river; the table's latest discard (`lastDiscardSeat`: set by a discard, cleared by any meld or kan

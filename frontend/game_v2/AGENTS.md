@@ -163,12 +163,31 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   keeps the page; and the nameplate pinned for score differences. One gesture serves every board
   (live, replay, storybook): hovering a nameplate, or tapping it (a button, so a key too), shows the
   other seats' scores in the centre as differences from its own; a tap pins it until it is tapped again, another
-  part of the board is tapped or Escape is pressed. A replay viewpoint switch, when it comes, is a
-  control of its own, never the nameplate's tap. A new prop on the board is added to these mappers
+  part of the board is tapped or Escape is pressed. The replay's viewpoint switch is a control of its
+  own, never the nameplate's tap. A new prop on the board is added to these mappers
   when a scenario shows the need, never computed in a view.
 * **The replay page** opens where its address says, else on the first deal, and moves only
   through the table slice's cursor functions (`entities/table/AGENTS.md`); its view state is the
-  cursor, the seat at the bottom, the round list's openness and the pinned plate. Its IO stays at
+  cursor, the seat at the bottom, the round list's openness, the pinned plate, autoplay and whether
+  the other hands hide. Autoplay's state is plain data and its pacing a pure function of the stop and
+  speed; the view arms one clock timer to it. Autoplay, a held step button (repeating from a pointer's
+  press, under its capture, waiting while the pointer is off it) and a turning wheel all pause where a result shows
+  (each page of a double ron) and at the end, and autoplay also stops on any move the reader makes, as
+  the page hides and on dispose; any other move and autoplay's start end a hold. A press's step is its own, so
+  only the click that press ends in is dropped, never a keyboard's or an assistive technology's. The wheel steps by gesture, not by event (`shared/lib/wheel-steps.ts`):
+  a first step at a mouse notch's distance, then each further stretch and beat, a rest or a turn back
+  starting over. Keys are the root's: arrows step and move rounds, Home/End go to either end, Space
+  switches autoplay except on a control it activates itself, V and H (by key position) switch the view
+  and the hands, each switch once per press; Enter and Space on a step button are that step, prevented
+  so the button never clicks too, and so held they pause as a held arrow does; a field, an input method's
+  composition, a modifier, the round list's and the standings' own keys and the keys that scroll a round's
+  result scrolling in its panel are never the page's. A render that takes away or disables the focused control
+  gives the focus back to the root. The viewpoint switch moves the seat at the bottom and the address's
+  `seat`, never the cursor or a result's page. Hiding the hands draws the board and the narration as
+  the bottom seat sees them. That and autoplay's speed are the reader's settings
+  (`entities/table/model/replay-prefs.ts`, `localStorage` read and written in try/catch, the defaults when it
+  is blocked), never the address: the address names a position, and a shared link imposes no way of
+  reading it. Its IO stays at
   the edge, given by `index.ts`: the load, which asks again on 404 after 500, 1000 and 2000 ms (the
   game end reaches players before the server saves the replay) and is aborted with its waiting
   retry on dispose; and the address, kept on the position shown with `history.replaceState` at most
@@ -178,8 +197,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   deal) gets a screen saying why with the way back to the game history and the lobby, and a retry
   where one may help: only a failed fetch counts as unreachable, while a throw in reading or drawing
   the replay says it cannot be shown, its error on the console, with no retry. The wheel steps only
-  over the board, outside the round list and the standings' rounds, and only where a step goes;
-  anywhere else it scrolls.
+  over the board, outside the round list, the standings' rounds and a round's result scrolling in its
+  panel, and only where a step goes; anywhere else it scrolls. The narration is read out by a live region
+  of its own, polite and left empty while autoplay runs.
 * **Session** (`entities/session`): one machine owns finding the handoff, joining, playing,
   reconnecting and the end. It joins with the lobby's ticket (`shared/session` holds the handoff) and
   resumes the seat with the same ticket. A tab that holds no ticket asks the lobby
@@ -285,7 +305,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   one (the replay's controls, the storybooks' switches), below it upright, or beside it in landscape as
   a compact column that scrolls when the window is too short for it. The replay's column is two 40px
   move buttons wide on a phone, the most it may take before the local hand drops under its floor at
-  667x375. On a landscape window of at least 1024x600 the local hand is bounded by the board's width
+  667x375; it stands the board's height and its narration takes the height its buttons leave, at least
+  three lines on the supported phones (for which the round leaves its honba to the board and the end of
+  an incomplete replay says only that it ends there), while a shorter window scrolls a narration it
+  cannot hold, hinted at its foot. On a landscape window of at least 1024x600 the local hand is bounded by the board's width
   with height to spare, so a column there would push it under its floor before its text read well:
   the replay's controls run instead as one bar of a button's height under the board. Its round list
   lies over the board's right side, as tall as its rounds, above a result's dimming; a replay that is
@@ -295,7 +318,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
   dora, long names, AI marks and a pinned nameplate; the dense round results; the decisions
   stories, the live standings and the last result reopened from them among them; the board's
-  standings over a hand-written short game; and the replay page's stories: its opening, its round list,
+  standings over a hand-written short game; and the replay page's stories: its opening, autoplay
+  running, another seat's view with the hands hidden, a result with them hidden, its round list,
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
   its call prompt and at its turn, at 1280x800 and 1920x1080
@@ -306,11 +330,14 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800 and 93x124 at 1920x1080) or no
   larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or
-  stick count under 0.8 of the scores' size, and decision, leave or replay buttons (its moves, its round toggle, the round list's shown rows)
+  stick count under 0.8 of the scores' size, and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)
   under 40x40 or off the screen, or a round list off the board; on a desktop, on a
   river tile outside 0.55-0.75 of the local hand tile, a side seat's hand further from the centre than a
   quarter of the board's width, or replay controls whose narration reads under 13px or past three lines,
-  round and step under 13px or past two, or incompleteness under 12px. It also fails on a round end that does not fit its panel, a panel over a landscape board covering the
+  round and step under 13px or past two, or incompleteness under 12px; on a landscape phone, a
+replay narration showing fewer than three lines at once or leaving its column. On the replay's route,
+in both engines, a click, Enter and Space on Next must each step exactly once; the replay stories that
+show a board run on the browser's clock for that reason, so their input keeps its real timing. It also fails on a round end that does not fit its panel, a panel over a landscape board covering the
   page's corner, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, and on a tile sprite that never loaded or a face whose
