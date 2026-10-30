@@ -101,7 +101,6 @@ export function applyGameReconnected(
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
         lastDiscardSeat: snapshotLastDiscardSeat(snapshot),
-        lastEventDescription: "Reconnected",
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),
         riichiSticks: snapshot.riichiSticks,
@@ -112,5 +111,5 @@ export function applyGameReconnected(
     if (roundResult === null) {
         return rebuilt;
     }
-    return { ...showRobbedKan(rebuilt, roundResult), lastEventDescription: "Reconnected" };
+    return showRobbedKan(rebuilt, roundResult);
 }

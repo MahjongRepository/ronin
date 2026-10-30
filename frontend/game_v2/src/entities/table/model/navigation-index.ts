@@ -1,229 +1,102 @@
-import { type ActionStep, type StepEvent } from "./action-steps";
+import { type ActionStep, type StepEvent, buildActionSteps } from "./action-steps";
+import { roundEndPages } from "./handlers/round-end";
 import { roundInWind } from "./helpers";
-import { type TableState } from "./types";
+import { type RoundEndResult, type TableState } from "./types";
 
-export interface RoundInfo {
-    /** Index into the actionSteps array where this round's round_started lands */
-    actionStepIndex: number;
-    /** Round wind (0=East, 1=South, etc.) */
-    wind: number;
-    /** The round's number within its wind, from 1 (the wire's round number counts every deal) */
-    roundInWind: number;
-    /** Honba stick count */
-    honba: number;
-    /** Human-readable result description from round_end (empty if game ended mid-round).
-     *  Derived from TableState.lastEventDescription of the round_end state. */
-    resultDescription: string;
+/** One stop of the replay, in the round it belongs to, with the result pages it shows (a double ron's per winner). */
+export interface ReplayStop extends ActionStep {
+    readonly round: number;
+    readonly pages: number;
 }
 
-export interface TurnInfo {
-    /** Index into the actionSteps array where this draw lands */
-    actionStepIndex: number;
-    /** Sequential turn number within the round (1-based) */
-    turnNumber: number;
-    /** Name of the player who drew */
-    playerName: string;
-}
-
-export interface NavigationIndex {
-    /** All rounds in the game */
-    rounds: RoundInfo[];
-    /** Maps each action step index to index in rounds[] (-1 if step is before any round or after game end) */
-    stepToRoundIndex: number[];
-    /** Turns within each round, indexed by round index in rounds[] */
-    turnsByRound: TurnInfo[][];
-}
-
-/** Builds a map from event index to action step index. */
-function buildEventToStepMap(actionSteps: readonly ActionStep[]): Map<number, number> {
-    const map = new Map<number, number>();
-    for (let stepIdx = 1; stepIdx < actionSteps.length; stepIdx++) {
-        const eventIndex = actionSteps[stepIdx].descriptionStateIndex - 1;
-        map.set(eventIndex, stepIdx);
-    }
-    return map;
-}
-
-/** Scans ahead from a round_started event to find the result description from the next round_end. */
-function findRoundResultDescription(
-    events: readonly StepEvent[],
-    states: readonly TableState[],
-    startIdx: number,
-): string {
-    for (let idx = startIdx + 1; idx < events.length; idx++) {
-        const type = events[idx]?.type;
-        if (type === "round_end") {
-            const roundEndStateIdx = idx + 1;
-            if (roundEndStateIdx < states.length) {
-                return states[roundEndStateIdx].lastEventDescription;
-            }
-            return "";
-        }
-        if (type === "round_started") {
-            return "";
-        }
-    }
-    return "";
-}
-
-/** Collects all rounds from the event stream. */
-function collectRounds(
-    events: readonly StepEvent[],
-    states: readonly TableState[],
-    eventToStepIndex: Map<number, number>,
-): RoundInfo[] {
-    const rounds: RoundInfo[] = [];
-
-    for (let eventIdx = 0; eventIdx < events.length; eventIdx++) {
-        const event = events[eventIdx];
-        if (event?.type === "round_started") {
-            const stepIdx = eventToStepIndex.get(eventIdx);
-            if (stepIdx !== undefined) {
-                rounds.push({
-                    actionStepIndex: stepIdx,
-                    honba: event.honbaSticks,
-                    resultDescription: findRoundResultDescription(events, states, eventIdx),
-                    roundInWind: roundInWind(states[eventIdx + 1]),
-                    wind: event.wind,
-                });
-            }
-        }
-    }
-
-    return rounds;
-}
-
-/** Resolves player name from the state after a draw event. */
-function resolvePlayerName(states: readonly TableState[], stateIdx: number, seat: number): string {
-    if (stateIdx >= states.length) {
-        return `Seat ${seat}`;
-    }
-    return states[stateIdx].players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`;
-}
-
-interface EventRange {
-    endEventIdx: number;
-    startEventIdx: number;
-}
-
-interface TurnCollectionContext {
-    eventToStepIndex: Map<number, number>;
-    events: readonly StepEvent[];
-    states: readonly TableState[];
-}
-
-/** Collects all turns (draw events) within a range of events for a single round. */
-function collectTurnsForRange(ctx: TurnCollectionContext, range: EventRange): TurnInfo[] {
-    const turns: TurnInfo[] = [];
-    let turnNumber = 1;
-
-    for (let eventIdx = range.startEventIdx; eventIdx < range.endEventIdx; eventIdx++) {
-        const event = ctx.events[eventIdx];
-        if (event?.type === "draw") {
-            const stepIdx = ctx.eventToStepIndex.get(eventIdx);
-            if (stepIdx !== undefined) {
-                turns.push({
-                    actionStepIndex: stepIdx,
-                    playerName: resolvePlayerName(ctx.states, eventIdx + 1, event.seat),
-                    turnNumber,
-                });
-                turnNumber++;
-            }
-        }
-    }
-
-    return turns;
-}
-
-/** Checks whether a given action step corresponds to a game_end event. */
-function isGameEndStep(
-    stepIdx: number,
-    actionSteps: readonly ActionStep[],
-    events: readonly StepEvent[],
-): boolean {
-    if (stepIdx <= 0) {
-        return false;
-    }
-    const eventIdx = actionSteps[stepIdx].descriptionStateIndex - 1;
-    return eventIdx >= 0 && eventIdx < events.length && events[eventIdx]?.type === "game_end";
-}
-
-/** Builds turnsByRound: for each round, collects draw events mapped to TurnInfo. */
-function buildTurnsByRound(
-    ctx: TurnCollectionContext,
-    rounds: RoundInfo[],
-    actionSteps: readonly ActionStep[],
-): TurnInfo[][] {
-    return rounds.map((_round, roundIdx) => {
-        const startEventIdx =
-            actionSteps[rounds[roundIdx].actionStepIndex].descriptionStateIndex - 1;
-        const endEventIdx =
-            roundIdx + 1 < rounds.length
-                ? actionSteps[rounds[roundIdx + 1].actionStepIndex].descriptionStateIndex - 1
-                : ctx.events.length;
-        return collectTurnsForRange(ctx, { endEventIdx, startEventIdx });
-    });
-}
-
-/** Maps each action step to its parent round index (-1 for steps outside any round). */
-function buildStepToRoundIndex(
-    rounds: RoundInfo[],
-    actionSteps: readonly ActionStep[],
-    events: readonly StepEvent[],
-): number[] {
-    const stepToRoundIndex: number[] = Array.from({ length: actionSteps.length }, () => -1);
-
-    for (let roundIdx = 0; roundIdx < rounds.length; roundIdx++) {
-        const startStep = rounds[roundIdx].actionStepIndex;
-        const endStep =
-            roundIdx + 1 < rounds.length
-                ? rounds[roundIdx + 1].actionStepIndex
-                : actionSteps.length;
-
-        for (let stepIdx = startStep; stepIdx < endStep; stepIdx++) {
-            if (!isGameEndStep(stepIdx, actionSteps, events)) {
-                stepToRoundIndex[stepIdx] = roundIdx;
-            }
-        }
-    }
-
-    return stepToRoundIndex;
+/** One recorded deal, repeats counted: its stops are `firstStop` up to the next round's. */
+export interface ReplayRound {
+    readonly firstStop: number;
+    readonly stopCount: number;
+    readonly wind: number;
+    /** The round's number within its wind, from 1 (the wire's round number counts every deal). */
+    readonly roundInWind: number;
+    readonly honba: number;
+    readonly dealerSeat: number;
+    /** The round's result, or null when the recording stops before it. */
+    readonly result: RoundEndResult | null;
+    /** The table at the round's last stop, after its payments: the names and scores its result reads. */
+    readonly endTable: TableState;
 }
 
 /**
- * Builds a navigation index from replay events, action steps, and computed states.
- *
- * Scans events to identify round boundaries (round_started) and turns (draw events),
- * then maps each action step to its parent round for O(1) lookup.
+ * Where a replay can stop, from the first deal: every stop and every round. `complete` says whether the recording
+ * reaches the game's end; a replay that stops short of it holds what was recorded and no more.
+ */
+export interface NavigationIndex {
+    readonly stops: readonly ReplayStop[];
+    readonly rounds: readonly ReplayRound[];
+    readonly complete: boolean;
+}
+
+function resultPages(table: TableState): number {
+    if (table.phase !== "round_ended" || table.roundEndResult === null) {
+        return 1;
+    }
+    return roundEndPages(table.roundEndResult).length;
+}
+
+/** A round from the table its deal shows, its stops, and the table at its last stop. */
+function roundOf(
+    deal: TableState,
+    stops: { readonly first: number; readonly count: number },
+    endTable: TableState,
+): ReplayRound {
+    return {
+        dealerSeat: deal.dealerSeat,
+        endTable,
+        firstStop: stops.first,
+        honba: deal.honbaSticks,
+        result: endTable.roundEndResult,
+        roundInWind: roundInWind(deal),
+        stopCount: stops.count,
+        wind: deal.roundWind,
+    };
+}
+
+/** The steps from the first deal on, grouped into rounds, each round starting at its deal. */
+function collectRounds(
+    events: readonly StepEvent[],
+    steps: readonly ActionStep[],
+    tables: readonly TableState[],
+): { stops: ReplayStop[]; rounds: ReplayRound[] } {
+    const stops: ReplayStop[] = [];
+    const deals: number[] = [];
+    for (const step of steps) {
+        if (events[step.moveEntry]?.type === "round_started") {
+            deals.push(stops.length);
+        }
+        if (deals.length > 0) {
+            const table = tables[step.stateIndex];
+            stops.push({ ...step, pages: resultPages(table), round: deals.length - 1 });
+        }
+    }
+    const rounds = deals.map((firstStop, index) => {
+        const end = deals[index + 1] ?? stops.length;
+        return roundOf(
+            tables[stops[firstStop].moveEntry + 1],
+            { count: end - firstStop, first: firstStop },
+            tables[stops[end - 1].stateIndex],
+        );
+    });
+    return { rounds, stops };
+}
+
+/**
+ * The replay's navigation from its timeline: `events[i]` is entry i's step event and `tables[i + 1]` the table after
+ * it. It opens on the first deal: the game start and anything before the first deal show from there.
  */
 export function buildNavigationIndex(
     events: readonly StepEvent[],
-    actionSteps: readonly ActionStep[],
-    states: readonly TableState[],
+    tables: readonly TableState[],
 ): NavigationIndex {
-    const eventToStepIndex = buildEventToStepMap(actionSteps);
-    const rounds = collectRounds(events, states, eventToStepIndex);
-    const ctx: TurnCollectionContext = { eventToStepIndex, events, states };
-    const turnsByRound = buildTurnsByRound(ctx, rounds, actionSteps);
-    const stepToRoundIndex = buildStepToRoundIndex(rounds, actionSteps, events);
-
-    return { rounds, stepToRoundIndex, turnsByRound };
-}
-
-/** Looks up the round for a given action step index. */
-export function roundForStep(navIndex: NavigationIndex, step: number): RoundInfo | undefined {
-    const roundIdx = navIndex.stepToRoundIndex[step];
-    if (roundIdx === undefined || roundIdx === -1) {
-        return undefined;
-    }
-    return navIndex.rounds[roundIdx];
-}
-
-/** Returns the turns within the round that contains the given action step. */
-export function turnsForStep(navIndex: NavigationIndex, step: number): TurnInfo[] {
-    const roundIdx = navIndex.stepToRoundIndex[step];
-    if (roundIdx === undefined || roundIdx === -1) {
-        return [];
-    }
-    return navIndex.turnsByRound[roundIdx] ?? [];
+    const { rounds, stops } = collectRounds(events, buildActionSteps(events), tables);
+    const last = stops.at(-1);
+    const complete = last !== undefined && events[last.moveEntry]?.type === "game_end";
+    return { complete, rounds, stops };
 }

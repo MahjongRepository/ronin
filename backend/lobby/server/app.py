@@ -167,6 +167,7 @@ def create_app(  # noqa: PLR0913
         Route("/play/storybook/hand", public_route(play_page), methods=["GET"], name="storybook_hand_page"),
         Route("/play/storybook/melds", public_route(play_page), methods=["GET"], name="storybook_melds_page"),
         Route("/play/storybook/rotate", public_route(play_page), methods=["GET"], name="storybook_rotate_page"),
+        Route("/play/storybook/replay", public_route(play_page), methods=["GET"], name="storybook_replay_page"),
         Route("/play/storybook/decisions", public_route(play_page), methods=["GET"], name="storybook_decisions_page"),
         Route("/play/storybook/table", public_route(play_page), methods=["GET"], name="storybook_table_page"),
         Route("/play/storybook/win", public_route(play_page), methods=["GET"], name="storybook_win_page"),

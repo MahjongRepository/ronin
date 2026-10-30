@@ -10,16 +10,28 @@ const drawLine = '{"d": 136, "t": 1}';
 describe("readReplayFile - version", () => {
     test("refuses a replay of another version", () => {
         const read = readReplayFile(`{"version": "0.2"}\n${drawLine}`);
-        expect(read).toEqual({ ok: false, refusal: 'Unsupported replay version "0.2"' });
+        expect(read).toEqual({
+            ok: false,
+            refusal: { kind: "unsupported_version", version: '"0.2"' },
+        });
     });
 
     test("refuses a replay that does not start with a version line", () => {
         const read = readReplayFile(`${drawLine}\n${drawLine}`);
-        expect(read).toEqual({ ok: false, refusal: "Replay does not start with a version line" });
+        expect(read).toEqual({
+            ok: false,
+            refusal: {
+                detail: "The replay does not start with a version line",
+                kind: "unreadable",
+            },
+        });
     });
 
     test("refuses an empty replay", () => {
-        expect(readReplayFile(" \n")).toEqual({ ok: false, refusal: "Replay is empty" });
+        expect(readReplayFile(" \n")).toEqual({
+            ok: false,
+            refusal: { detail: "The replay is empty", kind: "unreadable" },
+        });
     });
 });
 

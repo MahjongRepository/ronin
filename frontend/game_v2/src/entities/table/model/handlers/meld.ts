@@ -5,10 +5,9 @@ import {
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
-import { tile136toString } from "@/entities/tile";
 import { type MeldEvent } from "@/shared/protocol";
 
-import { kanDescription, shownKanIndex } from "./kan-declared";
+import { shownKanIndex } from "./kan-declared";
 
 function markLastDiscardClaimed(discards: readonly DiscardRecord[]): readonly DiscardRecord[] {
     if (discards.length === 0) {
@@ -137,20 +136,6 @@ function applyAddedKan(state: TableState, event: MeldEvent): TableState {
     return meldFromHand(state, event, { fromHand: [match.addedTileId], melds });
 }
 
-const CALLED_MELD_NAMES = { chi: "chi", open_kan: "an open kan", pon: "pon" } as const;
-
-function meldDescription(state: TableState, event: MeldEvent): string {
-    const caller = findCaller(state, event);
-    const { calledTileId, meldType } = event;
-    if (meldType === "closed_kan" || meldType === "added_kan") {
-        return kanDescription(caller, meldType, event.tileIds[0]);
-    }
-    if (calledTileId === null) {
-        throw new Error(`No called tile for ${meldType} at seat ${event.callerSeat}`);
-    }
-    return `${caller.name} called ${CALLED_MELD_NAMES[meldType]} on ${tile136toString(calledTileId)}`;
-}
-
 /**
  * Complete a kan its chankan prompt already showed as declared: the server's meld takes the shown kan's place, and
  * nothing more leaves the hand, which gave its tiles at the declaration.
@@ -203,6 +188,5 @@ export function applyMeld(state: TableState, event: MeldEvent): TableState {
         ...nextState,
         currentPlayerSeat: event.callerSeat,
         lastDiscardSeat: null,
-        lastEventDescription: meldDescription(state, event),
     };
 }

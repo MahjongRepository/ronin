@@ -1,5 +1,6 @@
 import {
     type AbortiveDrawRoundEnd,
+    type AiReplacementLine,
     type DiscardEvent,
     type DoraRevealedEvent,
     type DoubleRonRoundEnd,
@@ -15,6 +16,7 @@ import {
     type RiichiDeclaredEvent,
     type RonRoundEnd,
     type RoundStartedEvent,
+    SEAT_CONTROL_REASON,
     type TsumoRoundEnd,
 } from "@/shared/protocol";
 
@@ -280,6 +282,17 @@ export function makeGameEndEvent(overrides: Partial<GameEndEvent> = {}): GameEnd
         ],
         type: "game_end",
         winnerSeat: 0,
+        ...overrides,
+    };
+}
+
+export function makeAiReplacementLine(
+    overrides: Partial<AiReplacementLine> = {},
+): AiReplacementLine {
+    return {
+        reason: SEAT_CONTROL_REASON.LEFT,
+        seat: 1,
+        type: "ai_replacement",
         ...overrides,
     };
 }

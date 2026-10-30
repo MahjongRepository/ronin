@@ -7,6 +7,7 @@ import { storybookMeldsView } from "@/views/storybook-melds";
 
 export { mountStorybookBoard } from "@/views/storybook-board";
 export { mountStorybookDecisions } from "@/views/storybook-decisions";
+export { mountStorybookReplay } from "@/views/storybook-replay";
 export { mountStorybookRotate } from "@/views/storybook-rotate";
 
 export const mountStorybookIndex = staticMount(storybookView);

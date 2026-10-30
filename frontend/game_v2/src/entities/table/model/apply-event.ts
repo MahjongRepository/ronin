@@ -1,4 +1,3 @@
-import { tile136toString } from "@/entities/tile";
 import { assertNever } from "@/shared/lib";
 import {
     type DiscardEvent,
@@ -46,7 +45,6 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         firstDealerSeat: event.dealerSeat,
         gameEndResult: null,
         gameId: event.gameId,
-        lastEventDescription: "Game started",
         phase: "pre_game",
         players,
         roundEndResult: null,
@@ -88,7 +86,6 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         doraIndicators: event.doraIndicators,
         honbaSticks: event.honbaSticks,
         lastDiscardSeat: null,
-        lastEventDescription: "Round started",
         phase: "in_round",
         players,
         riichiSticks: event.riichiSticks,
@@ -108,7 +105,6 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
     return {
         ...state,
         currentPlayerSeat: event.seat,
-        lastEventDescription: `${player.name} drew ${tile136toString(event.tileId)}`,
         players: updatePlayer(state.players, event.seat, {
             drawnTileId: event.tileId,
             tiles: resent ? player.tiles : [...player.tiles, event.tileId],
@@ -132,7 +128,6 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
         ...state,
         currentPlayerSeat: event.seat,
         lastDiscardSeat: event.seat,
-        lastEventDescription: `${player.name} discarded ${tile136toString(event.tileId)}`,
         players: updatePlayer(state.players, event.seat, {
             concealedCount: hand.concealedCount,
             discards: [
@@ -158,7 +153,6 @@ function applyRiichiDeclared(state: TableState, event: RiichiDeclaredEvent): Tab
     const player = requirePlayer(state, event.seat);
     return {
         ...state,
-        lastEventDescription: `${player.name} declared riichi`,
         players: updatePlayer(state.players, event.seat, {
             isRiichi: true,
             score: player.score - RIICHI_DEPOSIT,
@@ -168,16 +162,13 @@ function applyRiichiDeclared(state: TableState, event: RiichiDeclaredEvent): Tab
 }
 
 function applyDoraRevealed(state: TableState, event: DoraRevealedEvent): TableState {
-    const tileName = tile136toString(event.tileId);
     return {
         ...state,
         doraIndicators: [...state.doraIndicators, event.tileId],
-        lastEventDescription: `New dora indicator: ${tileName}`,
     };
 }
 
 function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
-    const winner = state.players.find((p) => p.seat === event.winnerSeat);
     const players = state.players.map((p) => {
         const standing = event.standings.find((s) => s.seat === p.seat);
         return standing ? { ...p, score: standing.score } : p;
@@ -193,7 +184,6 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
             })),
             winnerSeat: event.winnerSeat,
         },
-        lastEventDescription: `Game over - Winner: ${winner?.name ?? `Seat ${event.winnerSeat}`}`,
         phase: "game_ended",
         players,
         riichiSticks: 0,

@@ -41,18 +41,22 @@ interface RouteBudget {
  * sprite with retries and tiles named their faces until it lands: a cold start of 463.3 / 83.6 with the sprite.
  * The game's CSS budget re-set on 2026-10-30 from 88 / 14 to 81 / 13.5 at 73.0 / 12.3, the nameplates in it: Pico
  * now emits only the dark scheme and the modules the pages use (`styles/_pico.scss`), 18 KiB less.
+ * The replay's budgets re-set on 2026-10-30 from 11 / 4.1 JS and 3.3 / 1.8 CSS to 22 / 7.9 and 7 / 2.5, at
+ * 20.5 / 7.3 and 5.9 / 1.5: its cursor, address, narration, round list, load retries, failure screens and its
+ * desktop bar. The storybook's JS from 50 / 12.4 to 56 / 14.2 at 50.8 / 12.9: the replay stories load the replay
+ * view from its own route's chunk and each generated replay they open in a chunk of its own.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 13.5, raw: 81 }, js: { gzip: 54, raw: 178 } },
     replay: {
         chunk: "src/views/replay.ts",
-        css: { gzip: 1.8, raw: 3.3 },
-        js: { gzip: 4.1, raw: 11 },
+        css: { gzip: 2.5, raw: 7 },
+        js: { gzip: 7.9, raw: 22 },
     },
     storybook: {
         chunk: "src/views/storybook-routes.ts",
         css: { gzip: 1.4, raw: 2.1 },
-        js: { gzip: 12.4, raw: 50 },
+        js: { gzip: 14.2, raw: 56 },
     },
 };
 

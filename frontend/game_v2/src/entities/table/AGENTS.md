@@ -72,11 +72,29 @@ replay view, the live game and the storybook read the tables it produces.
   stand-in the source named as one ("Away": left or absent) apart from an AI player ("AI"): after
   a reconnect a stand-in reads as an AI player, and a live seat never hears of a participant absent
   at the first deal (no `player_left` is sent for one that never joined) until a snapshot.
-- `buildActionSteps` picks the replay's stop points from the timeline's step events, folding
-  bookkeeping events (a new dora, game start, the first draw of a round) into the step before; an
-  entry with no replay event (a seat control line, a line that did not parse) folds into the step
-  after, so a seat's AI replacement shows from the move after its line. `buildNavigationIndex` maps
-  steps to rounds and turns.
+- A replay's cursor contract is pure functions over one navigation index (`buildNavigationIndex`),
+  which the controls, the round list, the address and later the ledger and autoplay all move
+  through. A stop is a move: a deal (with its first draw), a draw, a discard (with the riichi its
+  passing deposits, so the stick shows on the declaring discard), a call, a kan declared open to
+  chankan, a round's result, the game's end. Bookkeeping (a deal's first draw, a new dora, an
+  accepted riichi) belongs to the move before it; annotations (the game start, a seat control line)
+  are never a stop. One rule places both (`buildActionSteps`): a move's stop runs through its last
+  bookkeeping entry, past any annotation between, and an annotation after it shows from the next
+  stop. So a seat that changes hands in a riichi's call window (the server records the line before
+  the acceptance its AI player's pass brings) is told on the declaring discard, which shows the
+  deposit, and otherwise a seat's change of hands is told and marked from the move after its line.
+  Every stop is a timeline state; none is a table patched outside the dispatcher. The
+  replay opens on the first deal: nothing before it is a stop. Stops are numbered within their
+  round from 0 at its deal, the game's end the last round's last stop. A result stop has a page
+  per winner; stepping pages through them, and stepping back into a result lands on its last page.
+  The address (`?seat=&round=&step=`, `docs/architecture.md`, Replays) resolves through the same
+  index, every bad part falling back as the contract says, and never names a page.
+- A replay is whole only when its recording reaches the game's end (`complete`); one that stops
+  short, or that its reader cut at a damaged line, keeps what it holds, and the display says so on
+  every stop and where it ends at its last, and its unfinished round shows no result.
+- The narration (`narrateStop`) tells a stop from its own entries and the tables after them, never
+  from a sentence the table stored: the table keeps no description. A draw names its tile only
+  where the perspective shows the drawer's hand.
 - `lib/board-mapper.ts` turns a table into the display state the `ui/` components render, from a
   perspective that is an input, not the dealer: which seat sits at the bottom, and whether every
   known hand shows face up (a replay) or only the bottom seat's. A known tile keeps its id;

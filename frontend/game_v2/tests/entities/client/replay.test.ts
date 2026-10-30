@@ -17,8 +17,8 @@ import {
     type PlayerState,
     type ReplayEvent,
     type TableState,
-    buildActionSteps,
     buildNavigationIndex,
+    narrateStop,
     tableStateToDisplayState,
 } from "@/entities/table";
 import {
@@ -36,13 +36,16 @@ const REPLAY_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 const drawLine = '{"d": 0, "t": 1}';
 const discardLine = '{"d": 0, "t": 2}';
 
-function readLines(...lines: string[]): { errors: readonly string[]; types: (string | null)[] } {
+function readLines(...lines: string[]): {
+    damage: { lineNumber: number; detail: string } | null;
+    types: (string | null)[];
+} {
     const read = readReplayTimeline([VERSION_LINE, ...SEAT_0_TABLE, ...lines].join("\n"));
     assert(read.ok);
     const types = read.timeline.entries
         .slice(SEAT_0_TABLE.length)
         .map((entry) => entry.parsed?.type ?? null);
-    return { errors: read.errors, types };
+    return { damage: read.damage, types };
 }
 
 describe("readReplayTimeline - lines", () => {
@@ -51,35 +54,40 @@ describe("readReplayTimeline - lines", () => {
         const read = readReplayTimeline(text);
         assert(read.ok);
 
-        expect(read.errors).toEqual([
-            `Line ${text.split("\n").length}: Parse error: Failed to parse game event t=99: Unknown game event type: t=99`,
-        ]);
+        expect(read.damage).toEqual({
+            detail: "Parse error: Failed to parse game event t=99: Unknown game event type: t=99",
+            lineNumber: text.split("\n").length,
+        });
+        expect(read.timeline.entries.at(-1)?.parsed?.type).toBe("round_end");
     });
 
     test("parses each event line in order through the dispatcher, blank lines skipped", () => {
-        const { errors, types } = readLines(drawLine, "", "   ", discardLine);
-        expect(errors).toEqual([]);
+        const { damage, types } = readLines(drawLine, "", "   ", discardLine);
+        expect(damage).toBeNull();
         expect(types).toEqual(["draw", "discard"]);
     });
 
-    test("reports a line that is no message or one a replay never holds, and keeps the rest", () => {
-        const { errors, types } = readLines(
-            drawLine,
-            "not json",
+    test.each([
+        ["not json", /^JSON parse error: /],
+        [
             VERSION_LINE,
+            /^Parse error: Message has neither 'type' \(string\) nor 't' \(number\) field$/,
+        ],
+        [
             '{"t": 99}',
-            '{"cd": "test_code", "msg": "test message", "t": 7}',
+            /^Parse error: Failed to parse game event t=99: Unknown game event type: t=99$/,
+        ],
+        ['{"cd": "test_code", "msg": "test message", "t": 7}', /^Non-replay event type: error$/],
+        [
             '{"ai": 2, "s": 0, "t": 101}',
-            discardLine,
-        );
-        expect(types).toEqual(["draw", null, null, null, null, "discard"]);
-        expect(errors).toEqual([
-            expect.stringMatching(/^Line 5: JSON parse error: /),
-            "Line 6: Parse error: Message has neither 'type' (string) nor 't' (number) field",
-            "Line 7: Parse error: Failed to parse game event t=99: Unknown game event type: t=99",
-            "Line 8: Non-replay event type: error",
-            "Line 9: Parse error: Failed to parse replay line t=101: Unknown seat control: ai=2",
-        ]);
+            /^Parse error: Failed to parse replay line t=101: Unknown seat control: ai=2$/,
+        ],
+        ['{"d": 400, "t": 2}', /^Cannot be played: /],
+    ])("stops at a line it cannot show (%s), keeping only the lines before it", (bad, detail) => {
+        const { damage, types } = readLines(drawLine, bad, discardLine);
+
+        expect(types).toEqual(["draw"]);
+        expect(damage).toEqual({ detail: expect.stringMatching(detail), lineNumber: 5 });
     });
 });
 
@@ -105,7 +113,7 @@ function kanStop({ events, tables }: EngineReplay, step: ActionStep, seat: numbe
     const table = tables[step.stateIndex];
     const player = table.players[seat];
     return [
-        events[step.descriptionStateIndex - 1]?.type,
+        events[step.moveEntry]?.type,
         table.phase,
         table.tilesRemaining,
         player.tiles.length + player.concealedCount,
@@ -243,14 +251,14 @@ describe("readReplayTimeline - engine replays", () => {
         });
         expect(end.players.map((player) => player.tiles.length)).toEqual([13, 10, 10, 11]);
         expect(end.doraIndicators).toEqual([102, 103, 104, 107]);
-        const kanDescriptions = timeline.events.flatMap((event, index) =>
-            event?.type === "meld" ? [stateAfter(timeline, index).lastEventDescription] : [],
-        );
-        expect(kanDescriptions).toEqual([
-            "Charlie called an open kan on 6z",
-            "Alice called pon on 5z",
-            "Alice declared an added kan of 5z",
-            "Bob declared a closed kan of 1s",
+        const callNarration = buildNavigationIndex(timeline.events, timeline.tables)
+            .stops.filter((stop) => timeline.events[stop.moveEntry]?.type === "meld")
+            .map((stop) => narrateStop(timeline, stop, REPLAY_VIEW));
+        expect(callNarration).toEqual([
+            "Charlie calls kan on Green dragon from Diana",
+            "Alice calls pon on White dragon from Bob",
+            "Alice adds a kan of White dragon",
+            "Bob declares a closed kan of 1s · new dora indicator 9s",
         ]);
     });
 
@@ -272,7 +280,7 @@ describe("readReplayTimeline - engine replays", () => {
     test("chankan: stops on the robbed added kan as declared, then on the ron; its tile leaves the hand once", () => {
         const replay = loadEngineReplay("chankan_added");
         const { tables } = replay;
-        const lastStops = buildActionSteps(replay.events).slice(-3);
+        const lastStops = buildNavigationIndex(replay.events, tables).stops.slice(-3);
 
         expect(lastStops.map((step) => kanStop(replay, step, 1))).toEqual([
             ["draw", "in_round", 65, 11, ["pon"]],
@@ -291,7 +299,7 @@ describe("readReplayTimeline - engine replays", () => {
     test("chankan: stops on the closed kan a kokushi robs as declared, all four copies out of the hand", () => {
         const replay = loadEngineReplay("chankan_closed_kokushi");
         const { tables } = replay;
-        const lastStops = buildActionSteps(replay.events).slice(-4);
+        const lastStops = buildNavigationIndex(replay.events, tables).stops.slice(-4);
 
         expect(lastStops.map((step) => kanStop(replay, step, 1))).toEqual([
             ["draw", "in_round", 64, 14, []],
@@ -310,7 +318,6 @@ describe("readReplayTimeline - engine replays", () => {
         assert(event.resultType === ROUND_RESULT_TYPE.DOUBLE_RON);
         const end = stateAfter(timeline, index);
 
-        expect(end.lastEventDescription).toBe("Double ron by Alice and Charlie");
         expect(scoresOf(end)).toEqual([5000, 38_000, 32_000, 25_000]);
         expect([timeline.tables[index].riichiSticks, end.riichiSticks]).toEqual([2, 0]);
         expect(end.roundEndResult).toMatchObject({
@@ -338,7 +345,6 @@ describe("readReplayTimeline - engine replays", () => {
         const roundEnd = stateAfter(timeline, index);
 
         expect(roundEnd.tilesRemaining).toBe(0);
-        expect(roundEnd.lastEventDescription).toBe("Exhaustive draw");
         expect(scoresOf(roundEnd)).toEqual([23_500, 25_500, 26_500, 23_500]);
 
         const nextRound = stateAfter(timeline, findEventIndex(timeline, "round_started", index));
@@ -353,13 +359,12 @@ describe("readReplayTimeline - engine replays", () => {
 
     test("ai replacements: marks a seat an AI holds from the move after its line until its human returns", () => {
         const { events, tables } = loadEngineReplay("ai_replacements");
-        const marks = buildActionSteps(events).map((step) =>
+        const marks = buildNavigationIndex(events, tables).stops.map((step) =>
             tables[step.stateIndex].players.map((player) => player.aiStandIn),
         );
         const { ABSENT, LEFT } = SEAT_CONTROL_REASON;
 
-        expect(marks.slice(0, 10)).toEqual([
-            [null, null, null, null],
+        expect(marks.slice(0, 9)).toEqual([
             [null, null, null, ABSENT],
             [null, null, null, ABSENT],
             [null, null, null, ABSENT],
@@ -379,7 +384,6 @@ describe("readReplayTimeline - engine replays", () => {
         const end = stateAfter(timeline, timeline.events.length - 1);
 
         expect(end.phase).toBe("game_ended");
-        expect(end.lastEventDescription).toBe("Game over - Winner: Bob");
         expect(end.gameEndResult).toEqual({
             leftoverRiichiBonus: gameEnd.leftoverRiichiBonus,
             standings: gameEnd.standings,
@@ -505,7 +509,6 @@ describe("readReplayTimeline - riichi deposits", () => {
         const end = stateAfter(timeline, index);
 
         expect(end.phase).toBe("round_ended");
-        expect(end.lastEventDescription).toBe("Tsumo by Alice");
         expect(end.players.map((player) => player.isRiichi)).toEqual([false, true, false, true]);
         expect(scoresOf(end)).toEqual([21_000, 34_000, 23_000, 22_000]);
         expect(end.roundEndResult).toMatchObject({
@@ -528,9 +531,8 @@ describe("readReplayTimeline - engine fixtures", () => {
         expect(ENGINE_REPLAYS.size).toBeGreaterThan(0);
         for (const name of ENGINE_REPLAYS.keys()) {
             const { events, tables } = loadEngineReplay(name);
-            const steps = buildActionSteps(events);
-            buildNavigationIndex(events, steps, tables);
-            const boards = steps.map((step) =>
+            const { stops } = buildNavigationIndex(events, tables);
+            const boards = stops.map((step) =>
                 tableStateToDisplayState(tables[step.stateIndex], REPLAY_VIEW),
             );
             expect(boards.length, name).toBeGreaterThan(1);

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+    makeAiReplacementLine,
     makeDiscardEvent,
     makeDoraRevealedEvent,
     makeDrawEvent,
@@ -11,175 +12,116 @@ import {
     makeRoundStartedEvent,
     makeTsumoRoundEnd,
 } from "#tests/fixtures/events";
-import { type ActionStep, buildActionSteps } from "@/entities/table/model/action-steps";
-import { type ReplayEvent } from "@/entities/table/model/types";
+import {
+    type ActionStep,
+    type StepEvent,
+    buildActionSteps,
+} from "@/entities/table/model/action-steps";
 
-const EVENT_FACTORIES: {
-    [Type in ReplayEvent["type"]]: () => Extract<ReplayEvent, { type: Type }>;
-} = {
-    discard: makeDiscardEvent,
-    dora_revealed: makeDoraRevealedEvent,
-    draw: makeDrawEvent,
-    game_end: makeGameEndEvent,
-    game_started: makeGameStartedEvent,
-    meld: makeMeldEvent,
-    riichi_declared: makeRiichiDeclaredEvent,
-    round_end: makeTsumoRoundEnd,
-    round_started: makeRoundStartedEvent,
-};
-
-function event(type: ReplayEvent["type"]): ReplayEvent {
-    return EVENT_FACTORIES[type]();
+function ranges(events: readonly StepEvent[]): [number, number, number][] {
+    return buildActionSteps(events).map((step: ActionStep) => [
+        step.firstEntry,
+        step.moveEntry,
+        step.stateIndex,
+    ]);
 }
 
 describe("buildActionSteps", () => {
-    test("empty events returns single step at index 0", () => {
-        const steps = buildActionSteps([]);
-
-        expect(steps).toEqual<ActionStep[]>([{ descriptionStateIndex: 0, stateIndex: 0 }]);
-    });
-
-    test("all stopping event types produce action steps", () => {
-        const events: ReplayEvent[] = [
-            event("game_started"),
-            event("round_started"),
-            event("draw"),
-            event("discard"),
-            event("meld"),
-            event("riichi_declared"),
-            event("round_end"),
-            event("game_end"),
+    test("opens on the deal with its first draw, the game start shown from there", () => {
+        const events = [
+            makeGameStartedEvent(),
+            makeRoundStartedEvent(),
+            makeDrawEvent(),
+            makeDiscardEvent(),
         ];
 
-        const steps = buildActionSteps(events);
-
-        // Initial step (past game_started) + round_started (batched with draw) + 5 remaining stopping events
-        expect(steps).toHaveLength(7);
-        expect(steps.map((s) => s.stateIndex)).toEqual([1, 3, 4, 5, 6, 7, 8]);
+        expect(ranges(events)).toEqual([
+            [0, 1, 3],
+            [3, 3, 4],
+        ]);
     });
 
-    test("last step stateIndex is always events.length", () => {
-        const events: ReplayEvent[] = [
-            event("game_started"),
-            event("round_started"),
-            event("draw"),
+    test("folds the dora a kan turns into the kan's stop", () => {
+        const events = [
+            makeRoundStartedEvent(),
+            makeDrawEvent(),
+            makeMeldEvent({ meldType: "closed_kan" }),
+            makeDoraRevealedEvent(),
+            makeDrawEvent(),
         ];
 
-        const steps = buildActionSteps(events);
-
-        expect(steps[steps.length - 1].stateIndex).toBe(events.length);
+        expect(ranges(events)).toEqual([
+            [0, 0, 2],
+            [2, 2, 4],
+            [4, 4, 5],
+        ]);
     });
 
-    describe("non-stopping event batching", () => {
-        test("first draw after round_started is batched with it", () => {
-            const events: ReplayEvent[] = [
-                event("game_started"),
-                event("round_started"),
-                event("draw"),
-                event("discard"),
-            ];
+    test("tells a seat control line on the next stop when no bookkeeping follows it", () => {
+        const events = [
+            makeRoundStartedEvent(),
+            makeDrawEvent(),
+            makeDiscardEvent(),
+            makeAiReplacementLine(),
+            makeDrawEvent({ seat: 1 }),
+        ];
 
-            const steps = buildActionSteps(events);
-
-            // round_started step: description at state 2 (round_started), display at state 3 (past draw)
-            const roundStep = steps.find((s) => s.descriptionStateIndex === 2);
-            expect(roundStep).toBeDefined();
-            expect(roundStep!.stateIndex).toBe(3);
-        });
-
-        test("draw after discard is a normal stopping event", () => {
-            const events: ReplayEvent[] = [
-                event("round_started"),
-                event("draw"),
-                event("discard"),
-                event("draw"),
-            ];
-
-            const steps = buildActionSteps(events);
-
-            // initial + round_started (batched with first draw) + discard + second draw
-            expect(steps).toHaveLength(4);
-            expect(steps.map((s) => s.stateIndex)).toEqual([0, 2, 3, 4]);
-        });
-
-        test("dora_revealed after kan is batched — stateIndex past dora, descriptionStateIndex at kan", () => {
-            const events: ReplayEvent[] = [
-                event("game_started"),
-                event("round_started"),
-                event("draw"),
-                event("discard"),
-                event("meld"), // kan at event index 4 → state index 5
-                event("dora_revealed"), // bookkeeping at event index 5 → state index 6
-                event("draw"),
-            ];
-
-            const steps = buildActionSteps(events);
-
-            // Find the step for the kan meld
-            const kanStep = steps.find((s) => s.descriptionStateIndex === 5);
-            expect(kanStep).toBeDefined();
-            // Display state should be past the dora_revealed
-            expect(kanStep!.stateIndex).toBe(6);
-            // Description should point to the kan
-            expect(kanStep!.descriptionStateIndex).toBe(5);
-        });
-
-        test("multiple consecutive non-stopping events are all batched into one step", () => {
-            const events: ReplayEvent[] = [
-                event("meld"), // stopping event at index 0
-                event("dora_revealed"), // non-stopping at index 1
-                event("dora_revealed"), // non-stopping at index 2
-                event("dora_revealed"), // non-stopping at index 3
-                event("draw"), // stopping event at index 4
-            ];
-
-            const steps = buildActionSteps(events);
-
-            // Initial step + meld step (batched with 3 dora) + draw step
-            expect(steps).toHaveLength(3);
-
-            // Meld step: description at state 1 (the meld), display at state 4 (past all doras)
-            expect(steps[1]).toEqual<ActionStep>({ descriptionStateIndex: 1, stateIndex: 4 });
-
-            // Draw step
-            expect(steps[2]).toEqual<ActionStep>({ descriptionStateIndex: 5, stateIndex: 5 });
-        });
-
-        test("last step stateIndex is events.length even when events end with dora_revealed", () => {
-            const events: ReplayEvent[] = [event("meld"), event("dora_revealed")];
-
-            const steps = buildActionSteps(events);
-
-            expect(steps[steps.length - 1].stateIndex).toBe(events.length);
-        });
+        expect(ranges(events)).toEqual([
+            [0, 0, 2],
+            [2, 2, 3],
+            [3, 4, 5],
+        ]);
     });
 
-    describe("initial step advancement", () => {
-        test("first step stateIndex advances past leading non-stopping events", () => {
-            const steps = buildActionSteps([event("game_started"), event("draw")]);
+    test("runs a riichi discard's stop through its acceptance past a seat control line between", () => {
+        const events = [
+            makeRoundStartedEvent(),
+            makeDrawEvent(),
+            makeDiscardEvent({ isRiichi: true }),
+            makeAiReplacementLine(),
+            makeRiichiDeclaredEvent(),
+            makeAiReplacementLine({ seat: 3 }),
+            makeDrawEvent({ seat: 1 }),
+        ];
 
-            // game_started is non-stopping, so the initial step lands on state 1
-            expect(steps[0].stateIndex).toBe(1);
-        });
+        expect(ranges(events)).toEqual([
+            [0, 0, 2],
+            [2, 2, 5],
+            [5, 6, 7],
+        ]);
+    });
 
-        test("leading non-stopping events are absorbed into the initial step", () => {
-            const events: ReplayEvent[] = [event("dora_revealed"), event("game_started")];
+    test("runs a deal's stop through its first draw past a seat control line between", () => {
+        const events = [
+            makeRoundStartedEvent(),
+            makeAiReplacementLine(),
+            makeDrawEvent(),
+            makeDiscardEvent(),
+        ];
 
-            const steps = buildActionSteps(events);
+        expect(ranges(events)).toEqual([
+            [0, 0, 3],
+            [3, 3, 4],
+        ]);
+    });
 
-            // Both events are non-stopping, so a single step lands at the terminal state
-            expect(steps).toHaveLength(1);
-            expect(steps[0]).toEqual<ActionStep>({ descriptionStateIndex: 2, stateIndex: 2 });
-        });
+    test("joins entries after the last move to the last stop", () => {
+        const events = [
+            makeRoundStartedEvent(),
+            makeDrawEvent(),
+            makeTsumoRoundEnd(),
+            makeGameEndEvent(),
+            makeAiReplacementLine(),
+        ];
 
-        test("all non-stopping events are absorbed into a single initial step", () => {
-            const events: ReplayEvent[] = [event("dora_revealed"), event("dora_revealed")];
+        expect(ranges(events)).toEqual([
+            [0, 0, 2],
+            [2, 2, 3],
+            [3, 3, 5],
+        ]);
+    });
 
-            const steps = buildActionSteps(events);
-
-            // The initial step advances past all non-stopping events to the terminal state
-            expect(steps).toHaveLength(1);
-            expect(steps[0]).toEqual<ActionStep>({ descriptionStateIndex: 2, stateIndex: 2 });
-        });
+    test("makes no stop of a replay with no move", () => {
+        expect(ranges([makeGameStartedEvent(), makeAiReplacementLine()])).toEqual([]);
     });
 });

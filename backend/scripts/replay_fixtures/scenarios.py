@@ -710,6 +710,41 @@ def ai_replacements() -> Recording:
     )
 
 
+def riichi_ai_replacement() -> Recording:
+    """
+    Declare riichi on a red dragon that seat 2 may pon: seat 2 leaves during the call prompt, so its seat control line
+    precedes the riichi's acceptance, which its AI player's pass resolves; then the riichi seat wins by tsumo.
+    """
+    riichi_tile = tile(0, honors="7")
+    winning_tile = tile(0, sou="5")
+    staged = StagedWall(
+        hands=(
+            tile_copies(2, man="1", pin="1569", sou="1589", honors="1234"),
+            (*tile_copies(0, man="123", pin="456789", sou="349"), tile(1, sou="9")),
+            (*tile_copies(0, man="456789", pin="123", honors="56"), tile(1, honors="7"), tile(2, honors="7")),
+            tile_copies(3, man="1", pin="1569", sou="1589", honors="1234"),
+        ),
+        draws=(
+            (0, tile(3, man="9")),
+            (1, riichi_tile),
+            (2, tile(1, man="5")),
+            (3, tile(1, man="9")),
+            (0, tile(1, man="8")),
+            (1, winning_tile),
+        ),
+    )
+
+    game = StagedGame("riichi-ai-replacement", staged)
+    game.tsumogiri(0)
+    game.riichi(1)
+    game.leave(2)
+    game.tsumogiri(3)
+    game.tsumogiri(0)
+    game.tsumo(1)
+
+    return game.replay(Outcome({"rt": WireRoundResultType.TSUMO, "ws": 1}))
+
+
 def ai_dealer_absent() -> Recording:
     """
     Deal from an AI player's seat to three players, two of them absent at the deal, with the dealer's AI player between
@@ -839,6 +874,7 @@ FIXTURES: dict[str, Callable[[], Recording]] = {
     "four_riichi.txt": four_riichi,
     "four_kans.txt": four_kans,
     "ai_replacements.txt": ai_replacements,
+    "riichi_ai_replacement.txt": riichi_ai_replacement,
     "ai_dealer_absent.txt": ai_dealer_absent,
     "eager_game.txt": eager_game,
     "double_ron_on_honba.txt": double_ron_on_honba,

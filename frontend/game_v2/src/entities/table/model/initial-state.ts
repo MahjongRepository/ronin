@@ -10,7 +10,6 @@ export function createInitialTableState(): TableState {
         gameId: "",
         honbaSticks: 0,
         lastDiscardSeat: null,
-        lastEventDescription: "",
         phase: "pre_game",
         players: [],
         riichiSticks: 0,

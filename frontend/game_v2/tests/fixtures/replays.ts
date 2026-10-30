@@ -6,18 +6,28 @@ import {
 } from "@/entities/client";
 import { type StepEvent, type TableState } from "@/entities/table";
 
-const REPLAY_FILES = import.meta.glob("./replays/*.txt", {
+const REPLAY_FILES = import.meta.glob("/src/fixtures/replays/*.txt", {
     eager: true,
     import: "default",
     query: "?raw",
 });
 
+const REPLAY_DIR = "/src/fixtures/replays/";
+
 export const ENGINE_REPLAYS: ReadonlyMap<string, string> = new Map(
     Object.entries(REPLAY_FILES).map(([path, text]) => [
-        path.slice("./replays/".length, -".txt".length),
-        text,
+        path.slice(REPLAY_DIR.length, -".txt".length),
+        String(text),
     ]),
 );
+
+export function engineReplayText(name: string): string {
+    const text = ENGINE_REPLAYS.get(name);
+    if (text === undefined) {
+        throw new Error(`No engine replay named ${name}`);
+    }
+    return text;
+}
 
 /**
  * An engine replay read through the dispatcher: `events[i]` is entry i's step event, `tables[i + 1]` the table
@@ -30,16 +40,12 @@ export interface EngineReplay {
 }
 
 export function loadEngineReplay(name: string): EngineReplay {
-    const text = ENGINE_REPLAYS.get(name);
-    if (text === undefined) {
-        throw new Error(`No engine replay named ${name}`);
-    }
-    const read = readReplayTimeline(text);
+    const read = readReplayTimeline(engineReplayText(name));
     if (!read.ok) {
-        throw new Error(`${name}: ${read.refusal}`);
+        throw new Error(`${name}: ${JSON.stringify(read.refusal)}`);
     }
-    if (read.errors.length > 0) {
-        throw new Error(`${name}: ${read.errors.join("; ")}`);
+    if (read.damage !== null) {
+        throw new Error(`${name}: line ${read.damage.lineNumber}: ${read.damage.detail}`);
     }
     const { timeline } = read;
     return {

@@ -261,4 +261,4 @@ removing a table in the document, on every `.width()` and `.height()`. The `desc
 This app is out of `make run-all-checks` (`frontend/AGENTS.md`, Tooling): run its scripts by hand
 when you touch it. The replay files under `src/js/__tests__/fixtures/replays/`, for the replay
 converter's tests, are a frozen copy of what the engine recorded when the fixtures moved to
-`frontend/game_v2/tests/fixtures/replays/`; `make generate-replay-fixtures` no longer writes them.
+`frontend/game_v2/src/fixtures/replays/`; `make generate-replay-fixtures` no longer writes them.

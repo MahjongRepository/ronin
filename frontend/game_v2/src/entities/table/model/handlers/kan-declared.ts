@@ -10,7 +10,6 @@ import {
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
-import { tile136toString } from "@/entities/tile";
 import {
     type ChankanPromptEvent,
     KAN_TYPE,
@@ -115,19 +114,6 @@ function declaredKan(
     };
 }
 
-function kanName(meldType: DeclaredKanType): string {
-    return meldType === "added_kan" ? "an added kan" : "a closed kan";
-}
-
-/** How the table describes a kan its declarer declared, completed or not. */
-export function kanDescription(
-    player: PlayerState,
-    meldType: DeclaredKanType,
-    tileId: number,
-): string {
-    return `${player.name} declared ${kanName(meldType)} of ${tile136toString(tileId)}`;
-}
-
 /**
  * Show a kan declared open to chankan: its tiles leave the hand for the kan, after the draw a hidden hand took unseen
  * joins its count. It draws no replacement and reveals no dora, since the kan completes only once nobody robs it. A
@@ -152,7 +138,6 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
         ...state,
         currentPlayerSeat: event.seat,
         lastDiscardSeat: null,
-        lastEventDescription: kanDescription(player, meldType, event.tileId),
         players: updatePlayer(state.players, event.seat, {
             concealedCount: hand.concealedCount,
             drawnTileId: null,

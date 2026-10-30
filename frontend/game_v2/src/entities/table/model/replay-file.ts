@@ -41,10 +41,18 @@ interface NumberedText {
     readonly text: string;
 }
 
+/**
+ * Why a replay file is refused before any event line: it holds no version line this client can read, or one naming
+ * another version, whose lines may mean something else.
+ */
+export type ReplayRefusal =
+    | { readonly kind: "unreadable"; readonly detail: string }
+    | { readonly kind: "unsupported_version"; readonly version: string };
+
 /** A replay file read whole, or refused before any event line because of its version line. */
 export type ReplayFileRead =
     | ({ readonly ok: true } & ReplayFileLines)
-    | { readonly ok: false; readonly refusal: string };
+    | { readonly ok: false; readonly refusal: ReplayRefusal };
 
 type LineRead =
     | { readonly kind: "line"; readonly line: Record<string, unknown> }
@@ -54,7 +62,7 @@ export function isReplayEvent(line: ReplayLine): line is ReplayEvent {
     return line.type in REPLAY_EVENT_TYPES;
 }
 
-function isSeatControlLine(line: ReplayLine): line is SeatControlLine {
+export function isSeatControlLine(line: ReplayLine): line is SeatControlLine {
     return line.type in SEAT_CONTROL_LINE_TYPES;
 }
 
@@ -79,16 +87,16 @@ function readReplayVersion(line: string): unknown {
     }
 }
 
-function findVersionRefusal(versionLine: string | undefined): string | null {
+function findVersionRefusal(versionLine: string | undefined): ReplayRefusal | null {
     if (versionLine === undefined) {
-        return "Replay is empty";
+        return { detail: "The replay is empty", kind: "unreadable" };
     }
     const version = readReplayVersion(versionLine);
     if (version === undefined) {
-        return "Replay does not start with a version line";
+        return { detail: "The replay does not start with a version line", kind: "unreadable" };
     }
     if (version !== REPLAY_VERSION) {
-        return `Unsupported replay version ${JSON.stringify(version)}`;
+        return { kind: "unsupported_version", version: JSON.stringify(version) };
     }
     return null;
 }

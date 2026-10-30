@@ -141,3 +141,17 @@ $indicator-scale: 0.6;
         font-size: 1.1rem;
     }
 }
+
+@container (height < 360px) {
+    .board-overlay {
+        padding: 0.25rem;
+    }
+
+    .board-overlay .round-end-result__indicators {
+        flex-basis: auto;
+    }
+
+    .board-overlay .round-end-result__points {
+        font-size: 1.5rem;
+    }
+}

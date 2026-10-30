@@ -5,7 +5,7 @@ import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/ti
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";
 import { browserClock } from "@/shared/clock";
-import { gamePageUrl, getLobbyUrl, isDebugRequested } from "@/shared/config";
+import { gamePageUrl, getLobbyHistoryUrl, getLobbyUrl, isDebugRequested } from "@/shared/config";
 import {
     type GameSessionData,
     clearSessionData,
@@ -74,6 +74,35 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     };
 }
 
+function replaceSearch(search: string): void {
+    const { hash, pathname } = window.location;
+    window.history.replaceState(window.history.state, "", `${pathname}${search}${hash}`);
+}
+
+/** Call `listener` as the page is hidden or left, when a waiting address write must land. */
+function onPageHide(listener: () => void): () => void {
+    function onHidden(): void {
+        if (document.visibilityState === "hidden") {
+            listener();
+        }
+    }
+    window.addEventListener("pagehide", listener);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+        window.removeEventListener("pagehide", listener);
+        document.removeEventListener("visibilitychange", onHidden);
+    };
+}
+
+function replayDeps() {
+    return {
+        clock: browserClock,
+        links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
+        loadReplay: fetchReplay,
+        location: { onPageHide, replaceSearch, search: window.location.search },
+    };
+}
+
 /** A storybook page, loaded with the rest of the storybook the first time one is opened. */
 function storybookRoute(
     pattern: RegExp,
@@ -90,8 +119,7 @@ if (app) {
         [
             lazyRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, async () => {
                 const { mountReplayView } = await import("@/views/replay");
-                return (host, params) =>
-                    mountReplayView(host, params.gameId, { loadReplay: fetchReplay });
+                return (host, params) => mountReplayView(host, params.gameId, replayDeps());
             }),
             storybookRoute(/^\/play\/storybook\/board$/, (routes) => routes.mountStorybookBoard),
             storybookRoute(
@@ -104,6 +132,7 @@ if (app) {
             ),
             storybookRoute(/^\/play\/storybook\/hand$/, (routes) => routes.mountStorybookHand),
             storybookRoute(/^\/play\/storybook\/melds$/, (routes) => routes.mountStorybookMelds),
+            storybookRoute(/^\/play\/storybook\/replay$/, (routes) => routes.mountStorybookReplay),
             storybookRoute(/^\/play\/storybook\/rotate$/, (routes) => routes.mountStorybookRotate),
             storybookRoute(/^\/play\/storybook$/, (routes) => routes.mountStorybookIndex),
             {

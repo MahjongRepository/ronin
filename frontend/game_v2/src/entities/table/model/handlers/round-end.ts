@@ -11,20 +11,13 @@ import {
 } from "@/entities/table/model/types";
 import { assertNever } from "@/shared/lib";
 import {
-    type DoubleRonRoundEnd,
     type ExhaustiveDrawRoundEnd,
     type NagashiManganRoundEnd,
     ROUND_RESULT_TYPE,
-    type RonRoundEnd,
     type RoundEndEvent,
-    type TsumoRoundEnd,
 } from "@/shared/protocol";
 
 import { applyKanDeclared, robbedKanDeclared } from "./kan-declared";
-
-function playerName(state: TableState, seat: number): string {
-    return state.players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`;
-}
 
 function settleScores(players: readonly PlayerState[], event: RoundEndEvent): PlayerState[] {
     return players.map((p) => {
@@ -35,50 +28,6 @@ function settleScores(players: readonly PlayerState[], event: RoundEndEvent): Pl
         }
         return { ...p, score: scoreBeforePayment + (event.scoreChanges[seat] ?? 0) };
     });
-}
-
-function tsumoDescription(state: TableState, event: TsumoRoundEnd): string {
-    return `Tsumo by ${playerName(state, event.winnerSeat)}`;
-}
-
-function ronDescription(state: TableState, event: RonRoundEnd): string {
-    return `Ron by ${playerName(state, event.winnerSeat)} from ${playerName(state, event.loserSeat)}`;
-}
-
-function doubleRonDescription(state: TableState, event: DoubleRonRoundEnd): string {
-    const names = event.winners.map((w) => playerName(state, w.winnerSeat));
-    return `Double ron by ${names.join(" and ")}`;
-}
-
-function nagashiDescription(state: TableState, event: NagashiManganRoundEnd): string {
-    const names = event.qualifyingSeats.map((seat) => playerName(state, seat));
-    return `Nagashi mangan by ${names.join(" and ")}`;
-}
-
-function roundEndDescription(state: TableState, event: RoundEndEvent): string {
-    switch (event.resultType) {
-        case ROUND_RESULT_TYPE.TSUMO: {
-            return tsumoDescription(state, event);
-        }
-        case ROUND_RESULT_TYPE.RON: {
-            return ronDescription(state, event);
-        }
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return doubleRonDescription(state, event);
-        }
-        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW: {
-            return "Exhaustive draw";
-        }
-        case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return `Abortive draw: ${event.reason}`;
-        }
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
-            return nagashiDescription(state, event);
-        }
-        default: {
-            return assertNever(event);
-        }
-    }
 }
 
 /**
@@ -213,19 +162,24 @@ function resultDraw(event: RoundEndEvent): DrawResult | null {
 interface RonDetail {
     readonly loserSeat: number | null;
     readonly headBumpedSeats: readonly number[];
+    readonly kanRobbed: boolean;
 }
 
 function ronDetail(event: RoundEndEvent): RonDetail {
     switch (event.resultType) {
         case ROUND_RESULT_TYPE.RON:
         case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return { headBumpedSeats: event.headBumpedSeats, loserSeat: event.loserSeat };
+            return {
+                headBumpedSeats: event.headBumpedSeats,
+                kanRobbed: event.robbedKan !== null,
+                loserSeat: event.loserSeat,
+            };
         }
         case ROUND_RESULT_TYPE.TSUMO:
         case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN:
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
-            return { headBumpedSeats: NO_SEATS, loserSeat: null };
+            return { headBumpedSeats: NO_SEATS, kanRobbed: false, loserSeat: null };
         }
         default: {
             return assertNever(event);
@@ -394,7 +348,6 @@ export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableSta
     const drawn = settleUnseenDraws(showRobbedKan(state, event), event);
     return {
         ...drawn,
-        lastEventDescription: roundEndDescription(state, event),
         phase: "round_ended",
         players: revealHands(settleScores(drawn.players, event), event),
         riichiSticks: state.riichiSticks - riichiSticksCollected(event),

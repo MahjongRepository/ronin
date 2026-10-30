@@ -2,6 +2,7 @@ import { type TemplateResult, html } from "lit-html";
 
 import { TILE_FACES, TILE_FACES_SET, Tile, type TileFace } from "@/entities/tile";
 import { storybookNav } from "@/views/storybook-nav";
+import { REPLAY_STORIES } from "@/views/storybook-replay";
 
 function storybookView(): TemplateResult {
     return html`
@@ -33,6 +34,16 @@ function storybookView(): TemplateResult {
                         <small>image</small>
                     </div>
                 </div>
+            </section>
+
+            <section>
+                <h2>Replay page</h2>
+                <nav class="storybook-nav">
+                    ${REPLAY_STORIES.map(
+                        (story) =>
+                            html`<a class="storybook-badge" href="/play/storybook/replay?state=${story}">${story}</a>`,
+                    )}
+                </nav>
             </section>
 
             <!-- Connection status indicators -->

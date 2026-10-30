@@ -49,8 +49,13 @@ export {
 } from "./ui/rotate-panel";
 export type { ClientTimeline, TimelineEntry } from "./model/timeline";
 export { buildClientTimeline, timelineStates } from "./model/timeline";
-export type { ReplayTimelineRead } from "./model/replay";
-export { readReplayTimeline, timelineStepEvents } from "./model/replay";
+export type {
+    LoadedReplay,
+    ReplayRead,
+    ReplayTimelineRead,
+    ReplayUnshowable,
+} from "./model/replay";
+export { readReplay, readReplayTimeline, timelineStepEvents } from "./model/replay";
 export type {
     ScenarioEvent,
     ScenarioMismatch,

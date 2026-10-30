@@ -28,9 +28,9 @@ const APP_ROOT = resolve(import.meta.dirname, "..");
 const DIST = join(APP_ROOT, "dist");
 const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
 const ASSET_PREFIX = "/game-assets/v2/";
-const REPLAY_FIXTURE = join(APP_ROOT, "tests/fixtures/replays/four_kans.txt");
+const REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/four_kans.txt");
 /** The largest engine replay fixture, which the replay load budget reads. */
-const BUDGET_REPLAY_FIXTURE = join(APP_ROOT, "tests/fixtures/replays/full_game.txt");
+const BUDGET_REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/full_game.txt");
 const BUDGET_GAME_ID = "load-budget";
 const TRANSCRIPT_FIXTURE = join(APP_ROOT, "src/fixtures/seat-scenarios/call_prompt_seat_1.json");
 /** The transcript's labels the live game is stopped at: its call prompt's buttons, and its turn after the chi. */
@@ -43,6 +43,14 @@ const MIN_TAP: Size = { height: 42, width: 32 };
 const MIN_ACTION_SIZE = 40;
 /** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
 const MIN_OPPONENT_FACE: Size = { height: 17, width: 13 };
+/** The replay aside's text on a desktop: the least font size in px and the most lines each part may wrap to. */
+const REPLAY_TEXT_LIMITS: Readonly<
+    Record<string, { readonly px: number; readonly lines: number }>
+> = {
+    incomplete: { lines: 4, px: 12 },
+    narration: { lines: 3, px: 13 },
+    round: { lines: 2, px: 13 },
+};
 /** A desktop river tile's long side as a share of the local hand tile's: the hierarchy the references keep. */
 const RIVER_TO_HAND = { max: 0.75, min: 0.55 } as const;
 /** How far a desktop side seat's hand may stand from the centre, as a share of the board's width. */
@@ -73,7 +81,8 @@ const LOAD_BUDGET_MS = 120;
 const LOAD_MEASURE = "replay-load";
 /** What reading the whole fixture yields, which every timed load must report before its time counts. */
 const LOAD_EXPECTED = {
-    parseErrors: 0,
+    complete: true,
+    damagedLine: null,
     rounds: 12,
     standings: [
         [3, 25_000],
@@ -81,7 +90,7 @@ const LOAD_EXPECTED = {
         [1, 25_000],
         [2, 25_000],
     ],
-    steps: 1694,
+    stops: 1693,
 };
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
@@ -176,6 +185,17 @@ interface BoardMeasure {
     readonly opponentFaces: readonly Box[];
     readonly center: Box | null;
     readonly leave: Box | null;
+    /** The replay's move buttons and round toggle beside the board, and its round list's rows over it. */
+    readonly replayControls: readonly Box[];
+    readonly roundList: Box | null;
+    /** The replay aside's text: each part's font size and the lines it wraps to; empty on any other page. */
+    readonly replayText: readonly ReplayText[];
+}
+
+interface ReplayText {
+    readonly part: string;
+    readonly px: number;
+    readonly lines: number;
 }
 
 interface PageMeasure {
@@ -317,6 +337,25 @@ function documentCase(name: string, path: string, content: string): PageCase {
     return { kind: "document", name, path, required: { visible: [content] } };
 }
 
+/** A replay page story: the replay view as on its route, its replay answered from a generated fixture. */
+function replayCase(story: string, extra: readonly string[]): PageCase {
+    return {
+        kind: "board",
+        name: `replay-${story.replaceAll("_", "-")}`,
+        path: `/play/storybook/replay?state=${story}`,
+        required: { visible: [...BOARD_VISIBLE, ".replay-controls__moves", ...extra] },
+    };
+}
+
+/** A replay page story that shows no board: loading, or why the replay cannot be shown. */
+function replayStateCase(story: string, content: string): PageCase {
+    return documentCase(
+        `replay-${story.replaceAll("_", "-")}`,
+        `/play/storybook/replay?state=${story}`,
+        content,
+    );
+}
+
 const PAGES: readonly PageCase[] = [
     documentCase("storybook", "/play/storybook", ".storybook .tile"),
     documentCase("storybook-hand", "/play/storybook/hand", ".storybook .hand .tile"),
@@ -376,6 +415,15 @@ const PAGES: readonly PageCase[] = [
         path: "/play/storybook/rotate?state=countdown",
         required: { visible: [".rotate-panel", ".rotate-panel__seconds"] },
     },
+    replayCase("start", [".replay-controls__narration"]),
+    replayCase("round_list", [".round-list__row[aria-current]"]),
+    replayCase("incomplete", [".replay-controls__incomplete--end"]),
+    replayCase("ends_on_result", [".round-end-result__title", ".replay-controls__incomplete--end"]),
+    replayCase("damaged", [".replay-controls__incomplete--end"]),
+    replayCase("double_ron", [".round-end-result__pager"]),
+    replayCase("standings", [".game-end-result"]),
+    replayStateCase("loading", ".replay-state"),
+    replayStateCase("not_found", ".replay-state__links a"),
     {
         kind: "board",
         name: "replay",
@@ -678,6 +726,47 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         );
         const center = board.querySelector(".board-center");
         const leave = board.querySelector(".game-menu__leave");
+        const roundList = document.querySelector(".round-list");
+        const roundRows = document.querySelector(".round-list__rows");
+        const shownRows =
+            roundRows === null
+                ? []
+                : [...roundRows.querySelectorAll(".round-list__row")].filter((row) => {
+                      const shown = roundRows.getBoundingClientRect();
+                      const { bottom, top } = row.getBoundingClientRect();
+                      return top >= shown.top && bottom <= shown.bottom;
+                  });
+        const replayTextParts: Readonly<Record<string, string>> = {
+            incomplete: ".replay-controls__incomplete",
+            narration: ".replay-controls__narration",
+            round: ".replay-controls__round",
+        };
+        const replayText = Object.entries(replayTextParts).flatMap(([part, selector]) => {
+            const element = document.querySelector(selector);
+            if (element === null || element.textContent.trim() === "") {
+                return [];
+            }
+            const px = Number.parseFloat(getComputedStyle(element).fontSize);
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            const rects: DOMRect[] = [];
+            for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                rects.push(...[...range.getClientRects()].filter((rect) => rect.height > 0));
+            }
+            const tops = rects.map((rect) => rect.top).toSorted((first, second) => first - second);
+            const lineGap = Math.min(...rects.map((rect) => rect.height)) / 2;
+            const lines = tops.filter(
+                (top, index) => index === 0 || top - tops[index - 1] > lineGap,
+            );
+            return [{ lines: lines.length, part, px }];
+        });
+        const replayControls = [
+            ...document.querySelectorAll(
+                ".replay-controls__move, .replay-controls__round, .round-list__close",
+            ),
+            ...shownRows,
+        ].map(box);
         const centerTexts = [...board.querySelectorAll(centerTextSelectors)].map(
             (element, index) => ({
                 box: box(element),
@@ -732,11 +821,14 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
                 box: plate.box,
                 seat: plate.group.replace("nameplate--", ""),
             })),
+            replayControls,
+            replayText,
             riverTiles: [
                 ...board.querySelectorAll(
                     ".board-river .discard-tile:not(.discard-tile-riichi) .tile",
                 ),
             ].map(box),
+            roundList: roundList === null ? null : box(roundList),
             seatTiles,
             tiles: tableTiles.map(box),
         };
@@ -990,6 +1082,37 @@ function checkLeave(board: BoardMeasure, screen: Box, report: PageReport): void 
     );
 }
 
+/** The replay's controls sit on the screen, large enough to tap, and its round list on the board. */
+function checkReplayControls(board: BoardMeasure, screen: Box, report: PageReport): void {
+    const outside = board.replayControls.filter((control) => !contains(screen, control));
+    report.expect(outside.length === 0, `${outside.length} replay control(s) off the screen`);
+    const small = board.replayControls.filter(
+        (control) =>
+            control.width < MIN_ACTION_SIZE - EPSILON || control.height < MIN_ACTION_SIZE - EPSILON,
+    );
+    report.expect(
+        small.length === 0,
+        `replay controls under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
+    );
+    if (board.roundList !== null) {
+        report.expect(
+            contains(board.board, board.roundList),
+            `the round list ${describeBox(board.roundList)} leaves the board`,
+        );
+    }
+}
+
+/** On a desktop the replay's aside reads at a glance: its narration and round, and its incompleteness label. */
+function checkReplayText(board: BoardMeasure, report: PageReport): void {
+    for (const { lines, part, px } of board.replayText) {
+        const limit = REPLAY_TEXT_LIMITS[part];
+        report.expect(
+            px >= limit.px && lines <= limit.lines,
+            `the replay's ${part} at ${px}px on ${lines} line(s), past ${limit.px}px on ${limit.lines}`,
+        );
+    }
+}
+
 /** Decision buttons and a round result's confirm sit wholly on the board and the screen, large enough to tap. */
 function checkActions(board: BoardMeasure, screen: Box, report: PageReport): void {
     const outside = board.actions.filter(
@@ -1041,12 +1164,14 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         checkLocalHand(board, { floor: viewport.handFloor, screen }, report);
         checkActions(board, screen, report);
         checkLeave(board, screen, report);
+        checkReplayControls(board, screen, report);
         checkOpponentFaces(board, report);
         checkPlateOwnership(board, report);
         checkCounters(board, report);
     }
     if (viewport.desktop) {
         checkDesktopTable(board, report);
+        checkReplayText(board, report);
     }
     const fonts = Math.min(...board.fonts.map((font) => font.px));
     const scroll = `scroll ${describeSize(board.boardScroll)}`;

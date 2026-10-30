@@ -11,6 +11,7 @@ export type { DiscardTile } from "./ui/discards";
 export { TILE_FACES_SET } from "./lib/tile-config";
 export {
     tile136toString,
+    tileName,
     TILE_FACES,
     FIVE_RED_MAN,
     FIVE_RED_PIN,

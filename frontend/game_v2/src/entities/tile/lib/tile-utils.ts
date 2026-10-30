@@ -83,5 +83,34 @@ function tile136toString(tileId: number): TileFace {
     return `${type34 - 26}z` as TileFace;
 }
 
-export { tile136toString, TILE_FACES, FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU, RED_FIVES };
+const HONOR_NAMES = [
+    "East",
+    "South",
+    "West",
+    "North",
+    "White dragon",
+    "Green dragon",
+    "Red dragon",
+] as const;
+
+/** A tile as a sentence names it: "5m", "red 5p", "East", "White dragon". */
+function tileName(tileId: number): string {
+    const face = tile136toString(tileId);
+    const rank = face.charAt(0);
+    const suit = face.charAt(1);
+    if (suit === "z") {
+        return HONOR_NAMES[Number(rank) - 1];
+    }
+    return rank === "0" ? `red 5${suit}` : face;
+}
+
+export {
+    tile136toString,
+    tileName,
+    TILE_FACES,
+    FIVE_RED_MAN,
+    FIVE_RED_PIN,
+    FIVE_RED_SOU,
+    RED_FIVES,
+};
 export type { TileFace };

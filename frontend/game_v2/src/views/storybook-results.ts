@@ -7,7 +7,7 @@ import {
 import { type RoundEndEvent, parseRoundEnd } from "@/shared/protocol";
 
 interface ResultSource {
-    /** The generated replay fixture (`tests/fixtures/replays/`) whose round end this is. */
+    /** The generated replay fixture (`src/fixtures/replays/`) whose round end this is. */
     readonly fixture: string;
     readonly key: string;
     readonly label: string;

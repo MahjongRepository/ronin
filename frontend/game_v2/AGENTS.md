@@ -97,7 +97,10 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the state after each event; stepping back selects an earlier state, never an inverse event, and
   nothing in a timeline executes an effect, so revisiting a prompt sends nothing and arms no
   timer. The replay view reads its file into such a timeline, and each of its stops is one of the
-  timeline's states. The dispatcher takes one event in one step, except a replay's round end that
+  timeline's states. Reading stops at the file's first line that does not parse or that the table
+  refuses, since every later state would build on a table that missed it, and the page labels such
+  a replay damaged, as it labels one whose recording ends before the game's end incomplete. The
+  dispatcher takes one event in one step, except a replay's round end that
   robbed a kan, which the replay records no declaration line for: it takes that in two steps, the
   kan declared and then the result, each an entry of the timeline (`stepGameClient` returns both
   as one). A live game's own history review, if ever wanted, keeps the authoritative state moving
@@ -150,6 +153,19 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   part of the board is tapped or Escape is pressed. A replay viewpoint switch, when it comes, is a
   control of its own, never the nameplate's tap. A new prop on the board is added to these mappers
   when a scenario shows the need, never computed in a view.
+* **The replay page** opens where its address says, else on the first deal, and moves only
+  through the table slice's cursor functions (`entities/table/AGENTS.md`); its view state is the
+  cursor, the seat at the bottom, the round list's openness and the pinned plate. Its IO stays at
+  the edge, given by `index.ts`: the load, which asks again on 404 after 500, 1000 and 2000 ms (the
+  game end reaches players before the server saves the replay) and is aborted with its waiting
+  retry on dispose; and the address, kept on the position shown with `history.replaceState` at most
+  once per 500 ms (Safari's history limit), the page's other parameters (`v=2`) kept, a waiting
+  write flushed as the page hides and dropped on dispose, since a dispose follows a navigation. A
+  replay it cannot show (not found after the retries, refused, unreachable, another version, no
+  deal) gets a screen saying why with the way back to the game history and the lobby, and a retry
+  where one may help: only a failed fetch counts as unreachable, while a throw in reading or drawing
+  the replay says it cannot be shown, its error on the console, with no retry. The wheel steps only
+  over the board, outside the round list, and only where a step goes; anywhere else it scrolls.
 * **Session** (`entities/session`): one machine owns finding the handoff, joining, playing,
   reconnecting and the end. It joins with the lobby's ticket (`shared/session` holds the handoff) and
   resumes the seat with the same ticket. A tab that holds no ticket asks the lobby
@@ -249,12 +265,20 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
 * **Pages never clip the board.** `.board-page` gives it a definite box, sized with `dvh` and the
   safe-area insets (the theme's `--ronin-safe-*`, which a test can set), and puts its aside, when it has
   one (the replay's controls, the storybooks' switches), below it upright, or beside it in landscape as
-  a compact column that scrolls when the window is too short for it.
+  a compact column that scrolls when the window is too short for it. The replay's column is two 40px
+  move buttons wide on a phone, the most it may take before the local hand drops under its floor at
+  667x375. On a landscape window of at least 1024x600 the local hand is bounded by the board's width
+  with height to spare, so a column there would push it under its floor before its text read well:
+  the replay's controls run instead as one bar of a button's height under the board. Its round list
+  lies over the board's right side, as tall as its rounds, above a result's dimming; a replay that is
+  not the whole game says so in the controls, and where it ends at its last stop, never over the board.
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/`
   with a replay fixture and a seat transcript over a mocked socket (no backend), and loads every
   storybook page (the board's worst case among them: every seat with four melds, long rivers, five
-  dora, long names, AI marks and a pinned nameplate; the dense round results; and the decisions
-  stories), the replay and the live game, at its call prompt and at its turn, at 1280x800 and 1920x1080
+  dora, long names, AI marks and a pinned nameplate; the dense round results; the decisions
+  stories; and the replay page's stories: its opening, its round list, a double ron's result, the
+  standings, an incomplete replay, one ending on a round's result, a damaged one, loading and a replay
+  not found), the replay and the live game, at its call prompt and at its turn, at 1280x800 and 1920x1080
   (Chromium), iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context. It
   fails on content that is hidden or empty, tiles of different areas or a nameplate overlapping,
@@ -262,9 +286,11 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800 and 93x124 at 1920x1080) or no
   larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or
-  stick count under 0.8 of the scores' size, and decision or leave buttons under 40x40; on a desktop, on a
-  river tile outside 0.55-0.75 of the local hand tile or a side seat's hand further from the centre than a
-  quarter of the board's width. It also fails on a round end that does not fit its panel, an aside that
+  stick count under 0.8 of the scores' size, and decision, leave or replay buttons (its moves, its round toggle, the round list's shown rows)
+  under 40x40 or off the screen, or a round list off the board; on a desktop, on a
+  river tile outside 0.55-0.75 of the local hand tile, a side seat's hand further from the centre than a
+  quarter of the board's width, or replay controls whose narration reads under 13px or past three lines,
+  round and step under 13px or past two, or incompleteness under 12px. It also fails on a round end that does not fit its panel, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
   error, failed request or missing element, and on a tile sprite that never loaded or a face whose
   symbol it lacks. It writes a screenshot per page to
@@ -289,7 +315,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`Emulation.setCPUThrottlingRate`), and fails when the median of a few reads of the replay view's
   `replay-load` measure (parse, reduce into the client timeline, steps and navigation index, before
   the first render) exceeds its budget. A run counts only when its measure's detail shows it read
-  the whole fixture (its steps, rounds, final standings and no unreadable line) in a finite time.
+  the whole fixture (its stops, rounds, final standings, the game's end and no damaged line) in a
+  finite time.
   The timing depends on the host's CPU, so the budget is set well above this host's median. Growing
   past a budget is a decision made in the script with the new measurement, not a drift.
 
@@ -307,8 +334,9 @@ rather than introducing new FSD layers:
   `session` and `table`, `table` may use `tile`, never the reverse.
 * `shared/` — protocol, handoff storage, the socket adapter, the replay fetch, the clock, config and
   small helpers; imports nothing above it.
-* `fixtures/` — generated data (the seat transcripts) and a loader that hands all of it over
-  unparsed for the tests; it imports nothing, and only storybook views and tests import it.
+* `fixtures/` — generated data (the seat transcripts and the replay files) and a loader that hands
+  the transcripts over unparsed for the tests; it imports nothing, and only storybook views and
+  tests import it.
 
 ## Conventions
 
@@ -365,7 +393,8 @@ riichi discard it refuses, an expired prompt), an answer racing a newer wait or 
 limit (the harness skips the endpoint, and a transcript keeps the server's order), and a payload
 edited to a shape the server never sends.
 
-The replay files under `tests/fixtures/replays/` are generated, never edited by hand:
+The replay files under `src/fixtures/replays/` are generated, never edited by hand (they sit in
+`src/` because the replay storybook opens a few, each imported by name in a chunk loaded with its story):
 `make generate-replay-fixtures` records each from a game the engine plays
 (`backend/scripts/replay_fixtures/`), and the checks fail when one drifts from what the engine
 records now. A new replay case is a new scenario there. Tests load them through the fixtures'

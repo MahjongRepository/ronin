@@ -1,147 +1,334 @@
-/* Replay page styles - its messages, navigation and dropdowns; shipped with the replay route only */
+$move-size: 40px;
+$move-gap: 0.25rem;
+$column-gap: 2px;
+$column-pad: 2px;
+$aside-phone: calc(2 * #{$move-size} + #{$column-gap} + 2 * #{$column-pad} + 2px);
+$bar: "(orientation: landscape) and (width >= 1024px) and (height >= 600px)";
+$column: "(orientation: landscape) and (width < 1024px), (orientation: landscape) and (height < 600px)";
 
-/* ─── System Messages ──────────────────────────────────────── */
-
-/* Centered loading/error message when no board is displayed */
-.replay-state__message {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    padding: 1.25rem 2rem;
+.replay-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    grid-column: 1 / -1;
+    max-width: 32rem;
+    margin: auto;
+    padding: 1.5rem 2rem;
+    text-align: center;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
+}
+
+.replay-state__title {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.replay-state__detail {
+    margin: 0;
     color: var(--ronin-text-secondary);
-    font-family: var(--ronin-font-mono);
-    font-size: 0.85rem;
-    text-align: center;
 }
 
-/* ─── Parse Warning ────────────────────────────────────────── */
+.replay-state__links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
 
-.replay-state__warning {
-    padding: 0.6rem 1rem;
-    background: color-mix(in srgb, var(--ronin-warning) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--ronin-warning) 30%, transparent);
-    border-radius: 0.5rem;
-    color: var(--ronin-warning);
-    font-size: 0.8rem;
-    font-family: var(--ronin-font-mono);
-}
-
-/* ─── Navigation Controls ──────────────────────────────────── */
-
-.replay-state__nav-btn {
-    flex-shrink: 0;
-    margin-bottom: 0;
-    padding: 0.3rem 0.6rem;
-    font-size: 0.75rem;
-    font-family: var(--ronin-font-mono);
-    font-weight: 600;
-    cursor: pointer;
-
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
+    > * {
+        min-height: 2.75rem;
+        margin: 0;
     }
 }
-
-/* ─── Dropdown Select ──────────────────────────────────────── */
-
-.dropdown-select {
-    position: relative;
-    flex-shrink: 0;
-}
-
-.dropdown-select__trigger {
-    margin-bottom: 0;
-    padding: 0.3rem 0.75rem;
-    font-size: 0.75rem;
-    font-family: var(--ronin-font-mono);
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-
-    &:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-    }
-}
-
-.dropdown-select__panel {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    z-index: 10;
-    min-width: 100%;
-    max-height: min(16rem, 60dvh);
-    overflow-y: auto;
-    margin-bottom: 0.25rem;
-    padding: 0.25rem 0;
-    background: var(--ronin-surface-elevated);
-    border: 1px solid var(--ronin-border);
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
-}
-
-.dropdown-select__item {
-    display: block;
-    width: 100%;
-    margin-bottom: 0;
-    padding: 0.4rem 0.75rem;
-    background: none;
-    border: none;
-    border-radius: 0;
-    font-size: 0.75rem;
-    font-family: var(--ronin-font-mono);
-    color: var(--ronin-text-secondary);
-    text-align: left;
-    white-space: nowrap;
-    cursor: pointer;
-
-    &:hover {
-        background: color-mix(in srgb, var(--pico-primary) 10%, transparent);
-        color: var(--pico-color);
-    }
-
-    &--current {
-        color: var(--pico-primary);
-        font-weight: 600;
-    }
-}
-
-/* ─── Replay Board Mode ───────────────────────────────────── */
 
 .replay-board-mode:focus {
     outline: none;
 }
 
-/* The replay's few controls always fit; its aside keeps no scroller, which would clip the dropdown panels. */
-.board-page__aside.replay-controls {
-    overflow: visible;
+.board-page.replay-board-mode {
+    @media #{$bar} {
+        grid-template: "board" minmax(0, 1fr) "aside" auto / minmax(0, 1fr);
+    }
 }
 
-.replay-controls__nav {
+.board-page__aside.replay-controls {
+    container-type: inline-size;
+    gap: $move-gap;
+
+    @media #{$column} {
+        justify-content: flex-end;
+        gap: $column-gap;
+        width: clamp(#{$aside-phone}, 20vw - 9rem, 14rem);
+        padding: $column-pad;
+    }
+
+    @media #{$bar} {
+        flex-flow: row nowrap;
+        align-self: stretch;
+        align-items: center;
+        gap: 0.5rem;
+        max-height: none;
+        padding: 0.25rem;
+        overflow: visible;
+    }
+}
+
+.replay-controls__incomplete {
     display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin: 0;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.7rem;
+    line-height: 1.25;
+    color: var(--ronin-warning);
+    background: color-mix(in srgb, var(--ronin-warning) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ronin-warning) 40%, transparent);
+    border-radius: 0.375rem;
+
+    @container (width < 9rem) {
+        padding: 3px;
+        font-size: 10px;
+        line-height: 1.2;
+        text-align: center;
+    }
+
+    @media #{$bar} {
+        flex: 0 1 16rem;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.65rem;
+        line-height: 1.2;
+    }
+
+    &--end {
+        color: var(--pico-color);
+        background: color-mix(in srgb, var(--ronin-warning) 30%, transparent);
+        border-color: var(--ronin-warning);
+    }
+}
+
+.replay-controls__incomplete-detail {
+    color: var(--ronin-text-secondary);
+
+    @container (width < 9rem) {
+        display: none;
+    }
+
+    .replay-controls__incomplete--end & {
+        display: inline;
+        color: inherit;
+    }
+}
+
+.replay-controls__round {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: center;
+    min-height: $move-size;
+    margin: 0;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    font-family: var(--ronin-font-mono);
 
-    @media (orientation: landscape) {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.25rem;
+    &[aria-expanded="true"] {
+        background: var(--pico-primary-hover-background);
+    }
 
-        .replay-state__nav-btn,
-        .dropdown-select__trigger {
-            width: 100%;
-            padding: 0.25rem 0.4rem;
-            font-size: 0.7rem;
-        }
+    @media #{$bar} {
+        flex: none;
+        min-width: 9rem;
+        padding-block: 0;
+        font-size: 0.7rem;
+    }
+}
 
-        .dropdown-select__panel {
-            left: auto;
-            right: 0;
+.replay-controls__round-name {
+    font-weight: 600;
+}
+
+.replay-controls__step {
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
+.replay-controls__narration {
+    flex: 1 1 12rem;
+    min-height: 2.5em;
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: var(--ronin-text-secondary);
+    overflow-wrap: anywhere;
+
+    @media #{$column} {
+        flex: 0 1 auto;
+        overflow-y: auto;
+    }
+
+    @media #{$bar} {
+        flex: 1 1 0;
+        min-height: 0;
+        max-height: $move-size;
+        font-size: 0.75rem;
+        overflow-y: auto;
+    }
+
+    @container (width < 9rem) {
+        font-size: 0.65rem;
+        line-height: 1.25;
+    }
+}
+
+.replay-controls__moves {
+    display: grid;
+    grid-template-columns: repeat(6, $move-size);
+    gap: $move-gap;
+
+    @media #{$column} {
+        grid-template-areas: "first last" "prevRound nextRound" "prev next";
+        grid-template-columns: repeat(2, minmax($move-size, 1fr));
+        gap: $column-gap;
+    }
+}
+
+.replay-controls__move {
+    display: grid;
+    place-items: center;
+    min-width: $move-size;
+    height: $move-size;
+    margin: 0;
+    padding: 0;
+    touch-action: manipulation;
+
+    &:disabled {
+        opacity: 0.35;
+    }
+
+    @media #{$column} {
+        @each $move in first, last, prevRound, nextRound, prev, next {
+            &--#{$move} {
+                grid-area: $move;
+            }
         }
     }
+}
+
+.replay-controls__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.round-list {
+    position: absolute;
+    inset: 0 0 auto auto;
+    max-height: 100%;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: min(24rem, 100%);
+    margin: 0;
+    background: var(--ronin-surface-elevated);
+    border: 1px solid var(--ronin-border);
+    border-radius: 0.5rem;
+    box-shadow: -4px 0 16px rgb(0 0 0 / 45%);
+
+    > * {
+        margin-block: 0;
+    }
+}
+
+.round-list__head {
+    display: flex;
+    margin: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.25rem 0.25rem 0.25rem 0.75rem;
+    border-bottom: 1px solid var(--ronin-border);
+}
+
+.round-list__title {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.round-list__close {
+    width: $move-size;
+    height: $move-size;
+    margin: 0;
+    padding: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--ronin-text-secondary);
+    background: transparent;
+    border-color: transparent;
+}
+
+.round-list__incomplete {
+    margin: 0;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--ronin-warning);
+    border-bottom: 1px solid var(--ronin-border);
+}
+
+.round-list__rows {
+    flex: 0 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0.25rem;
+    overflow-y: auto;
+    list-style: none;
+
+    li {
+        margin: 0;
+        list-style: none;
+    }
+}
+
+.round-list__row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    width: 100%;
+    min-height: $move-size;
+    margin: 0 0 0.15rem;
+    padding: 0.35rem 0.6rem;
+    text-align: left;
+    color: var(--pico-color);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+
+    &:hover {
+        background: color-mix(in srgb, var(--pico-primary) 10%, transparent);
+    }
+
+    &[aria-current="true"] {
+        border-color: var(--pico-primary);
+        background: color-mix(in srgb, var(--pico-primary) 15%, transparent);
+    }
+}
+
+.round-list__name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--ronin-font-mono);
+}
+
+.round-list__summary {
+    font-size: 0.75rem;
+    color: var(--ronin-text-secondary);
 }

@@ -344,24 +344,6 @@ describe("applyEvent - meld - added_kan", () => {
     });
 });
 
-describe("applyEvent - meld - description", () => {
-    test("generates description with player name, meld type, and tile name", () => {
-        const state = stateWithDiscard(1, 38);
-
-        const meldEvent = makeMeldEvent({
-            calledTileId: 38,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "pon",
-            tileIds: [36, 37, 38],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        // tileId 38 = 1p (copy index 2 of tile-34 index 9, which is 1p)
-        expect(next.lastEventDescription).toBe("Alice called pon on 1p");
-    });
-});
-
 describe("applyEvent - meld - immutability", () => {
     test("does not mutate the input state", () => {
         const state = stateWithDiscard(1, 38);

@@ -289,15 +289,6 @@ describe("applyEvent - draw", () => {
         expect(next.players[0].tiles[next.players[0].tiles.length - 1]).toBe(52);
     });
 
-    test("generates description with player name and tile name", () => {
-        const state = stateAfterRoundStarted();
-        // tileId 52 = red five pin (0p)
-        const event = makeDrawEvent({ seat: 0, tileId: 52 });
-        const next = applyEvent(state, event);
-
-        expect(next.lastEventDescription).toBe("Alice drew 0p");
-    });
-
     test("does not mutate the input state", () => {
         const state = stateAfterRoundStarted();
         const originalTiles = [...state.players[0].tiles];
@@ -407,15 +398,6 @@ describe("applyEvent - discard", () => {
         expect(next.players[0].discards[0].isRiichi).toBe(true);
     });
 
-    test("generates description with player name and tile name", () => {
-        const state = stateAfterRoundStarted();
-        // tileId 0 = 1m
-        const event = makeDiscardEvent({ seat: 0, tileId: 0 });
-        const next = applyEvent(state, event);
-
-        expect(next.lastEventDescription).toBe("Alice discarded 1m");
-    });
-
     test("does not mutate the input state", () => {
         const state = stateAfterRoundStarted();
         const originalTiles = [...state.players[0].tiles];
@@ -457,13 +439,6 @@ describe("applyEvent - riichi_declared", () => {
         expect(next.players[3].isRiichi).toBe(false);
     });
 
-    test("generates description with player name", () => {
-        const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeRiichiDeclaredEvent({ seat: 0 }));
-
-        expect(next.lastEventDescription).toBe("Alice declared riichi");
-    });
-
     test("does not mutate the input state", () => {
         const state = stateAfterRoundStarted();
         applyEvent(state, makeRiichiDeclaredEvent({ seat: 0 }));
@@ -489,14 +464,6 @@ describe("applyEvent - dora_revealed", () => {
         const after2 = applyEvent(after1, makeDoraRevealedEvent({ tileId: 30 }));
 
         expect(after2.doraIndicators).toEqual([10, 20, 30]);
-    });
-
-    test("generates description with tile name", () => {
-        const state = stateAfterRoundStarted();
-        // tileId 20 = 6m (tile 20 / 4 = 5, type index 5 = 6m)
-        const next = applyEvent(state, makeDoraRevealedEvent({ tileId: 20 }));
-
-        expect(next.lastEventDescription).toMatch(/New dora indicator: /);
     });
 
     test("does not mutate the input state", () => {
@@ -592,20 +559,6 @@ describe("applyEvent - game_end", () => {
         ]);
     });
 
-    test("generates description with winner name", () => {
-        const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeGameEndEvent({ winnerSeat: 0 }));
-
-        expect(next.lastEventDescription).toBe("Game over - Winner: Alice");
-    });
-
-    test("handles winner at different seat", () => {
-        const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeGameEndEvent({ winnerSeat: 3 }));
-
-        expect(next.lastEventDescription).toBe("Game over - Winner: Bob");
-    });
-
     test("does not mutate the input state", () => {
         const state = stateAfterRoundStarted();
         const originalScores = state.players.map((p) => p.score);
@@ -633,25 +586,9 @@ describe("applyEvent - round_end", () => {
             ]);
             expect(next.roundEndResult?.scoresBeforePayment).toEqual(event.scores);
         });
-
-        test("description includes winner name", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeTsumoRoundEnd({ winnerSeat: 0 });
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Tsumo by Alice");
-        });
     });
 
     describe("ron", () => {
-        test("description includes winner and loser names", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeRonRoundEnd({ loserSeat: 1, winnerSeat: 0 });
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Ron by Alice from Bot-1");
-        });
-
         test("updates scores from scores map", () => {
             const state = stateAfterRoundStarted();
             const event = makeRonRoundEnd();
@@ -663,14 +600,6 @@ describe("applyEvent - round_end", () => {
     });
 
     describe("double_ron", () => {
-        test("reads from winners array and includes both names", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeDoubleRonRoundEnd();
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Double ron by Alice and Bot-2");
-        });
-
         test("updates scores correctly", () => {
             const state = stateAfterRoundStarted();
             const event = makeDoubleRonRoundEnd();
@@ -683,14 +612,6 @@ describe("applyEvent - round_end", () => {
     });
 
     describe("exhaustive_draw", () => {
-        test("sets correct description", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeExhaustiveDrawRoundEnd();
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Exhaustive draw");
-        });
-
         test("updates scores", () => {
             const state = stateAfterRoundStarted();
             const event = makeExhaustiveDrawRoundEnd();
@@ -701,41 +622,7 @@ describe("applyEvent - round_end", () => {
         });
     });
 
-    describe("abortive_draw", () => {
-        test("includes reason string in description", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeAbortiveDrawRoundEnd({ reason: "four_winds" });
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Abortive draw: four_winds");
-        });
-
-        test("with nine_terminals reason", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeAbortiveDrawRoundEnd({ reason: "nine_terminals" });
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Abortive draw: nine_terminals");
-        });
-    });
-
     describe("nagashi_mangan", () => {
-        test("includes qualifying player names", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeNagashiManganRoundEnd({ qualifyingSeats: [0] });
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Nagashi mangan by Alice");
-        });
-
-        test("with multiple qualifying players", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeNagashiManganRoundEnd({ qualifyingSeats: [0, 3] });
-            const next = applyEvent(state, event);
-
-            expect(next.lastEventDescription).toBe("Nagashi mangan by Alice and Bob");
-        });
-
         test("updates scores", () => {
             const state = stateAfterRoundStarted();
             const event = makeNagashiManganRoundEnd();
@@ -1065,7 +952,6 @@ describe("applyEvent - full event sequence integration", () => {
 
         expect(state.gameId).toBe("integration-test");
         expect(state.phase).toBe("game_ended");
-        expect(state.lastEventDescription).toBe("Game over - Winner: Alice");
     });
 
     test("final state has correct scores from game_end standings", () => {

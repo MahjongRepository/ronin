@@ -1,0 +1,116 @@
+import { type TemplateResult, html, nothing } from "lit-html";
+
+import {
+    type ReplayIncompleteness,
+    type ReplayRoundRow,
+} from "@/entities/table/lib/replay-display";
+import { type ReplayCursor } from "@/entities/table/model/replay-cursor";
+
+import { REPLAY_ROUND_LIST_ID } from "./replay-controls";
+
+export interface RoundListProps {
+    readonly rows: readonly ReplayRoundRow[];
+    readonly incomplete: ReplayIncompleteness | null;
+    readonly onSelect: (start: ReplayCursor) => void;
+    readonly onClose: () => void;
+}
+
+export const ROUND_LIST_ROW_CLASS = "round-list__row";
+
+/** The focus target `key` moves to among the rows, from the focused one; null for a key the list does not take. */
+function rowAfterKey(rows: readonly HTMLElement[], from: number, key: string): HTMLElement | null {
+    switch (key) {
+        case "ArrowDown": {
+            return rows[Math.min(from + 1, rows.length - 1)] ?? null;
+        }
+        case "ArrowUp": {
+            return rows[Math.max(from - 1, 0)] ?? null;
+        }
+        case "Home": {
+            return rows[0] ?? null;
+        }
+        case "End": {
+            return rows.at(-1) ?? null;
+        }
+        default: {
+            return null;
+        }
+    }
+}
+
+/**
+ * The round list's keys stay its own: the arrows, Home and End move between its rounds, Escape closes it, and none of
+ * them reaches the page's own keys.
+ */
+function onListKeydown(event: KeyboardEvent, onClose: () => void): void {
+    const action = listKeyAction(event);
+    if (action === null) {
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (action === "close") {
+        onClose();
+    } else {
+        action.focus();
+    }
+}
+
+/** What a key does in the list: close it, focus a row, or nothing the list takes (null). */
+function listKeyAction(event: KeyboardEvent): "close" | HTMLElement | null {
+    if (event.key === "Escape") {
+        return "close";
+    }
+    const list = event.currentTarget;
+    if (!(list instanceof HTMLElement)) {
+        return null;
+    }
+    const rows = [...list.querySelectorAll<HTMLElement>(`.${ROUND_LIST_ROW_CLASS}`)];
+    return rowAfterKey(
+        rows,
+        rows.findIndex((row) => row.matches(":focus")),
+        event.key,
+    );
+}
+
+/**
+ * Every round of the replay with its result in a line, the current one marked; choosing one opens its deal. A replay
+ * that is not the whole game says why at its head.
+ */
+export function RoundList(props: RoundListProps): TemplateResult {
+    return html`<section
+        class="round-list"
+        id=${REPLAY_ROUND_LIST_ID}
+        aria-label="Rounds"
+        @keydown=${(event: KeyboardEvent) => onListKeydown(event, props.onClose)}
+    >
+        <header class="round-list__head">
+            <h2 class="round-list__title">Rounds</h2>
+            <button type="button" class="round-list__close" aria-label="Close the round list" @click=${props.onClose}>
+                ×
+            </button>
+        </header>
+        ${
+            props.incomplete === null
+                ? nothing
+                : html`<p class="round-list__incomplete">
+                      <strong>${props.incomplete.label}.</strong> ${props.incomplete.detail}
+                  </p>`
+        }
+        <ol class="round-list__rows">
+            ${props.rows.map(
+                (row) => html`<li>
+                    <button
+                        type="button"
+                        class=${ROUND_LIST_ROW_CLASS}
+                        aria-current=${row.current ? "true" : nothing}
+                        @click=${() => props.onSelect(row.start)}
+                    >
+                        <span class="round-list__name">${row.name}</span>
+                        <span class="round-list__summary">${row.summary}</span>
+                    </button>
+                </li>`,
+            )}
+        </ol>
+    </section>`;
+}

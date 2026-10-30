@@ -26,6 +26,7 @@ describe("storybookNav", () => {
             "Discards",
             "Hand",
             "Melds",
+            "Replay",
             "Rotate",
         ]);
     });

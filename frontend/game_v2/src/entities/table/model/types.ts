@@ -128,6 +128,8 @@ export interface RoundEndResult {
     readonly loserSeat: number | null;
     /** The seats that also declared ron on the tile and lost it to head bump, in caller order. */
     readonly headBumpedSeats: readonly number[];
+    /** Whether the ron robbed the loser's kan (chankan) rather than taking a discard. */
+    readonly kanRobbed: boolean;
     /** The aggregate payments, which the table settles once. */
     readonly scoreChanges: Readonly<Record<string, number>>;
     /** The wire's `scores`: after riichi deposits, before this round's payments. */
@@ -173,7 +175,6 @@ export interface TableState {
      */
     readonly lastDiscardSeat: number | null;
     readonly phase: GamePhase;
-    readonly lastEventDescription: string;
     /** The ended round's result, kept through the game end that follows the last round's, until a new deal. */
     readonly roundEndResult: RoundEndResult | null;
     readonly gameEndResult: GameEndResult | null;
