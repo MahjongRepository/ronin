@@ -118,10 +118,11 @@ $indicator-scale: 0.6;
     }
 }
 
-@container result-foot (width < 36rem) {
+@container result-foot (width < 45rem) {
     .round-end-result__confirm {
         min-width: 4.5rem;
         padding-inline: 0.6rem;
+        font-size: 0.9em;
     }
 
     .round-end-result__wait {

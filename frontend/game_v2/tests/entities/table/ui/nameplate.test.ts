@@ -75,10 +75,9 @@ describe("Nameplates", () => {
         expect(plate(host, "left").querySelector(".nameplate__ai--away")).not.toBeNull();
     });
 
-    it("shortens a name too long for its plate in the middle, keeping its end", () => {
+    it("keeps a long name's end apart from its start, so a narrow plate gives up the start", () => {
         const top = plate(renderPlates(null), "top");
-        expect(top.querySelector(".nameplate__name")?.textContent).toBe("Wolfesc…orff");
-        expect(top.querySelector(".nameplate__name-tail")?.textContent).toBe("orff");
+        expect(top.querySelector(".nameplate__name .player-name__tail")?.textContent).toBe("orff");
         expect(top.getAttribute("aria-label")).toContain(LONG_NAME);
     });
 });

@@ -33,6 +33,24 @@
     }
 }
 
+@container (height < #{$short-height}) and (aspect-ratio >= 1) {
+    .game-board:has(> .board-overlay) {
+        .board-notices {
+            grid-area: center / auto / frame-end / auto;
+            left: auto;
+            right: 0;
+            align-items: stretch;
+            width: calc(#{$corner-reserve-short} - var(--board-pad));
+            padding-inline-end: 0;
+        }
+
+        .board-notice {
+            padding-inline: 0.3em;
+            overflow-wrap: anywhere;
+        }
+    }
+}
+
 .board-notice {
     margin: 0;
     padding: 0.3em 0.8em;

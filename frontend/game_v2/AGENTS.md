@@ -267,8 +267,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   reserve the overlay keeps free beside the panel, on the corner's side alone on a short board, and the
   overlay's tiles size from the width left (`game-board/_overlay.scss`); an upright board does not keep it
   clear yet. The board carries the notices
-  (`playDisplay`'s, in the table's own area, in landscape the outer column under the dora, so they never cover a
-  tile, a plate or the decision's corner, however long they stay): a
+  (`playDisplay`'s, in the table's own area, in landscape the outer column under the dora, or on a short board under a
+  panel the free column beside it under the page's corner, so they never cover a tile, a plate, the decision's corner
+  or the panel, however long they stay): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
   opened, each worded the same across its retries so it is announced once (a page that only resumes
   its seat, a reload, shows neither); short-lived ones held in the client state with a logical-time
@@ -362,7 +363,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800, 78x104 at 1440x900 and 93x124 at 1920x1080) or no
   larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or
-  stick count under 0.8 of the scores' size, a notice over a tile, a plate or a decision button, a decision
+  stick count under 0.8 of the scores' size, a notice over a tile, a plate, a decision button or the panel
+  over the board, two names on a line of a result's scores under 12px apart, a decision
   button not wholly inside its corner, and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)
   under 40x40 or off the screen, or a round list off the board; on a desktop, on a
   river tile outside 0.55-0.75 of the local hand tile, a side seat's hand further from the centre than a

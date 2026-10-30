@@ -249,7 +249,7 @@ export function ReplayControls(props: ReplayControlsProps): TemplateResult {
                 ><span class="replay-controls__step-word">Step </span>${step.index}/${step.count}</span
             >
         </button>
-        <p class="replay-controls__narration">${display.narration}</p>
+        <div class="replay-controls__narration-room"><p class="replay-controls__narration">${display.narration}</p></div>
         <p class="replay-controls__announcer" aria-live="polite">
             ${props.playback.playing ? "" : display.narration}
         </p>

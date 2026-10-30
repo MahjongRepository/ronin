@@ -213,6 +213,18 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     }
 }
 
+.replay-controls__narration-room {
+    display: contents;
+
+    @media #{$column} {
+        display: block;
+        flex: 1 1 auto;
+        min-height: 1.3em;
+        font-size: 0.75rem;
+        container-type: size;
+    }
+}
+
 .replay-controls__narration {
     flex: 1 1 12rem;
     min-height: 2.5em;
@@ -223,8 +235,8 @@ $column: "(orientation: landscape) and (width < 1024px), (orientation: landscape
     overflow-wrap: anywhere;
 
     @media #{$column} {
-        flex: 1 1 auto;
         min-height: 1lh;
+        height: round(down, 100cqh, 1lh);
         overflow-y: auto;
         background:
             linear-gradient(#{$column-surface}, #{$column-surface}) bottom / 100% 0.6lh no-repeat

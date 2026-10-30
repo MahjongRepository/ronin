@@ -2,6 +2,7 @@
 
 $plate-text-min: 10px;
 $plate-seats: bottom, right, top, left;
+$plate-name-max: 7em;
 
 .nameplate {
     --plate-text: max(#{$plate-text-min}, calc(18 * var(--board-table-unit)));
@@ -47,7 +48,7 @@ $plate-seats: bottom, right, top, left;
 
 .nameplate--top,
 .nameplate--bottom {
-    .nameplate__name {
+    .nameplate__name.player-name {
         min-width: 0;
     }
 }
@@ -97,9 +98,9 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-.nameplate__name {
-    display: inline-flex;
+.nameplate__name.player-name {
     min-width: auto;
+    max-width: min(100%, #{$plate-name-max});
     overflow: hidden;
 
     @container (aspect-ratio < 1) {
@@ -108,18 +109,6 @@ $plate-seats: bottom, right, top, left;
         height: 1px;
         clip-path: inset(50%);
     }
-}
-
-.nameplate__name-head {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: pre;
-}
-
-.nameplate__name-tail {
-    flex: none;
-    white-space: pre;
 }
 
 .nameplate__riichi {

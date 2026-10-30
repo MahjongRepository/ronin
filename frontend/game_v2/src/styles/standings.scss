@@ -428,8 +428,12 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
         width: 7rem;
     }
 
+    .standings__table th:has(> .standings__round--jump) {
+        padding-block: 1px;
+    }
+
     .standings__round--jump {
         min-height: $tap-min;
-        padding-block: 0.1rem;
+        padding-block: 0;
     }
 }

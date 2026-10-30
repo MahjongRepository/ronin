@@ -51,6 +51,9 @@ const REPLAY_TEXT_LIMITS: Readonly<
     narration: { lines: 3, px: 13 },
     round: { lines: 2, px: 13 },
 };
+/** The least room between two names on a line of a result's scores, so each name and its end read as one. */
+const MIN_RESULT_NAME_GAP = 12;
+
 /** The fewest lines of the replay's narration a landscape phone's column shows without scrolling it. */
 const MIN_PHONE_NARRATION_LINES = 3;
 /** A desktop river tile's long side as a share of the local hand tile's: the hierarchy the references keep. */
@@ -181,6 +184,8 @@ interface BoardMeasure {
     readonly decisionCorner: { readonly box: Box; readonly buttons: readonly Box[] } | null;
     /** The notices over the table. */
     readonly notices: readonly Box[];
+    /** The player names of a round result's scores, in the order they show. */
+    readonly resultNames: readonly Box[];
     /** Text that shows whole or not at all (the status's word, a name's end, a plate's wind and marks), clipped. */
     readonly clippedWords: readonly string[];
     /** The calls shown by their seats. */
@@ -907,7 +912,7 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         const wholeWords = [
             ".game-menu__status-word",
             ".nameplate__wind",
-            ".nameplate__name-tail",
+            ".nameplate .player-name__tail",
             ".nameplate__ai",
             ".nameplate__riichi",
         ].join(", ");
@@ -1066,6 +1071,9 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             })),
             replayControls,
             replayText,
+            resultNames: [
+                ...board.querySelectorAll(".board-overlay .round-end-result__score-name"),
+            ].map(box),
             riverTiles: [
                 ...board.querySelectorAll(
                     ".board-river .discard-tile:not(.discard-tile-riichi) .tile",
@@ -1451,16 +1459,38 @@ function checkPhoneNarration(board: BoardMeasure, screen: Box, report: PageRepor
     );
 }
 
-/** A notice over the table never hides a tile, a nameplate or the decision's corner, however long it stays. */
+/**
+ * A notice over the table never hides a tile, a nameplate, the decision's corner or the panel over the board, however
+ * long it stays.
+ */
 function checkNotices(board: BoardMeasure, report: PageReport): void {
-    const covered = [...board.tiles, ...board.nameplates, ...(board.decisionCorner?.buttons ?? [])];
+    const covered = [
+        ...board.tiles,
+        ...board.nameplates,
+        ...(board.decisionCorner?.buttons ?? []),
+        ...(board.overlay === null ? [] : [board.overlay.box]),
+    ];
     const over = board.notices.filter((notice) => covered.some((box) => intersects(notice, box)));
     report.expect(
         over.length === 0,
-        `notice(s) over a tile, plate or decision button: ${over.map(describeBox).join(", ")}`,
+        `notice(s) over a tile, plate, decision button or panel: ${over.map(describeBox).join(", ")}`,
     );
     const outside = board.notices.filter((notice) => !contains(board.board, notice));
     report.expect(outside.length === 0, `${outside.length} notice(s) off the board`);
+}
+
+/** Each name in a result's scores reads as one, standing clear of the next name on its line. */
+function checkResultNames(board: BoardMeasure, report: PageReport): void {
+    const crowded = board.resultNames.flatMap((name, index) => {
+        const next = board.resultNames[index + 1];
+        const sameLine = next !== undefined && Math.abs(next.top - name.top) < name.height / 2;
+        const gap = sameLine ? next.left - (name.left + name.width) : Infinity;
+        return gap < MIN_RESULT_NAME_GAP ? [`${describeBox(name)} ${gap.toFixed(1)}px`] : [];
+    });
+    report.expect(
+        crowded.length === 0,
+        `result name(s) under ${MIN_RESULT_NAME_GAP}px from the next: ${crowded.join(", ")}`,
+    );
 }
 
 /** A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps. */
@@ -1542,6 +1572,7 @@ async function checkBoard({ measure, page, report, viewport }: PageRun): Promise
         checkLocalHand(board, { floor: viewport.handFloor, screen }, report);
         checkActions(board, screen, report);
         checkNotices(board, report);
+        checkResultNames(board, report);
         checkLeave(board, screen, report);
         checkReplayControls(board, screen, report);
         checkOpponentFaces(board, report);
