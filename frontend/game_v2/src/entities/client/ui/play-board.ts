@@ -1,18 +1,15 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 import { repeat } from "lit-html/directives/repeat.js";
 
+import { type NoticeSheetDisplay, type PlayNotice } from "@/entities/client/model/board-notices";
 import { type DecisionCountdown } from "@/entities/client/model/countdown";
 import {
     type DecisionAction,
     type DecisionStanding,
-    type NoticeSheetDisplay,
-    type PlayAction,
-    type PlayCommand,
-    type PlayDisplay,
-    type PlayNotice,
-    type ResultControls,
-    type SwitchControl,
-} from "@/entities/client/model/play-display";
+} from "@/entities/client/model/decision-controls";
+import { type PlayDisplay, type SwitchControl } from "@/entities/client/model/play-display";
+import { type PlayAction, type PlayCommand } from "@/entities/client/model/play-ui";
+import { type ResultControls } from "@/entities/client/model/result-controls";
 import { type SessionStatusDisplay } from "@/entities/session";
 import {
     type BoardNotice,

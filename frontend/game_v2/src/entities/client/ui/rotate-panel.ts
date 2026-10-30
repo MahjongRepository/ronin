@@ -1,14 +1,13 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
 import { type DecisionCountdown, pendingCountdown } from "@/entities/client/model/countdown";
+import { type PlayCommand, type PlayUi } from "@/entities/client/model/play-ui";
 import {
     type FailureDisplay,
     type LeaveControls,
-    type PlayCommand,
-    type PlayUi,
     failureDisplay,
     leaveControls,
-} from "@/entities/client/model/play-display";
+} from "@/entities/client/model/session-end";
 import { type GameClientState } from "@/entities/client/model/types";
 import {
     type SessionStatusDisplay,

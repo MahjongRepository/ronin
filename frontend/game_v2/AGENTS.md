@@ -253,13 +253,13 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   decision's answer on a socket it can send on), so the board offers exactly what stepping the
   intent would send. `PlayBoard` only renders that, with the table's panel over it, and routes a
   command: an intent goes to the dispatcher; the view state is `PlayUi`, an input of the mapper too:
-  the riichi toggle and a call's choice of tiles, each keyed by the decision's wait id so a newer decision
-  never inherits it, each turning the other off; and the
-  round result's page, keyed by the round the result ends (its wind, dealer and honba, which a
-  reconnect's snapshot names alike), so a newer result opens on its first page while a reconnect
-  keeps the page; the nameplate pinned for score differences; and the notices' sheet (Layout). A kind of offer with a choice of tiles
-  (two chi, two kan) is one control that opens its second step, which is that control pressed, each
-  choice the dispatcher takes as a tile group laid by `meldTiles` as the meld will lie, the pressed control
+  the riichi toggle and a call's choice of tiles, each keyed by the decision's wait id so a newer
+  decision never inherits it, each turning the other off; and the round result's page, keyed by the
+  hand the result ends (the game and its deal number `n`, which a reconnect's snapshot of the result
+  pending keeps), so a newer result opens on its first page while a reconnect keeps the page; the
+  nameplate pinned for score differences; and the notices' sheet (Layout). A kind of offer with a
+  choice of tiles (two chi, two kan) is one control that opens its second step, which is that
+  control pressed, each choice the dispatcher takes as a tile group laid by `meldTiles` as the meld will lie, the pressed control
   after them (where the first step had it, so pressing it never moves it; a desktop row shows it first), and
   Back in Pass's place; Back, Escape (the board's) and the call pressed again go back, Escape moving a focus it finds on a
   decision control to the call's control, and Escape also turns the riichi toggle off. One Escape is one step:

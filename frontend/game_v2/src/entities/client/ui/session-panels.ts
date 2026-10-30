@@ -1,6 +1,7 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { type FailureDisplay, type PlayCommand } from "@/entities/client/model/play-display";
+import { type PlayCommand } from "@/entities/client/model/play-ui";
+import { type FailureDisplay } from "@/entities/client/model/session-end";
 import { focusOnFirstRender, keepTabInside } from "@/entities/table";
 
 const LEAVE: PlayCommand = { intent: { type: "leave" }, kind: "intent" };

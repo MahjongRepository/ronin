@@ -1,6 +1,7 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
-import { type LeaveControls, type PlayCommand } from "@/entities/client/model/play-display";
+import { type PlayCommand } from "@/entities/client/model/play-ui";
+import { type LeaveControls } from "@/entities/client/model/session-end";
 import { type SessionStatusDisplay } from "@/entities/session";
 
 interface GameMenuProps {

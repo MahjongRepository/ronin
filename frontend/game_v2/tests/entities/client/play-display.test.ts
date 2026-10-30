@@ -168,10 +168,14 @@ describe("playDisplay", () => {
         ]);
     });
 
-    it("turns a double ron's result to the page asked for, kept through a reconnect's copy of it, not by a newer round", () => {
+    it("turns a double ron's result to the page asked for, kept through a reconnect's copy of its deal, not by another deal", () => {
         const roundEnd = checkpointState("double_ron_seat_1", "round end");
         const reconnected = checkpointState("double_ron_seat_1", "reconnected");
         const nextRound = checkpointState("chankan_robbed_seat_1", "round end");
+        const nextDeal = {
+            ...roundEnd,
+            table: { ...roundEnd.table, roundNumber: roundEnd.table.roundNumber + 1 },
+        };
         const secondPage = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
         const pastLast = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 4 });
 
@@ -180,7 +184,9 @@ describe("playDisplay", () => {
         ).toEqual([0, 1, 1]);
         expect(reconnected.table.roundEndResult).not.toBe(roundEnd.table.roundEndResult);
         expect(playDisplay(reconnected, secondPage).resultPage).toBe(1);
-        expect(playDisplay(nextRound, secondPage).resultPage).toBe(0);
+        expect(
+            [nextRound, nextDeal].map((state) => playDisplay(state, secondPage).resultPage),
+        ).toEqual([0, 0]);
     });
 
     it("pages a double ron's owed result with Next, then confirms it on the last page, counting down", () => {

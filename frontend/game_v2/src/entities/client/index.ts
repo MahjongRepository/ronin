@@ -35,29 +35,16 @@ export {
     pendingCountdown,
     roundConfirmCountdown,
 } from "./model/countdown";
-export type {
-    ActionRank,
-    DecisionAction,
-    DecisionStanding,
-    LeaveControls,
-    NoticeKind,
-    NoticeSheetDisplay,
-    PlayAction,
-    PlayCommand,
-    PlayDisplay,
-    PlayNotice,
-    PlayUi,
-    ResultControls,
-    SwitchControl,
-    TileChoiceKind,
-} from "./model/play-display";
-export {
-    NO_PLAY_UI,
-    failureDisplay,
-    nextPlayUi,
-    playDisplay,
-    settledPlayUi,
-} from "./model/play-display";
+export type { NoticeKind, PlayAction, PlayCommand, PlayUi, TileChoiceKind } from "./model/play-ui";
+export { NO_PLAY_UI } from "./model/play-ui";
+export type { ActionRank, DecisionAction, DecisionStanding } from "./model/decision-controls";
+export type { ResultControls } from "./model/result-controls";
+export type { NoticeSheetDisplay, PlayNotice } from "./model/board-notices";
+export type { LeaveControls } from "./model/session-end";
+export { failureDisplay } from "./model/session-end";
+export type { PlayDisplay, SwitchControl } from "./model/play-display";
+export { playDisplay } from "./model/play-display";
+export { nextPlayUi, settledPlayUi } from "./model/play-ui-reducer";
 export type { DecisionView, PlayBoardProps, StandingsLinks } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
 export type { RotatePanelProps } from "./ui/rotate-panel";
