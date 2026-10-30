@@ -18,7 +18,6 @@ import {
     eventCalls,
     replayLineTableEvent,
     robbedKanDeclared,
-    roundEndPages,
 } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
@@ -26,21 +25,15 @@ import {
     type ClientMessage,
     type ParsedServerMessage,
     type ReplayLine,
-    SESSION_ERROR_CODE,
-    buildConfirmRoundAction,
     parseReplayLine,
     parseServerMessage,
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
-import {
-    answerDecision,
-    expireDecision,
-    followDecision,
-    openDecision,
-    refusesSubmission,
-} from "./decision";
+import { answerDecision, expireDecision, followDecision, openDecision } from "./decision";
+import { keptNotice, withNotice } from "./notices";
 import { SWITCHES_OFF, snapshotLeftHand, switchAnswer } from "./play-switches";
+import { confirmStep, reopenResultStep, withRoundConfirm } from "./round-confirm";
 import {
     type ClientEvent,
     type ClientStep,
@@ -49,17 +42,11 @@ import {
     type LocalIntent,
     type PlayIntent,
     type PlaySwitch,
-    type RoundConfirm,
     type ShownCalls,
-    type TimedNotice,
     type TracedStep,
 } from "./types";
 
 const MS_PER_SECOND = 1000;
-const CONFIRMED: RoundConfirm = { kind: "confirmed" };
-const FINAL: RoundConfirm = { kind: "final" };
-const RECONNECTED_NOTICE_MS = 3000;
-const REFUSED_NOTICE_MS = 4000;
 
 function untraced(step: ClientStep): TracedStep {
     return { ...step, parsed: null, partial: false };
@@ -84,17 +71,6 @@ function canSend(session: SessionState | null): boolean {
 
 function isLinked(session: SessionState): boolean {
     return session.status !== "ended" && session.status !== "recovering" && session.link !== "down";
-}
-
-/**
- * The timed notice a session keeps: none once it ended, and the seat's return only while the seat is held, so a
- * second drop replaces it with its own notice.
- */
-function keptNotice(notice: TimedNotice | null, session: SessionState): TimedNotice | null {
-    if (session.status === "ended") {
-        return null;
-    }
-    return notice?.kind === "reconnected" && session.status !== "playing" ? null : notice;
 }
 
 /** Whether the session ended other than by the game's end: it failed, or the player left. */
@@ -222,133 +198,6 @@ function withDecision(state: GameClientState, message: ParsedServerMessage): Gam
     }
     const decision = state.decision === null ? null : followDecision(state.decision, message);
     return { ...state, decision };
-}
-
-/**
- * When the server's round advance timer for the table's result likely runs out, in logical time: one deadline per
- * round, the round advance timeout times the result's pages (the server's `results_shown`, a double ron's winners),
- * armed at the round end, less the time the timer has run already.
- */
-function roundAdvanceDeadline(state: GameClientState, elapsedSeconds: number): number | null {
-    const { now, table, timer } = state;
-    if (timer === null || table.roundEndResult === null) {
-        return null;
-    }
-    const seconds = timer.roundAdvanceTimeoutSeconds * roundEndPages(table.roundEndResult).length;
-    return now + Math.max(0, seconds - elapsedSeconds) * MS_PER_SECOND;
-}
-
-/**
- * The round confirm a reconnect's snapshot names: none outside a round advance; owed, with a deadline only when the
- * snapshot says how long its timer has run, never a fresh full timeout; or confirmed already.
- */
-function reconnectRoundConfirm(
-    state: GameClientState,
-    snapshot: Extract<ParsedServerMessage, { type: "game_reconnected" }>,
-): RoundConfirm | null {
-    const { confirmationOwed, elapsedSeconds, waitId } = snapshot;
-    if (state.table.roundEndResult === null) {
-        return null;
-    }
-    if (!confirmationOwed) {
-        return CONFIRMED;
-    }
-    const deadline = elapsedSeconds === null ? null : roundAdvanceDeadline(state, elapsedSeconds);
-    return { deadline, kind: "owed", waitId };
-}
-
-/**
- * The round confirm a message opens, from the table it left: a round end's wait, a reconnect's snapshot of a round
- * advance, or the game's last result when the game end follows a round end. Null for a round end with no wait;
- * undefined for any other message.
- */
-function openedRoundConfirm(
-    state: GameClientState,
-    message: ParsedServerMessage,
-): RoundConfirm | null | undefined {
-    switch (message.type) {
-        case "round_end": {
-            const { waitId } = message;
-            const deadline = roundAdvanceDeadline(state, 0);
-            return waitId === null ? null : { deadline, kind: "owed", waitId };
-        }
-        case "game_reconnected": {
-            return reconnectRoundConfirm(state, message);
-        }
-        case "game_end": {
-            return state.table.roundEndResult === null ? null : FINAL;
-        }
-        default: {
-            return undefined;
-        }
-    }
-}
-
-/**
- * The round confirm after a message that opens none: closed by the next deal alone, and a sent one reopened as owed
- * by the socket's rate limit alone. A game error never answers it: a late reply to an earlier move names no wait,
- * and the confirm's own stale reply follows the deal that closed it already.
- */
-function followRoundConfirm(
-    confirm: RoundConfirm,
-    message: ParsedServerMessage,
-): RoundConfirm | null {
-    if (message.type === "round_started" && confirm.kind !== "final") {
-        return null;
-    }
-    const rateLimited =
-        message.type === "session_error" && message.code === SESSION_ERROR_CODE.RATE_LIMITED;
-    if (confirm.kind === "sent" && rateLimited) {
-        return { deadline: confirm.deadline, kind: "owed", waitId: confirm.waitId };
-    }
-    return confirm;
-}
-
-function withRoundConfirm(state: GameClientState, message: ParsedServerMessage): GameClientState {
-    const opened = openedRoundConfirm(state, message);
-    const { roundConfirm } = state;
-    if (opened !== undefined) {
-        return { ...state, roundConfirm: opened };
-    }
-    if (roundConfirm === null) {
-        return state;
-    }
-    return { ...state, roundConfirm: followRoundConfirm(roundConfirm, message) };
-}
-
-/**
- * The notice a message raises, from the session it found (`before`) and the one it left (`state`'s): the seat is back
- * after a reconnect's snapshot, when this page lost it to a drop; a move refused while the seat plays, as the
- * decision reads a refusal. Null for any other message.
- */
-function messageNotice(
-    before: SessionState | null,
-    state: GameClientState,
-    message: ParsedServerMessage,
-): TimedNotice | null {
-    const { now, session } = state;
-    if (message.type === "game_reconnected") {
-        const lostSeat = before?.status === "reconnecting" && before.lostSeat;
-        return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
-    }
-    if (session?.status !== "playing" || !refusesSubmission(message)) {
-        return null;
-    }
-    return { code: message.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
-}
-
-/**
- * The notices a message leaves: the one it raises, if any; and a snapshot rebuilds the table, so the messages read
- * wrong before it no longer count.
- */
-function withNotice(
-    before: SessionState | null,
-    state: GameClientState,
-    message: ParsedServerMessage,
-): GameClientState {
-    const notice = messageNotice(before, state, message);
-    const unreadMessages = message.type === "game_reconnected" ? 0 : state.unreadMessages;
-    return { ...state, notice: notice ?? state.notice, unreadMessages };
 }
 
 function shownCalls(calls: readonly Call[], at: number): ShownCalls {
@@ -482,44 +331,12 @@ function decisionAnswer(state: GameClientState, intent: DecisionIntent): ClientM
 }
 
 /**
- * Confirm the round result: send the owed confirm by its wait id once, on a socket the client can send on, and wait
- * for the others; or dismiss the game's last result for the standings, sending nothing. Null when there is nothing
- * to confirm.
- */
-function confirmStep(state: GameClientState): ClientStep | null {
-    const { roundConfirm } = state;
-    if (roundConfirm?.kind === "final") {
-        return { effects: [], state: { ...state, roundConfirm: null } };
-    }
-    if (roundConfirm?.kind !== "owed" || !canSend(state.session)) {
-        return null;
-    }
-    const { deadline, waitId } = roundConfirm;
-    return {
-        effects: [{ message: buildConfirmRoundAction(waitId), type: "send" }],
-        state: { ...state, roundConfirm: { deadline, kind: "sent", waitId } },
-    };
-}
-
-/**
- * Reopen the game's last result over the standings it was dismissed for, sending nothing. Null unless the game ended on
- * a result the standings show.
- */
-function reopenResultStep(state: GameClientState): ClientStep | null {
-    const { roundConfirm, table } = state;
-    if (table.phase !== "game_ended" || table.roundEndResult === null || roundConfirm !== null) {
-        return null;
-    }
-    return { effects: [], state: { ...state, roundConfirm: FINAL } };
-}
-
-/**
  * Whether stepping `intent` now would answer the open decision, confirm the round result, reopen the game's last
  * one or turn a play switch: the one test of what the client may play, so the board offers exactly the intents the dispatcher takes.
  */
 export function takesIntent(state: GameClientState, intent: PlayIntent): boolean {
     if (intent.type === "confirm_result") {
-        return confirmStep(state) !== null;
+        return confirmStep(state, canSend(state.session)) !== null;
     }
     if (intent.type === "show_last_result") {
         return reopenResultStep(state) !== null;
@@ -601,7 +418,7 @@ function onIntent(state: GameClientState, intent: LocalIntent): ClientStep {
             return toggleSwitchStep(state, intent.playSwitch) ?? { effects: [], state };
         }
         case "confirm_result": {
-            return confirmStep(state) ?? { effects: [], state };
+            return confirmStep(state, canSend(state.session)) ?? { effects: [], state };
         }
         case "show_last_result": {
             return reopenResultStep(state) ?? { effects: [], state };

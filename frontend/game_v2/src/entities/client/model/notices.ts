@@ -1,0 +1,54 @@
+import { type SessionState } from "@/entities/session";
+import { type ParsedServerMessage } from "@/shared/protocol";
+
+import { refusesSubmission } from "./decision";
+import { type GameClientState, type TimedNotice } from "./types";
+
+const RECONNECTED_NOTICE_MS = 3000;
+const REFUSED_NOTICE_MS = 4000;
+
+/**
+ * The timed notice a session keeps: none once it ended, and the seat's return only while the seat is held, so a
+ * second drop replaces it with its own notice.
+ */
+export function keptNotice(notice: TimedNotice | null, session: SessionState): TimedNotice | null {
+    if (session.status === "ended") {
+        return null;
+    }
+    return notice?.kind === "reconnected" && session.status !== "playing" ? null : notice;
+}
+
+/**
+ * The notice a message raises, from the session it found (`before`) and the one it left (`state`'s): the seat is back
+ * after a reconnect's snapshot, when this page lost it to a drop; a move refused while the seat plays, as the
+ * decision reads a refusal. Null for any other message.
+ */
+function messageNotice(
+    before: SessionState | null,
+    state: GameClientState,
+    message: ParsedServerMessage,
+): TimedNotice | null {
+    const { now, session } = state;
+    if (message.type === "game_reconnected") {
+        const lostSeat = before?.status === "reconnecting" && before.lostSeat;
+        return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
+    }
+    if (session?.status !== "playing" || !refusesSubmission(message)) {
+        return null;
+    }
+    return { code: message.code, kind: "refused", until: now + REFUSED_NOTICE_MS };
+}
+
+/**
+ * The notices a message leaves: the one it raises, if any; and a snapshot rebuilds the table, so the messages read
+ * wrong before it no longer count.
+ */
+export function withNotice(
+    before: SessionState | null,
+    state: GameClientState,
+    message: ParsedServerMessage,
+): GameClientState {
+    const notice = messageNotice(before, state, message);
+    const unreadMessages = message.type === "game_reconnected" ? 0 : state.unreadMessages;
+    return { ...state, notice: notice ?? state.notice, unreadMessages };
+}
