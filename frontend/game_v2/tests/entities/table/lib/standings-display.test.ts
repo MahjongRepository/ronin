@@ -73,8 +73,8 @@ describe("standingsDisplay", () => {
                 seat.viewer,
             ]),
         ).toEqual([
-            ["1st", 2, "27,500", "+36.0", false],
-            ["2nd", 1, "25,500", "+6.0", true],
+            ["1st", 2, "27,500", "+37.0", false],
+            ["2nd", 1, "24,500", "+5.0", true],
             ["3rd", 0, "23,500", "−16.0", false],
             ["4th", 3, "23,500", "−26.0", false],
         ]);
@@ -100,7 +100,7 @@ describe("standingsDisplay", () => {
         const [riichiRound] = standingsDisplay(endTable("leftover_riichi"), null)?.ledger ?? [];
         expect(riichiRound.cells.map((cell) => [cell.text, cell.riichi])).toEqual([
             ["+1,500", false],
-            ["+500", true],
+            ["−500", true],
             ["−1,500", false],
             ["−1,500", false],
         ]);
@@ -158,7 +158,7 @@ describe("standingsDisplay", () => {
         };
 
         expect(cellTexts({ ...table, roundHistory: [allTenpai] })).toEqual([
-            ["Tenpai", "Tenpai", "Tenpai", "−1,000"],
+            ["Tenpai", "Tenpai", "Tenpai", "−2,000"],
         ]);
     });
 });

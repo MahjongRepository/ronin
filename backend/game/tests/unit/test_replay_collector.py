@@ -80,6 +80,7 @@ def _make_game_started_event(game_id: str = "game1") -> GameStartedEvent:
         players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         dealer_seat=0,
         dealer_dice=((1, 1), (1, 1)),
+        riichi_cost=1000,
     )
 
 
@@ -404,6 +405,7 @@ class TestReplayCollectorSeedInReplay:
         assert record["gs"]["game_type"] == "tonpusen"
         assert record["gs"]["uma"] == [30, 10, -10, -30]
         assert decode_replay_settings(record["gs"]) == settings
+        assert "rc" not in record
 
     async def test_replay_collector__when_multiple_events_collected__should_include_seed_only_in_game_started(self):
         storage = FakeReplayStorage()

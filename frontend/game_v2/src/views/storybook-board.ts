@@ -797,6 +797,7 @@ const STANDINGS_TABLE: TableState = {
     },
     phase: "game_ended",
     players: STANDINGS_PLAYERS,
+    riichiCost: 1000,
     roundHistory: STANDINGS_HISTORY,
 };
 

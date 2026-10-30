@@ -24,6 +24,14 @@ export function requirePlayer(state: TableState, seat: number): PlayerState {
     return player;
 }
 
+/** The table's riichi cost; a deposit on a table that never learned its game's cost is an impossible state. */
+export function requireRiichiCost(state: TableState): number {
+    if (state.riichiCost === null) {
+        throw new Error("The table holds no riichi cost");
+    }
+    return state.riichiCost;
+}
+
 /**
  * Take tiles out of a closed hand: a tile the view knows leaves `tiles`, any other leaves the concealed count.
  * Returns null when the hand holds neither, an impossible state the caller reports.

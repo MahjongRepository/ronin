@@ -11,8 +11,7 @@ from mahjong.hand_calculating.yaku_list import Renhou
 from mahjong.hand_calculating.yaku_list.yakuman import RenhouYakuman
 
 from game.logic.enums import AbortiveDrawType, KanType
-from game.logic.settings import NUM_PLAYERS, GameSettings, GameType
-from game.logic.types import WIRE_SCORE_DIVISOR
+from game.logic.settings import NUM_PLAYERS, WIRE_SCORE_DIVISOR, GameSettings, GameType
 from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.replay_format import decode_replay_settings

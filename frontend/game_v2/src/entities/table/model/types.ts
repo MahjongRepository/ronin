@@ -194,6 +194,11 @@ export interface TableState {
     readonly roundNumber: number;
     readonly honbaSticks: number;
     readonly riichiSticks: number;
+    /**
+     * What a riichi takes from its declarer onto the table, the game's `riichi_cost` from its start or a reconnect's
+     * snapshot; null before either.
+     */
+    readonly riichiCost: number | null;
     readonly doraIndicators: readonly number[];
     readonly currentPlayerSeat: number;
     readonly tilesRemaining: number;

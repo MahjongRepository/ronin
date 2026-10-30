@@ -245,11 +245,14 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
     """
     Declare riichi for Alice (seat 1) on her first draw, discarding a 1m; it passes, so the server takes her stick.
 
-    Her socket dies unseen at seat 2's 6s, and her reconnect takes it over: the snapshot, with her stick already taken,
-    then the ron prompt re-sent. She rons it and never confirms the round end, so the server's round advance timeout
-    deals the next round while her result is still open.
+    The game's riichi cost is 2000, not the default, while a collected stick stays worth 1000. Her socket dies unseen at
+    seat 2's 6s, and her reconnect takes it over: the snapshot, with her stick already taken, then the ron prompt re-
+    sent. She rons it and never confirms the round end, so the server's round advance timeout deals the next round while
+    her result is still open. She plays no move after it: the server's timeouts play her seat, and the game, East only
+    with no extension, ends with East 4.
     """
-    with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,)) as game:
+    settings = GameSettings(riichi_cost=2000, game_type=GameType.TONPUSEN, enchousen=EnchousenType.NONE)
+    with seated_game("seat-riichi-reconnect", _own_turn_wall(), players=(PLAYER,), settings=settings) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
         game.wait_until(4)
@@ -265,6 +268,8 @@ def riichi_reconnect() -> tuple[SeatTranscript, ...]:
         alice.label("round end", WireEventType.ROUND_END)
         game.wait_until(18)
         alice.label("next round", WireEventType.ROUND_STARTED)
+        game.wait_until(6000)
+        alice.label("game end", WireEventType.GAME_END)
 
         return game.transcripts("riichi_reconnect", PLAYER)
 

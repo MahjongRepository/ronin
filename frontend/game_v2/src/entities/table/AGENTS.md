@@ -36,9 +36,11 @@ replay view, the live game and the storybook read the tables it produces.
   way rather than returning the state unchanged. The other handlers tolerate a missing player or
   result.
 - Riichi deposits on `riichi_declared`, which the server sends only once the declaration's discard
-  passes without a ron (a ronned declaration discard deposits nothing): one stick onto the table,
-  1000 (the server's `riichi_cost` default, which no live message carries) off the declarer. The
-  reconnect snapshot's scores and sticks already hold every deposit and are taken as they are.
+  passes without a ron (a ronned declaration discard deposits nothing): one stick onto the table, the
+  table's riichi cost (`riichiCost`, the game's `riichi_cost` from its start or a reconnect's snapshot)
+  off the declarer. The cost is not what a collected stick pays (`riichi_stick_value`, the round end's
+  and the game end's own figures), and a table that never learned it refuses a deposit. The reconnect
+  snapshot's scores and sticks already hold every deposit and are taken as they are.
 - A round end's wire `scores` are taken after the riichi deposits and before the round's payments.
   `applyEvent` settles each player at that score plus its `scoreChanges` (the aggregated map, for a
   double ron too), never from the prior state, so a deposit is not deducted twice; the winners'
@@ -53,7 +55,7 @@ replay view, the live game and the storybook read the tables it produces.
   ledger, built from its own round end or taken whole from a reconnect's snapshot history, which
   names the same fields (the result type and an abortive draw's reason included), so a reconnect
   rebuilds the ledger the seat built. A record's payments exclude riichi deposits; the ledger nets
-  each standing riichi's deposit out of its round, so the rounds and the leftover sticks add up to
+  each standing riichi's deposit, at the table's riichi cost, out of its round, so the rounds and the leftover sticks add up to
   each final score. `lib/standings-display.ts` maps an ended table to the standings (seats in the
   server's placement order with its uma/oka results, never recomputed; a ledger row per record;
   the leftover sticks), which `ui/standings-panel.ts` renders. A ledger cell's text is its change, net of

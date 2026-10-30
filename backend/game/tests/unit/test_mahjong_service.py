@@ -20,6 +20,7 @@ from game.logic.events import (
     DiscardEvent,
     DrawEvent,
     EventType,
+    GameStartedEvent,
     SeatTarget,
 )
 from game.logic.exceptions import DiscardHistoryError, UnsupportedSettingsError
@@ -34,7 +35,7 @@ from game.logic.types import (
     ExhaustiveDrawResult,
     TenpaiHand,
 )
-from game.messaging.event_payload import reconnection_payload
+from game.messaging.event_payload import game_event_payload, reconnection_payload
 from game.tests.conftest import create_dealt_game_state, create_player
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall, make_wall
@@ -324,6 +325,17 @@ class TestRoundEndAwaiting:
 
         awaiting = service.get_awaiting(runtime)
         assert (awaiting.kind, awaiting.seats) == (WaitKind.ROUND_ADVANCE, frozenset({0, 1, 2, 3}))
+
+
+class TestMahjongGameServiceRiichiCostOnTheWire:
+    def test_start_game__when_riichi_cost_not_default__should_send_it_on_game_started_and_snapshot(self):
+        service = MahjongGameService()
+        start = service.start_game("game1", ["Alice"], seed="a" * 192, settings=GameSettings(riichi_cost=2000))
+        game_started = next(e for e in start.events if isinstance(e, GameStartedEvent))
+        snapshot = service.build_reconnection_snapshot(start.runtime, start.seats[0])
+
+        assert game_event_payload(game_started)["rc"] == 20
+        assert reconnection_payload(snapshot, stand_ins={})["rc"] == 20
 
 
 class TestMahjongGameServiceInvalidStart:

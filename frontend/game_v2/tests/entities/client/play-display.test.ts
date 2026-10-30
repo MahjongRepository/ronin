@@ -621,7 +621,7 @@ describe("playDisplay nameplates", () => {
             NO_PLAY_UI,
         );
         expect(plates(riichi)).toEqual([
-            "Alice S riichi 24000",
+            "Alice S riichi 23000",
             `Tsumogiri 2 W turn 25000 ${AI_PLAYER}`,
             `Tsumogiri 3 N 25000 ${AI_PLAYER}`,
             `Tsumogiri 1 E dealer 25000 ${AI_PLAYER}`,

@@ -12,4 +12,5 @@ the protocol's source files, and a protocol change lands here and in the backend
 - A replay file's event lines go through `parseReplayLine` instead, which also reads the replay-only
   lines (`REPLAY_LINE_TYPE`) the live socket never sends and defers every other line to
   `parseServerMessage`. Fields only the live socket stamps (viewer seat, timers, wait ids, banks,
-  elapsed seconds) parse as optional and read as null in a replay.
+  elapsed seconds) parse as optional and read as null in a replay. A replay's `game_started` carries no
+  riichi cost (`rc`): `parseReplayLine` gives it the one its recorded settings (`gs.riichi_cost`) name.

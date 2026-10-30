@@ -15,19 +15,13 @@ import { applyKanDeclared } from "./handlers/kan-declared";
 import { applyMeld } from "./handlers/meld";
 import { applyGameReconnected } from "./handlers/reconnect";
 import { applyRoundEnd } from "./handlers/round-end";
-import { requirePlayer, takeFromHand, updatePlayer } from "./helpers";
+import { requirePlayer, requireRiichiCost, takeFromHand, updatePlayer } from "./helpers";
 import { createInitialPlayerState } from "./initial-state";
 import { type PlayerState, type TableEvent, type TableState } from "./types";
 
 /** Live wall size after dealing: 136 total - 14 dead wall - 52 dealt (13 × 4 players). */
 const TILES_AFTER_DEAL = 136 - 14 - 13 * 4;
 const DEALT_HAND_SIZE = 13;
-/**
- * What an accepted riichi takes from its declarer onto the table: the server's `riichi_cost`, which no live message
- * carries, at its default, the one every game is played with.
- */
-export const RIICHI_DEPOSIT = 1000;
-
 function applyGameStarted(state: TableState, event: GameStartedEvent): TableState {
     const players = event.players.map((p) =>
         createInitialPlayerState({
@@ -47,6 +41,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         phase: "pre_game",
         players,
         revealedSeats: [],
+        riichiCost: event.riichiCost,
         roundEndResult: null,
         roundHistory: [],
     };
@@ -168,7 +163,7 @@ function applyRiichiDeclared(state: TableState, event: RiichiDeclaredEvent): Tab
         ...state,
         players: updatePlayer(state.players, event.seat, {
             isRiichi: true,
-            score: player.score - RIICHI_DEPOSIT,
+            score: player.score - requireRiichiCost(state),
         }),
         riichiSticks: state.riichiSticks + 1,
     };

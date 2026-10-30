@@ -31,12 +31,14 @@ describe("gameStartedSchema", () => {
                 { ai: 1, nm: "Charlie", s: 2 },
                 { ai: 0, nm: "Diana", s: 3 },
             ],
+            rc: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
         expect(result.type).toBe("game_started");
         expect(result.gameId).toBe("game-abc-123");
         expect(result.dealerSeat).toBe(0);
+        expect(result.riichiCost).toBe(1000);
         expect(result.dealerDice).toEqual([
             [3, 5],
             [2, 4],
@@ -61,6 +63,7 @@ describe("gameStartedSchema", () => {
             gid: "g1",
             gt: GAME_TYPE.TONPUSEN,
             p: [{ ai: 1, nm: "Bot", s: 0 }],
+            rc: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
@@ -77,6 +80,7 @@ describe("gameStartedSchema", () => {
             gid: "g1",
             gt: GAME_TYPE.TONPUSEN,
             p: [{ ai: 0, nm: "Alice", s: 2 }],
+            rc: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
         const timer = { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 };

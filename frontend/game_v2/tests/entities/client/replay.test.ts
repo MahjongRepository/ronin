@@ -1,7 +1,7 @@
 import { assert, describe, expect, test } from "vitest";
 
 import { ENGINE_REPLAYS, type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
-import { WIRE_GAME_STARTED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
+import { REPLAY_GAME_STARTED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
 import {
     type ClientStep,
     type ClientTimeline,
@@ -32,7 +32,7 @@ import {
 } from "@/shared/protocol";
 
 const VERSION_LINE = JSON.stringify({ version: REPLAY_VERSION });
-const SEAT_0_TABLE = [JSON.stringify(WIRE_GAME_STARTED), JSON.stringify(WIRE_ROUND_STARTED)];
+const SEAT_0_TABLE = [JSON.stringify(REPLAY_GAME_STARTED), JSON.stringify(WIRE_ROUND_STARTED)];
 const REPLAY_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 const drawLine = '{"d": 0, "t": 1}';
 const discardLine = '{"d": 0, "t": 2}';
@@ -463,11 +463,11 @@ describe("readReplayTimeline - riichi deposits", () => {
         const end = stateAfter(timeline, timeline.events.length - 1);
 
         expect([scoresOf(drawn), drawn.riichiSticks]).toEqual([
-            [23_500, 25_500, 26_500, 23_500],
+            [23_500, 24_500, 26_500, 23_500],
             1,
         ]);
         expect(gameEnd.leftoverRiichiBonus).toBe(1000);
-        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 25_500, 27_500, 23_500], 0]);
+        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 24_500, 27_500, 23_500], 0]);
         expect(end.gameEndResult).toMatchObject({ leftoverRiichiBonus: 1000, winnerSeat: 2 });
     });
 
@@ -547,7 +547,7 @@ type WireLine = Readonly<Record<string, unknown>>;
 function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | null {
     switch (line.type) {
         case "game_started": {
-            return { ...raw, s: seat };
+            return { ...raw, rc: line.riichiCost / WIRE_SCORE_DIVISOR, s: seat };
         }
         case "round_started": {
             const players = line.players.map((view) => ({

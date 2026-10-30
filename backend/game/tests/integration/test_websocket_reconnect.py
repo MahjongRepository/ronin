@@ -38,6 +38,7 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
         ],
         dealer_seat=0,
         dealer_dice=((1, 2), (3, 4)),
+        riichi_cost=1000,
         seat=seat,
         round_wind=WindName.EAST,
         round_number=1,

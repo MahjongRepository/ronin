@@ -13,6 +13,21 @@ export const WIRE_GAME_STARTED: WirePayload = {
     gid: "g1",
     gt: 0,
     p: [{ ai: 0, nm: "P0", s: 0 }],
+    rc: 10,
+    t: 8,
+};
+
+/** A replay file's game start: the recorded settings (`gs`, only the riichi cost here) in place of the live `rc`. */
+export const REPLAY_GAME_STARTED: WirePayload = {
+    dd: [
+        [1, 1],
+        [1, 1],
+    ],
+    dl: 0,
+    gid: "g1",
+    gs: { riichi_cost: 1000 },
+    gt: 0,
+    p: [{ ai: 0, nm: "P0", s: 0 }],
     t: 8,
 };
 
@@ -38,6 +53,7 @@ export const WIRE_GAME_RECONNECTED: WirePayload = {
     ],
     pst: [],
     r: 0,
+    rc: 10,
     rh: [],
     s: 0,
     tm: { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 },

@@ -29,6 +29,7 @@ import {
     timelineStates,
 } from "@/entities/client";
 import { tableStateToDisplayState } from "@/entities/table";
+import { standingsDisplay } from "@/entities/table/lib/standings-display";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
     CALL_TYPE,
@@ -519,7 +520,7 @@ describe("stepGameClient - generated riichi reconnect", () => {
         return [state.table.riichiSticks, state.table.players.map((player) => player.score)];
     }
 
-    it("deposits the stick once the riichi passes; the snapshot already holds it and the ron settles once", () => {
+    it("deposits the game's 2,000 riichi cost once the riichi passes; the snapshot already holds it and the ron settles once", () => {
         const run = runClean(scenario);
         const reconnected = stateAt(scenario, run, "reconnected");
 
@@ -529,14 +530,27 @@ describe("stepGameClient - generated riichi reconnect", () => {
         ]);
         expect(sticksAndScores(stateAt(scenario, run, "riichi accepted"))).toEqual([
             1,
-            [25_000, 24_000, 25_000, 25_000],
+            [25_000, 23_000, 25_000, 25_000],
         ]);
-        expect(sticksAndScores(reconnected)).toEqual([1, [25_000, 24_000, 25_000, 25_000]]);
-        expect(reconnected.table.players[1].isRiichi).toBe(true);
+        expect(sticksAndScores(reconnected)).toEqual([1, [25_000, 23_000, 25_000, 25_000]]);
+        expect([reconnected.table.players[1].isRiichi, reconnected.table.riichiCost]).toEqual([
+            true,
+            2000,
+        ]);
         expect(sticksAndScores(stateAt(scenario, run, "round end"))).toEqual([
             0,
-            [25_000, 30_200, 19_800, 25_000],
+            [25_000, 29_200, 19_800, 25_000],
         ]);
+    });
+
+    it("nets the 2,000 deposit, not the 1,000 stick the ron collected, out of the riichi's round in the final ledger", () => {
+        const display = standingsDisplay(
+            stateAt(scenario, runClean(scenario), "game end").table,
+            1,
+        );
+        const column = display?.seats.findIndex((seat) => seat.seat === 1) ?? -1;
+
+        expect(display?.ledger[0].cells[column]).toMatchObject({ riichi: true, text: "+4,200" });
     });
 });
 

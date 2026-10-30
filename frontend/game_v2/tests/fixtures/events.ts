@@ -48,6 +48,7 @@ export function makeGameStartedEvent(overrides: Partial<GameStartedEvent> = {}):
             { aiStandIn: null, isAiPlayer: true, name: "Bot-2", seat: 2 },
             { aiStandIn: null, isAiPlayer: false, name: "Bob", seat: 3 },
         ],
+        riichiCost: 1000,
         seat: null,
         timer: null,
         type: "game_started",

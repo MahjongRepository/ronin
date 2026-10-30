@@ -49,6 +49,7 @@ describe("parseServerMessage", () => {
                     { dsc: [], ml: [], ri: false, s: 3, sc: 250, tc: 13 },
                 ],
                 r: 0,
+                rc: 10,
                 rh: [],
                 s: 0,
                 tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
@@ -116,6 +117,7 @@ describe("parseServerMessage", () => {
                     { ai: 1, nm: "Bot2", s: 2 },
                     { ai: 1, nm: "Bot3", s: 3 },
                 ],
+                rc: 10,
                 t: EVENT_TYPE.GAME_STARTED,
             };
             const [err, parsed] = parseServerMessage(raw);

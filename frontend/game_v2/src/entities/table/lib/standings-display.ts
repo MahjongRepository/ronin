@@ -1,6 +1,5 @@
-import { RIICHI_DEPOSIT } from "@/entities/table/model/apply-event";
 import { RIICHI_STICK_VALUE } from "@/entities/table/model/handlers/round-end";
-import { roundInWind } from "@/entities/table/model/helpers";
+import { requireRiichiCost, roundInWind } from "@/entities/table/model/helpers";
 import { type PlayerState, type RoundRecord, type TableState } from "@/entities/table/model/types";
 
 import { drawName } from "./draw-name";
@@ -111,10 +110,10 @@ function paidIn(record: RoundRecord, seat: number): number {
     return record.scoreChanges[String(seat)] ?? 0;
 }
 
-/** A seat's change in a round: its payments less the deposit of a riichi that stood. */
-function ledgerDelta(record: RoundRecord, seat: number): number {
+/** A seat's change in a round: its payments less the deposit, at the table's riichi cost, of a riichi that stood. */
+function ledgerDelta(record: RoundRecord, seat: number, riichiCost: number): number {
     const paid = paidIn(record, seat);
-    return record.riichiSeats.includes(seat) ? paid - RIICHI_DEPOSIT : paid;
+    return record.riichiSeats.includes(seat) ? paid - riichiCost : paid;
 }
 
 /**
@@ -122,8 +121,16 @@ function ledgerDelta(record: RoundRecord, seat: number): number {
  * seat that kept its points while others were paid shows nothing. A riichi deposit is a change but never a payment,
  * so it hides no other seat's tenpai.
  */
-function cellText(record: RoundRecord, seat: number, seats: readonly number[]): string {
-    const delta = ledgerDelta(record, seat);
+interface SeatChange {
+    readonly seat: number;
+    readonly delta: number;
+}
+
+function cellText(
+    record: RoundRecord,
+    seats: readonly number[],
+    { delta, seat }: SeatChange,
+): string {
     if (delta !== 0) {
         return formatDelta(delta);
     }
@@ -146,7 +153,7 @@ function cellMark(record: RoundRecord, seat: number): LedgerCell["mark"] {
     return record.paoSeats.includes(seat) ? "pao" : null;
 }
 
-/** The table a ledger reads its names and first dealer from, and its seats in column order. */
+/** The table a ledger reads its names, first dealer and riichi cost from, and its seats in column order. */
 interface LedgerColumns {
     readonly table: TableState;
     readonly seats: readonly number[];
@@ -154,14 +161,18 @@ interface LedgerColumns {
 
 function ledgerRow({ seats, table }: LedgerColumns, record: RoundRecord, round: number): LedgerRow {
     const name = nameOf(table.players);
+    const riichiCost = requireRiichiCost(table);
     return {
-        cells: seats.map((seat) => ({
-            dealer: seat === record.dealerSeat,
-            mark: cellMark(record, seat),
-            riichi: record.riichiSeats.includes(seat),
-            text: cellText(record, seat, seats),
-            tone: tone(ledgerDelta(record, seat)),
-        })),
+        cells: seats.map((seat) => {
+            const delta = ledgerDelta(record, seat, riichiCost);
+            return {
+                dealer: seat === record.dealerSeat,
+                mark: cellMark(record, seat),
+                riichi: record.riichiSeats.includes(seat),
+                text: cellText(record, seats, { delta, seat }),
+                tone: tone(delta),
+            };
+        }),
         honba: record.honba,
         name: roundName(
             record.wind,

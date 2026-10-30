@@ -519,8 +519,11 @@ def leftover_riichi() -> Recording:
     """
     End the game at the exhaustive draw of a riichi round: with the tobi threshold raised above the noten seats' 23,500,
     the riichi stick left on the table goes to the leader, seat 2, at the game end.
+
+    The riichi costs 2,000, not the default, while the stick it leaves pays its winner the default 1,000.
     """
-    game = _riichi_to_exhaustive_draw("leftover-riichi", GameSettings(tobi_threshold=24000))
+    settings = GameSettings(tobi_threshold=24000, riichi_cost=2000)
+    game = _riichi_to_exhaustive_draw("leftover-riichi", settings)
 
     return game.replay(
         Outcome(

@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 from game.logic.exceptions import UnsupportedSettingsError
 
+WIRE_SCORE_DIVISOR = 100
+
 
 class GameType(StrEnum):
     """
@@ -151,8 +153,9 @@ def validate_settings(settings: GameSettings) -> None:
     Validate that all settings values are supported by the engine.
 
     Raises UnsupportedSettingsError for any setting value that is defined but not yet implemented in runtime logic, or
-    that breaks a fixed rule: a kan needs at least MIN_WALL_FOR_KAN live tiles, and the dead wall holds only MAX_KANS
-    rinshan tiles.
+    that breaks a fixed rule: a kan needs at least MIN_WALL_FOR_KAN live tiles, the dead wall holds only MAX_KANS
+    rinshan tiles, and the riichi cost goes out live in wire score units (WIRE_SCORE_DIVISOR points each), so it is a
+    whole number of them.
     """
     errors: list[str] = []
 
@@ -176,6 +179,9 @@ def validate_settings(settings: GameSettings) -> None:
 
     if settings.max_kans_per_round > MAX_KANS:
         errors.append(f"max_kans_per_round must be at most {MAX_KANS}, got {settings.max_kans_per_round}")
+
+    if settings.riichi_cost % WIRE_SCORE_DIVISOR != 0:
+        errors.append(f"riichi_cost must be a multiple of {WIRE_SCORE_DIVISOR}, got {settings.riichi_cost}")
 
     if errors:
         raise UnsupportedSettingsError("; ".join(errors))

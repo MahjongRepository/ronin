@@ -14,6 +14,7 @@ export function createInitialTableState(): TableState {
         phase: "pre_game",
         players: [],
         revealedSeats: [],
+        riichiCost: null,
         riichiSticks: 0,
         roundEndResult: null,
         roundHistory: [],

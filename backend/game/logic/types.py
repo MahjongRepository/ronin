@@ -17,9 +17,7 @@ from game.logic.enums import (
     WirePlayerAction,
     WireWind,
 )
-from game.logic.settings import GameType
-
-WIRE_SCORE_DIVISOR = 100  # Wire protocol divides scores by 100 (25000 → 250)
+from game.logic.settings import WIRE_SCORE_DIVISOR, GameType
 
 
 def _score_to_wire(v: int) -> int:
@@ -454,13 +452,14 @@ class ReconnectionSnapshot(BaseModel):
     and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed kan is the one record
     of it for the reconnected table. latest_discard_seat is the seat whose discard is the round's latest, which lies
     last in its river; None (absent on the wire) before the round's first discard and once a meld claimed the latest
-    one.
+    one. riichi_cost is the game's, as game_started carries it.
     """
 
     game_id: str = Field(serialization_alias="gid")
     players: list[GamePlayerInfo] = Field(serialization_alias="p")
     dealer_seat: int = Field(serialization_alias="dl")
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
+    riichi_cost: WireScore = Field(serialization_alias="rc")
     seat: int = Field(serialization_alias="s")
     round_wind: WireWindField = Field(serialization_alias="w")
     round_number: int = Field(serialization_alias="n")
