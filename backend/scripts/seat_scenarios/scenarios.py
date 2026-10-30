@@ -481,6 +481,145 @@ def seat_left() -> tuple[SeatTranscript, ...]:
         return game.transcripts("seat_left", PLAYER, ROBBER)
 
 
+ANCHOR_BOB = "Bob"
+ANCHOR_CHARLIE = "Charlie"
+ANCHOR_SEVEN_SOU = tile(0, sou="7")
+
+
+def _anchor_east_1() -> StagedWall:
+    """
+    Deal East 1 to its AI dealer (seat 0) so that it ends at once: everyone discards an honor they cannot call, and Bob
+    (seat 3), ready with tanyao and pinfu on 5s or 8s, rons the dealer's next draw, the 5s, which passes the deal to
+    Alice (seat 1).
+    """
+    return StagedWall(
+        hands=(
+            tile_copies(0, man="123456789", pin="1234"),
+            tile_copies(1, man="13579", pin="24689", sou="129"),
+            tile_copies(2, man="2468", pin="13579", sou="3469"),
+            (*tile_copies(3, man="234567", pin="2345", sou="67"), tile(2, pin="2")),
+        ),
+        draws=(
+            (0, tile(0, honors="4")),
+            (1, tile(0, honors="3")),
+            (2, tile(0, honors="2")),
+            (3, tile(0, honors="6")),
+            (0, tile(1, sou="5")),
+        ),
+    )
+
+
+def _anchor_east_2() -> StagedWall:
+    """
+    Deal East 2 from Alice (seat 1): a closed hand one tile from ready with a pair of 5s, while Charlie (seat 2) holds a
+    pair of chun and Bob (seat 3) waits for 9p to be ready on 5p or 8p. Every draw nobody keeps is a tile no human seat
+    can call or win on when it is discarded: no one else holds a pair of it, the seat after the discarder holds no shape
+    around it, and it is not Bob's wait once he is ready.
+
+    Alice keeps 7m, 5s and, in her tenth turn, 6p; Charlie pons her chun and keeps 2p; Bob keeps 6p and 9p, declaring
+    riichi on his fifth turn; the AI player (seat 0) discards what it draws. Charlie's tenth draw is the third 5s, and
+    Alice's eleventh the 7s that readies her hand two ways.
+    """
+    alice = (*tile_copies(0, man="23469", pin="134", sou="58", honors="4"), *tile_copies(1, man="5", pin="5"))
+    charlie = (*tile_copies(2, man="136", pin="458", sou="679"), *tile_copies(0, honors="257"), tile(1, honors="7"))
+    bob = (*tile_copies(1, man="123789", pin="7", sou="1234"), *tile_copies(0, pin="9", honors="1"))
+    ai = tile_copies(3, man="1234567", pin="23567", sou="8")
+    rounds = (
+        (tile(0, honors="3"), tile(2, pin="2"), tile(0, honors="6"), tile(2, man="9")),
+        (tile(2, honors="7"), None, tile(1, pin="6"), tile(2, sou="1")),
+        (tile(0, man="7"), tile(1, honors="3"), tile(1, sou="9"), tile(2, honors="5")),
+        (tile(1, sou="5"), tile(3, pin="9"), tile(1, pin="2"), tile(0, sou="4")),
+        (tile(0, sou="1"), tile(1, honors="1"), tile(2, pin="9"), tile(2, honors="3")),
+        (tile(1, honors="6"), tile(2, pin="3"), tile(1, man="4"), tile(0, sou="9")),
+        (tile(1, pin="9"), tile(3, sou="9"), tile(1, honors="4"), tile(2, sou="2")),
+        (tile(0, sou="2"), tile(3, pin="4"), tile(2, sou="3"), tile(3, honors="7")),
+        (tile(1, honors="2"), tile(1, honors="5"), tile(1, man="6"), tile(0, sou="6")),
+        (tile(0, pin="6"), tile(2, sou="5"), tile(1, pin="1"), tile(0, sou="3")),
+        (ANCHOR_SEVEN_SOU,),
+    )
+    draws = tuple(
+        (seat, drawn) for turns in rounds for seat, drawn in zip((1, 2, 3, 0), turns, strict=False) if drawn is not None
+    )
+    return StagedWall(hands=(ai, alice, charlie, bob), draws=draws, dealer=1)
+
+
+def anchor() -> tuple[SeatTranscript, ...]:
+    """
+    The look spec's anchor, East 2 at turn 10, as Alice (seat 1), its dealer, sees it: three players and an AI player.
+
+    East 1 ends at once with Bob's ron on the AI dealer (`_anchor_east_1`), and everyone confirms it. In East 2
+    (`_anchor_east_2`) everyone discards about a tile every half second: Charlie (seat 2) pons Alice's chun, Bob (seat
+    3) declares riichi on his fifth turn, and by Alice's tenth draw every seat has nine discards. Three checkpoints
+    follow: that draw, her plain turn; Charlie's 5s, which she may pon and passes; and her eleventh draw, which offers
+    riichi on either of two discards.
+    """
+    with seated_game(
+        "seat-anchor",
+        _anchor_east_1(),
+        players=(PLAYER, ANCHOR_BOB, ANCHOR_CHARLIE),
+        later_rounds=(_anchor_east_2(),),
+    ) as game:
+        alice = game.clients[PLAYER]
+        bob = game.clients[ANCHOR_BOB]
+        charlie = game.clients[ANCHOR_CHARLIE]
+        for client in (alice, bob, charlie):
+            client.join(at=0)
+
+        alice.discard(tile(0, honors="3"), at=3.5)
+        charlie.discard(tile(0, honors="2"), at=4)
+        bob.discard(tile(0, honors="6"), at=4.5)
+        bob.ron(at=5)
+        alice.confirm_round(at=5.5)
+        bob.confirm_round(at=5.5)
+        charlie.confirm_round(at=6)
+        alice.label("east 2 dealt", WireEventType.ROUND_STARTED)
+
+        moves: tuple[tuple[Callable[..., None], int], ...] = (
+            (alice.discard, tile(0, honors="4")),
+            (charlie.discard, tile(0, honors="2")),
+            (bob.discard, tile(0, honors="1")),
+            (alice.discard, tile(2, honors="7")),
+            (charlie.pon, tile(2, honors="7")),
+            (charlie.discard, tile(0, honors="5")),
+            (bob.discard, tile(1, sou="1")),
+            (alice.discard, tile(0, pin="1")),
+            (charlie.discard, tile(1, honors="3")),
+            (bob.discard, tile(1, sou="9")),
+            (alice.discard, tile(0, honors="3")),
+            (charlie.discard, tile(3, pin="9")),
+            (bob.discard, tile(1, pin="2")),
+            (alice.discard, tile(0, sou="1")),
+            (charlie.discard, tile(1, honors="1")),
+            (bob.riichi, tile(0, honors="6")),
+            (alice.discard, tile(1, honors="6")),
+            (charlie.discard, tile(2, pin="3")),
+            (bob.discard, tile(1, man="4")),
+            (alice.discard, tile(1, pin="9")),
+            (charlie.discard, tile(3, sou="9")),
+            (bob.discard, tile(1, honors="4")),
+            (alice.discard, tile(0, sou="2")),
+            (charlie.discard, tile(3, pin="4")),
+            (bob.discard, tile(2, sou="3")),
+            (alice.discard, tile(1, honors="2")),
+            (charlie.discard, tile(1, honors="5")),
+            (bob.discard, tile(1, man="6")),
+        )
+        at = 6.5
+        for move, tile_id in moves:
+            move(tile_id, at=at)
+            at += 0.5
+
+        alice.label("own turn", WireEventType.DRAW)
+        alice.discard(tile(0, man="9"), at=at, label="discarded")
+        charlie.discard(tile(2, sou="5"), at=at + 0.5)
+        alice.label("call offer", WireEventType.CALL_PROMPT)
+        alice.pass_(at=at + 1.5, label="passed")
+        bob.discard(tile(1, pin="1"), at=at + 2)
+        alice.label("riichi offer", WireEventType.DRAW)
+
+        return game.transcripts("anchor", PLAYER)
+
+
 SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "own_turn": own_turn,
@@ -493,4 +632,5 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "final_round": final_round,
     "game_end_reconnect": game_end_reconnect,
     "seat_left": seat_left,
+    "anchor": anchor,
 }

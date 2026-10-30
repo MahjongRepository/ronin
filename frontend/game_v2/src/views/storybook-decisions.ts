@@ -19,6 +19,7 @@ import {
 } from "@/entities/client";
 import { CALLOUT_MS, type StandingsRenderer } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
+import ANCHOR_SEAT_1 from "@/fixtures/seat-scenarios/anchor_seat_1.json";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
 import CHANKAN_ROBBED_SEAT_3 from "@/fixtures/seat-scenarios/chankan_robbed_seat_3.json";
 import DOUBLE_RON_SEAT_1 from "@/fixtures/seat-scenarios/double_ron_seat_1.json";
@@ -33,6 +34,7 @@ import { startStorybookStandings } from "./storybook-standings";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
 const TRANSCRIPTS = {
+    anchor_seat_1: ANCHOR_SEAT_1,
     call_prompt_seat_1: CALL_PROMPT_SEAT_1,
     chankan_robbed_seat_3: CHANKAN_ROBBED_SEAT_3,
     double_ron_seat_1: DOUBLE_RON_SEAT_1,
@@ -61,12 +63,15 @@ interface DecisionStory {
 }
 
 /**
- * The stories in the order the page lists them: the seating before the first deal, the call prompts, the turns (in
- * their base time and in the bank), what follows an answer, the round results the player confirms, the standings and
- * the last result reopened from them, then another player's seat left to an AI, the board's notices, a kick and the
- * leave question.
+ * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
+ * three checkpoints, the seating before the first deal, the call prompts, the turns (in their base time and in the
+ * bank), what follows an answer, the round results the player confirms, the standings and the last result reopened
+ * from them, then another player's seat left to an AI, the board's notices, a kick and the leave question.
  */
 const STORY_KEYS = [
+    "anchor_turn",
+    "anchor_call",
+    "anchor_riichi",
     "game_start",
     "call_prompt",
     "ron_prompt",
@@ -136,6 +141,12 @@ function after(seconds: number): (state: GameClientState) => readonly ClientEven
 }
 
 const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
+    anchor_call: checkpoint("anchor_seat_1", "call offer", "Anchor: call offer"),
+    anchor_riichi: {
+        ...checkpoint("anchor_seat_1", "riichi offer", "Anchor: riichi"),
+        pickRiichi: true,
+    },
+    anchor_turn: checkpoint("anchor_seat_1", "own turn", "Anchor: own turn"),
     answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
     chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),

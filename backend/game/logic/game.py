@@ -165,17 +165,21 @@ def init_game(
 
 def init_round(
     game_state: MahjongGameState,
+    wall: list[int] | None = None,
 ) -> MahjongGameState:
     """
     Initialize a new round by generating wall, dealing tiles, and setting up dora.
 
-    Returns new game state with the round initialized.
+    The wall comes from the seed, or is the explicit tile order when wall is given, dealt from the round's dealer as
+    init_game deals one. Returns new game state with the round initialized.
     """
     round_state = game_state.round_state
     dealer_seat = round_state.dealer_seat
 
-    # Create wall using Wall module
-    game_wall = create_wall(seed=game_state.seed, round_number=game_state.round_number, dealer_seat=dealer_seat)
+    if wall is not None:
+        game_wall = create_wall_from_tiles(wall)
+    else:
+        game_wall = create_wall(seed=game_state.seed, round_number=game_state.round_number, dealer_seat=dealer_seat)
 
     # Deal initial hands
     game_wall, hands = deal_initial_hands(game_wall, dealer_seat)

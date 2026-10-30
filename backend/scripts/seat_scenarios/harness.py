@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, override
 
+from game.logic.game import init_round
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.settings import GameSettings
 from game.messaging.encoder import decode, encode
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
 
     from game.logic.enums import KanType
     from game.logic.service import GameStart
+    from game.logic.state import MahjongGameState
     from scripts.replay_fixtures.staged_game import StagedWall
 
 TIME_GRAIN_SECONDS = 0.25
@@ -63,7 +65,7 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
         self._now += seconds
 
     @override
-    def call_at(
+    def call_at(  # deadcode: ignore
         self,
         when: float,
         callback: Callable[..., object],
@@ -82,7 +84,9 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
         return when > self._now and any(timer.when() == when for timer in self._timers)
 
     @override
-    def run_in_executor(self, executor: Executor | None, func: Callable[..., Any], *args: Any) -> asyncio.Future[Any]:
+    def run_in_executor(  # deadcode: ignore
+        self, executor: Executor | None, func: Callable[..., Any], *args: Any
+    ) -> asyncio.Future[Any]:
         if not _is_replay_save(func):
             raise ScenarioError(
                 "the harness runs no thread, but a call other than the replay save asked for an executor"
@@ -114,7 +118,9 @@ class _AdvancingSelector(selectors.SelectSelector):
         self._loop = loop
 
     @override
-    def select(self, timeout: float | None = None) -> list[tuple[selectors.SelectorKey, int]]:
+    def select(  # deadcode: ignore
+        self, timeout: float | None = None
+    ) -> list[tuple[selectors.SelectorKey, int]]:
         if timeout is None:
             raise ScenarioError("the loop would wait forever: no step is pending and no timer is armed")
 
@@ -125,12 +131,26 @@ class _AdvancingSelector(selectors.SelectSelector):
 class _StagedEngine(MahjongGameService):
     """
     The real engine, dealing every game it starts from the staged seed and wall, as the session starts one with neither.
+
+    The rounds after the first are dealt from the staged later rounds' walls in order, each checked against the dealer
+    the game advanced to, and from the seed once those run out.
     """
 
-    def __init__(self, wall: tuple[int, ...], settings: GameSettings) -> None:
+    def __init__(self, staged: StagedWall, settings: GameSettings, later_rounds: Sequence[StagedWall]) -> None:
         super().__init__()
-        self._wall = wall
+        if staged.dealer != 0:
+            raise ScenarioError(f"a staged game's first round is dealt from seat 0, not {staged.dealer}")
+
+        self._wall = staged.tiles()
         self._settings = settings
+        self._later_rounds = tuple(later_rounds)
+        self._later_rounds_dealt = 0
+
+    def require_later_rounds_dealt(self, game_id: str) -> None:
+        if self._later_rounds_dealt != len(self._later_rounds):
+            raise ScenarioError(
+                f"{game_id}: {len(self._later_rounds)} later rounds were staged, {self._later_rounds_dealt} dealt"
+            )
 
     @override
     def start_game(
@@ -148,6 +168,21 @@ class _StagedEngine(MahjongGameService):
         return super().start_game(
             game_id, player_names, seed=STAGED_SEED, settings=self._settings, wall=list(self._wall)
         )
+
+    @override
+    def _deal_next_round(self, game_state: MahjongGameState) -> MahjongGameState:
+        if self._later_rounds_dealt == len(self._later_rounds):
+            return super()._deal_next_round(game_state)
+
+        staged = self._later_rounds[self._later_rounds_dealt]
+        dealer = game_state.round_state.dealer_seat
+        if staged.dealer != dealer:
+            raise ScenarioError(
+                f"later round {self._later_rounds_dealt} was staged for dealer {staged.dealer}, not {dealer}"
+            )
+
+        self._later_rounds_dealt += 1
+        return init_round(game_state, wall=list(staged.tiles()))
 
 
 class _ClientSocket(ConnectionProtocol):
@@ -460,7 +495,8 @@ class SeatTranscript:
 class SeatedGame:
     """
     A game the real session manager runs, from its pending registration on, for scripted human clients over in-memory
-    sockets, on virtual time; the engine deals it from a staged wall and seats AI players in the seats no player takes.
+    sockets, on virtual time; the engine deals it from a staged wall, and its next rounds from the later rounds' walls
+    when any are staged, and seats AI players in the seats no player takes.
 
     Client messages go through the real message router, and the session's own pacing runs as in production: the default
     timer settings, the game start pause before the deal, the turn, call and round advance timers with their banks, all
@@ -468,19 +504,12 @@ class SeatedGame:
     scenario at once. Open one with `seated_game`, which stops it and closes its loop.
     """
 
-    def __init__(
-        self,
-        loop: VirtualTimeLoop,
-        game_id: str,
-        staged: StagedWall,
-        *,
-        players: Sequence[str],
-        settings: GameSettings | None = None,
-    ) -> None:
+    def __init__(self, loop: VirtualTimeLoop, game_id: str, engine: _StagedEngine, *, players: Sequence[str]) -> None:
         self.game_id = game_id
         self._loop = loop
+        self._engine = engine
         self._manager = SessionManager(
-            _StagedEngine(staged.tiles(), settings if settings is not None else GameSettings()),
+            self._engine,
             game_repository=FakeGameRepository(),
             replay_collector=ReplayCollector(FakeReplayStorage()),
             clock=loop.time,
@@ -529,9 +558,10 @@ class SeatedGame:
 
     def transcripts(self, scenario: str, *names: str) -> tuple[SeatTranscript, ...]:
         """
-        Return the named clients' transcripts.
+        Return the named clients' transcripts, once every staged later round was dealt.
         """
         self._require_no_refusal()
+        self._engine.require_later_rounds_dealt(self.game_id)
 
         transcripts = []
         for name in names:
@@ -569,13 +599,16 @@ def seated_game(
     *,
     players: Sequence[str],
     settings: GameSettings | None = None,
+    later_rounds: Sequence[StagedWall] = (),
 ) -> Generator[SeatedGame]:
     """
-    Open a SeatedGame on a loop of its own; on the way out stop the game and close the loop, whatever happened.
+    Open a SeatedGame on a loop of its own, dealt from the staged wall and then the later rounds' walls; on the way out
+    stop the game and close the loop, whatever happened.
     """
     loop = VirtualTimeLoop()
     try:
-        game = SeatedGame(loop, game_id, staged, players=players, settings=settings)
+        engine = _StagedEngine(staged, settings if settings is not None else GameSettings(), later_rounds)
+        game = SeatedGame(loop, game_id, engine, players=players)
         try:
             yield game
         finally:

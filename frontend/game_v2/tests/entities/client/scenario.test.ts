@@ -15,11 +15,13 @@ import {
 } from "#tests/fixtures/wire";
 import {
     type GameClientState,
+    NO_PLAY_UI,
     type ScenarioRun,
     type ScenarioStep,
     type SeatScenario,
     nextDeadline,
     parseSeatTranscript,
+    playDisplay,
     runSeatScenario,
     scenarioStateIndex,
     stepGameClient,
@@ -41,6 +43,7 @@ import {
     buildPonAction,
 } from "@/shared/protocol";
 
+const ANCHOR = loadSeatScenario("anchor_seat_1");
 const CALL_PROMPT = loadSeatScenario("call_prompt_seat_1");
 const OWN_TURN = loadSeatScenario("own_turn_seat_1");
 const RECONNECT = loadSeatScenario("reconnect_seat_1");
@@ -103,6 +106,7 @@ function seatsAt(state: GameClientState): (number | number[])[][] {
 describe("seatScenarioFromTranscript", () => {
     it("runs every generated transcript with exactly the effects the client's policy adds to it", () => {
         expect([...SEAT_TRANSCRIPTS.keys()].toSorted()).toEqual([
+            "anchor_seat_1",
             "bank_reconnect_seat_1",
             "call_prompt_seat_1",
             "chankan_passed_seat_3",
@@ -710,6 +714,94 @@ describe("stepGameClient - generated reconnect", () => {
             at: 6900,
             kind: "submitted",
         });
+    });
+});
+
+describe("stepGameClient - generated anchor", () => {
+    const { scenario, transcript } = ANCHOR;
+    const SIX_PIN = 56;
+    const THREE_PIN = 44;
+    const CHARLIES_FIVE_SOU = 90;
+    const CHUN_PON = [["pon", [132, 133, 134]]];
+    const BOB_IN_RIICHI = [false, false, false, true];
+
+    /** The round shown, the viewer, each seat's river length, Charlie's melds, who is in riichi and the viewer's melds. */
+    function boardAt(state: GameClientState): unknown[] {
+        const { players } = state.table;
+        return [
+            tableStateToDisplayState(state.table, ALICE_VIEW)?.center.roundDisplay,
+            state.viewerSeat,
+            players.map((player) => player.discards.length),
+            players[2].melds.map((meld) => [meld.meldType, meld.tileIds]),
+            players.map((player) => player.isRiichi),
+            players[1].melds,
+        ];
+    }
+
+    it("own turn: East 2 dealt from the staged wall, the tenth draw opens a plain turn, nine discards a seat", () => {
+        const run = runClean(scenario);
+        const dealt = stateAt(scenario, run, "east 2 dealt");
+        const turn = stateAt(scenario, run, "own turn");
+
+        expect(dealt.table.players[1].tiles).toEqual(
+            receivedPayload(transcript, "east 2 dealt").mt,
+        );
+        expect([dealt.table.dealerSeat, dealt.table.players.map((player) => player.score)]).toEqual(
+            [1, [23_000, 25_000, 25_000, 27_000]],
+        );
+        expect(boardAt(turn)).toEqual(["East 2", 1, [9, 9, 9, 9], CHUN_PON, BOB_IN_RIICHI, []]);
+        expect([turn.now, turn.table.players[1].drawnTileId]).toEqual([20_000, SIX_PIN]);
+        expect(turn.decision).toMatchObject({
+            baseDeadline: 20_000 + 5000,
+            deadline: 20_000 + (5 + 40) * 1000,
+            kind: "turn",
+            offers: [],
+            waitId: receivedPayload(transcript, "own turn").wi,
+        });
+    });
+
+    it("call offer: Charlie's 5s offers the viewer a pon alone, counted down, and she passes it", () => {
+        const run = runClean(scenario);
+        const offer = stateAt(scenario, run, "call offer");
+
+        expect(boardAt(offer)).toEqual(["East 2", 1, [9, 10, 10, 9], CHUN_PON, BOB_IN_RIICHI, []]);
+        expect(offer.now).toBe(21_000);
+        expect(offer.decision).toEqual({
+            callType: CALL_TYPE.MELD,
+            deadline: 21_000 + 5000,
+            fromSeat: 2,
+            kind: "call",
+            offers: [{ kind: "pon", tileId: CHARLIES_FIVE_SOU }],
+            openedAt: 21_000,
+            status: { kind: "open" },
+            tileId: CHARLIES_FIVE_SOU,
+            waitId: receivedPayload(transcript, "call offer").wi,
+        });
+        expect(stateAt(scenario, run, "passed").decision?.status.kind).toBe("submitted");
+    });
+
+    it("riichi offer: the eleventh draw offers riichi on 3p or 6p, and the toggle leaves only those to discard", () => {
+        const riichi = stateAt(scenario, runClean(scenario), "riichi offer");
+        const picking = { ...NO_PLAY_UI, riichiPickWaitId: riichi.decision?.waitId ?? null };
+
+        expect(boardAt(riichi)).toEqual([
+            "East 2",
+            1,
+            [10, 10, 10, 10],
+            CHUN_PON,
+            BOB_IN_RIICHI,
+            [],
+        ]);
+        expect(riichi.now).toBe(22_500);
+        expect(riichi.decision).toMatchObject({
+            deadline: 22_500 + (5 + 40) * 1000,
+            kind: "turn",
+            offers: [
+                { kind: "riichi", tileId: THREE_PIN },
+                { kind: "riichi", tileId: SIX_PIN },
+            ],
+        });
+        expect([...playDisplay(riichi, picking).tileIntents.keys()]).toEqual([THREE_PIN, SIX_PIN]);
     });
 });
 

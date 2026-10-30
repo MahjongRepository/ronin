@@ -55,6 +55,8 @@ interface RouteBudget {
  * column's narration room.
  * The standings' CSS re-set on 2026-10-30 from 5.5 to 7.1 raw at 6.1: their compact head on a short board and the
  * shadow over rounds hidden under the totals.
+ * The storybook's JS re-set on 2026-10-30 from 56 / 14.2 to 66 / 16.3 at 59.7 / 14.8: the decisions stories run the
+ * look spec's anchor transcript (East 1 played, East 2 to its riichi offer).
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     game: { chunk: "index.html", css: { gzip: 14.8, raw: 88 }, js: { gzip: 57.7, raw: 188 } },
@@ -71,7 +73,7 @@ const BUDGETS: Readonly<Record<string, RouteBudget>> = {
     storybook: {
         chunk: "src/views/storybook-routes.ts",
         css: { gzip: 1.4, raw: 2.1 },
-        js: { gzip: 14.2, raw: 56 },
+        js: { gzip: 16.3, raw: 66 },
     },
 };
 

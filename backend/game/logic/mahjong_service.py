@@ -830,8 +830,7 @@ class MahjongGameService(GameService):
         """
         Start the next round and return events.
         """
-        frozen_game = runtime.state
-        frozen_game = init_round(frozen_game)
+        frozen_game = self._deal_next_round(runtime.state)
         runtime.commit(frozen_game)
 
         hands = {p.seat: list(p.tiles) for p in frozen_game.round_state.players}
@@ -848,6 +847,12 @@ class MahjongGameService(GameService):
             events.extend(self._process_ai_player_followup(runtime))
 
         return events
+
+    def _deal_next_round(self, game_state: MahjongGameState) -> MahjongGameState:
+        """
+        Deal the round the game advanced to, from its seed.
+        """
+        return init_round(game_state)
 
     def _process_ai_player_followup(self, runtime: GameRuntime) -> list[GameEvent]:
         """

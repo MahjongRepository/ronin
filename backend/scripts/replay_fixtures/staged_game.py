@@ -8,7 +8,7 @@ from game.logic.enums import GameAction, KanType, PlayerAction, WaitKind
 from game.logic.events import DrawEvent, ErrorEvent
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.rng import RNG_VERSION
-from game.logic.settings import GameSettings
+from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.shanten import calculate_shanten
 from game.logic.tiles import hand_to_34_array
 from game.replay import run_replay
@@ -190,21 +190,26 @@ def tile(copy: int, **suit: str) -> int:
 @dataclass(frozen=True)
 class StagedWall:
     """
-    The first round's wall of a staged game, with the first dealer at seat 0.
+    A round's wall of a staged game, dealt from the dealer's seat: seat 0 for the first round.
 
-    hands are by seat; draws are the live wall's first draws as (seat, tile) pairs, each checked against the seat that
-    draws it, and later live draws take the tiles nobody placed, in ascending id order; rinshan are the kan replacement
-    tiles in draw order and ura the ura dora indicators in reveal order. Only the first round is staged: a later round
-    is dealt from the recorded seed, which does not reproduce the first round's wall.
+    hands are by seat; draws are the live wall's first draws as (seat, tile) pairs (StagedGame checks each against the
+    seat that draws it; the seat scenarios use only the tiles), and later live draws take the tiles nobody placed, in
+    ascending id order; rinshan are the kan replacement tiles in draw order and ura the ura dora indicators in reveal
+    order. A staged game stages only its first round: a later round is dealt from the recorded seed, which does not
+    reproduce the first round's wall. The seat scenarios alone also stage a later round, with that round's dealer.
     """
 
     hands: Sequence[Sequence[int]]
     draws: Sequence[tuple[int, int]] = ()
     rinshan: Sequence[int] = ()
     ura: Sequence[int] = ()
+    dealer: int = 0
 
     def tiles(self) -> tuple[int, ...]:
-        return make_start_wall(self.hands, draws=[tile for _, tile in self.draws], rinshan=self.rinshan, ura=self.ura)
+        in_deal_order = [self.hands[(self.dealer + offset) % NUM_PLAYERS] for offset in range(NUM_PLAYERS)]
+        return make_start_wall(
+            in_deal_order, draws=[tile for _, tile in self.draws], rinshan=self.rinshan, ura=self.ura
+        )
 
 
 @dataclass(frozen=True)
@@ -303,6 +308,9 @@ class StagedGame(_ScriptedGame):
         settings: GameSettings | None = None,
         seating: Seating = FOUR_AT_THE_TABLE,
     ) -> None:
+        if staged.dealer != 0:
+            raise ScenarioError(f"{game_id}: a staged game's first round is dealt from seat 0, not {staged.dealer}")
+
         self._staged_draws = tuple(staged.draws)
         self._next_staged_draw = 0
         self._wall = staged.tiles()

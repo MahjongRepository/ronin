@@ -6,14 +6,18 @@ from game.logic.game import (
     check_game_end,
     finalize_game,
     init_game,
+    init_round,
 )
 from game.logic.settings import (
+    NUM_PLAYERS,
     GameSettings,
     GameType,
     validate_settings,
 )
 from game.logic.types import SeatConfig
 from game.tests.conftest import create_game_state, create_player, create_round_state
+from game.tests.helpers.hands import tile_copies
+from game.tests.helpers.wall import make_start_wall
 
 
 class TestGameType:
@@ -57,6 +61,24 @@ class TestGameType:
             settings=GameSettings(game_type=GameType.TONPUSEN),
         )
         assert check_game_end(game_state) is False
+
+
+class TestInitRound:
+    def test_init_round__when_given_a_wall__should_deal_its_first_hand_and_draw_to_the_dealer(self):
+        dealer_seat = 1
+        hands_by_seat = [tile_copies(seat, man="123456789", pin="1234") for seat in range(NUM_PLAYERS)]
+        hands_in_deal_order = [hands_by_seat[(dealer_seat + offset) % NUM_PLAYERS] for offset in range(NUM_PLAYERS)]
+        dealer_draw = tile_copies(0, pin="9")[0]
+        wall = make_start_wall(hands_in_deal_order, draws=[dealer_draw])
+        game_state = create_game_state(
+            create_round_state(dealer_seat=dealer_seat, current_player_seat=dealer_seat), round_number=1
+        )
+
+        dealt = init_round(game_state, wall=list(wall))
+
+        players = dealt.round_state.players
+        assert [list(player.tiles) for player in players] == hands_by_seat
+        assert dealt.round_state.wall.live_tiles[0] == dealer_draw
 
 
 class TestStartingScore:
