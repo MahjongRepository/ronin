@@ -32,12 +32,14 @@ import {
     isAbortError,
     loadReplayUntilFound,
 } from "@/shared/api";
-import { type CancelTimer, type Clock } from "@/shared/clock";
+import { type Clock } from "@/shared/clock";
 import {
+    type DeadlineTimer,
     type LoadStatus,
     type RetryingLoad,
     type ThrottledWriter,
     assertNever,
+    createDeadlineTimer,
     createThrottledWriter,
 } from "@/shared/lib";
 import {
@@ -432,13 +434,6 @@ function replayTemplate(
     `;
 }
 
-/** The one timer the view keeps armed to the page's deadline; a replaced timer's late callback is dropped. */
-interface ArmedTimer {
-    readonly cancel: CancelTimer;
-    readonly deadline: number;
-    readonly token: object;
-}
-
 /**
  * The replay viewer for one mount: it loads the replay through the injected `loadReplay` (asking again while the
  * server has not stored it yet), steps the page's reducer (`stepReplayPage`) with every input stamped with the
@@ -460,7 +455,7 @@ class ReplayViewController {
     private abort = new AbortController();
     private screen: ReplayScreen = { kind: "loading", waiting: false };
     private disposed = false;
-    private timer: ArmedTimer | null = null;
+    private readonly timer: DeadlineTimer;
     /** The step button a hold follows, whose pointer events the view listens to while the screen holds it. */
     private held: HTMLElement | null = null;
 
@@ -489,6 +484,9 @@ class ReplayViewController {
         this.host = host;
         this.deps = deps;
         this.gameId = gameId;
+        this.timer = createDeadlineTimer(deps.clock, (at) =>
+            this.guard(() => this.apply(stepReplayPage(this.screen, { at, kind: "tick" }))),
+        );
         this.addressWriter = createThrottledWriter(
             deps.clock,
             REPLAY_URL_WRITE_INTERVAL_MS,
@@ -497,6 +495,11 @@ class ReplayViewController {
         this.removePageHide = deps.location.onPageHide(() => this.onPageHide());
         host.ownerDocument.addEventListener("click", this.onClickOutside);
         this.standings = this.startStandings();
+        this.open();
+    }
+
+    /** Show the loading screen, take the focus where nothing else holds it and start the load. */
+    private open(): void {
         this.show(this.screen);
         this.focusRootUnlessFocusIsElsewhere();
         this.startLoad();
@@ -511,7 +514,7 @@ class ReplayViewController {
 
     dispose(): void {
         this.disposed = true;
-        this.disarm();
+        this.timer.disarm();
         this.releaseHold();
         this.host.ownerDocument.removeEventListener("click", this.onClickOutside);
         this.removePageHide();
@@ -604,30 +607,7 @@ class ReplayViewController {
 
     /** Keep one timer armed to the screen's deadline, unless it is the one already armed. */
     private armDeadline(): void {
-        const deadline = replayPageDeadline(this.screen);
-        if (deadline === (this.timer?.deadline ?? null)) {
-            return;
-        }
-        this.disarm();
-        if (deadline === null) {
-            return;
-        }
-        const { clock } = this.deps;
-        const token = {};
-        const cancel = clock.setTimer(Math.max(0, deadline - clock.now()), () => {
-            if (this.timer?.token !== token) {
-                return;
-            }
-            this.timer = null;
-            const at = Math.max(clock.now(), deadline);
-            this.guard(() => this.apply(stepReplayPage(this.screen, { at, kind: "tick" })));
-        });
-        this.timer = { cancel, deadline, token };
-    }
-
-    private disarm(): void {
-        this.timer?.cancel();
-        this.timer = null;
+        this.timer.arm(replayPageDeadline(this.screen));
     }
 
     private onPageHide(): void {

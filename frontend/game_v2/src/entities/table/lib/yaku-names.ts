@@ -1,3 +1,5 @@
+import { DORA_YAKU_ID } from "@/shared/protocol";
+
 // eslint-disable-next-line sort-keys -- numeric ID order is more readable than string sort
 const YAKU_NAMES: Record<number, string> = {
     // Situational yaku
@@ -67,9 +69,9 @@ const YAKU_NAMES: Record<number, string> = {
     119: "Paarenchan",
 
     // Dora
-    120: "Dora",
-    121: "Aka Dora",
-    122: "Ura Dora",
+    [DORA_YAKU_ID.DORA]: "Dora",
+    [DORA_YAKU_ID.AKA]: "Aka Dora",
+    [DORA_YAKU_ID.URA]: "Ura Dora",
 };
 
 export function yakuName(yakuId: number): string {

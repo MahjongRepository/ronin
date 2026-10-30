@@ -1,4 +1,4 @@
-import { type MeldType } from "@/shared/protocol/constants";
+import { type MeldType, seatDistance, tileType } from "@/shared/protocol";
 
 import { type TileFace, tile136toString } from "./tile-utils";
 
@@ -22,11 +22,11 @@ export type MeldTile =
 
 /**
  * The slot of the sideways tile among `slotCount`, turned toward the seat it came from. Play runs to the caller's
- * right, so (fromSeat - callerSeat + 4) % 4 is 1 for shimocha (right: the last slot), 2 for toimen (the middle: slot
- * 1, also of a four-tile kan) and 3 for kamicha (left: the first slot).
+ * right, so the feeder's distance from the caller is 1 for shimocha (right: the last slot), 2 for toimen (the middle:
+ * slot 1, also of a four-tile kan) and 3 for kamicha (left: the first slot).
  */
 function sidewaysPosition(callerSeat: number, fromSeat: number, slotCount: number): number {
-    const distance = (fromSeat - callerSeat + 4) % 4;
+    const distance = seatDistance(callerSeat, fromSeat);
     return distance === 1 ? slotCount - 1 : 3 - distance;
 }
 
@@ -38,7 +38,7 @@ function chiTiles(input: MeldInput): MeldTile[] {
     }
     const others = input.tileIds
         .filter((tileId) => tileId !== calledId)
-        .toSorted((tileA, tileB) => ((tileA / 4) | 0) - ((tileB / 4) | 0));
+        .toSorted((tileA, tileB) => tileType(tileA) - tileType(tileB));
     return [
         { face: tile136toString(calledId), kind: "sideways" },
         ...others.map((tileId): MeldTile => ({ face: tile136toString(tileId), kind: "upright" })),

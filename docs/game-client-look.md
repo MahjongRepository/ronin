@@ -152,7 +152,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Opponent strips.** In the zone toward its edge, at the river tile's scale: tile backs in live
   play, the faces the mode reveals in a replay or a revealed result, in the same place either way;
   the drawn tile set apart by a short gap only where the supplied state identifies one (a replay, a
-  revealed hand, a snapshot, a live draw the server announced); the seat's melds beyond the hand's
+  revealed hand, a live draw the server announced); a reconnect's snapshot cannot tell a held draw
+  from the discard a call leaves owed (both leave 3n+2 tiles), so after one no gap is drawn until the
+  seat's next draw; the seat's melds beyond the hand's
   right end at river scale. The strip is not a turn cue. Invariant: a strip stands apart from its own
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an

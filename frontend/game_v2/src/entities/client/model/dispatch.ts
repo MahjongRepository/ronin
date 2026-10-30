@@ -6,23 +6,18 @@ import {
     stepSession,
 } from "@/entities/session";
 import {
-    CALLOUT_MS,
-    type Call,
     DesyncError,
     type TableEvent,
     type TableState,
     applyEvent,
-    callsShownKan,
     chankanKanDeclared,
     createInitialTableState,
-    eventCalls,
     replayLineTableEvent,
     robbedKanDeclared,
 } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
     CALL_TYPE,
-    type ClientMessage,
     type ParsedServerMessage,
     type ReplayLine,
     parseReplayLine,
@@ -30,16 +25,15 @@ import {
 } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
+import { callsAt, liveCalls, replayCalls } from "./calls";
 import {
     type DecisionContext,
-    answerDecision,
     expireDecision,
     followDecision,
     isAnsweredWait,
     openDecision,
 } from "./decision";
 import {
-    canSend,
     deferredUntilDeal,
     desyncDeadline,
     desyncStep,
@@ -51,6 +45,7 @@ import {
     takesServerMessages,
     takesWhileDesynced,
 } from "./desync";
+import { canAnswer, decisionIntentStep, switchStep, toggleSwitchStep } from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
 import {
     decisionOf,
@@ -60,7 +55,7 @@ import {
     settledPending,
     withPending,
 } from "./pending";
-import { SWITCHES_OFF, snapshotLeftHand, switchAnswer, unseenWait } from "./play-switches";
+import { SWITCHES_OFF, snapshotLeftHand } from "./play-switches";
 import {
     confirmStep,
     followRoundConfirm,
@@ -72,16 +67,12 @@ import {
     type ClientEvent,
     type ClientStep,
     type Decision,
-    type DecisionIntent,
     type LiveClient,
     type LiveEvent,
     type LocalIntent,
     type Pending,
-    type PlayIntent,
-    type PlaySwitch,
     type ReplayClient,
     type ReplayLineEvent,
-    type ShownCalls,
     type TracedStep,
 } from "./types";
 
@@ -98,14 +89,6 @@ function reportProtocolFailure(state: ReplayClient, detail: string): TracedStep<
         partial: false,
         state,
     };
-}
-
-/**
- * Whether the client may answer what its seat owes: its session holds the seat. Out of step the seat owes nothing,
- * so it answers nothing.
- */
-function canAnswer(state: LiveClient): boolean {
-    return canSend(state.session);
 }
 
 /** Whether the session ended other than by the game's end: it failed, or the player left. */
@@ -262,44 +245,6 @@ function withPendingAfter(state: LiveClient, message: ParsedServerMessage): Live
     return withPending(state, followedPending(pendingOf(state), message));
 }
 
-function shownCalls(calls: readonly Call[], at: number): ShownCalls {
-    return { at, calls, until: at + CALLOUT_MS };
-}
-
-/**
- * The calls a live board shows after a server message's table event, from the table it found (`state`'s) to the one it
- * left: the calls the event makes, but a kan the calls still showing call already (the declaration a reconnect's re-sent prompt repeats); else
- * those still showing, which only their time ends, since a move that calls nothing may follow a call at once (an AI
- * player's discard after its pon, the viewer's own draw after a riichi). A deal, or a snapshot that leaves the hand,
- * starts a new board, which shows none of the hand before, however soon it follows that hand's last call.
- */
-function liveCalls(state: LiveClient, event: TableEvent, table: TableState): ShownCalls | null {
-    const newBoard =
-        event.type === "round_started" ||
-        (event.type === "game_reconnected" && snapshotLeftHand(state.table, table));
-    if (newBoard) {
-        return null;
-    }
-    const shown = state.calls;
-    const live = shown !== null && shown.until > state.now ? shown.calls : [];
-    const calls = (eventCalls(event, state.table, table) ?? []).filter(
-        (call) => !callsShownKan(live, call),
-    );
-    return calls.length === 0 ? shown : shownCalls(calls, state.now);
-}
-
-/**
- * The calls a replay's board shows after a line's table event: the calls a move makes, none for a move that makes
- * none, and those of the move before for its bookkeeping and annotations, so each stop shows its own move's calls.
- */
-function replayCalls(state: ReplayClient, event: TableEvent, table: TableState): ShownCalls | null {
-    const calls = eventCalls(event, state.table, table);
-    if (calls === null) {
-        return state.calls;
-    }
-    return calls.length === 0 ? null : shownCalls(calls, state.now);
-}
-
 /**
  * The client after a server message the session took (`stepped`, from `before`): the table event it carries and its
  * calls, the viewer's facts, the play switches, what the seat owes, the game's last result and the notices, then the
@@ -324,34 +269,27 @@ function takeMessage(
     return switchStep(noticed, viewed.highestOpenedWaitId);
 }
 
-/** Whether a message the client cannot take ends the page: a snapshot, or a game's end out of step already. */
-function failsRecovery(stepped: LiveClient, message: ParsedServerMessage): boolean {
-    return (
-        message.type === "game_reconnected" ||
-        (message.type === "game_end" && stepped.sync.kind === "out_of_step")
-    );
-}
-
 /**
  * A game's end its in-step table refused, the first sign the client missed the round end before it, taken once more
- * by the client that loss put out of step (`lost`), since its standings are the server's whatever the table missed.
+ * by the client that loss put out of step (`lost`), since its standings are the server's whatever the table missed. A
+ * table out of step takes any game end, so this take cannot refuse it again.
  */
 function gameEndOutOfStep(
     before: LiveClient,
     lost: ClientStep<LiveClient>,
     message: ParsedServerMessage,
 ): ClientStep<LiveClient> {
-    const ended = takeMessageInStep(before, lost.state, message);
+    const ended = takeMessage(before, lost.state, message);
     return { effects: [...lost.effects, ...ended.effects], state: ended.state };
 }
 
 /**
  * Take a server message the session took, as `takeMessage` does, where a `DesyncError` (a message the table or the
  * decision cannot take) is a protocol failure rather than a bug: it puts the client out of step, and it ends the page
- * for a snapshot or a game's end out of step already, since no snapshot can rebuild the client then; a game's end in
- * step is taken once more out of step (`gameEndOutOfStep`), and out of step, the game's last round end it cannot take
- * is one more message dropped. A snapshot puts the client back in step before it is taken, so what it says the seat
- * owes is owed in step. Any other error is the client's own and propagates.
+ * for a snapshot, since no snapshot can rebuild the client then; a game's end in step is taken once more out of step
+ * (`gameEndOutOfStep`), and out of step, the game's last round end it cannot take is one more message dropped. A
+ * snapshot puts the client back in step before it is taken, so what it says the seat owes is owed in step. Any other
+ * error is the client's own and propagates.
  */
 function takeMessageInStep(
     before: LiveClient,
@@ -365,7 +303,7 @@ function takeMessageInStep(
         if (!(error instanceof DesyncError)) {
             throw error;
         }
-        if (failsRecovery(stepped, message)) {
+        if (message.type === "game_reconnected") {
             return recoveryFailedStep(stepped, "impossible_state", error.message);
         }
         const lost = desyncStep(stepped, "impossible_state", error.message);
@@ -459,89 +397,6 @@ function onTick(state: LiveClient): ClientStep<LiveClient> {
     return withSession(state, { at: state.now, kind: "tick" });
 }
 
-/** The action `intent` sends now: the open decision's answer, on a socket the client can send on; or null. */
-function decisionAnswer(state: LiveClient, intent: DecisionIntent): ClientMessage | null {
-    const { table, viewerSeat } = state;
-    const decision = decisionOf(state);
-    if (decision === null || !canAnswer(state)) {
-        return null;
-    }
-    const viewer = table.players.find((player) => player.seat === viewerSeat);
-    return answerDecision(decision, intent, viewer);
-}
-
-/**
- * Whether stepping `intent` now would answer the open decision, confirm the round result, reopen the game's last
- * one or turn a play switch: the one test of what the client may play, so the board offers exactly the intents the dispatcher takes.
- */
-export function takesIntent(state: LiveClient, intent: PlayIntent): boolean {
-    if (intent.type === "confirm_result") {
-        return confirmStep(state, canAnswer(state)) !== null;
-    }
-    if (intent.type === "show_last_result") {
-        return reopenResultStep(state) !== null;
-    }
-    if (intent.type === "toggle_switch") {
-        return takesSwitch(state);
-    }
-    return decisionAnswer(state, intent) !== null;
-}
-
-/**
- * Answer the open decision, by the player's press or by the play switch `bySwitch`: send the action it takes and mark
- * it submitted, or change nothing.
- */
-function onDecisionIntent(
-    state: LiveClient,
-    intent: DecisionIntent,
-    bySwitch: PlaySwitch | null,
-): ClientStep<LiveClient> {
-    const decision = decisionOf(state);
-    const message = decisionAnswer(state, intent);
-    if (decision === null || message === null) {
-        return { effects: [], state };
-    }
-    const status = { at: state.now, bySwitch, intent, kind: "submitted" } as const;
-    return {
-        effects: [{ message, type: "send" }],
-        state: replaceDecision(state, { ...decision, status }),
-    };
-}
-
-/**
- * The play switches' standing answer to a decision a message opened on a wait above the highest the game opened before
- * it (`highestBefore`), taken exactly where the player's press would be; nothing for a decision already open, re-sent after
- * a reconnect or reopened by a refusal, which stay the player's.
- */
-function switchStep(state: LiveClient, highestBefore: number | null): ClientStep<LiveClient> {
-    const decision = decisionOf(state);
-    if (decision?.status.kind !== "open" || !unseenWait(decision.waitId, highestBefore)) {
-        return { effects: [], state };
-    }
-    const answer = switchAnswer(decision, state.switches);
-    return answer === null
-        ? { effects: [], state }
-        : onDecisionIntent(state, answer.intent, answer.bySwitch);
-}
-
-/** Whether the player may turn a play switch on or off now: on a live seat while a round plays. */
-function takesSwitch(state: LiveClient): boolean {
-    const { session, table, viewerSeat } = state;
-    return session.status !== "ended" && viewerSeat !== null && table.phase === "in_round";
-}
-
-/** Turn a play switch on or off, sending nothing: it answers the waits the client sees from then on. */
-function toggleSwitchStep(
-    state: LiveClient,
-    playSwitch: PlaySwitch,
-): ClientStep<LiveClient> | null {
-    if (!takesSwitch(state)) {
-        return null;
-    }
-    const switches = { ...state.switches, [playSwitch]: !state.switches[playSwitch] };
-    return { effects: [], state: { ...state, switches } };
-}
-
 function onIntent(state: LiveClient, intent: LocalIntent): ClientStep<LiveClient> {
     switch (intent.type) {
         case "leave": {
@@ -550,7 +405,7 @@ function onIntent(state: LiveClient, intent: LocalIntent): ClientStep<LiveClient
         case "discard":
         case "choose":
         case "pass": {
-            return onDecisionIntent(state, intent, null);
+            return decisionIntentStep(state, intent, null);
         }
         case "toggle_switch": {
             return toggleSwitchStep(state, intent.playSwitch) ?? { effects: [], state };
@@ -677,11 +532,6 @@ export function nextDeadline(state: LiveClient): number | null {
     return deadlines.length === 0 ? null : Math.min(...deadlines);
 }
 
-/** The calls shown at logical time `at`: none once their time is past. */
-function callsAt(calls: ShownCalls | null, at: number): ShownCalls | null {
-    return calls !== null && at >= calls.until ? null : calls;
-}
-
 /** The state at logical time `at`: an open decision past its deadline expired, a notice or calls past their time gone. */
 function expireAt(state: LiveClient, at: number): LiveClient {
     const { calls, notice } = state;
@@ -698,9 +548,11 @@ function expireAt(state: LiveClient, at: number): LiveClient {
 
 /**
  * One part of the live dispatcher's step with what it took of its event, as parsed: the event, then what the seat
- * owes settled on the session it left, the resync settlement and the expiry every event runs.
+ * owes settled on the session it left, the resync settlement and the expiry every event runs. Logical time never runs
+ * back: an event stamped before the state's `now` (a wall clock stepped back) is taken at `now`.
  */
-function traceLivePart(state: LiveClient, event: LiveEvent): TracedStep<LiveClient> {
+function traceLivePart(state: LiveClient, stamped: LiveEvent): TracedStep<LiveClient> {
+    const event = { ...stamped, at: Math.max(state.now, stamped.at) };
     const step = stepLiveEvent({ ...state, now: event.at }, event);
     const settled = settleDesync({ ...step, state: settledPending(step.state) });
     const expired = expireAt(settled.state, event.at);

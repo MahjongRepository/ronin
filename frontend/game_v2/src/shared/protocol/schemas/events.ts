@@ -12,6 +12,7 @@ import { decodeDraw } from "@/shared/protocol/decoders/draw";
 import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
 import {
+    coversEverySeat,
     gamePlayerInfoSchema,
     seatSchema,
     secondsSchema,
@@ -116,18 +117,24 @@ const playerStandingSchema = z.pipe(
 // --- Game Started (t=8) ---
 
 export const gameStartedSchema = z.pipe(
-    z.object({
-        dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
-        dl: seatSchema,
-        gid: z.string(),
-        gt: z.union([z.literal(GAME_TYPE.HANCHAN), z.literal(GAME_TYPE.TONPUSEN)]),
-        p: z.array(gamePlayerInfoSchema),
-        rc: wireSettingAmountSchema,
-        rsv: wireSettingAmountSchema,
-        s: z.optional(seatSchema),
-        t: z.literal(EVENT_TYPE.GAME_STARTED),
-        tm: z.optional(timerSettingsSchema),
-    }),
+    z
+        .object({
+            dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
+            dl: seatSchema,
+            gid: z.string(),
+            gt: z.union([z.literal(GAME_TYPE.HANCHAN), z.literal(GAME_TYPE.TONPUSEN)]),
+            p: z.array(gamePlayerInfoSchema),
+            rc: wireSettingAmountSchema,
+            rsv: wireSettingAmountSchema,
+            s: z.optional(seatSchema),
+            t: z.literal(EVENT_TYPE.GAME_STARTED),
+            tm: z.optional(timerSettingsSchema),
+        })
+        .check(
+            z.refine((raw) => coversEverySeat(raw.p), {
+                message: "the game start does not seat each of the four seats once, in seat order",
+            }),
+        ),
     z.transform((raw) => ({
         dealerDice: raw.dd,
         dealerSeat: raw.dl,
@@ -146,20 +153,26 @@ export const gameStartedSchema = z.pipe(
 // Accepts both live format (has `s` and `mt`) and replay format (no `s`/`mt`, but `p[].tl`).
 
 export const roundStartedSchema = z.pipe(
-    z.object({
-        cp: seatSchema,
-        dc: z.optional(z.tuple([z.number(), z.number()])),
-        di: z.array(tileIdSchema),
-        dl: seatSchema,
-        h: z.int(),
-        mt: z.optional(z.array(tileIdSchema)),
-        n: z.int(),
-        p: z.array(playerViewSchema),
-        r: z.int(),
-        s: z.optional(seatSchema),
-        t: z.literal(EVENT_TYPE.ROUND_STARTED),
-        w: z.int(),
-    }),
+    z
+        .object({
+            cp: seatSchema,
+            dc: z.optional(z.tuple([z.number(), z.number()])),
+            di: z.array(tileIdSchema),
+            dl: seatSchema,
+            h: z.int(),
+            mt: z.optional(z.array(tileIdSchema)),
+            n: z.int(),
+            p: z.array(playerViewSchema),
+            r: z.int(),
+            s: z.optional(seatSchema),
+            t: z.literal(EVENT_TYPE.ROUND_STARTED),
+            w: z.int(),
+        })
+        .check(
+            z.refine((raw) => coversEverySeat(raw.p), {
+                message: "the deal does not list each of the four seats once, in seat order",
+            }),
+        ),
     z.transform((raw) => ({
         currentPlayerSeat: raw.cp,
         dealerSeat: raw.dl,

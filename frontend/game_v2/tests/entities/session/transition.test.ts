@@ -443,6 +443,14 @@ describe("handoff recovery", () => {
         expect(scenario.step(leave(300))).toEqual([]);
     });
 
+    it("leaves for the lobby at once while the lookup is in flight, ignoring its answer after", () => {
+        const scenario = sessionScenario(null);
+
+        expect(scenario.step(leave(100))).toEqual(LEAVE_FOR_LOBBY);
+        expect(scenario.state).toMatchObject({ reason: { kind: "left" }, status: "ended" });
+        expect(scenario.step(recovered(200, FOUND))).toEqual([]);
+    });
+
     it("leaves for the lobby when the player plays no game", () => {
         const scenario = sessionScenario(null);
 

@@ -12,6 +12,8 @@ import {
     type MeldEvent,
     type MeldType,
     ROUND_RESULT_TYPE,
+    seatDistance,
+    tileType,
 } from "@/shared/protocol";
 
 /** A call a seat makes aloud: its kind and the seat that made it, and for a kan the tile type it tells that kan by. */
@@ -23,9 +25,6 @@ export interface Call {
 
 /** How long a live call shows by its seat: the board's callout plays its whole animation in this time. */
 export const CALLOUT_MS = 1500;
-
-const SEAT_COUNT = 4;
-const COPIES_PER_TILE = 4;
 
 const CALLOUT_LABELS: Readonly<Record<CalloutKind, string>> = {
     chi: "Chi",
@@ -61,7 +60,7 @@ function resultCalls(table: TableState): readonly Call[] {
 }
 
 function kanCall(seat: number, tileId: number): Call {
-    return { kanTileType: Math.floor(tileId / COPIES_PER_TILE), kind: "kan", seat };
+    return { kanTileType: tileType(tileId), kind: "kan", seat };
 }
 
 /** A meld's call: its chi or pon, or its kan unless it completes a kan the table found shown already. */
@@ -129,6 +128,6 @@ export function boardCallouts(calls: readonly Call[], bottomSeat: number): Board
     return calls.map(({ kind, seat }) => ({
         kind,
         label: CALLOUT_LABELS[kind],
-        position: SEAT_POSITIONS[(seat - bottomSeat + SEAT_COUNT) % SEAT_COUNT],
+        position: SEAT_POSITIONS[seatDistance(bottomSeat, seat)],
     }));
 }

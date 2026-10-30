@@ -8,6 +8,7 @@ import {
 } from "@/shared/protocol/constants";
 
 import {
+    calledBy,
     compactMeldSchema,
     seatSchema,
     tileIdSchema,
@@ -19,11 +20,17 @@ import { handResultSchema } from "./events";
 // --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
 
 const tenpaiHandSchema = z.pipe(
-    z.object({
-        ct: z.array(tileIdSchema),
-        ml: z.array(compactMeldSchema),
-        s: seatSchema,
-    }),
+    z
+        .object({
+            ct: z.array(tileIdSchema),
+            ml: z.array(compactMeldSchema),
+            s: seatSchema,
+        })
+        .check(
+            z.refine((raw) => calledBy(raw.ml, raw.s), {
+                message: "a tenpai hand lists a meld another seat called",
+            }),
+        ),
     z.transform((raw) => ({
         closedTiles: raw.ct,
         melds: raw.ml,
@@ -47,16 +54,22 @@ const robbedKanSchema = z.pipe(
 // --- Double ron winner (inside double_ron `wn` array) ---
 
 const doubleRonWinnerSchema = z.pipe(
-    z.object({
-        ct: z.array(tileIdSchema),
-        hr: handResultSchema,
-        ml: z.array(compactMeldSchema),
-        ps: z.optional(seatSchema),
-        rc: z.int(),
-        sch: wireScoreMapSchema,
-        ud: z.optional(z.array(tileIdSchema)),
-        ws: seatSchema,
-    }),
+    z
+        .object({
+            ct: z.array(tileIdSchema),
+            hr: handResultSchema,
+            ml: z.array(compactMeldSchema),
+            ps: z.optional(seatSchema),
+            rc: z.int(),
+            sch: wireScoreMapSchema,
+            ud: z.optional(z.array(tileIdSchema)),
+            ws: seatSchema,
+        })
+        .check(
+            z.refine((raw) => calledBy(raw.ml, raw.ws), {
+                message: "a winner's hand lists a meld another seat called",
+            }),
+        ),
     z.transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,
@@ -72,21 +85,27 @@ const doubleRonWinnerSchema = z.pipe(
 // --- Tsumo (rt=0) ---
 
 const tsumoSchema = z.pipe(
-    z.object({
-        ct: z.array(tileIdSchema),
-        hr: handResultSchema,
-        ml: z.array(compactMeldSchema),
-        ps: z.optional(seatSchema),
-        rc: z.int(),
-        rt: z.literal(ROUND_RESULT_TYPE.TSUMO),
-        sch: wireScoreMapSchema,
-        scs: wireScoreMapSchema,
-        t: z.literal(EVENT_TYPE.ROUND_END),
-        ud: z.optional(z.array(tileIdSchema)),
-        wi: z.optional(waitIdSchema),
-        ws: seatSchema,
-        wt: tileIdSchema,
-    }),
+    z
+        .object({
+            ct: z.array(tileIdSchema),
+            hr: handResultSchema,
+            ml: z.array(compactMeldSchema),
+            ps: z.optional(seatSchema),
+            rc: z.int(),
+            rt: z.literal(ROUND_RESULT_TYPE.TSUMO),
+            sch: wireScoreMapSchema,
+            scs: wireScoreMapSchema,
+            t: z.literal(EVENT_TYPE.ROUND_END),
+            ud: z.optional(z.array(tileIdSchema)),
+            wi: z.optional(waitIdSchema),
+            ws: seatSchema,
+            wt: tileIdSchema,
+        })
+        .check(
+            z.refine((raw) => calledBy(raw.ml, raw.ws), {
+                message: "a winner's hand lists a meld another seat called",
+            }),
+        ),
     z.transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,
@@ -107,24 +126,30 @@ const tsumoSchema = z.pipe(
 // --- Ron (rt=1) ---
 
 const ronSchema = z.pipe(
-    z.object({
-        ct: z.array(tileIdSchema),
-        hbs: z.optional(z.array(seatSchema)),
-        hr: handResultSchema,
-        ls: seatSchema,
-        ml: z.array(compactMeldSchema),
-        ps: z.optional(seatSchema),
-        rc: z.int(),
-        rk: z.optional(robbedKanSchema),
-        rt: z.literal(ROUND_RESULT_TYPE.RON),
-        sch: wireScoreMapSchema,
-        scs: wireScoreMapSchema,
-        t: z.literal(EVENT_TYPE.ROUND_END),
-        ud: z.optional(z.array(tileIdSchema)),
-        wi: z.optional(waitIdSchema),
-        ws: seatSchema,
-        wt: tileIdSchema,
-    }),
+    z
+        .object({
+            ct: z.array(tileIdSchema),
+            hbs: z.optional(z.array(seatSchema)),
+            hr: handResultSchema,
+            ls: seatSchema,
+            ml: z.array(compactMeldSchema),
+            ps: z.optional(seatSchema),
+            rc: z.int(),
+            rk: z.optional(robbedKanSchema),
+            rt: z.literal(ROUND_RESULT_TYPE.RON),
+            sch: wireScoreMapSchema,
+            scs: wireScoreMapSchema,
+            t: z.literal(EVENT_TYPE.ROUND_END),
+            ud: z.optional(z.array(tileIdSchema)),
+            wi: z.optional(waitIdSchema),
+            ws: seatSchema,
+            wt: tileIdSchema,
+        })
+        .check(
+            z.refine((raw) => calledBy(raw.ml, raw.ws), {
+                message: "a winner's hand lists a meld another seat called",
+            }),
+        ),
     z.transform((raw) => ({
         closedTiles: raw.ct,
         handResult: raw.hr,

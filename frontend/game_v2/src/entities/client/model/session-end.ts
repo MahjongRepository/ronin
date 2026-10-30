@@ -37,12 +37,7 @@ export function leaveControls(state: LiveClient, ui: PlayUi): LeaveControls {
     return { command: ASK_LEAVE, confirming: ui.confirmingLeave };
 }
 
-const DISCONNECTED_FAILURE: FailureDisplay = {
-    detail: "The connection to the game ended.",
-    reload: false,
-    title: "Disconnected",
-};
-
+/** A close that ended the session: only the two terminal codes do (`policy.ts`), every other close is retried. */
 function closedFailure(code: number): FailureDisplay {
     if (code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION) {
         return {
@@ -51,14 +46,11 @@ function closedFailure(code: number): FailureDisplay {
             title: "Opened elsewhere",
         };
     }
-    if (code === CLOSE_CODE.INVALID_GAME_ACTION) {
-        return {
-            detail: "The server ended your session after a move it could not accept.",
-            reload: false,
-            title: "Removed from the game",
-        };
-    }
-    return DISCONNECTED_FAILURE;
+    return {
+        detail: "The server ended your session after a move it could not accept.",
+        reload: false,
+        title: "Removed from the game",
+    };
 }
 
 /**

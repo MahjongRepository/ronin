@@ -1,9 +1,7 @@
 import { roundName } from "@/entities/table/lib/round-name";
 import { windLetter, windName } from "@/entities/table/lib/wind-name";
 import { type TableState } from "@/entities/table/model/types";
-import { GAME_TYPE, type GameType, WIND } from "@/shared/protocol";
-
-const SEAT_COUNT = 4;
+import { GAME_TYPE, type GameType, WIND, seatDistance } from "@/shared/protocol";
 
 const GAME_TYPE_NAMES: Readonly<Record<GameType, string>> = {
     [GAME_TYPE.HANCHAN]: "Hanchan",
@@ -46,7 +44,7 @@ function startStatus(secondsLeft: number | null): string {
 export function gameStartDisplay(table: TableState, view: GameStartView): GameStartDisplayState {
     const dealer = table.firstDealerSeat;
     function windOf(seat: number): number {
-        return (seat - dealer + SEAT_COUNT) % SEAT_COUNT;
+        return seatDistance(dealer, seat);
     }
     const seats = table.players
         .toSorted((first, second) => windOf(first.seat) - windOf(second.seat))

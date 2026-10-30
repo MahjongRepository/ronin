@@ -11,6 +11,7 @@ import {
 } from "@/entities/table/model/types";
 import { assertNever } from "@/shared/lib";
 import {
+    DORA_YAKU_ID,
     type ExhaustiveDrawRoundEnd,
     type NagashiManganRoundEnd,
     ROUND_RESULT_TYPE,
@@ -30,8 +31,6 @@ function settleScores(players: readonly PlayerState[], event: RoundEndEvent): Pl
         return { ...p, score: scoreBeforePayment + (event.scoreChanges[seat] ?? 0) };
     });
 }
-
-const DORA_YAKU_ID = { aka: 121, dora: 120, ura: 122 } as const;
 
 /**
  * The table at a round end that its result reads beyond the event: the round's dealer and dora indicators, and the
@@ -70,9 +69,9 @@ function extractWinner(
     return {
         closedTiles: source.closedTiles,
         doraHan: {
-            aka: yakuHan(handResult, DORA_YAKU_ID.aka),
-            dora: yakuHan(handResult, DORA_YAKU_ID.dora),
-            ura: yakuHan(handResult, DORA_YAKU_ID.ura),
+            aka: yakuHan(handResult, DORA_YAKU_ID.AKA),
+            dora: yakuHan(handResult, DORA_YAKU_ID.DORA),
+            ura: yakuHan(handResult, DORA_YAKU_ID.URA),
         },
         handResult,
         honbaBonus: gain - handResult.points - riichiBonus,

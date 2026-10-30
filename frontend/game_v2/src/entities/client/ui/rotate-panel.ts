@@ -1,5 +1,6 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
+import { describePlayerClientStatus } from "@/entities/client/model/client-status";
 import { type DecisionCountdown, pendingCountdown } from "@/entities/client/model/countdown";
 import { type PlayCommand, type PlayUi } from "@/entities/client/model/play-ui";
 import {
@@ -9,11 +10,7 @@ import {
     leaveControls,
 } from "@/entities/client/model/session-end";
 import { type LiveClient } from "@/entities/client/model/types";
-import {
-    type SessionStatusDisplay,
-    describePlayerSessionStatus,
-    describeSessionStatus,
-} from "@/entities/session";
+import { type SessionStatusDisplay } from "@/entities/session";
 import { assertNever } from "@/shared/lib";
 
 import { FailurePanel, LeaveConfirm } from "./session-panels";
@@ -28,16 +25,6 @@ export interface RotatePanelProps {
     /** An end that stopped the session on the page, shown in place of the rest: why, and the way on from it. */
     readonly failure: FailureDisplay | null;
     readonly onCommand: (command: PlayCommand) => void;
-}
-
-/** The session's status line for a live client's state, in the machine's own terms, for the debug view. */
-export function describeClientStatus(state: LiveClient): SessionStatusDisplay {
-    return describeSessionStatus(state.session);
-}
-
-/** The session's status in a player's terms, for the live page and its rotate panel. */
-export function describePlayerClientStatus(state: LiveClient): SessionStatusDisplay {
-    return describePlayerSessionStatus(state.session);
 }
 
 export function rotatePanelProps(

@@ -1,4 +1,4 @@
-import { DesyncError, type PlayerState } from "@/entities/table";
+import { DesyncError, type PlayerState, ponOfType } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
     CALL_TYPE,
@@ -23,6 +23,7 @@ import {
     buildRiichiAction,
     buildRonAction,
     buildTsumoAction,
+    tileType,
 } from "@/shared/protocol";
 
 import {
@@ -39,23 +40,31 @@ const OPEN = { kind: "open" } as const;
 type AvailableAction = DrawEvent["availableActions"][number];
 
 /**
- * Messages that end the wait a decision answers: the server moved on to a draw (the viewer's, or another seat's
- * notice of one), a discard, a meld, the next prompt or turn, or out of the round. A dora reveal, a riichi stick, a
- * furiten notice, an error and a session message do not.
+ * What each message does to the wait a decision answers, so a new message type must say: it closes when the server
+ * moved on to a draw (the viewer's, or another seat's notice of one), a discard, a meld, the next prompt or turn, or out
+ * of the round. A dora reveal, a riichi stick, a seat control or furiten notice, an error and a session message keep it.
  */
-const CLOSING_TYPES: ReadonlySet<ParsedServerMessage["type"]> = new Set([
-    "call_prompt",
-    "discard",
-    "draw",
-    "draw_notice",
-    "game_end",
-    "game_reconnected",
-    "game_started",
-    "meld",
-    "round_end",
-    "round_started",
-    "turn",
-]);
+const DECISION_AFTER: Readonly<Record<ParsedServerMessage["type"], "close" | "keep">> = {
+    ai_replacement: "keep",
+    call_prompt: "close",
+    discard: "close",
+    dora_revealed: "keep",
+    draw: "close",
+    draw_notice: "close",
+    error: "keep",
+    furiten: "keep",
+    game_end: "close",
+    game_joined: "keep",
+    game_reconnected: "close",
+    game_started: "close",
+    human_return: "keep",
+    meld: "close",
+    riichi_declared: "keep",
+    round_end: "close",
+    round_started: "close",
+    session_error: "keep",
+    turn: "close",
+};
 
 /**
  * What opening a decision reads besides its message: when it opens, the timer settings, the viewer's known hand and
@@ -67,10 +76,6 @@ export interface DecisionContext {
     readonly viewerSeat: number | null;
     readonly hand: readonly number[];
     readonly melds: PlayerState["melds"];
-}
-
-function tileType(tileId: number): number {
-    return Math.floor(tileId / 4);
 }
 
 /** When a wait's server timer runs out: `seconds` from its opening, less what a re-sent wait says has run. */
@@ -100,12 +105,6 @@ function turnDeadlines(
     };
 }
 
-function hasPonOf(melds: DecisionContext["melds"], type: number): boolean {
-    return melds.some(
-        (meld) => meld.meldType === "pon" && meld.tileIds.some((id) => tileType(id) === type),
-    );
-}
-
 /**
  * A turn's offers from the draw's available actions; a kan names a tile type, answered with a tile of it. A kan of a
  * type the hand holds no tile of, or an added kan of a type the seat has no pon of, means the hand the client holds is
@@ -120,7 +119,7 @@ function actionOffers(
         if (tileId === undefined) {
             throw new DesyncError(`A kan of tile type ${type} is offered, but the hand holds none`);
         }
-        if (kanType === KAN_TYPE.ADDED && !hasPonOf(melds, type)) {
+        if (kanType === KAN_TYPE.ADDED && ponOfType(melds, type) === undefined) {
             throw new DesyncError(
                 `An added kan of tile type ${type} is offered, but the seat has no pon of it`,
             );
@@ -286,10 +285,7 @@ export function isAnsweredWait(decision: Decision, message: ParsedServerMessage)
  * older request, or of one it cannot name, reopens nothing.
  */
 export function followDecision(decision: Decision, message: ParsedServerMessage): Decision | null {
-    if (isAnsweredWait(decision, message)) {
-        return decision;
-    }
-    if (CLOSING_TYPES.has(message.type)) {
+    if (DECISION_AFTER[message.type] === "close") {
         return null;
     }
     const reopened =
@@ -392,19 +388,14 @@ function takesDiscard(decision: TurnDecision, player: PlayerState, tileId: numbe
 }
 
 /**
- * The action that answers a decision with `intent`, or null when it was already answered or does not take it: a
- * choice the server did not offer, a discard on a call prompt, a pass on a turn. A decision past its deadline still
- * takes one answer, which the server accepts or refuses as stale; the client never answers without the player's
- * instruction, standing (a play switch) or given.
+ * The action `intent` gives a decision as its answer, answered already or not, or null when the decision does not
+ * offer it: a choice the server did not offer, a discard on a call prompt, a pass on a turn.
  */
-export function answerDecision(
+export function offerAnswer(
     decision: Decision,
     intent: DecisionIntent,
     viewer: PlayerState | undefined,
 ): ClientMessage | null {
-    if (decision.status.kind === "submitted") {
-        return null;
-    }
     switch (intent.type) {
         case "choose": {
             const key = offerKey(intent.offer);
@@ -425,4 +416,17 @@ export function answerDecision(
             return assertNever(intent);
         }
     }
+}
+
+/**
+ * The action that answers a decision with `intent`, or null when it was already answered or does not offer it. A
+ * decision past its deadline still takes one answer, which the server accepts or refuses as stale; the client never
+ * answers without the player's instruction, standing (a play switch) or given.
+ */
+export function answerDecision(
+    decision: Decision,
+    intent: DecisionIntent,
+    viewer: PlayerState | undefined,
+): ClientMessage | null {
+    return decision.status.kind === "submitted" ? null : offerAnswer(decision, intent, viewer);
 }

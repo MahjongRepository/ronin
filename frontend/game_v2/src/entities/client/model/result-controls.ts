@@ -1,7 +1,7 @@
 import { type TableState, roundEndPageAt } from "@/entities/table";
 
 import { type DecisionCountdown, roundConfirmCountdown } from "./countdown";
-import { takesIntent } from "./dispatch";
+import { takesIntent } from "./intents";
 import { roundConfirmOf } from "./pending";
 import { type PlayAction, type PlayUi, intentCommand } from "./play-ui";
 import { type LiveClient, type PlayIntent, type RoundConfirm } from "./types";

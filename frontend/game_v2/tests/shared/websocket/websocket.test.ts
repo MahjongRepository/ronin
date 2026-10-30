@@ -86,6 +86,18 @@ describe("GameSocket silence watchdog", () => {
         expect([FakeWebSocket.created.length, closes.length]).toEqual([1, 1]);
     });
 
+    it("waits out the silence limit the client sets, so a longer time control's turn is never taken for a lost connection", () => {
+        const closes: [number, string][] = [];
+        const ws = connectedSocket(closes);
+        socket?.setSilenceLimit(150_000);
+
+        vi.advanceTimersByTime(145_000);
+        expect([ws.closed, closes]).toEqual([false, []]);
+
+        vi.advanceTimersByTime(10_000);
+        expect([ws.closed, closes]).toEqual([true, [[1006, "server_silent"]]]);
+    });
+
     it("reports the close on the first check after the device wakes from a long sleep", () => {
         const closes: [number, string][] = [];
         const ws = connectedSocket(closes);

@@ -1,29 +1,11 @@
-const SESSION_KEYS = ["ws_url", "game_ticket", "room_id"] as const;
-
-/** Clear all session storage keys used during room/game lifecycle. */
-export function clearSessionData(gameId?: string): void {
-    if (gameId) {
-        sessionStorage.removeItem(`game_session:${gameId}`);
-    }
-    for (const key of SESSION_KEYS) {
-        sessionStorage.removeItem(key);
-    }
-}
-
-/** Retrieve the game ticket from sessionStorage. */
-export function getGameTicket(): string | null {
-    return sessionStorage.getItem("game_ticket");
-}
-
-/** Store the game ticket received from the lobby. */
-export function setGameTicket(ticket: string): void {
-    sessionStorage.setItem("game_ticket", ticket);
-}
-
 /** The lobby's handoff for one game: the socket to join and the ticket that names the seat. */
 export interface GameSessionData {
     readonly wsUrl: string;
     readonly gameTicket: string;
+}
+
+function handoffKey(gameId: string): string {
+    return `game_session:${gameId}`;
 }
 
 function isGameSessionData(data: unknown): data is GameSessionData {
@@ -31,20 +13,20 @@ function isGameSessionData(data: unknown): data is GameSessionData {
         typeof data === "object" &&
         data !== null &&
         "wsUrl" in data &&
-        typeof (data as Record<string, unknown>).wsUrl === "string" &&
+        typeof data.wsUrl === "string" &&
         "gameTicket" in data &&
-        typeof (data as Record<string, unknown>).gameTicket === "string"
+        typeof data.gameTicket === "string"
     );
 }
 
-/** Store game session data for reconnection. */
+/** Keep a game's handoff for a reload, under the key the lobby writes it to. */
 export function storeGameSession(gameId: string, wsUrl: string, gameTicket: string): void {
-    sessionStorage.setItem(`game_session:${gameId}`, JSON.stringify({ gameTicket, wsUrl }));
+    sessionStorage.setItem(handoffKey(gameId), JSON.stringify({ gameTicket, wsUrl }));
 }
 
-/** Retrieve stored game session data for reconnection. */
+/** The game's handoff this tab holds, or null when it holds none or one it cannot read. */
 export function getGameSession(gameId: string): GameSessionData | null {
-    const raw = sessionStorage.getItem(`game_session:${gameId}`);
+    const raw = sessionStorage.getItem(handoffKey(gameId));
     if (!raw) {
         return null;
     }
@@ -56,7 +38,7 @@ export function getGameSession(gameId: string): GameSessionData | null {
     }
 }
 
-/** Clear stored game session data. */
+/** Forget the game's handoff, which its ticket will never seat again. */
 export function clearGameSession(gameId: string): void {
-    sessionStorage.removeItem(`game_session:${gameId}`);
+    sessionStorage.removeItem(handoffKey(gameId));
 }

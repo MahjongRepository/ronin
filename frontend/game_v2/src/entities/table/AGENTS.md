@@ -39,9 +39,10 @@ replay view, the live game and the storybook read the tables it produces.
   (`roundHistoryInStep` false) the table missed the messages that moved its phase, so it takes any
   round end and the game's end whatever its phase (the dispatcher lets only the game's last round
   end and the game's end reach it then); a snapshot puts it back in step.
-- The draw, discard, meld, kan declaration and riichi handlers throw a `DesyncError` on an
-  impossible state (a tile neither shown nor covered by the count, a missing player or caller, a
-  call on a tile that is not the table's latest discard, a deposit with no riichi cost); a
+- The draw, discard, meld, kan declaration, riichi and round end handlers throw a `DesyncError` on
+  an impossible state (a tile neither shown nor covered by the count, a missing player or caller, a
+  call on a tile that is not the table's latest discard, a deposit with no riichi cost, collected
+  sticks with no stick value); a
   new check throws the same way rather than returning the state unchanged, since the live client
   recovers from that error alone by a fresh snapshot and takes any other as a bug. The other handlers
   tolerate a missing player or result.
@@ -88,6 +89,16 @@ replay view, the live game and the storybook read the tables it produces.
   through the renderer the view hands it. Rounds hidden under the sticky totals show a shadow over the
   totals by CSS alone: the sheet paints it at the totals' height, which their fixed row height gives,
   under the transparent rows, and the last row, opaque, covers it once nothing more is hidden.
+- The final standings (`boardOverlay`, live and replay alike) say how the game ended, always as completed, by the
+  cause the game end names (`endCause`: tobi, its length, the extension's target score or its last round; never
+  inferred) and in its last round (the ledger's last row where it holds every round, else the table's round while it
+  is in step), the seats in the server's placement order with its uma/oka results, the ledger of every finished round
+  with a line saying what its marks mean, the leftover sticks (what they paid the winner, or, where the game end pays
+  no bonus for the sticks the table held, that they were not awarded), the viewer's seat (the live seat, the replay's
+  bottom seat) marked. Each view that may show them starts their lazy chunk as it mounts (`startStandingsLoad`, with
+  the sprite's retries) and stops it on dispose; it hands the loaded renderer to `boardOverlay`, which shows no
+  standings until it has one, and a board notice says so once every try failed. Where they lead is the view's
+  (`src/views/AGENTS.md`).
 - A player's name in a panel (the result's scores, the standings' columns, the seating) is
   `PlayerName`: a narrow column shortens it in the middle, keeping its end (`nameParts`), as the
   nameplate does, so AI players stay told apart.

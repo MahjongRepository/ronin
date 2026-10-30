@@ -28,6 +28,7 @@ export {
     SEAT_CONTROL_REASON,
     GAME_END_CAUSE,
     GAME_TYPE,
+    DORA_YAKU_ID,
 } from "./constants";
 
 export type {
@@ -55,6 +56,7 @@ export type { DecodedDraw } from "./decoders/draw";
 export { decodeDiscard } from "./decoders/discard";
 export type { DecodedDiscard } from "./decoders/discard";
 export { decodeMeldCompact } from "./decoders/meld";
+export { seatDistance, tileType, tileTypeCopies } from "./tiles";
 export type { DecodedMeld } from "./decoders/meld";
 
 export { parseServerMessage } from "./schemas/message";

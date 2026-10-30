@@ -85,7 +85,7 @@ describe("readReplayTimeline - lines", () => {
             '{"ai": 2, "s": 0, "t": 101}',
             /^Parse error: Failed to parse replay line t=101: Unknown seat control: ai=2$/,
         ],
-        ['{"d": 400, "t": 2}', /^Cannot be played: /],
+        [JSON.stringify(REPLAY_GAME_STARTED), /^Cannot be played: /],
     ])("stops at a line it cannot show (%s), keeping only the lines before it", (bad, detail) => {
         const { damage, types } = readLines(drawLine, bad, discardLine);
 

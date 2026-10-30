@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { clientEvent, clientScenario, forbiddingIo } from "#tests/fixtures/scenario";
+import { checkpointState } from "#tests/fixtures/seat-transcripts";
 import {
     WIRE_DRAW,
     WIRE_GAME_END,
@@ -16,6 +17,7 @@ import {
     type LiveClient,
     type LiveEvent,
     RESYNC_ANSWER_MS,
+    decisionOf,
     desyncOf,
     nextDeadline,
     roundConfirmOf,
@@ -197,6 +199,16 @@ describe("stepGameClient", () => {
             [],
             [{ message: buildResyncMessage(), type: "send" }],
         ]);
+    });
+
+    it("never runs its logical time back for an event stamped before it, as after a wall clock stepped back an hour", () => {
+        const onTurn = checkpointState("own_turn_seat_1", "first draw");
+        const decision = decisionOf(onTurn);
+        const stepped = stepGameClient(onTurn, socketError(onTurn.now - 3_600_000)).state;
+
+        expect(stepped.now).toBe(onTurn.now);
+        expect(decisionOf(stepped)).toEqual(decision);
+        expect(nextDeadline(stepped)).toBe(nextDeadline(onTurn));
     });
 
     it("runs no IO and reads no clock: every socket, storage and navigation effect is only described", () => {

@@ -18,8 +18,7 @@ export const RESYNC_ANSWER_MS = 10_000;
 /** The resync requests a page may send in all: the next loss of step past them ends the page. */
 export const MAX_RESYNC_REQUESTS = 5;
 
-/** How soon a resync refused before the first deal is asked again when the deal's time is unknown or past. */
-const NOT_STARTED_RETRY_MS = 1000;
+const MS_PER_SECOND = 1000;
 
 /** Where the client stands since it lost step with the server, or null while in step. */
 export function desyncOf(state: LiveClient): Desync | null {
@@ -91,6 +90,7 @@ export function desyncStep(
     }
     const desync: Desync = {
         answerDue: null,
+        awaitsDeal: false,
         cause,
         detail,
         kind: "out_of_step",
@@ -102,9 +102,9 @@ export function desyncStep(
 }
 
 /**
- * A snapshot that does not parse (an incomplete one included) or that the client cannot take, or a game's end it
- * cannot take while out of step: no fresh snapshot can rebuild a client that cannot take one, so the page ends as
- * failed, out of step with the server, which it stays if it was already.
+ * A snapshot that does not parse (an incomplete one included) or that the client cannot take: no fresh snapshot can
+ * rebuild a client that cannot take one, so the page ends as failed, out of step with the server, which it stays if
+ * it was already.
  */
 export function recoveryFailedStep(
     state: LiveClient,
@@ -117,21 +117,45 @@ export function recoveryFailedStep(
 }
 
 /**
- * The out-of-step client after a message it drops: when it says the game has not dealt yet (a resync refused in the
- * game start pause), the client asks again
- * when the first deal is due, or shortly when that time is unknown or past, rather than a whole answer's wait later,
- * which would eat into a first dealer's turn.
+ * The out-of-step client after a message it drops. One saying the game has not dealt yet (a resync refused while the
+ * game waits for its players or in its start pause) answers the request: the client asks again when the first deal
+ * is due, rather than a whole answer's wait later, which would eat into a first dealer's turn; where no deal time lies
+ * ahead, it waits for the server's next game message instead of asking on a timer, which would spend the page's
+ * requests however long the game waits to start. Waiting so, a game start names the deal's time, and any other game
+ * message says the game moved, so the client asks at once.
  */
 export function deferredUntilDeal(state: LiveClient, message: ParsedServerMessage): LiveClient {
-    const { firstDealDue, now, sync } = state;
-    const notStarted =
-        message.type === "session_error" && message.code === SESSION_ERROR_CODE.GAME_NOT_STARTED;
-    if (sync.kind === "in_step" || !notStarted) {
+    const { sync } = state;
+    if (sync.kind === "in_step") {
         return state;
     }
-    const answerDue =
-        firstDealDue !== null && firstDealDue > now ? firstDealDue : now + NOT_STARTED_RETRY_MS;
-    return { ...state, sync: { ...sync, answerDue } };
+    if (message.type === "session_error" && message.code === SESSION_ERROR_CODE.GAME_NOT_STARTED) {
+        return awaitingDeal(state, sync);
+    }
+    const gameMoved = message.type !== "session_error" && message.type !== "error";
+    return sync.awaitsDeal && gameMoved ? movedOn(state, sync, message) : state;
+}
+
+/** The client told the game has not dealt: asking at the first deal's time ahead, else on the next game message. */
+function awaitingDeal(state: LiveClient, sync: Desync): LiveClient {
+    const { firstDealDue, now } = state;
+    const dealAhead = firstDealDue !== null && firstDealDue > now;
+    const answerDue = dealAhead ? firstDealDue : null;
+    return { ...state, sync: { ...sync, answerDue, awaitsDeal: !dealAhead, requested: false } };
+}
+
+/**
+ * The client awaiting the deal after a game message: at the deal's time a game start names, else at once. The game
+ * start's timer settings are kept too, so the socket's silence limit covers its pause.
+ */
+function movedOn(state: LiveClient, sync: Desync, message: ParsedServerMessage): LiveClient {
+    if (message.type !== "game_started" || message.timer === null) {
+        return { ...state, sync: { ...sync, answerDue: null, awaitsDeal: false } };
+    }
+    const { timer } = message;
+    const dealDue = state.now + timer.gameStartPauseSeconds * MS_PER_SECOND;
+    const waiting = { ...sync, answerDue: dealDue, awaitsDeal: false };
+    return { ...state, firstDealDue: dealDue, sync: waiting, timer };
 }
 
 /**
@@ -177,7 +201,8 @@ function canRequestResync(session: SessionState): boolean {
  * snapshot of its own. While the reopened socket identifies, that snapshot is the request's answer: the client asks
  * only once it goes unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not decode), on the same socket, which
  * a RECONNECT the server took binds. The requests are counted for the page, whatever the session's own retries reset:
- * one past `MAX_RESYNC_REQUESTS` ends the page as failed.
+ * one past `MAX_RESYNC_REQUESTS` ends the page as failed. A client awaiting the deal asks nothing until a game message
+ * comes (`deferredUntilDeal`), and forgets the wait with its socket.
  */
 export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
     const { state } = step;
@@ -185,6 +210,12 @@ export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClien
     if (sync.kind === "in_step") {
         return step;
     }
+    return sync.awaitsDeal ? awaitedDeal(step, sync) : settledRequest(step, sync);
+}
+
+/** Ask for a snapshot when the request comes due, after moving when it does to where the socket now stands. */
+function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
+    const { state } = step;
     const answerDue = awaitedAnswerDue(state, sync);
     if (answerDue !== sync.answerDue) {
         const requested = answerDue !== null && sync.requested;
@@ -192,6 +223,16 @@ export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClien
     }
     const due = answerDue === null || state.now >= answerDue;
     return canRequestResync(state.session) && due ? requestResync(step, sync) : step;
+}
+
+/** A client awaiting the deal asks nothing; once its socket can ask no more, it forgets the wait with the request. */
+function awaitedDeal(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
+    const { state } = step;
+    const forgotten = {
+        ...state,
+        sync: { ...sync, answerDue: null, awaitsDeal: false, requested: false },
+    };
+    return canRequestResync(state.session) ? step : { ...step, state: forgotten };
 }
 
 /**

@@ -14,7 +14,12 @@ export const WIRE_GAME_STARTED: WirePayload = {
     dl: 0,
     gid: "g1",
     gt: 0,
-    p: [{ ai: 0, nm: "P0", s: 0 }],
+    p: [
+        { ai: 0, nm: "P0", s: 0 },
+        { ai: 0, nm: "P1", s: 1 },
+        { ai: 0, nm: "P2", s: 2 },
+        { ai: 0, nm: "P3", s: 3 },
+    ],
     rc: 10,
     rsv: 10,
     t: 8,
@@ -33,7 +38,12 @@ export const REPLAY_GAME_STARTED: WirePayload = {
     gid: "g1",
     gs: { riichi_cost: 1000, riichi_stick_value: 1000 },
     gt: 0,
-    p: [{ ai: 0, nm: "P0", s: 0 }],
+    p: [
+        { ai: 0, nm: "P0", s: 0 },
+        { ai: 0, nm: "P1", s: 1 },
+        { ai: 0, nm: "P2", s: 2 },
+        { ai: 0, nm: "P3", s: 3 },
+    ],
     t: 8,
 };
 
@@ -94,7 +104,12 @@ export const WIRE_ROUND_STARTED: WirePayload = {
     dl: 0,
     h: 0,
     n: 1,
-    p: [{ s: 0, sc: 250 }],
+    p: [
+        { s: 0, sc: 250 },
+        { s: 1, sc: 250 },
+        { s: 2, sc: 250 },
+        { s: 3, sc: 250 },
+    ],
     r: 0,
     t: 9,
     w: 0,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { WIRE_GAME_END, WIRE_GAME_STARTED } from "#tests/fixtures/wire";
+import { WIRE_GAME_END, WIRE_GAME_STARTED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
 import { type ReplayEvent, isReplayEvent, readReplayFile } from "@/entities/table";
 import { type ParsedServerMessage, REPLAY_VERSION, parseServerMessage } from "@/shared/protocol";
 
@@ -73,17 +73,7 @@ describe("isReplayEvent", () => {
                 scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
                 t: 4,
             },
-            round_started: {
-                cp: 0,
-                di: [0],
-                dl: 0,
-                h: 0,
-                n: 1,
-                p: [{ s: 0, sc: 250 }],
-                r: 0,
-                t: 9,
-                w: 0,
-            },
+            round_started: WIRE_ROUND_STARTED,
         };
 
         for (const [type, wire] of Object.entries(replayLines)) {

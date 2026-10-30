@@ -18,7 +18,7 @@ import {
     meldTiles,
     tile136toString,
 } from "@/entities/tile";
-import { ROUND_RESULT_TYPE, decodeMeldCompact } from "@/shared/protocol";
+import { ROUND_RESULT_TYPE, decodeMeldCompact, seatDistance } from "@/shared/protocol";
 
 const DORA_YAKU_IDS = new Set([120, 121, 122]);
 /** The han the server counts a yakuman yaku as, once per yakuman it is worth. */
@@ -116,7 +116,7 @@ interface SeatNames {
 function seatNames(players: readonly PlayerState[], dealerSeat: number): SeatNames {
     return {
         name: (seat) => players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`,
-        wind: (seat) => windName((seat - dealerSeat + 4) % 4),
+        wind: (seat) => windName(seatDistance(dealerSeat, seat)),
     };
 }
 

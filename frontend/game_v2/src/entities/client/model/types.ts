@@ -198,11 +198,13 @@ export interface InStep {
 
 /**
  * A client out of step with the server since logical time `since`: it owes and answers nothing and drops every server
- * message but a snapshot and the game's end until a snapshot rebuilds it. `answerDue` is when the resync request it
- * sent counts as unanswered and is sent again; null while none is outstanding (none sent yet, or the socket dropped,
- * whose reconnect brings a snapshot of its own). `requested`: a resync request the client sent is outstanding on the
- * open socket, so a rate limit then answers it, never the session's identity message. `unreadMessages`: the protocol
- * failures it met since it lost step, the first included, so the board says its table may be wrong.
+ * message but a snapshot, the game's end and the round end before it (the game's last) until a snapshot rebuilds it.
+ * `answerDue` is when the resync request it sent counts as unanswered and is sent again; null while none is
+ * outstanding (none sent yet, or the socket dropped, whose reconnect brings a snapshot of its own). `requested`: a
+ * resync request the client sent is outstanding on the open socket, so a rate limit then answers it, never the
+ * session's identity message. `awaitsDeal`: the server said the game has not dealt yet and no deal time lies ahead, so
+ * the client asks again only on the server's next game message. `unreadMessages`: the protocol failures it met since
+ * it lost step, the first included, so the board says its table may be wrong.
  */
 export interface Desync {
     readonly kind: "out_of_step";
@@ -211,6 +213,7 @@ export interface Desync {
     readonly since: number;
     readonly answerDue: number | null;
     readonly requested: boolean;
+    readonly awaitsDeal: boolean;
     readonly unreadMessages: number;
 }
 

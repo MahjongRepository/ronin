@@ -7,7 +7,7 @@ import {
     tableStateToDisplayState,
 } from "@/entities/table";
 import { type HandTile } from "@/entities/tile";
-import { CALL_TYPE } from "@/shared/protocol";
+import { CALL_TYPE, seatDistance } from "@/shared/protocol";
 
 import {
     type NoticeSheetDisplay,
@@ -27,7 +27,7 @@ import {
     pickingRiichi,
     tilePlays,
 } from "./decision-controls";
-import { takesIntent } from "./dispatch";
+import { takesIntent } from "./intents";
 import { decisionOf } from "./pending";
 import { PLAY_SWITCHES } from "./play-switches";
 import { type PlayAction, type PlayCommand, type PlayUi, intentCommand } from "./play-ui";
@@ -148,7 +148,7 @@ function kanSource(state: LiveClient): { position: number; meld: number } | null
                 candidate.tileIds.includes(decision.tileId) ||
                 candidate.addedTileId === decision.tileId,
         ) ?? -1;
-    return meld === -1 ? null : { meld, position: (decision.fromSeat - viewerSeat + 4) % 4 };
+    return meld === -1 ? null : { meld, position: seatDistance(viewerSeat, decision.fromSeat) };
 }
 
 function viewerBoard(

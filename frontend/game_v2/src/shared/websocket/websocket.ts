@@ -18,6 +18,8 @@ export interface SocketHandlers {
 export interface GameConnection {
     readonly send: (message: ClientMessage) => void;
     readonly disconnect: () => void;
+    /** How long a silent server is waited for before the silence is reported as a close, from the client's policy. */
+    readonly setSilenceLimit: (limitMs: number) => void;
 }
 
 export type ConnectSocket = (url: string, handlers: SocketHandlers) => GameConnection;
@@ -25,7 +27,8 @@ export type ConnectSocket = (url: string, handlers: SocketHandlers) => GameConne
 /** The close the silence watchdog reports: what a browser reports for a connection lost without a close frame. */
 const SERVER_SILENT_CLOSE = { code: CLOSE_CODE.ABNORMAL, reason: "server_silent" } as const;
 
-const SERVER_SILENCE_LIMIT_MS = 90_000;
+/** The silence a socket waits for until the client sets its limit: the longest legitimate one at the default pacing. */
+export const DEFAULT_SERVER_SILENCE_LIMIT_MS = 90_000;
 const SILENCE_CHECK_INTERVAL_MS = 5000;
 
 function isWireRecord(value: unknown): value is Record<string, unknown> {
@@ -53,13 +56,15 @@ function decodeFrame(data: unknown): DecodedFrame {
 
 /**
  * The game server socket as an IO adapter: it decodes MessagePack frames and reports open, message, close and
- * error to its handlers, and decides nothing. A server silent longer than any legitimate wait is reported as a
- * close, measured on the clock's wall time so the first check after a device wake sees the whole gap.
+ * error to its handlers, and decides nothing. A server silent longer than the limit the client sets (any legitimate
+ * wait, by its policy) is reported as a close, measured on the clock's wall time so the first check after a device
+ * wake sees the whole gap.
  */
 export class GameSocket implements GameConnection {
     private readonly ws: WebSocket;
     private readonly handlers: SocketHandlers;
     private readonly clock: Clock;
+    private silenceLimitMs = DEFAULT_SERVER_SILENCE_LIMIT_MS;
     private lastFrameAt = 0;
     private cancelWatchdog: CancelTimer | null = null;
 
@@ -80,6 +85,10 @@ export class GameSocket implements GameConnection {
     disconnect(): void {
         this.detach();
         this.ws.close();
+    }
+
+    setSilenceLimit(limitMs: number): void {
+        this.silenceLimitMs = limitMs;
     }
 
     private listen(): void {
@@ -105,7 +114,7 @@ export class GameSocket implements GameConnection {
 
     private armWatchdog(): void {
         this.cancelWatchdog = this.clock.setTimer(SILENCE_CHECK_INTERVAL_MS, () => {
-            if (this.clock.now() - this.lastFrameAt <= SERVER_SILENCE_LIMIT_MS) {
+            if (this.clock.now() - this.lastFrameAt <= this.silenceLimitMs) {
                 this.armWatchdog();
                 return;
             }

@@ -32,46 +32,19 @@ import {
 } from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
-    test("sets phase to pre_game with 4 players at score 0", () => {
-        const state = createInitialTableState();
-        const event = makeGameStartedEvent();
-        const next = applyEvent(state, event);
+    test("seats the event's players at score 0 before the first deal, with its game id and dealer", () => {
+        const next = applyEvent(
+            createInitialTableState(),
+            makeGameStartedEvent({ dealerSeat: 2, gameId: "abc-123" }),
+        );
 
-        expect(next.phase).toBe("pre_game");
-        expect(next.players).toHaveLength(4);
-        for (const player of next.players) {
-            expect(player.score).toBe(0);
-        }
-    });
-
-    test("sets gameId and dealerSeat from event", () => {
-        const state = createInitialTableState();
-        const event = makeGameStartedEvent({ dealerSeat: 2, gameId: "abc-123" });
-        const next = applyEvent(state, event);
-
-        expect(next.gameId).toBe("abc-123");
-        expect(next.dealerSeat).toBe(2);
-    });
-
-    test("sets isAiPlayer correctly from the ai flag", () => {
-        const state = createInitialTableState();
-        const event = makeGameStartedEvent();
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].isAiPlayer).toBe(false);
-        expect(next.players[1].isAiPlayer).toBe(true);
-        expect(next.players[2].isAiPlayer).toBe(true);
-        expect(next.players[3].isAiPlayer).toBe(false);
-    });
-
-    test("sets player names from event", () => {
-        const state = createInitialTableState();
-        const event = makeGameStartedEvent();
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].name).toBe("Alice");
-        expect(next.players[1].name).toBe("Bot-1");
-        expect(next.players[3].name).toBe("Bob");
+        expect([next.phase, next.gameId, next.dealerSeat]).toEqual(["pre_game", "abc-123", 2]);
+        expect(next.players.map((p) => [p.seat, p.name, p.isAiPlayer, p.score])).toEqual([
+            [0, "Alice", false, 0],
+            [1, "Bot-1", true, 0],
+            [2, "Bot-2", true, 0],
+            [3, "Bob", false, 0],
+        ]);
     });
 });
 
@@ -80,54 +53,44 @@ describe("applyEvent - round_started", () => {
         return applyEvent(createInitialTableState(), makeGameStartedEvent());
     }
 
-    test("populates tiles from player views and sets phase to in_round", () => {
-        const state = stateAfterGameStarted();
-        const event = makeRoundStartedEvent();
-        const next = applyEvent(state, event);
-
-        expect(next.phase).toBe("in_round");
-        expect(next.players[0].tiles).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-        expect(next.players[1].tiles).toEqual([13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]);
-    });
-
-    test("sets round-level fields from event", () => {
-        const state = stateAfterGameStarted();
+    test("deals the event's round: each seat's tiles and score, the sticks, dora, wind, turn and a live wall of 70", () => {
         const event = makeRoundStartedEvent({
+            currentPlayerSeat: 2,
+            dealerSeat: 2,
             doraIndicators: [10, 20],
             honbaSticks: 2,
+            players: [
+                { score: 30_000, seat: 0, tiles: [0, 1] },
+                { score: 22_000, seat: 1, tiles: [2] },
+                { score: 18_000, seat: 2, tiles: [3] },
+                { score: 30_000, seat: 3, tiles: [4] },
+            ],
             riichiSticks: 1,
             roundNumber: 3,
             wind: 1,
         });
-        const next = applyEvent(state, event);
+        const next = applyEvent(stateAfterGameStarted(), event);
 
-        expect(next.roundWind).toBe(1);
-        expect(next.honbaSticks).toBe(2);
-        expect(next.riichiSticks).toBe(1);
-        expect(next.doraIndicators).toEqual([10, 20]);
-    });
-
-    test("updates scores from player views", () => {
-        const state = stateAfterGameStarted();
-        const event = makeRoundStartedEvent({
-            players: [
-                { score: 30_000, seat: 0, tiles: [0] },
-                { score: 22_000, seat: 1, tiles: [1] },
-                { score: 18_000, seat: 2, tiles: [2] },
-                { score: 30_000, seat: 3, tiles: [3] },
-            ],
+        expect(next.players.map((p) => [p.tiles, p.score])).toEqual([
+            [[0, 1], 30_000],
+            [[2], 22_000],
+            [[3], 18_000],
+            [[4], 30_000],
+        ]);
+        expect(next).toMatchObject({
+            currentPlayerSeat: 2,
+            dealerSeat: 2,
+            doraIndicators: [10, 20],
+            honbaSticks: 2,
+            phase: "in_round",
+            riichiSticks: 1,
+            roundWind: 1,
+            tilesRemaining: 70,
         });
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].score).toBe(30_000);
-        expect(next.players[1].score).toBe(22_000);
-        expect(next.players[2].score).toBe(18_000);
-        expect(next.players[3].score).toBe(30_000);
     });
 
     test("resets previous round state (discards, melds cleared)", () => {
         const state = stateAfterGameStarted();
-        // Simulate a player with leftover round state
         const stateWithRoundData = {
             ...state,
             players: state.players.map((p) =>
@@ -178,26 +141,6 @@ describe("applyEvent - round_started", () => {
             [[], 13],
         ]);
     });
-
-    test("sets dealerSeat and currentPlayerSeat from event", () => {
-        const state = stateAfterGameStarted();
-        const event = makeRoundStartedEvent({
-            currentPlayerSeat: 2,
-            dealerSeat: 2,
-        });
-        const next = applyEvent(state, event);
-
-        expect(next.dealerSeat).toBe(2);
-        expect(next.currentPlayerSeat).toBe(2);
-    });
-
-    test("sets tilesRemaining to 70 (live wall after dealing)", () => {
-        const state = stateAfterGameStarted();
-        const event = makeRoundStartedEvent();
-        const next = applyEvent(state, event);
-
-        expect(next.tilesRemaining).toBe(70);
-    });
 });
 
 function stateAfterRoundStarted() {
@@ -229,6 +172,13 @@ describe("applyEvent - event order", () => {
         expect(() => applyEvent(state, event)).toThrow(DesyncError);
     });
 
+    test("refuses as a desync a round end paying collected sticks on a table out of step that never learned their value", () => {
+        const lost = applyEvent(createInitialTableState(), { type: "lost_step" });
+        expect(() => applyEvent(lost, makeTsumoRoundEnd({ riichiSticksCollected: 1 }))).toThrow(
+            DesyncError,
+        );
+    });
+
     test("takes the snapshot on a fresh page, in a round and after a round end", () => {
         const [error, snapshot] = parseServerMessage(WIRE_GAME_RECONNECTED);
         assert(error === null && snapshot.type === "game_reconnected");
@@ -243,56 +193,23 @@ function shownRound(state: TableState): string | undefined {
         .roundDisplay;
 }
 
-describe("applyEvent - draw throws for invalid seat", () => {
-    test("throws when no player matches the draw seat", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDrawEvent({ seat: 99, tileId: 52 });
-        expect(() => applyEvent(state, event)).toThrow("No player found for seat 99");
-    });
-});
-
-describe("applyEvent - discard throws for invalid seat", () => {
-    test("throws when no player matches the discard seat", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDiscardEvent({ seat: 99, tileId: 52 });
-        expect(() => applyEvent(state, event)).toThrow("No player found for seat 99");
+describe("applyEvent - seat lookup", () => {
+    test("refuses a move by a seat the table does not hold as a desync", () => {
+        expect(() =>
+            applyEvent(stateAfterRoundStarted(), makeDrawEvent({ seat: 99, tileId: 52 })),
+        ).toThrow(DesyncError);
     });
 });
 
 describe("applyEvent - draw", () => {
-    test("adds tile to player's hand and sets drawnTileId", () => {
+    test("appends the drawn tile to the drawer's hand, marks it drawn, gives the drawer the turn and takes it from the wall", () => {
         const state = stateAfterRoundStarted();
-        const event = makeDrawEvent({ seat: 0, tileId: 52 });
-        const next = applyEvent(state, event);
+        const next = applyEvent(state, makeDrawEvent({ seat: 2, tileId: 60 }));
 
-        expect(next.players[0].tiles).toContain(52);
-        expect(next.players[0].drawnTileId).toBe(52);
-    });
-
-    test("decrements tilesRemaining by 1", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDrawEvent({ seat: 0, tileId: 52 });
-        const next = applyEvent(state, event);
-
-        expect(next.tilesRemaining).toBe(69);
-    });
-
-    test("sets currentPlayerSeat to the drawing player", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDrawEvent({ seat: 2, tileId: 60 });
-        const next = applyEvent(state, event);
-
-        expect(next.currentPlayerSeat).toBe(2);
-    });
-
-    test("appends tile to end of existing tiles array", () => {
-        const state = stateAfterRoundStarted();
-        const originalTileCount = state.players[0].tiles.length;
-        const event = makeDrawEvent({ seat: 0, tileId: 52 });
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].tiles).toHaveLength(originalTileCount + 1);
-        expect(next.players[0].tiles[next.players[0].tiles.length - 1]).toBe(52);
+        expect(next.players[2].tiles).toEqual([...state.players[2].tiles, 60]);
+        expect([next.players[2].drawnTileId, next.currentPlayerSeat, next.tilesRemaining]).toEqual([
+            60, 2, 69,
+        ]);
     });
 });
 
@@ -366,91 +283,39 @@ describe("applyEvent - hidden hands", () => {
 });
 
 describe("applyEvent - discard", () => {
-    test("removes tile from player's hand and clears drawnTileId", () => {
-        const state = stateAfterRoundStarted();
-        // First draw a tile, then discard it
-        const afterDraw = applyEvent(state, makeDrawEvent({ seat: 0, tileId: 52 }));
-        const event = makeDiscardEvent({ seat: 0, tileId: 52 });
-        const next = applyEvent(afterDraw, event);
+    test("moves each discarded tile from the hand to the end of the river with its flags, clearing the drawn mark", () => {
+        const drawn = applyEvent(stateAfterRoundStarted(), makeDrawEvent({ seat: 0, tileId: 52 }));
+        const tsumogiri = applyEvent(
+            drawn,
+            makeDiscardEvent({ isTsumogiri: true, seat: 0, tileId: 52 }),
+        );
+        const next = applyEvent(
+            tsumogiri,
+            makeDiscardEvent({ isRiichi: true, seat: 0, tileId: 0 }),
+        );
 
-        expect(next.players[0].tiles).not.toContain(52);
-        expect(next.players[0].drawnTileId).toBeNull();
-    });
-
-    test("appends to player's discards array", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDiscardEvent({ seat: 0, tileId: 0 });
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].discards).toHaveLength(1);
-        expect(next.players[0].discards[0]).toEqual({
-            isRiichi: false,
-            isTsumogiri: false,
-            tileId: 0,
-        });
-    });
-
-    test("preserves tsumogiri flag on discard record", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDiscardEvent({ isTsumogiri: true, seat: 0, tileId: 0 });
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].discards[0].isTsumogiri).toBe(true);
-    });
-
-    test("preserves riichi flag on discard record", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDiscardEvent({ isRiichi: true, seat: 0, tileId: 0 });
-        const next = applyEvent(state, event);
-
-        expect(next.players[0].discards[0].isRiichi).toBe(true);
-    });
-
-    test("accumulates multiple discards", () => {
-        const state = stateAfterRoundStarted();
-        const after1 = applyEvent(state, makeDiscardEvent({ seat: 0, tileId: 0 }));
-        const after2 = applyEvent(after1, makeDiscardEvent({ seat: 0, tileId: 1 }));
-
-        expect(after2.players[0].discards).toHaveLength(2);
-        expect(after2.players[0].discards[0].tileId).toBe(0);
-        expect(after2.players[0].discards[1].tileId).toBe(1);
+        expect(tsumogiri.players[0].drawnTileId).toBeNull();
+        expect(next.players[0].tiles).toEqual(
+            drawn.players[0].tiles.filter((t) => t !== 52 && t !== 0),
+        );
+        expect(next.players[0].discards).toEqual([
+            { isRiichi: false, isTsumogiri: true, tileId: 52 },
+            { isRiichi: true, isTsumogiri: false, tileId: 0 },
+        ]);
     });
 });
 
 describe("applyEvent - riichi_declared", () => {
-    test("marks player as riichi", () => {
-        const state = stateAfterRoundStarted();
-        expect(state.players[1].isRiichi).toBe(false);
+    test("marks the declaring seat alone as in riichi", () => {
+        const next = applyEvent(stateAfterRoundStarted(), makeRiichiDeclaredEvent({ seat: 1 }));
 
-        const next = applyEvent(state, makeRiichiDeclaredEvent({ seat: 1 }));
-
-        expect(next.players[1].isRiichi).toBe(true);
-    });
-
-    test("does not affect other players", () => {
-        const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeRiichiDeclaredEvent({ seat: 1 }));
-
-        expect(next.players[0].isRiichi).toBe(false);
-        expect(next.players[2].isRiichi).toBe(false);
-        expect(next.players[3].isRiichi).toBe(false);
+        expect(next.players.map((p) => p.isRiichi)).toEqual([false, true, false, false]);
     });
 });
 
 describe("applyEvent - dora_revealed", () => {
-    test("appends tile to dora indicators", () => {
-        const state = stateAfterRoundStarted();
-        // round_started sets doraIndicators to [10]
-        expect(state.doraIndicators).toEqual([10]);
-
-        const next = applyEvent(state, makeDoraRevealedEvent({ tileId: 20 }));
-
-        expect(next.doraIndicators).toEqual([10, 20]);
-    });
-
-    test("accumulates multiple dora reveals", () => {
-        const state = stateAfterRoundStarted();
-        const after1 = applyEvent(state, makeDoraRevealedEvent({ tileId: 20 }));
+    test("appends each revealed indicator after the deal's", () => {
+        const after1 = applyEvent(stateAfterRoundStarted(), makeDoraRevealedEvent({ tileId: 20 }));
         const after2 = applyEvent(after1, makeDoraRevealedEvent({ tileId: 30 }));
 
         expect(after2.doraIndicators).toEqual([10, 20, 30]);
@@ -550,218 +415,84 @@ describe("applyEvent - game_reconnected", () => {
 });
 
 describe("applyEvent - game_end", () => {
-    test("sets phase to game_ended", () => {
-        const state = stateAfterRoundEnded();
-        const next = applyEvent(state, makeGameEndEvent());
+    test("ends the game with each seat's score from the standings", () => {
+        const next = applyEvent(stateAfterRoundEnded(), makeGameEndEvent());
 
         expect(next.phase).toBe("game_ended");
-    });
-
-    test("updates scores from standings array", () => {
-        const state = stateAfterRoundEnded();
-        const next = applyEvent(state, makeGameEndEvent());
-
         expect(next.players.map((player) => player.score)).toEqual([
             35_000, 22_000, 22_000, 21_000,
         ]);
     });
 });
 
-// --- round_end helpers and tests ---
-
 describe("applyEvent - round_end", () => {
-    describe("tsumo", () => {
-        test("settles each score from the event's pre-payment score and sets round_ended", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeTsumoRoundEnd({
-                scores: { "0": 25_000, "1": 24_000, "2": 25_000, "3": 25_000 },
-            });
-            const next = applyEvent(state, event);
-
-            expect(next.phase).toBe("round_ended");
-            expect(next.players.map((player) => player.score)).toEqual([
-                35_000, 21_000, 22_000, 21_000,
-            ]);
-            expect(next.roundEndResult?.scoresBeforePayment).toEqual(event.scores);
-        });
-    });
-
-    describe("ron", () => {
-        test("updates scores from scores map", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeRonRoundEnd();
-            const next = applyEvent(state, event);
-
-            expect(next.players[0].score).toBe(33_000);
-            expect(next.players[1].score).toBe(17_000);
-        });
-    });
-
-    describe("double_ron", () => {
-        test("updates scores correctly", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeDoubleRonRoundEnd();
-            const next = applyEvent(state, event);
-
-            expect(next.players[0].score).toBe(33_000);
-            expect(next.players[1].score).toBe(9000);
-            expect(next.players[2].score).toBe(33_000);
-        });
-    });
-
-    describe("exhaustive_draw", () => {
-        test("updates scores", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeExhaustiveDrawRoundEnd();
-            const next = applyEvent(state, event);
-
-            expect(next.players[0].score).toBe(26_500);
-            expect(next.players[1].score).toBe(23_500);
-        });
-    });
-
-    describe("nagashi_mangan", () => {
-        test("updates scores", () => {
-            const state = stateAfterRoundStarted();
-            const event = makeNagashiManganRoundEnd();
-            const next = applyEvent(state, event);
-
-            expect(next.players[0].score).toBe(37_000);
-            expect(next.players[1].score).toBe(21_000);
-        });
-    });
-});
-
-describe("applyEvent - round_end result data", () => {
-    test("tsumo populates single winner with correct hand data", () => {
-        const state = stateAfterRoundStarted();
-        const next = applyEvent(
-            state,
-            makeTsumoRoundEnd({ melds: [12_345], winnerSeat: 0, winningTile: 52 }),
-        );
-
-        expect(next.roundEndResult).not.toBeNull();
-        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.TSUMO);
-        expect(next.roundEndResult!.winners).toHaveLength(1);
-
-        const [winner] = next.roundEndResult!.winners;
-        expect(winner.seat).toBe(0);
-        expect(winner.melds).toEqual([12_345]);
-        expect(winner.winningTile).toBe(52);
-    });
-
-    test("tsumo populates yaku list and han/fu totals", () => {
-        const state = stateAfterRoundStarted();
+    test("settles each score from the event's pre-payment score and its change, ending the round", () => {
         const event = makeTsumoRoundEnd({
-            handResult: makeHandResult({
-                fu: 30,
-                han: 4,
-                yaku: [
-                    { han: 1, yakuId: 0 },
-                    { han: 1, yakuId: 1 },
-                    { han: 1, yakuId: 12 },
-                    { han: 1, yakuId: 120 },
-                ],
-            }),
+            scores: { "0": 25_000, "1": 24_000, "2": 25_000, "3": 25_000 },
         });
-        const next = applyEvent(state, event);
-        const [winner] = next.roundEndResult!.winners;
+        const next = applyEvent(stateAfterRoundStarted(), event);
 
-        expect(winner.handResult.han).toBe(4);
-        expect(winner.handResult.fu).toBe(30);
-        expect(winner.handResult.yaku).toHaveLength(4);
+        expect(next.phase).toBe("round_ended");
+        expect(next.players.map((player) => player.score)).toEqual([
+            35_000, 21_000, 22_000, 21_000,
+        ]);
+        expect(next.roundEndResult?.scoresBeforePayment).toEqual(event.scores);
     });
 
-    test("tsumo populates scoreChanges", () => {
-        const state = stateAfterRoundStarted();
+    test("takes a tsumo's one winner with its hand, melds, winning tile and the round's score changes", () => {
+        const handResult = makeHandResult({
+            fu: 30,
+            han: 4,
+            yaku: [
+                { han: 1, yakuId: 0 },
+                { han: 1, yakuId: 120 },
+            ],
+        });
         const event = makeTsumoRoundEnd({
-            scoreChanges: { "0": 10_000, "1": -3000, "2": -3000, "3": -4000 },
+            handResult,
+            melds: [12_345],
+            winnerSeat: 0,
+            winningTile: 52,
         });
-        const next = applyEvent(state, event);
+        const result = applyEvent(stateAfterRoundStarted(), event).roundEndResult;
 
-        expect(next.roundEndResult!.scoreChanges).toEqual({
-            "0": 10_000,
-            "1": -3000,
-            "2": -3000,
-            "3": -4000,
-        });
+        expect(result?.resultType).toBe(ROUND_RESULT_TYPE.TSUMO);
+        expect(result?.scoreChanges).toEqual(event.scoreChanges);
+        expect(result?.winners).toMatchObject([
+            { handResult, melds: [12_345], seat: 0, winningTile: 52 },
+        ]);
     });
 
-    test("ron populates winner and loserSeat", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeRonRoundEnd({
-            closedTiles: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-            loserSeat: 3,
-            winnerSeat: 1,
-            winningTile: 60,
-        });
-        const next = applyEvent(state, event);
+    test("takes a ron's winner and the seat that dealt in", () => {
+        const event = makeRonRoundEnd({ loserSeat: 3, winnerSeat: 1, winningTile: 60 });
+        const result = applyEvent(stateAfterRoundStarted(), event).roundEndResult;
 
-        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.RON);
-        expect(next.roundEndResult!.loserSeat).toBe(3);
-        expect(next.roundEndResult!.winners).toHaveLength(1);
-
-        const [winner] = next.roundEndResult!.winners;
-        expect(winner.seat).toBe(1);
-        expect(winner.winningTile).toBe(60);
+        expect([result?.resultType, result?.loserSeat]).toEqual([ROUND_RESULT_TYPE.RON, 3]);
+        expect(result?.winners).toMatchObject([{ seat: 1, winningTile: 60 }]);
     });
 
-    test("double ron populates two winners with loserSeat", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeDoubleRonRoundEnd();
-        const next = applyEvent(state, event);
+    test("takes a double ron's two winners, each with its own hand, on the one tile the seat that dealt in discarded", () => {
+        const result = applyEvent(stateAfterRoundStarted(), makeDoubleRonRoundEnd()).roundEndResult;
 
-        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.DOUBLE_RON);
-        expect(next.roundEndResult!.loserSeat).toBe(1);
-        expect(next.roundEndResult!.winners).toHaveLength(2);
-
-        const [w1, w2] = next.roundEndResult!.winners;
-        expect(w1.seat).toBe(0);
-        expect(w2.seat).toBe(2);
+        expect([result?.resultType, result?.loserSeat]).toEqual([ROUND_RESULT_TYPE.DOUBLE_RON, 1]);
+        expect(result?.winners).toMatchObject([
+            { closedTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], seat: 0, winningTile: 52 },
+            {
+                closedTiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
+                seat: 2,
+                winningTile: 52,
+            },
+        ]);
     });
 
-    test("double ron winners share the same winning tile", () => {
-        const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeDoubleRonRoundEnd());
+    test.each([
+        [ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW, makeExhaustiveDrawRoundEnd()],
+        [ROUND_RESULT_TYPE.ABORTIVE_DRAW, makeAbortiveDrawRoundEnd()],
+        [ROUND_RESULT_TYPE.NAGASHI_MANGAN, makeNagashiManganRoundEnd()],
+    ])("takes a %s with no winner", (resultType, event) => {
+        const result = applyEvent(stateAfterRoundStarted(), event).roundEndResult;
 
-        const [w1, w2] = next.roundEndResult!.winners;
-        expect(w1.winningTile).toBe(52);
-        expect(w2.winningTile).toBe(52);
-        expect(w1.closedTiles).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-        expect(w2.closedTiles).toEqual([26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
-    });
-
-    test("exhaustive draw has empty winners array", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeExhaustiveDrawRoundEnd();
-        const next = applyEvent(state, event);
-
-        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW);
-        expect(next.roundEndResult!.winners).toEqual([]);
-        expect(next.roundEndResult!.scoreChanges).toEqual({
-            "0": 1500,
-            "1": -1500,
-            "2": 1500,
-            "3": -1500,
-        });
-    });
-
-    test("abortive draw has empty winners array", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeAbortiveDrawRoundEnd();
-        const next = applyEvent(state, event);
-
-        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.ABORTIVE_DRAW);
-        expect(next.roundEndResult!.winners).toEqual([]);
-    });
-
-    test("nagashi mangan has empty winners array", () => {
-        const state = stateAfterRoundStarted();
-        const event = makeNagashiManganRoundEnd();
-        const next = applyEvent(state, event);
-
-        expect(next.roundEndResult!.resultType).toBe(ROUND_RESULT_TYPE.NAGASHI_MANGAN);
-        expect(next.roundEndResult!.winners).toEqual([]);
+        expect([result?.resultType, result?.winners]).toEqual([resultType, []]);
     });
 });
 
@@ -807,217 +538,53 @@ describe("applyEvent - result clearing", () => {
     });
 });
 
-// --- full event sequence integration helpers ---
-// Builds a realistic event sequence covering all 9 replay event types:
-// game_started -> round_started -> draw -> discard -> meld (pon) ->
-// riichi_declared -> discard (riichi) -> dora_revealed -> round_end (tsumo) -> game_end
-
-function makeIntegrationSetupEvents() {
-    const gameStarted = makeGameStartedEvent({
-        gameId: "integration-test",
-        players: [
-            { aiStandIn: null, isAiPlayer: false, name: "Alice", seat: 0 },
-            { aiStandIn: null, isAiPlayer: false, name: "Bob", seat: 1 },
-            { aiStandIn: null, isAiPlayer: true, name: "Bot-1", seat: 2 },
-            { aiStandIn: null, isAiPlayer: true, name: "Bot-2", seat: 3 },
-        ],
-    });
-
-    const roundStarted = makeRoundStartedEvent({
-        players: [
-            { score: 25_000, seat: 0, tiles: [0, 4, 5, 6, 7, 8, 9, 10, 11, 53, 54, 55, 56] },
-            { score: 25_000, seat: 1, tiles: [1, 2, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 57] },
-            { score: 25_000, seat: 2, tiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38] },
-            { score: 25_000, seat: 3, tiles: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51] },
-        ],
-    });
-
-    return { gameStarted, roundStarted };
-}
-
-function makeIntegrationMidGameEvents() {
-    // Dealer (seat 0) draws tile 52
-    const draw = makeDrawEvent({ seat: 0, tileId: 52 });
-
-    // Dealer discards tile 0 (1m) from their hand
-    const discard = makeDiscardEvent({ seat: 0, tileId: 0 });
-
-    // Seat 1 calls pon on tile 0 (1m) using tiles [1, 2] from hand + [0] called
-    const meld = makeMeldEvent({
-        calledTileId: 0,
-        callerSeat: 1,
-        fromSeat: 0,
-        meldType: "pon",
-        tileIds: [1, 2, 0],
-    });
-
-    // Seat 1 discards tile 16 after the pon
-    const discardAfterMeld = makeDiscardEvent({ seat: 1, tileId: 16 });
-
-    return { discard, discardAfterMeld, draw, meld };
-}
-
-function makeIntegrationLateGameEvents() {
-    // Seat 2 draws and declares riichi
-    const drawSeat2 = makeDrawEvent({ seat: 2, tileId: 58 });
-    const riichiDeclared = makeRiichiDeclaredEvent({ seat: 2 });
-    const riichiDiscard = makeDiscardEvent({ isRiichi: true, seat: 2, tileId: 26 });
-    const doraRevealed = makeDoraRevealedEvent({ tileId: 60 });
-
-    return { doraRevealed, drawSeat2, riichiDeclared, riichiDiscard };
-}
-
-function makeIntegrationEndEvents() {
-    // Round ends with tsumo by seat 0
-    const roundEnd = makeTsumoRoundEnd({
-        closedTiles: [4, 5, 6, 7, 8, 9, 10, 11, 53, 54, 55, 56, 52],
-        scoreChanges: { "0": 12_000, "1": -4000, "2": -4000, "3": -4000 },
-        winnerSeat: 0,
-        winningTile: 52,
-    });
-
-    // Game ends
-    const gameEnd = makeGameEndEvent({
-        numRounds: 1,
-        standings: [
-            { finalScore: 47, score: 37_000, seat: 0 },
-            { finalScore: -9, score: 21_000, seat: 1 },
-            { finalScore: -9, score: 21_000, seat: 2 },
-            { finalScore: -29, score: 21_000, seat: 3 },
-        ],
-        winnerSeat: 0,
-    });
-
-    return { gameEnd, roundEnd };
-}
-
 function buildFullEventSequence(): ReplayEvent[] {
-    const { gameStarted, roundStarted } = makeIntegrationSetupEvents();
-    const { discard, discardAfterMeld, draw, meld } = makeIntegrationMidGameEvents();
-    const { doraRevealed, drawSeat2, riichiDeclared, riichiDiscard } =
-        makeIntegrationLateGameEvents();
-    const { gameEnd, roundEnd } = makeIntegrationEndEvents();
-
     return [
-        gameStarted,
-        roundStarted,
-        draw,
-        discard,
-        meld,
-        discardAfterMeld,
-        drawSeat2,
-        riichiDeclared,
-        riichiDiscard,
-        doraRevealed,
-        roundEnd,
-        gameEnd,
+        makeGameStartedEvent(),
+        makeRoundStartedEvent({
+            players: [
+                { score: 25_000, seat: 0, tiles: [0, 4, 5, 6, 7, 8, 9, 10, 11, 53, 54, 55, 56] },
+                {
+                    score: 25_000,
+                    seat: 1,
+                    tiles: [1, 2, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 57],
+                },
+                {
+                    score: 25_000,
+                    seat: 2,
+                    tiles: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
+                },
+                {
+                    score: 25_000,
+                    seat: 3,
+                    tiles: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+                },
+            ],
+        }),
+        makeDrawEvent({ seat: 0, tileId: 52 }),
+        makeDiscardEvent({ seat: 0, tileId: 0 }),
+        makeMeldEvent({
+            calledTileId: 0,
+            callerSeat: 1,
+            fromSeat: 0,
+            meldType: "pon",
+            tileIds: [1, 2, 0],
+        }),
+        makeDiscardEvent({ seat: 1, tileId: 16 }),
+        makeDrawEvent({ seat: 2, tileId: 58 }),
+        makeRiichiDeclaredEvent({ seat: 2 }),
+        makeDiscardEvent({ isRiichi: true, seat: 2, tileId: 26 }),
+        makeDoraRevealedEvent({ tileId: 60 }),
+        makeTsumoRoundEnd({
+            closedTiles: [4, 5, 6, 7, 8, 9, 10, 11, 53, 54, 55, 56, 52],
+            winnerSeat: 0,
+            winningTile: 52,
+        }),
+        makeGameEndEvent(),
     ];
 }
 
-function replayAllEvents(events: ReplayEvent[]) {
-    const states: ReturnType<typeof applyEvent>[] = [createInitialTableState()];
-    for (const event of events) {
-        const prev = states[states.length - 1];
-        states.push(applyEvent(prev, event));
-    }
-    return states;
-}
-
-function replayToFinalState() {
-    const events = buildFullEventSequence();
-    let state = createInitialTableState();
-    for (const event of events) {
-        state = applyEvent(state, event);
-    }
-    return state;
-}
-
-describe("applyEvent - full event sequence integration", () => {
-    test("final state has correct game-level fields", () => {
-        const state = replayToFinalState();
-
-        expect(state.gameId).toBe("integration-test");
-        expect(state.phase).toBe("game_ended");
-    });
-
-    test("final state has correct scores from game_end standings", () => {
-        const state = replayToFinalState();
-
-        expect(state.players[0].score).toBe(37_000);
-        expect(state.players[1].score).toBe(21_000);
-        expect(state.players[2].score).toBe(21_000);
-        expect(state.players[3].score).toBe(21_000);
-    });
-
-    test("final state preserves player names and AI flags", () => {
-        const state = replayToFinalState();
-
-        expect(state.players[0].name).toBe("Alice");
-        expect(state.players[1].name).toBe("Bob");
-        expect(state.players[2].isAiPlayer).toBe(true);
-        expect(state.players[3].isAiPlayer).toBe(true);
-    });
-
-    describe("intermediate states reflect each event correctly", () => {
-        function getAllStates() {
-            return replayAllEvents(buildFullEventSequence());
-        }
-
-        test("game_started sets pre_game phase with 4 players", () => {
-            const states = getAllStates();
-            expect(states[1].phase).toBe("pre_game");
-            expect(states[1].players).toHaveLength(4);
-        });
-
-        test("round_started sets in_round phase with tiles and dora", () => {
-            const states = getAllStates();
-
-            expect(states[2].phase).toBe("in_round");
-            expect(states[2].players[0].tiles).toHaveLength(13);
-            expect(states[2].roundWind).toBe(0);
-            expect(states[2].doraIndicators).toEqual([10]);
-        });
-
-        test("draw adds tile to hand and sets drawnTileId", () => {
-            const states = getAllStates();
-
-            expect(states[3].players[0].tiles).toHaveLength(14);
-            expect(states[3].players[0].tiles).toContain(52);
-            expect(states[3].players[0].drawnTileId).toBe(52);
-        });
-
-        test("discard removes tile and adds to discards", () => {
-            const states = getAllStates();
-
-            expect(states[4].players[0].tiles).toHaveLength(13);
-            expect(states[4].players[0].tiles).not.toContain(0);
-            expect(states[4].players[0].discards).toHaveLength(1);
-            expect(states[4].players[0].discards[0].tileId).toBe(0);
-        });
-
-        test("meld creates pon and marks discard as claimed", () => {
-            const states = getAllStates();
-
-            expect(states[5].players[1].melds).toHaveLength(1);
-            expect(states[5].players[1].melds[0].meldType).toBe("pon");
-            expect(states[5].players[1].tiles).not.toContain(1);
-            expect(states[5].players[1].tiles).not.toContain(2);
-            expect(states[5].players[0].discards[0].claimed).toBe(true);
-        });
-
-        test("riichi, dora, round_end, and game_end transition correctly", () => {
-            const states = getAllStates();
-
-            expect(states[8].players[2].isRiichi).toBe(true);
-            expect(states[9].players[2].discards).toHaveLength(1);
-            expect(states[9].players[2].discards[0].isRiichi).toBe(true);
-            expect(states[10].doraIndicators).toEqual([10, 60]);
-            expect(states[11].phase).toBe("round_ended");
-            expect(states[11].players[0].score).toBe(37_000);
-            expect(states[12].phase).toBe("game_ended");
-        });
-    });
-
+describe("applyEvent - timeline", () => {
     test("keeps every earlier state of the timeline as it was when each later event applies", () => {
         const states: TableState[] = [createInitialTableState()];
         const takenWhenMade: TableState[] = [structuredClone(states[0])];

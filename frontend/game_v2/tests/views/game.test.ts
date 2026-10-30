@@ -1,4 +1,4 @@
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { type MockInstance, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { ManualClock } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
@@ -31,6 +31,7 @@ import { type GameViewDeps, mountGameView } from "@/views/game";
 class FakeConnection implements GameConnection {
     readonly sent: ClientMessage[] = [];
     disconnected = false;
+    silenceLimitMs: number | null = null;
 
     constructor(
         readonly url: string,
@@ -43,6 +44,10 @@ class FakeConnection implements GameConnection {
 
     disconnect(): void {
         this.disconnected = true;
+    }
+
+    setSilenceLimit(limitMs: number): void {
+        this.silenceLimitMs = limitMs;
     }
 }
 
@@ -315,6 +320,8 @@ describe("mountGameView", () => {
     });
 
     it("ends as failed, shown on the page, when running an effect throws, and keeps taking input", () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+        onTestFinished(() => consoleError.mockRestore());
         const { connections, host, sink } = mountWithFakes({
             clearHandoff: () => {
                 throw new Error("storage blocked");
@@ -435,7 +442,120 @@ describe("mountGameView final standings", () => {
     });
 });
 
+/** Make the standings' `value`, which every draw reads, throw on the next `count` draws: a bug the view meets mid-draw. */
+function throwOnDraws(standings: FakeStandingsLoad, count: number): void {
+    let left = count;
+    standings.value = () => {
+        if (left > 0) {
+            left -= 1;
+            throw new Error("the board broke");
+        }
+        return null;
+    };
+}
+
+function statusLabel(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game-menu__status-label")?.textContent;
+}
+
+function silenceConsoleErrors(): MockInstance<typeof console.error> {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => consoleError.mockRestore());
+    return consoleError;
+}
+
+describe("mountGameView failure boundary", () => {
+    it("ends as failed, with its socket closed, when drawing the state a step left throws, its error on the console", () => {
+        const consoleError = silenceConsoleErrors();
+        const standings = new FakeStandingsLoad();
+        const { connections, host } = mountWithFakes({ standings });
+        connections[0].handlers.onOpen();
+        throwOnDraws(standings, 1);
+
+        connections[0].handlers.onMessage(WIRE_GAME_JOINED);
+
+        expect([statusLabel(host), connections[0].disconnected]).toEqual([
+            "Something went wrong",
+            true,
+        ]);
+        expect(consoleError.mock.calls.map(([text]) => text)).toEqual(["The game page failed:"]);
+    });
+
+    it("ends as failed, with its socket closed, when drawing a page command's view change throws", () => {
+        silenceConsoleErrors();
+        const standings = new FakeStandingsLoad();
+        const { connections, host } = mountWithFakes({ standings });
+        openCallPrompt(connections[0]);
+        throwOnDraws(standings, 1);
+
+        press(host, ".game-menu__leave");
+
+        expect([statusLabel(host), connections[0].disconnected]).toEqual([
+            "Something went wrong",
+            true,
+        ]);
+        expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
+    });
+
+    it("shows a bare notice with a reload, and nothing of the board, when even the failed state cannot be drawn", () => {
+        const consoleError = silenceConsoleErrors();
+        const standings = new FakeStandingsLoad();
+        const { connections, host, sink } = mountWithFakes({ standings });
+        connections[0].handlers.onOpen();
+        throwOnDraws(standings, Number.POSITIVE_INFINITY);
+
+        connections[0].handlers.onMessage(WIRE_GAME_JOINED);
+        host.querySelector<HTMLElement>(".game--broken button")?.click();
+
+        expect([
+            host.querySelector(".game--broken")?.textContent?.trim(),
+            host.querySelector(".game-board"),
+            connections[0].disconnected,
+            vi.mocked(sink.reload).mock.calls.length,
+        ]).toEqual([
+            expect.stringMatching(/^The game page ran into an error\.\s*Reload$/),
+            null,
+            true,
+            1,
+        ]);
+        expect(consoleError.mock.calls.map(([text]) => text)).toEqual([
+            "The game page failed:",
+            "The failed game page could not be drawn:",
+        ]);
+    });
+
+    it("ends as failed, shown on the page with its socket closed, when a load's redraw throws", () => {
+        const consoleError = silenceConsoleErrors();
+        const standings = new FakeStandingsLoad("loading");
+        const { connections, host } = mountWithFakes({ standings });
+        endGameOnStandings(connections[0], host);
+        standings.value = () => () => {
+            throw new Error("the standings broke");
+        };
+
+        standings.moveTo("ready");
+
+        expect(host.querySelector(".game-menu__status-label")?.textContent).toBe(
+            "Something went wrong",
+        );
+        expect(connections[0].disconnected).toBe(true);
+        expect(consoleError.mock.calls.map(([text]) => text)).toEqual(["The game page failed:"]);
+    });
+});
+
 describe("mountGameView connection", () => {
+    it("sets the socket's silence limit past the longest wait the game's timer settings allow, never under the default", () => {
+        const { connections } = mountWithFakes();
+        const [socket] = connections;
+        socket.handlers.onOpen();
+        socket.handlers.onMessage(WIRE_GAME_JOINED);
+        const beforeSettings = socket.silenceLimitMs;
+        const timer = { bk: 120, gp: 3, mb: 180, md: 5, ra: 15, rb: 10, tb: 10 };
+        socket.handlers.onMessage({ ...WIRE_GAME_STARTED, s: 0, tm: timer });
+
+        expect([beforeSettings, socket.silenceLimitMs]).toEqual([90_000, 215_000]);
+    });
+
     it("gives up on a socket that never opens after 10 s and opens another on the retry", () => {
         const { clock, connections, host } = mountWithFakes();
 

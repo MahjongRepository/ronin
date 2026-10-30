@@ -15,6 +15,30 @@ import {
     turnSchema,
 } from "@/shared/protocol/schemas/events";
 
+const SEATS = [0, 1, 2, 3] as const;
+
+interface WirePlayer {
+    readonly ai: number;
+    readonly nm: string;
+    readonly s: number;
+}
+
+interface WirePlayerView {
+    readonly s: number;
+    readonly sc: number;
+    readonly tl?: readonly number[];
+}
+
+/** A game start's four seats in seat order: `named` at its own seat, a plain player at each other. */
+function fourPlayers(named: WirePlayer): WirePlayer[] {
+    return SEATS.map((seat) => (seat === named.s ? named : { ai: 0, nm: `P${seat}`, s: seat }));
+}
+
+/** A deal's four seats in seat order: `shown` at its own seat, the starting score at each other. */
+function fourViews(shown: WirePlayerView): WirePlayerView[] {
+    return SEATS.map((seat) => (seat === shown.s ? shown : { s: seat, sc: 250 }));
+}
+
 describe("gameStartedSchema", () => {
     it("parses realistic wire payload with 4 players", () => {
         const wire = {
@@ -63,7 +87,7 @@ describe("gameStartedSchema", () => {
             dl: 0,
             gid: "g1",
             gt: GAME_TYPE.TONPUSEN,
-            p: [{ ai: 1, nm: "Bot", s: 0 }],
+            p: fourPlayers({ ai: 1, nm: "Bot", s: 0 }),
             rc: 10,
             rsv: 10,
             t: EVENT_TYPE.GAME_STARTED,
@@ -81,7 +105,7 @@ describe("gameStartedSchema", () => {
             dl: 0,
             gid: "g1",
             gt: GAME_TYPE.TONPUSEN,
-            p: [{ ai: 0, nm: "Alice", s: 2 }],
+            p: fourPlayers({ ai: 0, nm: "Alice", s: 2 }),
             rc: 10,
             rsv: 10,
             t: EVENT_TYPE.GAME_STARTED,
@@ -118,13 +142,41 @@ describe("gameStartedSchema", () => {
             dl: 0,
             gid: "g1",
             gt: GAME_TYPE.TONPUSEN,
-            p: [{ ai: 0, nm: "Alice", s: 0 }],
+            p: fourPlayers({ ai: 0, nm: "Alice", s: 0 }),
             rc: 10,
             rsv: 15.5,
             t: EVENT_TYPE.GAME_STARTED,
         };
         expect(() => gameStartedSchema.parse(wire)).toThrow();
         expect(gameStartedSchema.parse({ ...wire, rsv: 15 }).riichiStickValue).toBe(1500);
+    });
+
+    it("refuses a game start or a deal that does not list each of the four seats once, in seat order", () => {
+        const players = fourPlayers({ ai: 0, nm: "Alice", s: 0 });
+        const views = fourViews({ s: 0, sc: 250 });
+        const start = {
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            dl: 0,
+            gid: "g1",
+            gt: GAME_TYPE.HANCHAN,
+            p: players,
+            rc: 10,
+            rsv: 10,
+            t: EVENT_TYPE.GAME_STARTED,
+        };
+        const deal = { cp: 0, di: [10], dl: 0, h: 0, n: 0, p: views, r: 0, t: 9, w: 0 };
+
+        for (const p of [players.slice(0, 3), [players[1], players[0], ...players.slice(2)]]) {
+            expect(() => gameStartedSchema.parse({ ...start, p })).toThrow(
+                "the game start does not seat each of the four seats once, in seat order",
+            );
+        }
+        expect(() => roundStartedSchema.parse({ ...deal, p: views.slice(1) })).toThrow(
+            "the deal does not list each of the four seats once, in seat order",
+        );
     });
 });
 
@@ -164,7 +216,7 @@ describe("roundStartedSchema (live)", () => {
             h: 0,
             mt: [0],
             n: 1,
-            p: [{ s: 0, sc: 250 }],
+            p: fourViews({ s: 0, sc: 250 }),
             r: 0,
             s: 0,
             t: EVENT_TYPE.ROUND_STARTED,
@@ -182,7 +234,7 @@ describe("roundStartedSchema (live)", () => {
             h: 0,
             mt: [0],
             n: 1,
-            p: [{ s: 0, sc: 250 }],
+            p: fourViews({ s: 0, sc: 250 }),
             r: 0,
             s: 0,
             t: EVENT_TYPE.ROUND_STARTED,
@@ -201,7 +253,7 @@ describe("roundStartedSchema (live)", () => {
             h: 0,
             mt: [0],
             n: 1,
-            p: [{ s: 0, sc: 250 }],
+            p: fourViews({ s: 0, sc: 250 }),
             r: 0,
             s: 0,
             t: EVENT_TYPE.ROUND_STARTED,
@@ -219,7 +271,7 @@ describe("roundStartedSchema (live)", () => {
             h: 0,
             mt: [0],
             n: 1,
-            p: [{ s: 0, sc: 250 }],
+            p: fourViews({ s: 0, sc: 250 }),
             r: 0,
             s: 0,
             t: EVENT_TYPE.ROUND_STARTED,
@@ -241,6 +293,8 @@ describe("roundStartedSchema (replay)", () => {
             p: [
                 { s: 0, sc: 250, tl: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] },
                 { s: 1, sc: 250, tl: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49] },
+                { s: 2, sc: 250, tl: [2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50] },
+                { s: 3, sc: 250, tl: [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51] },
             ],
             r: 0,
             t: EVENT_TYPE.ROUND_STARTED,
@@ -260,7 +314,7 @@ describe("roundStartedSchema (replay)", () => {
             dl: 1,
             h: 3,
             n: 5,
-            p: [{ s: 0, sc: 300, tl: [0] }],
+            p: fourViews({ s: 0, sc: 300, tl: [0] }),
             r: 2,
             t: EVENT_TYPE.ROUND_STARTED,
             w: 1,

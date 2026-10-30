@@ -7,187 +7,93 @@ import {
     makeMeldEvent,
     makeRoundStartedEvent,
 } from "#tests/fixtures/events";
+import { DesyncError } from "@/entities/table";
 import { applyEvent } from "@/entities/table/model/apply-event";
-import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
-import { type GameStartedEvent, type MeldEvent, type RoundStartedEvent } from "@/shared/protocol";
-
-function gameStartedWithNamedPlayers(): GameStartedEvent {
-    return makeGameStartedEvent({
-        players: [
-            { aiStandIn: null, isAiPlayer: false, name: "Alice", seat: 0 },
-            { aiStandIn: null, isAiPlayer: false, name: "Bob", seat: 1 },
-            { aiStandIn: null, isAiPlayer: true, name: "Charlie", seat: 2 },
-            { aiStandIn: null, isAiPlayer: true, name: "Diana", seat: 3 },
-        ],
-    });
-}
+import { type KanDeclaredEvent, type TableState } from "@/entities/table/model/types";
+import { KAN_TYPE, type MeldEvent, type RoundStartedEvent } from "@/shared/protocol";
 
 function roundStartedWithMeldHands(): RoundStartedEvent {
     return makeRoundStartedEvent({
         players: [
-            // Alice: 1m-1m-1m-2m-3m-4m-5m-6m-7m-8m-9m-1p-1p (tiles 0-12)
             { score: 25_000, seat: 0, tiles: [0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 36, 37] },
-            // Bob: tiles 40-52
             { score: 25_000, seat: 1, tiles: [40, 41, 42, 44, 48, 52, 56, 60, 64, 68, 72, 76, 77] },
-            // Charlie: tiles 80-92
             {
                 score: 25_000,
                 seat: 2,
                 tiles: [80, 81, 82, 84, 88, 92, 96, 100, 104, 108, 112, 116, 117],
             },
-            // Diana: tiles starting at 3 (1m copy 4), various
             { score: 25_000, seat: 3, tiles: [3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19] },
         ],
     });
 }
 
-function stateAfterRoundStarted() {
-    let state = applyEvent(createInitialTableState(), gameStartedWithNamedPlayers());
-    state = applyEvent(state, roundStartedWithMeldHands());
-    return state;
+function stateAfterRoundStarted(): TableState {
+    const state = applyEvent(createInitialTableState(), makeGameStartedEvent());
+    return applyEvent(state, roundStartedWithMeldHands());
 }
 
-function drawTile(state: ReturnType<typeof createInitialTableState>, seat: number, tileId: number) {
+function drawTile(state: TableState, seat: number, tileId: number): TableState {
     return applyEvent(state, makeDrawEvent({ seat, tileId }));
 }
 
-function stateWithDiscard(seat: number, tileId: number) {
+function stateWithDiscard(seat: number, tileId: number): TableState {
     const state = drawTile(stateAfterRoundStarted(), seat, tileId);
     return applyEvent(state, makeDiscardEvent({ seat, tileId }));
 }
 
-function stateWithPon() {
-    // Bob (seat 1) discards tile 38 (1p), Alice calls pon with [36, 37, 38]
-    const state = stateWithDiscard(1, 38);
-    const ponEvent = makeMeldEvent({
-        calledTileId: 38,
+function ponOf1p(calledTileId = 38): MeldEvent {
+    return makeMeldEvent({
+        calledTileId,
         callerSeat: 0,
         fromSeat: 1,
         meldType: "pon",
-        tileIds: [36, 37, 38],
+        tileIds: [36, 37, calledTileId],
     });
-    return applyEvent(state, ponEvent);
 }
 
-function stateWithChiAndPon() {
-    // Diana (seat 3) discards tile 5, Alice calls chi
-    let state = stateWithDiscard(3, 5);
-    const chiEvent = makeMeldEvent({
-        calledTileId: 5,
-        callerSeat: 0,
-        fromSeat: 3,
-        meldType: "chi",
-        tileIds: [0, 5, 8],
-    });
-    state = applyEvent(state, chiEvent);
+const CHI_OF_2M = makeMeldEvent({
+    calledTileId: 5,
+    callerSeat: 0,
+    fromSeat: 3,
+    meldType: "chi",
+    tileIds: [0, 5, 8],
+});
 
-    // Bob draws 38, then discards it; Alice pons with 36, 37
-    state = drawTile(state, 1, 38);
-    state = applyEvent(state, makeDiscardEvent({ seat: 1, tileId: 38 }));
-    const ponEvent = makeMeldEvent({
-        calledTileId: 38,
-        callerSeat: 0,
-        fromSeat: 1,
-        meldType: "pon",
-        tileIds: [36, 37, 38],
-    });
-    return applyEvent(state, ponEvent);
+function stateWithChiAndPon(): TableState {
+    const chi = applyEvent(stateWithDiscard(3, 5), CHI_OF_2M);
+    const discarded = applyEvent(drawTile(chi, 1, 38), makeDiscardEvent({ seat: 1, tileId: 38 }));
+    return applyEvent(discarded, ponOf1p());
+}
+
+function claimedFlags(state: TableState, seat: number): (boolean | undefined)[] {
+    return state.players[seat].discards.map((d) => d.claimed);
 }
 
 describe("applyEvent - meld - chi", () => {
-    test("removes 2 tiles from caller's hand", () => {
-        // Diana (seat 3) discards tile 5 (2m), Alice (seat 0) calls chi with 1m-2m-3m
-        const state = stateWithDiscard(3, 5);
-
-        // Alice has tiles [0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 36, 37]
-        // Chi: tiles [0, 5, 8] where 5 is the called tile from Diana
-        const meldEvent = makeMeldEvent({
-            calledTileId: 5,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "chi",
-            tileIds: [0, 5, 8],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        // Tiles 0 and 8 removed from Alice's hand (5 was from discard, not in hand)
-        expect(next.players[0].tiles).not.toContain(0);
-        expect(next.players[0].tiles).not.toContain(8);
-        // Tile 5 was never in Alice's hand, it came from the discard
-        expect(next.players[0].melds).toHaveLength(1);
-        expect(next.players[0].melds[0].meldType).toBe("chi");
-    });
-
-    test("marks last discard of fromSeat as claimed", () => {
-        const state = stateWithDiscard(3, 5);
-
-        const meldEvent = makeMeldEvent({
-            calledTileId: 5,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "chi",
-            tileIds: [0, 5, 8],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        const dianaDiscards = next.players[3].discards;
-        expect(dianaDiscards[dianaDiscards.length - 1].claimed).toBe(true);
-    });
-
-    test("clears caller's drawnTileId", () => {
-        // Give Alice a drawn tile, then call chi
+    test("takes the caller's two tiles into the chi, claims the discard and clears the caller's drawn mark", () => {
         const state = drawTile(stateWithDiscard(3, 5), 0, 53);
+        const next = applyEvent(state, CHI_OF_2M);
 
-        const meldEvent = makeMeldEvent({
-            calledTileId: 5,
-            callerSeat: 0,
-            fromSeat: 3,
-            meldType: "chi",
-            tileIds: [0, 5, 8],
-        });
-        const next = applyEvent(state, meldEvent);
-
+        expect(next.players[0].tiles).toEqual(
+            state.players[0].tiles.filter((t) => t !== 0 && t !== 8),
+        );
+        expect(next.players[0].melds.map((m) => m.meldType)).toEqual(["chi"]);
         expect(next.players[0].drawnTileId).toBeNull();
+        expect(claimedFlags(next, 3)).toEqual([true]);
     });
 });
 
 describe("applyEvent - meld - pon", () => {
-    test("removes 2 tiles from caller's hand", () => {
-        // Bob (seat 1) discards tile 38 (1p), Alice has tiles 36, 37 in hand
+    test("takes the caller's two tiles into the pon and claims the discard", () => {
         const state = stateWithDiscard(1, 38);
+        const next = applyEvent(state, ponOf1p());
 
-        // Pon: Alice calls with [36, 37, 38] - calledTile 38 from Bob
-        const meldEvent = makeMeldEvent({
-            calledTileId: 38,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "pon",
-            tileIds: [36, 37, 38],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        expect(next.players[0].tiles).not.toContain(36);
-        expect(next.players[0].tiles).not.toContain(37);
-        expect(next.players[0].melds).toHaveLength(1);
-        expect(next.players[0].melds[0].meldType).toBe("pon");
-        expect(next.players[0].melds[0].tileIds).toEqual([36, 37, 38]);
-    });
-
-    test("marks last discard of fromSeat as claimed", () => {
-        const state = stateWithDiscard(1, 38);
-
-        const meldEvent = makeMeldEvent({
-            calledTileId: 38,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "pon",
-            tileIds: [36, 37, 38],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        const bobDiscards = next.players[1].discards;
-        expect(bobDiscards[bobDiscards.length - 1].claimed).toBe(true);
+        expect(next.players[0].tiles).toEqual(
+            state.players[0].tiles.filter((t) => t !== 36 && t !== 37),
+        );
+        expect(next.players[0].melds).toMatchObject([{ meldType: "pon", tileIds: [36, 37, 38] }]);
+        expect(claimedFlags(next, 1)).toEqual([true]);
     });
 
     test("refuses a call on a tile that is not the table's latest discard as a desync", () => {
@@ -196,193 +102,96 @@ describe("applyEvent - meld - pon", () => {
             drawTile(state, 2, 120),
             makeDiscardEvent({ seat: 2, tileId: 120 }),
         );
-        function pon(calledTileId: number): MeldEvent {
-            return makeMeldEvent({
-                calledTileId,
-                callerSeat: 0,
-                fromSeat: 1,
-                meldType: "pon",
-                tileIds: [36, 37, calledTileId],
-            });
-        }
 
-        expect(() => applyEvent(state, pon(39))).toThrow(DesyncError);
-        expect(() => applyEvent(passed, pon(38))).toThrow(DesyncError);
-    });
-});
-
-describe("applyEvent - meld - open_kan", () => {
-    test("removes 3 tiles from caller's hand", () => {
-        // Alice has tiles 0, 1, 2 (three 1m copies). Bob discards tile 3 (fourth 1m copy).
-        const state = stateWithDiscard(1, 3);
-
-        const meldEvent = makeMeldEvent({
-            calledTileId: 3,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "open_kan",
-            tileIds: [0, 1, 2, 3],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        expect(next.players[0].tiles).not.toContain(0);
-        expect(next.players[0].tiles).not.toContain(1);
-        expect(next.players[0].tiles).not.toContain(2);
-        expect(next.players[0].melds).toHaveLength(1);
-        expect(next.players[0].melds[0].meldType).toBe("open_kan");
+        expect(() => applyEvent(state, ponOf1p(39))).toThrow(DesyncError);
+        expect(() => applyEvent(passed, ponOf1p(38))).toThrow(DesyncError);
     });
 
-    test("marks last discard of fromSeat as claimed", () => {
-        const state = stateWithDiscard(1, 3);
+    test("refuses a call by or from a seat the table does not hold, or of tiles the caller does not hold, as a desync", () => {
+        const state = stateWithDiscard(1, 38);
 
-        const meldEvent = makeMeldEvent({
-            calledTileId: 3,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "open_kan",
-            tileIds: [0, 1, 2, 3],
-        });
-        const next = applyEvent(state, meldEvent);
-
-        const bobDiscards = next.players[1].discards;
-        expect(bobDiscards[bobDiscards.length - 1].claimed).toBe(true);
-    });
-});
-
-describe("applyEvent - meld - closed_kan", () => {
-    function makeClosedKanEvent(): MeldEvent {
-        return makeMeldEvent({
-            calledTileId: null,
-            callerSeat: 0,
-            fromSeat: null,
-            meldType: "closed_kan",
-            tileIds: [0, 1, 2, 3],
-        });
-    }
-
-    function stateReadyForClosedKan() {
-        // Alice already has tiles 0, 1, 2. Give her tile 3 via draw.
-        return drawTile(stateAfterRoundStarted(), 0, 3);
-    }
-
-    test("removes all 4 tiles from caller's hand", () => {
-        const next = applyEvent(stateReadyForClosedKan(), makeClosedKanEvent());
-
-        expect(next.players[0].tiles).not.toContain(0);
-        expect(next.players[0].tiles).not.toContain(1);
-        expect(next.players[0].tiles).not.toContain(2);
-        expect(next.players[0].tiles).not.toContain(3);
-        expect(next.players[0].melds).toHaveLength(1);
-        expect(next.players[0].melds[0].meldType).toBe("closed_kan");
-    });
-
-    test("does not mark any discard as claimed (no fromSeat)", () => {
-        const next = applyEvent(stateReadyForClosedKan(), makeClosedKanEvent());
-
-        for (const player of next.players) {
-            for (const discard of player.discards) {
-                expect(discard.claimed).toBeUndefined();
-            }
-        }
-    });
-
-    test("clears drawnTileId", () => {
-        const state = stateReadyForClosedKan();
-        expect(state.players[0].drawnTileId).toBe(3);
-
-        const next = applyEvent(state, makeClosedKanEvent());
-
-        expect(next.players[0].drawnTileId).toBeNull();
-    });
-});
-
-describe("applyEvent - meld - added_kan", () => {
-    function makeAddedKanEvent(): MeldEvent {
-        // calledTileId is the original pon's called tile (38).
-        // The handler derives the added tile (39) by comparing
-        // event.tileIds against the existing pon's tileIds.
-        return makeMeldEvent({
-            calledTileId: 38,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "added_kan",
-            tileIds: [36, 37, 38, 39],
-        });
-    }
-
-    test("removes 1 tile from caller's hand and replaces matching pon meld", () => {
-        const ponState = stateWithPon();
-        expect(ponState.players[0].melds).toHaveLength(1);
-        expect(ponState.players[0].melds[0].meldType).toBe("pon");
-
-        // Alice draws tile 39 (fourth 1p copy) and declares added_kan
-        const state = drawTile(ponState, 0, 39);
-        const next = applyEvent(state, makeAddedKanEvent());
-
-        expect(next.players[0].tiles).not.toContain(39);
-        expect(next.players[0].melds).toHaveLength(1);
-        expect(next.players[0].melds[0].meldType).toBe("added_kan");
-        expect(next.players[0].melds[0].tileIds).toEqual([36, 37, 38, 39]);
-    });
-
-    test("stores addedTileId and preserves original calledTileId", () => {
-        const ponState = stateWithPon();
-        const state = drawTile(ponState, 0, 39);
-        const next = applyEvent(state, makeAddedKanEvent());
-
-        const [kanMeld] = next.players[0].melds;
-        // calledTileId remains the original pon's called tile
-        expect(kanMeld.calledTileId).toBe(38);
-        // addedTileId is the tile derived from the hand
-        expect(kanMeld.addedTileId).toBe(39);
-    });
-
-    test("preserves other melds when replacing pon with added_kan", () => {
-        const chiAndPonState = stateWithChiAndPon();
-        expect(chiAndPonState.players[0].melds).toHaveLength(2);
-
-        // Draw tile 39 and upgrade pon to added_kan
-        const state = drawTile(chiAndPonState, 0, 39);
-        const next = applyEvent(state, makeAddedKanEvent());
-
-        expect(next.players[0].melds).toHaveLength(2);
-        expect(next.players[0].melds[0].meldType).toBe("chi");
-        expect(next.players[0].melds[1].meldType).toBe("added_kan");
-    });
-
-    test("throws when no matching pon exists for added_kan", () => {
-        const state = stateAfterRoundStarted();
-        const addedKanEvent = makeMeldEvent({
-            calledTileId: 38,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "added_kan",
-            tileIds: [36, 37, 38, 39],
-        });
-        expect(() => applyEvent(state, addedKanEvent)).toThrow(
-            "No matching pon found for added_kan at seat 0",
+        expect(() => applyEvent(state, { ...ponOf1p(), callerSeat: 9 })).toThrow(DesyncError);
+        expect(() => applyEvent(state, { ...ponOf1p(), fromSeat: 9 })).toThrow(DesyncError);
+        expect(() => applyEvent(state, { ...ponOf1p(), tileIds: [38, 100, 101] })).toThrow(
+            DesyncError,
         );
     });
 });
 
-describe("applyEvent - meld - immutability", () => {
-    test("does not mutate the input state", () => {
-        const state = stateWithDiscard(1, 38);
-        const originalTiles = [...state.players[0].tiles];
-        const originalMelds = [...state.players[0].melds];
-        const originalDiscards = [...state.players[1].discards];
+describe("applyEvent - meld - open_kan", () => {
+    test("takes the caller's three tiles into the kan and claims the discard", () => {
+        const state = stateWithDiscard(1, 3);
+        const next = applyEvent(
+            state,
+            makeMeldEvent({
+                calledTileId: 3,
+                callerSeat: 0,
+                fromSeat: 1,
+                meldType: "open_kan",
+                tileIds: [0, 1, 2, 3],
+            }),
+        );
 
-        const meldEvent = makeMeldEvent({
-            calledTileId: 38,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "pon",
-            tileIds: [36, 37, 38],
-        });
-        applyEvent(state, meldEvent);
+        expect(next.players[0].tiles).toEqual(state.players[0].tiles.filter((t) => t > 2));
+        expect(next.players[0].melds.map((m) => m.meldType)).toEqual(["open_kan"]);
+        expect(claimedFlags(next, 1)).toEqual([true]);
+    });
+});
 
-        expect(state.players[0].tiles).toEqual(originalTiles);
-        expect(state.players[0].melds).toEqual(originalMelds);
-        expect(state.players[1].discards).toEqual(originalDiscards);
+describe("applyEvent - meld - closed_kan", () => {
+    test("takes all four tiles from the hand, clearing the drawn mark and claiming no discard", () => {
+        const state = drawTile(stateWithDiscard(1, 120), 0, 3);
+        const next = applyEvent(
+            state,
+            makeMeldEvent({
+                calledTileId: null,
+                callerSeat: 0,
+                fromSeat: null,
+                meldType: "closed_kan",
+                tileIds: [0, 1, 2, 3],
+            }),
+        );
+
+        expect(next.players[0].tiles).toEqual(state.players[0].tiles.filter((t) => t > 3));
+        expect(next.players[0].melds.map((m) => m.meldType)).toEqual(["closed_kan"]);
+        expect(next.players[0].drawnTileId).toBeNull();
+        expect(claimedFlags(next, 1)).toEqual([undefined]);
+    });
+});
+
+describe("applyEvent - meld - added_kan", () => {
+    const ADDED_KAN_OF_1P = makeMeldEvent({
+        calledTileId: 38,
+        callerSeat: 0,
+        fromSeat: 1,
+        meldType: "added_kan",
+        tileIds: [36, 37, 38, 39],
+    });
+
+    test("raises the matching pon in place with the tile from the hand, keeping the pon's called tile and the other melds", () => {
+        const next = applyEvent(drawTile(stateWithChiAndPon(), 0, 39), ADDED_KAN_OF_1P);
+
+        expect(next.players[0].tiles).not.toContain(39);
+        expect(next.players[0].melds).toMatchObject([
+            { meldType: "chi" },
+            { addedTileId: 39, calledTileId: 38, meldType: "added_kan", tileIds: [36, 37, 38, 39] },
+        ]);
+    });
+
+    test("refuses an added kan with no pon to raise as a desync", () => {
+        expect(() => applyEvent(stateAfterRoundStarted(), ADDED_KAN_OF_1P)).toThrow(DesyncError);
+    });
+});
+
+describe("applyEvent - kan_declared", () => {
+    function declared(kanType: KanDeclaredEvent["kanType"], tileId: number): KanDeclaredEvent {
+        return { kanType, seat: 0, tileId, type: "kan_declared" };
+    }
+
+    test("refuses an added kan with no pon to raise, or a closed kan of tiles the hand does not hold, as a desync", () => {
+        const state = stateAfterRoundStarted();
+
+        expect(() => applyEvent(state, declared(KAN_TYPE.ADDED, 39))).toThrow(DesyncError);
+        expect(() => applyEvent(state, declared(KAN_TYPE.CLOSED, 120))).toThrow(DesyncError);
     });
 });

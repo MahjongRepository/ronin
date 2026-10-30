@@ -44,6 +44,13 @@ export const GAME_TYPE = {
     TONPUSEN: 1,
 } as const;
 
+/** The yaku ids a hand's dora count under, each han of them one yaku entry's han. */
+export const DORA_YAKU_ID = {
+    AKA: 121,
+    DORA: 120,
+    URA: 122,
+} as const;
+
 export type GameType = (typeof GAME_TYPE)[keyof typeof GAME_TYPE];
 
 // --- Client message types (integer `t` field) ---

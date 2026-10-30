@@ -1,7 +1,7 @@
-import { NUM_PLAYERS } from "@/shared/protocol";
+import { seatDistance, tileType } from "@/shared/protocol";
 
 import { DesyncError } from "./desync-error";
-import { type PlayerState, type TableState } from "./types";
+import { type MeldRecord, type PlayerState, type TableState } from "./types";
 
 type ClosedHand = Pick<PlayerState, "tiles" | "concealedCount">;
 
@@ -36,7 +36,7 @@ export function requireRiichiCost(state: TableState): number {
 /** The game's riichi stick value; a win collecting sticks on a table that never learned it is an impossible state. */
 export function requireRiichiStickValue(context: Pick<TableState, "riichiStickValue">): number {
     if (context.riichiStickValue === null) {
-        throw new Error("The table holds no riichi stick value");
+        throw new DesyncError("The table holds no riichi stick value");
     }
     return context.riichiStickValue;
 }
@@ -67,5 +67,10 @@ export function takeFromHand(hand: ClosedHand, tileIds: readonly number[]): Clos
  * names it ("East 1" through "East 4", then "South 1").
  */
 export function roundInWind(table: Pick<TableState, "dealerSeat" | "firstDealerSeat">): number {
-    return ((table.dealerSeat - table.firstDealerSeat + NUM_PLAYERS) % NUM_PLAYERS) + 1;
+    return seatDistance(table.firstDealerSeat, table.dealerSeat) + 1;
+}
+
+/** A seat's pon of a tile type, which an added kan of the type raises, or undefined. */
+export function ponOfType(melds: readonly MeldRecord[], type: number): MeldRecord | undefined {
+    return melds.find((meld) => meld.meldType === "pon" && tileType(meld.tileIds[0]) === type);
 }

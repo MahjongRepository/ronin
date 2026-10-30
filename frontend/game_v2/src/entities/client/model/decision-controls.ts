@@ -1,4 +1,4 @@
-import { type PlayerState } from "@/entities/table";
+import { type PlayerState, ponOfType } from "@/entities/table";
 import {
     type MeldInput,
     type MeldTile,
@@ -8,11 +8,11 @@ import {
     tile136toString,
 } from "@/entities/tile";
 import { assertNever } from "@/shared/lib";
-import { KAN_TYPE } from "@/shared/protocol";
+import { KAN_TYPE, tileType, tileTypeCopies } from "@/shared/protocol";
 
 import { sameIntent } from "./decision";
-import { takesIntent } from "./dispatch";
-import { decisionOf, replaceDecision } from "./pending";
+import { offersIntent, takesIntent } from "./intents";
+import { decisionOf } from "./pending";
 import {
     type PlayAction,
     type PlayCommand,
@@ -85,51 +85,56 @@ function submittedTileId(decision: Decision | null): number | null {
 }
 
 /**
- * The state as the decision stood for its answer: an answered decision reopened, so its controls are drawn as they
- * were when the player answered, and never move under the answer.
+ * Whether the decision takes an intent, as a control asks: now (`takesIntent`), or, for the controls an answered
+ * decision keeps, as it stood for its answer (`offersIntent`), so they never move under the answer.
  */
-function asAnswered(state: LiveClient): LiveClient {
-    const decision = decisionOf(state);
-    if (decision?.status.kind !== "submitted") {
-        return state;
-    }
-    return replaceDecision(state, { ...decision, status: { kind: "open" } });
+type IntentJudge = (intent: DecisionIntent) => boolean;
+
+function judgeNow(state: LiveClient): IntentJudge {
+    return (intent) => takesIntent(state, intent);
 }
 
-/** The offers the client would answer now, in the order the server listed them. */
-function takenOffers(state: LiveClient): Offer[] {
+function judgeAsAnswered(state: LiveClient): IntentJudge {
+    return (intent) => offersIntent(state, intent);
+}
+
+/** The offers the judge takes, in the order the server listed them. */
+function takenOffers(state: LiveClient, takes: IntentJudge): Offer[] {
     const offers = decisionOf(state)?.offers ?? [];
-    return offers.filter((offer) => takesIntent(state, choose(offer)));
+    return offers.filter((offer) => takes(choose(offer)));
 }
 
-/** The riichi offers the client would answer now: what the riichi toggle picks from. */
-function takenRiichiOffers(state: LiveClient): Offer[] {
-    return takenOffers(state).filter((offer) => offer.kind === "riichi");
-}
-
-/** Whether the player is picking riichi's discard: toggled for this decision, which still takes a riichi. */
-export function pickingRiichi(state: LiveClient, ui: PlayUi): boolean {
+function pickingRiichiBy(state: LiveClient, ui: PlayUi, takes: IntentJudge): boolean {
     const decision = decisionOf(state);
     return (
         decision !== null &&
         decision.waitId === ui.riichiPickWaitId &&
-        takenRiichiOffers(state).length > 0
+        takenOffers(state, takes).some((offer) => offer.kind === "riichi")
     );
+}
+
+/** Whether the player is picking riichi's discard: toggled for this decision, which still takes a riichi. */
+export function pickingRiichi(state: LiveClient, ui: PlayUi): boolean {
+    return pickingRiichiBy(state, ui, judgeNow(state));
 }
 
 function isTileChoiceKind(kind: Offer["kind"]): kind is TileChoiceKind {
     return kind === "chi" || kind === "kan";
 }
 
-/** The kind of call whose tiles the player is choosing: toggled for this decision, which still takes two of it. */
-export function choosingTiles(state: LiveClient, ui: PlayUi): TileChoiceKind | null {
+function choosingTilesBy(state: LiveClient, ui: PlayUi, takes: IntentJudge): TileChoiceKind | null {
     const decision = decisionOf(state);
     const choice = ui.tileChoice;
     if (decision === null || choice === null || decision.waitId !== choice.waitId) {
         return null;
     }
-    const choices = takenOffers(state).filter((offer) => offer.kind === choice.kind);
+    const choices = takenOffers(state, takes).filter((offer) => offer.kind === choice.kind);
     return choices.length > 1 ? choice.kind : null;
+}
+
+/** The kind of call whose tiles the player is choosing: toggled for this decision, which still takes two of it. */
+export function choosingTiles(state: LiveClient, ui: PlayUi): TileChoiceKind | null {
+    return choosingTilesBy(state, ui, judgeNow(state));
 }
 
 /** The intent a tap on `tileId` asks for: riichi with it while riichi's discard is picked, else its discard. */
@@ -194,7 +199,6 @@ function offerTiles(offer: Offer): TileFace[] {
 }
 
 const WIN_KINDS: ReadonlySet<Offer["kind"]> = new Set(["ron", "tsumo", "kyuushu"]);
-const COPIES = [0, 1, 2, 3] as const;
 
 type ControlFields = Pick<DecisionAction, "label" | "command" | "rank"> &
     Partial<Pick<DecisionAction, "group" | "pressed" | "tiles">>;
@@ -212,23 +216,14 @@ function offerAction(offer: Offer): DecisionAction {
     });
 }
 
-/** Every copy of a tile's type: a kan's four tiles. */
-function typeCopies(tileId: number): number[] {
-    const type = Math.floor(tileId / 4);
-    return COPIES.map((copy) => type * 4 + copy);
-}
-
 /**
  * An added kan laid as it will lie: the pon it adds to, with the added tile stacked on its called one. Opening the
  * decision checked the pon is there (Desync), so a missing one is a bug.
  */
 function addedKanGroup(state: LiveClient, tileId: number): MeldTile[] {
     const { table, viewerSeat } = state;
-    const copies = typeCopies(tileId);
     const viewer = table.players.find((player) => player.seat === viewerSeat);
-    const pon = viewer?.melds.find(
-        (meld) => meld.meldType === "pon" && meld.tileIds.some((id) => copies.includes(id)),
-    );
+    const pon = ponOfType(viewer?.melds ?? [], tileType(tileId));
     if (pon === undefined) {
         throw new Error(
             `an added kan of tile ${tileId} needs a pon of its type, which opening it checked`,
@@ -268,7 +263,7 @@ function kanGroup(
     offer: Extract<Offer, { kind: "kan" }>,
     seats: Pick<MeldInput, "callerSeat" | "fromSeat">,
 ): MeldTile[] {
-    const tileIds = typeCopies(offer.tileId);
+    const tileIds = tileTypeCopies(tileType(offer.tileId));
     if (offer.kanType === KAN_TYPE.OPEN) {
         return meldTiles({ ...seats, calledTileId: offer.tileId, meldType: "open_kan", tileIds });
     }
@@ -312,9 +307,9 @@ function tileChoiceActions(
  * step), then a pass.
  */
 function firstStepActions(
-    state: LiveClient,
     offers: readonly Offer[],
     picking: boolean,
+    takes: IntentJudge,
 ): DecisionAction[] {
     const wins = offers.filter((offer) => WIN_KINDS.has(offer.kind)).map(offerAction);
     const riichiToggle = control({
@@ -335,7 +330,7 @@ function firstStepActions(
         return [control({ command, label: OFFER_LABELS[kind], pressed: false, rank: "call" })];
     });
     const passControl = control({ command: intentCommand(PASS), label: "Pass", rank: "pass" });
-    const pass = takesIntent(state, PASS) ? [passControl] : [];
+    const pass = takes(PASS) ? [passControl] : [];
     return [...wins, ...riichi, ...perKind, ...pass];
 }
 
@@ -360,13 +355,13 @@ export function decisionActions(state: LiveClient, ui: PlayUi): DecisionAction[]
     if (passedByNoCalls(state)) {
         return [];
     }
-    const answered = asAnswered(state);
-    const offers = takenOffers(answered);
-    const choosing = choosingTiles(answered, ui);
+    const takes = judgeAsAnswered(state);
+    const offers = takenOffers(state, takes);
+    const choosing = choosingTilesBy(state, ui, takes);
     const controls =
         choosing === null
-            ? firstStepActions(answered, offers, pickingRiichi(answered, ui))
-            : tileChoiceActions(answered, choosing, offers);
+            ? firstStepActions(offers, pickingRiichiBy(state, ui, takes), takes)
+            : tileChoiceActions(state, choosing, offers);
     const status = decisionOf(state)?.status;
     if (status?.kind !== "submitted") {
         return controls;

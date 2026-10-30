@@ -10,7 +10,7 @@ import {
 import { roundInWind } from "@/entities/table/model/helpers";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
 import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
-import { SEAT_CONTROL_REASON } from "@/shared/protocol";
+import { SEAT_CONTROL_REASON, seatDistance } from "@/shared/protocol";
 
 const REQUIRED_PLAYERS = 4;
 
@@ -152,7 +152,7 @@ function mapNameplate(player: PlayerState, slots: SeatSlots, state: TableState):
             : formatScoreDiff(player.score, other.score);
     }
     const [bottom, right, top, left] = slots;
-    const wind = (player.seat - state.dealerSeat + 4) % 4;
+    const wind = seatDistance(state.dealerSeat, player.seat);
     return {
         aiMark: aiMark(player),
         isCurrent: state.phase === "in_round" && player.seat === state.currentPlayerSeat,

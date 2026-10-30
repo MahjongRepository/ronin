@@ -19,6 +19,7 @@ import {
     nextPlayUi,
     playDisplay,
     rotatePanelProps,
+    serverSilenceLimitMs,
     settledPlayUi,
     startGameClient,
     stepGameClient,
@@ -26,8 +27,13 @@ import {
 import { type StandingsRenderer } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
-import { type CancelTimer, type Clock } from "@/shared/clock";
-import { type RetryingLoad, assertNever } from "@/shared/lib";
+import { type Clock } from "@/shared/clock";
+import {
+    type DeadlineTimer,
+    type RetryingLoad,
+    assertNever,
+    createDeadlineTimer,
+} from "@/shared/lib";
 import { CLOSE_CODE, EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
@@ -77,12 +83,6 @@ type SinkEffect = Extract<
     ClientEffect,
     { type: "clear_handoff" | "redirect_to_lobby" | "store_handoff" | "redirect_to_game" }
 >;
-
-interface ArmedTimer {
-    readonly cancel: CancelTimer;
-    readonly deadline: number;
-    readonly token: object;
-}
 
 /** A line of the debug log, formatted once when it is added; it lives in the view, never in the client state. */
 interface LogEntry {
@@ -241,6 +241,16 @@ function gameTemplate(props: GameViewProps): TemplateResult {
     `;
 }
 
+/** The page once even its failed state could not be drawn: why, and a reload, with nothing of the board. */
+function brokenTemplate(onReload: () => void): TemplateResult {
+    return html`
+        <div class="game game--broken" role="alert">
+            <p>The game page ran into an error.</p>
+            <button type="button" @click=${onReload}>Reload</button>
+        </div>
+    `;
+}
+
 /** A lookup of the handoff that failed, as the lobby's answer; null for one that dispose cancelled. */
 function failedRecovery(error: unknown, signal: AbortSignal): HandoffRecovery | null {
     if (signal.aborted || isAbortError(error)) {
@@ -260,9 +270,10 @@ function nextWake(state: LiveClient): number | null {
  * with the clock's time, steps the dispatcher, executes the effects it returns in order and renders the state.
  * Events raised while effects run are queued behind the current one. After each step it arms one timer to the
  * state's next deadline or countdown change, which comes back as a tick; a timer that was replaced, a socket that
- * was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step or an effect that
- * throws ends the client as failed, shown on the page, instead of leaving it stuck: a protocol failure never throws
- * here, since the dispatcher recovers from it itself, so what does is a bug in the client.
+ * was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step, an effect or a
+ * render (a redraw of the view's own included) that throws ends the client as failed, shown on the page, instead of
+ * leaving it stuck: a protocol failure never throws here, since the dispatcher recovers from it itself, so what does
+ * is a bug in the client. It keeps the socket's silence limit on the client's policy (`serverSilenceLimitMs`).
  */
 class GameViewController {
     private readonly host: HTMLElement;
@@ -277,10 +288,12 @@ class GameViewController {
     /** The control that opened the leave question, which takes the focus back when the player stays. */
     private leaveOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
-    private timer: ArmedTimer | null = null;
+    private readonly timer: DeadlineTimer;
     private socket: GameConnection | null = null;
     private socketGeneration = 0;
     private disposed = false;
+    /** The failed state could not be drawn either, so the page shows the bare notice and draws nothing more. */
+    private broken = false;
     private draining = false;
     private logAppended = 0;
     private logAppendedAtDraw = 0;
@@ -289,23 +302,29 @@ class GameViewController {
         this.host = host;
         this.deps = deps;
         this.log = deps.debug ? [] : null;
+        this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
         this.standings = deps.startStandings();
         this.ui = {
             ...NO_PLAY_UI,
             standings: this.standings.status(),
             tileSprite: deps.tileSprite.status(),
         };
-        this.stopTileSprite = deps.tileSprite.subscribe((tileSprite) => {
-            this.ui = { ...this.ui, tileSprite };
-            this.draw();
-        });
-        this.standings.subscribe((standings) => {
-            this.ui = { ...this.ui, standings };
-            this.draw();
-        });
+        this.stopTileSprite = this.followLoads();
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
         this.state = state;
         this.settle(effects);
+    }
+
+    /** Draw the page again as the tile sprite's and the standings' loads move on; returns the sprite's unsubscribe. */
+    private followLoads(): () => void {
+        this.standings.subscribe((standings) => {
+            this.ui = { ...this.ui, standings };
+            this.guard(() => this.draw());
+        });
+        return this.deps.tileSprite.subscribe((tileSprite) => {
+            this.ui = { ...this.ui, tileSprite };
+            this.guard(() => this.draw());
+        });
     }
 
     dispose(): void {
@@ -314,7 +333,7 @@ class GameViewController {
         this.standings.stop();
         this.recovery.abort();
         this.queue.length = 0;
-        this.disarm();
+        this.timer.disarm();
         this.closeSocket();
         render(nothing, this.host);
     }
@@ -333,8 +352,20 @@ class GameViewController {
             this.deps.sink.reload();
             return;
         }
-        this.changeUi(command);
+        this.guard(() => this.changeUi(command));
     };
+
+    /** Run a redraw outside a step: a throw in it ends the client as failed, as a step's does. */
+    private guard(action: () => void): void {
+        if (this.disposed) {
+            return;
+        }
+        try {
+            action();
+        } catch (error: unknown) {
+            this.fail(error);
+        }
+    }
 
     private changeUi(command: Exclude<PlayCommand, { kind: "intent" | "reload" }>): void {
         if (command.kind === "ask_leave") {
@@ -372,13 +403,19 @@ class GameViewController {
         try {
             this.runEffects(effects);
             this.drainQueue();
+            this.show();
         } catch (error: unknown) {
             this.fail(error);
         } finally {
             this.draining = false;
         }
+    }
+
+    /** Arm the next deadline, keep the socket's silence limit on the client's policy and render. */
+    private show(): void {
         if (!this.disposed) {
             this.armDeadline();
+            this.socket?.setSilenceLimit(serverSilenceLimitMs(this.state));
             this.draw();
         }
     }
@@ -391,7 +428,13 @@ class GameViewController {
         }
     }
 
+    /**
+     * End the client as failed after a throw in a step, an effect or a render: the error on the console, whatever the
+     * log, the queue and the socket dropped, and the failed state shown, or, where drawing that throws too, a bare
+     * notice with a reload that draws nothing of the board.
+     */
     private fail(error: unknown): void {
+        console.error("The game page failed:", error);
         const detail = describeError(error);
         this.queue.length = 0;
         this.state = failGameClient(this.state, detail);
@@ -401,6 +444,19 @@ class GameViewController {
             text: `Client failed: ${detail}`,
         });
         this.closeSocket();
+        try {
+            this.show();
+        } catch (drawError: unknown) {
+            this.showBroken(drawError);
+        }
+    }
+
+    /** Give up drawing the board for good: the bare notice with a reload, and no timer left armed. */
+    private showBroken(drawError: unknown): void {
+        console.error("The failed game page could not be drawn:", drawError);
+        this.broken = true;
+        this.timer.disarm();
+        render(brokenTemplate(this.deps.sink.reload), this.host);
     }
 
     private appendLog(entry: LogEntry | null): void {
@@ -416,7 +472,7 @@ class GameViewController {
     }
 
     private draw(): void {
-        if (this.disposed) {
+        if (this.disposed || this.broken) {
             return;
         }
         this.ui = settledPlayUi(this.state, this.ui);
@@ -585,29 +641,7 @@ class GameViewController {
 
     /** Keep one timer armed to the state's next wake; a replaced timer's late callback is dropped. */
     private armDeadline(): void {
-        const deadline = nextWake(this.state);
-        if (deadline === (this.timer?.deadline ?? null)) {
-            return;
-        }
-        this.disarm();
-        if (deadline === null) {
-            return;
-        }
-        const { clock } = this.deps;
-        const token = {};
-        const cancel = clock.setTimer(Math.max(0, deadline - clock.now()), () => {
-            if (this.timer?.token !== token) {
-                return;
-            }
-            this.timer = null;
-            this.dispatch({ at: Math.max(clock.now(), deadline), kind: "tick" });
-        });
-        this.timer = { cancel, deadline, token };
-    }
-
-    private disarm(): void {
-        this.timer?.cancel();
-        this.timer = null;
+        this.timer.arm(nextWake(this.state));
     }
 }
 

@@ -25,13 +25,9 @@ export type {
     Sync,
     TurnDecision,
 } from "./model/types";
-export {
-    nextDeadline,
-    takesIntent,
-    startGameClient,
-    startReplayClient,
-    stepGameClient,
-} from "./model/dispatch";
+export { nextDeadline, startGameClient, startReplayClient, stepGameClient } from "./model/dispatch";
+export { takesIntent } from "./model/intents";
+export { serverSilenceLimitMs } from "./model/silence";
 export { decisionOf, roundConfirmOf } from "./model/pending";
 export { MAX_RESYNC_REQUESTS, RESYNC_ANSWER_MS, desyncOf, failGameClient } from "./model/desync";
 export { PLAY_SWITCHES } from "./model/play-switches";
@@ -56,12 +52,8 @@ export { nextPlayUi, settledPlayUi } from "./model/play-ui-reducer";
 export type { DecisionView, PlayBoardProps, StandingsLinks } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
 export type { RotatePanelProps } from "./ui/rotate-panel";
-export {
-    RotatePanel,
-    describeClientStatus,
-    describePlayerClientStatus,
-    rotatePanelProps,
-} from "./ui/rotate-panel";
+export { RotatePanel, rotatePanelProps } from "./ui/rotate-panel";
+export { describeClientStatus, describePlayerClientStatus } from "./model/client-status";
 export type { ClientTimeline, TimelineEntry } from "./model/timeline";
 export { buildClientTimeline, timelineStates } from "./model/timeline";
 export type {

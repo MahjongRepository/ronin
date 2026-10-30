@@ -1,3 +1,5 @@
+import { tileType } from "@/shared/protocol";
+
 /** Tile face names matching sprite symbol IDs. */
 const TILE_FACES = [
     "1m",
@@ -70,7 +72,7 @@ function tile136toString(tileId: number): TileFace {
         return `0${suit}` as TileFace;
     }
 
-    const type34 = (tileId / 4) | 0;
+    const type34 = tileType(tileId);
 
     // Suited tiles (man, pin, sou): type34 0-26
     if (type34 < 27) {

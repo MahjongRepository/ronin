@@ -1,4 +1,5 @@
 import {
+    DesyncError,
     type ReplayFileLine,
     type ReplayLineError,
     type ReplayRefusal,
@@ -35,11 +36,10 @@ interface LineSteps {
     readonly damage: string | null;
 }
 
-function errorDetail(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
-
-/** The timeline entries one line makes, or why it cannot be shown: it does not parse, or the table refuses it. */
+/**
+ * The timeline entries one line makes, or why it cannot be shown: it does not parse, or the table refuses it (a
+ * `DesyncError`). Any other error is the client's own and propagates to the view's failure screen.
+ */
 function stepLine(state: ReplayClient, line: ReplayFileLine): LineSteps {
     const event = { at: REPLAY_TIME, kind: "replay_line", raw: line.raw } as const;
     try {
@@ -60,7 +60,10 @@ function stepLine(state: ReplayClient, line: ReplayFileLine): LineSteps {
             })),
         };
     } catch (error: unknown) {
-        return { damage: `Cannot be played: ${errorDetail(error)}`, entries: [] };
+        if (!(error instanceof DesyncError)) {
+            throw error;
+        }
+        return { damage: `Cannot be played: ${error.message}`, entries: [] };
     }
 }
 

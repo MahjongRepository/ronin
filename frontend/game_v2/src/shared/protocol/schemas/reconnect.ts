@@ -2,15 +2,15 @@ import { z } from "zod/mini";
 
 import {
     ABORTIVE_DRAW_TYPE,
-    NUM_PLAYERS,
     ROUND_RESULT_TYPE,
     SESSION_MESSAGE_TYPE,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
-import { meldCompactCaller } from "@/shared/protocol/decoders/meld";
 
 import {
+    calledBy,
     compactMeldSchema,
+    coversEverySeat,
     gamePlayerInfoSchema,
     seatSchema,
     secondsSchema,
@@ -61,7 +61,7 @@ const playerReconnectStateSchema = z.pipe(
             tc: z.int().check(z.gte(0)),
         })
         .check(
-            z.refine((raw) => raw.ml.every((meld) => meldCompactCaller(meld) === raw.s), {
+            z.refine((raw) => calledBy(raw.ml, raw.s), {
                 message: "a seat's state lists a meld another seat called",
             }),
             z.refine((raw) => isHandCount(raw.tc, raw.ml.length), {
@@ -108,11 +108,6 @@ const roundHistoryEntrySchema = z.pipe(
 );
 
 // --- Game reconnected ---
-
-/** Whether a snapshot's list names each of the four seats once, in seat order, as the server lists them. */
-function coversEverySeat(entries: readonly { readonly seat: number }[]): boolean {
-    return entries.length === NUM_PLAYERS && entries.every((entry, index) => entry.seat === index);
-}
 
 interface SnapshotWhole {
     readonly mt: readonly number[];

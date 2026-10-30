@@ -104,14 +104,30 @@ describe("stepReplayPage - loading", () => {
         ]);
     });
 
-    it("fails an unreachable server while loading, but not once the replay shows", () => {
+    it("takes the load's wait, its unreachable server and its fetch only while loading, never once the replay shows", () => {
         const shown = opened("riichi");
+        const staleFetch: ReplayPageInput = {
+            fetched: { ok: true, text: engineReplayText("riichi") },
+            kind: "fetched",
+            opening: {
+                autoplay: true,
+                prefs: DEFAULT_REPLAY_PREFS,
+                roundListOpen: false,
+                search: "",
+            },
+        };
 
+        expect(step(LOADING, { kind: "load_waiting" }).screen).toEqual({
+            kind: "loading",
+            waiting: true,
+        });
         expect(step(LOADING, { kind: "load_unreachable" }).screen).toEqual({
             failure: { kind: "unreachable" },
             kind: "failed",
         });
+        expect(step(shown, { kind: "load_waiting" }).screen).toBe(shown);
         expect(step(shown, { kind: "load_unreachable" }).screen).toBe(shown);
+        expect(step(shown, staleFetch)).toEqual({ effects: [], screen: shown });
     });
 
     it("opens where the address says and writes it, with autoplay armed from the opening when asked", () => {

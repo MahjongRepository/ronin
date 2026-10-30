@@ -1,4 +1,5 @@
 import { type MeldType } from "@/shared/protocol/constants";
+import { tileTypeCopies } from "@/shared/protocol/tiles";
 
 export interface DecodedMeld {
     calledTileId: number | null;
@@ -34,12 +35,8 @@ const CALLED_POSITIONS = 3;
 const FROM_OFFSETS = 3;
 const CALLED_COPIES = 4;
 
-function allFourCopies(tile34: number): number[] {
-    return [tile34 * 4, tile34 * 4 + 1, tile34 * 4 + 2, tile34 * 4 + 3];
-}
-
 function copiesExcluding(tile34: number, missingCopy: number): number[] {
-    return allFourCopies(tile34).filter((_tileId, copyIdx) => copyIdx !== missingCopy);
+    return tileTypeCopies(tile34).filter((_tileId, copyIdx) => copyIdx !== missingCopy);
 }
 
 function extractChiBase(meldIndex: number) {
@@ -109,7 +106,7 @@ function decodeOpenKan(localIndex: number, callerSeat: number, meldType: MeldTyp
         callerSeat,
         fromSeat: (callerSeat + fromOffset + 1) % 4,
         meldType,
-        tileIds: allFourCopies(tile34),
+        tileIds: tileTypeCopies(tile34),
     };
 }
 
@@ -119,7 +116,7 @@ function decodeAnkan(localIndex: number, callerSeat: number): DecodedMeld {
         callerSeat,
         fromSeat: null,
         meldType: "closed_kan",
-        tileIds: allFourCopies(localIndex),
+        tileIds: tileTypeCopies(localIndex),
     };
 }
 

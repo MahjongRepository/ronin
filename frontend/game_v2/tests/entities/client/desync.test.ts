@@ -1,13 +1,16 @@
 import { render } from "lit-html";
 import { assert, describe, expect, it } from "vitest";
 
-import { clientEvent } from "#tests/fixtures/scenario";
+import { GAME_ID, HANDOFF, clientEvent } from "#tests/fixtures/scenario";
 import {
     checkpointState,
     loadSeatScenario,
     receivedPayload,
 } from "#tests/fixtures/seat-transcripts";
 import {
+    WIRE_GAME_JOINED,
+    WIRE_GAME_STARTED,
+    WIRE_ROUND_STARTED,
     type WirePayload,
     wireNumberList,
     wirePayloadList,
@@ -25,6 +28,8 @@ import {
     desyncOf,
     nextDeadline,
     roundConfirmOf,
+    serverSilenceLimitMs,
+    startGameClient,
     stepGameClient,
 } from "@/entities/client";
 import { boardOverlay } from "@/entities/table";
@@ -199,6 +204,10 @@ function run(
         effects.push(...step.effects);
     }
     return { effects, state: current };
+}
+
+function socketError(at: number): LiveEvent {
+    return { at, detail: "", kind: "transport_error" };
 }
 
 function sends(effects: readonly ClientEffect[]): ClientEffect[] {
@@ -511,6 +520,72 @@ describe("stepGameClient - desync around the game's start and end", () => {
         expect([refused.effects, desyncOf(refused.state)?.answerDue]).toEqual([[], firstDealDue]);
         const dealDue = run(refused.state, [tick(firstDealDue)]);
         expect(sends(dealDue.effects)).toEqual([RESYNC]);
+    });
+});
+
+/** A joined seat out of step before the game started, its resync request refused as the game has not dealt. */
+function refusedBeforeDeal(): { state: LiveClient; effects: ClientEffect[] } {
+    return run(startGameClient(GAME_ID, HANDOFF, 0).state, [
+        opened(0),
+        message(0, WIRE_GAME_JOINED),
+        message(100, { t: 999 }),
+        message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
+    ]);
+}
+
+describe("stepGameClient - desync before the first deal", () => {
+    it("asks again only once the game moves when the server says it has not dealt and no deal time is known, so a long wait spends no requests", () => {
+        const refused = refusedBeforeDeal();
+        const waited = run(refused.state, [socketError(60_000), tick(120_000)]);
+        const started = run(waited.state, [
+            message(120_000, receivedPayload(transcript, "game started")),
+        ]);
+        const firstDealDue = started.state.firstDealDue ?? 0;
+        const dealt = run(started.state, [tick(firstDealDue)]);
+        const moved = run(waited.state, [message(120_000, WIRE_ROUND_STARTED)]);
+
+        expect(sends(refused.effects).slice(1)).toEqual([RESYNC]);
+        expect([waited.effects, nextDeadline(waited.state), sends(started.effects)]).toEqual([
+            [],
+            null,
+            [],
+        ]);
+        expect([sends(dealt.effects), sends(moved.effects), firstDealDue > 120_000]).toEqual([
+            [RESYNC],
+            [RESYNC],
+            true,
+        ]);
+        expect(dealt.state.resyncRequests).toBe(2);
+    });
+
+    it("keeps a game start's timer settings while awaiting the deal, so the socket waits through a long start pause", () => {
+        const timer = { bk: 20, gp: 240, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+        const started = run(refusedBeforeDeal().state, [
+            message(500, { ...WIRE_GAME_STARTED, s: 0, tm: timer }),
+        ]);
+
+        expect([started.state.firstDealDue, nextDeadline(started.state)]).toEqual([
+            240_500, 240_500,
+        ]);
+        expect(serverSilenceLimitMs(started.state)).toBe(265_000);
+    });
+
+    it("forgets the answered request with the socket, so a rate limit of the reopened socket's JOIN retries the identity", () => {
+        const reopened = run(refusedBeforeDeal().state, [
+            closed(500, 1006),
+            tick(1500),
+            opened(1501),
+        ]);
+        const limited = run(reopened.state, [
+            message(1502, wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED)),
+        ]);
+
+        const { session } = limited.state;
+        assert(session.status === "identifying");
+
+        expect(desyncOf(reopened.state)).toMatchObject({ awaitsDeal: false, requested: false });
+        expect(session.sessionRetryAt).toBeGreaterThan(1502);
+        expect(sends(limited.effects)).toEqual([]);
     });
 });
 

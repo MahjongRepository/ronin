@@ -16,7 +16,7 @@ import {
 import { type RetryingLoad } from "@/shared/lib";
 import {
     type GameSessionData,
-    clearSessionData,
+    clearGameSession,
     getGameSession,
     storeGameSession,
 } from "@/shared/session";
@@ -84,7 +84,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         },
         recoverHandoff: fetchGameHandoff,
         sink: {
-            clearHandoff: clearSessionData,
+            clearHandoff: clearGameSession,
             leaveToLobby,
             openGame,
             reload: () => window.location.reload(),

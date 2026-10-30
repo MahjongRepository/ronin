@@ -1,5 +1,10 @@
 import { DesyncError } from "@/entities/table/model/desync-error";
-import { requirePlayer, takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
+import {
+    ponOfType,
+    requirePlayer,
+    takeFromHand,
+    updatePlayer,
+} from "@/entities/table/model/helpers";
 import {
     type KanDeclaredEvent,
     type MeldRecord,
@@ -12,15 +17,11 @@ import {
     type MeldType,
     ROUND_RESULT_TYPE,
     type RoundEndEvent,
+    tileType,
+    tileTypeCopies,
 } from "@/shared/protocol";
 
-const COPIES_PER_TILE = 4;
-
 type DeclaredKanType = "added_kan" | "closed_kan";
-
-function tileType(tileId: number): number {
-    return Math.floor(tileId / COPIES_PER_TILE);
-}
 
 /** The kan a chankan prompt shows its declarer declaring: the prompt names the tile and the seat, not the kan type. */
 export function chankanKanDeclared(prompt: ChankanPromptEvent): KanDeclaredEvent {
@@ -49,12 +50,6 @@ export function robbedKanDeclared(event: RoundEndEvent): KanDeclaredEvent | null
     }
 }
 
-function findPon(player: PlayerState, tileId: number): MeldRecord | undefined {
-    return player.melds.find(
-        (meld) => meld.meldType === "pon" && tileType(meld.tileIds[0]) === tileType(tileId),
-    );
-}
-
 /** The index of the seat's kan of the tile's type that a declaration already shows, or -1. */
 export function shownKanIndex(player: PlayerState, meldType: MeldType, tileId: number): number {
     return player.melds.findIndex(
@@ -71,7 +66,7 @@ function declaredKanType(player: PlayerState, event: KanDeclaredEvent): Declared
         return event.kanType === KAN_TYPE.ADDED ? "added_kan" : "closed_kan";
     }
     const added =
-        findPon(player, event.tileId) !== undefined ||
+        ponOfType(player.melds, tileType(event.tileId)) !== undefined ||
         shownKanIndex(player, "added_kan", event.tileId) !== -1;
     return added ? "added_kan" : "closed_kan";
 }
@@ -83,8 +78,7 @@ function declaredKan(
     meldType: DeclaredKanType,
 ): { readonly melds: readonly MeldRecord[]; readonly fromHand: readonly number[] } {
     if (meldType === "closed_kan") {
-        const first = tileType(event.tileId) * COPIES_PER_TILE;
-        const tileIds = Array.from({ length: COPIES_PER_TILE }, (_unused, copy) => first + copy);
+        const tileIds = tileTypeCopies(tileType(event.tileId));
         const kan: MeldRecord = {
             calledTileId: null,
             callerSeat: event.seat,
@@ -94,7 +88,7 @@ function declaredKan(
         };
         return { fromHand: tileIds, melds: [...player.melds, kan] };
     }
-    const pon = findPon(player, event.tileId);
+    const pon = ponOfType(player.melds, tileType(event.tileId));
     if (pon === undefined) {
         throw new DesyncError(
             `No pon to raise to an added kan of ${event.tileId} at seat ${event.seat}`,

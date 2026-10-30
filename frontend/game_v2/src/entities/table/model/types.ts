@@ -39,8 +39,7 @@ export interface MeldRecord {
 /**
  * A seat as this view knows it. Its closed hand is `tiles`, the tile ids the source showed it, plus
  * `concealedCount` tiles it holds face down: a live seat sees only its own tiles, so every other hand is a count,
- * and their draws reach it only as the discard or kan that follows them. A replay shows every hand, so its counts
- * stay 0.
+ * which another seat's draw notice raises as the draw happens. A replay shows every hand, so its counts stay 0.
  */
 export interface PlayerState {
     readonly seat: number;
@@ -225,9 +224,9 @@ export interface TableState {
     readonly currentPlayerSeat: number;
     readonly tilesRemaining: number;
     /**
-     * The seat whose discard is the table's latest while it still lies in its river: set by a discard, cleared by any
-     * meld or kan declaration and by a new deal; a reconnect's snapshot sets it when the seat in turn has just
-     * discarded, else clears it.
+     * The seat whose discard is the table's latest while it still lies in its river: set by a discard, cleared by a
+     * call that claims it (chi, pon, open kan) and by a new deal, kept through a draw and a kan from the hand; a
+     * reconnect takes it from the snapshot's `ld`, which the server leaves out when there is none or a call claimed it.
      */
     readonly lastDiscardSeat: number | null;
     readonly phase: GamePhase;

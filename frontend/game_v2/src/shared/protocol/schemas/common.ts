@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 
 import { NUM_PLAYERS, SEAT_CONTROL_REASON, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
-import { MAX_MELD_COMPACT } from "@/shared/protocol/decoders/meld";
+import { MAX_MELD_COMPACT, meldCompactCaller } from "@/shared/protocol/decoders/meld";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
 export const tileIdSchema = z.int().check(z.gte(0), z.lte(135));
@@ -15,6 +15,16 @@ export const waitIdSchema = z.int().check(z.gte(0));
 
 /** A meld in its compact (IMME) value, which `decodeMeldCompact` unpacks: only a value it can decode parses. */
 export const compactMeldSchema = z.int().check(z.gte(0), z.lte(MAX_MELD_COMPACT));
+
+/** Whether every compact meld of a seat's list was called by that seat, as the server lists a seat's own melds. */
+export function calledBy(melds: readonly number[], seat: number): boolean {
+    return melds.every((meld) => meldCompactCaller(meld) === seat);
+}
+
+/** Whether a per-seat list names each of the four seats once, in seat order, as the server builds every such list. */
+export function coversEverySeat(entries: readonly { readonly seat: number }[]): boolean {
+    return entries.length === NUM_PLAYERS && entries.every((entry, index) => entry.seat === index);
+}
 
 export const seatControlReasonSchema = z.union([
     z.literal(SEAT_CONTROL_REASON.LEFT),

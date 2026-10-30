@@ -173,6 +173,37 @@ describe("parseRoundEnd", () => {
         });
     });
 
+    it("refuses a meld its hand's seat did not call, a winner's or a tenpai hand's", () => {
+        const seat0Meld = 6100;
+        const tsumo = {
+            ct: [0],
+            hr: { fu: 30, han: 1, pt: 10, yk: [{ han: 1, yi: 0 }] },
+            ml: [seat0Meld],
+            rc: 0,
+            rt: ROUND_RESULT_TYPE.TSUMO,
+            sch: { "0": 0, "1": 10, "2": 0, "3": 0 },
+            scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
+            t: EVENT_TYPE.ROUND_END,
+            ws: 1,
+            wt: 0,
+        };
+        const draw = {
+            ns: [0, 2, 3],
+            rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
+            sch: { "0": -10, "1": 30, "2": -10, "3": -10 },
+            scs: { "0": 250, "1": 250, "2": 250, "3": 250 },
+            t: EVENT_TYPE.ROUND_END,
+            th: [{ ct: [52, 56, 60, 64, 68, 72, 76, 80, 84, 88], ml: [seat0Meld], s: 1 }],
+            ts: [1],
+        };
+
+        expect(() => parseRoundEnd(tsumo)).toThrow(
+            "a winner's hand lists a meld another seat called",
+        );
+        expect(() => parseRoundEnd(draw)).toThrow("a tenpai hand lists a meld another seat called");
+        expect(parseRoundEnd({ ...tsumo, ws: 0 }).type).toBe("round_end");
+    });
+
     describe("ron (rt=1)", () => {
         it("parses ron with winner, loser, and winning tile", () => {
             const wire = {

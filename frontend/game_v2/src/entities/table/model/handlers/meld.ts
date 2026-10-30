@@ -1,12 +1,12 @@
 import { DesyncError } from "@/entities/table/model/desync-error";
-import { takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
+import { ponOfType, takeFromHand, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DiscardRecord,
     type MeldRecord,
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
-import { type MeldEvent } from "@/shared/protocol";
+import { type MeldEvent, tileType } from "@/shared/protocol";
 
 import { shownKanIndex } from "./kan-declared";
 
@@ -116,13 +116,7 @@ function findPonAndAddedTile(
     caller: PlayerState,
     event: MeldEvent,
 ): { ponMeld: MeldRecord; addedTileId: number } | null {
-    const eventTile34 = event.tileIds.length > 0 ? Math.floor(event.tileIds[0] / 4) : -1;
-    const ponMeld = caller.melds.find(
-        (m) =>
-            m.meldType === "pon" &&
-            m.tileIds.length > 0 &&
-            Math.floor(m.tileIds[0] / 4) === eventTile34,
-    );
+    const ponMeld = ponOfType(caller.melds, tileType(event.tileIds[0]));
     if (!ponMeld) {
         return null;
     }
