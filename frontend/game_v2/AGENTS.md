@@ -346,13 +346,13 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   running, another seat's view with the hands hidden, a result with them hidden, its round list,
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
-  its call prompt and at its turn, at 1280x800 and 1920x1080
+  its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080
   (Chromium), iPhone 13 portrait, iPhone 13 landscape with a notch's insets and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context, which
   asks for reduced motion so each shot shows an animation's resting state. It
   fails on content that is hidden or empty, tiles of different areas, a nameplate or the turn's cue overlapping,
   anything outside the board or the screen, a call over the local hand's tiles, page overflow, board text under 10px, local hand tiles under
-  the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800 and 93x124 at 1920x1080) or no
+  the viewport's floor in landscape (32x42 on a phone; 70x93 at 1280x800, 78x104 at 1440x900 and 93x124 at 1920x1080) or no
   larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
   nameplate more than 16px from its seat's tiles or no nearer them than any other seat's, a wall count or
   stick count under 0.8 of the scores' size, and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)

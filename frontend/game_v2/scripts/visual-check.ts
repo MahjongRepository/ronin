@@ -276,7 +276,7 @@ function deviceOptions(name: string): BrowserContextOptions {
 }
 
 /**
- * The acceptance viewports: a 16:10 and a 16:9 desktop, the upright phone that gets the rotate panel, the notched landscape phone
+ * The acceptance viewports: two 16:10 desktops and a 16:9 one, the upright phone that gets the rotate panel, the notched landscape phone
  * (its insets cover the plain one), and the smallest supported landscape, which also keeps the aside's scroll honest.
  */
 const VIEWPORTS: readonly Viewport[] = [
@@ -286,6 +286,16 @@ const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         handFloor: { height: 93, width: 70 },
         name: "desktop",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 900, width: 1440 } },
+        desktop: true,
+        engine: chromium,
+        handFloor: { height: 104, width: 78 },
+        name: "desktop-1440",
         portrait: false,
         rotates: false,
         supported: true,
