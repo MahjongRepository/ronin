@@ -42,9 +42,7 @@ describe("parseCallPrompt", () => {
             if (result.callType !== CALL_TYPE.RON) {
                 throw new Error("wrong type");
             }
-            expect(result.availableCalls).toEqual([
-                { callType: MELD_CALL_TYPE.PON, options: null },
-            ]);
+            expect(result.availableCalls).toEqual([{ callType: MELD_CALL_TYPE.PON }]);
             expect(result.elapsedSeconds).toBe(1.5);
         });
     });
@@ -106,19 +104,20 @@ describe("parseCallPrompt", () => {
             ]);
         });
 
-        it("parses meld prompt with pon (null options)", () => {
+        it.each([
+            { ac: [{ clt: MELD_CALL_TYPE.CHI }], name: "a chi with no pair" },
+            { ac: [{ clt: MELD_CALL_TYPE.CHI, opt: [] }], name: "a chi with an empty pair list" },
+            { ac: [], name: "no call at all" },
+        ])("refuses a meld prompt offering $name", ({ ac }) => {
             const wire = {
-                ac: [{ clt: MELD_CALL_TYPE.PON }],
+                ac,
                 clt: CALL_TYPE.MELD,
                 cs: 2,
-                frs: 3,
+                frs: 1,
                 t: EVENT_TYPE.CALL_PROMPT,
                 ti: 20,
             };
-            const result = parseCallPrompt(wire);
-            expect("availableCalls" in result && result.availableCalls).toEqual([
-                { callType: MELD_CALL_TYPE.PON, options: null },
-            ]);
+            expect(() => parseCallPrompt(wire)).toThrow();
         });
 
         it("parses meld prompt with multiple available calls", () => {

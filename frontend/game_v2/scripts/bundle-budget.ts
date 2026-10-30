@@ -83,9 +83,11 @@ interface RouteBudget {
  * data, and its key, wheel and hold input mapping into another (`views/replay-input.ts`).
  * The standings' JS re-set on 2026-10-31 from 8 / 2.7 to 9.2 / 3.1 at 8.3 / 2.8: the line saying how the game ended
  * (tobi, its length or an extra wind).
+ * The game's JS re-set on 2026-10-31 from 208 / 64.2 to 229 / 70 at 208.4 / 63.6: the snapshot's completeness checks,
+ * the table's phase guards, the offers parsed as a closed union, the riichi stick value and the explicit join.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 64.2, raw: 208 } },
+    game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 70, raw: 229 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 3.8, raw: 13.5 },

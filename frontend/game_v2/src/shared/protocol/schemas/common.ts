@@ -28,6 +28,12 @@ export const wireScoreSchema = z.pipe(
     z.transform((value) => value * WIRE_SCORE_DIVISOR),
 );
 
+/** A game setting's amount in wire score units: a whole, nonnegative number of them, as the server validates it. */
+export const wireSettingAmountSchema = z.pipe(
+    z.int().check(z.gte(0)),
+    z.transform((value) => value * WIRE_SCORE_DIVISOR),
+);
+
 const SEAT_KEYS = Array.from({ length: NUM_PLAYERS }, (_seat, index) => String(index));
 
 /** Whether a score map names every seat once and nothing else, as every map the server builds does. */

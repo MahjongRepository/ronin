@@ -10,7 +10,12 @@ import {
 import { type SessionState, describePlayerSessionStatus } from "@/entities/session";
 
 const HANDOFF = { gameTicket: "story", wsUrl: "ws://story" } as const;
-const PLAYING: SessionState = { gameId: "story", handoff: HANDOFF, status: "playing" };
+const PLAYING: SessionState = {
+    gameId: "story",
+    gameStarted: true,
+    handoff: HANDOFF,
+    status: "playing",
+};
 
 const RECONNECTING: SessionState = {
     ...PLAYING,

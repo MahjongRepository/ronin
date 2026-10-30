@@ -199,8 +199,9 @@ class GameStartedEvent(GameEvent):
     """
     Event broadcast to all players when the game starts.
 
-    riichi_cost is the one setting a client consumes, what a riichi takes from its declarer onto the table; the replay
-    records every setting on its game_started line instead.
+    riichi_cost and riichi_stick_value are the settings a client consumes: what a riichi takes from its declarer onto
+    the table, and what each stick a winner collects pays it. The replay records every setting on its game_started
+    line instead.
     """
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
@@ -211,6 +212,7 @@ class GameStartedEvent(GameEvent):
     dealer_seat: int = Field(serialization_alias="dl")
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
     riichi_cost: WireScore = Field(serialization_alias="rc")
+    riichi_stick_value: WireScore = Field(serialization_alias="rsv")
 
 
 class RoundStartedEvent(GameEvent):

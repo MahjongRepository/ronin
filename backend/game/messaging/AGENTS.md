@@ -8,9 +8,13 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
 * Integer codes are only ever added, never renumbered or reused: a removed one leaves its gap.
 * `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
-* Of `GameSettings` only the riichi cost (`rc`, a wire score) goes out live, on `game_started` and the
-  reconnect snapshot: the one setting a client consumes. The replay records every setting on its
-  `game_started` line (`gs`) instead and drops `rc`, so a replay reader takes the cost from `gs`.
+* Of `GameSettings` only the riichi cost (`rc`) and the riichi stick value (`rsv`), both wire scores,
+  go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, kept apart
+  since a game may set them apart. The replay records every setting on its `game_started` line (`gs`)
+  instead and drops both, so a replay reader takes them from `gs`.
+* An accepted JOIN_GAME is answered by `game_joined` to the joining connection alone, ahead of anything
+  the game sends it, as an accepted RECONNECT is by the snapshot; every refused one by a session error.
+  So a client is admitted by the server's answer, never by inferring it from the game's messages.
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
   current bank; the client counts its own turns, the game start pause and the round results down

@@ -32,13 +32,14 @@ describe("gameStartedSchema", () => {
                 { ai: 0, nm: "Diana", s: 3 },
             ],
             rc: 10,
+            rsv: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
         expect(result.type).toBe("game_started");
         expect(result.gameId).toBe("game-abc-123");
         expect(result.dealerSeat).toBe(0);
-        expect(result.riichiCost).toBe(1000);
+        expect([result.riichiCost, result.riichiStickValue]).toEqual([1000, 1000]);
         expect(result.dealerDice).toEqual([
             [3, 5],
             [2, 4],
@@ -64,6 +65,7 @@ describe("gameStartedSchema", () => {
             gt: GAME_TYPE.TONPUSEN,
             p: [{ ai: 1, nm: "Bot", s: 0 }],
             rc: 10,
+            rsv: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
         const result = gameStartedSchema.parse(wire);
@@ -81,6 +83,7 @@ describe("gameStartedSchema", () => {
             gt: GAME_TYPE.TONPUSEN,
             p: [{ ai: 0, nm: "Alice", s: 2 }],
             rc: 10,
+            rsv: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
         const timer = { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 };
@@ -104,6 +107,24 @@ describe("gameStartedSchema", () => {
     it("rejects missing required fields", () => {
         const wire = { gid: "g1", t: EVENT_TYPE.GAME_STARTED };
         expect(() => gameStartedSchema.parse(wire)).toThrow();
+    });
+
+    it("refuses a riichi stick value that is not a whole number of wire units", () => {
+        const wire = {
+            dd: [
+                [1, 1],
+                [1, 1],
+            ],
+            dl: 0,
+            gid: "g1",
+            gt: GAME_TYPE.TONPUSEN,
+            p: [{ ai: 0, nm: "Alice", s: 0 }],
+            rc: 10,
+            rsv: 15.5,
+            t: EVENT_TYPE.GAME_STARTED,
+        };
+        expect(() => gameStartedSchema.parse(wire)).toThrow();
+        expect(gameStartedSchema.parse({ ...wire, rsv: 15 }).riichiStickValue).toBe(1500);
     });
 });
 
@@ -268,15 +289,24 @@ describe("drawSchema", () => {
 
     it("parses available actions array", () => {
         const wire = {
-            aa: [{ a: 0, tl: [5, 10, 15] }, { a: 2 }],
+            aa: [{ a: 1, tl: [5, 10, 15] }, { a: 2 }, { a: 4, tl: [9] }],
             d: 5,
             t: EVENT_TYPE.DRAW,
         };
         const result = drawSchema.parse(wire);
         expect(result.availableActions).toEqual([
-            { action: 0, tiles: [5, 10, 15] },
-            { action: 2, tiles: null },
+            { action: 1, tileIds: [5, 10, 15] },
+            { action: 2 },
+            { action: 4, tileTypes: [9] },
         ]);
+    });
+
+    it.each([
+        { aa: [{ a: 0 }], name: "a discard, which the server never offers" },
+        { aa: [{ a: 3, tl: [40] }], name: "a kan of a tile id, not a tile type" },
+        { aa: [{ a: 4, tl: [] }], name: "an added kan with no tile type" },
+    ])("refuses an offer of $name", ({ aa }) => {
+        expect(() => drawSchema.parse({ aa, d: 5, t: EVENT_TYPE.DRAW })).toThrow();
     });
 
     it("defaults available actions to empty array when aa is absent", () => {

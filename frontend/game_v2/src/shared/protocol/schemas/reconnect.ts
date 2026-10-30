@@ -18,7 +18,7 @@ import {
     timerSettingsSchema,
     waitIdSchema,
     wireScoreMapSchema,
-    wireScoreSchema,
+    wireSettingAmountSchema,
 } from "./common";
 import { parseRoundResult } from "./round-results";
 
@@ -163,9 +163,10 @@ export const gameReconnectedSchema = z.pipe(
             p: z.array(gamePlayerInfoSchema),
             pst: z.array(playerReconnectStateSchema),
             r: z.int(),
-            rc: wireScoreSchema,
+            rc: wireSettingAmountSchema,
             re: z.optional(z.record(z.string(), z.unknown())),
             rh: z.array(roundHistoryEntrySchema),
+            rsv: wireSettingAmountSchema,
             s: seatSchema,
             tm: timerSettingsSchema,
             tr: z.int(),
@@ -195,6 +196,7 @@ export const gameReconnectedSchema = z.pipe(
         playerStates: raw.pst,
         players: raw.p,
         riichiCost: raw.rc,
+        riichiStickValue: raw.rsv,
         riichiSticks: raw.r,
         roundHistory: raw.rh,
         roundNumber: raw.n,

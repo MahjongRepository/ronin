@@ -179,13 +179,15 @@ export type DesyncCause = "unreadable_message" | "undecodable_frame" | "impossib
  * A client out of step with the server since logical time `since`: it answers nothing and drops every server message
  * but a snapshot and the game's end until a snapshot rebuilds it. `answerDue` is when the resync request it sent counts
  * as unanswered and is sent again; null while none is outstanding (none sent yet, or the socket dropped, whose
- * reconnect brings a snapshot of its own).
+ * reconnect brings a snapshot of its own). `requested`: a resync request the client sent is outstanding on the open
+ * socket, so a rate limit then answers it, never the session's identity message.
  */
 export interface Desync {
     readonly cause: DesyncCause;
     readonly detail: string;
     readonly since: number;
     readonly answerDue: number | null;
+    readonly requested: boolean;
 }
 
 /**

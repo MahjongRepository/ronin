@@ -124,6 +124,9 @@ class RoninSession {
         case wire.SESSION.SEAT_CONTROL:
             this.onPlayerStatus(msg.s, msg.r === undefined);
             break;
+        case wire.SESSION.GAME_JOINED:
+            this.reconnectTries = 0;
+            break;
         case wire.SESSION.GAME_RECONNECTED:
             this.joined = true;
             this.reconnectTries = 0;

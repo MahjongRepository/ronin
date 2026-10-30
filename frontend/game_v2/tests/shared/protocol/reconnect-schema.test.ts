@@ -76,6 +76,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         r: 1,
         rc: 20,
         rh: [FINISHED_ROUND, FINISHED_ROUND],
+        rsv: 15,
         s: 0,
         tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
         tr: 52,
@@ -105,12 +106,12 @@ describe("gameReconnectedSchema", () => {
         expect(result.confirmationOwed).toBe(false);
     });
 
-    it("parses sticks, the riichi cost, tiles remaining, seat info and the seat's furiten", () => {
+    it("parses sticks, the riichi cost and stick value, tiles remaining, seat info and the seat's furiten", () => {
         const result = parsePayload();
 
         expect(result.honbaSticks).toBe(1);
         expect(result.riichiSticks).toBe(1);
-        expect(result.riichiCost).toBe(2000);
+        expect([result.riichiCost, result.riichiStickValue]).toEqual([2000, 1500]);
         expect(result.tilesRemaining).toBe(52);
         expect(result.seat).toBe(0);
         expect(result.myTiles).toHaveLength(13);

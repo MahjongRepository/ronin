@@ -95,6 +95,7 @@ def _game_started_replay_line(settings: GameSettings, *, first_dealer: int = 0) 
         dealer_seat=first_dealer,
         dealer_dice=((1, 1), (1, 1)),
         riichi_cost=settings.riichi_cost,
+        riichi_stick_value=settings.riichi_stick_value,
     )
     payload = {**game_event_payload(event), "sd": "a" * 192, "rv": RNG_VERSION}
     return json.loads(json.dumps({**payload, "gs": encode_replay_settings(settings)}))

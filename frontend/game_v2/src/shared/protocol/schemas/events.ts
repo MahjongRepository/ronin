@@ -4,6 +4,7 @@ import {
     EVENT_TYPE,
     GAME_END_CAUSE,
     GAME_TYPE,
+    PLAYER_ACTION,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
 import { decodeDiscard } from "@/shared/protocol/decoders/discard";
@@ -19,20 +20,38 @@ import {
     timerSettingsSchema,
     waitIdSchema,
     wireScoreSchema,
+    wireSettingAmountSchema,
 } from "./common";
 
 // --- Available action item (inside draw event `aa` array) ---
 
-const availableActionSchema = z.pipe(
-    z.object({
-        a: z.int(),
-        tl: z.optional(z.nullable(z.array(tileIdSchema))),
-    }),
-    z.transform((raw) => ({
-        action: raw.a,
-        tiles: raw.tl ?? null,
-    })),
-);
+/**
+ * One offered action, by the codes the server offers on a turn: a riichi with the tile ids it may discard, a kan or an
+ * added kan with the tile types it may declare, each list nonempty. Any other code or shape fails the message, so an
+ * offer the client cannot read is a loss of step, never a turn offering less than the server's.
+ */
+const availableActionSchema = z.union([
+    z.pipe(
+        z.object({
+            a: z.literal(PLAYER_ACTION.RIICHI),
+            tl: z.array(tileIdSchema).check(z.minLength(1)),
+        }),
+        z.transform((raw) => ({ action: raw.a, tileIds: raw.tl })),
+    ),
+    z.pipe(
+        z.object({
+            a: z.union([z.literal(PLAYER_ACTION.KAN), z.literal(PLAYER_ACTION.ADDED_KAN)]),
+            tl: z.array(tileTypeSchema).check(z.minLength(1)),
+        }),
+        z.transform((raw) => ({ action: raw.a, tileTypes: raw.tl })),
+    ),
+    z.pipe(
+        z.object({
+            a: z.union([z.literal(PLAYER_ACTION.TSUMO), z.literal(PLAYER_ACTION.KYUUSHU)]),
+        }),
+        z.transform((raw) => ({ action: raw.a })),
+    ),
+]);
 
 // --- Player view (inside round_started `p` array) ---
 
@@ -103,7 +122,8 @@ export const gameStartedSchema = z.pipe(
         gid: z.string(),
         gt: z.union([z.literal(GAME_TYPE.HANCHAN), z.literal(GAME_TYPE.TONPUSEN)]),
         p: z.array(gamePlayerInfoSchema),
-        rc: wireScoreSchema,
+        rc: wireSettingAmountSchema,
+        rsv: wireSettingAmountSchema,
         s: z.optional(seatSchema),
         t: z.literal(EVENT_TYPE.GAME_STARTED),
         tm: z.optional(timerSettingsSchema),
@@ -115,6 +135,7 @@ export const gameStartedSchema = z.pipe(
         gameType: raw.gt,
         players: raw.p,
         riichiCost: raw.rc,
+        riichiStickValue: raw.rsv,
         seat: raw.s ?? null,
         timer: raw.tm ?? null,
         type: "game_started" as const,

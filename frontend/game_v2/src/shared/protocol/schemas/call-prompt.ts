@@ -6,22 +6,22 @@ import { seatSchema, secondsSchema, tileIdSchema, waitIdSchema } from "./common"
 
 // --- Available call option (inside meld prompt `ac` array) ---
 
-const meldCallTypeSchema = z.union([
-    z.literal(MELD_CALL_TYPE.PON),
-    z.literal(MELD_CALL_TYPE.CHI),
-    z.literal(MELD_CALL_TYPE.OPEN_KAN),
+/** One offered call: a chi with the pairs it may be called with, a nonempty list; a pon or an open kan with none. */
+const availableCallSchema = z.union([
+    z.pipe(
+        z.object({
+            clt: z.literal(MELD_CALL_TYPE.CHI),
+            opt: z.array(z.tuple([tileIdSchema, tileIdSchema])).check(z.minLength(1)),
+        }),
+        z.transform((raw) => ({ callType: raw.clt, options: raw.opt })),
+    ),
+    z.pipe(
+        z.object({
+            clt: z.union([z.literal(MELD_CALL_TYPE.PON), z.literal(MELD_CALL_TYPE.OPEN_KAN)]),
+        }),
+        z.transform((raw) => ({ callType: raw.clt })),
+    ),
 ]);
-
-const availableCallSchema = z.pipe(
-    z.object({
-        clt: meldCallTypeSchema,
-        opt: z.optional(z.nullable(z.array(z.tuple([tileIdSchema, tileIdSchema])))),
-    }),
-    z.transform((raw) => ({
-        callType: raw.clt,
-        options: raw.opt ?? null,
-    })),
-);
 
 // --- Ron prompt (clt=0) ---
 
@@ -75,7 +75,7 @@ const chankanPromptSchema = z.pipe(
 
 const meldPromptSchema = z.pipe(
     z.object({
-        ac: z.array(availableCallSchema),
+        ac: z.array(availableCallSchema).check(z.minLength(1)),
         clt: z.literal(CALL_TYPE.MELD),
         cs: seatSchema,
         el: z.optional(secondsSchema),

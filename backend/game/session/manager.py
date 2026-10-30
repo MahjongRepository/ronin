@@ -33,6 +33,7 @@ from game.messaging.event_payload import (
 )
 from game.messaging.types import (
     ErrorMessage,
+    GameJoinedMessage,
     SeatControlMessage,
     SessionErrorCode,
     SessionMessageType,
@@ -328,11 +329,12 @@ class SessionManager:
 
     def _admit(self, game: GameSession, participant: Participant, connection: ConnectionProtocol) -> None:
         """
-        Bind the joining connection, replacing any the participant has, and start the game once every participant is
-        connected.
+        Bind the joining connection, replacing any the participant has, tell it it joined, and start the game once every
+        participant is connected.
         """
         structlog.contextvars.bind_contextvars(game_id=game.game_id)
         self._bind(participant, connection)
+        connection.send_message(GameJoinedMessage().model_dump())
         connected = len(game.connected())
         logger.info(
             "player joined pending game",

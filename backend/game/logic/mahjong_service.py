@@ -226,6 +226,7 @@ class MahjongGameService(GameService):
             dealer_seat=game_state.round_state.dealer_seat,
             dealer_dice=game_state.dealer_dice,
             riichi_cost=game_state.settings.riichi_cost,
+            riichi_stick_value=game_state.settings.riichi_stick_value,
         )
 
     def _create_round_started_events(self, game_state: MahjongGameState) -> list[RoundStartedEvent]:
@@ -736,6 +737,7 @@ class MahjongGameService(GameService):
             dealer_seat=header.dealer_seat,
             dealer_dice=game_state.dealer_dice,
             riichi_cost=game_state.settings.riichi_cost,
+            riichi_stick_value=game_state.settings.riichi_stick_value,
             seat=seat,
             round_wind=header.round_wind,
             round_number=header.round_number,

@@ -1,7 +1,12 @@
 import { assert, describe, expect, test } from "vitest";
 
 import { type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
-import { type RoundEndResult, type TableState, roundEndPages } from "@/entities/table";
+import {
+    type RoundEndResult,
+    type TableState,
+    extractRoundEndResult,
+    roundEndPages,
+} from "@/entities/table";
 import { ROUND_RESULT_TYPE, type RoundEndEvent } from "@/shared/protocol";
 
 interface RoundEnd {
@@ -48,6 +53,7 @@ describe("extractRoundEndResult", () => {
                 isDealer: false,
                 melds: [],
                 paoSeat: null,
+                riichiBonus: 2000,
                 riichiSticksCollected: 2,
                 scoreChanges: event.scoreChanges,
                 seat: 1,
@@ -56,6 +62,19 @@ describe("extractRoundEndResult", () => {
             },
         ]);
         expect(result.winners[0].handResult.points).toBe(8000);
+    });
+
+    test("riichi tsumo on honba at a 1,500 stick value: the sticks pay 3,000 and the rest beyond the hand is the honba", () => {
+        const { before, event } = lastRoundEnd("riichi");
+        assert(event.resultType === ROUND_RESULT_TYPE.TSUMO);
+        const winner = String(event.winnerSeat);
+        const gain = (event.scoreChanges[winner] ?? 0) + 2 * 500 + 300;
+        const onHonba = { ...event, scoreChanges: { ...event.scoreChanges, [winner]: gain } };
+
+        const { winners } = extractRoundEndResult(onHonba, { ...before, riichiStickValue: 1500 });
+        expect(winners.map((entry) => [entry.honbaBonus, entry.riichiBonus])).toEqual([
+            [300, 3000],
+        ]);
     });
 
     test("double ron: a page per winner with its own payments and ura; the table settles the aggregate once", () => {

@@ -140,7 +140,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   (`frame_undecodable`, apart from the browser's socket error, `transport_error`, which only its
   close follows), or a message its table or decision cannot take, which they report by throwing a
   `DesyncError` (`entities/table`); a silent fallback that guesses (an offer dropped for want of its
-  tile, an added kan drawn as a closed one for want of its pon) is one too. Out of step, the client
+  tile, an added kan drawn as a closed one for want of its pon) is one too, and an offer of an unknown
+  code or shape never parses, so no turn opens offering less than the server's for a switch to answer. Out of step, the client
   answers nothing, drops the open decision and an owed or sent round confirm, never resends what it
   sent, and keeps `highestOpenedWaitId`, so a wait re-sent
   after the snapshot is the player's to answer; the session still takes every message, but only the
@@ -338,15 +339,23 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   one: connecting (a socket asked for, with its connect deadline), identifying (the socket open and
   the identity message sent, JOIN_GAME or RECONNECT, with a session retry's due time or none),
   playing (the seat held: the only state that sends game messages, and the only one without an
-  identity or retry count) and awaiting a transport retry (no socket, with its due time). Whether
-  this page lost the seat it held belongs to the RECONNECT identity alone, so a join never has lost
-  one. Only an open socket carries a message, so connecting and awaiting a retry ignore every one.
-  A refusal ends any active session; only identifying schedules identity retries:
-  `join_game_already_started` turns a JOIN_GAME into RECONNECT and is ignored once the session
-  reconnects or plays, and `reconnect_retry_later` (to a RECONNECT) and a rate limit schedule a
-  session retry, as does `not_in_game` while identifying, which answers only an out-of-step client's
-  resync request (Desync) and says the server took no identity message on the socket. Any other handling of a session error (a rate limit or `game_not_started` answering
-  a resync request or an action) is the client's. Two retries stay distinct, each with its own
+  identity or retry count; whether it has seen the game start, its `game_started` or a snapshot, which a
+  joined game waits for, its status saying so) and awaiting a transport retry (no socket, with its due
+  time). Whether this page lost the seat it held belongs to the RECONNECT identity alone, so a join never
+  has lost one; a drop before the game started joins again with JOIN_GAME, the only identity a game
+  waiting to start takes (the server turns it into RECONNECT if the game started meanwhile). Only an open socket carries a message, so connecting and awaiting a retry ignore every one.
+  Only the server's answer admits an identifying session (`game_joined` a JOIN_GAME, the snapshot a
+  RECONNECT), never a game message. A refusal ends any active session; only identifying schedules
+  identity retries: `join_game_already_started` turns a JOIN_GAME into RECONNECT and is ignored once
+  the session reconnects or plays, and `reconnect_retry_later` (to a RECONNECT) and a rate limit
+  schedule a session retry, as does `not_in_game` while identifying, which answers only an out-of-step
+  client's resync request (Desync) and says the server took no identity message on the socket; any
+  other session error answering the identity message (all but `game_not_started`, which answers only an
+  action or a resync request) ends the session as refused, so an unexpected answer never leaves it
+  identifying for good. Any other handling of a session error (a rate limit or `game_not_started` answering
+  a resync request or an action) is the client's: a rate limit while the client's own resync request is
+  outstanding is that request's, asked again when its answer comes due, and never reaches the session,
+  which would resend its identity on a socket that may hold the seat. Two retries stay distinct, each with its own
   backoff and budget: a transport retry reopens a dropped socket, a session retry resends the
   identity message on the open socket. A drop supersedes a waiting session retry, since the reopened
   socket sends the identity message itself. A socket that has not opened by its connect deadline is

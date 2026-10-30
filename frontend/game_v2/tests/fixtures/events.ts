@@ -50,6 +50,7 @@ export function makeGameStartedEvent(overrides: Partial<GameStartedEvent> = {}):
             { aiStandIn: null, isAiPlayer: false, name: "Bob", seat: 3 },
         ],
         riichiCost: 1000,
+        riichiStickValue: 1000,
         seat: null,
         timer: null,
         type: "game_started",

@@ -91,6 +91,7 @@ export function applyGameReconnected(
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info.seat, claimed)),
         revealedSeats: [],
         riichiCost: snapshot.riichiCost,
+        riichiStickValue: snapshot.riichiStickValue,
         riichiSticks: snapshot.riichiSticks,
         roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
         roundHistory: snapshot.roundHistory.map(roundRecordOfHistory),

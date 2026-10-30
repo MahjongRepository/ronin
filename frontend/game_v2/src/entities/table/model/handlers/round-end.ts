@@ -1,4 +1,4 @@
-import { updatePlayer } from "@/entities/table/model/helpers";
+import { requireRiichiStickValue, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DrawKind,
     type DrawResult,
@@ -31,18 +31,16 @@ function settleScores(players: readonly PlayerState[], event: RoundEndEvent): Pl
     });
 }
 
-/**
- * What a riichi stick a winner collects is worth: the server's `riichi_stick_value`, which no live message carries, at
- * its default, the one every game is played with.
- */
-export const RIICHI_STICK_VALUE = 1000;
-
 const DORA_YAKU_ID = { aka: 121, dora: 120, ura: 122 } as const;
 
-/** The table at a round end that its result reads beyond the event: the round's dealer and dora indicators. */
+/**
+ * The table at a round end that its result reads beyond the event: the round's dealer and dora indicators, and the
+ * game's riichi stick value, which the event's collected sticks are paid at.
+ */
 export interface RoundEndContext {
     readonly dealerSeat: number;
     readonly doraIndicators: readonly number[];
+    readonly riichiStickValue: number | null;
 }
 
 interface WinnerSource {
@@ -68,6 +66,7 @@ function extractWinner(
     const { handResult, scoreChanges, winnerSeat } = source;
     const sticks = source.riichiSticksCollected;
     const gain = scoreChanges[String(winnerSeat)] ?? 0;
+    const riichiBonus = sticks === 0 ? 0 : sticks * requireRiichiStickValue(context);
     return {
         closedTiles: source.closedTiles,
         doraHan: {
@@ -76,10 +75,11 @@ function extractWinner(
             ura: yakuHan(handResult, DORA_YAKU_ID.ura),
         },
         handResult,
-        honbaBonus: gain - handResult.points - sticks * RIICHI_STICK_VALUE,
+        honbaBonus: gain - handResult.points - riichiBonus,
         isDealer: winnerSeat === context.dealerSeat,
         melds: source.melds,
         paoSeat: source.paoSeat,
+        riichiBonus,
         riichiSticksCollected: sticks,
         scoreChanges,
         seat: winnerSeat,

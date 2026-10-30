@@ -195,7 +195,7 @@ class TestMessageRouterEntryPointFailures:
         router.handle_message(connection, {"t": WireClientMessageType.JOIN_GAME, "game_ticket": ticket})
         await wait_for_background_tasks(session_manager)
         assert session_manager.get_game("game1") is None
-        assert [m["code"] for m in connection.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert [m.get("code") for m in connection.sent_messages] == [None, SessionErrorCode.INTERNAL_ERROR]
         assert connection._close_code == 1011
 
     async def test_message_router__when_the_ai_replacement_on_disconnect_raises__should_fail_the_game(self):

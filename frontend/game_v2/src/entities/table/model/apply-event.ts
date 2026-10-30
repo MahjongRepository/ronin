@@ -41,6 +41,7 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         phase: "pre_game",
         players,
         riichiCost: event.riichiCost,
+        riichiStickValue: event.riichiStickValue,
     };
 }
 

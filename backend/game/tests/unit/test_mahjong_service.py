@@ -327,15 +327,20 @@ class TestRoundEndAwaiting:
         assert (awaiting.kind, awaiting.seats) == (WaitKind.ROUND_ADVANCE, frozenset({0, 1, 2, 3}))
 
 
-class TestMahjongGameServiceRiichiCostOnTheWire:
-    def test_start_game__when_riichi_cost_not_default__should_send_it_on_game_started_and_snapshot(self):
+class TestMahjongGameServiceRiichiSettingsOnTheWire:
+    def test_start_game__when_riichi_cost_and_stick_value_not_default__should_send_each_on_game_started_and_snapshot(
+        self,
+    ):
         service = MahjongGameService()
-        start = service.start_game("game1", ["Alice"], seed="a" * 192, settings=GameSettings(riichi_cost=2000))
+        settings = GameSettings(riichi_cost=2000, riichi_stick_value=1500)
+        start = service.start_game("game1", ["Alice"], seed="a" * 192, settings=settings)
         game_started = next(e for e in start.events if isinstance(e, GameStartedEvent))
         snapshot = service.build_reconnection_snapshot(start.runtime, start.seats[0])
+        started_payload = game_event_payload(game_started)
+        snapshot_payload = reconnection_payload(snapshot, stand_ins={})
 
-        assert game_event_payload(game_started)["rc"] == 20
-        assert reconnection_payload(snapshot, stand_ins={})["rc"] == 20
+        assert (started_payload["rc"], started_payload["rsv"]) == (20, 15)
+        assert (snapshot_payload["rc"], snapshot_payload["rsv"]) == (20, 15)
 
 
 class TestMahjongGameServiceInvalidStart:

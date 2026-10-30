@@ -33,6 +33,14 @@ export function requireRiichiCost(state: TableState): number {
     return state.riichiCost;
 }
 
+/** The game's riichi stick value; a win collecting sticks on a table that never learned it is an impossible state. */
+export function requireRiichiStickValue(context: Pick<TableState, "riichiStickValue">): number {
+    if (context.riichiStickValue === null) {
+        throw new Error("The table holds no riichi stick value");
+    }
+    return context.riichiStickValue;
+}
+
 /**
  * Take tiles out of a closed hand: a tile the view knows leaves `tiles`, any other leaves the concealed count.
  * Returns null when the hand holds neither, an impossible state the caller reports.

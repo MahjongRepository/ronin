@@ -115,7 +115,6 @@ function actionOffers(
     action: AvailableAction,
     { hand, melds }: Pick<DecisionContext, "hand" | "melds">,
 ): Offer[] {
-    const tiles = action.tiles ?? [];
     function kanOffer(kanType: KanType, type: number): Offer {
         const tileId = hand.find((handTile) => tileType(handTile) === type);
         if (tileId === undefined) {
@@ -130,22 +129,22 @@ function actionOffers(
     }
     switch (action.action) {
         case PLAYER_ACTION.RIICHI: {
-            return [...new Set(tiles)].map((tileId) => ({ kind: "riichi", tileId }));
+            return [...new Set(action.tileIds)].map((tileId) => ({ kind: "riichi", tileId }));
         }
         case PLAYER_ACTION.TSUMO: {
             return [{ kind: "tsumo" }];
         }
         case PLAYER_ACTION.KAN: {
-            return tiles.map((type) => kanOffer(KAN_TYPE.CLOSED, type));
+            return action.tileTypes.map((type) => kanOffer(KAN_TYPE.CLOSED, type));
         }
         case PLAYER_ACTION.ADDED_KAN: {
-            return tiles.map((type) => kanOffer(KAN_TYPE.ADDED, type));
+            return action.tileTypes.map((type) => kanOffer(KAN_TYPE.ADDED, type));
         }
         case PLAYER_ACTION.KYUUSHU: {
             return [{ kind: "kyuushu" }];
         }
         default: {
-            return [];
+            return assertNever(action);
         }
     }
 }
@@ -162,18 +161,13 @@ function promptOffers(prompt: CallPromptEvent): Offer[] {
                 return [{ kind: "pon", tileId }];
             }
             case MELD_CALL_TYPE.CHI: {
-                if (call.options === null) {
-                    throw new DesyncError(
-                        `A chi on tile ${tileId} is offered with no pair to call it with`,
-                    );
-                }
                 return call.options.map((sequence) => ({ kind: "chi", sequence, tileId }));
             }
             case MELD_CALL_TYPE.OPEN_KAN: {
                 return [{ kanType: KAN_TYPE.OPEN, kind: "kan", tileId }];
             }
             default: {
-                return assertNever(call.callType);
+                return assertNever(call);
             }
         }
     });
@@ -221,9 +215,9 @@ function openCall(prompt: CallPromptEvent, waitId: number, context: DecisionCont
 
 /**
  * The decision a message opens for the viewer's seat, or null: the seat's own draw or `turn` event opens its turn,
- * a call prompt its call. Only a message that carries a wait id opens one, so a replay never does. An offer the client
- * cannot resolve (a kan of a type the hand lacks, an added kan with no pon, a chi with no pair) throws a `DesyncError`
- * rather than being dropped.
+ * a call prompt its call. Only a message that carries a wait id opens one, so a replay never does. An offer of a code
+ * or shape the client does not know never parses; one it cannot resolve against the hand (a kan of a type the hand
+ * lacks, an added kan with no pon) throws a `DesyncError` rather than being dropped.
  */
 export function openDecision(
     message: ParsedServerMessage,

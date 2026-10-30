@@ -602,6 +602,24 @@ describe("stepGameClient - out of step while the reconnect identifies", () => {
         expect([admitted.state.session?.status, admitted.state.desync]).toEqual(["playing", null]);
     });
 
+    it("takes a rate limit while its request is outstanding as the request's, asking again when it comes due and never resending the identity", () => {
+        const lost = lostWhileIdentifying();
+        const due = LOST_AT + RESYNC_ANSWER_MS;
+        const asked = run(lost, [tick(due)]);
+        expect(sends(asked.effects)).toEqual([RESYNC]);
+
+        const limited = run(asked.state, [
+            message(due + 1, wireSessionError(SESSION_ERROR_CODE.RATE_LIMITED)),
+        ]);
+        expect([limited.effects, limited.state.session]).toEqual([[], asked.state.session]);
+        const later = run(limited.state, [
+            tick(due + 1001),
+            tick(due + RESYNC_ANSWER_MS - 1),
+            tick(due + RESYNC_ANSWER_MS),
+        ]);
+        expect(sends(later.effects)).toEqual([RESYNC]);
+    });
+
     it("asks nothing while a session retry waits, then gives the resent identity's snapshot its time", () => {
         const lost = lostWhileIdentifying();
         const due = LOST_AT + RESYNC_ANSWER_MS;

@@ -32,9 +32,21 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set([
  * Session errors that refuse only this one identity message, so the session sends it again after a session retry.
  * Of the errors that are not refusals, only the rate limit can answer a JOIN_GAME or RECONNECT the client sends
  * well formed, once per socket: `already_in_game` needs a second identity message on a bound socket and
- * `game_not_started` a game action (`backend/game/session/manager.py`).
+ * `game_not_started` a game action or a resync request (`backend/game/session/manager.py`). A rate limit of the
+ * client's own outstanding resync request never reaches the session (`entities/client`, Desync).
  */
 const RESENDABLE_CODES: ReadonlySet<string> = new Set([SESSION_ERROR_CODE.RATE_LIMITED]);
+
+/**
+ * Session errors that answer a request other than the identity message: `game_not_started` and `not_in_game` refuse
+ * only a game action or a resync request (`backend/game/session/manager.py`); an identifying session resends its
+ * identity on the second, which says the socket holds no seat. Every other one it gets answers its JOIN_GAME or
+ * RECONNECT.
+ */
+const NON_IDENTITY_CODES: ReadonlySet<string> = new Set([
+    SESSION_ERROR_CODE.GAME_NOT_STARTED,
+    SESSION_ERROR_CODE.NOT_IN_GAME,
+]);
 
 interface RetryBudget {
     readonly maxAttempts: number;
@@ -70,6 +82,11 @@ export function isRefusal(code: string): boolean {
 
 export function isResendable(code: string): boolean {
     return RESENDABLE_CODES.has(code);
+}
+
+/** Whether a session error an identifying session gets answers its identity message. */
+export function answersIdentity(code: string): boolean {
+    return !NON_IDENTITY_CODES.has(code);
 }
 
 /** The delay before a retry's numbered attempt (1-based), or null once its budget is spent. */

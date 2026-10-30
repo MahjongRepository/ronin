@@ -4,6 +4,7 @@ import { clientEvent, clientScenario, forbiddingIo } from "#tests/fixtures/scena
 import {
     WIRE_DRAW,
     WIRE_GAME_END,
+    WIRE_GAME_JOINED,
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
@@ -55,6 +56,7 @@ function resyncDueEffects(state: GameClientState): readonly ClientEffect[] {
 function playingScenario(): ReturnType<typeof clientScenario> {
     const scenario = clientScenario();
     scenario.step(opened(0));
+    scenario.step(message(0, WIRE_GAME_JOINED));
     scenario.step(message(0, WIRE_GAME_STARTED));
     scenario.step(message(0, WIRE_ROUND_STARTED));
     return scenario;
@@ -200,6 +202,7 @@ describe("stepGameClient", () => {
         const { calls, result } = forbiddingIo(() =>
             collectEffects([
                 opened(0),
+                message(5, WIRE_GAME_JOINED),
                 message(10, WIRE_GAME_STARTED),
                 message(15, WIRE_ROUND_STARTED),
                 message(20, wireRoundEnd(5)),

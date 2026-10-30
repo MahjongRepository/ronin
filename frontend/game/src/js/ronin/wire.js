@@ -67,6 +67,7 @@ const wire = {
     SESSION: {
         ERROR:              'session_error',
         SEAT_CONTROL:       'seat_control',
+        GAME_JOINED:        'game_joined',
         GAME_RECONNECTED:   'game_reconnected',
     },
 

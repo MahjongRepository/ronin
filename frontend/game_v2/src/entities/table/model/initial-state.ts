@@ -15,6 +15,7 @@ export function createInitialTableState(): TableState {
         players: [],
         revealedSeats: [],
         riichiCost: null,
+        riichiStickValue: null,
         riichiSticks: 0,
         roundEndResult: null,
         roundHistory: [],

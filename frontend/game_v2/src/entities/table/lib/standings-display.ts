@@ -1,4 +1,3 @@
-import { RIICHI_STICK_VALUE } from "@/entities/table/model/handlers/round-end";
 import { requireRiichiCost, roundInWind } from "@/entities/table/model/helpers";
 import {
     type GameEndResult,
@@ -217,7 +216,7 @@ function leftoverSticks(end: GameEndResult, seats: readonly number[]): LeftoverS
         return {
             awarded: true,
             cells: seats.map((seat) => (seat === end.winnerSeat ? formatDelta(paid) : "")),
-            sticks: paid / RIICHI_STICK_VALUE,
+            sticks: end.leftoverSticks,
         };
     }
     if (end.leftoverSticks === 0) {

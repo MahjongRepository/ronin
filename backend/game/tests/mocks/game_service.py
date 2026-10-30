@@ -116,6 +116,7 @@ class MockGameService(GameService):
                 dealer_seat=0,
                 dealer_dice=((1, 1), (1, 1)),
                 riichi_cost=1000,
+                riichi_stick_value=1000,
             ),
             RoundStartedEvent(
                 seat=0,
@@ -151,6 +152,7 @@ class MockGameService(GameService):
             dealer_seat=0,
             dealer_dice=((1, 1), (1, 1)),
             riichi_cost=1000,
+            riichi_stick_value=1000,
             seat=seat,
             round_wind=WindName.EAST,
             round_number=0,

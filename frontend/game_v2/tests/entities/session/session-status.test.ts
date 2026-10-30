@@ -25,7 +25,8 @@ describe("describePlayerSessionStatus", () => {
                 identity: JOIN,
                 status: "connecting",
             },
-            { ...SEAT, status: "playing" },
+            { ...SEAT, gameStarted: true, status: "playing" },
+            { ...SEAT, gameStarted: false, status: "playing" },
             {
                 ...SEAT,
                 attempts: NO_ATTEMPTS,
@@ -56,6 +57,7 @@ describe("describePlayerSessionStatus", () => {
             ["Joining the game", "connected", ""],
             ["Connecting", "connecting", "Connecting"],
             ["Connected", "connected", ""],
+            ["Waiting for the game to start", "connected", ""],
             ["Connecting", "connected", ""],
             ["Reconnecting", "disconnected", "Offline"],
             ["Game over", "disconnected", "Ended"],

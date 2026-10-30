@@ -11,6 +11,7 @@ from game.wire.enums import SeatControlReason
 
 class SessionMessageType(StrEnum):
     ERROR = "session_error"
+    GAME_JOINED = "game_joined"
     GAME_RECONNECTED = "game_reconnected"
     SEAT_CONTROL = "seat_control"
 
@@ -157,6 +158,15 @@ class TimerSettings(BaseModel):
     meld_decision_seconds: float = Field(serialization_alias="md")
     round_advance_timeout_seconds: float = Field(serialization_alias="ra")
     game_start_pause_seconds: float = Field(serialization_alias="gp")
+
+
+class GameJoinedMessage(BaseModel):
+    """
+    The answer to an accepted JOIN_GAME, sent to the joining connection alone once it holds the participant's seat,
+    ahead of anything the game sends it, so the client is admitted by the server's word rather than by inference.
+    """
+
+    type: Literal[SessionMessageType.GAME_JOINED] = SessionMessageType.GAME_JOINED
 
 
 class SeatControlMessage(BaseModel):

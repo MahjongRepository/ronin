@@ -22,6 +22,12 @@ const sessionErrorSchema = z.pipe(
     })),
 );
 
+/** The server's answer to an accepted JOIN_GAME: the connection holds the seat, ahead of anything the game sends it. */
+const gameJoinedSchema = z.pipe(
+    z.object({ type: z.literal(SESSION_MESSAGE_TYPE.GAME_JOINED) }),
+    z.transform(() => ({ type: "game_joined" as const })),
+);
+
 /**
  * A seat changing hands, live as a replay's seat control line records it, so it parses into the same shapes: an AI
  * player stands in for the seat's human (`r` says why), or without `r`, the human takes it back.
@@ -42,15 +48,19 @@ const seatControlSchema = z.pipe(
 // --- Dispatch ---
 
 export type SessionErrorMessage = z.output<typeof sessionErrorSchema>;
+export type GameJoinedMessage = z.output<typeof gameJoinedSchema>;
 export type SeatControlMessage = z.output<typeof seatControlSchema>;
 
-export type SessionMessage = SessionErrorMessage | SeatControlMessage;
+export type SessionMessage = SessionErrorMessage | GameJoinedMessage | SeatControlMessage;
 
 export function parseSessionMessage(raw: Record<string, unknown>): SessionMessage {
     const { type } = raw;
     switch (type) {
         case SESSION_MESSAGE_TYPE.ERROR: {
             return sessionErrorSchema.parse(raw);
+        }
+        case SESSION_MESSAGE_TYPE.GAME_JOINED: {
+            return gameJoinedSchema.parse(raw);
         }
         case SESSION_MESSAGE_TYPE.SEAT_CONTROL: {
             return seatControlSchema.parse(raw);

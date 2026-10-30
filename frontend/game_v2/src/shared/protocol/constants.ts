@@ -78,6 +78,7 @@ export type GameAction = (typeof GAME_ACTION)[keyof typeof GAME_ACTION];
 
 export const SESSION_MESSAGE_TYPE = {
     ERROR: "session_error",
+    GAME_JOINED: "game_joined",
     GAME_RECONNECTED: "game_reconnected",
     SEAT_CONTROL: "seat_control",
 } as const;

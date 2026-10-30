@@ -29,9 +29,12 @@ import {
 } from "@/entities/client";
 import {
     type ClientMessage,
+    EVENT_TYPE,
     NUM_TILES,
+    PLAYER_ACTION,
     buildDiscardAction,
     buildPassAction,
+    buildResyncMessage,
 } from "@/shared/protocol";
 
 const ALL_OFF = { auto_discard: false, auto_win: false, no_calls: false };
@@ -321,6 +324,47 @@ describe("stepGameClient - play switches", () => {
                 { effects: [], state: { ...state, now: 4000 } },
             ]),
         );
+    });
+
+    it.each([
+        { aa: [{ a: 999 }], name: "an action code it does not know" },
+        { aa: [{ a: PLAYER_ACTION.RIICHI }], name: "a riichi with no discard" },
+        { aa: [{ a: PLAYER_ACTION.KAN }], name: "a kan with no tile type" },
+        { aa: [{ a: PLAYER_ACTION.RIICHI, tl: [] }], name: "a riichi with an empty discard list" },
+    ])("Auto discard never answers a draw offering $name, a loss of step instead", ({ aa }) => {
+        const turn = checkpointState("own_turn_seat_1", "first draw");
+        const seat = turn.viewerSeat ?? 0;
+        const [drawnTile] = turn.table.players[seat].tiles;
+        const switchedOn = stepGameClient(turn, {
+            at: 3100,
+            intent: { playSwitch: "auto_discard", type: "toggle_switch" },
+            kind: "intent",
+        }).state;
+        function drawOffering(offers: unknown): ReturnType<typeof stepGameClient> {
+            return stepGameClient(switchedOn, {
+                at: 3200,
+                kind: "server_message",
+                raw: {
+                    aa: offers,
+                    bk: 30,
+                    d: seat * NUM_TILES + drawnTile,
+                    t: EVENT_TYPE.DRAW,
+                    wi: 999,
+                },
+            });
+        }
+
+        const unreadable = drawOffering(aa);
+        expect(drawOffering([]).effects).toEqual([sent(buildDiscardAction(drawnTile, 999))]);
+        expect(unreadable.effects.map((effect) => effect.type)).toEqual([
+            "report_protocol_failure",
+            "send",
+        ]);
+        expect(unreadable.effects[1]).toEqual(sent(buildResyncMessage()));
+        expect([unreadable.state.decision, unreadable.state.desync?.cause]).toEqual([
+            null,
+            "unreadable_message",
+        ]);
     });
 
     it("never answers again a decision the server's refusal reopened", () => {

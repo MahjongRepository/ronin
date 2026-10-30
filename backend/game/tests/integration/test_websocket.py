@@ -37,11 +37,12 @@ class TestWebSocketIntegration:
         with TestClient(app) as client:
             yield client
 
-    def test_websocket__when_single_player_joins__should_start_game(self, client):
+    def test_websocket__when_single_player_joins__should_answer_the_join_and_start_game(self, client):
         tickets = create_pending_game(client, game_id="test_game")
         with client.websocket_connect("/ws/test_game") as ws:
-            messages = join_game_and_start(ws, tickets[0])
-            assert [message["t"] for message in messages] == [
+            joined, *events = join_game_and_start(ws, tickets[0])
+            assert joined == {"type": "game_joined"}
+            assert [message["t"] for message in events] == [
                 EVENT_TYPE_INT[EventType.GAME_STARTED],
                 EVENT_TYPE_INT[EventType.ROUND_STARTED],
             ]
@@ -83,7 +84,7 @@ class TestWebSocketIntegration:
                 {"t": WireClientMessageType.JOIN_GAME, "game_ticket": tickets[0]},
             )
             msg = recv_ws(ws)
-            assert msg["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
+            assert msg["type"] == SessionMessageType.GAME_JOINED
 
     def test_websocket__when_join_ticket_invalid__should_return_invalid_ticket_error(self, client):
         create_pending_game(client, game_id="test_game")

@@ -106,6 +106,24 @@ describe("RoninSession", () => {
         expect(latestSocket().sent).toEqual([RECONNECT]);
     });
 
+    it("joins again with JOIN_GAME after a drop while the joined game waits to start, and resumes with RECONNECT once it started", () => {
+        ({ session } = connectSession());
+        latestSocket().receive({ type: "game_joined" });
+
+        latestSocket().drop();
+        vi.advanceTimersByTime(1_000);
+        latestSocket().open();
+        expect(latestSocket().sent).toEqual([JOIN]);
+
+        latestSocket().receive({ type: "game_joined" });
+        latestSocket().receive({ t: 8, s: 0 });
+        latestSocket().drop();
+        vi.advanceTimersByTime(1_000);
+        latestSocket().open();
+        expect(latestSocket().sent).toEqual([RECONNECT]);
+        expect(FakeWebSocket.created).toHaveLength(3);
+    });
+
     it("switches to RECONNECT for a started game and retries a reconnect the server is not ready for", () => {
         ({ session } = connectSession());
         const ws = latestSocket();

@@ -4,6 +4,8 @@ export type WirePayload = Record<string, unknown>;
 
 export const WIRE_DRAW: WirePayload = { d: 0, t: 1 };
 
+export const WIRE_GAME_JOINED: WirePayload = { type: "game_joined" };
+
 export const WIRE_GAME_STARTED: WirePayload = {
     dd: [
         [1, 1],
@@ -14,10 +16,14 @@ export const WIRE_GAME_STARTED: WirePayload = {
     gt: 0,
     p: [{ ai: 0, nm: "P0", s: 0 }],
     rc: 10,
+    rsv: 10,
     t: 8,
 };
 
-/** A replay file's game start: the recorded settings (`gs`, only the riichi cost here) in place of the live `rc`. */
+/**
+ * A replay file's game start: the recorded settings (`gs`, only the riichi cost and stick value here) in place of the
+ * live `rc` and `rsv`.
+ */
 export const REPLAY_GAME_STARTED: WirePayload = {
     dd: [
         [1, 1],
@@ -25,7 +31,7 @@ export const REPLAY_GAME_STARTED: WirePayload = {
     ],
     dl: 0,
     gid: "g1",
-    gs: { riichi_cost: 1000 },
+    gs: { riichi_cost: 1000, riichi_stick_value: 1000 },
     gt: 0,
     p: [{ ai: 0, nm: "P0", s: 0 }],
     t: 8,
@@ -73,6 +79,7 @@ export const WIRE_GAME_RECONNECTED: WirePayload = {
     r: 0,
     rc: 10,
     rh: [WIRE_ROUND_RECORD],
+    rsv: 10,
     s: 0,
     tm: { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 },
     tr: 70,

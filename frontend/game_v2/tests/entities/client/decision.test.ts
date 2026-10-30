@@ -66,6 +66,7 @@ describe("followDecision", () => {
             "dora_revealed",
             "error",
             "furiten",
+            "game_joined",
             "human_return",
             "riichi_declared",
             "session_error",

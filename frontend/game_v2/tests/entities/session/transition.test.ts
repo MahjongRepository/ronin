@@ -4,6 +4,7 @@ import { HANDOFF, sessionInput, sessionScenario } from "#tests/fixtures/scenario
 import {
     WIRE_DRAW,
     WIRE_GAME_END,
+    WIRE_GAME_JOINED,
     WIRE_GAME_RECONNECTED,
     WIRE_GAME_STARTED,
     WIRE_SEAT_TO_AI,
@@ -35,8 +36,15 @@ function joining(): SessionScenario {
     return scenario;
 }
 
-function playing(): SessionScenario {
+/** A session admitted to its game and waiting for the game to start. */
+function waitingToStart(): SessionScenario {
     const scenario = joining();
+    scenario.step(message(0, WIRE_GAME_JOINED));
+    return scenario;
+}
+
+function playing(): SessionScenario {
+    const scenario = waitingToStart();
     scenario.step(message(0, WIRE_GAME_STARTED));
     return scenario;
 }
@@ -107,11 +115,12 @@ function dropped(at: number): SessionInput {
 }
 
 describe("stepSession", () => {
-    it("joins with JOIN_GAME, plays from the first game event, and resumes with RECONNECT after a drop", () => {
+    it("joins with JOIN_GAME, plays once the server says it joined, and resumes with RECONNECT after a drop once the game started", () => {
         const scenario = sessionScenario();
         const effects = [
             opened(0),
-            message(10, WIRE_GAME_STARTED),
+            message(10, WIRE_GAME_JOINED),
+            message(20, WIRE_GAME_STARTED),
             closed(100, 1006),
             tick(1099),
             tick(1100),
@@ -125,10 +134,26 @@ describe("stepSession", () => {
             [],
             [],
             [],
+            [],
             [OPEN],
             [RECONNECT],
             [],
         ]);
+    });
+
+    it("joins again with JOIN_GAME after a drop while its game waits to start, which a game started meanwhile turns into RECONNECT", () => {
+        const scenario = waitingToStart();
+        expect(scenario.state).toMatchObject({ gameStarted: false, status: "playing" });
+
+        const rejoined = [closed(100, 1006), tick(1100), opened(1200)].map((input) =>
+            scenario.step(input),
+        );
+        expect(rejoined).toEqual([[], [OPEN], [JOIN]]);
+        expect(scenario.state).toMatchObject({ identity: { kind: "join" }, status: "identifying" });
+        const alreadyStarted = message(1300, wireSessionError("join_game_already_started"));
+        expect(scenario.step(alreadyStarted)).toEqual([RECONNECT]);
+        scenario.step(message(1400, WIRE_GAME_RECONNECTED));
+        expect(scenario.state).toMatchObject({ gameStarted: true, status: "playing" });
     });
 
     it("leaves every input a state has no rule for as it is, emitting nothing", () => {
@@ -180,15 +205,34 @@ describe("stepSession", () => {
     });
 
     describe("identifying", () => {
-        it("is admitted while joining by any message the game sends the seat, a game error included, but not by a seat's change of control", () => {
+        it("is admitted while joining by the server's game_joined alone, never by a message of the game", () => {
             const scenario = joining();
 
-            expect(scenario.step(message(10, WIRE_SEAT_TO_AI))).toEqual([]);
+            const gameMessages = [
+                message(10, WIRE_SEAT_TO_AI),
+                message(20, wireGameError("not_your_turn", 1)),
+                message(30, WIRE_GAME_STARTED),
+            ];
+            const effects = gameMessages.map((input) => scenario.step(input));
+            expect(effects).toEqual([[], [], []]);
             expect(scenario.state).toMatchObject({ status: "identifying" });
-            const gameError = message(20, wireGameError("not_your_turn", 1));
-            expect(scenario.step(gameError)).toEqual([]);
+            expect(scenario.step(message(40, WIRE_GAME_JOINED))).toEqual([]);
             expect(scenario.state).toMatchObject({ status: "playing" });
         });
+
+        it.each(["invalid_message", "already_in_game"])(
+            "ends on the page, never stranded joining, when the server answers JOIN_GAME with %s",
+            (code) => {
+                const scenario = joining();
+
+                const answer = message(10, wireSessionError(code));
+                expect(scenario.step(answer)).toEqual([{ type: "close_socket" }, FORGET_HANDOFF]);
+                expect(scenario.state).toMatchObject({
+                    reason: { code, kind: "refused" },
+                    status: "ended",
+                });
+            },
+        );
 
         it("turns JOIN_GAME into RECONNECT on join_game_already_started only while joining", () => {
             const scenario = joining();

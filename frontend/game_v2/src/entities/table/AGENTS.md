@@ -48,9 +48,12 @@ replay view, the live game and the storybook read the tables it produces.
 - Riichi deposits on `riichi_declared`, which the server sends only once the declaration's discard
   passes without a ron (a ronned declaration discard deposits nothing): one stick onto the table, the
   table's riichi cost (`riichiCost`, the game's `riichi_cost` from its start or a reconnect's snapshot)
-  off the declarer. The cost is not what a collected stick pays (`riichi_stick_value`, the round end's
-  and the game end's own figures), and a table that never learned it refuses a deposit. The reconnect
-  snapshot's scores and sticks already hold every deposit and are taken as they are.
+  off the declarer. The cost is not what a collected stick pays (`riichiStickValue`, the game's
+  `riichi_stick_value`, learned the same way), and a table that never learned it refuses a deposit. A
+  winner's riichi bonus is its collected sticks at that value, and its honba bonus is what its gain holds
+  beyond the hand and that bonus; the leftover sticks at the game's end are the game end's own count
+  (`lr`). The reconnect snapshot's scores and sticks already hold every deposit and are taken as they
+  are.
 - A round end's wire `scores` are taken after the riichi deposits and before the round's payments.
   `applyEvent` settles each player at that score plus its `scoreChanges` (the aggregated map, for a
   double ron too), never from the prior state, so a deposit is not deducted twice; the winners'

@@ -81,6 +81,7 @@ def _make_game_started_event(game_id: str = "game1") -> GameStartedEvent:
         dealer_seat=0,
         dealer_dice=((1, 1), (1, 1)),
         riichi_cost=1000,
+        riichi_stick_value=1000,
     )
 
 

@@ -12,6 +12,7 @@ import { type GameSessionData } from "@/shared/session";
 
 import {
     CONNECT_TIMEOUT_MS,
+    answersIdentity,
     isRefusal,
     isResendable,
     isTerminalClose,
@@ -26,6 +27,7 @@ import {
     type EndedSession,
     type IdentifyingSession,
     type Identity,
+    type PlayingSession,
     type RecoveringSession,
     type RetryKind,
     type SeekingSession,
@@ -188,8 +190,8 @@ function openSocket({ attempts, gameId, handoff, identity }: Seeker, at: number)
 }
 
 /** Hold the seat: the retries spent seeking it no longer count. */
-function admit({ gameId, handoff }: IdentifyingSession): SessionStep {
-    return unchanged({ gameId, handoff, status: "playing" });
+function admit({ gameId, handoff }: IdentifyingSession, gameStarted: boolean): SessionStep {
+    return unchanged({ gameId, gameStarted, handoff, status: "playing" });
 }
 
 function onTransportOpened(session: ActiveSession): SessionStep {
@@ -227,18 +229,20 @@ function onTransportClosed(
     return awaitTransportRetry(seekerAfterDrop(session), at);
 }
 
-/** What a drop leaves seeking the seat: a seat held until now is lost, claimed back with RECONNECT afresh. */
+/**
+ * What a drop leaves seeking the seat: a seat held until now is lost, claimed back afresh with RECONNECT once the game
+ * started, else with JOIN_GAME, which a game waiting to start takes (and one that started meanwhile turns into
+ * RECONNECT).
+ */
 function seekerAfterDrop(session: ActiveSession): Seeker {
     if (session.status !== "playing") {
         return session;
     }
-    const { gameId, handoff } = session;
-    return {
-        attempts: NO_ATTEMPTS,
-        gameId,
-        handoff,
-        identity: { kind: "reconnect", lostSeat: true },
-    };
+    const { gameId, gameStarted, handoff } = session;
+    const identity: Identity = gameStarted
+        ? { kind: "reconnect", lostSeat: true }
+        : { kind: "join" };
+    return { attempts: NO_ATTEMPTS, gameId, handoff, identity };
 }
 
 /** Reopen the socket after a transport retry's wait, or end once its budget is spent. */
@@ -309,7 +313,9 @@ function onTick(session: ActiveSession, at: number): SessionStep {
  * Answer a session error. A refusal ends the session. The others answer an identity message, so only an identifying
  * session takes them: `join_game_already_started` turns a JOIN_GAME into RECONNECT, and `reconnect_retry_later` (to a
  * RECONNECT) or a rate limit resends the identity message after a session retry, as does `not_in_game` while
- * identifying, the answer to an out-of-step client's resync request on a socket that holds no seat.
+ * identifying, the answer to an out-of-step client's resync request on a socket that holds no seat. Any other answer
+ * to the identity message admits nothing and is never followed by one that does, so it ends the session as refused
+ * rather than leave it identifying for good.
  */
 function onSessionError(session: ActiveSession, code: string, at: number): SessionStep {
     if (session.status === "identifying" && code === SESSION_ERROR_CODE.NOT_IN_GAME) {
@@ -318,9 +324,13 @@ function onSessionError(session: ActiveSession, code: string, at: number): Sessi
     if (isRefusal(code)) {
         return endSession(session, { code, kind: "refused" });
     }
-    if (session.status !== "identifying") {
-        return unchanged(session);
-    }
+    return session.status === "identifying"
+        ? onIdentityAnswer(session, code, at)
+        : unchanged(session);
+}
+
+/** Answer a session error to an identifying session's identity message that is not a refusal. */
+function onIdentityAnswer(session: IdentifyingSession, code: string, at: number): SessionStep {
     if (code === SESSION_ERROR_CODE.JOIN_GAME_ALREADY_STARTED) {
         return session.identity.kind === "join" ? resumeStartedGame(session) : unchanged(session);
     }
@@ -328,7 +338,12 @@ function onSessionError(session: ActiveSession, code: string, at: number): Sessi
         (code === SESSION_ERROR_CODE.RECONNECT_RETRY_LATER &&
             session.identity.kind === "reconnect") ||
         isResendable(code);
-    return retriesIdentity ? scheduleSessionRetry(session, at) : unchanged(session);
+    if (retriesIdentity) {
+        return scheduleSessionRetry(session, at);
+    }
+    return answersIdentity(code)
+        ? endSession(session, { code, kind: "refused" })
+        : unchanged(session);
 }
 
 /** A JOIN_GAME refused because the game already started with the seat: claim it with RECONNECT on the same socket. */
@@ -356,25 +371,31 @@ function onMessage(session: ActiveSession, message: ParsedServerMessage, at: num
         return endSession(session, { kind: "game_ended" });
     }
     return session.status === "playing"
-        ? unchanged(session)
+        ? onPlayingMessage(session, message)
         : onIdentifyingMessage(session, message);
 }
 
+/** The game's start, or a snapshot of it, tells a joined session waiting for it that the game started. */
+function onPlayingMessage(session: PlayingSession, message: ParsedServerMessage): SessionStep {
+    const starts = message.type === "game_started" || message.type === "game_reconnected";
+    return starts && !session.gameStarted
+        ? unchanged({ ...session, gameStarted: true })
+        : unchanged(session);
+}
+
 /**
- * The snapshot admits an identifying session; a joining one is also admitted by any other message but a seat's change
- * of control, the first the game sends its seat.
+ * The server's answer admits an identifying session: `game_joined` a JOIN_GAME, the snapshot a RECONNECT. No other
+ * message does, since the server answers the identity message ahead of anything the game sends the seat.
  */
 function onIdentifyingMessage(
     session: IdentifyingSession,
     message: ParsedServerMessage,
 ): SessionStep {
     if (message.type === "game_reconnected") {
-        return admit(session);
+        return admit(session, true);
     }
-    if (message.type === "ai_replacement" || message.type === "human_return") {
-        return unchanged(session);
-    }
-    return session.identity.kind === "join" ? admit(session) : unchanged(session);
+    const joined = message.type === "game_joined" && session.identity.kind === "join";
+    return joined ? admit(session, false) : unchanged(session);
 }
 
 function joinWith(gameId: string, handoff: GameSessionData, at: number): SessionStep {

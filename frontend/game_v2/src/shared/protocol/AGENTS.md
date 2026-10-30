@@ -21,4 +21,9 @@ the protocol's source files, and a protocol change lands here and in the backend
   lines (`REPLAY_LINE_TYPE`) the live socket never sends and defers every other line to
   `parseServerMessage`. Fields only the live socket stamps (viewer seat, timers, wait ids, banks,
   elapsed seconds) parse as optional and read as null in a replay. A replay's `game_started` carries no
-  riichi cost (`rc`): `parseReplayLine` gives it the one its recorded settings (`gs.riichi_cost`) name.
+  riichi cost (`rc`) or stick value (`rsv`): `parseReplayLine` gives it those its recorded settings
+  (`gs.riichi_cost`, `gs.riichi_stick_value`) name.
+- An offer parses only as an action or a call the client knows, in the shape the server sends it (a
+  riichi's tile ids, a kan's tile types and a chi's pairs each nonempty, a meld prompt's calls too), so
+  an unknown or malformed one fails its whole message (the client's loss of step), never a turn or a
+  prompt offering less than the server's.

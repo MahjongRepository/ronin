@@ -214,7 +214,7 @@ function describeActiveForPlayer(state: Exclude<SessionState, { status: "ended" 
         return "Finding your game";
     }
     if (state.status === "playing") {
-        return "Connected";
+        return state.gameStarted ? "Connected" : "Waiting for the game to start";
     }
     if (state.status === "identifying" && state.identity.kind === "join") {
         return "Joining the game";

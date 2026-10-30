@@ -39,6 +39,7 @@ def _make_snapshot(game_id: str = "test_game", seat: int = 0) -> ReconnectionSna
         dealer_seat=0,
         dealer_dice=((1, 2), (3, 4)),
         riichi_cost=1000,
+        riichi_stick_value=1000,
         seat=seat,
         round_wind=WindName.EAST,
         round_number=1,
@@ -178,7 +179,7 @@ class TestGameSessionLookup:
 
             with client.websocket_connect("/ws/test_game") as player1:
                 started = join_game_and_start(player1, pending_lookup.json()["game_ticket"])
-                assert started[0]["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
+                assert started[1]["t"] == EVENT_TYPE_INT[EventType.GAME_STARTED]
 
             playing_lookup = _look_up_game_session(client, "user-0")
             assert playing_lookup.json() == {"game_id": "test_game", "game_ticket": tickets[0]}

@@ -457,7 +457,7 @@ describe("readReplayTimeline - riichi deposits", () => {
         expect(stateAfter(timeline, index).riichiSticks).toBe(0);
     });
 
-    test("leftover riichi: the game end pays the stick left on the table to the winner's standing", () => {
+    test("leftover riichi: the game end pays the stick left on the table, at the game's 1,500 stick value, to the winner's standing", () => {
         const timeline = loadEngineReplay("leftover_riichi");
         const { index } = findRoundEnd(timeline);
         const gameEnd = timeline.events.at(-1);
@@ -469,9 +469,13 @@ describe("readReplayTimeline - riichi deposits", () => {
             [23_500, 24_500, 26_500, 23_500],
             1,
         ]);
-        expect(gameEnd.leftoverRiichiBonus).toBe(1000);
-        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 24_500, 27_500, 23_500], 0]);
-        expect(end.gameEndResult).toMatchObject({ leftoverRiichiBonus: 1000, winnerSeat: 2 });
+        expect(gameEnd.leftoverRiichiBonus).toBe(1500);
+        expect([scoresOf(end), end.riichiSticks]).toEqual([[23_500, 24_500, 28_000, 23_500], 0]);
+        expect(end.gameEndResult).toMatchObject({
+            leftoverRiichiBonus: 1500,
+            leftoverSticks: 1,
+            winnerSeat: 2,
+        });
     });
 
     test("riichi: a pon claims a riichi discard, the discarder stays in riichi and its next discard lies sideways", () => {
@@ -550,7 +554,12 @@ type WireLine = Readonly<Record<string, unknown>>;
 function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | null {
     switch (line.type) {
         case "game_started": {
-            return { ...raw, rc: line.riichiCost / WIRE_SCORE_DIVISOR, s: seat };
+            return {
+                ...raw,
+                rc: line.riichiCost / WIRE_SCORE_DIVISOR,
+                rsv: line.riichiStickValue / WIRE_SCORE_DIVISOR,
+                s: seat,
+            };
         }
         case "round_started": {
             const players = line.players.map((view) => ({

@@ -165,7 +165,7 @@ class TestFailGame:
         await timeout_task
         await wait_for_background_tasks(manager)
         assert manager.get_game("game1") is None
-        assert [m["code"] for m in conn.sent_messages] == [SessionErrorCode.INTERNAL_ERROR]
+        assert [m.get("code") for m in conn.sent_messages] == [None, SessionErrorCode.INTERNAL_ERROR]
         assert conn._close_code == 1011
 
     async def test_game_action__when_the_scoring_library_fails_on_tsumo__should_fail_the_game_with_that_error(

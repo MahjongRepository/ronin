@@ -77,14 +77,14 @@ describe("standingsDisplay", () => {
                 seat.viewer,
             ]),
         ).toEqual([
-            ["1st", 2, "27,500", "+37.0", false],
+            ["1st", 2, "28,000", "+37.0", false],
             ["2nd", 1, "24,500", "+5.0", true],
             ["3rd", 0, "23,500", "−16.0", false],
             ["4th", 3, "23,500", "−26.0", false],
         ]);
         expect(display?.leftover).toEqual({
             awarded: true,
-            cells: ["+1,000", "", "", ""],
+            cells: ["+1,500", "", "", ""],
             sticks: 1,
         });
         const evenly = shownStandings(endedAtLastRound(endTable("leftover_riichi")), null);

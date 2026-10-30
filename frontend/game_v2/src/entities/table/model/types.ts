@@ -97,6 +97,8 @@ export interface WinnerResult {
     /** The honba bonus this winner collected, in points: its own gain beyond its hand value and riichi sticks. */
     readonly honbaBonus: number;
     readonly riichiSticksCollected: number;
+    /** What the riichi sticks this winner collected paid it, in points, at the game's stick value. */
+    readonly riichiBonus: number;
     /** The seat liable for this winner's pao yakuman, or null. */
     readonly paoSeat: number | null;
 }
@@ -214,6 +216,11 @@ export interface TableState {
      * snapshot; null before either.
      */
     readonly riichiCost: number | null;
+    /**
+     * What each riichi stick a winner collects pays it, the game's `riichi_stick_value` from its start or a reconnect's
+     * snapshot; null before either. It is not the riichi cost: the game's settings may set them apart.
+     */
+    readonly riichiStickValue: number | null;
     readonly doraIndicators: readonly number[];
     readonly currentPlayerSeat: number;
     readonly tilesRemaining: number;

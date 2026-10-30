@@ -2,7 +2,7 @@ import { drawName, isAbortiveDraw } from "@/entities/table/lib/draw-name";
 import { handLimitName, isYakumanYaku, yakumanName } from "@/entities/table/lib/hand-limit";
 import { windName } from "@/entities/table/lib/wind-name";
 import { yakuName } from "@/entities/table/lib/yaku-names";
-import { RIICHI_STICK_VALUE, roundEndPages } from "@/entities/table/model/handlers/round-end";
+import { roundEndPages } from "@/entities/table/model/handlers/round-end";
 import {
     type DrawResult,
     type PlayerState,
@@ -236,7 +236,7 @@ function winNotes(result: RoundEndResult, winner: WinnerResult, names: SeatNames
     const sticks = winner.riichiSticksCollected;
     const notes = [
         winner.honbaBonus > 0 ? `Honba ${formatDelta(winner.honbaBonus)}` : null,
-        sticks > 0 ? `Riichi ×${sticks} ${formatDelta(sticks * RIICHI_STICK_VALUE)}` : null,
+        sticks > 0 ? `Riichi ×${sticks} ${formatDelta(winner.riichiBonus)}` : null,
         paoNote(result, winner, names),
         headBumpNote(result, names),
     ];

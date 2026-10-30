@@ -453,7 +453,7 @@ class ReconnectionSnapshot(BaseModel):
     and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed kan is the one record
     of it for the reconnected table. latest_discard_seat is the seat whose discard is the round's latest, which lies
     last in its river; None (absent on the wire) before the round's first discard and once a meld claimed the latest
-    one. riichi_cost is the game's, as game_started carries it.
+    one. riichi_cost and riichi_stick_value are the game's, as game_started carries them.
     """
 
     game_id: str = Field(serialization_alias="gid")
@@ -461,6 +461,7 @@ class ReconnectionSnapshot(BaseModel):
     dealer_seat: int = Field(serialization_alias="dl")
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
     riichi_cost: WireScore = Field(serialization_alias="rc")
+    riichi_stick_value: WireScore = Field(serialization_alias="rsv")
     seat: int = Field(serialization_alias="s")
     round_wind: WireWindField = Field(serialization_alias="w")
     round_number: int = Field(serialization_alias="n")

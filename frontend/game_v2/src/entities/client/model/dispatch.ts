@@ -46,6 +46,7 @@ import {
     desyncStep,
     isSnapshotPayload,
     recoveryFailedStep,
+    refusesResyncRequest,
     resynced,
     settleDesync,
     takesServerMessages,
@@ -145,7 +146,8 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "turn":
         case "furiten":
         case "error":
-        case "session_error": {
+        case "session_error":
+        case "game_joined": {
             return null;
         }
         default: {
@@ -347,6 +349,9 @@ function takeMessageInStep(
  * last round end reach the table, any other dropped.
  */
 function takeParsedMessage(state: GameClientState, message: ParsedServerMessage): ClientStep {
+    if (refusesResyncRequest(state, message)) {
+        return { effects: [], state };
+    }
     const step = withSession(state, { at: state.now, kind: "message", message });
     if (state.desync !== null && !takesWhileDesynced(message)) {
         return { effects: step.effects, state: deferredUntilDeal(step.state, message) };

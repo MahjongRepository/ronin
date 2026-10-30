@@ -86,7 +86,7 @@ export function desyncStep(state: GameClientState, cause: DesyncCause, detail: s
         state: {
             ...counted,
             decision: null,
-            desync: { answerDue: null, cause, detail, since: state.now },
+            desync: { answerDue: null, cause, detail, requested: false, since: state.now },
             roundConfirm: roundConfirm?.kind === "final" ? roundConfirm : null,
             table: applyEvent(state.table, LOST_STEP),
         },
@@ -129,6 +129,23 @@ export function deferredUntilDeal(
     return { ...state, desync: { ...desync, answerDue } };
 }
 
+/**
+ * Whether a message is the rate limit's refusal of the client's own outstanding resync request: the endpoint answers
+ * an over-budget RESYNC with the same code as an over-budget identity message, so while a request is outstanding the
+ * refusal is the request's, which is asked again when its answer comes due, and the session never takes it for its
+ * identity message's, which it would resend on a socket that may hold the seat already.
+ */
+export function refusesResyncRequest(
+    state: GameClientState,
+    message: ParsedServerMessage,
+): boolean {
+    return (
+        state.desync?.requested === true &&
+        message.type === "session_error" &&
+        message.code === SESSION_ERROR_CODE.RATE_LIMITED
+    );
+}
+
 /** The client a snapshot rebuilt: in step again, and the failures before it no longer count. */
 export function resynced(state: GameClientState): GameClientState {
     return { ...state, desync: null, unreadMessages: 0 };
@@ -162,7 +179,8 @@ export function settleDesync(step: ClientStep): ClientStep {
     }
     const answerDue = awaitedAnswerDue(state, desync);
     if (answerDue !== desync.answerDue) {
-        return { ...step, state: { ...state, desync: { ...desync, answerDue } } };
+        const requested = answerDue !== null && desync.requested;
+        return { ...step, state: { ...state, desync: { ...desync, answerDue, requested } } };
     }
     const due = answerDue === null || state.now >= answerDue;
     return canRequestResync(state.session) && due ? requestResync(step, desync) : step;
@@ -194,7 +212,7 @@ function requestResync(step: ClientStep, desync: Desync): ClientStep {
         effects: [...step.effects, { message: buildResyncMessage(), type: "send" }],
         state: {
             ...state,
-            desync: { ...desync, answerDue: state.now + RESYNC_ANSWER_MS },
+            desync: { ...desync, answerDue: state.now + RESYNC_ANSWER_MS, requested: true },
             resyncRequests: state.resyncRequests + 1,
         },
     };

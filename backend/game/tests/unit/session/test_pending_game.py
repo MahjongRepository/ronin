@@ -130,14 +130,19 @@ class TestJoinGame:
         manager.disconnect(conn1)
         assert [participant.connection for participant in game.connected()] == [conn2]
 
-    async def test_join_game__when_second_of_two_humans_joins__should_start_game(self, manager):
+    async def test_join_game__when_second_of_two_humans_joins__should_answer_each_join_first_and_start_game(
+        self, manager
+    ):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
-        _join(manager, "ticket-0")
+        first = _join(manager, "ticket-0")
         assert game_of(manager).lifecycle is GameLifecycle.PENDING
+        assert first.sent_messages == [{"type": SessionMessageType.GAME_JOINED}]
 
-        _join(manager, "ticket-1")
+        second = _join(manager, "ticket-1")
         assert game_of(manager).lifecycle is GameLifecycle.PLAYING
         assert manager.started_game_count == 1
+        assert second.sent_messages[0] == {"type": SessionMessageType.GAME_JOINED}
+        assert second.sent_messages[1]["t"] == GAME_STARTED_T
 
     async def test_handle_game_action__when_game_still_pending__should_return_game_not_started_error(self, manager):
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
@@ -245,9 +250,9 @@ class TestGameStartPause:
         conns = [_join(manager, "ticket-0"), _join(manager, "ticket-1")]
         game = game_of(manager)
         seats = [participant.seat for participant in game.participants]
-        assert [[m["t"] for m in conn.sent_messages] for conn in conns] == [[GAME_STARTED_T], [GAME_STARTED_T]]
-        assert [conn.sent_messages[0]["s"] for conn in conns] == seats
-        assert [conn.sent_messages[0]["tm"] for conn in conns] == [
+        assert [[m.get("t") for m in conn.sent_messages] for conn in conns] == [[None, GAME_STARTED_T]] * 2
+        assert [conn.sent_messages[1]["s"] for conn in conns] == seats
+        assert [conn.sent_messages[1]["tm"] for conn in conns] == [
             {"tb": 5, "bk": 20, "rb": 10, "mb": 60, "md": 5, "ra": 10, "gp": 0.01}
         ] * 2
         assert game.awaiting is None
@@ -255,7 +260,9 @@ class TestGameStartPause:
         assert game.start_pause is not None
 
         await game.start_pause
-        assert [[m["t"] for m in conn.sent_messages][:2] for conn in conns] == [[GAME_STARTED_T, ROUND_STARTED_T]] * 2
+        assert [[m.get("t") for m in conn.sent_messages][1:3] for conn in conns] == [
+            [GAME_STARTED_T, ROUND_STARTED_T]
+        ] * 2
         assert game.awaiting is not None
         awaited = [participant for participant in game.participants if participant.seat in game.awaiting.seats]
         assert awaited
@@ -279,11 +286,11 @@ class TestGameStartPause:
         manager.reconnect(early_reconnect, session_token="ticket-1")
         assert _error_codes(early_reconnect) == [SessionErrorCode.RECONNECT_RETRY_LATER]
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is False
-        assert [m.get("t") for m in alice.sent_messages] == [GAME_STARTED_T]
+        assert [m.get("t") for m in alice.sent_messages] == [None, GAME_STARTED_T]
 
         await game.start_pause
-        assert alice.sent_messages[1] == {"type": "seat_control", "s": bob_seat, "r": 1}
-        assert alice.sent_messages[2]["t"] == ROUND_STARTED_T
+        assert alice.sent_messages[2] == {"type": "seat_control", "s": bob_seat, "r": 1}
+        assert alice.sent_messages[3]["t"] == ROUND_STARTED_T
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is True
         recorded = [json.loads(line) for line in game.replay.lines]
         assert [line for line in recorded if line["t"] == 101] == [{"t": 101, "s": bob_seat, "ai": 1, "r": 1}]

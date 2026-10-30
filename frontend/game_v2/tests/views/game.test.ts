@@ -6,6 +6,7 @@ import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcri
 import { FakeStandingsLoad } from "#tests/fixtures/standings";
 import {
     WIRE_GAME_END,
+    WIRE_GAME_JOINED,
     WIRE_GAME_STARTED,
     WIRE_ROUND_STARTED,
     wireRoundEnd,
@@ -124,10 +125,16 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     return { clock, connections, dispose, host, sink, tileSprite };
 }
 
+/** The server's answer to the join, then the game's start. */
+function seeGameStart(socket: FakeConnection): void {
+    socket.handlers.onMessage(WIRE_GAME_JOINED);
+    socket.handlers.onMessage(WIRE_GAME_STARTED);
+}
+
 /** Join, see the game start, then its end. */
 function endGame(socket: FakeConnection): void {
     socket.handlers.onOpen();
-    socket.handlers.onMessage(WIRE_GAME_STARTED);
+    seeGameStart(socket);
     socket.handlers.onMessage(WIRE_ROUND_STARTED);
     socket.handlers.onMessage(wireRoundEnd(null));
     socket.handlers.onMessage(WIRE_GAME_END);
@@ -205,7 +212,7 @@ describe("mountGameView", () => {
         expect(socket.url).toBe(HANDOFF.wsUrl);
 
         socket.handlers.onOpen();
-        socket.handlers.onMessage(WIRE_GAME_STARTED);
+        seeGameStart(socket);
 
         expect(socket.sent).toEqual([JOIN]);
         expect(host.querySelector(".game-menu__status-label")?.textContent).toBe("Connected");
@@ -235,7 +242,7 @@ describe("mountGameView", () => {
     it("reopens a dropped socket when its retry comes due and resumes the seat on it", () => {
         const { clock, connections } = mountWithFakes();
         connections[0].handlers.onOpen();
-        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+        seeGameStart(connections[0]);
 
         connections[0].handlers.onClose(1006, "");
         clock.advanceTo(999);
@@ -335,7 +342,7 @@ describe("mountGameView", () => {
             host,
         } = mountWithFakes();
         socket.handlers.onOpen();
-        socket.handlers.onMessage(WIRE_GAME_STARTED);
+        seeGameStart(socket);
 
         socket.handlers.onMessage({ t: 999 });
         socket.handlers.onUndecodableFrame("Received a non-binary frame");
@@ -447,7 +454,7 @@ describe("mountGameView connection", () => {
     it("shows a dropped connection on the board while it reconnects", () => {
         const { connections, host } = mountWithFakes();
         connections[0].handlers.onOpen();
-        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+        seeGameStart(connections[0]);
 
         connections[0].handlers.onClose(1006, "");
 
@@ -460,7 +467,7 @@ describe("mountGameView connection", () => {
     it("blocks the board with why a terminal close ended the session, and leaves only on its button", () => {
         const { connections, host, sink } = mountWithFakes();
         connections[0].handlers.onOpen();
-        connections[0].handlers.onMessage(WIRE_GAME_STARTED);
+        seeGameStart(connections[0]);
 
         connections[0].handlers.onClose(4002, "replaced_by_new_connection");
         expect(sink.leaveToLobby).not.toHaveBeenCalled();

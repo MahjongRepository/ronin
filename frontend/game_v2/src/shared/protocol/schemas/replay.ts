@@ -31,7 +31,7 @@ const humanReturnSchema = z.pipe(
     })),
 );
 
-const replaySettingsSchema = z.object({ riichi_cost: z.int() });
+const replaySettingsSchema = z.object({ riichi_cost: z.int(), riichi_stick_value: z.int() });
 
 export type AiReplacementLine = z.output<typeof aiReplacementSchema>;
 export type HumanReturnLine = z.output<typeof humanReturnSchema>;
@@ -58,12 +58,16 @@ function parseSeatControl(raw: Record<string, unknown>): SeatControlLine {
 }
 
 /**
- * The replay's game start as the live one: its riichi cost (`rc`) from the settings it records (`gs`), which every
- * replay file carries in place of the live field.
+ * The replay's game start as the live one: its riichi cost (`rc`) and stick value (`rsv`) from the settings it records
+ * (`gs`), which every replay file carries in place of the live fields.
  */
-function withRecordedRiichiCost(raw: Record<string, unknown>): Record<string, unknown> {
+function withRecordedRiichiSettings(raw: Record<string, unknown>): Record<string, unknown> {
     const settings = replaySettingsSchema.parse(raw.gs);
-    return { ...raw, rc: settings.riichi_cost / WIRE_SCORE_DIVISOR };
+    return {
+        ...raw,
+        rc: settings.riichi_cost / WIRE_SCORE_DIVISOR,
+        rsv: settings.riichi_stick_value / WIRE_SCORE_DIVISOR,
+    };
 }
 
 /** Parse one replay event line: a game event, or a replay-only line the live socket never sends. */
@@ -74,7 +78,7 @@ export function parseReplayLine(raw: Record<string, unknown>): ReplayLineParseRe
                 return [null, parseSeatControl(raw)];
             }
             case EVENT_TYPE.GAME_STARTED: {
-                return parseServerMessage(withRecordedRiichiCost(raw));
+                return parseServerMessage(withRecordedRiichiSettings(raw));
             }
             default: {
                 return parseServerMessage(raw);

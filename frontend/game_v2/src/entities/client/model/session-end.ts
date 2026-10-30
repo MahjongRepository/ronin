@@ -62,11 +62,21 @@ function closedFailure(code: number): FailureDisplay {
 }
 
 /**
+ * Refusals of the identity message on this connection rather than of the ticket: the server would not seat it there, or
+ * could not read what it sent.
+ */
+const SEAT_REFUSED_ON_CONNECTION: ReadonlySet<string> = new Set([
+    SESSION_ERROR_CODE.ALREADY_IN_GAME,
+    SESSION_ERROR_CODE.INVALID_MESSAGE,
+    SESSION_ERROR_CODE.RECONNECT_ALREADY_ACTIVE,
+]);
+
+/**
  * A refusal of the ticket: the handoff is forgotten already, so a reload asks the lobby for the player's game afresh
  * and lands wherever they play now.
  */
 function refusedFailure(code: string): FailureDisplay {
-    if (code === SESSION_ERROR_CODE.RECONNECT_ALREADY_ACTIVE) {
+    if (SEAT_REFUSED_ON_CONNECTION.has(code)) {
         return {
             detail: "The game server would not resume your seat on this connection.",
             reload: true,

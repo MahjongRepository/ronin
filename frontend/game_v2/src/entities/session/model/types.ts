@@ -48,9 +48,14 @@ export interface IdentifyingSession extends SeekingBase {
     readonly sessionRetryAt: number | null;
 }
 
-/** The seat held on the open socket. */
+/**
+ * The seat held on the open socket. `gameStarted`: the session has seen the game start (its `game_started` or a
+ * snapshot); until then a joined game still waits for its players, and a seat lost to a drop is joined again with
+ * JOIN_GAME, the only identity a game waiting to start takes.
+ */
 export interface PlayingSession extends SessionBase {
     readonly status: "playing";
+    readonly gameStarted: boolean;
 }
 
 /** No socket since a drop: its transport retry opens one at `dueAt`. */
