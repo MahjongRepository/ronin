@@ -1,42 +1,40 @@
 @use "grid" as *;
 
-$plate-text-min: 10px;
 $plate-seats: bottom, right, top, left;
-$plate-name-max: 7em;
 
+/* A seat's badge: one shape for every seat (wind, name, marks), a fixed place in its zone that never depends on the
+   tiles the seat holds, and a tap area at the control floor whatever the drawn pill's size. */
 .nameplate {
-    --plate-text: max(#{$plate-text-min}, calc(18 * var(--board-table-unit)));
+    --pill-h: 46px;
 
-    z-index: 1;
-    display: inline-flex;
-    flex-wrap: wrap;
+    position: absolute;
+    z-index: 2;
+    display: flex;
     align-items: center;
-    gap: 0.15em 0.3em;
-    min-width: 0;
-    max-width: 100%;
     width: auto;
+    min-width: 40px;
+    min-height: var(--badge-h);
     margin: 0;
-    padding: 0.15em 0.4em;
-    overflow: hidden;
-    font-size: var(--plate-text);
-    font-weight: 400;
+    padding: 0;
+    font-size: 19px;
+    font-weight: 550;
     line-height: 1.2;
     text-align: left;
-    white-space: nowrap;
     color: var(--pico-color);
-    background: var(--ronin-surface-overlay);
-    border: 1px solid var(--ronin-border);
-    border-radius: 4px;
+    background: none;
+    border: 0;
     cursor: pointer;
 
-    &--current {
-        border-color: var(--pico-primary);
-        outline: 1px solid var(--pico-primary);
-        outline-offset: -2px;
+    @include small-chrome {
+        --pill-h: 28px;
+
+        font-size: var(--text);
     }
 
-    &[aria-pressed="true"] {
-        border-color: var(--ronin-gold);
+    @include large-chrome {
+        --pill-h: 62px;
+
+        font-size: 26px;
     }
 
     &:focus-visible {
@@ -45,63 +43,138 @@ $plate-name-max: 7em;
     }
 }
 
-.nameplate--top,
-.nameplate--bottom {
-    .nameplate__name.player-name {
-        min-width: 0;
+.nameplate__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    max-width: 100%;
+    height: var(--pill-h);
+    padding: 0 0.6em 0 0.3em;
+    overflow: hidden;
+    white-space: nowrap;
+    background: var(--ronin-surface-overlay);
+    border: 1px solid var(--ronin-border);
+    border-radius: calc(var(--pill-h) * 0.27);
+
+    .nameplate--current & {
+        box-shadow: inset 0 -3px 0 var(--ronin-table-turn);
+    }
+
+    .nameplate[aria-pressed="true"] & {
+        outline: 2px solid var(--pico-color);
+        outline-offset: 2px;
+    }
+}
+
+.nameplate--top {
+    --top-badge-left: calc(var(--top-strip-x) + var(--badge-gap));
+    --top-badge-room: calc(100cqw - var(--m) - var(--corner-reserve) - var(--badge-gap));
+
+    left: var(--top-badge-left);
+    top: max(0px, var(--m) + var(--rw) / 2 - var(--badge-h) * 0.45);
+    max-width: calc(var(--top-badge-room) - var(--top-badge-left));
+
+    @include upright-board {
+        left: calc(var(--m) + var(--counters-w) + var(--badge-gap));
+        top: var(--counters-top);
+        max-width: none;
+    }
+}
+
+.nameplate--right {
+    --right-river-top: calc(var(--cy) + var(--h) - 5 * var(--rw) - var(--rh));
+    --right-reach-shift: calc(var(--reach-right) - var(--cx) - var(--h));
+    --beside-right-river: clamp(
+        0px,
+        (var(--right-badge-top) + var(--badge-h) - var(--right-river-top)) * 1000,
+        var(--right-reach-shift)
+    );
+    --right-badge-limit: calc(var(--cx) + var(--h) + 6px + var(--beside-right-river));
+    --right-lowered: calc(var(--side-badge-top) - var(--side-start));
+    --right-raise: clamp(
+        0px,
+        (var(--side-badge-top) + var(--badge-h) - var(--right-river-top)) * 1000,
+        var(--right-lowered)
+    );
+    --right-badge-top: calc(var(--side-badge-top) - var(--right-raise));
+
+    right: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
+    top: var(--right-badge-top);
+    justify-content: flex-end;
+
+    @include upright-board {
+        --right-badge-limit: calc(var(--cx) + 8px);
+    }
+
+    max-width: calc(
+        100cqw - var(--m) - var(--strip-depth) - var(--badge-gap) - var(--right-badge-limit)
+    );
+}
+
+/* A left badge beside the left river's rows ends before the river's reach. */
+.nameplate--left {
+    --above-left-river: clamp(
+        0px,
+        (var(--cy) - var(--h) - var(--side-badge-top) - var(--badge-h)) * 1000,
+        99999px
+    );
+    --left-river-room: calc(
+        var(--reach-left) - 6px - var(--left-badge-x) + var(--above-left-river)
+    );
+
+    left: var(--left-badge-x);
+    top: var(--side-badge-top);
+    max-width: min(var(--side-badge-max), var(--left-river-room));
+
+    @include upright-board {
+        max-width: calc(var(--cx) - 8px - var(--left-badge-x));
     }
 }
 
 .nameplate--bottom {
-    grid-column: 1;
-    place-self: start end;
+    position: static;
+    align-self: flex-end;
 }
 
-.nameplate--right,
-.nameplate--left {
-    --plate-room: #{$side-fixed - $strip-depth - $edge-gap - $river-length - $plate-gap};
+.board-layout {
+    --corner-reserve: #{$corner-reserve};
 
-    max-width: calc(
-        var(--board-center) + var(--plate-reach) + var(--plate-room) * var(--board-table-unit)
-    );
-}
+    @include small-chrome {
+        --corner-reserve: 88px;
+    }
 
-.nameplate--right {
-    --plate-reach: var(--board-reach);
+    @include large-chrome {
+        --corner-reserve: 13rem;
+    }
 
-    grid-area: bottom-near / right-river / bottom-far / right-gap;
-    place-self: end end;
-    margin-right: calc(var(--board-plate-gap) - var(--board-gap-u));
-}
-
-.nameplate--left {
-    --plate-reach: var(--board-reach-left);
-
-    grid-area: top-near / left-reach / center / center;
-    place-self: start start;
-    margin-left: calc(var(--board-plate-gap) - var(--board-gap-u));
+    @include upright-board {
+        --corner-reserve: 76px;
+    }
 }
 
 .nameplate__wind {
+    display: inline-grid;
     flex: none;
-    padding: 0 0.25em;
+    place-items: center;
+    width: 1.55em;
+    height: 1.55em;
+    font-size: max(11.5px, 0.9em);
     font-weight: 700;
-    color: hsl(220deg 30% 90%);
-    background: hsl(225deg 40% 35%);
-    border-radius: 3px;
+    color: hsl(220deg 30% 92%);
+    background: hsl(225deg 30% 32%);
+    border-radius: 5px;
 
     .nameplate--dealer & {
-        color: hsl(0deg 30% 90%);
+        color: hsl(0deg 30% 96%);
         background: hsl(0deg 55% 45%);
     }
 }
 
 .nameplate__name.player-name {
-    min-width: auto;
-    max-width: min(100%, #{$plate-name-max});
+    min-width: 0;
     overflow: hidden;
 
-    @container (aspect-ratio < 1) {
+    @include upright-board {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -109,32 +182,26 @@ $plate-name-max: 7em;
     }
 }
 
+.nameplate__ai,
 .nameplate__riichi {
+    display: inline-grid;
     flex: none;
-    padding: 0 0.3em;
-    font-size: max(#{$plate-text-min}, 0.8em);
+    place-items: center;
+    height: 1.45em;
+    padding: 0 0.35em;
+    font-size: max(11px, 0.78em);
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--ronin-surface);
-    background: var(--ronin-gold);
-    border-radius: 3px;
+    color: var(--ronin-text-secondary);
+    border: 1px solid var(--ronin-border-mark);
+    border-radius: 4px;
 }
 
-.nameplate__ai {
-    flex: none;
-    display: flex;
-    padding: 0 1px;
-    color: var(--ronin-warning);
-    border: 1px solid currentcolor;
-    border-radius: 3px;
+.nameplate__riichi {
+    padding: 0 0.3em;
 
-    &--away {
-        color: var(--ronin-danger);
-    }
-
-    svg {
-        width: 1em;
+    .board-stick-icon {
+        width: auto;
         height: 1em;
     }
 }
@@ -151,16 +218,18 @@ $plate-name-max: 7em;
     }
 
     .board-center__seat--#{$seat} .board-center__score {
-        color: var(--ronin-gold);
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 3px;
     }
 
-    .nameplate--#{$seat} {
-        border-color: var(--ronin-gold);
+    .board-center__diff-label--#{$seat} {
+        display: flex;
     }
 }
 
-/* A hovered plate wins over the pinned one where a pointer hovers; a touch screen's tap, which may leave its plate
-   hovered, only pins. The scores in the centre then read as differences from that plate's seat. */
+/* A hovered badge wins over the pinned one where a pointer hovers; a touch screen's tap, which may leave its badge
+   hovered, only pins. The scores in the centre then read as differences from that badge's seat, named there. */
 @each $seat in $plate-seats {
     @media (hover: hover) {
         .board-layout:has(.nameplate--#{$seat}:hover),
@@ -176,23 +245,18 @@ $plate-name-max: 7em;
     }
 }
 
+/* The page's corner: the way back and the connection, small, at the play area's top right. */
 .board-menu {
-    grid-area: top-strip / outer-right / top-far / end;
-    place-self: start end;
+    position: absolute;
+    top: var(--m);
+    right: var(--m);
+    z-index: 3;
     min-width: 0;
-    max-width: min(100%, #{$corner-reserve});
+    max-width: var(--corner-reserve);
 
-    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
-        grid-area: top-near / outer-right / center / end;
-        max-width: min(100%, #{$corner-reserve-short});
-
+    @include small-chrome {
         .game-menu__status-word {
             display: none;
         }
-    }
-
-    @container (aspect-ratio < 1) {
-        grid-area: head / center / top-strip / end;
-        max-width: 100%;
     }
 }

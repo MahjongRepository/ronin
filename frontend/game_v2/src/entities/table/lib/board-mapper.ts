@@ -59,16 +59,24 @@ function sidewaysDiscardIndex(discards: PlayerState["discards"]): number {
     return discards.findIndex((discard, index) => index >= declared && discard.claimed !== true);
 }
 
-/** The river, its riichi tile sideways and, when the table's latest discard is this seat's, that tile marked. */
+/**
+ * The river as it lies: a tile another seat claimed has left it for the meld that took it. Its riichi tile lies
+ * sideways and, when the table's latest discard is this seat's, that tile is marked.
+ */
 function buildDiscardTiles(player: PlayerState, lastDiscardSeat: number | null): DiscardTile[] {
     const sideways = sidewaysDiscardIndex(player.discards);
     const last = player.seat === lastDiscardSeat ? player.discards.length - 1 : -1;
-    return player.discards.map((d, index) => ({
-        face: tile136toString(d.tileId),
-        grayed: d.claimed,
-        last: index === last,
-        riichi: index === sideways,
-    }));
+    return player.discards.flatMap((d, index) =>
+        d.claimed === true
+            ? []
+            : [
+                  {
+                      face: tile136toString(d.tileId),
+                      last: index === last,
+                      riichi: index === sideways,
+                  },
+              ],
+    );
 }
 
 const EMPTY_PLAYER: BoardPlayerDisplay = {

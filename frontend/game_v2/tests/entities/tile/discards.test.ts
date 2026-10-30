@@ -39,34 +39,19 @@ function makeTiles(count: number, overrides?: Partial<DiscardTile>): DiscardTile
 }
 
 describe("Discards tile classes", () => {
-    test("normal tile renders .discard-tile without grayed or riichi classes", () => {
+    test("normal tile renders .discard-tile without riichi or latest classes", () => {
         const tiles: DiscardTile[] = [{ face: "1m" }];
         const el = renderTo(Discards(tiles));
         const wrapper = el.querySelector(".discard-tile");
         expect(wrapper).not.toBeNull();
-        expect(wrapper?.classList.contains("discard-tile-grayed")).toBe(false);
         expect(wrapper?.classList.contains("discard-tile-riichi")).toBe(false);
-    });
-
-    test("grayed tile has .discard-tile-grayed class", () => {
-        const tiles: DiscardTile[] = [{ face: "3p", grayed: true }];
-        const el = renderTo(Discards(tiles));
-        const wrapper = el.querySelector(".discard-tile");
-        expect(wrapper?.classList.contains("discard-tile-grayed")).toBe(true);
+        expect(wrapper?.classList.contains("discard-tile--last")).toBe(false);
     });
 
     test("riichi tile has .discard-tile-riichi class", () => {
         const tiles: DiscardTile[] = [{ face: "5s", riichi: true }];
         const el = renderTo(Discards(tiles));
         const wrapper = el.querySelector(".discard-tile");
-        expect(wrapper?.classList.contains("discard-tile-riichi")).toBe(true);
-    });
-
-    test("tile with both grayed and riichi has both classes", () => {
-        const tiles: DiscardTile[] = [{ face: "7z", grayed: true, riichi: true }];
-        const el = renderTo(Discards(tiles));
-        const wrapper = el.querySelector(".discard-tile");
-        expect(wrapper?.classList.contains("discard-tile-grayed")).toBe(true);
         expect(wrapper?.classList.contains("discard-tile-riichi")).toBe(true);
     });
 });
@@ -112,5 +97,15 @@ describe("Discards row splitting", () => {
         expect(rows[0].querySelectorAll(":scope > .discard-tile")).toHaveLength(6);
         expect(rows[1].querySelectorAll(":scope > .discard-tile")).toHaveLength(6);
         expect(rows[2].querySelectorAll(":scope > .discard-tile")).toHaveLength(8);
+    });
+
+    test("a side river wraps 24 tiles into a fourth row of six, where a top or bottom river runs its third row on", () => {
+        function rowLengths(overflow: "run-on" | "wrap"): number[] {
+            return [
+                ...renderTo(Discards(makeTiles(24), overflow)).querySelectorAll(".discard-row"),
+            ].map((row) => row.querySelectorAll(":scope > .discard-tile").length);
+        }
+        expect(rowLengths("wrap")).toEqual([6, 6, 6, 6]);
+        expect(rowLengths("run-on")).toEqual([6, 6, 12]);
     });
 });

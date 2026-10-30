@@ -64,6 +64,14 @@ const MIN_PHONE_NARRATION_LINES = 3;
 const MIN_TEXT_PX = 10;
 /** Sub-pixel slack for comparing layout boxes. */
 const EPSILON = 1;
+/**
+ * The least visible gap between two seats' rivers, and between a river and the centre, in CSS pixels: rivers never touch
+ * each other or the centre, so each reads as its seat's block (the composition keeps 0.3 of a river tile, 6px on the
+ * 667x375 floor).
+ */
+const MIN_RIVER_GAP = 3;
+/** The least gap between an opponent's strip and any river, so neither reads as a row of the other (8px drawn). */
+const MIN_STRIP_GAP = 6;
 const REPLAY_MAX_STEPS = 300;
 const REPLAY_LOCAL_MELDS = 2;
 const SETTLE_MS = 150;
@@ -130,6 +138,8 @@ interface Viewport {
     readonly insets?: Insets;
     /** The viewport and safe-area box a capture model must produce, asserted on every page before its checks. */
     readonly captureModel?: { readonly viewport: Size; readonly safeArea: Box };
+    /** The only pages checked here, where the viewport guards one path of the layout and the rest would only repeat. */
+    readonly onlyPages?: readonly string[];
 }
 
 interface Required {
@@ -184,7 +194,13 @@ interface BoardMeasure {
     readonly board: Box;
     readonly boardScroll: Size;
     readonly boardClient: Size;
-    readonly aside: { readonly box: Box; readonly scroll: Size; readonly overflowY: string } | null;
+    readonly aside: {
+        readonly box: Box;
+        readonly scroll: Size;
+        readonly overflowY: string;
+        /** A storybook's switches, which lie below the board, the page scrolling to them. */
+        readonly story: boolean;
+    } | null;
     readonly overlay: {
         readonly box: Box;
         readonly scroll: Size;
@@ -212,6 +228,12 @@ interface BoardMeasure {
     readonly fonts: readonly { readonly name: string; readonly px: number }[];
     readonly centerTexts: readonly GroupedBox[];
     readonly nameplates: readonly Box[];
+    /** Each badge by its seat's position, whose fixed place the decisions stories compare across checkpoints. */
+    readonly badges: readonly GroupedBox[];
+    /** The rivers' tiles by seat, and every opponent strip's tiles (hand and melds) by seat. */
+    readonly riverTiles: readonly GroupedBox[];
+    readonly stripTiles: readonly GroupedBox[];
+    readonly center: Box | null;
     readonly opponentFaces: readonly Box[];
     readonly leave: Box | null;
     /** The page's corner on the board: the session's status and the way back, which no panel over the board covers. */
@@ -272,6 +294,8 @@ class PageReport {
     readonly failures: string[] = [];
     checks = 0;
     summary = "";
+    /** Each badge's fixed point (its seat's side of its box), where the page measured a board. */
+    badgeAnchors: Readonly<Record<string, readonly [number, number]>> | null = null;
 
     expect(ok: boolean, failure: string): void {
         this.checks += 1;
@@ -301,7 +325,10 @@ function deviceOptions(name: string): BrowserContextOptions {
 }
 
 /**
- * The acceptance viewports: two 16:10 desktops and a 16:9 one, the upright phone that gets the rotate panel, the notched
+ * The acceptance viewports: two 16:10 desktops and a 16:9 one, a short laptop's window (1366x768 less its browser's
+ * chrome), where the core is bounded by the foreground band rather than its share of the height, and a narrow desktop
+ * (800x600, a tablet's or a small window's), where the desktop's geometry takes the phone's chrome, each on the pages
+ * that show it, the upright phone that gets the rotate panel, the notched
  * landscape phone (its insets cover the plain one), and the smallest supported landscape, which also keeps the aside's
  * scroll honest. The notched phone is the agreed capture model, not measured Safari chrome: Playwright's "iPhone 13
  * landscape" options with the viewport and screen set to the full 844x390 display after them (the device's own 750x342
@@ -331,6 +358,38 @@ const VIEWPORTS: readonly Viewport[] = [
         desktop: true,
         engine: chromium,
         name: "desktop-wide",
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 657, width: 1366 } },
+        desktop: true,
+        engine: chromium,
+        name: "desktop-short",
+        onlyPages: [
+            "decisions-anchor-turn",
+            "decisions-anchor-call",
+            "decisions-anchor-riichi",
+            "board-worst",
+            "replay",
+            "game-turn",
+        ],
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 600, width: 800 } },
+        desktop: true,
+        engine: chromium,
+        name: "desktop-narrow",
+        onlyPages: [
+            "decisions-anchor-turn",
+            "decisions-anchor-call",
+            "decisions-anchor-riichi",
+            "board-worst",
+        ],
         portrait: false,
         rotates: false,
         supported: true,
@@ -384,7 +443,6 @@ function boardCase(name: string, query: string, extra: readonly string[] = []): 
         kind: "board",
         name,
         path: `/play/storybook/board${query}`,
-        prepare: hideBoardDebug,
         required: { visible: [...BOARD_VISIBLE, ...extra] },
     };
 }
@@ -636,14 +694,6 @@ function describeSize(size: Size): string {
 
 function describeBox(box: Box): string {
     return `${describeSize(box)}@${Math.round(box.left)},${Math.round(box.top)}`;
-}
-
-/** The board storybook opens with its debug outlines; the check measures the board a player sees. */
-async function hideBoardDebug(page: Page): Promise<void> {
-    await page.locator(".board-storybook__btn", { hasText: "Debug" }).click();
-    if ((await page.locator(".game-board--debug").count()) !== 0) {
-        throw new Error("the board storybook kept its debug outlines");
-    }
 }
 
 /** The step the replay's controls show within its round, as a number. */
@@ -995,14 +1045,22 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
         for (const menu of board.querySelectorAll(".board-menu")) {
             grouped.push({ box: box(menu), group: "menu" });
         }
-        for (const cue of board.querySelectorAll(".board-cue")) {
-            grouped.push({ box: box(cue), group: "cue" });
-        }
         const nameplates = [...board.querySelectorAll(".nameplate")].map((plate) => ({
             box: box(plate),
             group: plate.className.split(" ")[1] ?? "nameplate",
         }));
         grouped.push(...nameplates);
+        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+        function bySeat(within: Element, selector: string, frame: string): GroupedBox[] {
+            return [...within.querySelectorAll(selector)].map((element) => ({
+                box: box(element),
+                group:
+                    /--(?<seat>bottom|right|top|left)\b/u.exec(
+                        element.closest(frame)?.className ?? "",
+                    )?.groups?.seat ?? "",
+            }));
+        }
+        const centerElement = board.querySelector(".board-center");
         const decisionActions = [
             ...board.querySelectorAll(".board-actions .decision-controls__action"),
         ].map(box);
@@ -1120,11 +1178,14 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
                           box: box(aside),
                           overflowY: getComputedStyle(aside).overflowY,
                           scroll: { height: aside.scrollHeight, width: aside.scrollWidth },
+                          story: aside.closest(".board-storybook, .decisions-storybook") !== null,
                       },
+            badges: bySeat(board, ".nameplate", ".nameplate"),
             board: box(board),
             boardClient: { height: board.clientHeight, width: board.clientWidth },
             boardScroll: { height: board.scrollHeight, width: board.scrollWidth },
             callouts: [...board.querySelectorAll(".board-callout")].map(box),
+            center: centerElement === null ? null : box(centerElement),
             centerTexts,
             clippedWords,
             decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },
@@ -1162,8 +1223,10 @@ function measureBoard(page: Page): Promise<BoardMeasure> {
             resultNames: [
                 ...board.querySelectorAll(".board-overlay .round-end-result__score-name"),
             ].map(box),
+            riverTiles: bySeat(board, ".board-river .tile", ".board-river"),
             roundList: roundList === null ? null : box(roundList),
             standings: measureStandings(),
+            stripTiles: bySeat(board, ".board-strip .tile", ".board-strip"),
             tiles: tableTiles.map(box),
         };
     }, BOARD_TEXT);
@@ -1184,14 +1247,12 @@ const BOARD_TEXT = {
         ".board-center__round",
         ".board-center__wall",
         ".board-dora__sticks",
-        ".board-dora__label",
         ".board-center__score-line",
         ".nameplate__name",
         ".nameplate__wind",
         ".nameplate__riichi",
         ".nameplate__ai",
         ".board-callout",
-        ".board-cue",
     ].join(", "),
 } as const;
 
@@ -1645,6 +1706,69 @@ function checkNotices(board: BoardMeasure, report: PageReport): void {
     report.expect(outside.length === 0, `${outside.length} notice(s) off the board`);
 }
 
+/** Whether two boxes come within `gap` of each other. */
+function near(first: Box, second: Box, gap: number): boolean {
+    return (
+        first.left < second.left + second.width + gap &&
+        second.left < first.left + first.width + gap &&
+        first.top < second.top + second.height + gap &&
+        second.top < first.top + first.height + gap
+    );
+}
+
+/**
+ * The rivers keep their pinwheel's gaps: no river's tile comes within a few pixels of another seat's river or of the
+ * centre, so a dense board still reads as four blocks, never one pile (look spec, Rivers).
+ */
+function checkRiverGaps(board: BoardMeasure, report: PageReport): void {
+    const touching = new Set<string>();
+    for (const [index, first] of board.riverTiles.entries()) {
+        for (const second of board.riverTiles.slice(index + 1)) {
+            if (first.group !== second.group && near(first.box, second.box, MIN_RIVER_GAP)) {
+                touching.add([first.group, second.group].toSorted().join(" x "));
+            }
+        }
+        if (board.center !== null && near(first.box, board.center, MIN_RIVER_GAP)) {
+            touching.add(`${first.group} x center`);
+        }
+    }
+    report.expect(
+        touching.size === 0,
+        `rivers within ${MIN_RIVER_GAP}px of each other or the centre: ${[...touching].join(", ")}`,
+    );
+}
+
+/** An opponent's strip stands apart from the rivers, so its backs or faces never read as a river's row (look spec). */
+function checkStripsApart(board: BoardMeasure, report: PageReport): void {
+    const adjacent = new Set<string>();
+    for (const strip of board.stripTiles) {
+        for (const river of board.riverTiles) {
+            if (near(strip.box, river.box, MIN_STRIP_GAP)) {
+                adjacent.add(`${strip.group} strip x ${river.group} river`);
+            }
+        }
+    }
+    report.expect(
+        adjacent.size === 0,
+        `strips within ${MIN_STRIP_GAP}px of a river: ${[...adjacent].join(", ")}`,
+    );
+}
+
+/** Each badge's fixed point: the side of its box toward its seat's edge, and its top (the own badge's foot). */
+function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [number, number]>> {
+    return Object.fromEntries(
+        board.badges.map(({ box, group }) => {
+            const right = box.left + box.width;
+            const bottom = box.top + box.height;
+            const point: readonly [number, number] =
+                group === "right"
+                    ? [right, box.top]
+                    : [box.left, group === "bottom" ? bottom : box.top];
+            return [group, point];
+        }),
+    );
+}
+
 /** Each name in a result's scores reads as one, standing clear of the next name on its line. */
 function checkResultNames(board: BoardMeasure, report: PageReport): void {
     const crowded = board.resultNames.flatMap((name, index) => {
@@ -1738,10 +1862,17 @@ async function checkBoard(
             contains(screen, board.board),
             `the board ${describeBox(board.board)} leaves the viewport`,
         );
-        checkAside(board, screen, report);
+        const asideBelow =
+            board.aside !== null &&
+            board.aside.story &&
+            board.aside.box.top >= board.board.top + board.board.height - EPSILON;
+        checkAside(board, asideBelow ? pageExtent : screen, report);
     }
     if (viewport.supported && !viewport.portrait) {
         checkLocalHand(board, { floor: viewport.ownTileFloor, screen }, report);
+        checkRiverGaps(board, report);
+        checkStripsApart(board, report);
+        report.badgeAnchors = badgeAnchors(board);
         checkActions(board, screen, report);
         checkNotices(board, report);
         checkResultNames(board, report);
@@ -2034,6 +2165,8 @@ interface PageTask {
 
 interface TaskResult {
     readonly name: string;
+    readonly viewport: string;
+    readonly page: string;
     readonly report: PageReport;
 }
 
@@ -2053,7 +2186,12 @@ async function runTask(
             { context, origin: fixtures.origin, shots, viewport },
             pageCase,
         );
-        return { name: `${viewport.name} ${pageCase.name}`, report };
+        return {
+            name: `${viewport.name} ${pageCase.name}`,
+            page: pageCase.name,
+            report,
+            viewport: viewport.name,
+        };
     } finally {
         await context.close();
     }
@@ -2089,6 +2227,9 @@ function tasksOf(engine: BrowserType, selection: Selection): PageTask[] {
     return viewports.flatMap((viewport) =>
         selection.pages
             .filter(({ onlyAt }) => onlyAt === undefined || onlyAt.includes(viewport.name))
+            .filter(
+                ({ name }) => viewport.onlyPages === undefined || viewport.onlyPages.includes(name),
+            )
             .map((pageCase) => ({ pageCase, viewport })),
     );
 }
@@ -2169,6 +2310,43 @@ function reportFailures(results: readonly TaskResult[]): string[] {
     });
 }
 
+/**
+ * Every badge keeps one place at a viewport, whatever the seats hold: the live board's decisions stories (an anchor's
+ * three checkpoints, the dense prompts, panels over it) all put each seat's badge at the same point.
+ */
+function checkBadgePlaces(results: readonly TaskResult[]): string[] {
+    const live = results.filter(
+        ({ page, report }) => page.startsWith("decisions-") && report.badgeAnchors !== null,
+    );
+    const viewports = [...new Set(live.map(({ viewport }) => viewport))];
+    return viewports.flatMap((viewport) => {
+        const pages = live.filter((result) => result.viewport === viewport);
+        const placed = pages.flatMap(({ page, report }) =>
+            Object.entries(report.badgeAnchors ?? {}).map(([seat, point]) => ({
+                page,
+                point,
+                seat,
+            })),
+        );
+        return [...new Set(placed.map(({ seat }) => seat))].flatMap((seat) => {
+            const [first, ...rest] = placed.filter((place) => place.seat === seat);
+            if (first === undefined) {
+                return [];
+            }
+            return rest
+                .filter(
+                    ({ point }) =>
+                        Math.abs(point[0] - first.point[0]) > EPSILON ||
+                        Math.abs(point[1] - first.point[1]) > EPSILON,
+                )
+                .map(
+                    ({ page, point }) =>
+                        `${viewport}: the ${seat} badge stands at ${Math.round(point[0])},${Math.round(point[1])} on ${page}, at ${Math.round(first.point[0])},${Math.round(first.point[1])} on ${first.page}`,
+                );
+        });
+    });
+}
+
 /** Both engines' pages at once, then, on a full run, the replay load budget on the Chromium browser, the CPU idle. */
 async function checkAll(
     fixtures: Fixtures,
@@ -2185,7 +2363,10 @@ async function checkAll(
             runEngine(chromiumBrowser, tasksOf(chromium, selection), run),
             runEngine(webkitBrowser, tasksOf(webkit, selection), run),
         ]);
-        const pageFailures = reportFailures(results.flat());
+        const pageFailures = [
+            ...reportFailures(results.flat()),
+            ...checkBadgePlaces(results.flat()),
+        ];
         if (selection.partial) {
             return pageFailures;
         }

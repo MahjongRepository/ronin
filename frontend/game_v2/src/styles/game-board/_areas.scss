@@ -1,169 +1,255 @@
+@use "sass:list";
 @use "grid" as *;
+
+
+$max-melds: 4;
+$face-floor: 13px;
+$selected: 1000;
+$strip-lengths:
+    hand-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start, line2-total, line2-len,
+    line2-base, line1-x, line2-x, meld-over, meld-x, meld-tile, meld-rise;
+
+@for $k from 0 through $max-melds - 1 {
+    @each $part in head, end, over, room2, line2-tile, line2-at, pick-tile, pick-at {
+        $strip-lengths: list.append($strip-lengths, #{$part}-#{$k}, comma);
+    }
+}
+
+@each $name in $strip-lengths {
+    @property --#{$name} {
+        syntax: "<length>";
+        inherits: true;
+        initial-value: 0;
+    }
+}
 
 .board-area {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    min-width: 0;
-    min-height: 0;
-}
-
-.board-melds {
     align-items: flex-end;
 }
 
-.board-area--bottom-hand {
-    grid-column: 2;
-    justify-self: start;
-    align-items: flex-end;
+.board-table,
+.board-zones {
+    position: absolute;
+    inset: 0;
 }
 
-.board-area--bottom-melds {
-    grid-column: 3;
-    justify-self: end;
+.board-zones {
+    overflow: hidden;
 }
 
-.board-strip--top {
-    grid-area: top-strip / left-wrap / top-gap / right-reach;
-    min-width: 0;
-    transform: rotate(180deg);
+/* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. */
+.board-river {
+    --board-tile-w: var(--rw);
+    --board-tile-h: var(--rh);
 
-    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
-        grid-area: top-far / right-river / top-near / end;
-        justify-content: flex-end;
-        margin-left: var(--board-gap-u);
+    position: absolute;
+    display: block;
+    width: calc(6 * var(--rw));
+    height: calc(3 * var(--rh));
+    transform-origin: 0 0;
+
+    &--bottom {
+        left: calc(var(--cx) - var(--h));
+        top: calc(var(--cy) + var(--h) + var(--g));
     }
 
-    > .nameplate {
-        flex: 0 1 auto;
-        align-self: center;
-        max-height: 100%;
+    &--right {
+        left: calc(var(--cx) + var(--h) + var(--g));
+        top: calc(var(--cy) + var(--h));
+        transform: rotate(-90deg);
+    }
+
+    &--top {
+        left: calc(var(--cx) + var(--h));
+        top: calc(var(--cy) - var(--h) - var(--g));
         transform: rotate(180deg);
     }
+
+    &--left {
+        left: calc(var(--cx) - var(--h) - var(--g));
+        top: calc(var(--cy) - var(--h));
+        transform: rotate(90deg);
+    }
 }
 
-@container (height < #{$short-height}) and (aspect-ratio >= 1) {
-    .board-layout:not(:has(.board-menu)) .board-strip--top {
-        flex-flow: row-reverse wrap-reverse;
+/* An opponent's strip: its hand of backs (or the faces a replay shows) from the frame's corner, then its melds at the
+   river tile's scale. */
+.board-strip {
+    --board-tile-w: var(--bw);
+    --board-tile-h: var(--bh);
+    --hand-len: calc(var(--hand-n) * var(--bw) + var(--drawn) * var(--g));
+    --meld-gap: calc(var(--g) + 2px);
+
+    position: absolute;
+    width: 0;
+    height: 0;
+    transform-origin: 0 0;
+
+    > .board-area {
+        position: absolute;
+        bottom: 0;
+        left: 0;
         align-items: flex-end;
+    }
 
-        > .board-area--top-melds {
-            order: -1;
+    &--top {
+        left: var(--top-strip-x);
+        top: var(--m);
+        transform: rotate(180deg);
+    }
+
+    &--right {
+        left: calc(100cqw - var(--m));
+        top: calc(var(--foreground-top) + 2px);
+        transform: rotate(-90deg);
+    }
+
+    &--left {
+        left: var(--m);
+        top: var(--side-start);
+        transform: rotate(90deg);
+    }
+}
+
+.board-strip .board-melds {
+    left: var(--hand-len);
+}
+
+/* The top strip keeps one line: its melds scale down to stay above the top river and the side badges, and right of the
+   counters. */
+.board-strip--top .board-melds {
+    --top-room: calc(var(--top-strip-x) - var(--top-room-left));
+    --top-floor: min(var(--core-top) - 8px, var(--side-badge-top) - 6px);
+    --top-depth-tile: calc((var(--top-floor) - var(--m)) / var(--meld-deep));
+    --top-free: calc(var(--top-room) - var(--hand-len) - var(--meld-n) * var(--meld-gap));
+    --top-fit-tile: calc(var(--top-free) / max(var(--meld-units), 1));
+    --board-tile-w: max(#{$face-floor}, min(var(--rw), var(--top-depth-tile), var(--top-fit-tile)));
+    --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
+
+    gap: var(--meld-gap);
+    padding-left: var(--meld-gap);
+}
+
+/* Sets `--NAME` to `$line2` where the meld's `--meld-over` (its overflow past its line, scaled up) is positive, else to
+   `$line1`, in lengths alone: the shift is clamped between none and the whole difference either way. */
+@mixin on-line($name, $line1, $line2) {
+    --#{$name}-d: calc(#{$line2} - #{$line1});
+    --#{$name}-up: max(0px, min(var(--#{$name}-d), var(--meld-over)));
+    --#{$name}-down: min(0px, max(var(--#{$name}-d), -1 * var(--meld-over)));
+    --#{$name}: calc(#{$line1} + var(--#{$name}-up) + var(--#{$name}-down));
+}
+
+.board-strip--right,
+.board-strip--left {
+    --room2: calc(var(--foreground-top) - var(--side-badge-top) - var(--badge-h) - 6px);
+    --line1-depth: max(var(--bh), var(--meld-deep) * var(--rw));
+
+    @for $k from 0 through $max-melds - 1 {
+        $next: $k + 1;
+
+        --head-#{$k}: calc(var(--hand-len) + #{$next} * var(--meld-gap));
+        --end-#{$k}: calc(var(--head-#{$k}) + var(--mp-#{$next}) * var(--rw) - var(--mg-#{$k}));
+        --over-#{$k}: calc((var(--end-#{$k}) - var(--room)) * #{$selected});
+        --room2-#{$k}: calc(var(--room2) - (var(--meld-n) - #{$next}) * var(--meld-gap));
+        --line2-tile-#{$k}: calc(var(--room2-#{$k}) / var(--ms-#{$k}));
+        --line2-at-#{$k}: calc(var(--mp-#{$k}) * var(--line2-tile) + #{$k} * var(--meld-gap));
+        --pick-tile-#{$k}: clamp(
+            var(--line2-tile-#{$k}),
+            var(--line2-tile-#{$k}) - var(--over-#{$k}),
+            9999px
+        );
+        --pick-at-#{$k}: clamp(
+            var(--line2-at-#{$k}),
+            var(--line2-at-#{$k}) - var(--over-#{$k}),
+            99999px
+        );
+    }
+
+    --line2-tile: clamp(
+        #{$face-floor},
+        min(var(--pick-tile-0), var(--pick-tile-1), var(--pick-tile-2), var(--pick-tile-3)),
+        var(--rw)
+    );
+    --line2-start: min(var(--pick-at-0), var(--pick-at-1), var(--pick-at-2), var(--pick-at-3));
+    --line2-total: calc(var(--meld-units) * var(--line2-tile) + var(--meld-n) * var(--meld-gap));
+    --line2-len: calc(var(--line2-total) - var(--line2-start) - var(--meld-gap));
+
+    .board-melds {
+        left: 0;
+    }
+
+    @for $k from 0 through $max-melds - 1 {
+        .board-melds > .meld:nth-child(#{$k + 1}) {
+            --meld-over: var(--over-#{$k});
+            --line1-x: calc(var(--head-#{$k}) + var(--mp-#{$k}) * var(--rw));
+            --line2-x: calc(var(--line2-base) + var(--line2-at-#{$k}) - var(--line2-start));
+
+            @include on-line(meld-x, var(--line1-x), var(--line2-x));
+            @include on-line(meld-tile, var(--rw), var(--line2-tile));
+            @include on-line(meld-rise, calc(var(--m) * 0), calc(var(--line1-depth) + 4px));
+
+            --board-tile-w: var(--meld-tile);
+            --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
+
+            position: absolute;
+            left: var(--meld-x);
+            bottom: var(--meld-rise);
         }
-
-        > .nameplate {
-            order: 1;
-            max-width: calc(var(--board-outer) - var(--board-plate-gap));
-            max-height: none;
-
-            .nameplate__name {
-                flex: 1 1 3em;
-            }
-        }
     }
 }
 
-/* A side seat's slot is its column; the strip inside is laid out as long as the column, then turned into it. */
-.board-side {
-    position: relative;
-    grid-column: right-col / right-edge;
+.board-strip--right {
+    --room: calc(var(--foreground-top) + 2px - var(--corner-bottom) - 8px);
+    --line2-base: 0px;
+}
 
-    > .board-strip {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: var(--board-side-length);
+.board-strip--left {
+    --room: calc(var(--band-top) - 8px - var(--side-start));
+    --line2-base: calc(var(--foreground-top) - var(--side-start) - var(--line2-len));
+}
+
+/* The own row: the badge's slot and furiten's, then the hand from a full hand's fixed start, its melds after the tiles
+   it holds at a fixed scale. */
+.board-local {
+    --board-tile-w: var(--ow);
+    --board-tile-h: var(--oh);
+
+    position: absolute;
+    left: var(--own-start);
+    top: var(--hand-top);
+    display: flex;
+    align-items: flex-end;
+    height: var(--oh);
+
+    > .nameplate {
+        flex: none;
+        width: var(--badge-slot);
+    }
+
+    &::before {
+        content: "";
+        order: 1;
+        flex: none;
+        width: var(--furiten-slot);
+    }
+
+    > .board-area--bottom-hand {
+        order: 2;
+    }
+
+    > .board-area--bottom-melds {
+        order: 3;
     }
 }
 
-.board-side--right {
-    grid-row: top-far / bottom-far;
+.board-local .board-melds {
+    --board-tile-w: calc(#{$own-meld-scale} * var(--rw));
+    --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
 
-    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
-        grid-row: top-near / frame-end;
-    }
+    gap: calc(var(--g) + 2px);
 
-    > .board-strip {
-        transform: translate(-50%, -50%) rotate(270deg);
-    }
-}
-
-.board-side--left {
-    grid-row: top-near / frame-end;
-    grid-column: left-col / left-gap;
-
-    > .board-strip {
-        transform: translate(-50%, -50%) rotate(90deg);
-    }
-}
-
-/* A top or bottom river's long third row runs on past the corner it starts at; a side river's wraps into a fourth row
-   toward its edge, since the table is shorter than it is wide. */
-.board-river {
-    position: relative;
-
-    > .discards {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: var(--board-river-length);
-        height: var(--board-river);
-        min-width: 0;
-        min-height: 0;
-        padding-top: calc(#{$river-pad * 0.5} * var(--board-unit));
-    }
-}
-
-.board-river--bottom,
-.board-river--top {
-    width: var(--board-river-length);
-    height: var(--board-river);
-}
-
-.board-river--right,
-.board-river--left {
-    width: var(--board-river);
-    height: var(--board-river-length);
-
-    .discard-row {
-        flex-wrap: wrap;
-        row-gap: calc(#{$river-row-gap} * var(--board-unit));
-        max-width: var(--board-river-length);
-    }
-}
-
-.board-river--bottom {
-    grid-area: bottom-near / center / frame-end / right-wrap;
-    justify-self: start;
-
-    > .discards {
-        transform: translate(-50%, -50%);
-    }
-}
-
-.board-river--top {
-    grid-area: top-far / left-river / center / right-river;
-    justify-self: end;
-
-    > .discards {
-        transform: translate(-50%, -50%) rotate(180deg);
-    }
-}
-
-.board-river--right {
-    grid-area: top-far / right-river / bottom-near / right-wrap;
-    align-self: end;
-
-    > .discards {
-        transform: translate(-50%, -50%) rotate(270deg);
-    }
-}
-
-.board-river--left {
-    grid-area: center / left-river / frame-end / center;
-    align-self: start;
-
-    > .discards {
-        transform: translate(-50%, -50%) rotate(90deg);
+    &:has(> .meld) {
+        margin-left: calc(#{$drawn-gap} * var(--ow));
     }
 }

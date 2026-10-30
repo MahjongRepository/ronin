@@ -1,57 +1,43 @@
-// Tile, hand, meld, and discard scaling overrides inside .game-board
+@use "grid" as *;
 
+/* Every tile on the board takes its size from the region it lies in (`--board-tile-w`, `--board-tile-h`): the own
+   hand's tile, a river tile, a back, a meld's scale, an indicator. */
 .game-board {
     .tile {
         --tile-w: var(--board-tile-w);
     }
 
     .hand {
-        gap: calc(1 * var(--board-unit));
+        gap: 0;
+    }
+
+    .board-local .hand {
+        gap: calc(var(--ow) / #{$tile-w});
     }
 
     .hand-drawn-gap {
-        margin-left: calc(8 * var(--board-unit));
-    }
-
-    .meld {
-        gap: calc(1 * var(--board-unit));
-        margin-left: calc(4 * var(--board-unit));
-    }
-
-    .board-strip .meld {
-        margin-left: calc(2 * var(--board-unit));
+        margin-left: calc(#{$drawn-gap} * var(--board-tile-w));
     }
 
     .board-strip .hand-drawn-gap {
-        margin-left: calc(4 * var(--board-unit));
+        margin-left: var(--g);
+    }
+
+    .meld {
+        gap: 0;
+        margin-left: 0;
     }
 
     .discards {
-        gap: calc(2 * var(--board-unit));
+        gap: 0;
     }
 
     .discard-row {
-        gap: calc(1 * var(--board-unit));
+        align-items: flex-start;
+        gap: 0;
     }
 
-    .discard-tile--last {
-        border-radius: calc(6 * var(--board-unit));
-        box-shadow:
-            0 0 0 max(2px, calc(4 * var(--board-unit))) var(--ronin-gold),
-            0 0 max(4px, calc(16 * var(--board-unit))) var(--ronin-gold);
-    }
-
-    // Sideways tile overrides (melds + riichi discards)
-    .meld-tile-sideways {
-        width: var(--board-tile-h);
-        height: var(--board-tile-w);
-
-        > .tile {
-            left: calc((var(--board-tile-h) - var(--board-tile-w)) / 2);
-            top: calc((var(--board-tile-w) - var(--board-tile-h)) / 2);
-        }
-    }
-
+    .meld-tile-sideways,
     .discard-tile-riichi {
         width: var(--board-tile-h);
         height: var(--board-tile-w);
@@ -62,13 +48,46 @@
         }
     }
 
-    // Stacked tile overrides (added_kan)
+    /* An added kan's added tile lies on its called tile on the centre-facing side, the two one column. */
     .meld-tile-stacked {
         width: var(--board-tile-h);
-        height: calc(var(--board-tile-w) * 2 + 2 * var(--board-unit));
+        height: calc(var(--board-tile-w) * 2);
     }
 
     .meld-tile-stacked .meld-tile-stacked-top {
-        bottom: calc(var(--board-tile-w) + 2 * var(--board-unit));
+        bottom: var(--board-tile-w);
+    }
+
+    /* The latest discard: a neutral ring on the tile and a notch on its far side, in its river's own frame, so the
+       notch points at the tile from away from the centre whatever the river's turn. */
+    .discard-tile--last {
+        position: relative;
+        border-radius: 9% / 7%;
+        outline: 2px solid var(--ronin-table-latest);
+        box-shadow: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
+
+        > .tile {
+            box-shadow: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
+        }
+
+        &::after {
+            content: "";
+            position: absolute;
+            top: calc(100% + 3px);
+            left: 50%;
+            width: max(8px, calc(var(--board-tile-w) * 0.45));
+            height: max(4px, calc(var(--board-tile-w) * 0.225));
+            background: var(--ronin-table-latest);
+            clip-path: polygon(50% 0, 100% 100%, 0 100%);
+            transform: translateX(-50%);
+        }
+    }
+
+    .discard-tile-riichi {
+        overflow: visible;
+
+        &.discard-tile--last {
+            border-radius: 7% / 9%;
+        }
     }
 }

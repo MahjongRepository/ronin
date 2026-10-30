@@ -34,7 +34,6 @@ export type {
     LeaveControls,
     PlayAction,
     PlayCommand,
-    PlayCue,
     PlayDisplay,
     PlayNotice,
     PlayUi,

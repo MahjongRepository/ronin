@@ -184,11 +184,17 @@ function applyMeldByType(state: TableState, event: MeldEvent): TableState {
     }
 }
 
+/** Whether a meld takes a discard from the river: a call (chi, pon, open kan), never a kan from the caller's own hand. */
+function claimsDiscard(meldType: MeldEvent["meldType"]): boolean {
+    return meldType === "chi" || meldType === "pon" || meldType === "open_kan";
+}
+
+/** A meld; the latest discard stays marked unless the meld claimed it. */
 export function applyMeld(state: TableState, event: MeldEvent): TableState {
     const nextState = applyMeldByType(state, event);
     return {
         ...nextState,
         currentPlayerSeat: event.callerSeat,
-        lastDiscardSeat: null,
+        lastDiscardSeat: claimsDiscard(event.meldType) ? null : state.lastDiscardSeat,
     };
 }

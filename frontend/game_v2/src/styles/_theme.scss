@@ -55,6 +55,16 @@
     --ronin-surface-overlay: #222433;
     --ronin-border: #28261f;
     --ronin-border-subtle: #1e1c17;
+    --ronin-table: #1c3033;
+    --ronin-table-fill: radial-gradient(ellipse at 50% 45%, #23393d 0%, #1c3033 55%, #172a2d 100%);
+    --ronin-table-edge: #172a2d;
+    --ronin-table-zone-line: rgb(214 236 230 / 17%);
+    --ronin-table-field-side: rgb(214 236 230 / 3.5%);
+    --ronin-table-field-end: rgb(0 0 0 / 6%);
+    --ronin-table-latest: #f4f7f5;
+    --ronin-table-latest-inner: #26332f;
+    --ronin-table-turn: #e8efeb;
+    --ronin-border-mark: #4f6a70;
 
     // Score colors
     --ronin-score-positive: #7bb88a;

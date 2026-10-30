@@ -193,14 +193,15 @@ describe("tableStateToDisplayState", () => {
             ]);
         });
 
-        test("discards mapped with grayed and riichi flags", () => {
+        test("a claimed tile leaves the river, the declarer's next surviving discard lying sideways for a claimed riichi tile", () => {
             const state = makeTableState({
                 players: [
                     makePlayer({
                         discards: [
                             { isRiichi: false, isTsumogiri: false, tileId: 0 },
-                            { claimed: true, isRiichi: false, isTsumogiri: false, tileId: 4 },
-                            { isRiichi: true, isTsumogiri: false, tileId: 8 },
+                            { claimed: true, isRiichi: true, isTsumogiri: false, tileId: 4 },
+                            { isRiichi: false, isTsumogiri: false, tileId: 8 },
+                            { isRiichi: false, isTsumogiri: false, tileId: 12 },
                         ],
                         seat: 0,
                     }),
@@ -210,9 +211,11 @@ describe("tableStateToDisplayState", () => {
                 ],
             });
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            expect(result.players[0].discards).toHaveLength(3);
-            expect(result.players[0].discards[1].grayed).toBe(true);
-            expect(result.players[0].discards[2].riichi).toBe(true);
+            expect(result.players[0].discards).toEqual([
+                { face: "1m", last: false, riichi: false },
+                { face: "3m", last: false, riichi: true },
+                { face: "4m", last: false, riichi: false },
+            ]);
         });
 
         test("unsorted players array produces correct seat positions", () => {
@@ -372,23 +375,26 @@ describe("tableStateToDisplayState last discard", () => {
         return marked(replay.tables[index + 1]);
     }
 
-    test("marks the latest discard, moving with each discard and kept through the next draw, and none once a meld or kan follows", () => {
+    test("marks the latest discard, moving with each discard and kept through the next draw, a kan from the hand and an added kan open to chankan, and none once a call claims it", () => {
         expect(markedAfter("pao", (event) => event.type === "discard")).toEqual(["0:0 5z"]);
         expect(markedAfter("pao", (event) => event.type === "draw", 1)).toEqual(["1:0 9p"]);
         expect(markedAfter("pao", (event) => event.type === "meld")).toEqual([]);
-        expect(
-            markedAfter(
-                "kans",
-                (event) => event.type === "meld" && event.meldType === "closed_kan",
-            ),
-        ).toEqual([]);
+        const kans = loadEngineReplay("kans");
+        const closedKan = kans.events.findIndex(
+            (event) => event?.type === "meld" && event.meldType === "closed_kan",
+        );
+        expect(marked(kans.tables[closedKan])).toEqual(["2:2 7z"]);
+        expect(marked(kans.tables[closedKan + 1])).toEqual(["2:2 7z"]);
+        expect(marked(checkpointState("chankan_passed_seat_3", "chankan prompt").table)).toEqual([
+            "0:0 7z",
+        ]);
     });
 
-    test("marks after a reconnect the discard a call prompt offers, and none at a turn or a chankan prompt", () => {
+    test("marks after a reconnect the discard a call prompt offers, and the left seat's discard at a re-sent draw and a chankan prompt", () => {
         const marks = ["reconnect_seat_1", "own_turn_seat_1", "chankan_passed_seat_3"].map((name) =>
             marked(checkpointState(name, "reconnected").table),
         );
-        expect(marks).toEqual([["0:0 5z"], [], []]);
+        expect(marks).toEqual([["0:0 5z"], ["0:0 2z"], ["0:0 7z"]]);
     });
 });
 

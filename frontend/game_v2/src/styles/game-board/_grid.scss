@@ -1,225 +1,264 @@
-@use "sass:math";
-
-/* Every board length derives from the board's own box (container query units). Lengths are counted in board units, a
-   river tile being 60 x 80 of them; the constants below give the tracks and the spans the unit is fitted to. */
-
 $tile-w: 60;
 $tile-h: 80;
-$tile-gap: 1;
-$river-tiles: 6;
-$river-row-gap: 2;
-$river-pad: 8;
-$river-near: 2 * $tile-h + $river-row-gap;
-$river-far: $tile-h + $river-row-gap + $river-pad - 2;
-$river-depth: $river-near + $river-far;
-$river-length: $river-tiles * $tile-w + ($river-tiles - 1) * $tile-gap + ($tile-h - $tile-w);
-$river-wrap: $tile-h + $river-pad;
-$river-reach: 2 * $river-tiles * ($tile-w + $tile-gap) - $tile-gap + ($tile-h - $tile-w);
-$strip-depth: 88;
-$edge-gap: 12;
-$top-gap: 28;
-$plate-gap: 6;
-$opponent-scale: 0.6;
-$opponent-scale-short: 0.66;
-$dora-slots: 5;
-$dora-pad: 4;
-$outer-min: 216;
-$center-size: 300;
-$center-min: 104px;
-$center-size-short: 280;
-$center-min-short: 88px;
 $short-height: 520px;
-$portrait-bands: 112px;
-$side-fixed: $river-depth + $river-wrap + $edge-gap + $strip-depth;
-$corner: 16;
-$reach-lane: $river-reach - $center-size-short - $river-depth - $river-wrap;
-$tall-frame: 2 * ($side-fixed + $corner);
-$tall-height: $strip-depth + $top-gap + 2 * $river-depth;
-$corner-short: $river-reach - $side-fixed - $center-size-short;
-$reach-unit: $river-reach - $river-depth - $river-wrap;
-$outer-min-live-short: 260;
-$short-frame: 2 * $side-fixed + $reach-lane + $corner-short + $center-size-short;
-$short-table-height: 2 * $river-depth;
-$side-length: 2 * $river-near + $river-far;
-$meld-scale: 0.62;
-$local-span: 14.6;
-$local-height-share: 11.4cqh;
-$local-height-base: 12px;
-$phone-tile-h: 48px;
-$desktop-tile-width-share: 5cqw;
-$desktop-tile-height-share: 10cqh;
+$small-chrome-width: 1100px;
+$large-chrome-width: 2000px;
+$large-chrome-height: 1200px;
 $wide-board: "4 / 3";
 $corner-reserve: 10rem;
 $corner-reserve-short: 5rem;
-$table-columns: [outer-left] minmax(var(--board-outer), 1fr) [left-edge] var(--board-corner-left)
-    [left-col] var(--board-strip) [left-gap] var(--board-gap-u) [left-reach] var(--board-reach-left)
-    [left-wrap] var(--board-wrap) [left-river] var(--board-river) [center] var(--board-center)
-    [right-river] var(--board-river) [right-wrap] var(--board-wrap) [right-reach] var(--board-reach)
-    [right-gap] var(--board-gap-u) [right-col] var(--board-strip) [right-edge] var(--board-corner)
-    [outer-right] minmax(var(--board-outer), 1fr) [end];
-$table-rows: [head] var(--board-head) [top-strip] var(--board-top-strip) [top-gap]
-    var(--board-top-gap) [top-far] var(--board-river-far) [top-near] var(--board-river-near)
-    [center] var(--board-center) [bottom-near] var(--board-river-near) [bottom-far]
-    var(--board-river-far) [frame-end] var(--board-foot) [end];
+
+/* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
+$full-hand: 14.6;
+$drawn-gap: 0.35;
+$own-meld-scale: 1.2;
+$river-gap-share: 0.3;
+$core-tiles: 8.6;
+$side-reach-tiles: 10.6667;
+
+/* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
+   length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
+$lengths:
+    ow, oh, strip-depth, core-room-band, top-row3-top, counters-top, top-room-left, hand-top,
+    core-room-h, core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, strip-len,
+    foreground-top, band-top, band-bottom, corner-bottom, reach-left, reach-right, reach-top-row3,
+    reach-top-left, reach-bottom-right, side-badge-top, left-badge-x, side-badge-max, full-hand-w,
+    own-start, own-hand-right;
+
+@each $name in $lengths {
+    @property --#{$name} {
+        syntax: "<length>";
+        inherits: true;
+        initial-value: 0;
+    }
+}
+
+@mixin phone-board {
+    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+@mixin desktop-board {
+    @container (height >= #{$short-height}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+@mixin upright-board {
+    @container (aspect-ratio < 1) {
+        @content;
+    }
+}
+
+/* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone, upright, and on
+   a desktop board too narrow for the desktop's (a tablet's or a small window's), whose geometry stays the desktop's. */
+@mixin small-chrome {
+    @container (width < #{$small-chrome-width}) or (height < #{$short-height}) {
+        @content;
+    }
+}
+
+/* The chrome a step larger on a large board, where the own tile passes 100px. */
+@mixin large-chrome {
+    @container (width >= #{$large-chrome-width}) and (height >= #{$large-chrome-height}) {
+        @content;
+    }
+}
 
 .game-board {
     container-type: size;
     position: relative;
     width: 100%;
     height: 100%;
-    background: var(--ronin-surface);
-    border-radius: 0.5rem;
+    background: var(--ronin-table-fill);
+}
+
+.game-board > :is(.board-layout, .board-overlay) {
+    /* The viewport class: a desktop's margins, gaps, chrome and centre share; a phone and an upright board override. */
+    --m: 18px;
+    --badge-slot: 240px;
+    --furiten-slot: 0px;
+    --sep: 40px;
+    --core-gap: 40px;
+    --control-h: 60px;
+    --band-gap: 18px;
+    --side-start: calc(var(--m) + 72px);
+    --badge-h: 54px;
+    --badge-gap: 16px;
+    --corner-h: 48px;
+    --counters-w: 300px;
+    --dora-w: 28px;
+    --counters-top: var(--m);
+    --top-room-left: calc(var(--m) + var(--counters-w) + 8px);
+    --centre-share: 0.33;
+    --back-share: 0.75;
+    --own-cap: min(5cqw, 10cqh);
+    --core-cap: 60cqh;
+    --row-edge: max(11px, var(--c) * 0.1);
+    --text: 17px;
+
+    /* The own tile, capped by what a full hand's row holds beside its badge and furiten slots. */
+    --ow: min(
+        var(--own-cap),
+        (100cqw - 2 * var(--m) - var(--badge-slot) - var(--furiten-slot)) / #{$full-hand}
+    );
+    --oh: calc(var(--ow) * 4 / 3);
+    --hand-top: calc(100cqh - var(--m) - var(--oh));
+    --core-room-h: calc(100cqh - 2 * var(--m) - var(--oh) - var(--core-gap) - var(--sep));
+    --core-room-w: calc(100cqw - 2 * var(--m) - 24px);
+    --band-reserve: calc(var(--band-gap) + var(--control-h) + 20px);
+    --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--m) - var(--sep));
+
+    /* The river tile: the largest that keeps the centre at its share of the core, from 0.6 of the own tile, in each
+       room the core has (a room's tiles count the core's 8.6 and what else stands in that room per river tile). */
+    --spare: calc(1 - var(--centre-share));
+    --height-tiles: calc(#{$core-tiles} + var(--spare) * 4 / 3);
+    --width-tiles: calc(#{$core-tiles} + var(--spare) * #{$side-reach-tiles});
+    --rw-by-height: calc(var(--spare) * var(--core-room-h) / var(--height-tiles));
+    --rw-by-band: calc(var(--spare) * var(--core-room-band) / var(--height-tiles));
+    --rw-by-cap: calc(var(--spare) * var(--core-cap) / #{$core-tiles});
+    --rw-by-width: calc(var(--spare) * var(--core-room-w) / var(--width-tiles));
+    --rw-by-own: calc(0.6 * var(--ow));
+    --rw: round(
+        down,
+        min(
+            var(--rw-by-own),
+            var(--rw-by-height),
+            var(--rw-by-band),
+            var(--rw-by-cap),
+            var(--rw-by-width)
+        ),
+        1px
+    );
+    --rh: calc(var(--rw) * 4 / 3);
+    --g: round(calc(#{$river-gap-share} * var(--rw)), 1px);
+    --core: min(
+        var(--core-room-h) - var(--rh),
+        var(--core-room-band) - var(--rh),
+        var(--core-cap),
+        var(--core-room-w) - #{$side-reach-tiles} * var(--rw)
+    );
+    --c: calc(var(--core) - #{$core-tiles} * var(--rw));
+    --h: calc(var(--c) / 2);
+    --core-top-slot: calc(var(--m) + var(--rh) + var(--sep));
+    --core-top-free: calc((var(--core-room-h) - var(--rh) - var(--core)) / 2);
+    --core-top-band: calc(var(--hand-top) - var(--band-reserve) - var(--core));
+    --core-top: min(var(--core-top-slot) + var(--core-top-free), var(--core-top-band));
+    --cx: calc(100cqw / 2);
+    --cy: calc(var(--core-top) + var(--core) / 2);
+
+    /* The perimeter and the foreground band. */
+    --bw: calc(var(--back-share) * var(--rw));
+    --bh: calc(var(--bw) * 4 / 3);
+    --strip-len: calc(13 * var(--bw));
+    --top-strip-x: max(var(--cx) + var(--strip-len) / 2, var(--top-room-left) + var(--strip-len));
+    --foreground-top: calc(var(--hand-top) - 2 * var(--band-gap) - var(--control-h));
+    --band-top: calc(var(--foreground-top) + var(--band-gap));
+    --band-bottom: calc(var(--hand-top) - var(--band-gap));
+    --corner-bottom: calc(var(--m) + var(--corner-h));
+
+    /* The rivers' reach at their capacity, a row's sideways riichi tile counted: a side river's fourth row, a top or
+       bottom river's third row run on to twelve tiles. */
+    --reach-left: calc(var(--cx) - var(--h) - var(--g) - 4 * var(--rh));
+    --reach-right: calc(var(--cx) + var(--h) + var(--g) + 4 * var(--rh));
+    --reach-top-row3: calc(var(--cy) - var(--h) - var(--g) - 2 * var(--rh));
+    --reach-top-left: calc(var(--cx) + var(--h) - 11 * var(--rw) - var(--rh));
+    --reach-bottom-right: calc(var(--cx) - var(--h) + 11 * var(--rw) + var(--rh));
+
+    /* A side badge's fixed place: below the counters, and on a phone below the top river's capacity row. */
+    --row3-meets: clamp(
+        0px,
+        (var(--side-start) + var(--badge-h) - var(--top-row3-top)) * 1000,
+        9999px
+    );
+    --side-badge-top: max(
+        var(--side-start),
+        min(var(--reach-top-row3) + 4px, var(--side-start) + var(--row3-meets))
+    );
+    --top-row3-top: calc(var(--reach-top-row3) - var(--rh));
+    --strip-depth: calc(2 * var(--rw));
+    --left-badge-x: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
+    --side-badge-max: calc(
+        var(--cx) + var(--h) - 5 * var(--rw) - var(--rh) - 6px - var(--left-badge-x)
+    );
+
+    /* The own row: a full hand's place, centred with its badge and furiten slots, whatever the hand holds. */
+    --full-hand-w: calc(#{$full-hand} * var(--ow));
+    --own-start: max(
+        var(--m),
+        (100cqw - var(--badge-slot) - var(--furiten-slot) - var(--full-hand-w)) / 2
+    );
+    --own-hand-right: calc(
+        var(--own-start) + var(--badge-slot) + var(--furiten-slot) + var(--full-hand-w)
+    );
+
+    /* What the stylesheets of the board's other parts count in: a river tile's sixtieth, and the own tile. */
+    --board-table-unit: calc(var(--rw) / #{$tile-w});
+    --board-local-tile-w: var(--ow);
+
+    @include small-chrome {
+        --badge-slot: 96px;
+        --side-start: calc(var(--m) + 52px);
+        --badge-h: 40px;
+        --badge-gap: 8px;
+        --corner-h: 40px;
+        --counters-w: 95px;
+        --dora-w: 15px;
+        --text: 12px;
+    }
+
+    @include large-chrome {
+        --side-start: calc(var(--m) + 100px);
+        --badge-h: 72px;
+        --badge-gap: 20px;
+        --corner-h: 64px;
+        --counters-w: 400px;
+        --dora-w: 37px;
+        --text: 24px;
+    }
+
+    @include phone-board {
+        --m: 4px;
+        --sep: 10px;
+        --core-gap: 6px;
+        --control-h: 40px;
+        --band-gap: 8px;
+        --centre-share: 0.39;
+        --back-share: 0.7;
+        --own-cap: 36px;
+        --core-cap: 9999px;
+        --core-room-band: 9999px;
+        --core-top: calc(var(--core-top-slot) + var(--core-top-free));
+    }
+
+    @include upright-board {
+        --m: 4px;
+        --counters-top: calc(var(--m) + var(--strip-depth) + 6px);
+        --top-room-left: var(--m);
+        --side-start: calc(var(--counters-top) + 52px);
+        --side-badge-top: max(var(--side-start), var(--core-top) - var(--badge-h) - 4px);
+        --control-h: 40px;
+        --band-gap: 8px;
+        --own-cap: 10cqh;
+    }
 }
 
 .board-layout {
-    --board-pad: 4px;
-    --board-plate-reserve: clamp(5rem, 8cqw, 10rem);
-    --board-local-fit-h: calc(
-        (100cqw - 2 * var(--board-pad) - var(--board-plate-reserve)) / #{$local-span} * #{$tile-h} /
-            #{$tile-w}
-    );
-    --board-local-tile-h: min(
-        var(--board-local-fit-h),
-        #{$local-height-share} + #{$local-height-base}
-    );
-    --board-local-tile-w: calc(var(--board-local-tile-h) * #{$tile-w} / #{$tile-h});
-    --board-local-depth: calc(var(--board-local-tile-h) + 2 * var(--board-pad));
-    --board-table-width: calc(100cqw - 2 * var(--board-pad));
-    --board-table-height: calc(100cqh - var(--board-local-depth) - var(--board-pad));
-    --board-table-span: calc(#{$tall-frame} + 2 * var(--board-outer-units));
-    --board-table-unit: min(
-        var(--board-table-width) / (var(--board-table-span) + #{$center-size}),
-        (var(--board-table-width) - #{$center-min}) / var(--board-table-span),
-        var(--board-table-height) / #{$tall-height + $center-size},
-        (var(--board-table-height) - #{$center-min}) / #{$tall-height}
-    );
-    --board-center: max(#{$center-size} * var(--board-table-unit), #{$center-min});
-    --board-opponent-scale: #{$opponent-scale};
-    --board-top-strip: calc(#{$strip-depth} * var(--board-table-unit));
-    --board-top-gap: calc(#{$top-gap} * var(--board-table-unit));
-    --board-corner: calc(#{$corner} * var(--board-table-unit));
-    --board-corner-left: var(--board-corner);
-    --board-reach: 0px;
-    --board-reach-left: 0px;
-    --board-unit: var(--board-table-unit);
-    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
-    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
-    --board-outer-units: #{$outer-min};
-    --board-head: 0px;
-    --board-foot: 0px;
-    --board-outer: calc(var(--board-outer-units) * var(--board-table-unit));
-    --board-strip: calc(#{$strip-depth} * var(--board-table-unit));
-    --board-gap-u: calc(#{$edge-gap} * var(--board-table-unit));
-    --board-plate-gap: calc(#{$plate-gap} * var(--board-table-unit));
-    --board-wrap: calc(#{$river-wrap} * var(--board-table-unit));
-    --board-river: calc(#{$river-depth} * var(--board-table-unit));
-    --board-river-near: calc(#{$river-near} * var(--board-table-unit));
-    --board-river-far: calc(#{$river-far} * var(--board-table-unit));
-    --board-river-length: calc(#{$river-length} * var(--board-table-unit));
-    --board-side-length: calc(#{$side-length} * var(--board-table-unit) + var(--board-center));
-
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) var(--board-local-depth);
+    position: relative;
     width: 100%;
     height: 100%;
-    padding-inline: var(--board-pad);
+    font-size: var(--text);
+}
 
-    @container (width >= 1024px) and (height >= 600px) {
-        --board-pad: 8px;
+.game-board--play .board-layout {
+    --furiten-slot: 64px;
+
+    @include phone-board {
+        --furiten-slot: 44px;
     }
 
-    @container (height >= #{$short-height}) and (aspect-ratio >= 1) {
-        --board-local-tile-h: min(
-            min(#{$desktop-tile-width-share}, #{$desktop-tile-height-share}) * #{$tile-h} /
-                #{$tile-w},
-            var(--board-local-fit-h)
-        );
+    @include upright-board {
+        --furiten-slot: 0px;
     }
-
-    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
-        --board-local-tile-h: min(#{$phone-tile-h}, var(--board-local-fit-h));
-        --board-table-unit: min(
-            var(--board-table-width) / (#{$short-frame} + 2 * var(--board-outer-units)),
-            var(--board-table-height) / #{$short-table-height + $center-size-short},
-            (var(--board-table-height) - #{$center-min-short}) / #{$short-table-height}
-        );
-        --board-center: max(#{$center-size-short} * var(--board-table-unit), #{$center-min-short});
-        --board-opponent-scale: #{$opponent-scale-short};
-        --board-top-strip: 0px;
-        --board-top-gap: 0px;
-        --board-corner: 0px;
-        --board-corner-left: max(
-            0px,
-            #{$river-reach - $side-fixed} * var(--board-table-unit) - var(--board-center)
-        );
-        --board-reach: max(0px, #{$reach-unit} * var(--board-table-unit) - var(--board-center));
-
-        &:has(.board-menu) {
-            --board-outer-units: #{$outer-min-live-short};
-        }
-    }
-
-    @container (aspect-ratio < 1) {
-        --board-outer-units: 0;
-        --board-head: auto;
-        --board-foot: auto;
-        --board-table-height: calc(
-            100cqh - var(--board-local-depth) - var(--board-pad) - #{$portrait-bands}
-        );
-    }
-}
-
-.board-table {
-    display: grid;
-    grid-template-columns: $table-columns;
-    grid-template-rows: $table-rows;
-    align-content: center;
-    min-height: 0;
-    padding-top: var(--board-pad);
-}
-
-.board-strip {
-    --board-unit: calc(var(--board-table-unit) * var(--board-opponent-scale));
-    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
-    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
-
-    display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: calc(4 * var(--board-unit));
-    height: var(--board-strip);
-}
-
-.board-strip .board-area {
-    flex: none;
-    min-width: auto;
-}
-
-.board-strip .board-melds {
-    align-items: flex-start;
-}
-
-.board-local {
-    --board-unit: calc(var(--board-local-tile-w) / #{$tile-w});
-    --board-tile-w: var(--board-local-tile-w);
-    --board-tile-h: var(--board-local-tile-h);
-
-    display: grid;
-    grid-template-columns: var(--board-plate-reserve) minmax(min-content, 1fr) auto;
-    align-items: end;
-    justify-self: center;
-    column-gap: calc(6 * var(--board-unit));
-    width: min(100%, var(--board-plate-reserve) + #{$local-span} * var(--board-local-tile-w));
-    height: var(--board-local-depth);
-    padding-block: var(--board-pad);
-
-    .board-area {
-        min-width: auto;
-    }
-}
-
-.board-local .board-melds {
-    --board-unit: calc(var(--board-local-tile-w) * #{$meld-scale} / #{$tile-w});
-    --board-tile-w: calc(#{$tile-w} * var(--board-unit));
-    --board-tile-h: calc(#{$tile-h} * var(--board-unit));
 }

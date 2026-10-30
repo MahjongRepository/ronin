@@ -123,7 +123,8 @@ export function showsDeclaredKan(state: TableState, event: KanDeclaredEvent): bo
 /**
  * Show a kan declared open to chankan: its tiles leave the hand for the kan, after the draw a hidden hand took unseen
  * joins its count. It draws no replacement and reveals no dora, since the kan completes only once nobody robs it. A
- * kan the table already shows (the prompt showed it before the round end that robs it) is not taken twice.
+ * kan the table already shows (the prompt showed it before the round end that robs it) is not taken twice. It claims no
+ * discard, so the latest discard stays marked.
  */
 export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): TableState {
     if (showsDeclaredKan(state, event)) {
@@ -143,7 +144,6 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
     return {
         ...state,
         currentPlayerSeat: event.seat,
-        lastDiscardSeat: null,
         players: updatePlayer(state.players, event.seat, {
             concealedCount: hand.concealedCount,
             drawnTileId: null,

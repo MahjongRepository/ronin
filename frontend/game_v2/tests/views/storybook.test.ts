@@ -70,12 +70,12 @@ describe("storybookMeldsView", () => {
 });
 
 describe("storybookDiscardsView", () => {
-    test("renders all 6 discard sections", () => {
+    test("renders all 7 discard sections", () => {
         const el = renderTo(storybookDiscardsView());
         const container = el.querySelector(".storybook");
         expect(container).not.toBeNull();
         const sections = container?.querySelectorAll("section");
-        expect(sections).toHaveLength(6);
+        expect(sections).toHaveLength(7);
     });
 
     test("renders nav with discards badge active", () => {

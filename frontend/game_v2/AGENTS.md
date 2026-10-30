@@ -121,9 +121,9 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   showing, so a new one replays its CSS animation and a redraw does not; it takes no input, and a
   win's call shows before the result panel, which waits for it by CSS alone; the board waits only when
   told its panel is a result (`overlayIsResult`), so the leave question and an end show, and take the
-  focus, at once. The viewer's turn and call prompt are cued under its hand and melds and on its plate
-  (`PlayDisplay.cue`) without moving anything, the current cue, which the spec's turn cue retires; furiten
-  shows only while a round plays.
+  focus, at once. The seat in turn is cued only by the centre's bar on its side and its badge's
+  underline (the spec's turn cue), the viewer's turn and call prompt by nothing else; furiten shows only
+  while a round plays.
 * **Final standings** (`boardOverlay`, live and replay alike): the seats in the server's placement
   order with its uma/oka results, the ledger of every finished round with a line saying what its marks
   mean, the leftover sticks, the viewer's seat (the live seat, the replay's bottom seat) marked. Their
@@ -174,8 +174,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   selectable tile's id and nothing else. Orientation stays with the
   board's strips, which rotate whole hands.
 * **The board renders a display state; a mapper derives it.** `GameBoard` (`entities/table`) renders
-  a `BoardDisplayState` with slots for an overlay, the local hand's input and a corner for the
-  decision's controls, and decides nothing. `tableStateToDisplayState` maps a table from a
+  a `BoardDisplayState` with slots for an overlay, the local hand's input and a place by the hand for
+  the decision's controls, and decides nothing. `tableStateToDisplayState` maps a table from a
   perspective; `playDisplay` (`entities/client`) maps a whole client state for the live board: the
   table from the viewer's seat with only its hand face up, each of its tiles marked by the open
   decision, the intent each selectable tile sends, the decision's buttons (riichi as one toggle,
@@ -266,7 +266,8 @@ follows holds through the rebuild to it.
 
 * **Browser floor: iOS Safari 16.4** (range media syntax; container queries need 16.0, `dvh` 15.4),
   and the smallest supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320
-  phones never got iOS 16.4, so they are below the floor.
+  phones never got iOS 16.4, so they are below the floor. The board's sizing rule needs CSS `round()`
+  (Chrome 125, Firefox 118, Safari 15.4) and `@property` (Safari 16.4).
 * **The live game's page** is the board alone: the page's own controls (`GameMenu`: the way back and the
   session's status as a dot, with one short word by its tone unless connected (a short board, too narrow for a
   word, shows the dot alone, never part of the word), the player's whole wording in
@@ -285,7 +286,10 @@ follows holds through the rebuild to it.
   move); and a server message the client cannot read, on the console too, shown until a reconnect's
   snapshot rebuilds the table, which may be wrong until then; and tile faces that did not load, with
   a reload, until a retry loads them. An end that stops the session on the
-  page blocks the board, and takes the rotate panel's place, with why and a way back. With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
+  page blocks the board, and takes the rotate panel's place, with why and a way back. The notices' place is
+  the left field under the left badge, outside every river's capacity, scrolling a stack taller than it
+  (never clipped silently; "Show all" is Step 4's); a desktop panel over the board then starts past the left
+  river's reach, and over a short board's panel they move to the reserve under the right strip's end. With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
   it the view keeps no log at all.
 * **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than
@@ -303,31 +307,57 @@ follows holds through the rebuild to it.
   clip.
 * **The board sizes itself from its own box.** `.game-board` is a size container and every length in it
   derives from its box (container query units), never the viewport, so a page that gives it a box
-  (`.board-page`) decides its size alone. The own hand's tiles are always the board's largest. Today
-  the table counts its lengths in board units (a river tile is 60 x 80): the Sass constants in
-  `game-board/_grid.scss` give every track in those units, and `--board-unit` is the length of one
-  unit fitted to the table's box (the centre keeps a pixel floor, so its text fits a phone); the overlay
-  sets its own unit. The own tile follows the spec's sizing rule (`docs/game-client-look.md`, Proportions) in
-  `game-board/_grid.scss`, capped by what the hand's row can hold; an upright board keeps the size fitted to its
-  width and height. Every tile's box (its 3:4 from `--tile-w`, the room around the glyph, the corners) is
-  `styles/_tile.scss`'s. A round result taller than its panel scrolls under its foot, which keeps the scores, the
-  primary button and its countdown at the panel's bottom.
-* **The table.** The rivers form a pinwheel around the centre, each starting at the centre's corner on
-  its seat's left; a top or bottom river's third row runs on past its corner, up to six tiles past the
-  other two (24 discards), and a side river, whose length runs along the short axis, wraps its third
-  row into a fourth toward its edge. Each seat's tiles face that seat. Every seat's plate has one shape
-  (wind, name, AI and riichi marks); a long name is shortened in the middle by the component so its end,
-  which tells AI players apart, shows, and its end stands apart from its start, so a plate too narrow
-  for it gives up the start's letters, never the end; an upright board (a storybook or replay page on an
-  upright phone) shows the wind and marks alone, its name in the label. The dora and the table's honba
-  and riichi sticks share one corner (top-left, a back in each slot still to turn) and the page's
-  corner is top-right. The centre shows each seat's wind and score on the side facing it, its riichi
-  stick beside them, a bar for whose turn it is, and the round and the wall, labelled, in its middle.
-  Text the board scales keeps a 10px floor, a safety limit, never the size to design to.
-* **Pages never clip the board.** `.board-page` gives it a definite box, sized with `dvh` and the
-  safe-area insets (the theme's `--ronin-safe-*`, which a test can set), and puts its aside, when it has
-  one (the replay's controls, the storybooks' switches), below it upright, or beside it in landscape as
-  a compact column that scrolls when the window is too short for it. The replay's controls below (its
+  (`.board-page`) decides its size alone. The spec's sizing rule (`docs/game-client-look.md`, Proportions)
+  lives in `game-board/_grid.scss` alone, as custom properties on the board's layout and its overlay: the
+  own tile (36x48 under 520px high, else min(5cqw, 10cqh), capped by a full hand's row beside its badge's
+  and furiten's slots), the river tile, the core, the centre and every place derived from them (the
+  rivers' capacity reach, the foreground band, a badge's place). Its lengths are registered
+  (`@property`, `<length>`), so each computes once to pixels where it is set: an unregistered chain grows
+  with every reference until a browser drops the declaration. A desktop's core also stays above the
+  foreground band's controls and below the top strip's slot, which binds a short desktop (1366x657); an
+  upright board takes the desktop rule, its core bounded by the width left beside two lines of side melds.
+  The perimeter's chrome (badges, counters, the page's corner, callouts) takes a phone's size on a phone,
+  upright and on a desktop board under 1100px wide, whose geometry stays the desktop's, and a step larger on
+  a board of at least 2000x1200; the top strip's hand starts right of the counters however narrow the board.
+  Nothing is measured in script: what content changes a placement (a strip's hand and meld lengths, in
+  tile widths) the board hands its stylesheet as custom properties from the display state (`stripStyle`).
+  The own hand's tiles are always the board's largest. Every tile's box (its 3:4 from `--tile-w`, the
+  room around the glyph, the corners) is `styles/_tile.scss`'s; each region sets `--board-tile-w`. A round
+  result taller than its panel scrolls under its foot, which keeps the scores, the primary button and its
+  countdown at the panel's bottom.
+* **The table** is the spec's composition (Composition, Elements); what the code keeps that the spec does
+  not say:
+  * Each seat's river and strip is laid in its own frame (left to right from its seat, rows away from the
+    centre, a strip's tiles standing on the frame's line toward the seat's edge) and turned into place about
+    the frame's corner, so a seat's tiles face it and an added kan's stack lies on its centre-facing side
+    at every seat. A river's tiles touch; the pinwheel's gaps (0.3 of a river tile, rounded) part the rivers
+    from each other and the centre at every capacity. A side river wraps past its third row into a fourth
+    (`Discards`' `wrap`), a top or bottom one runs its third on (`run-on`).
+  * A side strip's melds take its line while they fit and its oldest the second line inside it, from the
+    foreground band toward its badge, scaled to end before the badge: each meld's place is chosen in CSS
+    from the units the board hands it (`--mu-k`), never by measuring. The top strip keeps one line and
+    scales its melds down, above the top river and the side badges and right of the counters; the own melds keep 1.2 river
+    tiles. No meld face goes under 13px wide.
+  * A badge's place is fixed per viewport and never reads a tile count: the side badges stand clear of the
+    deepest a strip's first line can be (two river tiles), and below the top river's capacity row wherever
+    they would meet it (always on a phone), the right one level with the left unless that puts it beside the
+    right river's rows (the top river's row never reaches that side); a side badge beside its river's rows
+    ends before its reach. The own badge has its slot at the start of the own row, whose hand starts where a full hand's
+    would, whatever it holds. Badges are the plates' one shape; a long name is shortened in the middle so
+    its end shows; an upright board shows the wind and marks alone, its name in the label.
+  * The pooled counters (top-left) hold the dora and the honba and riichi counts as icon and number; the
+    centre holds the round, the wall's count, each seat's wind and score in a pinwheel row on its side, its
+    riichi stick inside the edge, the turn's bar on the edge, and while a badge's differences show, whose.
+  * The latest discard (`lastDiscardSeat`, `entities/table/AGENTS.md`) is ringed with a notch on its far side,
+    in its river's frame, in the table's neutral latest colour; a claimed tile has left the river.
+  * The zone device is decoration under every layer: lines and field tints from the centre's corners,
+    drawn with `hypot`/`atan2` and clip paths from the same lengths.
+  * Text the board scales keeps a 10px floor, a safety limit, never the size to design to.
+* **Pages never clip the board.** `.board-page` gives it a definite box, the safe area exactly (sized with
+  `dvh` and the theme's `--ronin-safe-*`, which a test can set; the table's surface runs on under the
+  insets), and puts the replay's controls below it upright, or beside it in landscape as a compact column
+  that scrolls when the window is too short for it. A storybook's switches always lie below the board, so
+  its board is the live game's box (36x48 own tile at 667x375) and the page scrolls to them. The replay's controls below (its
   column and bar, its narration's three lines) are the current implementation's, kept until the replay's
   controls move into the board's foreground band as the spec places them. The replay's column is two 40px
   move buttons wide on a phone, the most it may take before the local hand drops under its floor at
@@ -350,11 +380,15 @@ follows holds through the rebuild to it.
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
   its call prompt and at its turn, at 1280x800, 1440x900 and 1920x1080
-  (Chromium), iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
+  (Chromium), 1366x657 on the anchor, the worst board, the replay and the live turn alone (`onlyPages`:
+  the core bounded by the band), 800x600 on the anchor and the worst board alone (a narrow desktop's
+  chrome), iPhone 13 portrait, the notch phone (the spec's capture model, 844x390 with insets of 47, 47
   and 21, asserted on every page) and the 667x375 floor (WebKit). The
   two engines run at once and each checks several pages at a time, each in its own context, which
   asks for reduced motion so each shot shows an animation's resting state. It
-  fails on content that is hidden or empty, tiles of different areas, a nameplate or the turn's cue overlapping,
+  fails on content that is hidden or empty, rivers within 3px of each other or the centre, a strip within
+  6px of a river, a badge of a decisions story off the place it holds on the others at that viewport, tiles
+  of different areas, a nameplate overlapping,
   anything outside the board or the screen, a call over the local hand's tiles, a status word, a plate's wind or
   marks or a name's end cut short, page overflow, board text under 10px, local hand tiles under
   32x42 on a landscape phone (a desktop's own tile has no separate floor) or, in landscape, no

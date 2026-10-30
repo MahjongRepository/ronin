@@ -3,7 +3,7 @@
 .game-board--debug {
     // Corner label on grid cell wrappers
     [data-area] {
-        position: relative;
+        outline: 1px dashed red;
 
         &::after {
             content: attr(data-area);

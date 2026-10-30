@@ -116,12 +116,15 @@ replay view, the live game and the storybook read the tables it produces.
 - `lib/board-mapper.ts` turns a table into the display state the `ui/` components render, from a
   perspective that is an input, not the dealer: which seat sits at the bottom, and whether every
   known hand shows face up (a replay) or only the bottom seat's and the seats a result revealed. A known tile keeps its id;
-  concealed tiles render as backs from the count; melds are laid out as faces; a riichi
-  declaration's discard lies sideways, or when called, the declarer's next discard left in the
-  river; the table's latest discard (`lastDiscardSeat`: set by a discard, cleared by any meld or kan
-  declaration and a new deal; a reconnect's snapshot sets it when the seat in turn holds 3n+1 tiles and
-  a river, since the server keeps the turn on a discarder while its discard is offered) is marked while
-  it lies in its river. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer,
+  concealed tiles render as backs from the count; melds are laid out as faces; a tile another seat
+  claimed has left the river for the meld that took it; a riichi declaration's discard lies sideways, or
+  when called, the declarer's next discard left in the river; the table's latest discard
+  (`lastDiscardSeat`: set by a discard, cleared by a call that claims it (chi, pon, open kan) and a new
+  deal, kept through a draw and a kan from the hand, which claims none) is marked. A reconnect's snapshot
+  names it where it shows it: the seat in turn holding 3n+1 tiles with a river is the discarder (the
+  server keeps the turn on it while its discard is offered); holding 3n+2 it drew after its left
+  neighbour's discard, unless one of its calls took a tile that still lies last in its feeder's river (it
+  called just now); a call that old a snapshot cannot tell from one just made shows none, never a guess. Each seat's nameplate (`BoardNameplate`) carries its name, seat wind, score, dealer,
   turn (only while a round plays), riichi and AI marks, and its signed difference from every other seat's
   score; the plate shows the name and marks, the centre each seat's wind, score and riichi stick on its
   side, and the board shows the differences from a hovered or pinned plate there by stylesheet alone.

@@ -5,27 +5,24 @@ $action-min-height: 2.5rem;
 $action-short-board: 300px;
 $action-tile-share: 0.45;
 
-/* Its size is the grid area's, never its content's (`contain: size`), so a long list of offers scrolls inside the
-   corner rather than growing the table's row. */
 .board-actions {
-    grid-area: center / outer-right / frame-end / end;
+    position: absolute;
+    right: calc(100cqw - var(--own-hand-right));
+    bottom: calc(100cqh - var(--band-bottom));
+    z-index: 3;
     display: flex;
     min-width: 0;
-    min-height: 0;
-    padding: var(--board-pad);
-    overflow: auto;
-    contain: size;
 
-    @container (height < #{$short-height}) and (aspect-ratio >= 1) {
-        grid-area: top-near / outer-right / frame-end / end;
-        padding-top: calc(40px + 2 * var(--board-pad));
-        padding-inline: 0;
+    @include phone-board {
+        left: calc(var(--reach-right) + 6px);
+        right: calc(var(--m) + var(--strip-depth) + 8px);
+        top: calc(var(--side-badge-top) + var(--badge-h) + 6px);
     }
 
-    @container (aspect-ratio < 1) {
-        grid-area: foot / outer-left / end / end;
-        overflow: visible;
-        contain: none;
+    @include upright-board {
+        left: var(--m);
+        right: calc(var(--m) + var(--strip-depth) + 8px);
+        bottom: calc(100cqh - var(--hand-top) + max(0px, var(--badge-h) - var(--oh)) + 4px);
     }
 }
 
@@ -233,4 +230,34 @@ $action-tile-share: 0.45;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+}
+
+@include desktop-board {
+    .decision-controls {
+        flex-direction: row;
+        align-items: flex-end;
+        gap: 22px;
+
+        > :first-child {
+            margin-block-start: 0;
+        }
+    }
+
+    .decision-controls__status {
+        order: 1;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .decision-controls__actions {
+        display: flex;
+        gap: 12px;
+
+        > .decision-controls__action {
+            flex-direction: row;
+            gap: 0.4em;
+            min-width: 96px;
+            padding-inline: 1em;
+        }
+    }
 }

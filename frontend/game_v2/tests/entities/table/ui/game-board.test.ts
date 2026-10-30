@@ -79,8 +79,9 @@ describe("GameBoard centre and dora", () => {
             true,
             true,
         ]);
-        expect(texts(host, ".board-dora__label")).toEqual(["Honba", "Riichi"]);
-        expect(texts(host, ".board-dora__count")).toEqual(["2", "1"]);
+        expect(
+            texts(host, ".board-dora__stick").map((text) => text?.replaceAll(/\s+/gu, " ")),
+        ).toEqual(["Honba 2", "Riichi sticks 1"]);
     });
 });
 

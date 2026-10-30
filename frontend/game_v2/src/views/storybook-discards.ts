@@ -47,15 +47,10 @@ const TWENTY_FACES: TileFace[] = [
     "2s",
 ];
 
-function grayedTiles(): DiscardTile[] {
-    return [
-        { face: "1m" },
-        { face: "3m", grayed: true },
-        { face: "5m" },
-        { face: "7m", grayed: true },
-        { face: "9m" },
-        { face: "2p", grayed: true },
-    ];
+const TWENTY_FOUR_FACES: TileFace[] = [...TWENTY_FACES, "1z", "2z", "3z", "4z"];
+
+function latestTiles(): DiscardTile[] {
+    return [{ face: "1m" }, { face: "3m" }, { face: "5m" }, { face: "7m", last: true }];
 }
 
 function riichiTiles(): DiscardTile[] {
@@ -75,14 +70,14 @@ function mixedTiles(): DiscardTile[] {
     return [
         { face: "1m" },
         { face: "4m" },
-        { face: "9m", grayed: true },
+        { face: "9m" },
         { face: "2p" },
         { face: "5p" },
         { face: "7p" },
         { face: "3s", riichi: true },
         { face: "6s" },
         { face: "8s" },
-        { face: "1z", grayed: true },
+        { face: "1z" },
         { face: "3z" },
         { face: "5z" },
         { face: "7z" },
@@ -116,9 +111,16 @@ function storybookDiscardsView(): TemplateResult {
             </section>
 
             <section>
-                <h2>Grayed Out Tiles</h2>
+                <h2>Side river wrapping a fourth row (24 tiles)</h2>
                 <div class="storybook-meld-row">
-                    ${Discards(grayedTiles())}
+                    ${Discards(makeTiles(TWENTY_FOUR_FACES), "wrap")}
+                </div>
+            </section>
+
+            <section>
+                <h2>Latest discard</h2>
+                <div class="storybook-meld-row">
+                    ${Discards(latestTiles())}
                 </div>
             </section>
 

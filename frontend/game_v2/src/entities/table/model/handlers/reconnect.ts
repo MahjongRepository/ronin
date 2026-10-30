@@ -58,18 +58,49 @@ function snapshotPlayer(
     };
 }
 
+const SEATS = 4;
+
+/** Whether one of the seat's calls took a tile that still lies last in its feeder's river: nobody discarded since. */
+function calledJustNow(snapshot: GameReconnectedEvent, seat: SnapshotSeat): boolean {
+    return seat.melds.map(decodeMeldCompact).some((meld) => {
+        const feeder = snapshot.playerStates.find((state) => state.seat === meld.fromSeat);
+        return meld.calledTileId !== null && feeder?.discards.at(-1)?.tileId === meld.calledTileId;
+    });
+}
+
 /**
- * The seat whose discard is the snapshot's latest: the seat in turn when its closed hand holds 3n+1 tiles and its river
- * a tile, since the server keeps the turn on a discarder while its discard is offered and nobody has drawn or called
- * since. Otherwise none.
+ * The seat whose discard is the snapshot's latest, where the snapshot shows it. The seat in turn holding 3n+1 tiles
+ * with a river is the discarder: the server keeps the turn on it while its discard is offered. Holding 3n+2, it drew
+ * after its left neighbour's discard (a kan from its own hand claims none), unless it called just now, which took that
+ * discard; a call it may have made earlier is told apart from that only when its feeder discarded since, so a seat
+ * that cannot be told shows none rather than a guess.
  */
-function snapshotLastDiscardSeat(snapshot: GameReconnectedEvent): number | null {
+function snapshotLastDiscardSeat(
+    snapshot: GameReconnectedEvent,
+    claimed: ReadonlySet<string>,
+): number | null {
     const seat = snapshot.playerStates.find((state) => state.seat === snapshot.currentPlayerSeat);
-    const last = seat?.discards.at(-1);
-    if (seat === undefined || last === undefined || seat.tileCount % 3 !== 1) {
+    if (seat === undefined) {
         return null;
     }
-    return seat.seat;
+    if (seat.tileCount % 3 === 1) {
+        return seat.discards.length > 0 ? seat.seat : null;
+    }
+    if (seat.tileCount % 3 !== 2 || calledJustNow(snapshot, seat)) {
+        return null;
+    }
+    return leftDiscardSeat(snapshot, seat, claimed);
+}
+
+/** The seat on the left of `seat` when its latest discard still lies in its river, unclaimed. */
+function leftDiscardSeat(
+    snapshot: GameReconnectedEvent,
+    seat: SnapshotSeat,
+    claimed: ReadonlySet<string>,
+): number | null {
+    const leftSeat = (seat.seat + SEATS - 1) % SEATS;
+    const last = snapshot.playerStates.find((state) => state.seat === leftSeat)?.discards.at(-1);
+    return last === undefined || claimed.has(`${leftSeat}:${last.tileId}`) ? null : leftSeat;
 }
 
 /**
@@ -103,7 +134,7 @@ export function applyGameReconnected(
         gameEndResult: null,
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
-        lastDiscardSeat: snapshotLastDiscardSeat(snapshot),
+        lastDiscardSeat: snapshotLastDiscardSeat(snapshot, claimed),
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info, claimed)),
         revealedSeats: [],

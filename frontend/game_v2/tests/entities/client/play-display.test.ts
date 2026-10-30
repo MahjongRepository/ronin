@@ -557,17 +557,3 @@ describe("playDisplay callouts", () => {
         );
     });
 });
-
-describe("playDisplay cue", () => {
-    it("cues the viewer's turn and its call prompt until it answers them", () => {
-        expect(playDisplay(checkpointState("call_prompt_seat_1", "prompt"), NO_PLAY_UI).cue).toBe(
-            "call",
-        );
-        expect(playDisplay(checkpointState("call_prompt_seat_1", "turn"), NO_PLAY_UI).cue).toBe(
-            "turn",
-        );
-        expect(
-            playDisplay(checkpointState("call_prompt_seat_1", "chi chosen"), NO_PLAY_UI).cue,
-        ).toBeNull();
-    });
-});

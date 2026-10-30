@@ -660,7 +660,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     const standings = startStorybookStandings(browserClock.setTimer);
     let story: BoardStoryState = {
         callout: parseCalloutParam(window.location.search),
-        debug: true,
+        debug: false,
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),
         pinned: parsePinParam(window.location.search),

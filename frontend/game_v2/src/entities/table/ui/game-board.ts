@@ -1,5 +1,6 @@
-import { type TemplateResult, html, nothing } from "lit-html";
+import { type TemplateResult, html } from "lit-html";
 import { keyed } from "lit-html/directives/keyed.js";
+import { styleMap } from "lit-html/directives/style-map.js";
 
 import { CALLOUT_MS } from "@/entities/table/lib/callouts";
 import {
@@ -12,11 +13,12 @@ import {
     SEAT_POSITIONS,
     type SeatPosition,
 } from "@/entities/table/model/board-types";
-import { Discards, Hand, Meld, Tile, TileBack } from "@/entities/tile";
+import { Discards, Hand, Meld, type MeldTile, Tile, TileBack } from "@/entities/tile";
 
 import { type BoardNotice, BoardNotices } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type ScoreDiffPin } from "./nameplate";
+import { PlayerName } from "./player-name";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
@@ -29,7 +31,7 @@ interface GameBoardProps {
     readonly debug: boolean;
     readonly overlay?: TemplateResult;
     readonly state: BoardDisplayState | null;
-    /** The decision's controls (its countdown, offers and pass), in the board's own corner beside the table. */
+    /** The decision's controls (its countdown, offers and pass), by the bottom seat's hand. */
     readonly actions?: TemplateResult;
     readonly localHand?: LocalHandInput;
     /** The notices over the table; given, even empty, the board keeps their live region for the next one. */
@@ -44,8 +46,6 @@ interface GameBoardProps {
     readonly callouts?: BoardCallouts | null;
     /** The overlay's panel is a round's result, which waits until a win's call has been seen; any other shows at once. */
     readonly overlayIsResult?: boolean;
-    /** What the bottom seat is to play now, which the board cues along its hand: its turn, or a call prompt. */
-    readonly yourMove?: "turn" | "call" | null;
 }
 
 function HandArea(
@@ -58,41 +58,99 @@ function HandArea(
     </div>`;
 }
 
+/** A seat's melds, newest first from the hand outward, so the first meld lies farthest right. */
 function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     return html`<div class="board-area board-melds board-area--${seat}-melds" data-area="${seat}-melds">
         ${player ? player.melds.toReversed().map((tiles) => Meld(tiles)) : ""}
     </div>`;
 }
 
-function DiscardsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+/** A seat's river, in its frame turned to the seat; a side river wraps past its third row, a top or bottom one runs on. */
+function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    const overflow = seat === "left" || seat === "right" ? "wrap" : "run-on";
     return html`<div class="board-area board-river board-river--${seat}" data-area="${seat}-discards">
-        ${player ? Discards(player.discards) : ""}
+        ${player ? Discards(player.discards, overflow) : ""}
     </div>`;
 }
 
-/** A seat's strip: its hand, then its melds, led by its plate when the plate rides the strip (the top seat's). */
-function Strip(
-    seat: SeatPosition,
-    player: BoardPlayerDisplay | null,
-    plate: TemplateResult | typeof nothing = nothing,
-): TemplateResult {
-    return html`<div class="board-strip board-strip--${seat}">${plate}${HandArea(seat, player)}${MeldsArea(seat, player)}</div>`;
+const STRIP_SEATS: readonly SeatPosition[] = ["right", "top", "left"];
+const MAX_MELDS = 4;
+const SIDEWAYS_UNITS = 4 / 3;
+const UPRIGHT_DEPTH = 4 / 3;
+const STACKED_DEPTH = 2;
+
+/** How long a laid meld is, in its tiles' widths: a sideways or stacked tile lies as long as a tile is tall. */
+function meldUnits(tiles: readonly MeldTile[]): number {
+    return tiles.reduce(
+        (sum, tile) =>
+            sum + (tile.kind === "sideways" || tile.kind === "stacked" ? SIDEWAYS_UNITS : 1),
+        0,
+    );
 }
 
+/** How deep a laid meld stands from its seat's edge, in its tiles' widths: an added kan's stack is two tiles deep. */
+function meldDepth(tiles: readonly MeldTile[]): number {
+    return tiles.some((tile) => tile.kind === "stacked") ? STACKED_DEPTH : UPRIGHT_DEPTH;
+}
+
+/** How far past every place a missing meld's end is pushed, so it never counts as overflowing its line. */
+const ABSENT_MELD = "99999px";
+
 /**
- * The table's areas for a seat: its river, and for a side seat its strip in its column's slot, where the melds follow
- * the hand. The top seat's strip and the local strip are the board's own.
+ * What a strip's stylesheet places its tiles from: how many tiles its hand holds and whether one is drawn apart, and
+ * its melds newest first: how long they are before each and from each on, and the deepest, so a side strip can tell
+ * which melds fit its line.
  */
-function TableAreas(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
-    if (seat === "bottom" || seat === "top") {
-        return DiscardsArea(seat, player);
+function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
+    const melds = (player?.melds ?? []).toReversed();
+    const units = melds.map(meldUnits);
+    const drawn = player?.drawnTile === undefined ? 0 : 1;
+    const deepest = Math.max(UPRIGHT_DEPTH, ...melds.map(meldDepth));
+    function sum(from: number, to: number): number {
+        return units.slice(from, to).reduce((total, unit) => total + unit, 0);
     }
-    return html`<div class="board-side board-side--${seat}">${Strip(seat, player)}</div>${DiscardsArea(seat, player)}`;
+    const perMeld = Array.from({ length: MAX_MELDS }, (_unused, index) => [
+        [`--mp-${index}`, String(sum(0, index))],
+        [`--ms-${index}`, String(Math.max(1, sum(index, MAX_MELDS)))],
+        [`--mg-${index}`, index < melds.length ? "0px" : ABSENT_MELD],
+    ]).flat();
+    return Object.fromEntries([
+        ["--hand-n", String((player?.hand.length ?? 0) + drawn)],
+        ["--drawn", String(drawn)],
+        ["--meld-n", String(melds.length)],
+        ["--meld-units", String(sum(0, MAX_MELDS))],
+        [`--mp-${MAX_MELDS}`, String(sum(0, MAX_MELDS))],
+        ["--meld-deep", String(deepest)],
+        ...perMeld,
+    ]);
+}
+
+/** An opponent's strip in its zone toward its edge: its hand, then its melds beyond the hand's right end. */
+function Strip(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
+    return html`<div class="board-strip board-strip--${seat}" style=${styleMap(stripStyle(player))}>
+        ${HandArea(seat, player)}${MeldsArea(seat, player)}
+    </div>`;
+}
+
+/** The faint lines from the centre's corners and the side fields' tint that make the four zones perceptible. */
+function Zones(): TemplateResult {
+    return html`<div class="board-zones" aria-hidden="true">
+        <span class="board-zones__field board-zones__field--left"></span>
+        <span class="board-zones__field board-zones__field--right"></span>
+        <span class="board-zones__field board-zones__field--top"></span>
+        <span class="board-zones__line board-zones__line--top-left"></span>
+        <span class="board-zones__line board-zones__line--top-right"></span>
+        <span class="board-zones__line board-zones__line--bottom-right"></span>
+        <span class="board-zones__line board-zones__line--bottom-left"></span>
+    </div>`;
 }
 
 const DORA_SLOTS = 5;
 
-/** The dora indicators turned so far, a back in each slot still to turn, and the table's honba and riichi sticks. */
+/**
+ * The pooled counters: the dora indicators turned so far, a back in each slot still to turn, and the table's honba and
+ * riichi sticks as icon and number, which the centre does not repeat.
+ */
 function DoraDisplay(center: BoardCenterInfo): TemplateResult {
     const indicators = center.doraIndicators;
     const backs = Math.max(0, DORA_SLOTS - indicators.length);
@@ -103,13 +161,13 @@ function DoraDisplay(center: BoardCenterInfo): TemplateResult {
                 ${Array.from({ length: backs }, () => html`<span class="board-dora__tile">${TileBack()}</span>`)}
             </div>
             <div class="board-dora__sticks">
-                <span class="board-dora__stick">
-                    <span class="board-dora__label">Honba</span>
-                    <span class="board-dora__count">${HonbaStickIcon()}${center.honbaSticks}</span>
+                <span class="board-dora__stick" title="Honba">
+                    ${HonbaStickIcon()}<span class="board-dora__label">Honba </span
+                    ><span class="board-dora__count">${center.honbaSticks}</span>
                 </span>
-                <span class="board-dora__stick">
-                    <span class="board-dora__label">Riichi</span>
-                    <span class="board-dora__count">${RiichiStickIcon()}${center.riichiSticks}</span>
+                <span class="board-dora__stick" title="Riichi sticks on the table">
+                    ${RiichiStickIcon()}<span class="board-dora__label">Riichi sticks </span
+                    ><span class="board-dora__count">${center.riichiSticks}</span>
                 </span>
             </div>
         </div>
@@ -144,8 +202,21 @@ function CenterSeat(plate: BoardNameplate, position: SeatPosition): TemplateResu
 }
 
 /**
- * The centre: each seat's wind and score on its side, its riichi stick beside them, whose turn it is, the round and
- * the wall.
+ * While a badge's differences show, the label naming whose they are, beside the wall's count, which stays: one per
+ * seat, which the board's stylesheet shows for the hovered or pinned badge.
+ */
+function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
+    return html`${SEAT_POSITIONS.map(
+        (position, index) =>
+            html`<div class="board-center__diff-label board-center__diff-label--${position}">
+                vs ${PlayerName(plates[index].name, "board-center__diff-name")}
+            </div>`,
+    )}`;
+}
+
+/**
+ * The centre: each seat's wind and score on its side, its riichi stick inside the edge, the turn's bar on it, and in
+ * its middle the round and the wall's count.
  */
 function CenterInfo(
     center: BoardCenterInfo,
@@ -160,6 +231,7 @@ function CenterInfo(
                     <span class="board-center__wall-label">Wall</span>
                     <span class="board-center__wall-count">${center.tilesRemaining}</span>
                 </div>
+                ${DiffLabels(plates)}
             </div>
         </div>
     `;
@@ -187,11 +259,6 @@ function callsAWin(callouts: BoardCallouts | null | undefined): boolean {
     return callouts?.items.some((item) => item.kind === "ron" || item.kind === "tsumo") ?? false;
 }
 
-const YOUR_MOVE_LABELS: Readonly<Record<"turn" | "call", string>> = {
-    call: "Your call",
-    turn: "Your turn",
-};
-
 function EmptyCenterArea(): TemplateResult {
     return html`
         <div class="board-area board-center" data-area="center"></div>
@@ -199,21 +266,21 @@ function EmptyCenterArea(): TemplateResult {
 }
 
 /**
- * The board, sized from its own box: the table (every river round the centre, the other seats' strips, each side
- * seat's plate beside its hand's start, the dora and sticks in the top-left corner, the page's own controls (`menu`)
- * in the top-right, and the decision's controls, when given, right of the table above the hand) over the local strip
- * (the bottom seat's plate, hand and melds), which spans the board's width so its tiles stay the largest on the
- * board. The top seat's plate leads its strip. A pinned plate unpins on a click anywhere else on the board or on
- * Escape. Calls show by their seats inside the table for a moment, and a win's call shows before the panel over the
- * board does.
+ * The board, sized from its own box (docs/game-client-look.md, Composition): the core of the centre and the four
+ * rivers in their pinwheel, the other seats' strips and badges in their zones toward the edges, the pooled counters in
+ * the top-left corner and the page's own controls (`menu`) in the top-right, and over the foreground band the bottom
+ * seat's badge, hand and melds with the decision's controls, when given, by the hand; a board the viewer plays
+ * (`localHand`) also keeps the furiten's slot beside the hand. A pinned badge unpins on a click anywhere else on the
+ * board or on Escape. Calls show over their seats' rivers for a moment, and a win's call shows before the panel over
+ * the board does.
  */
 function GameBoard(props: GameBoardProps): TemplateResult {
     const { scoreDiff, state } = props;
     const boardClass = [
         "game-board",
+        props.localHand ? "game-board--play" : "",
         props.debug ? "game-board--debug" : "",
         scoreDiff.pinned === null ? "" : `game-board--diff-${scoreDiff.pinned}`,
-        props.yourMove ? `game-board--your-${props.yourMove}` : "",
     ]
         .filter(Boolean)
         .join(" ");
@@ -235,19 +302,19 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     return html`
         <div class="${boardClass}" @click=${unpinOnClickElsewhere} @keydown=${unpinOnEscape}>
             <div class="board-layout" ?inert=${props.inert ?? false}>
+                ${Zones()}
                 <div class="board-table">
-                    ${SEAT_POSITIONS.map((seat, i) => TableAreas(seat, state?.players[i] ?? null))}
+                    ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                     ${state ? CenterInfo(state.center, state.nameplates) : EmptyCenterArea()}
+                    ${STRIP_SEATS.map((seat) => Strip(seat, state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null))}
                     ${state ? DoraDisplay(state.center) : ""}
-                    ${plates ? html`${plates.right}${plates.left}` : ""}
-                    ${Strip("top", state?.players[2] ?? null, plates?.top ?? nothing)}
+                    ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
                     ${props.actions ? html`<div class="board-actions" data-area="actions">${props.actions}</div>` : ""}
                     ${props.notices ? BoardNotices(props.notices) : ""}
                     ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 <div class="board-local">
-                    ${props.yourMove ? html`<span class="board-cue">${YOUR_MOVE_LABELS[props.yourMove]}</span>` : ""}
                     ${plates?.bottom ?? ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
                 </div>
             </div>

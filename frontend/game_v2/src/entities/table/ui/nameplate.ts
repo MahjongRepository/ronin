@@ -7,6 +7,7 @@ import {
 } from "@/entities/table/model/board-types";
 
 import { PlayerName } from "./player-name";
+import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /**
  * The plate whose score the other plates show their differences from, pinned by a tap or a press, and where a pin
@@ -24,38 +25,6 @@ interface NameplateProps {
     readonly pinnedOther: { readonly position: SeatPosition; readonly name: string } | null;
     readonly pressed: boolean;
     readonly onToggle: () => void;
-}
-
-/** A robot's head: an AI player plays the seat. */
-function RobotIcon(): TemplateResult {
-    return html`<svg
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.6"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
-        <rect x="2.5" y="5" width="11" height="8.5" rx="2" />
-        <path d="M8 5V2.5M6 9.5h0M10 9.5h0" />
-    </svg>`;
-}
-
-/** A struck-through plug: the seat's human is away, and an AI player holds the seat for them. */
-function UnpluggedIcon(): TemplateResult {
-    return html`<svg
-        viewBox="0 0 16 16"
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.6"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
-        <path d="M6 1.5v3M10 1.5v3M4.5 4.5h7v2.5a3.5 3.5 0 0 1-7 0zM8 10.5v4" />
-        <path d="M2 14 14 2" />
-    </svg>`;
 }
 
 /**
@@ -78,10 +47,10 @@ function nameplateLabel({ pinnedOther, plate }: NameplateProps): string {
 }
 
 /**
- * A seat's nameplate, one shape on every side: its wind (the dealer's marked), its player's name, then its AI and
- * riichi marks; whose turn it is lights it up. Its score is the centre's, on the seat's side. It is a button: pressing
+ * A seat's badge, one shape on every side: its wind (the dealer's marked), its player's name, then its AI and riichi
+ * marks, quiet; whose turn it is underlines it. Its score is the centre's, on the seat's side. It is a button: pressing
  * it pins it, so the centre shows the other seats' scores as differences from its own, and pressing it again unpins
- * it; its label reads the score, or the difference from the pinned plate.
+ * it; its label reads the score, or the difference from the pinned badge.
  */
 function Nameplate(props: NameplateProps): TemplateResult {
     const { onToggle, plate, position, pressed } = props;
@@ -102,16 +71,18 @@ function Nameplate(props: NameplateProps): TemplateResult {
         aria-pressed=${String(pressed)}
         @click=${onToggle}
     >
-        <span class="nameplate__wind">${plate.wind}</span>
-        ${PlayerName(plate.name, "nameplate__name")}
-        ${
-            aiMark === null
-                ? nothing
-                : html`<span class="nameplate__ai nameplate__ai--${aiMark.tag.toLowerCase()}"
-                      >${aiMark.tag === "Away" ? UnpluggedIcon() : RobotIcon()}</span
-                  >`
-        }
-        ${plate.isRiichi ? html`<span class="nameplate__riichi">Riichi</span>` : nothing}
+        <span class="nameplate__pill">
+            <span class="nameplate__wind">${plate.wind}</span>
+            ${PlayerName(plate.name, "nameplate__name")}
+            ${
+                aiMark === null
+                    ? nothing
+                    : html`<span class="nameplate__ai nameplate__ai--${aiMark.tag.toLowerCase()}"
+                          >${aiMark.tag}</span
+                      >`
+            }
+            ${plate.isRiichi ? html`<span class="nameplate__riichi">${RiichiStickIcon()}</span>` : nothing}
+        </span>
     </button>`;
 }
 

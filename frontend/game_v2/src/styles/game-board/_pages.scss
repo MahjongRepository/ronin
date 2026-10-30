@@ -1,6 +1,3 @@
-/* A page around a board: the board fills what its aside (controls, story switches), when it has one, leaves, beside it
-   in landscape as a compact column bounded to the viewport's height, below it upright, where the page may scroll. */
-
 #app:has(.board-page) {
     max-width: none;
     padding: 0;
@@ -16,8 +13,9 @@
         / minmax(0, 1fr);
     gap: 0.25rem;
     min-height: 100dvh;
-    padding: max(0.25rem, var(--ronin-safe-top)) max(0.25rem, var(--ronin-safe-right))
-        max(0.25rem, var(--ronin-safe-bottom)) max(0.25rem, var(--ronin-safe-left));
+    padding: var(--ronin-safe-top) var(--ronin-safe-right) var(--ronin-safe-bottom)
+        var(--ronin-safe-left);
+    background: var(--ronin-table-edge);
 
     @media (orientation: landscape) {
         grid-template: "board aside" minmax(0, 1fr) / minmax(0, 1fr) auto;
@@ -29,6 +27,16 @@
 
         @media (orientation: landscape) {
             grid-template: "board" minmax(0, 1fr) / minmax(0, 1fr);
+        }
+    }
+
+    &:is(.board-storybook, .decisions-storybook) {
+        @media (orientation: landscape) {
+            grid-template:
+                "board" calc(100dvh - var(--ronin-safe-top) - var(--ronin-safe-bottom))
+                "aside" auto
+                / minmax(0, 1fr);
+            height: auto;
         }
     }
 }
@@ -61,6 +69,16 @@
         padding: 0.25rem;
         overflow-y: auto;
     }
+
+    :is(.board-storybook, .decisions-storybook) > & {
+        @media (orientation: landscape) {
+            flex-flow: row wrap;
+            margin-top: var(--ronin-safe-bottom);
+            align-self: start;
+            max-height: none;
+            overflow-y: visible;
+        }
+    }
 }
 
 .board-storybook__btn {
@@ -87,28 +105,12 @@
     }
 }
 
-/* Beside the board, the picker takes the aside's width without widening it, so the board keeps the size its stories
-   measure. */
-.board-storybook__picker {
-    @media (orientation: landscape) {
-        contain: inline-size;
-    }
-}
-
 :is(.board-storybook, .decisions-storybook) .board-storybook__select {
-    width: 100%;
+    width: auto;
     font-size: 0.8rem;
     height: auto;
     padding: 0.25rem 1.1rem 0.25rem 0.4rem;
     margin: 0;
     background-position: center right 0.3rem;
     background-size: 0.6rem auto;
-
-    /* Beside the board the column is a button's width: the arrow gives its room to the story's name. */
-    @media (orientation: landscape) {
-        font-size: 0.7rem;
-        padding: 0.2rem 0.3rem;
-        background-image: none;
-        text-align: center;
-    }
 }

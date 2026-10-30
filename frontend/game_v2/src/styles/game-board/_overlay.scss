@@ -218,3 +218,13 @@ $indicator-scale: 0.6;
         font-size: 1.5rem;
     }
 }
+
+/* A wide desktop's panel over a board with notices leaves their place in the left field free, starting past the left
+   river's reach, so a notice stays readable beside it. */
+@container (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
+    .game-board:has(.board-notice) > .board-overlay {
+        @include overlay-unit(var(--reach-left) + #{$corner-reserve} + 1rem);
+
+        padding-left: var(--reach-left);
+    }
+}

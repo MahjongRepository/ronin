@@ -310,6 +310,5 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             pinned: display.pinnedNameplate,
         },
         state: display.board,
-        yourMove: display.cue,
     });
 }
