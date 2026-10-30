@@ -46,6 +46,25 @@ const LAPTOP_VIEWPORTS: readonly Viewport[] = [
 export const LAPTOPS: readonly string[] = LAPTOP_VIEWPORTS.map(({ name }) => name);
 
 /**
+ * Small desktop windows (700x540, 900x600) where a panel's content meets the board's height and width at once: the
+ * standings' rounds must scroll inside their sheet, a short result's pager and confirm stay clickable.
+ */
+const SMALL_WINDOW_VIEWPORTS: readonly Viewport[] = [
+    [700, 540],
+    [900, 600],
+].map(([width, height]) => ({
+    context: { viewport: { height, width } },
+    desktop: true,
+    engine: chromium,
+    name: `window-${width}`,
+    optIn: true,
+    portrait: false,
+    rotates: false,
+    supported: true,
+}));
+export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ name }) => name);
+
+/**
  * Wider phones at the floor's height, where the own tile reaches 36px and the right hand's placement must still keep
  * the band whole.
  */
@@ -123,6 +142,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         supported: true,
     },
     ...LAPTOP_VIEWPORTS,
+    ...SMALL_WINDOW_VIEWPORTS,
     {
         context: { viewport: { height: 1440, width: 2560 } },
         desktop: true,

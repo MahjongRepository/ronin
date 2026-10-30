@@ -142,4 +142,4 @@ class TestFinalizeGameRiichiSticks:
 
         assert new_state.riichi_sticks == 0
         assert result.standings[0].score == 30000
-        assert result.leftover_riichi_bonus == 0
+        assert (result.leftover_riichi_bonus, result.leftover_riichi_sticks) == (0, 2)

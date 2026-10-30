@@ -126,6 +126,16 @@ const RESULT_SOURCES = [
             '{"t": 4, "rt": 3, "ts": [1, 2], "ns": [0, 3], "th": [{"s": 1, "ct": [37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 74, 75, 135], "ml": []}, {"s": 2, "ct": [6, 10, 14, 18, 22, 26, 82, 86, 90, 94, 98, 102, 131], "ml": []}], "scs": {"0": 250, "1": 240, "2": 250, "3": 250}, "sch": {"0": -15, "1": 15, "2": 15, "3": -15}}',
     },
     {
+        dealerSeat: 3,
+        doraIndicators: [32],
+        fixture: "full_game",
+        key: "all_noten",
+        label: "All noten",
+        names: ["Wanjirou", "Ojisan", "Ichihime", "Akagi"],
+        roundEnd:
+            '{"t": 4, "rt": 3, "ts": [], "ns": [0, 1, 2, 3], "th": [], "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "sch": {"0": 0, "1": 0, "2": 0, "3": 0}}',
+    },
+    {
         dealerSeat: 0,
         doraIndicators: [120],
         fixture: "nagashi",

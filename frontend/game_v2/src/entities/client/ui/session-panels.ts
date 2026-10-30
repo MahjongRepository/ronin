@@ -47,12 +47,33 @@ class FocusOnFirstRender extends Directive {
 
 const focusOnFirstRender = directive(FocusOnFirstRender);
 
+/** Keep Tab and Shift+Tab cycling through a modal's buttons, so the focus never leaves it for the page beyond. */
+function keepTabInside(event: KeyboardEvent): void {
+    const modal = event.currentTarget;
+    if (!(modal instanceof HTMLElement)) {
+        return;
+    }
+    const buttons = [...modal.querySelectorAll("button")];
+    const edge = event.shiftKey ? buttons[0] : buttons.at(-1);
+    const wrapTo = event.shiftKey ? buttons.at(-1) : buttons[0];
+    if (edge === undefined || wrapTo === undefined || document.activeElement !== edge) {
+        return;
+    }
+    event.preventDefault();
+    wrapTo.focus();
+}
+
 /**
  * The question leaving mid-game asks, modal while the page makes the rest inert: Stay, the safe default, is the
- * primary action and takes the focus, Escape stays too, and Leave is the secondary, destructive one.
+ * primary action and takes the focus, Tab stays among its buttons, Escape stays too, and Leave is the secondary,
+ * destructive one.
  */
 export function LeaveConfirm(onCommand: (command: PlayCommand) => void): TemplateResult {
     function onKeydown(event: KeyboardEvent): void {
+        if (event.key === "Tab") {
+            keepTabInside(event);
+            return;
+        }
         if (event.key === "Escape") {
             event.preventDefault();
             onCommand(STAY);

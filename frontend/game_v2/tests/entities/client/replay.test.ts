@@ -387,6 +387,7 @@ describe("readReplayTimeline - engine replays", () => {
         expect(end.phase).toBe("game_ended");
         expect(end.gameEndResult).toEqual({
             leftoverRiichiBonus: gameEnd.leftoverRiichiBonus,
+            leftoverSticks: gameEnd.leftoverRiichiSticks,
             numRounds: gameEnd.numRounds,
             standings: gameEnd.standings,
             winnerSeat: gameEnd.winnerSeat,

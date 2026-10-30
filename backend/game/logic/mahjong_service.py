@@ -639,6 +639,7 @@ class MahjongGameService(GameService):
                     winner_seat=game_result.winner_seat,
                     standings=game_result.standings,
                     leftover_riichi_bonus=game_result.leftover_riichi_bonus,
+                    leftover_riichi_sticks=game_result.leftover_riichi_sticks,
                     num_rounds=frozen_game.round_number,
                 ),
             ]

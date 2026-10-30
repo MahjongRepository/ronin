@@ -416,4 +416,5 @@ def finalize_game(
         winner_seat=winner_seat,
         standings=standings,
         leftover_riichi_bonus=riichi_bonus,
+        leftover_riichi_sticks=game_state.riichi_sticks,
     )

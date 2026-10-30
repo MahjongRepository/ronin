@@ -323,7 +323,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   reachable; the leave question is modal, says that an AI takes the seat over, makes staying the
   clear default, and need not. The seating shows the game's length and first round, every seat's
   wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits.
-  Candidate: each panel's placement over the board, drawn before it is built.
+  Decision (placements drawn in step 4.1): on a desktop a panel stands centred, the page corner's width kept free
+  on both sides, and past the left river's reach while notices show; on a narrow desktop (narrower than
+  `$small-chrome-width`) it stands under the corner's height, between the side strips, and past the left river's reach
+  while notices show; on a phone it stands at the top, left of the corner. A desktop's panel fits its content whole.
 - **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
   the total first): the winner and how (ron, and from whom; tsumo; a head bump names who lost the
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
@@ -343,7 +346,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   its declarer). A first-turn win is an ordinary result over the board as it stands: empty rivers
   for tenhou, the earlier seats' first discards for chiihou.
 - **Standings.** Placement in the server's order, table points and adjusted results (uma and oka,
-  the leftover riichi sticks) told apart, signed values kept, the ledger of every finished round
+  the leftover riichi sticks, or a note that the game's rules award them to nobody) told apart, signed values kept, the ledger of every finished round
   with what its marks mean and each round reachable from it, the viewer's seat marked, and the
   ways on (the last result, this game's replay, the history, the lobby). A game that ended by
   tobi or at a round threshold is shown as completed, never as a failure. An ended session says

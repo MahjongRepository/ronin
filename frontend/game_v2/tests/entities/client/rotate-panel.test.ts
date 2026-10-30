@@ -70,7 +70,7 @@ describe("RotatePanel", () => {
     });
 
     it("announces the countdown only when its turn enters the bank, crosses 10 and 5 seconds and expires", () => {
-        const status = { label: "Connected", tone: CONNECTION_STATUS.CONNECTED };
+        const status = { label: "Connected", tone: CONNECTION_STATUS.CONNECTED, word: "" };
         const countdowns = [running(12), inBank(12), ...[10, 6, 5, 1].map(running), inBank(8)];
         const expired: DecisionCountdown = { kind: "expired", move: "turn" };
 

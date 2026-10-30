@@ -94,6 +94,23 @@ $indicator-scale: 0.6;
     }
 }
 
+/* A narrow desktop has height to spare but no width: the panel takes the width between the side strips under the
+   corner's height instead, and starts past the left river's reach while notices show, leaving them their field. */
+@container (width < #{$small-chrome-width}) and (height >= #{$short-height}) and (aspect-ratio >= 1) {
+    .game-board:has(.board-menu) > .board-overlay {
+        @include overlay-unit(calc(2 * (var(--m) + var(--strip-depth))));
+
+        padding-top: calc(var(--corner-bottom) + 0.5rem);
+        padding-inline: calc(var(--m) + var(--strip-depth) + 0.5rem);
+    }
+
+    .game-board:has(.board-menu):has(.board-notice) > .board-overlay {
+        @include overlay-unit(calc(var(--reach-left) + var(--m) + var(--strip-depth)));
+
+        padding-left: var(--reach-left);
+    }
+}
+
 @container (height < #{$short-height}) and (aspect-ratio >= 1) {
     .game-board:has(.board-menu) > .board-overlay {
         @include overlay-unit(
@@ -228,7 +245,7 @@ $indicator-scale: 0.6;
    river's reach, so a notice stays readable beside it. */
 @container (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
     .game-board:has(.board-notice) > .board-overlay {
-        @include overlay-unit(var(--reach-left) + #{$corner-reserve} + 1rem);
+        @include overlay-unit(calc(var(--reach-left) + #{$corner-reserve} + 1rem));
 
         padding-left: var(--reach-left);
     }

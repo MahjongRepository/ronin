@@ -279,6 +279,7 @@ export function makeNagashiManganRoundEnd(
 export function makeGameEndEvent(overrides: Partial<GameEndEvent> = {}): GameEndEvent {
     return {
         leftoverRiichiBonus: 0,
+        leftoverRiichiSticks: 0,
         numRounds: 8,
         standings: [
             { finalScore: 25, score: 35_000, seat: 0 },

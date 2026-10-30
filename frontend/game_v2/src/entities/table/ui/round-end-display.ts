@@ -110,7 +110,8 @@ function YakuList(page: WinPageDisplay): TemplateResult {
         ${page.yaku.map(
             (line) => html`<li class=${line.isDora ? "round-end-result__yaku-dora" : ""}>
                 <span>${line.name}</span>
-                <span class="round-end-result__han">${line.han}</span>
+                ${line.han === null ? nothing : html`<span class="round-end-result__han">${line.han}</span>`}
+                ${line.yakuman === null ? nothing : html`<span class="round-end-result__yakuman">${line.yakuman}</span>`}
             </li>`,
         )}
     </ul>`;

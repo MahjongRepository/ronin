@@ -242,6 +242,7 @@ class GameEndedEvent(GameEvent):
     winner_seat: int = Field(serialization_alias="ws")
     standings: list[PlayerStanding] = Field(serialization_alias="st")
     leftover_riichi_bonus: WireScore = Field(serialization_alias="lb")
+    leftover_riichi_sticks: int = Field(serialization_alias="lr")
     num_rounds: int = Field(serialization_alias="nr")
 
 

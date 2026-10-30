@@ -1,5 +1,5 @@
 import { drawName, isAbortiveDraw } from "@/entities/table/lib/draw-name";
-import { handLimitName, isYakumanYaku } from "@/entities/table/lib/hand-limit";
+import { handLimitName, isYakumanYaku, yakumanName } from "@/entities/table/lib/hand-limit";
 import { windName } from "@/entities/table/lib/wind-name";
 import { yakuName } from "@/entities/table/lib/yaku-names";
 import { RIICHI_STICK_VALUE, roundEndPages } from "@/entities/table/model/handlers/round-end";
@@ -21,6 +21,10 @@ import {
 import { ROUND_RESULT_TYPE, decodeMeldCompact } from "@/shared/protocol";
 
 const DORA_YAKU_IDS = new Set([120, 121, 122]);
+/** The han the server counts a yakuman yaku as, once per yakuman it is worth. */
+const YAKUMAN_HAN = 13;
+/** Daisangen and Dai Suushii, the yakuman a seat can be liable (pao) for. */
+const PAO_YAKU_IDS = new Set([103, 111]);
 
 /** A hand a result reveals, as faces: its closed tiles sorted, then each meld laid out. */
 export interface ResultHandDisplay {
@@ -30,7 +34,13 @@ export interface ResultHandDisplay {
 
 export interface ResultYakuLine {
     readonly name: string;
-    readonly han: number;
+    /** Its han; null for a yakuman yaku, which han do not price. */
+    readonly han: number | null;
+    /**
+     * A yakuman yaku's worth when it counts more than once ("Double Yakuman"); null for a single one, which the
+     * limit already names, and for a yaku priced in han.
+     */
+    readonly yakuman: string | null;
     /** A dora, red five or ura dora line, listed after the yaku. */
     readonly isDora: boolean;
 }
@@ -144,11 +154,23 @@ function resultHand(closedTiles: readonly number[], melds: readonly number[]): R
 function yakuLines(winner: WinnerResult): ResultYakuLine[] {
     const yaku = winner.handResult.yaku
         .filter((entry) => !DORA_YAKU_IDS.has(entry.yakuId))
-        .map((entry) => ({ han: entry.han, isDora: false, name: yakuName(entry.yakuId) }));
+        .map((entry) => {
+            const name = yakuName(entry.yakuId);
+            if (!isYakumanYaku(entry.yakuId)) {
+                return { han: entry.han, isDora: false, name, yakuman: null };
+            }
+            const multiple = Math.round(entry.han / YAKUMAN_HAN);
+            return {
+                han: null,
+                isDora: false,
+                name,
+                yakuman: multiple > 1 ? yakumanName(multiple) : null,
+            };
+        });
     const dora = [
-        { han: winner.doraHan.dora, isDora: true, name: "Dora" },
-        { han: winner.doraHan.aka, isDora: true, name: "Red Five" },
-        { han: winner.doraHan.ura, isDora: true, name: "Ura Dora" },
+        { han: winner.doraHan.dora, isDora: true, name: "Dora", yakuman: null },
+        { han: winner.doraHan.aka, isDora: true, name: "Red Five", yakuman: null },
+        { han: winner.doraHan.ura, isDora: true, name: "Ura Dora", yakuman: null },
     ].filter((entry) => entry.han > 0);
     return [...yaku, ...dora];
 }
@@ -185,12 +207,34 @@ function headBumpNote(result: RoundEndResult, names: SeatNames): string | null {
     return `${won} won over ${bumped} ron (head bump)`;
 }
 
+/**
+ * What a seat liable (pao) for a winner's Daisangen or Dai Suushii pays (`docs/game-rules.md`, Liability): all of that
+ * yakuman on a tsumo, half of it on another seat's ron, the honba bonus with either, and everything when it dealt in
+ * itself. Any other yakuman in the hand is settled normally, so the note names the one it covers.
+ */
+function paoNote(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string | null {
+    if (winner.paoSeat === null) {
+        return null;
+    }
+    const liable = names.name(winner.paoSeat);
+    if (result.loserSeat === winner.paoSeat) {
+        return `Pao: ${liable} is liable and dealt in, so pays it all`;
+    }
+    const covered = winner.handResult.yaku
+        .filter((entry) => PAO_YAKU_IDS.has(entry.yakuId))
+        .map((entry) => yakuName(entry.yakuId))
+        .join(" and ");
+    const share = result.loserSeat === null ? "all" : "half";
+    const honba = winner.honbaBonus > 0 ? " and the honba" : "";
+    return `Pao: ${liable} is liable for ${covered} and pays ${share} of it${honba}`;
+}
+
 function winNotes(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string[] {
     const sticks = winner.riichiSticksCollected;
     const notes = [
         winner.honbaBonus > 0 ? `Honba ${formatDelta(winner.honbaBonus)}` : null,
         sticks > 0 ? `Riichi ×${sticks} ${formatDelta(sticks * RIICHI_STICK_VALUE)}` : null,
-        winner.paoSeat === null ? null : `Pao: ${names.name(winner.paoSeat)} is liable`,
+        paoNote(result, winner, names),
         headBumpNote(result, names),
     ];
     return notes.filter((note) => note !== null);
@@ -226,7 +270,15 @@ function drawSubtitle(draw: DrawResult, names: SeatNames): string | null {
     if (draw.ronSeats.length > 0) {
         return `ron called by ${draw.ronSeats.map(names.name).join(", ")}`;
     }
-    return isAbortiveDraw(draw.kind) ? "Abortive draw" : null;
+    return isAbortiveDraw(draw.kind) ? "Abortive draw" : evenDrawSubtitle(draw);
+}
+
+/** An exhaustive draw where every seat or none was tenpai, which moves no points, says so rather than nothing. */
+function evenDrawSubtitle(draw: DrawResult): string | null {
+    if (draw.tenpaiSeats.length === 0) {
+        return "All noten: no payments";
+    }
+    return draw.notenSeats.length === 0 ? "All tenpai: no payments" : null;
 }
 
 function tenpaiHand(

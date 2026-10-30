@@ -141,6 +141,8 @@ interface BoardStoryState {
     /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
     readonly pinned: SeatPosition | null;
     readonly overlay: OverlayMode;
+    /** The standings end under rules that award the leftover sticks to nobody, kept in the page's `?leftover=lost`. */
+    readonly leftoverLost: boolean;
     readonly story: BoardStory;
     readonly result: ResultStory;
     readonly page: number;
@@ -984,6 +986,7 @@ const STANDINGS_TABLE: TableState = {
     dealerSeat: 3,
     gameEndResult: {
         leftoverRiichiBonus: 1000,
+        leftoverSticks: 1,
         numRounds: STANDINGS_HISTORY.length,
         standings: [
             { finalScore: 50, score: 39_500, seat: 0 },
@@ -997,6 +1000,23 @@ const STANDINGS_TABLE: TableState = {
     players: STANDINGS_PLAYERS,
     riichiCost: 1000,
     roundHistory: STANDINGS_HISTORY,
+};
+
+/** The same game under rules that award the leftover stick to nobody: the winner's score never took it. */
+const STANDINGS_TABLE_STICK_LOST: TableState = {
+    ...STANDINGS_TABLE,
+    gameEndResult: {
+        leftoverRiichiBonus: 0,
+        leftoverSticks: 1,
+        numRounds: STANDINGS_HISTORY.length,
+        standings: [
+            { finalScore: 49, score: 38_500, seat: 0 },
+            { finalScore: 9, score: 29_100, seat: 2 },
+            { finalScore: -21, score: 19_400, seat: 3 },
+            { finalScore: -38, score: 12_000, seat: 1 },
+        ],
+        winnerSeat: 0,
+    },
 };
 
 const STANDINGS_ACTIONS: readonly StandingsAction[] = [
@@ -1017,7 +1037,7 @@ function buildOverlay(
         });
     }
     if (overlay === "game_end") {
-        return boardOverlay(STANDINGS_TABLE, {
+        return boardOverlay(story.leftoverLost ? STANDINGS_TABLE_STICK_LOST : STANDINGS_TABLE, {
             standings: { actions: STANDINGS_ACTIONS, renderer: standings, viewerSeat: 0 },
         });
     }
@@ -1170,6 +1190,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
     let story: BoardStoryState = {
         callout: parseStoryCall(query.get("callout")),
         debug: false,
+        leftoverLost: query.get("leftover") === "lost",
         offers: parseStoryOffers(query.get("offers")),
         overlay: parseOverlayParam(window.location.search),
         page: parsePageParam(window.location.search),

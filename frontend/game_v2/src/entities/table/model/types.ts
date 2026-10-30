@@ -179,6 +179,11 @@ export interface GameEndResult {
     readonly numRounds: number;
     /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */
     readonly leftoverRiichiBonus: number;
+    /**
+     * How many riichi sticks the server held as the game ended, awarded or not (the game end's `lr`, never the
+     * table's own count, which may be out of step): a game whose rules award them to nobody pays no bonus for them.
+     */
+    readonly leftoverSticks: number;
     readonly standings: readonly {
         readonly seat: number;
         readonly score: number;

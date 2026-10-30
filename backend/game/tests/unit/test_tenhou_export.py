@@ -239,7 +239,9 @@ def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_of_the_tier_
 
 def _game_end_replay_line(final_scores: dict[int, int]) -> dict[str, Any]:
     standings = [PlayerStanding(seat=seat, score=score, final_score=0) for seat, score in final_scores.items()]
-    event = GameEndedEvent(winner_seat=0, standings=standings, leftover_riichi_bonus=0, num_rounds=1)
+    event = GameEndedEvent(
+        winner_seat=0, standings=standings, leftover_riichi_bonus=0, leftover_riichi_sticks=0, num_rounds=1
+    )
     return json.loads(json.dumps(game_event_payload(event)))
 
 

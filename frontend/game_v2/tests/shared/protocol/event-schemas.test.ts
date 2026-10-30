@@ -434,6 +434,7 @@ describe("gameEndSchema", () => {
     it("parses valid wire payload with standings", () => {
         const wire = {
             lb: 20,
+            lr: 2,
             nr: 8,
             st: [
                 { fs: 42, s: 0, sc: 350 },
@@ -448,7 +449,7 @@ describe("gameEndSchema", () => {
         expect(result.type).toBe("game_end");
         expect(result.winnerSeat).toBe(0);
         expect(result.numRounds).toBe(8);
-        expect(result.leftoverRiichiBonus).toBe(2000);
+        expect([result.leftoverRiichiBonus, result.leftoverRiichiSticks]).toEqual([2000, 2]);
         expect(result.standings[0]).toEqual({ finalScore: 42, score: 35_000, seat: 0 });
         expect(result.standings[3]).toEqual({ finalScore: -36, score: 20_000, seat: 3 });
     });

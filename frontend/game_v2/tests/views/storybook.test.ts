@@ -141,6 +141,14 @@ describe("mountStorybookDecisions", () => {
         }
     });
 
+    test("the page's corner says what ended the session: removed, replaced by another tab, or the game's end", () => {
+        const words = ["kicked", "replaced", "standings"].map(
+            (story) => mountStory(story).querySelector(".game-menu__status-word")?.textContent,
+        );
+
+        expect(words).toEqual(["Removed", "Replaced", "Ended"]);
+    });
+
     test("reopens the kuikae turn on the move_refused story's scripted refusal: its notice, and a discard sends again", () => {
         const host = mountStory("move_refused");
         const turnWaitId = Number(receivedPayload(CALL_PROMPT, "turn").wi);

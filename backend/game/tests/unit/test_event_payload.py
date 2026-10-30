@@ -6,6 +6,7 @@ from game.logic.events import (
     DiscardEvent,
     DrawEvent,
     EventType,
+    GameEndedEvent,
     MeldEvent,
     RoundEndEvent,
     SeatTarget,
@@ -17,6 +18,7 @@ from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
     HandResultInfo,
+    PlayerStanding,
     TsumoResult,
 )
 from game.messaging.event_payload import (
@@ -52,6 +54,23 @@ class TestGameEventPayload:
         assert tile_id == 10
         assert is_tsumogiri is False
         assert is_riichi is True
+
+    def test_game_event_payload__when_game_end_leaves_sticks_unawarded__should_send_their_count_apart_from_the_bonus(
+        self,
+    ):
+        standings = [PlayerStanding(seat=seat, score=25000, final_score=0) for seat in range(4)]
+        event = GameEndedEvent(
+            winner_seat=0,
+            standings=standings,
+            leftover_riichi_bonus=0,
+            leftover_riichi_sticks=2,
+            num_rounds=8,
+        )
+
+        payload = game_event_payload(event)
+
+        assert payload["t"] == EVENT_TYPE_INT[EventType.GAME_END]
+        assert (payload["lb"], payload["lr"], payload["nr"]) == (0, 2, 8)
 
     def test_game_event_payload__when_draw__should_pack_into_integer(self):
         event = DrawEvent(seat=1, tile_id=42, target=SeatTarget(seat=1))

@@ -58,6 +58,7 @@ def _make_game_end_events() -> list[GameEvent]:
                 PlayerStanding(seat=0, score=25000, final_score=0),
             ],
             leftover_riichi_bonus=0,
+            leftover_riichi_sticks=0,
             num_rounds=1,
         ),
     ]

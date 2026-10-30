@@ -159,18 +159,26 @@ function StandingsFootRow({ cells, label, modifier, seats }: FootRowProps): Temp
     </tr>`;
 }
 
+/** The leftover sticks' row: what they paid the winner, or that this game's rules award them to nobody. */
+function LeftoverRow(
+    leftover: NonNullable<StandingsDisplay["leftover"]>,
+    seats: readonly StandingsSeat[],
+): TemplateResult {
+    const label = html`<span
+        title=${leftover.awarded ? "Leftover riichi sticks, paid to the winner" : "Leftover riichi sticks"}
+        >Leftover<span class="standings__note">×${leftover.sticks}</span></span
+    >`;
+    if (leftover.awarded) {
+        return StandingsFootRow({ cells: leftover.cells, label, modifier: "leftover", seats });
+    }
+    return html`<tr class="standings__foot-row standings__foot-row--leftover">
+        <th scope="row" class="standings__label">${label}</th>
+        <td class="standings__unawarded" colspan=${seats.length}>Not awarded under this game's rules</td>
+    </tr>`;
+}
+
 function StandingsFoot({ leftover, seats }: StandingsDisplay): TemplateResult {
-    const leftoverRow =
-        leftover === null
-            ? nothing
-            : StandingsFootRow({
-                  cells: leftover.cells,
-                  label: html`<span title="Leftover riichi sticks, paid to the winner"
-                      >Leftover<span class="standings__note">×${leftover.sticks}</span></span
-                  >`,
-                  modifier: "leftover",
-                  seats,
-              });
+    const leftoverRow = leftover === null ? nothing : LeftoverRow(leftover, seats);
     return html`<tfoot>
         ${leftoverRow}
         ${StandingsFootRow({

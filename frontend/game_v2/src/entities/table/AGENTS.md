@@ -49,7 +49,9 @@ replay view, the live game and the storybook read the tables it produces.
   the result panel shows a page's deltas and the scores after every payment through that page: a
   double ron's first page ends at the scores after its first winner alone, its last at the scores
   the table settled. A game end's standings already hold
-  the leftover sticks paid to the winner (`lb`); the table takes them and empties the sticks, and
+  the leftover sticks paid to the winner (`lb`); the table takes them, keeps how many sticks the server held at the
+  end (`lr`, as `leftoverSticks`, never its own count, which may be out of step), so the standings can say when the
+  game's rules award them to nobody, empties the sticks, and
   keeps the last round's result, which `boardOverlay` shows over the standings only when the view
   asks (the live game, until the player dismisses it, and again when the player reopens it).
 - The table keeps every finished round as a `RoundRecord` (`roundHistory`) for the final standings'

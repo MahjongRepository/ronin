@@ -663,6 +663,27 @@ describe("mountGameView leaving", () => {
         expect(opened).toEqual([[true, true], "leave-confirm__stay"]);
         expect(closed).toEqual([[false, false], null, true, false]);
     });
+
+    it("keeps Tab and Shift+Tab cycling between the question's two buttons", async () => {
+        const { host, lobby } = mountInDocumentAtCallPrompt();
+        lobby.click();
+        await Promise.resolve();
+        const [stay, leave] = [".leave-confirm__stay", ".leave-confirm__leave"].map((selector) =>
+            host.querySelector<HTMLElement>(`.game__play ${selector}`),
+        );
+        function tab(from: HTMLElement | null, shiftKey: boolean): string | undefined {
+            from?.focus();
+            from?.dispatchEvent(
+                new KeyboardEvent("keydown", { bubbles: true, key: "Tab", shiftKey }),
+            );
+            return document.activeElement?.className;
+        }
+
+        expect([tab(leave, false), tab(stay, true)]).toEqual([
+            "leave-confirm__stay",
+            "secondary leave-confirm__leave",
+        ]);
+    });
 });
 
 describe("mountGameView choice of tiles", () => {

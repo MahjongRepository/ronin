@@ -288,6 +288,7 @@ export const furitenSchema = z.pipe(
 export const gameEndSchema = z.pipe(
     z.object({
         lb: wireScoreSchema,
+        lr: z.int().check(z.gte(0)),
         nr: z.int(),
         st: z.array(playerStandingSchema),
         t: z.literal(EVENT_TYPE.GAME_END),
@@ -295,6 +296,7 @@ export const gameEndSchema = z.pipe(
     }),
     z.transform((raw) => ({
         leftoverRiichiBonus: raw.lb,
+        leftoverRiichiSticks: raw.lr,
         numRounds: raw.nr,
         standings: raw.st,
         type: "game_end" as const,

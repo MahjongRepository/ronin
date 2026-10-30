@@ -22,7 +22,8 @@ export function isYakumanYaku(yakuId: number): boolean {
     return yakuId >= YAKUMAN_IDS.first && yakuId <= YAKUMAN_IDS.last;
 }
 
-function yakumanName(multiple: number): string {
+/** A yakuman's name for how many yakuman it counts: "Yakuman", "Double Yakuman", … */
+export function yakumanName(multiple: number): string {
     if (multiple <= 1) {
         return "Yakuman";
     }

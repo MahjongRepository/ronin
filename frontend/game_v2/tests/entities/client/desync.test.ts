@@ -305,10 +305,9 @@ describe("stepGameClient - desync around the game's start and end", () => {
         expect(ledgerOf(ended.state).complete).toBe(false);
     });
 
-    it("marks the ledger incomplete when the last round end itself could not be read", () => {
-        const desynced = run(checkpointState(FINAL, "ron chosen"), [
-            message(5000, { t: 999 }),
-        ]).state;
+    it("marks the ledger incomplete when the last round end itself could not be read, the leftover sticks the server's", () => {
+        const lost = run(checkpointState(FINAL, "ron chosen"), [message(5000, { t: 999 })]).state;
+        const desynced = { ...lost, table: { ...lost.table, riichiSticks: 2 } };
 
         const ended = run(desynced, [
             message(5000, { ...finalRoundEnd, rt: 99 }),
@@ -323,6 +322,8 @@ describe("stepGameClient - desync around the game's start and end", () => {
             null,
         ]);
         expect(ledgerOf(ended.state)).toEqual({ complete: false, rows: 0 });
+        expect(gameEnd.lr).toBe(0);
+        expect(standingsDisplay(ended.state.table, ended.state.viewerSeat)?.leftover).toBeNull();
     });
 
     it("asks again when the first deal is due once the server says the game has not dealt yet", () => {

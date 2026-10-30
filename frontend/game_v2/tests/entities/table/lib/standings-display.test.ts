@@ -21,6 +21,7 @@ function endedAtLastRound(table: TableState): TableState {
         ...table,
         gameEndResult: {
             leftoverRiichiBonus: 0,
+            leftoverSticks: 0,
             numRounds: table.roundHistory.length,
             standings: ranked.map((player) => ({
                 finalScore: 0,
@@ -79,9 +80,26 @@ describe("standingsDisplay", () => {
             ["3rd", 0, "23,500", "−16.0", false],
             ["4th", 3, "23,500", "−26.0", false],
         ]);
-        expect(display?.leftover).toEqual({ cells: ["+1,000", "", "", ""], sticks: 1 });
+        expect(display?.leftover).toEqual({
+            awarded: true,
+            cells: ["+1,000", "", "", ""],
+            sticks: 1,
+        });
         const evenly = shownStandings(endedAtLastRound(endTable("leftover_riichi")), null);
         expect(evenly.seats.map((seat) => seat.result)).toEqual(["0.0", "0.0", "0.0", "0.0"]);
+    });
+
+    test("says the leftover sticks were not awarded when the game end pays no bonus for the sticks left", () => {
+        const table = endTable("leftover_riichi");
+        const end = endOf(table);
+        const unpaid = { ...table, gameEndResult: { ...end, leftoverRiichiBonus: 0 } };
+
+        expect(end.leftoverSticks).toBe(1);
+        expect(shownStandings(unpaid, null).leftover).toEqual({
+            awarded: false,
+            cells: ["", "", "", ""],
+            sticks: 1,
+        });
     });
 
     test("nets each riichi deposit out of its round, so the rounds and the leftover sticks add up to each final score", () => {

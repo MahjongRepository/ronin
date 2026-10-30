@@ -6,11 +6,59 @@ import {
     type SessionState,
 } from "@/entities/session/model/types";
 import { assertNever } from "@/shared/lib";
-import { CONNECTION_STATUS, type ConnectionStatus } from "@/shared/protocol";
+import { CLOSE_CODE, CONNECTION_STATUS, type ConnectionStatus } from "@/shared/protocol";
 
 export interface SessionStatusDisplay {
     readonly label: string;
     readonly tone: ConnectionStatus;
+    /**
+     * The short word the page's corner shows beside its dot: none while connected or once the player left, what
+     * happened once the session ended (ended, replaced), else the socket's state.
+     */
+    readonly word: string;
+}
+
+/** A running session's word, by its socket: none while it is open. */
+const ACTIVE_WORDS: Readonly<Record<ConnectionStatus, string>> = {
+    [CONNECTION_STATUS.CONNECTED]: "",
+    [CONNECTION_STATUS.CONNECTING]: "Connecting",
+    [CONNECTION_STATUS.DISCONNECTED]: "Offline",
+    [CONNECTION_STATUS.ERROR]: "Error",
+};
+
+function closedWord(code: number): string {
+    if (code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION) {
+        return "Replaced";
+    }
+    return code === CLOSE_CODE.INVALID_GAME_ACTION ? "Removed" : "Offline";
+}
+
+/** What an ended session's word says happened; none for an end that leaves the page. */
+function endWord(reason: EndReason): string {
+    switch (reason.kind) {
+        case "game_ended": {
+            return "Ended";
+        }
+        case "closed": {
+            return closedWord(reason.code);
+        }
+        case "retries_exhausted": {
+            return "Offline";
+        }
+        case "refused":
+        case "failed":
+        case "recovery_failed": {
+            return "Error";
+        }
+        case "left":
+        case "moved":
+        case "no_handoff": {
+            return "";
+        }
+        default: {
+            return assertNever(reason);
+        }
+    }
 }
 
 /** Each active state's tone, from its socket: opening, open, or down until a transport retry. */
@@ -71,12 +119,14 @@ export function describeSessionStatus(state: SessionState): SessionStatusDisplay
             state.reason.kind === "game_ended"
                 ? CONNECTION_STATUS.DISCONNECTED
                 : CONNECTION_STATUS.ERROR;
-        return { label: describeEnd(state.reason), tone };
+        return { label: describeEnd(state.reason), tone, word: endWord(state.reason) };
     }
     if (state.status === "recovering") {
-        return { label: "recovering the handoff", tone: CONNECTION_STATUS.CONNECTING };
+        const tone = CONNECTION_STATUS.CONNECTING;
+        return { label: "recovering the handoff", tone, word: ACTIVE_WORDS[tone] };
     }
-    return { label: describeActive(state), tone: ACTIVE_TONES[state.status] };
+    const tone = ACTIVE_TONES[state.status];
+    return { label: describeActive(state), tone, word: ACTIVE_WORDS[tone] };
 }
 
 function describeIdentity(identity: Identity): string {
@@ -107,6 +157,13 @@ function describeActive(state: ActiveSession): string {
     }
 }
 
+function closedLabel(code: number): string {
+    if (code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION) {
+        return "Opened in another tab";
+    }
+    return code === CLOSE_CODE.INVALID_GAME_ACTION ? "Removed from the game" : "Disconnected";
+}
+
 function describeEndForPlayer(reason: EndReason): string {
     switch (reason.kind) {
         case "game_ended": {
@@ -127,7 +184,9 @@ function describeEndForPlayer(reason: EndReason): string {
         case "recovery_failed": {
             return "Can't reach the lobby";
         }
-        case "closed":
+        case "closed": {
+            return closedLabel(reason.code);
+        }
         case "refused":
         case "retries_exhausted": {
             return "Disconnected";
@@ -153,10 +212,10 @@ function describeActiveForPlayer(state: Exclude<SessionState, { status: "ended" 
 
 /** The status a player reads for a session: what it means for them, never the machine's internal states. */
 export function describePlayerSessionStatus(state: SessionState): SessionStatusDisplay {
-    const { tone } = describeSessionStatus(state);
+    const { tone, word } = describeSessionStatus(state);
     const label =
         state.status === "ended"
             ? describeEndForPlayer(state.reason)
             : describeActiveForPlayer(state);
-    return { label, tone };
+    return { label, tone, word };
 }

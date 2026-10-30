@@ -2,15 +2,6 @@ import { type TemplateResult, html, nothing } from "lit-html";
 
 import { type LeaveControls, type PlayCommand } from "@/entities/client/model/play-display";
 import { type SessionStatusDisplay } from "@/entities/session";
-import { CONNECTION_STATUS, type ConnectionStatus } from "@/shared/protocol";
-
-/** The word the corner shows beside its dot: none while connected, a short one otherwise, the notices saying more. */
-const STATUS_WORDS: Readonly<Record<ConnectionStatus, string>> = {
-    [CONNECTION_STATUS.CONNECTED]: "",
-    [CONNECTION_STATUS.CONNECTING]: "Connecting",
-    [CONNECTION_STATUS.DISCONNECTED]: "Offline",
-    [CONNECTION_STATUS.ERROR]: "Error",
-};
 
 interface GameMenuProps {
     readonly status: SessionStatusDisplay;
@@ -40,7 +31,7 @@ function LeaveIcon(): TemplateResult {
  * read out and in its title) and the way back, which asks first while leaving would hand the seat to an AI.
  */
 function GameMenu({ extra, leave, onCommand, status }: GameMenuProps): TemplateResult {
-    const word = STATUS_WORDS[status.tone];
+    const { word } = status;
     return html`<nav class="game-menu" aria-label="Game">
         ${extra ?? nothing}
         <span class="connection-status game-menu__status status-${status.tone}" role="status" title=${status.label}

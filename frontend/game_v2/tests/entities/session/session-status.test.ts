@@ -42,18 +42,30 @@ describe("describePlayerSessionStatus", () => {
             },
             { gameId: "g1", reason: { kind: "game_ended" }, status: "ended" },
             { gameId: "g1", reason: { code: 4002, kind: "closed", reason: "" }, status: "ended" },
+            { gameId: "g1", reason: { code: 1006, kind: "closed", reason: "" }, status: "ended" },
+            { gameId: "g1", reason: { kind: "left" }, status: "ended" },
+            { gameId: "g1", reason: { code: 1008, kind: "closed", reason: "" }, status: "ended" },
+            { gameId: "g1", reason: { code: "internal_error", kind: "refused" }, status: "ended" },
+            { gameId: "g1", reason: { detail: "boom", kind: "failed" }, status: "ended" },
+            { gameId: "g1", reason: { detail: "503", kind: "recovery_failed" }, status: "ended" },
         ];
 
         const shown = states.map((state) => describePlayerSessionStatus(state));
-        expect(shown.map(({ label, tone }) => [label, tone])).toEqual([
-            ["Finding your game", "connecting"],
-            ["Joining the game", "connected"],
-            ["Connecting", "connecting"],
-            ["Connected", "connected"],
-            ["Connecting", "connected"],
-            ["Reconnecting", "disconnected"],
-            ["Game over", "disconnected"],
-            ["Disconnected", "error"],
+        expect(shown.map(({ label, tone, word }) => [label, tone, word])).toEqual([
+            ["Finding your game", "connecting", "Connecting"],
+            ["Joining the game", "connected", ""],
+            ["Connecting", "connecting", "Connecting"],
+            ["Connected", "connected", ""],
+            ["Connecting", "connected", ""],
+            ["Reconnecting", "disconnected", "Offline"],
+            ["Game over", "disconnected", "Ended"],
+            ["Opened in another tab", "error", "Replaced"],
+            ["Disconnected", "error", "Offline"],
+            ["You left the game", "error", ""],
+            ["Removed from the game", "error", "Removed"],
+            ["Disconnected", "error", "Error"],
+            ["Something went wrong", "error", "Error"],
+            ["Can't reach the lobby", "error", "Error"],
         ]);
     });
 });

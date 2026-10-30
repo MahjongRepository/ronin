@@ -23,11 +23,13 @@ import { FailurePanel, LeaveConfirm } from "./session-panels";
 const NO_SESSION_STATUS: SessionStatusDisplay = {
     label: "No session",
     tone: CONNECTION_STATUS.ERROR,
+    word: "Error",
 };
 
 const NOT_CONNECTED_STATUS: SessionStatusDisplay = {
     label: "Not connected",
     tone: CONNECTION_STATUS.ERROR,
+    word: "Error",
 };
 
 /** The seconds left at which the countdown is announced to a screen reader, the largest first. */

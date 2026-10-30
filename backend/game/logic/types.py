@@ -310,6 +310,7 @@ class GameEndResult(BaseModel):
     winner_seat: int
     standings: list[PlayerStanding]
     leftover_riichi_bonus: int
+    leftover_riichi_sticks: int
 
 
 class MeldCaller(BaseModel):

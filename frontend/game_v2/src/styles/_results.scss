@@ -340,6 +340,12 @@
     }
 }
 
+.round-end-result__yakuman {
+    flex: none;
+    font-weight: 700;
+    color: var(--ronin-text);
+}
+
 .round-end-result__yaku-dora > span:first-child {
     color: var(--ronin-text-secondary);
 }
@@ -428,16 +434,19 @@
     list-style: none;
 }
 
+/* The controls stand beside the scores while both fit, else under them, so no figure wraps. */
 .round-end-result__foot {
     grid-area: scores;
     display: flex;
-    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0 0.75rem;
     min-width: 0;
     border-top: 1px solid var(--ronin-border);
 }
 
 .round-end-result__scores {
-    flex: 1;
+    flex: 1 1 18rem;
     min-width: 0;
     list-style: none;
     margin: 0;
@@ -484,6 +493,7 @@
     @include type.figures;
 
     grid-row: 3;
+    white-space: nowrap;
     font-weight: 700;
     font-size: 0.9rem;
     color: var(--ronin-text-secondary);
@@ -501,5 +511,6 @@
     @include type.figures;
 
     grid-row: 4;
+    white-space: nowrap;
     color: var(--ronin-text-secondary);
 }

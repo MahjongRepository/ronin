@@ -188,6 +188,7 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
         ...state,
         gameEndResult: {
             leftoverRiichiBonus: event.leftoverRiichiBonus,
+            leftoverSticks: event.leftoverRiichiSticks,
             numRounds: event.numRounds,
             standings: event.standings.map((s) => ({
                 finalScore: s.finalScore,

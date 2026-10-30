@@ -14,14 +14,23 @@ import {
 import { boardCase, decisionCase } from "../cases.ts";
 import {
     type BoardRun,
+    GAME_ID,
     type PageCase,
     type PageReport,
+    type PageRun,
     SELECTOR_TIMEOUT_MS,
     type Surface,
     type Viewport,
 } from "../model.ts";
 import { checkVisible } from "../page-checks.ts";
 import { MIN_TEXT_PX } from "../text.ts";
+import { SMALL_WINDOWS } from "../viewports.ts";
+
+/**
+ * The phones whose reserve under the right strip's end cannot hold the out-of-step notice over a panel: a known cut
+ * until Step 4.2 clamps a notice to whole lines with "Show all".
+ */
+const PHONES_CUTTING_NOTICES = ["phone-se-landscape", "phone-notch-landscape"];
 
 /** The least room between two names on a line of a result's scores, so each name and its end read as one. */
 const MIN_RESULT_NAME_GAP = 12;
@@ -88,17 +97,98 @@ function rotateCase(state: string, countdown: boolean, content: string): PageCas
     };
 }
 
+const LEAVE_QUESTION = ".game__play .leave-confirm";
+
+async function openLeaveQuestion(page: Page): Promise<void> {
+    await page.locator(".game__play .game-menu__leave").click();
+    await page.waitForSelector(LEAVE_QUESTION, { timeout: SELECTOR_TIMEOUT_MS });
+}
+
+/** Whether the focus stays in the leave question over `presses` presses of Tab. */
+async function tabStaysInLeaveQuestion(page: Page, presses: number): Promise<boolean> {
+    for (let press = 0; press < presses; press += 1) {
+        await page.keyboard.press("Tab");
+        const inside = await page.evaluate(
+            (question) => document.activeElement?.closest(question) !== null,
+            LEAVE_QUESTION,
+        );
+        if (!inside) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * The live game's leave question, asked from the page's corner: it opens modal with Stay focused, the board inert and
+ * Tab kept inside it, and Escape stays, closing it and giving the focus back to the corner's control that asked. The
+ * board is checked before it opens, and the page is shot with it opened again.
+ */
+async function checkLeaveQuestion(
+    { page, report }: PageRun,
+    checkShownBoard: () => Promise<string>,
+): Promise<string> {
+    const summary = await checkShownBoard();
+    await openLeaveQuestion(page);
+    const opened = await page.evaluate(() => ({
+        inert: document.querySelector(".game__play .board-layout")?.hasAttribute("inert") === true,
+        stayFocused: document.activeElement?.matches(".game__play .leave-confirm__stay") === true,
+    }));
+    report.expect(opened.stayFocused, "the leave question opened without Stay focused");
+    report.expect(opened.inert, "the board under the leave question is not inert");
+    report.expect(
+        await tabStaysInLeaveQuestion(page, 3),
+        "Tab moved the focus out of the leave question",
+    );
+    await page.locator(".game__play .leave-confirm__stay").focus();
+    await page.keyboard.press("Escape");
+    const closed = await page
+        .waitForFunction((question) => document.querySelector(question) === null, LEAVE_QUESTION, {
+            timeout: SELECTOR_TIMEOUT_MS,
+        })
+        .then(() => true)
+        .catch(() => false);
+    report.expect(closed, "Escape did not close the leave question");
+    report.expect(
+        await page.evaluate(
+            () => document.activeElement?.matches(".game__play .game-menu__leave") === true,
+        ),
+        "staying did not give the focus back to the control that asked",
+    );
+    await openLeaveQuestion(page);
+    return summary;
+}
+
 const PAGES: readonly PageCase[] = [
+    {
+        check: checkLeaveQuestion,
+        checkpoint: "turn",
+        kind: "own",
+        name: "game-leave-question",
+        onlyAt: ["desktop-1440", "phone-se-landscape"],
+        path: `/play/${GAME_ID}`,
+        required: { visible: [".game__play .game-menu__leave", ".game__play .hand-tile"] },
+    },
+    resultCase("yakuman", "", [".round-end-result__limit"]),
+    resultCase("head_bump", "", [".round-end-result__notes"]),
+    resultCase("all_noten", "", [".round-end-result__from"]),
+    resultCase("triple_ron", "", [".round-end-result__from"]),
+    boardCase("board-standings-stick-lost", "?overlay=game_end&leftover=lost", [
+        ".standings__unawarded",
+    ]),
     resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
     { ...resultCase("sanbaiman", "", [".round-end-result__hand .meld"]), contrast: true },
     resultCase("pao", "", [".round-end-result__notes"]),
     resultCase("exhaustive", "", [".round-end-result__tenpai .tile"]),
-    boardCase("board-standings", "?overlay=game_end", [
-        ".standings__foot-row--leftover",
-        ".standings__cell .standings__riichi",
-        ".standings__cell .standings__mark--deal-in",
-        ".standings__legend",
-    ]),
+    {
+        ...boardCase("board-standings", "?overlay=game_end", [
+            ".standings__foot-row--leftover",
+            ".standings__cell .standings__riichi",
+            ".standings__cell .standings__mark--deal-in",
+            ".standings__legend",
+        ]),
+        alsoAt: SMALL_WINDOWS,
+    },
     {
         kind: "board",
         name: "decisions-game-start",
@@ -111,20 +201,39 @@ const PAGES: readonly PageCase[] = [
         ".round-end-result__countdown",
     ]),
     decisionCase("double_ron_first", [".round-end-result__pager", ".round-end-result__confirm"]),
-    scrollingResultCase("double_ron_first", [
-        ".round-end-result__pager",
-        ".round-end-result__confirm",
-        ".round-end-result__countdown",
-    ]),
+    {
+        ...scrollingResultCase("double_ron_first", [
+            ".round-end-result__pager",
+            ".round-end-result__confirm",
+            ".round-end-result__countdown",
+        ]),
+        alsoAt: SMALL_WINDOWS,
+    },
     decisionCase("waiting", [".round-end-result__waiting"]),
     decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("last_result", [".round-end-result__confirm"]),
-    decisionCase("standings", [
-        ".standings__cell--win",
-        ".standings__foot-row--result",
-        ".standings__actions a[href*='seat=1']",
-    ]),
+    {
+        ...decisionCase("standings", [
+            ".standings__cell--win",
+            ".standings__foot-row--result",
+            ".standings__actions a[href*='seat=1']",
+        ]),
+        alsoAt: SMALL_WINDOWS,
+    },
     decisionCase("last_result_reopened", [".round-end-result__confirm"]),
+    {
+        ...decisionCase("out_of_step_result", [
+            ".round-end-result__uncertain",
+            ".round-end-result__confirm",
+            ".round-end-result__indicator-tiles .tile",
+        ]),
+        alsoAt: SMALL_WINDOWS,
+        noticeCutAt: PHONES_CUTTING_NOTICES,
+    },
+    {
+        ...decisionCase("out_of_step_standings", [".standings__incomplete"]),
+        noticeCutAt: PHONES_CUTTING_NOTICES,
+    },
     decisionCase("kicked", [".failure-panel__leave", ".game-menu__status:not(.status-connected)"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     decisionCase("leave_after_win", [".leave-confirm__stay"]),
@@ -245,11 +354,11 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
 /**
  * A round result that does not fit its panel scrolls inside it, never clipped: its content reaches past its foot at the
  * scroll's end, and its primary button and countdown stay wholly in view at both ends, the winner pager at the start.
- * A case that forces the panel short first proves that it overflows.
+ * A case that forces the panel short first proves that it overflows; on a desktop, any other result fits whole.
  */
 function checkResultPanel(
     panel: ResultPanelMeasure | null,
-    mustScroll: boolean,
+    { desktop, mustScroll }: { readonly desktop: boolean; readonly mustScroll: boolean },
     report: PageReport,
 ): void {
     if (panel === null) {
@@ -260,6 +369,10 @@ function checkResultPanel(
     report.expect(
         overflows || !mustScroll,
         `the result panel forced short still fits: ${describeSize(panel.scroll)} in ${describeSize(panel.client)}`,
+    );
+    report.expect(
+        !overflows || mustScroll || !desktop,
+        `a desktop's result does not fit its panel: ${describeSize(panel.scroll)} in ${describeSize(panel.client)}`,
     );
     const ends = [
         ["start", panel.start],
@@ -296,31 +409,99 @@ function checkResultPanel(
     );
 }
 
-/** The winner pager of a double ron's result moves one page: on, or back from the last page. */
-async function checkWinnerPaging(page: Page, report: PageReport): Promise<void> {
-    if ((await page.locator(".board-overlay .round-end-result__page-btn").count()) === 0) {
-        return;
-    }
+/** The page a result's pager shows, from 1, or NaN without one. */
+async function shownResultPage(page: Page): Promise<number> {
     const label = page.locator(".board-overlay .round-end-result__page");
-    const before = Number.parseInt((await label.textContent()) ?? "", 10);
-    const next = page.locator(".board-overlay [aria-label='Next winner']");
-    const forward = await next.isEnabled();
-    const step = forward ? 1 : -1;
-    await (forward ? next : page.locator(".board-overlay [aria-label='Previous winner']")).click();
-    const moved = await page
+    return (await label.count()) === 0
+        ? Number.NaN
+        : Number.parseInt((await label.textContent()) ?? "", 10);
+}
+
+function waitForResultPage(page: Page, expected: number): Promise<boolean> {
+    return page
         .waitForFunction(
-            (expected) =>
+            (wanted) =>
                 Number.parseInt(
                     document.querySelector(".board-overlay .round-end-result__page")?.textContent ??
                         "",
                     10,
-                ) === expected,
-            before + step,
+                ) === wanted,
+            expected,
             { timeout: SELECTOR_TIMEOUT_MS },
         )
         .then(() => true)
         .catch(() => false);
+}
+
+/**
+ * A double ron's result pages and confirms by a player's click (Playwright's, which fails on a control another covers):
+ * its winner pager moves one page, on or back from the last; and where the live game's primary button shows, it turns
+ * the pages to the last, whose press confirms, after which the seat waits for the others.
+ */
+async function checkResultPaging(page: Page, report: PageReport): Promise<void> {
+    if ((await page.locator(".board-overlay .round-end-result__page-btn").count()) === 0) {
+        return;
+    }
+    const before = await shownResultPage(page);
+    const next = page.locator(".board-overlay [aria-label='Next winner']");
+    const forward = await next.isEnabled();
+    const step = forward ? 1 : -1;
+    await (forward ? next : page.locator(".board-overlay [aria-label='Previous winner']")).click();
+    const moved = await waitForResultPage(page, before + step);
     report.expect(moved, `the winner pager did not move from page ${before} to ${before + step}`);
+    const confirm = page.locator(".board-overlay .round-end-result__confirm");
+    if ((await confirm.count()) === 0) {
+        return;
+    }
+    const count = Number.parseInt(
+        /\/\s*(?<count>\d+)/u.exec(
+            (await page.locator(".board-overlay .round-end-result__page").textContent()) ?? "",
+        )?.groups?.count ?? "",
+        10,
+    );
+    for (let shown = await shownResultPage(page); shown < count; shown += 1) {
+        await confirm.click();
+        report.expect(
+            await waitForResultPage(page, shown + 1),
+            `the result's primary button did not turn page ${shown} on`,
+        );
+    }
+    await confirm.click();
+    const waits = await page
+        .waitForSelector(".board-overlay .round-end-result__waiting", {
+            timeout: SELECTOR_TIMEOUT_MS,
+        })
+        .then(() => true)
+        .catch(() => false);
+    report.expect(waits, "confirming the last page of the result did not leave the seat waiting");
+}
+
+/**
+ * A standings row that is a button shows its round's result, and the focus goes back to the page's root (an ancestor
+ * of the board), where the keys go on.
+ */
+async function checkStandingsRound(page: Page, report: PageReport): Promise<void> {
+    const row = page.locator(".board-overlay .standings__round--jump").first();
+    if ((await row.count()) === 0) {
+        return;
+    }
+    await row.click();
+    const shown = await page
+        .waitForSelector(".board-overlay .round-end-result", { timeout: SELECTOR_TIMEOUT_MS })
+        .then(() => true)
+        .catch(() => false);
+    report.expect(shown, "a standings row did not show its round's result");
+    const focusAtRoot = await page.evaluate(() => {
+        const board = document.querySelector(".game-board");
+        const focused = document.activeElement;
+        return board !== null && focused !== null && focused !== board && focused.contains(board);
+    });
+    report.expect(focusAtRoot, "after a standings row, the focus is not back on the page's root");
+}
+
+async function checkAfterShot(page: Page, report: PageReport): Promise<void> {
+    await checkResultPaging(page, report);
+    await checkStandingsRound(page, report);
 }
 
 function measureStandings(page: Page): Promise<StandingsMeasure | null> {
@@ -459,6 +640,24 @@ function checkStandings(
     );
 }
 
+/** The figures of a result's scores (each change and score) that wrap past one line, by their text. */
+function measureWrappedFigures(page: Page): Promise<readonly string[]> {
+    return page.evaluate(() =>
+        [
+            ...document.querySelectorAll(
+                ".board-overlay .round-end-result__delta, .board-overlay .round-end-result__score-after",
+            ),
+        ]
+            .filter((figure) => {
+                const style = getComputedStyle(figure);
+                const line =
+                    Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.2;
+                return figure.getBoundingClientRect().height > line * 1.5;
+            })
+            .map((figure) => figure.textContent ?? ""),
+    );
+}
+
 /** Each name in a result's scores reads as one, standing clear of the next name on its line. */
 function checkResultNames(names: readonly Box[], report: PageReport): void {
     const crowded = names.flatMap((name, index) => {
@@ -507,9 +706,18 @@ async function checkBoard({
 }: BoardRun): Promise<void> {
     checkOverlay(board, viewport, report);
     if (viewport.supported) {
-        checkResultPanel(await measureResultPanel(page), options.panelScrolls === true, report);
+        checkResultPanel(
+            await measureResultPanel(page),
+            { desktop: viewport.desktop, mustScroll: options.panelScrolls === true },
+            report,
+        );
     }
     checkStandings(await measureStandings(page), { screen, viewport }, report);
+    const wrapped = await measureWrappedFigures(page);
+    report.expect(
+        wrapped.length === 0,
+        `result score figure(s) wrapped past one line: ${wrapped.join(", ")}`,
+    );
     if (viewport.supported && !viewport.portrait) {
         checkResultNames(
             await measureBoxes(page, ".board-overlay .round-end-result__score-name"),
@@ -520,7 +728,7 @@ async function checkBoard({
 
 /** The panels: round results, the standings, the seating, the leave question, an end, and the rotate panel. */
 export const panelsSurface: Surface = {
-    checkAfterShot: checkWinnerPaging,
+    checkAfterShot,
     checkBoard,
     pages: PAGES,
 };

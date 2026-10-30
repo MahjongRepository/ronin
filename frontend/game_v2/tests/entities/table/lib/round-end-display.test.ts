@@ -5,6 +5,7 @@ import {
     type DrawPageDisplay,
     type ResultHandDisplay,
     type RoundEndDisplayState,
+    type RoundEndResult,
     type TableState,
     type WinPageDisplay,
     roundEndDisplay,
@@ -100,7 +101,10 @@ describe("roundEndDisplay - a win", () => {
 
         expect(page.limit).toBe("Yakuman");
         expect(page.hanFu).toBeNull();
-        expect(page.notes).toContain("Pao: Diana is liable");
+        expect(page.yaku.map((line) => [line.name, line.han, line.yakuman])).toEqual([
+            ["Daisangen", null, null],
+        ]);
+        expect(page.notes).toContain("Pao: Diana is liable for Daisangen and pays all of it");
         expect(displayAt(table).scores.map((row) => [row.name, row.tag])).toEqual([
             ["Diana", "Pao"],
             ["Alice", null],
@@ -109,6 +113,49 @@ describe("roundEndDisplay - a win", () => {
         ]);
         expect(page.hand.melds).toHaveLength(3);
         expect(page.winningTileLabel).toBe("Tsumo");
+    });
+
+    test("pao names the yakuman it covers and the share: half of it on another's ron with the honba, all when it dealt in", () => {
+        const table = lastRoundEndTable("pao");
+        const result = table.roundEndResult;
+        assert(result !== null && result.winners[0] !== undefined);
+        const ended: RoundEndResult = result;
+        const [winner] = result.winners;
+        const stacked = {
+            ...winner,
+            handResult: {
+                ...winner.handResult,
+                yaku: [...winner.handResult.yaku, { han: 13, yakuId: 107 }],
+            },
+        };
+        function notesWhen(loserSeat: number | null, honbaBonus: number): readonly string[] {
+            const winners = [{ ...stacked, honbaBonus }];
+            return winPage({ ...table, roundEndResult: { ...ended, loserSeat, winners } }).notes;
+        }
+
+        expect(notesWhen(null, 0)).toContain(
+            "Pao: Diana is liable for Daisangen and pays all of it",
+        );
+        expect(notesWhen(2, 300)).toContain(
+            "Pao: Diana is liable for Daisangen and pays half of it and the honba",
+        );
+        expect(notesWhen(0, 0)).toContain("Pao: Diana is liable and dealt in, so pays it all");
+    });
+
+    test("a yakuman yaku worth more than one names its multiple in place of han", () => {
+        const table = lastRoundEndTable("pao");
+        const result = table.roundEndResult;
+        assert(result !== null && result.winners[0] !== undefined);
+        const [winner] = result.winners;
+        const doubled = {
+            ...winner,
+            handResult: { ...winner.handResult, yaku: [{ han: 26, yakuId: 111 }] },
+        };
+        const page = winPage({ ...table, roundEndResult: { ...result, winners: [doubled] } });
+
+        expect(page.yaku.map((line) => [line.name, line.han, line.yakuman])).toEqual([
+            ["Dai Suushii", null, "Double Yakuman"],
+        ]);
     });
 
     test("a kazoe yakuman: keeps its han beside the limit", () => {
@@ -183,6 +230,28 @@ describe("roundEndDisplay - a draw", () => {
             ["Tenpai", 1500],
             ["Tenpai", 1500],
             ["Noten", -1500],
+        ]);
+    });
+
+    test("an exhaustive draw says when every seat or none was tenpai, so no one pays", () => {
+        const noten = roundEndTables("full_game").find(
+            (table) => table.roundEndResult?.draw?.tenpaiSeats.length === 0,
+        );
+        assert(noten !== undefined);
+        const tenpai = lastRoundEndTable("exhaustive_tenpai");
+        const result = tenpai.roundEndResult;
+        assert(result !== null && result.draw !== null);
+        const allTenpai: TableState = {
+            ...tenpai,
+            roundEndResult: {
+                ...result,
+                draw: { ...result.draw, notenSeats: [], tenpaiSeats: [0, 1, 2, 3] },
+            },
+        };
+
+        expect([drawPage(noten).subtitle, drawPage(allTenpai).subtitle]).toEqual([
+            "All noten: no payments",
+            "All tenpai: no payments",
         ]);
     });
 

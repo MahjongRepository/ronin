@@ -312,6 +312,11 @@ $tint: color-mix(in srgb, var(--ronin-text) 8%, transparent);
     white-space: nowrap;
 }
 
+.standings__table .standings__unawarded {
+    text-align: right;
+    color: var(--ronin-text-secondary);
+}
+
 .standings__foot-row--score .standings__cell,
 .standings__foot-row--result .standings__cell {
     font-weight: 700;

@@ -36,7 +36,9 @@
     }
 }
 
-@include small-chrome {
+/* Over a panel, a short or upright board's notices move to the reserve under the right strip's end; a narrow
+   desktop's panel leaves them their own field. */
+@container game-board (height < #{$short-height}) or (aspect-ratio < 1) {
     .game-board:has(> .board-overlay) {
         .board-notices {
             --notice-top: calc(

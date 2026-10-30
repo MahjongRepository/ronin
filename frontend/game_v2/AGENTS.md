@@ -187,7 +187,8 @@ Adapt the client to the server rather than the server to it. `src/shared/protoco
   while a round plays, as a dot and the word in its slot by the hand (`GameBoard`'s `furiten`).
 * **Final standings** (`boardOverlay`, live and replay alike): the seats in the server's placement
   order with its uma/oka results, the ledger of every finished round with a line saying what its marks
-  mean, the leftover sticks, the viewer's seat (the live seat, the replay's bottom seat) marked. Their
+  mean, the leftover sticks (what they paid the winner, or, where the game end pays no bonus for the sticks the
+  table held, that they were not awarded), the viewer's seat (the live seat, the replay's bottom seat) marked. Their
   panel, mapper and stylesheet are a lazy chunk (`startStandingsLoad`, with the sprite's retries), which
   each view that may show them starts as it mounts and stops on dispose; the view hands the loaded
   renderer to `boardOverlay`, which shows no standings until it has one, and a board notice says so once
@@ -358,14 +359,18 @@ follows holds through the rebuild to it.
   phones never got iOS 16.4, so they are below the floor. The board's sizing rule needs CSS `round()`
   (Chrome 125, Firefox 118, Safari 15.4) and `@property` (Safari 16.4).
 * **The live game's page** is the board alone: the page's own controls (`GameMenu`: the way back and the
-  session's status as a dot, with one short word by its tone unless connected (a short board, too narrow for a
+  session's status as a dot, with one short word (`SessionStatusDisplay.word`): the socket's state while the
+  session runs, none while connected, and once it ended what happened (Ended, Replaced, Removed), none once the
+  player left (a short board, too narrow for a
   word, shows the dot alone, never part of the word), the player's whole wording in
   its title and read out, the notices saying more) sit in the board's top-right corner, so a phone gives the
   board its whole width; `PlayBoard` draws them when given the status, the decisions storybook too. A panel
-  over the board leaves the corner clear: the corner is capped to a
-  reserve the overlay keeps free beside the panel, on the corner's side alone on a short board, and the
-  overlay's tiles size from the width left (`game-board/_overlay.scss`); an upright board does not keep it
-  clear yet. The board carries the notices
+  over the board leaves the corner clear (`game-board/_overlay.scss`, the spec's Panels): a desktop caps the
+  corner to a reserve the overlay keeps free on both sides of a centred panel; a narrow desktop (narrower than
+  `$small-chrome-width`) has the height but not the width, so its panel stands under the corner's height, between the
+  side strips (past the left river's reach while notices show); a
+  short board keeps the reserve on the corner's side alone and tops the panel; the overlay's tiles size from the
+  width left. An upright board does not keep the corner clear yet. The board carries the notices
   (`playDisplay`'s, in the table's own area, never over a tile, a plate, a decision control or the panel, however
   long they stay): a
   seat this page held and lost to a drop while it reconnects, or a connection failing since the page
@@ -378,7 +383,8 @@ follows holds through the rebuild to it.
   page blocks the board, and takes the rotate panel's place, with why and a way back. The notices' place is
   the left field under the left badge, outside every river's capacity, scrolling a stack taller than it
   (never clipped silently; "Show all" is Step 4's); a desktop panel over the board then starts past the left
-  river's reach, and over a short board's panel they move to the reserve under the right strip's end. With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
+  river's reach, and over a short or upright board's panel they move to the reserve under the right strip's end (where
+  the out-of-step notice is cut short until Step 4.2's clamp: the gate's `noticeCutAt` exception). With `?debug` (any value but `0`, `false`, `no` or `off`) the corner adds the debug log, a
   collapsed sheet of every message, send and transport event under the machine's own status; without
   it the view keeps no log at all.
 * **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than
@@ -518,10 +524,10 @@ follows holds through the rebuild to it.
   seat whose open and added kans come from every feeder across two stories, with a different call at every seat and with a triple ron's
   callouts; four open kans a seat, the longest strip, with the most offers; the worst case with a turn in its bank (these
   four only at the phones, 800x600 and 1366x657); the dense round
-  results; the
+  results and the other families (a yakuman, a head bump, all noten, a triple ron); the
   decisions stories, the seating before the first deal, a turn in its bank, the live standings and the
-  last result reopened from them among them; the board's
-  standings over a hand-written short game; and the replay page's stories: its opening, autoplay
+  last result reopened from them, a game ended out of step (its result and its standings), a replaced tab among
+  them; the board's standings over a hand-written short game, and again with its leftover stick not awarded; and the replay page's stories: its opening, autoplay
   running, another seat's view with the hands hidden, a result with them hidden, its round list,
   a double ron's result, the standings with a short and a long ledger, an incomplete replay, one ending
   on a round's result, a damaged one, loading and a replay not found), the replay and the live game, at
@@ -530,7 +536,8 @@ follows holds through the rebuild to it.
   the live turn alone (the band's corners shared, a chip bounded by its row), 800x600 on the anchor, the
   dense and two-step decisions, the worst board with and without offers and the full and a mixed hand (a
   narrow desktop's chrome), 1280x720, 1536x730 and 1440x770 on the anchor, the offers and the full hands
-  (`laptop-*`: either side of the short desktop's 760px), 2560x1440 on the offers, the choices and the full
+  (`laptop-*`: either side of the short desktop's 760px), 700x540 and 900x600 on the standings, the forced-short
+  double ron and the out-of-step result (`window-*`: a panel against a small window's width), 2560x1440 on the offers, the choices and the full
   hands (`desktop-large`: a control's height against the band), 680x375 and 700x375 (WebKit,
   `phone-680`/`phone-700`: wider phones at the floor's height, where the own tile reaches 36px) on the
   anchor, the switches, the strips' capacity and the replay, iPhone 13 portrait, the notch phone (the spec's
@@ -559,8 +566,8 @@ follows holds through the rebuild to it.
   board text under 10px, local hand tiles (their `.hand-tile` slots, so a held-back face's recess does not count but a
   shrunk slot does, and an unmeasurable one fails) under 32x42 on a landscape phone (a desktop's own tile has no separate
   floor) or, in landscape, no larger than every other tile on the board, and in landscape on another seat's face-up tile under 13x17, a
-  notice over a tile, a plate, a decision button or the panel
-  over the board, two names on a line of a result's scores under 12px apart, a decision
+  notice over a tile (only its shown part where a page names a known cut, `noticeCutAt`, until Step 4.2), a plate, a decision button or the panel
+  over the board, two names on a line of a result's scores under 12px apart, a result's score figure wrapped past a line, a decision
   button not wholly inside its container (never scrolled or clipped out of it), and decision, leave or replay buttons (its moves, its play and view switches, its round toggle, the round list's shown rows)
   under 40x40 or off the screen, or a round list off the board; on a desktop, on
   replay controls whose narration reads under 13px or past three lines,
@@ -591,7 +598,12 @@ On the decisions
 story with every switch on beside furiten, Shift+Tab from the hand's first tile must reach a switch, and Space and
 Enter on Auto win must each turn it once, sending nothing. It also fails on a round end that does not scroll inside its panel where it does not fit (its content
   past its foot at the scroll's end, its primary button and countdown wholly in view at both ends; a case
-  forces a live result's panel short to prove it), a winner pager that does not page, any other panel that
+  forces a live result's panel short to prove it), a desktop's result that does not fit its panel whole (but the
+  forced one), a double ron's result whose winner pager does not page by a click, or whose live primary button does
+  not turn its pages to the last and confirm there, leaving the seat waiting, a standings row that does not show its
+  round's result with the focus back on the page's root, a live leave question asked from the corner that opens
+  without Stay focused and the board inert, lets Tab out, or that Escape does not close with the focus back on the corner's
+  control (`game-leave-question`), any other panel that
   does not fit, a panel over a landscape board covering the
   page's corner, an aside that
   hides its controls, a rotate panel missing on an upright phone or shown elsewhere, and any console
