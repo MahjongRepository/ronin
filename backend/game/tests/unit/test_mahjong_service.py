@@ -406,7 +406,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.handle_timeout(runtime, seat=alice.seat, timeout_type=TimeoutType.ROUND_ADVANCE)
         assert runtime.state.round_number == 1
 
-        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat))
+        payload = reconnection_payload(service.build_reconnection_snapshot(runtime, alice.seat), stand_ins={})
         assert payload["h"] == 1
         assert payload["rh"] == [
             {
@@ -416,6 +416,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
                 "rt": 3,
                 "rs": (riichi_seat,),
                 "ws": (),
+                "ps": (),
                 "ts": (riichi_seat,),
                 "sch": {seat: 30 if seat == riichi_seat else -10 for seat in range(4)},
             },

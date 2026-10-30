@@ -23,6 +23,12 @@ function resultOutcome(result: RoundEndResult): RoundOutcome {
     return result.resultType === ROUND_RESULT_TYPE.TSUMO ? "tsumo" : "ron";
 }
 
+/** The seats liable for a winner's yakuman, each once and in seat order, as the server's round history lists them. */
+function paoSeatsOf(result: RoundEndResult): number[] {
+    const seats = result.winners.map((winner) => winner.paoSeat).filter((seat) => seat !== null);
+    return [...new Set(seats)].toSorted((seatA, seatB) => seatA - seatB);
+}
+
 /** The record of the round a table ends with `result`, read before the result settles it. */
 export function roundRecordOfResult(table: TableState, result: RoundEndResult): RoundRecord {
     const outcome = resultOutcome(result);
@@ -32,6 +38,7 @@ export function roundRecordOfResult(table: TableState, result: RoundEndResult): 
         honba: table.honbaSticks,
         loserSeat: result.loserSeat,
         outcome,
+        paoSeats: paoSeatsOf(result),
         riichiSeats: table.players.filter((player) => player.isRiichi).map((player) => player.seat),
         scoreChanges: result.scoreChanges,
         tenpaiSeats: draw !== null && TENPAI_JUDGING_DRAWS.has(draw.kind) ? draw.tenpaiSeats : null,
@@ -74,6 +81,7 @@ export function roundRecordOfHistory(entry: HistoryEntry): RoundRecord {
         honba: entry.honbaSticks,
         loserSeat: entry.loserSeat,
         outcome: historyOutcome(entry.resultType, entry),
+        paoSeats: entry.paoSeats,
         riichiSeats: entry.riichiSeats,
         scoreChanges: entry.scoreChanges,
         tenpaiSeats: entry.tenpaiSeats,

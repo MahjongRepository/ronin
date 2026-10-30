@@ -31,8 +31,7 @@ from game.messaging.event_payload import (
 )
 from game.messaging.types import (
     ErrorMessage,
-    PlayerLeftMessage,
-    PlayerReconnectedMessage,
+    SeatControlMessage,
     SessionErrorCode,
     SessionMessageType,
     TimerSettings,
@@ -41,7 +40,7 @@ from game.session.models import GameLifecycle, GameSession, Participant
 from game.session.played_game import build_finish_record
 from game.session.replay_collector import ReplayRecord
 from game.session.timer import TimerConfig, TurnTimer
-from game.wire.replay_format import ReplaySeatControlReason
+from game.wire.enums import SeatControlReason
 from shared.auth.game_ticket import TICKET_TTL_SECONDS
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
 from shared.tasks import cancel_and_wait
@@ -427,22 +426,20 @@ class SessionManager:
         its deal: a deal without one raises rather than start an all-AI game.
         """
         runtime = self._runtime_of(game)
-        absent = [self._seat_of(participant) for participant in game.participants if not participant.is_connected]
+        absent = [participant for participant in game.participants if not participant.is_connected]
         if len(absent) == len(game.participants):
             raise AssertionError("first deal with no connected participant")
 
-        for seat in absent:
-            self._game_service.replace_with_ai_player(runtime, seat)
-            if game.replay is not None:
-                self._replay_collector.record_ai_replacement(
-                    game.replay, seat=seat, reason=ReplaySeatControlReason.ABSENT
-                )
+        for participant in absent:
+            self._game_service.replace_with_ai_player(runtime, self._seat_of(participant))
+            self._hand_over_seat(participant, stand_in=SeatControlReason.ABSENT)
 
         self._follow_engine(game, events=events, awaiting=awaiting, actor=None)
-        for seat in absent:
+        for participant in absent:
             if game.lifecycle is not GameLifecycle.PLAYING:
                 return
 
+            seat = self._seat_of(participant)
             update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
             self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
 
@@ -470,9 +467,9 @@ class SessionManager:
 
         The eviction comes first and also cancels the auth timeout of a connection that never authenticated. The
         participant is the one bound to this connection, so the late disconnect of a connection the server already
-        evicted or replaced touches no one. The rest of the game gets `player_left`; in a pending game the participant
-        then waits for a new JOIN_GAME (the pending timeout handles an empty game), and in a playing game an AI player
-        takes the seat, or, when nobody connected remains, the game is abandoned.
+        evicted or replaced touches no one. In a pending game the participant then waits for a new JOIN_GAME (the
+        pending timeout handles an empty game), and in a playing game an AI player takes the seat, or, when nobody
+        connected remains, the game is abandoned.
         """
         participant = self._bound.get(connection.connection_id)
         self._evict_connection(connection)
@@ -481,14 +478,13 @@ class SessionManager:
 
         game = participant.game
         logger.info("player left game")
-        self._broadcast_to_game(game, PlayerLeftMessage(player_name=participant.name).model_dump())
         if game.lifecycle is GameLifecycle.PLAYING:
             self._release_seat(participant)
 
     def _release_seat(self, participant: Participant) -> None:
         """
-        Hand a departed participant's seat to an AI player, which plays any turn or call it owed, and record the AI
-        replacement in the replay ahead of the AI player's moves, once the engine made them.
+        Hand a departed participant's seat to an AI player, which plays any turn or call it owed, and announce the
+        handover (`_hand_over_seat`) ahead of the AI player's moves, once the engine made them.
 
         The participant's timer stops, deducting the bank it used. When no connected participant remains the game is
         abandoned instead: there are never all-AI games. During the game start pause the seat stays empty and nothing is
@@ -507,10 +503,28 @@ class SessionManager:
         runtime = self._runtime_of(game)
         self._game_service.replace_with_ai_player(runtime, seat)
         update = self._game_service.process_ai_player_actions_after_replacement(runtime, seat)
-        if game.replay is not None:
-            self._replay_collector.record_ai_replacement(game.replay, seat=seat, reason=ReplaySeatControlReason.LEFT)
-
+        self._hand_over_seat(participant, stand_in=SeatControlReason.LEFT)
         self._follow_engine(game, events=update.events, awaiting=update.awaiting, actor=seat)
+
+    def _hand_over_seat(self, participant: Participant, *, stand_in: SeatControlReason | None) -> None:
+        """
+        Record who plays a participant's seat from now on: an AI player standing in for it, for the reason given, or
+        with None the participant again.
+
+        The replay records the seat control line and the game's connected participants get `seat_control`, both ahead of
+        the moves that follow, so a client always knows who made a move.
+        """
+        game = participant.game
+        seat = self._seat_of(participant)
+        participant.stand_in = stand_in
+        if game.replay is not None:
+            if stand_in is None:
+                self._replay_collector.record_human_return(game.replay, seat=seat)
+            else:
+                self._replay_collector.record_ai_replacement(game.replay, seat=seat, reason=stand_in)
+
+        message = SeatControlMessage(seat=seat, reason=stand_in)
+        self._broadcast_to_game(game, message.model_dump(by_alias=True, exclude_none=True))
 
     def _kick_player(self, connection: ConnectionProtocol, error: InvalidGameActionError) -> None:
         """
@@ -603,12 +617,13 @@ class SessionManager:
         Bind a new connection to a participant of a playing game and send it the game's state.
 
         A disconnected participant takes its seat back from the AI player (`restore_human_player`), which the replay
-        records, and the others get `player_reconnected`. A participant still bound to a connection (a half-open socket
-        after a network switch, or another client) has that connection replaced (`_bind`) instead: its seat was never
-        handed over, the others never saw it leave, and the wait, its timers and the bank carry on untouched. Either way
-        the new connection gets the `game_reconnected` snapshot with the current wait id, the seat's timer settings (its
-        bank as of its last turn) and, during a round advance, whether the seat still owes its confirmation, with how
-        long that wait's timer has run when it does; then the event that opened the wait the game owes the seat, if any
+        records and the others get as `seat_control` (`_hand_over_seat`). A participant still bound to a connection (a
+        half-open socket after a network switch, or another client) has that connection replaced (`_bind`) instead: its
+        seat was never handed over, the others never saw it leave, and the wait, its timers and the bank carry on
+        untouched. Either way the new connection gets the `game_reconnected` snapshot with the current wait id, every
+        seat an AI player holds for its participant marked as such, the seat's timer settings (its bank as of its last
+        turn) and, during a round advance, whether the seat still owes its confirmation, with how long that wait's timer
+        has run when it does; then the event that opened the wait the game owes the seat, if any
         (`_send_wait_on_reconnect`). A RECONNECT on a connection the server already evicted is dropped unanswered.
         """
         if self._connections.get(connection.connection_id) is not connection:
@@ -625,14 +640,14 @@ class SessionManager:
         taking_over = participant.is_connected
         if not taking_over:
             self._game_service.restore_human_player(runtime, seat)
-            if game.replay is not None:
-                self._replay_collector.record_human_return(game.replay, seat=seat)
+            self._hand_over_seat(participant, stand_in=None)
 
         snapshot = self._game_service.build_reconnection_snapshot(runtime, seat)
         self._bind(participant, connection)
         awaiting = self._game_service.get_awaiting(runtime)
         game.awaiting = awaiting
-        payload = reconnection_payload(snapshot)
+        stand_ins = {self._seat_of(p): p.stand_in for p in game.participants if p.stand_in is not None}
+        payload = reconnection_payload(snapshot, stand_ins=stand_ins)
         payload["type"] = SessionMessageType.GAME_RECONNECTED
         payload[WAIT_ID_KEY] = awaiting.wait_id
         if awaiting.kind == WaitKind.ROUND_ADVANCE:
@@ -642,13 +657,6 @@ class SessionManager:
                 payload[WAIT_ELAPSED_KEY] = elapsed
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
-        if not taking_over:
-            self._broadcast_to_game(
-                game,
-                PlayerReconnectedMessage(player_name=participant.name).model_dump(),
-                exclude=connection,
-            )
-
         self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
         logger.info("connection taken over" if taking_over else "player reconnected")
 
@@ -895,15 +903,13 @@ class SessionManager:
     def _broadcast_to_game(
         game: GameSession,
         message: dict[str, Any],
-        exclude: ConnectionProtocol | None = None,
     ) -> None:
         """
-        Send a message to every connected participant of the game, skipping one connection if excluded.
+        Send a message to every connected participant of the game.
         """
         for participant in game.participants:
-            connection = participant.connection
-            if connection is not None and connection is not exclude:
-                connection.send_message(message)
+            if participant.connection is not None:
+                participant.connection.send_message(message)
 
     @staticmethod
     def _seat_of(participant: Participant) -> int:

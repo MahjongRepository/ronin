@@ -194,7 +194,6 @@ class Translate {
         s.title = gameTitle(msg.gt, new Date());
         this.clock.configure(msg[wire.TIMER_SETTINGS]);
         this.readPlayers(msg.p);
-        s.playersConnected = [true, true, true, true];
         this.feedKaiju();
         if (this.clock.settings.gp) this.player.screenCountdown('kaiju', this.clock.settings.gp);
     }
@@ -203,9 +202,11 @@ class Translate {
         const s = this.shadow;
         s.names = [];
         s.ai = [];
+        s.playersConnected = [true, true, true, true];
         for (const p of players || []) {
             s.names[p.s] = p.nm;
             s.ai[p.s] = !! p.ai;
+            s.playersConnected[p.s] = p.sr === undefined;
         }
     }
 
@@ -794,6 +795,7 @@ class Translate {
         this.syncWall();
 
         if (P._view && P._view.redraw) P._view.redraw();
+        if (P._view && P._view.players) P._view.players(s.playersConnected);
         this.furiten(msg.f);
 
         P.clear_timer();

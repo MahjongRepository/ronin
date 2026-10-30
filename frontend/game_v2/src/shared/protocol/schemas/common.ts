@@ -1,6 +1,6 @@
 import { z } from "zod/mini";
 
-import { WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
+import { SEAT_CONTROL_REASON, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
 export const tileIdSchema = z.int().check(z.gte(0), z.lte(135));
@@ -11,6 +11,11 @@ export const tileTypeSchema = z.int().check(z.gte(0), z.lte(33));
 export const seatSchema = z.int().check(z.gte(0), z.lte(3));
 
 export const waitIdSchema = z.int().check(z.gte(0));
+
+export const seatControlReasonSchema = z.union([
+    z.literal(SEAT_CONTROL_REASON.LEFT),
+    z.literal(SEAT_CONTROL_REASON.ABSENT),
+]);
 
 export const secondsSchema = z.number().check(z.gte(0));
 
@@ -38,8 +43,10 @@ export const gamePlayerInfoSchema = z.pipe(
         ai: z.int(),
         nm: z.string(),
         s: seatSchema,
+        sr: z.optional(seatControlReasonSchema),
     }),
     z.transform((raw) => ({
+        aiStandIn: raw.sr ?? null,
         isAiPlayer: raw.ai !== 0,
         name: raw.nm,
         seat: raw.s,

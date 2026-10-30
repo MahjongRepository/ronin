@@ -31,31 +31,13 @@ describe("parseSessionMessage", () => {
         });
     });
 
-    describe("player_reconnected", () => {
-        it("transforms player_name to playerName", () => {
-            const wire = {
-                player_name: "Alice",
-                type: SESSION_MESSAGE_TYPE.PLAYER_RECONNECTED,
-            };
-            const result = parseSessionMessage(wire);
-            expect(result).toEqual({
-                playerName: "Alice",
-                type: "player_reconnected",
-            });
-        });
-    });
+    describe("seat_control", () => {
+        it("reads a reason as an AI player standing in for the seat's human, and none as the human's return", () => {
+            const away = parseSessionMessage({ r: 1, s: 2, type: "seat_control" });
+            const back = parseSessionMessage({ s: 2, type: "seat_control" });
 
-    describe("player_left", () => {
-        it("transforms player_name to playerName", () => {
-            const wire = {
-                player_name: "Charlie",
-                type: SESSION_MESSAGE_TYPE.PLAYER_LEFT,
-            };
-            const result = parseSessionMessage(wire);
-            expect(result).toEqual({
-                playerName: "Charlie",
-                type: "player_left",
-            });
+            expect(away).toEqual({ reason: 1, seat: 2, type: "ai_replacement" });
+            expect(back).toEqual({ seat: 2, type: "human_return" });
         });
     });
 

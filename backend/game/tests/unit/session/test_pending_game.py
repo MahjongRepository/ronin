@@ -279,12 +279,10 @@ class TestGameStartPause:
         manager.reconnect(early_reconnect, session_token="ticket-1")
         assert _error_codes(early_reconnect) == [SessionErrorCode.RECONNECT_RETRY_LATER]
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is False
-        assert [m.get("t", m.get("type")) for m in alice.sent_messages] == [
-            GAME_STARTED_T,
-            SessionMessageType.PLAYER_LEFT,
-        ]
+        assert [m.get("t") for m in alice.sent_messages] == [GAME_STARTED_T]
 
         await game.start_pause
+        assert alice.sent_messages[1] == {"type": "seat_control", "s": bob_seat, "r": 1}
         assert alice.sent_messages[2]["t"] == ROUND_STARTED_T
         assert runtime_of(manager).ai.is_ai_player(bob_seat) is True
         recorded = [json.loads(line) for line in game.replay.lines]

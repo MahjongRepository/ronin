@@ -265,7 +265,7 @@ function onMessage(session: ActiveSession, message: ParsedServerMessage, at: num
     if (message.type === "game_reconnected") {
         return admit(session);
     }
-    if (message.type === "player_left" || message.type === "player_reconnected") {
+    if (message.type === "ai_replacement" || message.type === "human_return") {
         return unchanged(session);
     }
     if (message.type === "game_end") {

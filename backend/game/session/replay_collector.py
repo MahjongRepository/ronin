@@ -18,13 +18,13 @@ from game.messaging.event_payload import game_event_payload
 from game.wire.replay_format import (
     REPLAY_VERSION,
     ReplayLineType,
-    ReplaySeatControlReason,
     encode_replay_settings,
 )
 
 if TYPE_CHECKING:
     from game.logic.events import GameEvent
     from game.logic.settings import GameSettings
+    from game.wire.enums import SeatControlReason
     from shared.storage import ReplayStorage
 
 # Seat-targeted event types included in replay persistence.
@@ -110,7 +110,7 @@ class ReplayCollector:
             buffer.append(self._merge_round_started_payloads(pending_round_started))
 
     @staticmethod
-    def record_ai_replacement(record: ReplayRecord, *, seat: int, reason: ReplaySeatControlReason) -> None:
+    def record_ai_replacement(record: ReplayRecord, *, seat: int, reason: SeatControlReason) -> None:
         """
         Append the seat control line of a seat's replacement with an AI player, to precede the events of its moves.
         """

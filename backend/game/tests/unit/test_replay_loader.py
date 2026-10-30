@@ -19,12 +19,11 @@ from game.replay.loader import (
     load_replay_from_string,
 )
 from game.wire.compact import encode_discard
-from game.wire.enums import WireRoundResultType
+from game.wire.enums import SeatControlReason, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 from game.wire.replay_format import (
     REPLAY_VERSION,
     ReplayLineType,
-    ReplaySeatControlReason,
     encode_replay_settings,
 )
 from shared.lib.melds import MeldData, encode_meld_compact
@@ -263,7 +262,7 @@ def test_load_replay__when_events_are_not_player_actions__should_skip_them():
         json.dumps({"t": EVENT_TYPE_INT[EventType.DORA_REVEALED], "tile_id": 54}),
         json.dumps({"t": EVENT_TYPE_INT[EventType.RIICHI_DECLARED], "seat": 0}),
         json.dumps({"t": EVENT_TYPE_INT[EventType.GAME_END], "result": {}}),
-        json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": 0, "ai": 1, "r": ReplaySeatControlReason.LEFT}),
+        json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": 0, "ai": 1, "r": SeatControlReason.LEFT}),
         json.dumps({"t": ReplayLineType.SEAT_CONTROL, "s": 0, "ai": 0}),
     )
     replay = load_replay_from_string(content)

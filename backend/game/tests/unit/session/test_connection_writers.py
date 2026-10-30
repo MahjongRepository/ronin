@@ -5,7 +5,6 @@ import pytest
 
 from game.logic.enums import TimeoutType, WaitKind
 from game.logic.events import EventType
-from game.messaging.types import SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
 from game.server.websocket import websocket_endpoint
@@ -147,5 +146,5 @@ class TestConnectionWriters:
             runtime_of(table.manager), table.seat_of("Bob")
         )
         assert snapshot.players[table.seat_of("Alice")].is_ai_player is True
-        assert {"type": SessionMessageType.PLAYER_LEFT, "player_name": "Alice"} in bob.sent_messages
+        assert {"type": "seat_control", "s": table.seat_of("Alice"), "r": 0} in bob.sent_messages
         await table.manager.shutdown()

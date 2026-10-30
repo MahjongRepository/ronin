@@ -269,6 +269,11 @@ $tint: color-mix(in srgb, var(--pico-primary) 14%, transparent);
     clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 
+.standings__mark--pao {
+    background: var(--ronin-score-negative);
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
 .standings__riichi {
     display: inline-block;
     margin-right: 0.25em;

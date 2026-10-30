@@ -417,8 +417,8 @@ class RoundHistoryEntry(BaseModel):
 
     result_type is the result's type, and abortive_reason is set only on an abortive draw. riichi_seats are the seats
     whose riichi stood, so their deposit counts against the round; winner_seats is empty on a draw and holds every
-    winner of a double ron; loser_seat is set on a ron; tenpai_seats only on a draw that judges tenpai (exhaustive or
-    nagashi mangan).
+    winner of a double ron; loser_seat is set on a ron; pao_seats are the seats liable for a winner's yakuman (pao), in
+    seat order and empty when none was; tenpai_seats only on a draw that judges tenpai (exhaustive or nagashi mangan).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -431,6 +431,7 @@ class RoundHistoryEntry(BaseModel):
     riichi_seats: tuple[int, ...] = Field(serialization_alias="rs")
     winner_seats: tuple[int, ...] = Field(serialization_alias="ws")
     loser_seat: int | None = Field(default=None, serialization_alias="ls")
+    pao_seats: tuple[int, ...] = Field(serialization_alias="ps")
     tenpai_seats: tuple[int, ...] | None = Field(default=None, serialization_alias="ts")
     score_changes: WireScoreMap = Field(serialization_alias="sch")
 

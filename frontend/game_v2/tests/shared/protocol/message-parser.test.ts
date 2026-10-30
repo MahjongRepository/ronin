@@ -20,32 +20,6 @@ describe("parseServerMessage", () => {
             });
         });
 
-        it("parses a player_reconnected message", () => {
-            const raw = {
-                player_name: "Alice",
-                type: SESSION_MESSAGE_TYPE.PLAYER_RECONNECTED,
-            };
-            const [err, parsed] = parseServerMessage(raw);
-            expect(err).toBeNull();
-            expect(parsed).toEqual({
-                playerName: "Alice",
-                type: "player_reconnected",
-            });
-        });
-
-        it("parses a player_left message", () => {
-            const raw = {
-                player_name: "Bob",
-                type: SESSION_MESSAGE_TYPE.PLAYER_LEFT,
-            };
-            const [err, parsed] = parseServerMessage(raw);
-            expect(err).toBeNull();
-            expect(parsed).toEqual({
-                playerName: "Bob",
-                type: "player_left",
-            });
-        });
-
         it("parses a game_reconnected message", () => {
             const raw = {
                 cp: 2,

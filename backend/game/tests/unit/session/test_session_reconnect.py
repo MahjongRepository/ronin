@@ -67,7 +67,9 @@ def _make_snapshot(game_id: str = "game1", seat: int = 0) -> ReconnectionSnapsho
 
 class TestSessionManagerReconnect:
     @pytest.mark.asyncio
-    async def test_reconnect__when_session_disconnected__should_send_game_reconnected_and_notify_others(self, manager):
+    async def test_reconnect__when_session_disconnected__should_send_game_reconnected_and_tell_others_the_seat_is_back(
+        self, manager
+    ):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice_conn, bob_conn = conns
         alice_token = participant_of(manager, alice_conn).ticket
@@ -86,9 +88,28 @@ class TestSessionManagerReconnect:
         assert reconnect_msgs[0]["gid"] == "game1"
         assert reconnect_msgs[0]["s"] == 0
         assert reconnect_msgs[0]["f"] is True
-        bob_msgs = [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.PLAYER_RECONNECTED]
-        assert len(bob_msgs) == 1
-        assert bob_msgs[0]["player_name"] == "Alice"
+        assert [m for m in bob_conn.sent_messages if m.get("type") == SessionMessageType.SEAT_CONTROL] == [
+            {"type": "seat_control", "s": 0}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_reconnect__when_another_seat_is_held_for_its_participant__should_mark_it_as_a_stand_in(
+        self, manager
+    ):
+        alice_conn, bob_conn, _carol_conn = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
+        bob_seat = participant_of(manager, bob_conn).seat
+        alice_token = participant_of(manager, alice_conn).ticket
+        manager._game_service.build_reconnection_snapshot = lambda gid, seat: _make_snapshot("game1", seat=0)
+
+        manager.disconnect(bob_conn)
+        manager.disconnect(alice_conn)
+        new_conn = MockConnection()
+        manager.register_connection(new_conn)
+        manager.reconnect(new_conn, session_token=alice_token)
+        snapshot = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
+        players = {player["s"]: player for player in snapshot["p"]}
+        assert players[bob_seat] == {"s": bob_seat, "nm": "AI", "ai": 0, "sr": 0}
+        assert players[0] == {"s": 0, "nm": "Alice", "ai": 0}
 
     @pytest.mark.asyncio
     async def test_reconnect__when_token_unknown__should_return_no_session_error(self, manager):

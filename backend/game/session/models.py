@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from game.messaging.protocol import ConnectionProtocol
     from game.session.replay_collector import ReplayRecord
     from game.session.timer import TimerConfig, TurnTimer
+    from game.wire.enums import SeatControlReason
     from shared.dal.models import PlayedGame
 
 
@@ -52,6 +53,7 @@ class Participant:
 
     The seat is bound once, at the start, from the engine's assignment for this participant's spec. The participant is
     connected while it has a connection. Its timer lives as long as the participant, so its bank survives a disconnect.
+    stand_in says why an AI player holds its seat, from the handover until the participant takes the seat back.
     """
 
     spec: PlayerSpec
@@ -59,6 +61,7 @@ class Participant:
     timer: TurnTimer
     seat: int | None = None
     connection: ConnectionProtocol | None = None
+    stand_in: SeatControlReason | None = None
 
     @property
     def name(self) -> str:

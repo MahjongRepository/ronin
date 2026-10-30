@@ -10,8 +10,6 @@ import {
     type KanType,
     type MeldEvent,
     type MeldType,
-    type PlayerLeftMessage,
-    type PlayerReconnectedMessage,
     type RiichiDeclaredEvent,
     type RoundEndEvent,
     type RoundStartedEvent,
@@ -47,8 +45,8 @@ export interface PlayerState {
     readonly name: string;
     readonly isAiPlayer: boolean;
     /**
-     * Why an AI player holds the seat for its human, as the seat control lines and session messages say; null
-     * while its own player does.
+     * Why an AI player holds the seat for its human, as the seat control lines, the live seat control messages and the
+     * reconnect snapshot say; null while its own player does. Such a seat is never `isAiPlayer`.
      */
     readonly aiStandIn: SeatControlReason | null;
     readonly score: number;
@@ -150,8 +148,8 @@ export type RoundOutcome = "tsumo" | "ron" | DrawKind;
 /**
  * A finished round as the final standings' ledger reads it, the same whether the table saw the round end or a
  * reconnect's snapshot listed it: its wind, dealer and honba, its outcome, the seats it names and its payments.
- * `riichiSeats` are the seats whose riichi stood, so each paid its deposit in the round; `tenpaiSeats` is set only on
- * a draw that judges tenpai (exhaustive or nagashi mangan).
+ * `riichiSeats` are the seats whose riichi stood, so each paid its deposit in the round; `paoSeats` the seats liable
+ * for a winner's yakuman; `tenpaiSeats` is set only on a draw that judges tenpai (exhaustive or nagashi mangan).
  */
 export interface RoundRecord {
     readonly wind: number;
@@ -161,6 +159,7 @@ export interface RoundRecord {
     readonly winnerSeats: readonly number[];
     readonly loserSeat: number | null;
     readonly riichiSeats: readonly number[];
+    readonly paoSeats: readonly number[];
     readonly tenpaiSeats: readonly number[] | null;
     /** The round's payments, collected riichi sticks and honba included, riichi deposits not. */
     readonly scoreChanges: Readonly<Record<string, number>>;
@@ -238,14 +237,8 @@ export interface KanDeclaredEvent {
 }
 
 /**
- * Everything that changes the table: the events a replay stores, the replay-only seat control lines, the reconnect
- * snapshot that rebuilds the table, the session messages that mark a seat's human leaving and returning, and a kan
- * declared open to chankan.
+ * Everything that changes the table: the events a replay stores, the seat control lines (a replay's, or the live
+ * session's messages, parsed alike), the reconnect snapshot that rebuilds the table, and a kan declared open to
+ * chankan.
  */
-export type TableEvent =
-    | ReplayEvent
-    | KanDeclaredEvent
-    | SeatControlLine
-    | GameReconnectedEvent
-    | PlayerLeftMessage
-    | PlayerReconnectedMessage;
+export type TableEvent = ReplayEvent | KanDeclaredEvent | SeatControlLine | GameReconnectedEvent;

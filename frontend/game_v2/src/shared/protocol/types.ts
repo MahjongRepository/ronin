@@ -53,12 +53,7 @@ export type {
 
 // --- Session message types ---
 
-export type {
-    PlayerLeftMessage,
-    PlayerReconnectedMessage,
-    SessionErrorMessage,
-    SessionMessage,
-} from "./schemas/session";
+export type { SeatControlMessage, SessionErrorMessage, SessionMessage } from "./schemas/session";
 
 // --- Reconnection types ---
 

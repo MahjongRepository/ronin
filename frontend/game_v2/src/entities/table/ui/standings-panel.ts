@@ -51,11 +51,12 @@ function cellTitle(cell: LedgerCell): string | typeof nothing {
         cell.riichi ? "riichi" : "",
         cell.mark === "win" ? "won" : "",
         cell.mark === "deal_in" ? "dealt in" : "",
+        cell.mark === "pao" ? "liable (pao)" : "",
     ].filter((mark) => mark !== "");
     return marks.length === 0 ? nothing : marks.join(", ");
 }
 
-type MarkKind = "dealer" | "win" | "deal-in";
+type MarkKind = "dealer" | "win" | "deal-in" | "pao";
 
 function Mark(kind: MarkKind): TemplateResult {
     return html`<span class="standings__mark standings__mark--${kind}" aria-hidden="true"></span>`;
@@ -77,6 +78,8 @@ function cellMarks(cell: LedgerCell): TemplateResult[] {
         marks.push(Mark("win"));
     } else if (cell.mark === "deal_in") {
         marks.push(Mark("deal-in"));
+    } else if (cell.mark === "pao") {
+        marks.push(Mark("pao"));
     }
     return marks;
 }
@@ -87,13 +90,18 @@ function StandingsCell(cell: LedgerCell, seat: StandingsSeat): TemplateResult {
     </td>`;
 }
 
-/** What the ledger's marks mean, on the panel itself, since a touch screen shows no tooltip. */
-function StandingsLegend(): TemplateResult {
+/**
+ * What the ledger's marks mean, on the panel itself, since a touch screen shows no tooltip; pao, which few games see,
+ * only when a round shows it.
+ */
+function StandingsLegend(ledger: readonly LedgerRow[]): TemplateResult {
+    const hasPao = ledger.some((row) => row.cells.some((cell) => cell.mark === "pao"));
     return html`<p class="standings__legend">
         <span class="standings__legend-item">${Mark("dealer")}Dealer</span>
         <span class="standings__legend-item">${RiichiMark()}Riichi</span>
         <span class="standings__legend-item">${Mark("win")}Won</span>
         <span class="standings__legend-item">${Mark("deal-in")}Dealt in</span>
+        ${hasPao ? html`<span class="standings__legend-item">${Mark("pao")}Pao</span>` : nothing}
     </p>`;
 }
 
@@ -193,7 +201,8 @@ function StandingsActionView(action: StandingsAction): TemplateResult {
 
 /**
  * The final standings: a column per seat in placement order (placement, name, the viewer's highlighted), a row per
- * finished round with each seat's change in it (its riichi, the dealer, the winners and who paid a ron marked), then
+ * finished round with each seat's change in it (its riichi, the dealer, the winners, who paid a ron and who was liable
+ * for a yakuman marked), then
  * the leftover riichi sticks, the final scores and the uma/oka results; its head says what the marks mean. The
  * rounds scroll between the names and the totals, which stay in view. Given `onRound`, a row shows that round's
  * result.
@@ -203,7 +212,7 @@ export function StandingsPanel({ actions, display, onRound }: StandingsPanelProp
     return html`<section class="standings" aria-label="Final standings">
         <header class="standings__head">
             <h2 class="standings__title">Final standings</h2>
-            ${StandingsLegend()}
+            ${StandingsLegend(ledger)}
             <div class="standings__actions">${actions.map(StandingsActionView)}</div>
         </header>
         <div class="standings__sheet" tabindex="0" role="region" aria-label="Scores by round">

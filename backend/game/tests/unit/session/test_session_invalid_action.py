@@ -23,7 +23,6 @@ from .helpers import (
     wait_for_background_tasks,
 )
 
-_SEAT_CHANGE_TYPES = (SessionMessageType.PLAYER_LEFT, SessionMessageType.PLAYER_RECONNECTED)
 DISCARD_ERROR = InvalidGameActionError(action="discard", seat=0, reason="tile not in hand")
 
 
@@ -52,15 +51,6 @@ class TestSessionManagerInvalidAction:
 
         manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
         assert replace_calls == [(runtime_of(manager), 0)]
-
-    async def test_invalid_action__when_player_sends_it__should_broadcast_player_left(self, manager):
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        manager._game_service.handle_action = MagicMock(side_effect=DISCARD_ERROR)
-
-        manager.handle_game_action(conns[0], action=GameAction.DISCARD, data={}, wait_id=current_wait_id(manager))
-        left_msgs = [m for m in conns[1].sent_messages if m.get("type") == SessionMessageType.PLAYER_LEFT]
-        assert len(left_msgs) == 1
-        assert left_msgs[0]["player_name"] == "Alice"
 
     async def test_invalid_action__when_last_human_sends_it__should_clean_up_game(self, manager):
         conns = create_started_game(manager, player_names=["Alice"])
@@ -174,8 +164,8 @@ class TestKickedConnection:
             .players[awaited_seat]
             .is_ai_player
         )
-        assert [m["type"] for m in other.sent_messages if m.get("type") in _SEAT_CHANGE_TYPES] == [
-            SessionMessageType.PLAYER_LEFT
+        assert [m for m in other.sent_messages if m.get("type") == SessionMessageType.SEAT_CONTROL] == [
+            {"type": "seat_control", "s": awaited_seat, "r": 0}
         ]
 
         await manager.shutdown()

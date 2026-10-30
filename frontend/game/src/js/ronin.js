@@ -43,12 +43,9 @@ export default function startGame(gameId, { wsUrl, gameTicket: ticket }) {
             if (msg.t == wire.E.GAME_STARTED) finishLoading();
         },
         onSessionError: code => toast(sessionErrorText(code)),
-        onPlayerStatus: (name, connected) => {
-            const seat = shadow.names.indexOf(name);
-            if (seat >= 0) {
-                shadow.playersConnected[seat] = connected;
-                player._view.players(shadow.playersConnected);
-            }
+        onPlayerStatus: (seat, connected) => {
+            shadow.playersConnected[seat] = connected;
+            player._view.players(shadow.playersConnected);
         },
         onDisconnected: () => {
             translate.disconnected();

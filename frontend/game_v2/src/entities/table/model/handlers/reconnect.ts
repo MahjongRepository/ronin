@@ -49,6 +49,7 @@ function snapshotPlayer(
     const isViewer = info.seat === snapshot.seat;
     return {
         ...createInitialPlayerState({ ...info, score: seatState?.score ?? 0 }),
+        aiStandIn: info.aiStandIn,
         concealedCount: isViewer ? 0 : (seatState?.tileCount ?? 0),
         discards: snapshotDiscards(seatState, claimed),
         isRiichi: seatState?.isRiichi ?? false,

@@ -20,9 +20,12 @@ from game.wire.enums import WireEventType, WireRoundResultType
 from game.wire.events import EVENT_TYPE_INT
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from game.logic.service import Awaiting
     from game.logic.types import ReconnectionSnapshot, RoundResult
     from game.messaging.types import TimerSettings
+    from game.wire.enums import SeatControlReason
 
 WAIT_ID_KEY = "wi"
 VIEWER_SEAT_KEY = "s"
@@ -31,6 +34,8 @@ ROUND_RESULT_KEY = "re"
 CONFIRMATION_OWED_KEY = "oc"
 WAIT_ELAPSED_KEY = "el"
 TURN_BANK_KEY = "bk"
+AI_PLAYER_KEY = "ai"
+STAND_IN_KEY = "sr"
 
 
 def game_event_payload(event: GameEvent) -> dict[str, Any]:
@@ -96,12 +101,25 @@ def round_result_payload(result: RoundResult) -> dict[str, Any]:
     return {"rt": _ROUND_RESULT_TYPE_TO_WIRE[result_type], **fields}
 
 
-def reconnection_payload(snapshot: ReconnectionSnapshot) -> dict[str, Any]:
+def reconnection_payload(
+    snapshot: ReconnectionSnapshot,
+    *,
+    stand_ins: Mapping[int, SeatControlReason],
+) -> dict[str, Any]:
     """
     Return the wire-format dict of a reconnect snapshot, its round result (`re`) shaped as a round end's and each round
     history entry's result type (`rt`) as its integer.
+
+    stand_ins maps each seat an AI player holds for its participant to why: that player is marked by the reason
+    (`sr`) instead of as an AI player (`ai`), which the engine reports for every seat an AI plays.
     """
     payload = snapshot.model_dump(by_alias=True, exclude_none=True, exclude={"result"})
+    for player in payload["p"]:
+        reason = stand_ins.get(player["s"])
+        if reason is not None:
+            player[AI_PLAYER_KEY] = 0
+            player[STAND_IN_KEY] = reason
+
     for entry in payload["rh"]:
         entry["rt"] = _ROUND_RESULT_TYPE_TO_WIRE[entry["rt"]]
 

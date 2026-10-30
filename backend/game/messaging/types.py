@@ -6,13 +6,13 @@ from pydantic import BaseModel, Field, TypeAdapter
 from game.logic.enums import KanType
 from game.logic.tiles import NUM_TILES
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
+from game.wire.enums import SeatControlReason
 
 
 class SessionMessageType(StrEnum):
-    PLAYER_LEFT = "player_left"
     ERROR = "session_error"
     GAME_RECONNECTED = "game_reconnected"
-    PLAYER_RECONNECTED = "player_reconnected"
+    SEAT_CONTROL = "seat_control"
 
 
 class SessionErrorCode(StrEnum):
@@ -105,11 +105,6 @@ class JoinGameMessage(BaseModel):
 ClientMessage = GameActionMessage | ReconnectMessage | JoinGameMessage
 
 
-class PlayerLeftMessage(BaseModel):
-    type: Literal[SessionMessageType.PLAYER_LEFT] = SessionMessageType.PLAYER_LEFT
-    player_name: str
-
-
 class ErrorMessage(BaseModel):
     type: Literal[SessionMessageType.ERROR] = SessionMessageType.ERROR
     code: SessionErrorCode
@@ -132,13 +127,16 @@ class TimerSettings(BaseModel):
     game_start_pause_seconds: float = Field(serialization_alias="gp")
 
 
-class PlayerReconnectedMessage(BaseModel):
+class SeatControlMessage(BaseModel):
     """
-    Broadcast to other players when a player reconnects.
+    Broadcast to the game's connected players when a participant's seat changes hands, as the replay's seat control
+    line records it: an AI player stands in for the participant (reason says why), or, without a reason, the
+    participant takes the seat back.
     """
 
-    type: Literal[SessionMessageType.PLAYER_RECONNECTED] = SessionMessageType.PLAYER_RECONNECTED
-    player_name: str
+    type: Literal[SessionMessageType.SEAT_CONTROL] = SessionMessageType.SEAT_CONTROL
+    seat: int = Field(serialization_alias="s")
+    reason: SeatControlReason | None = Field(default=None, serialization_alias="r")
 
 
 _NonGameMessage = Annotated[

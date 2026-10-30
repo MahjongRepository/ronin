@@ -30,13 +30,16 @@ interleave.
   rotated; its seat is bound once, at the start, to the seat the engine returned for its spec (by
   input order, never by name), and its timer lives as long as it does, so its bank survives a
   disconnect. A disconnected seat is played by an AI player until the participant reconnects; when
-  no connected participant remains the game is abandoned, so there are never all-AI games.
+  no connected participant remains the game is abandoned, so there are never all-AI games. Every
+  handover, either way, goes through one step (`_hand_over_seat`): the replay records its seat
+  control line and the connected participants get `seat_control`, both ahead of the moves that
+  follow, and the participant keeps why it stands in, which the reconnect snapshot carries.
 * **One connection per participant; the newest wins.** A JOIN_GAME or RECONNECT for a participant
   still bound to a connection (a half-open socket the server has not seen drop, or another tab)
   replaces it through the one binder (`_bind`): the old connection is evicted, then closed with
   4002 `replaced_by_new_connection`, which the client treats as terminal so two live clients cannot
   take the seat back from each other forever. A connection already bound is refused before anyone
-  is replaced. A replacement is not a disconnect: no `player_left` or `player_reconnected`, no AI
+  is replaced. A replacement is not a disconnect: no `seat_control`, no AI
   player, no engine call, and the wait, its timers and the bank carry on, so the old connection's
   late input and disconnect resolve to no participant (`_bound`) and touch nothing. The reconnect
   snapshot says during a round advance whether the seat still owes its confirmation, which only a

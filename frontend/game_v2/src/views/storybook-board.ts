@@ -432,6 +432,7 @@ const STANDINGS_PLAYERS: readonly PlayerState[] = [
 ];
 
 const NO_RIICHI: readonly number[] = [];
+const NO_PAO: readonly number[] = [];
 
 /**
  * A short East-only game that ends on a draw with a riichi stick left: a ron on a riichi, a tenpai draw, a tsumo on
@@ -443,6 +444,7 @@ const STANDINGS_HISTORY: readonly RoundRecord[] = [
         honba: 0,
         loserSeat: 3,
         outcome: "ron",
+        paoSeats: NO_PAO,
         riichiSeats: [0],
         scoreChanges: { "0": 4900, "3": -3900 },
         tenpaiSeats: null,
@@ -454,6 +456,7 @@ const STANDINGS_HISTORY: readonly RoundRecord[] = [
         honba: 1,
         loserSeat: null,
         outcome: "exhaustive",
+        paoSeats: NO_PAO,
         riichiSeats: NO_RIICHI,
         scoreChanges: { "0": 1500, "1": -1500, "2": 1500, "3": -1500 },
         tenpaiSeats: [0, 2],
@@ -465,6 +468,7 @@ const STANDINGS_HISTORY: readonly RoundRecord[] = [
         honba: 2,
         loserSeat: null,
         outcome: "tsumo",
+        paoSeats: NO_PAO,
         riichiSeats: NO_RIICHI,
         scoreChanges: { "0": -2200, "1": -1200, "2": 4600, "3": -1200 },
         tenpaiSeats: null,
@@ -476,6 +480,7 @@ const STANDINGS_HISTORY: readonly RoundRecord[] = [
         honba: 0,
         loserSeat: null,
         outcome: "exhaustive",
+        paoSeats: NO_PAO,
         riichiSeats: [3],
         scoreChanges: { "0": -1000, "1": -1000, "2": -1000, "3": 3000 },
         tenpaiSeats: [3],
@@ -487,6 +492,7 @@ const STANDINGS_HISTORY: readonly RoundRecord[] = [
         honba: 1,
         loserSeat: 1,
         outcome: "ron",
+        paoSeats: NO_PAO,
         riichiSeats: NO_RIICHI,
         scoreChanges: { "0": 9300, "1": -8300 },
         tenpaiSeats: null,
@@ -498,6 +504,7 @@ const STANDINGS_HISTORY: readonly RoundRecord[] = [
         honba: 0,
         loserSeat: null,
         outcome: "exhaustive",
+        paoSeats: NO_PAO,
         riichiSeats: [0],
         scoreChanges: { "0": 3000, "1": -1000, "2": -1000, "3": -1000 },
         tenpaiSeats: [0],

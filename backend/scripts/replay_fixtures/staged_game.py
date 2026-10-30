@@ -17,8 +17,8 @@ from game.session.replay_collector import ReplayCollector, ReplayRecord
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.wall import make_start_wall
 from game.tests.mocks.replay_storage import FakeReplayStorage
-from game.wire.enums import WireEventType
-from game.wire.replay_format import REPLAY_VERSION, ReplayLineType, ReplaySeatControlReason
+from game.wire.enums import SeatControlReason, WireEventType
+from game.wire.replay_format import REPLAY_VERSION, ReplayLineType
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -74,7 +74,7 @@ class ReplayRecorder:
         self._collector.collect_events(self._record, list(events))
         self._call_ends.append(len(self._record.lines))
 
-    def record_ai_replacement(self, *, seat: int, reason: ReplaySeatControlReason) -> None:
+    def record_ai_replacement(self, *, seat: int, reason: SeatControlReason) -> None:
         """
         Record the seat's replacement with an AI player, ahead of the events of its moves, which the next record call
         adds.
@@ -257,7 +257,7 @@ class _ScriptedGame:
         absent_in_player_order = [seat for seat in start.seats if seat in seating.absent]
         for seat in absent_in_player_order:
             self._service.replace_with_ai_player(self._runtime, seat)
-            self._recorder.record_ai_replacement(seat=seat, reason=ReplaySeatControlReason.ABSENT)
+            self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.ABSENT)
 
         self._record(deal)
         for seat in absent_in_player_order:
@@ -361,7 +361,7 @@ class StagedGame(_ScriptedGame):
 
         self._service.replace_with_ai_player(self._runtime, seat)
         update = self._service.process_ai_player_actions_after_replacement(self._runtime, seat)
-        self._recorder.record_ai_replacement(seat=seat, reason=ReplaySeatControlReason.LEFT)
+        self._recorder.record_ai_replacement(seat=seat, reason=SeatControlReason.LEFT)
         self._record(update.events)
 
     def restore_human(self, seat: int) -> None:

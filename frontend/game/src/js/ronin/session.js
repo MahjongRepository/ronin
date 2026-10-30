@@ -121,11 +121,8 @@ class RoninSession {
         case wire.SESSION.ERROR:
             this.handleError(msg.code || '', msg.message || '');
             break;
-        case wire.SESSION.PLAYER_LEFT:
-            this.onPlayerStatus(msg.player_name, false);
-            break;
-        case wire.SESSION.PLAYER_RECONNECTED:
-            this.onPlayerStatus(msg.player_name, true);
+        case wire.SESSION.SEAT_CONTROL:
+            this.onPlayerStatus(msg.s, msg.r === undefined);
             break;
         case wire.SESSION.GAME_RECONNECTED:
             this.joined = true;

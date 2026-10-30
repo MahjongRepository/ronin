@@ -476,13 +476,21 @@ describe("applyEvent - dora_revealed", () => {
 });
 
 describe("applyEvent - seat presence", () => {
-    test("marks the seat of a player who left as held by an AI player until the player reconnects", () => {
-        const state = stateAfterRoundStarted();
-        const left = applyEvent(state, { playerName: "Bob", type: "player_left" });
-        const back = applyEvent(left, { playerName: "Bob", type: "player_reconnected" });
+    test("marks a seat the live session hands to an AI player as held for its human until the human returns", () => {
+        const [awayError, away] = parseServerMessage({ r: 0, s: 3, type: "seat_control" });
+        const [backError, back] = parseServerMessage({ s: 3, type: "seat_control" });
+        assert(awayError === null && away.type === "ai_replacement");
+        assert(backError === null && back.type === "human_return");
+
+        const left = applyEvent(stateAfterRoundStarted(), away);
 
         expect(left.players.map((p) => p.aiStandIn)).toEqual([null, null, null, 0]);
-        expect(back.players.map((p) => p.aiStandIn)).toEqual([null, null, null, null]);
+        expect(applyEvent(left, back).players.map((p) => p.aiStandIn)).toEqual([
+            null,
+            null,
+            null,
+            null,
+        ]);
     });
 });
 
@@ -520,7 +528,7 @@ describe("applyEvent - game_reconnected", () => {
     });
 
     test("names the round from the first dealer its history lists, else from the dealer in play", () => {
-        const history = { h: 0, rs: [], rt: 3, sch: {}, w: 0, ws: [] };
+        const history = { h: 0, ps: [], rs: [], rt: 3, sch: {}, w: 0, ws: [] };
         const [error, later] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
             dl: 1,
@@ -830,10 +838,10 @@ function makeIntegrationSetupEvents() {
     const gameStarted = makeGameStartedEvent({
         gameId: "integration-test",
         players: [
-            { isAiPlayer: false, name: "Alice", seat: 0 },
-            { isAiPlayer: false, name: "Bob", seat: 1 },
-            { isAiPlayer: true, name: "Bot-1", seat: 2 },
-            { isAiPlayer: true, name: "Bot-2", seat: 3 },
+            { aiStandIn: null, isAiPlayer: false, name: "Alice", seat: 0 },
+            { aiStandIn: null, isAiPlayer: false, name: "Bob", seat: 1 },
+            { aiStandIn: null, isAiPlayer: true, name: "Bot-1", seat: 2 },
+            { aiStandIn: null, isAiPlayer: true, name: "Bot-2", seat: 3 },
         ],
     });
 

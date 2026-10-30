@@ -1639,6 +1639,19 @@ describe("the ronin table (Translate and Reply)", () => {
         expect(table.sent).toEqual([{ t: 3, a: 4, ti: 18, wi: 8 }]);
     });
 
+    it("marks a seat an AI player holds for its player after a reconnect, and clears it after one that shows them back", () => {
+        const { table } = startTableOnPage();
+        const away = snapshot({ cp: 0, tr: 70 });
+        away.p[3] = { s: 3, nm: "p3", ai: 0, sr: 0 };
+        const leftPlate = () => $("#board .board > .player.shangjia");
+
+        table.translate.reconnect(away);
+        expect(leftPlate().hasClass("disconnect")).toBe(true);
+
+        table.translate.reconnect(snapshot({ cp: 0, tr: 70 }));
+        expect(leftPlate().hasClass("disconnect")).toBe(false);
+    });
+
     it("rebuilds each opponent's face-down hand to its tile count beside its melds, the turn's draw held, after a reconnect", () => {
         const table = startTable();
         table.translate.reconnect(

@@ -28,8 +28,11 @@ export interface StandingsSeat {
 export interface LedgerCell {
     readonly text: string;
     readonly tone: StandingsTone;
-    /** The seat won the round, or paid its ron (dealt in, or had its kan robbed). */
-    readonly mark: "win" | "deal_in" | null;
+    /**
+     * The seat won the round, paid its ron (dealt in, or had its kan robbed), or was liable for a winner's yakuman
+     * (pao) without paying a ron.
+     */
+    readonly mark: "win" | "deal_in" | "pao" | null;
     readonly riichi: boolean;
     readonly dealer: boolean;
 }
@@ -137,7 +140,10 @@ function cellMark(record: RoundRecord, seat: number): LedgerCell["mark"] {
     if (record.winnerSeats.includes(seat)) {
         return "win";
     }
-    return record.loserSeat === seat ? "deal_in" : null;
+    if (record.loserSeat === seat) {
+        return "deal_in";
+    }
+    return record.paoSeats.includes(seat) ? "pao" : null;
 }
 
 /** The table a ledger reads its names and first dealer from, and its seats in column order. */

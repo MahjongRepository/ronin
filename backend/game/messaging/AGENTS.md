@@ -28,7 +28,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   round end's shape, and whether the seat still owes its confirmation (`oc`), with how long that
   wait's timer has run (`el`) when it does. The snapshot gives
   each seat's closed-hand size, since a client sees other hands face down and never sees their
-  draws.
+  draws. A participant's seat changing hands goes to the others as `seat_control`, by seat and
+  shaped like the replay's seat control line, ahead of the moves that follow; the snapshot marks a
+  seat an AI player holds for its participant by why (`sr`), never as an AI player's (`ai`).
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
   the reconnect snapshot always carries it. Every game action must echo it, and one for another wait
   is refused as stale. The replay collector shapes its own payloads, so live-only metadata like the

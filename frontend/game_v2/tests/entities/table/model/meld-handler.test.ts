@@ -14,10 +14,10 @@ import { type GameStartedEvent, type MeldEvent, type RoundStartedEvent } from "@
 function gameStartedWithNamedPlayers(): GameStartedEvent {
     return makeGameStartedEvent({
         players: [
-            { isAiPlayer: false, name: "Alice", seat: 0 },
-            { isAiPlayer: false, name: "Bob", seat: 1 },
-            { isAiPlayer: true, name: "Charlie", seat: 2 },
-            { isAiPlayer: true, name: "Diana", seat: 3 },
+            { aiStandIn: null, isAiPlayer: false, name: "Alice", seat: 0 },
+            { aiStandIn: null, isAiPlayer: false, name: "Bob", seat: 1 },
+            { aiStandIn: null, isAiPlayer: true, name: "Charlie", seat: 2 },
+            { aiStandIn: null, isAiPlayer: true, name: "Diana", seat: 3 },
         ],
     });
 }

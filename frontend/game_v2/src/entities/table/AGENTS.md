@@ -82,14 +82,12 @@ replay view, the live game and the storybook read the tables it produces.
 - The wire's round number counts every deal of the game; a round's name ("East 1", "South 3") is
   its number within its wind, the dealer's distance from the first dealer (`roundInWind`), which
   the table keeps from the game start or, on a reconnect, the snapshot's first listed round.
-- Seat marks: `aiStandIn` says an AI player holds the seat for its human, from a replay's seat
-  control lines or the live `player_left` / `player_reconnected` (which name the player, not the
-  seat, so the table finds the seat by name). The snapshot's AI flag cannot tell a bot from a
-  stand-in, so it rebuilds no `aiStandIn`, only `isAiPlayer`; a `player_reconnected` clears both,
-  since the named human controls the seat again whatever the snapshot said. The nameplate marks a
-  stand-in the source named as one ("Away": left or absent) apart from an AI player ("AI"): after
-  a reconnect a stand-in reads as an AI player, and a live seat never hears of a participant absent
-  at the first deal (no `player_left` is sent for one that never joined) until a snapshot.
+- Seat marks: `aiStandIn` says an AI player holds the seat for its human, and why: from a replay's
+  seat control lines and the live `seat_control` messages, which parse into the same lines, and from
+  the reconnect snapshot, which names such a seat (`sr`) apart from an AI player (`ai`). The
+  nameplate marks a stand-in ("Away": left or absent) apart from an AI player ("AI"). A participant
+  without a connection at the first deal (never joined, or gone during the game start pause) is told
+  then, ahead of the deal.
 - A replay's cursor contract is pure functions over one navigation index (`buildNavigationIndex`),
   which the controls, the round list, the address, the ledger and autoplay all move through. A stop is a move: a deal (with its first draw), a draw, a discard (with the riichi its
   passing deposits, so the stick shows on the declaring discard), a call, a kan declared open to

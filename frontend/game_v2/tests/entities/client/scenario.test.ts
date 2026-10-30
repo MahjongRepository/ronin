@@ -7,8 +7,8 @@ import {
     scenarioFromTranscript,
 } from "#tests/fixtures/seat-transcripts";
 import {
-    WIRE_PLAYER_LEFT,
     WIRE_RULE_REFUSAL,
+    WIRE_SEAT_TO_AI,
     type WirePayload,
     wireGameError,
     wireSessionError,
@@ -162,7 +162,7 @@ describe("seatScenarioFromTranscript", () => {
             events: [
                 { at: 0, kind: "opened" },
                 { at: 0, kind: "sent", message: join },
-                { at: 100, kind: "received", payload: WIRE_PLAYER_LEFT },
+                { at: 100, kind: "received", payload: WIRE_SEAT_TO_AI },
                 { at: 200, code: 1006, kind: "closed", reason: "" },
                 { at: 1200, kind: "opened", label: "reopened" },
                 { at: 1200, kind: "sent", message: join },

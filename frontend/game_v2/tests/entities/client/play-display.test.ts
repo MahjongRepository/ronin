@@ -414,12 +414,12 @@ describe("playDisplay nameplates", () => {
         expect(plates(left)[2]).toBe("Bob N 25000 [Away]");
     });
 
-    it("clears the AI mark of a player who comes back after the viewer's own reconnect saw an AI in their seat", () => {
+    it("keeps a seat held for its player marked through the viewer's own reconnect, then clears it when they return", () => {
         const snapshot = playDisplay(
             checkpointState("seat_left_seat_1", "reconnected"),
             NO_PLAY_UI,
         );
-        expect(plates(snapshot)[2]).toBe(`Bob N 25000 ${AI_PLAYER}`);
+        expect(plates(snapshot)[2]).toBe("Bob N 25000 [Away]");
         const back = playDisplay(checkpointState("seat_left_seat_1", "player back"), NO_PLAY_UI);
         expect(plates(back).slice(1)).toEqual([
             `Tsumogiri 2 W 25000 ${AI_PLAYER}`,

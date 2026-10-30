@@ -143,8 +143,8 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
         case "round_end":
         case "game_end":
         case "game_reconnected":
-        case "player_left":
-        case "player_reconnected": {
+        case "ai_replacement":
+        case "human_return": {
             return message;
         }
         case "call_prompt": {

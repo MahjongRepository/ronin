@@ -442,9 +442,9 @@ def game_end_reconnect() -> tuple[SeatTranscript, ...]:
 
 def seat_left() -> tuple[SeatTranscript, ...]:
     """
-    Bob (seat 3) loses his connection during Alice's (seat 1) first turn, and the server notices: Alice is told he left,
-    and an AI player plays his seat. Alice then loses her own connection unseen, and her reconnect's snapshot marks his
-    seat as an AI player's. Bob reconnects, which Alice is told, and his snapshot marks the AI players' seats, his own
+    Bob (seat 3) loses his connection during Alice's (seat 1) first turn, and the server notices: Alice is told an AI
+    player stands in for him at his seat. Alice then loses her own connection unseen, and her reconnect's snapshot marks
+    his seat as held for him. Bob reconnects, which Alice is told, and his snapshot marks the AI players' seats, his own
     no longer among them; Alice discards her draw.
 
     No hand can call another's discard (no hand holds two copies of a tile type, and no two of Alice's tiles make a chi
@@ -469,13 +469,13 @@ def seat_left() -> tuple[SeatTranscript, ...]:
         game.wait_until(4)
         alice.label("first draw", WireEventType.DRAW)
         bob.drop_seen(at=4.5, label="dropped")
-        alice.label("player left", SessionMessageType.PLAYER_LEFT)
+        alice.label("player left", SessionMessageType.SEAT_CONTROL)
         alice.drop_unseen(at=4.5, label="dropped")
         alice.reconnect(at=5.5, label="reopened")
         alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
         bob.reconnect(at=5.5, label="reopened")
         bob.label("reconnected", SessionMessageType.GAME_RECONNECTED)
-        alice.label("player back", SessionMessageType.PLAYER_RECONNECTED)
+        alice.label("player back", SessionMessageType.SEAT_CONTROL)
         alice.discard(alice_draw, at=5.75, label="discarded")
 
         return game.transcripts("seat_left", PLAYER, ROBBER)

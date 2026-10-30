@@ -5,11 +5,8 @@ import {
     type DrawEvent,
     type GameEndEvent,
     type GameStartedEvent,
-    type PlayerLeftMessage,
-    type PlayerReconnectedMessage,
     type RiichiDeclaredEvent,
     type RoundStartedEvent,
-    SEAT_CONTROL_REASON,
     type SeatControlLine,
 } from "@/shared/protocol";
 
@@ -194,30 +191,13 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
     };
 }
 
-/** A replay's seat control line: an AI player takes the seat for its human, or the human takes it back. */
+/**
+ * A seat control line, a replay's or the live session's: an AI player takes the seat for its human, or the human takes
+ * it back.
+ */
 function applySeatControl(state: TableState, line: SeatControlLine): TableState {
     const aiStandIn = line.type === "ai_replacement" ? line.reason : null;
     return { ...state, players: updatePlayer(state.players, line.seat, { aiStandIn }) };
-}
-
-/**
- * The live socket's word that a seat's human left (an AI player takes the seat while the game plays) or came back.
- * A return puts the human in control, whatever AI flag a reconnect's snapshot gave the seat while they were away.
- * It names the player, not the seat; a name the table does not hold changes nothing.
- */
-function applyPlayerPresence(
-    state: TableState,
-    message: PlayerLeftMessage | PlayerReconnectedMessage,
-): TableState {
-    const player = state.players.find((p) => p.name === message.playerName);
-    if (player === undefined) {
-        return state;
-    }
-    const update =
-        message.type === "player_left"
-            ? { aiStandIn: SEAT_CONTROL_REASON.LEFT }
-            : { aiStandIn: null, isAiPlayer: false };
-    return { ...state, players: updatePlayer(state.players, player.seat, update) };
 }
 
 /**
@@ -262,10 +242,6 @@ export function applyEvent(state: TableState, event: TableEvent): TableState {
         case "ai_replacement":
         case "human_return": {
             return applySeatControl(state, event);
-        }
-        case "player_left":
-        case "player_reconnected": {
-            return applyPlayerPresence(state, event);
         }
         default: {
             return assertNever(event);

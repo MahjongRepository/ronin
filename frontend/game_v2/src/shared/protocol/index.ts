@@ -111,8 +111,7 @@ export type {
     NagashiManganRoundEnd,
     RoundEndEvent,
     SessionErrorMessage,
-    PlayerReconnectedMessage,
-    PlayerLeftMessage,
+    SeatControlMessage,
     SessionMessage,
     GameReconnectedEvent,
 } from "./types";

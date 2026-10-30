@@ -18,19 +18,6 @@ class ReplayLineType(IntEnum):
     SEAT_CONTROL = 101
 
 
-class ReplaySeatControlReason(IntEnum):
-    """
-    Integer `r` of a seat control line that replaces a seat's human with an AI player: why its participant is not
-    playing it.
-
-    LEFT is a disconnect (a kick included) during play; ABSENT a participant without a connection at the first deal,
-    never joined or gone during the game start pause.
-    """
-
-    LEFT = 0
-    ABSENT = 1
-
-
 if {int(line_type) for line_type in ReplayLineType} & {int(event_type) for event_type in WireEventType}:
     raise RuntimeError(  # pragma: no cover (exhaustive)
         f"ReplayLineType values {list(ReplayLineType)} overlap WireEventType values {list(WireEventType)}",

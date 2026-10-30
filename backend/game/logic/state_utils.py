@@ -206,6 +206,7 @@ def _round_history_entry(game_state: MahjongGameState, result: RoundResult) -> R
         riichi_seats=tuple(p.seat for p in round_state.players if p.is_riichi),
         winner_seats=get_winner_seats(result),
         loser_seat=result.loser_seat if isinstance(result, RonResult | DoubleRonResult) else None,
+        pao_seats=_pao_seats(result),
         tenpai_seats=_tenpai_seats(result),
         score_changes=result.score_changes,
     )
@@ -220,6 +221,16 @@ def get_winner_seats(result: RoundResult) -> tuple[int, ...]:
 
     if isinstance(result, DoubleRonResult):
         return tuple(w.winner_seat for w in result.winners)
+
+    return ()
+
+
+def _pao_seats(result: RoundResult) -> tuple[int, ...]:
+    if isinstance(result, TsumoResult | RonResult):
+        return () if result.pao_seat is None else (result.pao_seat,)
+
+    if isinstance(result, DoubleRonResult):
+        return tuple(sorted({w.pao_seat for w in result.winners if w.pao_seat is not None}))
 
     return ()
 

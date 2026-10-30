@@ -1,14 +1,14 @@
 import { z } from "zod/mini";
 
-import { REPLAY_LINE_TYPE, SEAT_CONTROL_REASON } from "@/shared/protocol/constants";
+import { REPLAY_LINE_TYPE } from "@/shared/protocol/constants";
 
-import { seatSchema } from "./common";
+import { seatControlReasonSchema, seatSchema } from "./common";
 import { type ParsedServerMessage, parseServerMessage } from "./message";
 
 const aiReplacementSchema = z.pipe(
     z.object({
         ai: z.literal(1),
-        r: z.union([z.literal(SEAT_CONTROL_REASON.LEFT), z.literal(SEAT_CONTROL_REASON.ABSENT)]),
+        r: seatControlReasonSchema,
         s: seatSchema,
         t: z.literal(REPLAY_LINE_TYPE.SEAT_CONTROL),
     }),

@@ -117,8 +117,18 @@ describe("gameReconnectedSchema", () => {
                 scs: { "0": 250, "1": 240, "2": 260, "3": 250 },
             },
             rh: [
-                { dl: 0, h: 0, ls: 2, rs: [1], rt: 1, sch: { "0": 39, "2": -39 }, w: 0, ws: [0] },
-                { dl: 1, h: 0, rn: "four_winds", rs: [], rt: 4, sch: {}, w: 0, ws: [] },
+                {
+                    dl: 0,
+                    h: 0,
+                    ls: 2,
+                    ps: [3],
+                    rs: [1],
+                    rt: 1,
+                    sch: { "0": 39, "2": -39 },
+                    w: 0,
+                    ws: [0],
+                },
+                { dl: 1, h: 0, ps: [], rn: "four_winds", rs: [], rt: 4, sch: {}, w: 0, ws: [] },
             ],
         });
 
@@ -135,6 +145,7 @@ describe("gameReconnectedSchema", () => {
                 dealerSeat: 0,
                 honbaSticks: 0,
                 loserSeat: 2,
+                paoSeats: [3],
                 resultType: ROUND_RESULT_TYPE.RON,
                 riichiSeats: [1],
                 scoreChanges: { "0": 3900, "2": -3900 },
@@ -147,6 +158,7 @@ describe("gameReconnectedSchema", () => {
                 dealerSeat: 1,
                 honbaSticks: 0,
                 loserSeat: null,
+                paoSeats: [],
                 resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
                 riichiSeats: [],
                 scoreChanges: {},
@@ -182,8 +194,8 @@ describe("gameReconnectedSchema", () => {
         const [human, , ai] = players;
 
         expect(players).toHaveLength(4);
-        expect(human).toEqual({ isAiPlayer: false, name: "Alice", seat: 0 });
-        expect(ai).toEqual({ isAiPlayer: true, name: "CPU-1", seat: 2 });
+        expect(human).toEqual({ aiStandIn: null, isAiPlayer: false, name: "Alice", seat: 0 });
+        expect(ai).toEqual({ aiStandIn: null, isAiPlayer: true, name: "CPU-1", seat: 2 });
     });
 
     it("parses player 0 state with discards (not riichi)", () => {

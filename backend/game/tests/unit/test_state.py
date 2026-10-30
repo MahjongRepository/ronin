@@ -104,7 +104,9 @@ class TestGetPlayerView:
 
 
 class TestFinishRound:
-    def test_finish_round__when_double_ron__should_record_both_winners_and_the_loser_in_round_history(self):
+    def test_finish_round__when_double_ron__should_record_both_winners_the_loser_and_the_pao_seat_in_round_history(
+        self,
+    ):
         game_state = MahjongGameService().start_game("game1", ["Alice"], seed="a" * 192).runtime.state
         winners = [
             DoubleRonWinner(
@@ -114,8 +116,9 @@ class TestFinishRound:
                 riichi_sticks_collected=0,
                 closed_tiles=[],
                 melds=[],
+                pao_seat=pao_seat,
             )
-            for seat in (3, 0)
+            for seat, pao_seat in ((3, 1), (0, None))
         ]
         result = DoubleRonResult(
             loser_seat=2,
@@ -128,7 +131,7 @@ class TestFinishRound:
         new_game_state, _ = finish_round(game_state, result)
         entry = new_game_state.round_history[-1]
         assert len(new_game_state.round_history) == 1
-        assert (entry.winner_seats, entry.loser_seat, entry.tenpai_seats) == ((3, 0), 2, None)
+        assert (entry.winner_seats, entry.loser_seat, entry.pao_seats, entry.tenpai_seats) == ((3, 0), 2, (1,), None)
         assert (entry.result_type, entry.abortive_reason) == (RoundResultType.DOUBLE_RON, None)
 
     def test_finish_round__when_abortive_draw__should_record_its_reason_in_round_history(self):

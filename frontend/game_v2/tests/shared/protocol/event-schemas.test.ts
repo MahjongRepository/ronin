@@ -42,7 +42,12 @@ describe("gameStartedSchema", () => {
             [2, 4],
         ]);
         expect(result.players).toHaveLength(4);
-        expect(result.players[0]).toEqual({ isAiPlayer: false, name: "Alice", seat: 0 });
+        expect(result.players[0]).toEqual({
+            aiStandIn: null,
+            isAiPlayer: false,
+            name: "Alice",
+            seat: 0,
+        });
         expect(result.players[2].isAiPlayer).toBe(true);
     });
 

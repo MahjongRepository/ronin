@@ -32,3 +32,16 @@ class WireRoundResultType(IntEnum):
     EXHAUSTIVE_DRAW = 3
     ABORTIVE_DRAW = 4
     NAGASHI_MANGAN = 5
+
+
+class SeatControlReason(IntEnum):
+    """
+    Integer `r` of a seat's handover to an AI player standing in for its human: why its participant is not playing it,
+    in the replay's seat control line, the live `seat_control` message and the reconnect snapshot alike.
+
+    LEFT is a disconnect (a kick included) during play; ABSENT a participant without a connection at the first deal,
+    never joined or gone during the game start pause.
+    """
+
+    LEFT = 0
+    ABSENT = 1

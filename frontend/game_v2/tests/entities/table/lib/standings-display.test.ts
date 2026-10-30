@@ -128,6 +128,20 @@ describe("standingsDisplay", () => {
         expect(cellTexts(endTable("full_game"))[0]).toEqual(["Noten", "Noten", "Noten", "Noten"]);
     });
 
+    test("marks the seat liable for a yakuman (pao) apart from the winner", () => {
+        const table = endTable("pao");
+        const display = shownStandings(table, null);
+
+        expect(
+            display.seats.map((seat, index) => [seat.seat, display.ledger[0].cells[index].mark]),
+        ).toEqual([
+            [1, "win"],
+            [2, null],
+            [3, null],
+            [0, "pao"],
+        ]);
+    });
+
     test("keeps every tenpai on a draw that paid nothing, a riichi's deposit its only change", () => {
         const table = endTable("leftover_riichi");
         const allTenpai: RoundRecord = {
@@ -135,6 +149,7 @@ describe("standingsDisplay", () => {
             honba: 0,
             loserSeat: null,
             outcome: "exhaustive",
+            paoSeats: [],
             riichiSeats: [3],
             scoreChanges: { "0": 0, "1": 0, "2": 0, "3": 0 },
             tenpaiSeats: [0, 1, 2, 3],

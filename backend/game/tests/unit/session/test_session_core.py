@@ -6,21 +6,21 @@ from game.logic.events import (
     SeatTarget,
 )
 from game.logic.types import MeldCaller
-from game.messaging.types import SessionMessageType
 from game.tests.mocks import MOCK_AWAITING
 from game.wire.events import EVENT_TYPE_INT
 
-from .helpers import create_started_game, current_wait_id
+from .helpers import create_started_game, current_wait_id, participant_of
 
 
 class TestSessionManager:
-    async def test_disconnect__when_player_leaves__should_notify_others(self, manager):
+    async def test_disconnect__when_player_leaves__should_tell_the_others_an_ai_player_stands_in_at_the_seat(
+        self, manager
+    ):
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
+        bob_seat = participant_of(manager, conns[1]).seat
 
         manager.disconnect(conns[1])
-        assert len(conns[0].sent_messages) == 1
-        assert conns[0].sent_messages[0]["type"] == SessionMessageType.PLAYER_LEFT
-        assert conns[0].sent_messages[0]["player_name"] == "Bob"
+        assert conns[0].sent_messages == [{"type": "seat_control", "s": bob_seat, "r": 0}]
 
     async def test_handle_game_action__when_service_returns_event__should_broadcast_it(self, manager):
         conns = create_started_game(manager)

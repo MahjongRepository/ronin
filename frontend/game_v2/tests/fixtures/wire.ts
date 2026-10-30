@@ -96,5 +96,5 @@ export function wireGameError(code: string): WirePayload {
 /** The engine's refusal of a call on a rule judgment, a refusal that is not stale. */
 export const WIRE_RULE_REFUSAL: WirePayload = wireGameError("invalid_pon");
 
-/** A presence notice the server broadcasts when another player's socket leaves. */
-export const WIRE_PLAYER_LEFT: WirePayload = { player_name: "Bob", type: "player_left" };
+/** The notice the server broadcasts when an AI player takes another player's seat after its socket left. */
+export const WIRE_SEAT_TO_AI: WirePayload = { r: 0, s: 3, type: "seat_control" };
