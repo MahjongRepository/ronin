@@ -19,6 +19,10 @@ export const CONTRAST_VIEWPORTS: ReadonlySet<string> = new Set([
  * The narrowest face, in device pixels, whose red strokes the contrast check fails: below it the sprite's finest red
  * strokes (a pinzu's ring) are narrower than a pixel, so no pixel shows their colour whatever the palette; they are
  * reported in the page's summary instead (the spec: reported, not redrawn). Every face on a phone is wider.
+ * The limit is the artwork's: those strokes are about 5 of the face's 300 units (half a device pixel at this bound; the
+ * 800x600 window's smallest faces read 3.4-4.4:1), each drawn on a white band about four times as wide (the 1p's ring),
+ * so a stroke wide enough for a pixel there (two to three times as wide) would all but cover the band: thickening it is
+ * a redraw of the artwork, not a change to the sprite's build.
  */
 const MIN_GLYPH_DEVICE_PX = 24;
 
