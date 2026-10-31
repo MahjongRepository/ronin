@@ -128,9 +128,7 @@ class TestWestRoundRenchanOverride:
         new_gs = process_round_end(gs, _tsumo(winner_seat=0))
         assert new_gs.unique_dealers == 9  # renchan
         assert new_gs.round_state.dealer_seat == 0  # dealer stays
-        assert (
-            game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
-        )
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
     def test_west_renchan__when_dealer_wins_without_threshold__should_continue_game(self):
         gs = _west_game_state(
@@ -153,9 +151,7 @@ class TestWestRoundRenchanOverride:
         result = _exhaustive_draw(tempai_seats=[1], noten_seats=[0, 2, 3])
         new_gs = process_round_end(gs, result)
         assert new_gs.round_state.dealer_seat == 1  # dealer stays (tenpai renchan)
-        assert (
-            game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
-        )
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
     def test_west_renchan__when_dealer_tenpai_draw_without_threshold__should_continue_game(self):
         gs = _west_game_state(
@@ -216,9 +212,7 @@ class TestWestRoundRotation:
 
         new_gs = process_round_end(gs, _tsumo(winner_seat=3))
         assert new_gs.unique_dealers == 12  # renchan
-        assert (
-            game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
-        )
+        assert game_end_cause(new_gs, ended_round_wind=gs.round_state.round_wind) == GameEndCause.TARGET_REACHED
 
 
 # ============================================================================
