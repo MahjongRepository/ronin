@@ -50,6 +50,8 @@ export interface BoardOptions {
     readonly panelScrolls?: "parts" | "panel";
     /** Its names are longer than any badge holds, so a badge may shorten them in the middle. */
     readonly longNames?: boolean;
+    /** At the near-square upright window it is there for the right strip's second meld line, which it must draw. */
+    readonly rightSecondLine?: boolean;
 }
 
 type PageKind =

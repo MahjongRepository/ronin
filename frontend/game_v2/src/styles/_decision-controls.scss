@@ -49,7 +49,7 @@ $preview-tile-share: 0.42;
     @include upright-board {
         left: var(--m);
         right: calc(var(--m) + max(var(--strip-depth), var(--right-depth)) + 8px);
-        bottom: calc(100cqh - var(--hand-top) + max(0px, var(--badge-h) - var(--oh)) + 4px);
+        bottom: calc(100cqh - var(--hand-top) + var(--own-rise) + 4px);
     }
 }
 

@@ -11,7 +11,7 @@ $lengths:
     own-start, own-hand-right, switches-left, switches-right, dg, full-reach, step-in,
     right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
     right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
-    switches-clear, top-badge-right, band-crossed, core-floor, notices-bottom;
+    switches-clear, top-badge-right, band-crossed, core-floor, notices-bottom, own-rise;
 
 /* Upright, the counters stand this far under the top strip and the side badges this far under them. */
 $upright-counters-gap: 6px;
@@ -122,6 +122,14 @@ $upright-counters-h: 52px;
     --foreground-top: calc(var(--hand-top) - 2 * var(--band-gap) - var(--control-h));
     --band-top: calc(var(--foreground-top) + var(--band-gap));
     --band-bottom: calc(var(--hand-top) - var(--band-gap));
+
+    /* How far the own row can stand above the hand: its badge, or an added kan's two stacked meld tiles, bounded by the
+       river tile's own-tile cap, so the core's reserve can count it without reading the river tile it sizes. */
+    --own-rise: max(
+        0px,
+        var(--badge-h) - var(--oh),
+        2 * #{$own-meld-scale} * var(--rw-by-own) - var(--oh)
+    );
     --corner-bottom: calc(var(--m) + var(--corner-h));
     --step-in: calc(var(--bh) + 6px);
 
@@ -276,9 +284,7 @@ $upright-counters-h: 52px;
             var(--m) + #{$upright-counters-gap + $upright-counters-h} + var(--badge-h) + 4px
         );
         --core-floor: calc(var(--under-strip) + var(--strip-depth));
-        --notices-bottom: calc(
-            var(--hand-top) - max(0px, var(--badge-h) - var(--oh)) - 2 * var(--control-h) - 16px
-        );
+        --notices-bottom: calc(var(--hand-top) - var(--own-rise) - 2 * var(--control-h) - 16px);
         --band-reserve: calc(
             var(--hand-top) - var(--notices-bottom) + #{$upright-notice-room} + 6px
         );

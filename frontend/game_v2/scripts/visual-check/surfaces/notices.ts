@@ -83,6 +83,7 @@ const PAGES: readonly PageCase[] = [
         ]),
         at: [SQUARE_UPRIGHT],
         longNames: true,
+        rightSecondLine: true,
     },
     {
         at: [FLOOR, MID_DESKTOP],

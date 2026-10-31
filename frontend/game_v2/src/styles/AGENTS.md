@@ -124,7 +124,11 @@ What the code keeps that the spec (Composition, Elements) does not say:
   counted, from the lengths `sideStripStyle` hands the table), a win or a choice across the column, and
   pair up, shedding their tile previews, where the column (a size container, `decisions`) is too short for one a row
   (the count `data-upper`). Upright, the decisions' rows end short of the right strip as drawn, its second meld line
-  counted too (a near-square upright board's strip takes one). Rings lie inside a control's box.
+  counted too (a near-square upright board's strip takes one), and stand, with the notices' place over them, above
+  the own row as it can rise past the hand (`--own-rise`: the badge, or an added kan's two stacked meld tiles at their
+  1.2 river tiles, which on a near-square board top the own tile; counted at the river tile's own-tile cap,
+  `--rw-by-own`, so the core's fixed reserve takes it without reading the river tile it sizes). Rings lie inside a
+  control's box.
 - The play switches (`_play-switches.scss`) stand in their slot on the band row, bottom-aligned with the band, their
   height `--switch-h` (which the left hand's reach is measured against): each a native button with the switch role and
   `aria-checked`, at least 40x40, its knob over its label on a phone and a narrow desktop, before it on a desktop; on
@@ -156,7 +160,8 @@ control per viewport, never moved by what a stop shows.
   the round list's toggle. Where that row is too short for all four (`--opts-fit`, a length switch, never a measure)
   they stand as two rows of two, the round list's toggle in the band, the upper pair ending before the right strip as
   drawn (`side-strip-depth`, from the lengths `sideStripStyle` hands the table). Upright, the options take a row above
-  the moves, short of the right strip as drawn.
+  the moves, short of the right strip as drawn, and the moves stand above the own row's rise (`--own-rise`) as the
+  decisions do.
 - The position (round, honba, step), a replay that is not the whole game (and where it ends at its last stop; a phone
   shows the label alone until then, its detail still read out) and the narration take the notices' place, under any
   notice. The narration is read out by its own polite live region, empty while autoplay runs; the narration drawn is

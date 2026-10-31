@@ -6,7 +6,7 @@ $round-list-z: 30;
 $place-gap: 6px;
 
 @each $name in rb, rgap, opt-right, opt-left, opts-w, pair-w, small-moves-w, opts-fit, pair-clear,
-    pair-shift, upper-extra, list-rise, band-reserve-top
+    pair-shift, upper-extra, list-rise, band-reserve-top, replay-bottom
 {
     @property --#{$name} {
         syntax: "<length>";
@@ -67,11 +67,12 @@ $place-gap: 6px;
     outline: none;
 }
 
-/* The replay's places on the band: its button and gap, the options' row from the decisions' right end, and where the
-   band beside the own river's reach holds all four options in a row (`--opts-fit`, 1px) or two rows of two. */
+/* The replay's places on the band: its button and gap, its bottom (upright, clear of the own row's rise, as the
+   decisions are), the options' row, and whether all four options fit a row (`--opts-fit`, 1px) or stand two by two. */
 .game-board--replay > :is(.board-layout, .board-overlay) {
     --rb: 52px;
     --rgap: 6px;
+    --replay-bottom: var(--band-bottom);
     --opt-right: calc(100cqw - var(--own-hand-right));
     --opt-left: calc(var(--switches-left) + var(--switches-w) + var(--band-gap));
     --opts-w: calc(4 * var(--rb) + 3 * var(--rgap));
@@ -99,6 +100,7 @@ $place-gap: 6px;
 
     @include upright-board {
         --opt-left: var(--m);
+        --replay-bottom: calc(var(--hand-top) - var(--own-rise) - 4px);
     }
 }
 
@@ -138,7 +140,7 @@ $place-gap: 6px;
 
 .replay-controls {
     position: absolute;
-    bottom: calc(100cqh - var(--band-bottom));
+    bottom: calc(100cqh - var(--replay-bottom));
     z-index: $controls-z;
     display: flex;
     gap: var(--rgap);
@@ -168,7 +170,7 @@ $place-gap: 6px;
     }
 
     @include upright-board {
-        bottom: calc(100cqh - var(--band-bottom) + var(--rb) + var(--rgap));
+        bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap));
     }
 }
 
@@ -311,7 +313,7 @@ $place-gap: 6px;
 /* Upright, the left field is too narrow for text: the place spans the board above the options' row. */
 .game-board--replay .board-notices {
     @include upright-board {
-        --place-bottom: calc(var(--band-bottom) - 2 * var(--rb) - 2 * var(--rgap) - #{$place-gap});
+        --place-bottom: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap) - #{$place-gap});
 
         top: auto;
         bottom: calc(100cqh - var(--place-bottom));
@@ -328,11 +330,11 @@ $place-gap: 6px;
     padding-bottom: calc(100cqh - var(--band-reserve-top));
 
     @include small-chrome {
-        --band-reserve-top: calc(var(--band-bottom) - var(--rb) - var(--rgap));
+        --band-reserve-top: calc(var(--replay-bottom) - var(--rb) - var(--rgap));
     }
 
     @include upright-board {
-        --band-reserve-top: calc(var(--band-bottom) - 2 * var(--rb) - 2 * var(--rgap));
+        --band-reserve-top: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap));
     }
 
     @container game-board (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
@@ -359,7 +361,7 @@ $place-gap: 6px;
             --band-middle-end: calc(var(--opt-right) + var(--rb) + 2 * var(--rgap));
 
             top: auto;
-            bottom: calc(100cqh - var(--band-bottom));
+            bottom: calc(100cqh - var(--replay-bottom));
             left: calc(var(--switches-left) + var(--small-moves-w));
             align-items: flex-start;
             width: calc(
@@ -396,7 +398,7 @@ $place-gap: 6px;
     .game-board--replay:has(> .board-overlay) .board-notices {
         --band-middle-end: calc(var(--opt-right) + var(--rb) + var(--rgap));
 
-        bottom: calc(100cqh - var(--band-bottom) + var(--rb) + var(--rgap));
+        bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap));
         left: var(--m);
         width: calc(100cqw - var(--band-middle-end) - 2 * var(--m));
     }
@@ -405,13 +407,13 @@ $place-gap: 6px;
 .round-list {
     position: absolute;
     right: var(--opt-right);
-    bottom: calc(100cqh - var(--band-bottom) + var(--rb) + var(--rgap) + var(--list-rise));
+    bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap) + var(--list-rise));
     z-index: $round-list-z;
     display: flex;
     flex-direction: column;
     gap: 0;
     width: min(24rem, 100cqw - var(--opt-right) - var(--m));
-    max-height: calc(var(--band-bottom) - var(--rb) - var(--rgap) - var(--m) - var(--list-rise));
+    max-height: calc(var(--replay-bottom) - var(--rb) - var(--rgap) - var(--m) - var(--list-rise));
     margin: 0;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
@@ -423,8 +425,8 @@ $place-gap: 6px;
     }
 
     @include upright-board {
-        bottom: calc(100cqh - var(--band-bottom) + 2 * var(--rb) + 2 * var(--rgap));
-        max-height: calc(var(--band-bottom) - 2 * var(--rb) - 2 * var(--rgap) - var(--m));
+        bottom: calc(100cqh - var(--replay-bottom) + 2 * var(--rb) + 2 * var(--rgap));
+        max-height: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap) - var(--m));
     }
 }
 

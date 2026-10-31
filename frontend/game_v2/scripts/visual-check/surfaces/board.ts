@@ -111,7 +111,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [...WORST_CASES, SHORT_UPRIGHT],
+        at: [...WORST_CASES, SHORT_UPRIGHT, SQUARE_UPRIGHT],
         longNames: true,
     },
     {
@@ -167,6 +167,7 @@ const PAGES: readonly PageCase[] = [
             SQUARE_UPRIGHT,
         ],
         longNames: true,
+        rightSecondLine: true,
     },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
@@ -937,7 +938,7 @@ async function checkBoard({
     if (viewport.supported) {
         checkBadgeTaps(board, report);
     }
-    if (viewport.name === SQUARE_UPRIGHT) {
+    if (options.rightSecondLine === true && viewport.name === SQUARE_UPRIGHT) {
         await expectRightSecondLine(page, report);
     }
     if (!viewport.supported || viewport.portrait) {
@@ -961,7 +962,7 @@ async function checkBoard({
 }
 
 /**
- * The near-square upright window's pages are there for the right strip's second meld line, so they must draw one: the
+ * A page at the near-square upright window for the right strip's second meld line must draw one: the
  * strip's depth as laid out (`--right-depth`) past its first line's reserve (`--strip-depth`), or the places beside
  * it go untested. The tiles' rims draw a one-line strip a few pixels past that reserve, so their boxes cannot tell.
  */
