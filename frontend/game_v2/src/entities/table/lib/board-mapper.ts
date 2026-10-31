@@ -31,7 +31,10 @@ function toHandTile(tileId: number, show: "face" | "back"): HandTile {
     return { face: tile136toString(tileId), show, tileId };
 }
 
-/** The hand row and the drawn tile apart from it: the first copy of its id, or the face-down draw a notice announced. */
+/**
+ * The hand row, sorted whatever order the table holds its tiles in (a draw's arrival, a result's reveal), and the
+ * drawn tile apart from it: the first copy of its id, or the face-down draw a notice announced.
+ */
 function buildHandTiles(
     player: PlayerState,
     show: "face" | "back",
@@ -39,6 +42,7 @@ function buildHandTiles(
     const drawnIndex = player.drawnTileId === null ? -1 : player.tiles.indexOf(player.drawnTileId);
     const known = player.tiles
         .filter((_tileId, index) => index !== drawnIndex)
+        .toSorted((first, second) => first - second)
         .map((tileId) => toHandTile(tileId, show));
     const concealedDrawn = drawnIndex === -1 && player.drawnConcealed && player.concealedCount > 0;
     const concealed = Array.from(

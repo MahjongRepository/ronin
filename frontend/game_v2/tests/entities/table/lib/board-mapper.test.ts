@@ -102,18 +102,17 @@ describe("tableStateToDisplayState", () => {
             ]);
         });
 
-        test("drawn tile separated from base hand", () => {
+        test("sorts the hand row whatever the held order, setting the drawn tile apart", () => {
             const state = makeTableState({
                 players: [
-                    makePlayer({ drawnTileId: 8, seat: 0, tiles: [0, 4, 8] }),
+                    makePlayer({ drawnTileId: 8, seat: 0, tiles: [100, 8, 4, 0] }),
                     makePlayer({ seat: 1 }),
                     makePlayer({ seat: 2 }),
                     makePlayer({ seat: 3 }),
                 ],
             });
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
-            // 2 base tiles, 1 drawn tile
-            expect(result.players[0].hand).toHaveLength(2);
+            expect(result.players[0].hand.map((tile) => tile.tileId)).toEqual([0, 4, 100]);
             expect(result.players[0].drawnTile).toBeDefined();
             expect(result.players[0].drawnTile!.face).toBe("3m");
         });

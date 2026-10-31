@@ -9,7 +9,6 @@ import {
     type RiichiDeclaredEvent,
     type RoundStartedEvent,
     type SeatControlLine,
-    tileType,
 } from "@/shared/protocol";
 
 import { DesyncError } from "./desync-error";
@@ -149,7 +148,7 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
             ],
             drawnConcealed: false,
             drawnTileId: null,
-            tiles: hand.tiles.toSorted((tileA, tileB) => tileType(tileA) - tileType(tileB)),
+            tiles: hand.tiles,
         }),
     };
 }
