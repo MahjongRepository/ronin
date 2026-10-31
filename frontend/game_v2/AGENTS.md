@@ -145,13 +145,18 @@ answered empty, so the app's own face is the only one a capture draws. It writes
 (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host their system libraries come from
 `npx playwright install-deps`, which needs root.
 
+* **Derived proportions.** Of the spec's Proportions, the gate holds only the few whose drift a player would notice
+  (`DERIVED` in `surfaces/board.ts`), at the three reference viewports the spec derives them for, as its Automated
+  checks word them; the opponent's hand at the river tile holds everywhere. A change that moves one updates the
+  spec's table and the gate together, never the gate alone.
 * On success `make visual-check` stamps a fingerprint of its inputs (every non-ignored file under `frontend/game_v2`,
-  tracked or not, and the `Makefile`) in `node_modules/.cache/visual-check.pass`; `make run-all-checks` skips the gate
-  only when the current fingerprint matches that stamp, so a skip always means these exact inputs passed. Run
-  directly, it always runs. While iterating, `node scripts/visual-check/run.ts --page <name> --viewport <name> --shots
-  <dir>` (after `vite build`; each repeatable, matching names by substring) checks and shoots only those pages: at
-  the viewports they name with `--page` alone, at every viewport named, whether the page names it or not, when both
-  are given (a change's before and after); it skips the replay load budget and never stamps.
+  tracked or not, the `Makefile` and the spec) in `node_modules/.cache/visual-check.pass`; `make run-all-checks` skips
+  the gate only when the current fingerprint matches that stamp, so a skip always means these exact inputs passed.
+  Run directly, it always runs. While iterating,
+  `node scripts/visual-check/run.ts --page <name> --viewport <name> --shots <dir>` (after `vite build`; each
+  repeatable, matching names by substring) checks and shoots only those pages: at the viewports they name with
+  `--page` alone, at every viewport named, whether the page names it or not, when both are given (a change's before
+  and after); it skips the replay load budget and never stamps.
 * **The gate's structure** (`scripts/visual-check/`): the runner loads the pages and composes one module per surface,
   each declaring its pages and its checks, so a new page or check goes in its surface's module alone, never the
   runner or another surface. Every surface's board checks run on every page that draws a board, whichever surface's

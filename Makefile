@@ -53,7 +53,7 @@ test-frontend:
 VISUAL_CHECK_STAMP := frontend/game_v2/node_modules/.cache/visual-check.pass
 
 visual-check-fingerprint:
-	@git ls-files --cached --others --exclude-standard -- frontend/game_v2 Makefile \
+	@git ls-files --cached --others --exclude-standard -- frontend/game_v2 Makefile docs/game-client-look.md \
 		| sort -u | while read -r file; do [ -f "$$file" ] && sha256sum "$$file"; done \
 		| sha256sum | cut -c1-64
 

@@ -322,6 +322,88 @@ function checkHandScale(board: BoardMeasure, report: PageReport): void {
     );
 }
 
+/** The derived proportions the gate holds at a reference viewport, as the spec's Proportions table gives them. */
+interface DerivedProportions {
+    /** River tile width over own hand tile width: the own hand leads the river by this ratio. */
+    readonly riverToOwn: number;
+    /** The pinwheel's gap, in river tiles, between a river and the centre and between neighbouring rivers. */
+    readonly riverGap: number;
+}
+
+/**
+ * The derived proportions the gate holds, at the three reference viewports the spec derives them for (Proportions),
+ * each within `DERIVED_TOLERANCE`: a drift past it changes the approved composition. The spec's other ratios are left to
+ * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
+ */
+const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
+    [FLOOR, { riverGap: 0.32, riverToOwn: 0.53 }],
+    [NOTCH_PHONE, { riverGap: 0.32, riverToOwn: 0.53 }],
+    [MID_DESKTOP, { riverGap: 0.3, riverToOwn: 0.61 }],
+]);
+const DERIVED_TOLERANCE = 0.02;
+
+/** How far apart two boxes stand: the larger of their gaps across and down, 0 where they touch or overlap. */
+function separation(first: Box, second: Box): number {
+    const across = Math.max(
+        second.left - (first.left + first.width),
+        first.left - (second.left + second.width),
+    );
+    const down = Math.max(
+        second.top - (first.top + first.height),
+        first.top - (second.top + second.height),
+    );
+    return Math.max(0, across, down);
+}
+
+/** Each seat's river that holds a tile, by its nearest tile's distance from the centre, in pixels. */
+function riverGapsFromCenter(board: BoardMeasure, center: Box): ReadonlyMap<string, number> {
+    const gaps = new Map<string, number>();
+    for (const { box, group } of board.riverTiles) {
+        gaps.set(group, Math.min(gaps.get(group) ?? Infinity, separation(box, center)));
+    }
+    return gaps;
+}
+
+/**
+ * At a reference viewport, the own hand tile leads the river tile by the spec's ratio, every seat's river that holds a
+ * tile stands the pinwheel's gap from the centre, and no two seats' rivers stand closer than that gap (a sparse river
+ * stands farther from its neighbour, so that gap has no upper bound).
+ */
+function checkDerivedProportions(board: BoardMeasure, viewport: string, report: PageReport): void {
+    const derived = DERIVED.get(viewport);
+    const { own, river } = board.tileScale;
+    if (derived === undefined || river === null || own === null) {
+        return;
+    }
+    const ratio = river / own;
+    report.expect(
+        Math.abs(ratio - derived.riverToOwn) <= DERIVED_TOLERANCE,
+        `the river tile is ${ratio.toFixed(3)} of the own tile (${river}px / ${own.toFixed(1)}px), not ${derived.riverToOwn}`,
+    );
+    if (board.center !== null) {
+        const off = [...riverGapsFromCenter(board, board.center)].filter(
+            ([, gap]) => Math.abs(gap / river - derived.riverGap) > DERIVED_TOLERANCE,
+        );
+        report.expect(
+            off.length === 0,
+            `rivers off the pinwheel's ${derived.riverGap} of a river tile from the centre: ${off.map(([seat, gap]) => `${seat} ${(gap / river).toFixed(3)} (${gap.toFixed(1)}px)`).join(", ")}`,
+        );
+    }
+    const least = (derived.riverGap - DERIVED_TOLERANCE) * river;
+    const crowded = new Set<string>();
+    for (const [index, first] of board.riverTiles.entries()) {
+        for (const second of board.riverTiles.slice(index + 1)) {
+            if (first.group !== second.group && separation(first.box, second.box) < least) {
+                crowded.add([first.group, second.group].toSorted().join(" x "));
+            }
+        }
+    }
+    report.expect(
+        crowded.size === 0,
+        `rivers closer than ${derived.riverGap} of a river tile (${least.toFixed(1)}px): ${[...crowded].join(", ")}`,
+    );
+}
+
 /** Another seat's face-up tiles stay readable in landscape. */
 function checkOpponentFaces(board: BoardMeasure, report: PageReport): void {
     const small = board.opponentFaces.filter(
@@ -855,6 +937,7 @@ async function checkBoard({
     checkOpponentFaces(board, report);
     checkHandReach(board, report);
     checkHandScale(board, report);
+    checkDerivedProportions(board, viewport.name, report);
     if (options.longNames !== true) {
         report.expect(
             board.cutNames.length === 0,

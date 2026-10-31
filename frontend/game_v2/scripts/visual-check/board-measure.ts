@@ -71,8 +71,15 @@ export interface BoardMeasure {
     readonly cutNames: readonly string[];
     /** Each side strip's full hand (fourteen tiles, the drawn one apart) as its place reserves it, by seat. */
     readonly handReach: readonly GroupedBox[];
-    /** The laid widths of a river tile and of every opponent's concealed hand tile, before the frames turn them. */
-    readonly tileScale: { readonly river: number | null; readonly hands: readonly number[] };
+    /**
+     * The laid widths, before the frames turn them, of a river tile, of every opponent's concealed hand tile and of the
+     * widest own hand tile, unrounded (a held-back tile's recess never counts).
+     */
+    readonly tileScale: {
+        readonly river: number | null;
+        readonly hands: readonly number[];
+        readonly own: number | null;
+    };
     readonly center: Box | null;
     readonly opponentFaces: readonly Box[];
     readonly leave: Box | null;
@@ -229,10 +236,14 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             return [{ box: { height: reach, left, top, width: depth }, group: seat }];
         });
         const riverTile = board.querySelector<HTMLElement>(".board-river .tile");
+        const ownWidths = [
+            ...board.querySelectorAll<HTMLElement>(".board-local .board-area--bottom-hand .tile"),
+        ].map((tile) => Number.parseFloat(getComputedStyle(tile).width));
         const tileScale = {
             hands: [
                 ...board.querySelectorAll<HTMLElement>(".board-strip [data-area$='-hand'] .tile"),
             ].map((tile) => tile.offsetWidth),
+            own: ownWidths.length === 0 ? null : Math.max(...ownWidths),
             river: riverTile?.offsetWidth ?? null,
         };
         const cutNames = [...board.querySelectorAll(".nameplate .player-name")]

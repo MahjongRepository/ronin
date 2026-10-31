@@ -522,7 +522,10 @@ follows the derived values and has no separate floor), readable faces and text s
 at a contrast of at least 4.5:1 against what they sit on (a held-back face included: it is recessed,
 never darkened), no state told by colour alone (a switch's on state included; tile identity aside: a
 red five is red and carries its own extra dot, which must stay visible at river scale), safe areas
-respected, the rotate panel on an upright phone, the budgets, and the derived proportions within
-their tolerances once they exist. Clarity, hierarchy and coherence are judged by the checklist
+respected, the rotate panel on an upright phone, the budgets, and, at the reference viewports, two
+derived proportions held within a tolerance, the river tile over the own tile and each river's gap
+from the centre, with neighbouring rivers no closer than that gap (a sparse river stands farther
+from its neighbour); the opponent's hand at the river tile holds everywhere, and the other derived
+values are review's, not the gate's. Clarity, hierarchy and coherence are judged by the checklist
 above. A visual failure that can be measured may earn a check; a judgement must not be turned into
 an arbitrary pixel rule.
