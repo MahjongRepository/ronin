@@ -31,11 +31,12 @@
     }
 
     &:is(.board-storybook, .decisions-storybook) {
+        grid-template:
+            "board" calc(100dvh - var(--ronin-safe-top) - var(--ronin-safe-bottom))
+            "aside" auto
+            / minmax(0, 1fr);
+
         @media (orientation: landscape) {
-            grid-template:
-                "board" calc(100dvh - var(--ronin-safe-top) - var(--ronin-safe-bottom))
-                "aside" auto
-                / minmax(0, 1fr);
             height: auto;
         }
     }

@@ -16,6 +16,7 @@ import {
     MID_DESKTOP,
     NARROW_DESKTOP,
     SHORTEST_REGULAR_DESKTOP,
+    SHORT_UPRIGHT,
     SMALLEST_WINDOW,
     UPRIGHT_PHONE,
 } from "../viewports.ts";
@@ -34,8 +35,8 @@ const CONFIRM = ".round-end-result__confirm";
 const NARROW_FIELD = [FLOOR, SMALLEST_WINDOW];
 
 /**
- * The notices' worst cases: the stack on the desktops too, the long ones also in the smaller window's field, one over
- * the upright panel, the keys on both engines, and every other once at the floor. The single notices the stack holds
+ * The notices' worst cases: the stack on the desktops too, the long ones also in the smaller window's field and the
+ * shortest upright board's place over the decisions, one over the upright panel, the keys on both engines, and every other once at the floor. The single notices the stack holds
  * (a refused move, faces that did not load) are left out.
  */
 const PAGES: readonly PageCase[] = [
@@ -47,7 +48,10 @@ const PAGES: readonly PageCase[] = [
         ...decisionCase("notices_stacked", [".board-notice--warning", ".hand-tile--selectable"]),
         at: [FLOOR, MID_DESKTOP, SHORTEST_REGULAR_DESKTOP, NARROW_DESKTOP],
     },
-    { ...decisionCase("notice_long", [".board-notice--error"]), at: NARROW_FIELD },
+    {
+        ...decisionCase("notice_long", [".board-notice--error"]),
+        at: [...NARROW_FIELD, SHORT_UPRIGHT],
+    },
     {
         ...decisionCase("notice_over_confirm", [".board-notice--warning", CONFIRM]),
         at: [...NARROW_FIELD, UPRIGHT_PHONE],
@@ -247,7 +251,7 @@ function measureShownNotices(page: Page): Promise<readonly Box[]> {
 }
 
 async function checkBoard({ board, page, report, viewport }: BoardRun): Promise<void> {
-    if (!viewport.supported || viewport.portrait) {
+    if (!viewport.supported) {
         return;
     }
     const notices = await measureShownNotices(page);

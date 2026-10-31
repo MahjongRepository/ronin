@@ -33,6 +33,7 @@ import {
     NOTCH_PHONE,
     SHORT_DESKTOP,
     SHORT_TABLET,
+    SHORT_UPRIGHT,
     UPRIGHT_PHONE,
     VIEWPORTS,
     WORST_CASES,
@@ -131,6 +132,7 @@ const LIVE_AT = [
     NARROW_DESKTOP,
     SHORT_TABLET,
     UPRIGHT_PHONE,
+    SHORT_UPRIGHT,
 ] as const;
 
 /**

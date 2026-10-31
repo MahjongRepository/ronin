@@ -18,7 +18,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) place the ta
 - A desktop's core also stays above the foreground band's controls and below the top strip's slot; a short desktop
   (`short-desktop-board`: under 760px high, at least 1100px wide, such as 1366x657) shares the band's lower corners as
   a phone does instead; an upright board takes the desktop rule, its core bounded by the width left beside two lines
-  of side melds. A choice the rule makes between two placements is a length selected by `clamp(0px, x * 1000, 1px)`
+  of side melds, standing below the side badges and above a fixed reserve for two rows of decisions and the notices'
+  place over them (one clamped notice's room), so a short upright board shrinks its core rather than crowd them. A choice the rule makes between two placements is a length selected by `clamp(0px, x * 1000, 1px)`
   from the viewport's lengths (a full hand's reach, the band's top), never from what a seat holds.
 - The perimeter's chrome (badges, counters, the page's corner, callouts) takes a phone's size on a phone, upright and
   on a desktop board under 1100px wide, whose geometry stays the desktop's, and a step larger on a board of at least
@@ -48,7 +49,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) place the ta
 - The notices lie in the table's own area, never over a tile, a plate, the centre, a decision control or the panel,
   however long they stay. Their place is the left field under the left badge, outside every river's capacity and past
   the left strip as drawn (its second meld line included, from the lengths `sideStripStyle` hands the table), above a
-  panel's dimming; what a page shows in their place lies under them (a replay's status); a desktop panel over the
+  panel's dimming; upright, where that field is too narrow for text, the place spans the board between the bottom
+  river's reach and the decisions' rows, as the replay's status does; what a page shows in their place lies under them (a replay's status); a desktop panel over the
   board then starts past the left river's reach, and over a short or upright board's panel they move to the reserve
   under the right strip's end, but under a modal panel (their sheet, the leave question) they stay put, hidden, their
   clamp kept.

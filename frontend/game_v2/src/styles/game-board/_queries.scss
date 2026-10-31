@@ -18,6 +18,9 @@ $core-tiles: 8.6;
 $river-by-own: 0.65;
 $side-reach-tiles: 10.6667;
 
+/* An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding. */
+$upright-notice-room: 44px;
+
 @mixin phone-board {
     @container game-board (height < #{$short-height}) and (aspect-ratio >= 1) {
         @content;

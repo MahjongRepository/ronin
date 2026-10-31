@@ -33,6 +33,7 @@ import {
     NARROW_DESKTOP,
     NOTCH_PHONE,
     SHORT_DESKTOP,
+    SHORT_UPRIGHT,
     UPRIGHT_PHONE,
     WIDER_PHONES,
     WORST_CASES,
@@ -109,7 +110,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: WORST_CASES,
+        at: [...WORST_CASES, SHORT_UPRIGHT],
         longNames: true,
     },
     {

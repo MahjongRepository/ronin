@@ -11,7 +11,11 @@ $lengths:
     own-start, own-hand-right, switches-left, switches-right, dg, full-reach, step-in,
     right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
     right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
-    switches-clear, top-badge-right, band-crossed;
+    switches-clear, top-badge-right, band-crossed, core-floor, notices-bottom;
+
+/* Upright, the counters stand this far under the top strip and the side badges this far under them. */
+$upright-counters-gap: 6px;
+$upright-counters-h: 52px;
 
 @each $name in $lengths {
     @property --#{$name} {
@@ -253,12 +257,38 @@ $lengths:
         --core-top: calc(var(--core-top-slot) + var(--core-top-free));
     }
 
+    /* Upright, the core stands below the side badges, and above two rows of decisions and the notices' place over
+       them, which the left field is too narrow to hold. */
     @include upright-board {
         --m: 4px;
-        --counters-top: calc(var(--m) + var(--strip-depth) + 6px);
+        --counters-top: calc(var(--m) + var(--strip-depth) + #{$upright-counters-gap});
         --top-room-left: var(--m);
-        --side-start: calc(var(--counters-top) + 52px);
+        --side-start: calc(var(--counters-top) + #{$upright-counters-h});
         --side-badge-top: max(var(--side-start), var(--core-top) - var(--badge-h) - 4px);
+        --under-strip: calc(
+            var(--m) + #{$upright-counters-gap + $upright-counters-h} + var(--badge-h) + 4px
+        );
+        --core-floor: calc(var(--under-strip) + var(--strip-depth));
+        --notices-bottom: calc(
+            var(--hand-top) - max(0px, var(--badge-h) - var(--oh)) - 2 * var(--control-h) - 16px
+        );
+        --band-reserve: calc(
+            var(--hand-top) - var(--notices-bottom) + #{$upright-notice-room} + 6px
+        );
+        --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--under-strip));
+        --rw-by-band: calc(
+            var(--spare) * var(--core-room-band) / (#{$core-tiles} + 2 * var(--spare))
+        );
+        --core: min(
+            var(--core-room-h) - var(--rh),
+            var(--core-room-band) - var(--strip-depth),
+            var(--core-cap),
+            var(--core-room-w) - #{$side-reach-tiles} * var(--rw)
+        );
+        --core-top: max(
+            var(--core-floor),
+            min(var(--core-top-slot) + var(--core-top-free), var(--core-top-band))
+        );
         --control-h: 40px;
         --band-gap: 8px;
         --own-cap: 10cqh;
