@@ -2,7 +2,7 @@
 
 $plate-seats: bottom, right, top, left;
 
-/* A seat's badge: one shape for every seat (wind, name, marks), a fixed place in its zone that never depends on the
+/* A seat's badge: one shape for every seat (name, marks), a fixed place in its zone that never depends on the
    tiles the seat holds, and a tap area at the control floor whatever the drawn pill's size. */
 .nameplate {
     --pill-h: 46px;
@@ -154,24 +154,6 @@ $plate-seats: bottom, right, top, left;
 
     @include upright-board {
         --corner-reserve: 76px;
-    }
-}
-
-.nameplate__wind {
-    display: inline-grid;
-    flex: none;
-    place-items: center;
-    width: 1.55em;
-    height: 1.55em;
-    font-size: max(11.5px, 0.9em);
-    font-weight: 700;
-    color: var(--ronin-badge-wind-ink);
-    background: var(--ronin-badge-wind);
-    border-radius: 5px;
-
-    .nameplate--dealer & {
-        color: var(--ronin-dealer-ink);
-        background: var(--ronin-dealer);
     }
 }
 

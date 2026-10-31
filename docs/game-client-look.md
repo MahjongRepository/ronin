@@ -180,12 +180,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   safe area), it runs from below the corner across the band, whose row then ends before it. A
   board without the page's corner (a replay's) keeps no room for it. The top
   hand stands centred, short of a badge's width before the page's corner and right of the counters.
-- **Badges.** One fixed shape for every seat: wind, name, and marks for an AI player, a human seat
+- **Badges.** One fixed shape for every seat: name and marks for an AI player, a human seat
   an AI stands in for (the human identity kept, the mark cleared when they return), riichi (quiet)
   and disconnected. Each has a fixed place in its zone outside the rivers, the same in every state
   at a given viewport and viewpoint; a badge's place never depends on how many tiles the seat holds.
   A long name is shortened in the middle so its end, which tells AI players apart, stays. Decision:
-  the badge carries no score; the centre holds every seat's score, and hovering or tapping a badge
+  the badge carries no wind or score; the centre holds every seat's score, and hovering or tapping a badge
   shows the other seats' scores in the centre as differences from it, labelled as that seat's
   differences (kept from the current board). The badge is therefore a control: its tap area meets
   the control floor whatever the drawn badge's size, a key activates it like a tap, a tap pins the

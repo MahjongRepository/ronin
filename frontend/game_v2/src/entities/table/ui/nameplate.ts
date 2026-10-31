@@ -44,8 +44,8 @@ interface NameplateProps {
 }
 
 /**
- * What a screen reader hears for a plate: what it shows, its whole name, whose turn it is, the difference from the
- * pinned plate in place of the score, why an AI player is marked, and where pressing it views from its seat, that.
+ * What a screen reader hears for a plate: its whole name, its seat's wind (shown in the centre), whose turn it is, the
+ * difference from the pinned plate in place of the score, why an AI player is marked, and where pressing it views from its seat, that.
  */
 function nameplateLabel({ pinnedOther, plate, position, pressed }: NameplateProps): string {
     const seat = plate.isDealer ? `${plate.windName}, dealer` : plate.windName;
@@ -72,8 +72,7 @@ function viewWords(position: SeatPosition, pressed: boolean | null): string | nu
 }
 
 /**
- * A seat's badge, one shape on every side: its wind (the dealer's marked), its player's name, then its AI and riichi
- * marks, quiet; whose turn it is underlines it. Its score is the centre's, on the seat's side. It is a button: pressing
+ * A seat's badge, one shape on every side: its player's name, then its AI and riichi marks, quiet; whose turn it is underlines it. Its score is the centre's, on the seat's side. It is a button: pressing
  * it pins it, so the centre shows the other seats' scores as differences from its own, and pressing it again unpins
  * it, or on a replay views the table from its seat; its label reads the score, or the difference from the pinned badge.
  */
@@ -83,7 +82,6 @@ function Nameplate(props: NameplateProps): TemplateResult {
         "nameplate",
         `nameplate--${position}`,
         plate.isCurrent ? "nameplate--current" : "",
-        plate.isDealer ? "nameplate--dealer" : "",
     ]
         .filter(Boolean)
         .join(" ");
@@ -97,7 +95,6 @@ function Nameplate(props: NameplateProps): TemplateResult {
         @click=${onToggle}
     >
         <span class="nameplate__pill">
-            <span class="nameplate__wind">${plate.wind}</span>
             ${PlayerName(plate.name, "nameplate__name")}
             ${
                 aiMark === null

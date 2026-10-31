@@ -773,7 +773,10 @@ function measureDiffLabel(page: Page): Promise<DiffLabelRead> {
             slot: piece(label.querySelector(".board-center__diff-slot")),
             vs: piece(label.querySelector(".board-center__diff-vs")),
             wind: piece(label.querySelector(".board-center__diff-wind")),
-            windLetter: plate.querySelector(".nameplate__wind")?.textContent.trim() ?? "",
+            windLetter:
+                center
+                    .querySelector(`.board-center__seat--${seat} .board-center__wind`)
+                    ?.textContent.trim() ?? "",
         };
     });
 }
@@ -784,7 +787,7 @@ function measureDiffLabel(page: Page): Promise<DiffLabelRead> {
  */
 const NAME_FIT_TOLERANCE = 1;
 
-/** Each seat wind's name by the letter its badge shows. */
+/** Each seat wind's name by the letter its side of the centre shows. */
 const WIND_NAMES: ReadonlyMap<string, string> = new Map([
     ["E", "East"],
     ["S", "South"],

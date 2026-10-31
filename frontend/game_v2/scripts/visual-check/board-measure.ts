@@ -45,7 +45,7 @@ export interface BoardMeasure {
     readonly actions: readonly Box[];
     /** The decision's corner and its buttons, which must sit wholly in its box, never scrolled or clipped. */
     readonly decisionCorner: { readonly box: Box; readonly buttons: readonly Box[] } | null;
-    /** Text that shows whole or not at all (the status's word, a name's end, a plate's wind and marks), clipped. */
+    /** Text that shows whole or not at all (the status's word, a name's end, a plate's marks), clipped. */
     readonly clippedWords: readonly string[];
     /** The calls shown by their seats. */
     readonly callouts: readonly Box[];
@@ -191,7 +191,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         );
         const wholeWords = [
             ".game-menu__status-word",
-            ".nameplate__wind",
             ".nameplate .player-name__tail",
             ".nameplate__ai",
             ".nameplate__riichi",
@@ -350,7 +349,6 @@ const BOARD_TEXT = {
         ".board-dora__sticks",
         ".board-center__score-line",
         ".nameplate__name",
-        ".nameplate__wind",
         ".nameplate__riichi",
         ".nameplate__ai",
         ".board-callout",
