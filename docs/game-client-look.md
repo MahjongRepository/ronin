@@ -53,7 +53,7 @@ The derived proportions are the three reference viewports' values under the sizi
 - **Table conventions are followed, not reinvented.** Rivers, melds, the sideways tiles, the
   separated drawn tile and the riichi stick look the way riichi players already read them.
 - **The live game is landscape only.** Its play area is the safe area of the landscape viewport,
-  at whatever aspect ratio it has; nothing is letterboxed. An upright phone sees the rotate panel
+  kept at least 10px off each screen edge past a phone's height so no tile meets a border, at whatever aspect ratio it has; nothing is letterboxed. An upright phone sees the rotate panel
   instead of play, which says that play and its timers go on. A replay or a storybook page may be
   read upright and scrolls instead.
 

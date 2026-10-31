@@ -20,6 +20,7 @@ they disagree.
   floor (a safety limit, not a design size).
 - A round result taller than its panel scrolls its yaku, value and score rows in place, keeping its head and the
   viewer's controls whole.
-- Pages never clip the board: `.board-page` gives it the safe area exactly.
+- Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter past a phone's height. No
+  tile's edge leaves the board: the own row stands at least its edge's depth off the bottom.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`.
 - Held-back tiles are recessed, never darkened; switch states differ by more than colour.

@@ -8,7 +8,7 @@ $lengths:
     core-room-h, core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, strip-len,
     foreground-top, band-top, band-bottom, corner-bottom, reach-left, reach-right, reach-top-row3,
     reach-top-left, reach-bottom-right, side-badge-top, left-badge-x, side-badge-max, full-hand-w,
-    own-start, own-hand-right, switches-left, switches-right, dg, full-reach, step-in,
+    own-start, own-hand-right, hand-bottom, switches-left, switches-right, dg, full-reach, step-in,
     right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
     right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
     switches-clear, top-badge-right, band-crossed, core-floor, notices-bottom, own-rise;
@@ -68,8 +68,14 @@ $upright-counters-h: 52px;
         (100cqw - 2 * var(--m) - var(--badge-slot) - var(--furiten-slot)) / #{$full-hand}
     );
     --oh: calc(var(--ow) * 4 / 3);
-    --hand-top: calc(100cqh - var(--m) - var(--oh));
-    --core-room-h: calc(100cqh - 2 * var(--m) - var(--oh) - var(--core-gap) - var(--sep));
+
+    /* The own row stands the margin off the board's bottom, or its tiles' edge where that runs deeper, so the edge
+       never leaves the board. */
+    --hand-bottom: max(var(--m), var(--ow) * #{$tile-edge-share});
+    --hand-top: calc(100cqh - var(--hand-bottom) - var(--oh));
+    --core-room-h: calc(
+        100cqh - var(--m) - var(--hand-bottom) - var(--oh) - var(--core-gap) - var(--sep)
+    );
     --core-room-w: calc(100cqw - 2 * var(--m) - 24px);
     --band-reserve: calc(var(--band-gap) + var(--control-h) + 20px);
     --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--m) - var(--sep));

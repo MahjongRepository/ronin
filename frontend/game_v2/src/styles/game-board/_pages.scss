@@ -1,3 +1,5 @@
+@use "queries" as *;
+
 #app:has(.board-page) {
     max-width: none;
     padding: 0;
@@ -5,6 +7,16 @@
 }
 
 .board-page {
+    --page-gutter: 0px;
+    --page-edge-top: max(var(--ronin-safe-top), var(--page-gutter));
+    --page-edge-right: max(var(--ronin-safe-right), var(--page-gutter));
+    --page-edge-bottom: max(var(--ronin-safe-bottom), var(--page-gutter));
+    --page-edge-left: max(var(--ronin-safe-left), var(--page-gutter));
+
+    @media (height >= #{$short-height}) {
+        --page-gutter: 10px;
+    }
+
     position: relative;
     display: grid;
     grid-template:
@@ -13,8 +25,8 @@
         / minmax(0, 1fr);
     gap: 0.25rem;
     min-height: 100dvh;
-    padding: var(--ronin-safe-top) var(--ronin-safe-right) var(--ronin-safe-bottom)
-        var(--ronin-safe-left);
+    padding: var(--page-edge-top) var(--page-edge-right) var(--page-edge-bottom)
+        var(--page-edge-left);
     background: var(--ronin-table-edge);
 
     @media (orientation: landscape) {
@@ -32,7 +44,7 @@
 
     &:is(.board-storybook, .decisions-storybook) {
         grid-template:
-            "board" calc(100dvh - var(--ronin-safe-top) - var(--ronin-safe-bottom))
+            "board" calc(100dvh - var(--page-edge-top) - var(--page-edge-bottom))
             "aside" auto
             / minmax(0, 1fr);
 
@@ -72,9 +84,10 @@
     }
 
     :is(.board-storybook, .decisions-storybook) > & {
+        margin-top: var(--page-edge-bottom);
+
         @media (orientation: landscape) {
             flex-flow: row wrap;
-            margin-top: var(--ronin-safe-bottom);
             align-self: start;
             max-height: none;
             overflow-y: visible;
