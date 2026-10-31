@@ -102,7 +102,7 @@ how the client recovers.
   (`not_in_game` in answer means the socket holds no seat: `entities/session/AGENTS.md`). A JOIN_GAME is answered by
   `game_joined`, never a snapshot, and only a game that has not dealt takes one, so a reopened socket that joins
   waits for the deal as a refusal of the game not dealt does, and drops during a long wait for the players spend no
-  requests. Only the session's state voids a request (none while the session cannot ask), in one place.
+  requests; a join the server turns into RECONNECT (`join_game_already_started`) awaits its snapshot again. Only the session's state voids a request (none while the session cannot ask), in one place.
 - A snapshot puts the client back in step before it is taken, so what it says the seat owes is owed in step, and
   alone resets the board's count of failures (`unreadMessages`, the desync record's). A second snapshot that answers a
   request sent again can follow the player's answer to the first one's wait: a snapshot or re-sent opening naming the

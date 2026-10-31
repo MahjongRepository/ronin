@@ -243,21 +243,35 @@ function voidedRequest(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
     return { ...step, state: withRequest(state, sync, UNSENT) };
 }
 
+/** The wait for a RECONNECT's own snapshot, asked for only once it goes unanswered for `RESYNC_ANSWER_MS`. */
+function snapshotWait(state: LiveClient): ResyncRequest {
+    return { due: state.now + RESYNC_ANSWER_MS, kind: "awaiting_snapshot" };
+}
+
 /** The request of an unsent client whose identifying socket cannot ask yet: the answer it awaits instead. */
 function identifyingRequest(state: LiveClient): ResyncRequest {
-    return awaitsSnapshot(state.session)
-        ? { due: state.now + RESYNC_ANSWER_MS, kind: "awaiting_snapshot" }
-        : awaitingDeal(state);
+    return awaitsSnapshot(state.session) ? snapshotWait(state) : awaitingDeal(state);
+}
+
+/**
+ * Whether a request waits on the game, at the deal or for its next message, as a JOIN_GAME's socket waits: once the
+ * session turns its identity into RECONNECT (`join_game_already_started`), the snapshot that answers it is due instead.
+ */
+function waitsOnTheGame(request: ResyncRequest): boolean {
+    return request.kind === "at_deal" || request.kind === "on_game_message";
 }
 
 /**
  * An out-of-step client that can ask, by where its request stands: unsent, it asks at once while it holds the seat, and
- * while it identifies awaits the answer its identity message brings first; any other with a due time asks once that
- * comes.
+ * while it identifies awaits the answer its identity message brings first; a wait on the game turns into the wait for
+ * the snapshot once the identity is a RECONNECT; any other with a due time asks once that comes.
  */
 function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
     const { state } = step;
     const { request } = sync;
+    if (awaitsSnapshot(state.session) && waitsOnTheGame(request)) {
+        return { ...step, state: withRequest(state, sync, snapshotWait(state)) };
+    }
     switch (request.kind) {
         case "unsent": {
             return holdsSeat(state.session)

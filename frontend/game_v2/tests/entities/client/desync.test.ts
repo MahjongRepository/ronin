@@ -666,6 +666,23 @@ describe("stepGameClient - desync before the first deal", () => {
         expect(sends(limited.effects)).toEqual([]);
     });
 
+    it("waits for the snapshot again once a JOIN_GAME turns into RECONNECT, asking when that snapshot goes unanswered", () => {
+        const reconnecting = run(startGameClient(GAME_ID, HANDOFF, 0).state, [
+            opened(0),
+            undecodable(1),
+            message(2, wireSessionError(SESSION_ERROR_CODE.JOIN_GAME_ALREADY_STARTED)),
+            undecodable(3),
+        ]);
+        const unanswered = run(reconnecting.state, [tick(10_003)]);
+
+        expect(desyncOf(reconnecting.state)?.request).toEqual({
+            due: 10_002,
+            kind: "awaiting_snapshot",
+        });
+        expect(nextDeadline(reconnecting.state)).toBe(10_002);
+        expect(sends(unanswered.effects)).toEqual([RESYNC]);
+    });
+
     it("spends no request on a JOIN_GAME's answer however often the socket drops before the game starts, asking at the deal", () => {
         const drops = Array.from({ length: MAX_RESYNC_REQUESTS }, (_unused, index) => index + 1);
         const { effects, state } = drops.reduce(
