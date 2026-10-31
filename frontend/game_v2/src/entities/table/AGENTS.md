@@ -73,8 +73,8 @@ replay view, the live game and the storybook read the tables it produces.
   rebuilds the ledger the seat built. A live client's loss of step (`lost_step`, a table event no
   message carries) drops the round result the table kept, which is no longer known to be the latest,
   and marks the history out of step until a snapshot rebuilds it; a round end taken out of step (the
-  game's last) keeps its result but says so (`inStep`), and its panel notes that the dora and dealer
-  it read from the table may be wrong. The standings
+  game's last) keeps its result but says so (`inStep`), and its panel notes that what that page read
+  from the table and shows (the dealer, a win's dora) may be wrong. The standings
   call their ledger incomplete, saying so on the panel, unless the history is in step and holds a
   record for each round the game's end counts (`nr`): a ledger is never shown as whole when it may
   miss or misstate a round. A record's payments exclude riichi deposits; the ledger nets

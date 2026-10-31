@@ -67,8 +67,14 @@ describe("RoundEndDisplay", () => {
         expect(single.querySelector(".round-end-result__pager")).toBeNull();
     });
 
-    test("a draw: each tenpai hand under its player's name, each seat's tag beside its payment", () => {
-        const el = renderResult(lastRoundEndTable("exhaustive_tenpai"));
+    test("a draw: each tenpai hand under its player's name, each seat's tag beside its payment, and out of step only the dealer doubted", () => {
+        const table = lastRoundEndTable("exhaustive_tenpai");
+        const el = renderResult(table);
+        assert(table.roundEndResult !== null);
+        const outOfStep = renderResult({
+            ...table,
+            roundEndResult: { ...table.roundEndResult, inStep: false },
+        });
 
         expect(texts(el, ".round-end-result__tenpai-hand .round-end-result__label")).toEqual([
             "Alice",
@@ -79,6 +85,10 @@ describe("RoundEndDisplay", () => {
             "South Alice Tenpai +1,500 25,500",
             "West Charlie Tenpai +1,500 26,500",
             "North Bob Noten −1,500 23,500",
+        ]);
+        expect(el.querySelector(".round-end-result__uncertain")).toBeNull();
+        expect(texts(outOfStep, ".round-end-result__uncertain")).toEqual([
+            "This page lost step with the server: the dealer shown may be wrong. The hand and the scores are the server's.",
         ]);
     });
 

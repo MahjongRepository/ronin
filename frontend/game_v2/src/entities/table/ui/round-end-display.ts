@@ -231,7 +231,7 @@ function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateR
             <span class="round-end-result__kind">Draw</span>
             <span class="round-end-result__title">${page.title}</span>
             ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
-            ${UncertainNote(display, page.rivers.length > 0 ? "the dealer and the river" : "the dora and dealer")}
+            ${UncertainNote(display, page.rivers.length > 0 ? "the dealer and the river" : "the dealer")}
         </div>
         ${NagashiRivers(page)}
         ${

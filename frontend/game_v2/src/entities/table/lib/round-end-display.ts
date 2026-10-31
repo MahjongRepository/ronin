@@ -115,8 +115,8 @@ export interface RoundEndDisplayState {
     readonly body: WinPageDisplay | DrawPageDisplay;
     readonly scores: readonly ResultScoreRow[];
     /**
-     * The result was read against a table out of step with the server, so what it took from the table (the dora, the
-     * dealer, a nagashi river) may be wrong.
+     * The result was read against a table out of step with the server, so what it took from the table (the dealer, a
+     * win's dora, a nagashi river) may be wrong.
      */
     readonly uncertain: boolean;
 }
