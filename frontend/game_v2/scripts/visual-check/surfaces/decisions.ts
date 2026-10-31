@@ -135,15 +135,16 @@ const LIVE_AT = [
 
 /**
  * The live board's worst cases: the anchor's call offer at the viewports guarding a path of the layout, its turn
- * beside it at the notch phone and the short desktop so the badges' places are compared there, the pages a check
- * across pages compares at the floor and the mid desktop, and every other decision once at the floor. A
+ * beside it at the notch phone and the short desktop so the badges' places are compared there, the anchor's three
+ * checkpoints at the spec's three viewports (the review recipe's shots), the pages a check across pages compares at the
+ * floor and the mid desktop, and every other decision once at the floor. A
  * decision whose controls a kept one shows in a denser state is left out (a ron prompt, an own turn, a riichi pick, a
  * kuikae turn, a turn in the bank, a chiihou offer, a seat back).
  */
 const PAGES: readonly PageCase[] = [
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-        at: [FLOOR, NOTCH_PHONE, SHORT_DESKTOP],
+        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, SHORT_DESKTOP],
         contrast: true,
     },
     {
@@ -156,6 +157,7 @@ const PAGES: readonly PageCase[] = [
             `${ACTION}[aria-pressed="true"]`,
             ".hand-tile--disabled",
         ]),
+        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP],
         contrast: true,
     },
     { ...decisionCase("anchor_riichi_off", [`${ACTION}[aria-pressed="false"]`]), contrast: true },
