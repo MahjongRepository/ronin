@@ -2,11 +2,15 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ManualClock } from "#tests/fixtures/clock";
 import { engineReplayText } from "#tests/fixtures/replays";
-import { FakeStandingsLoad } from "#tests/fixtures/standings";
 import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, type ReplayPrefsStore } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { REPLAY_VERSION } from "@/shared/protocol";
-import { REPLAY_URL_WRITE_INTERVAL_MS, type ReplayLocation, mountReplayView } from "@/views/replay";
+import {
+    REPLAY_URL_WRITE_INTERVAL_MS,
+    type ReplayLinks,
+    type ReplayLocation,
+    mountReplayView,
+} from "@/views/replay";
 import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "@/views/replay-page";
 
 interface MountedReplay {
@@ -28,6 +32,31 @@ interface MountedReplay {
 
 const mounts: MountedReplay[] = [];
 const LINKS = { history: "/history", lobby: "/" };
+
+/**
+ * The page's links, which each draw of the board reads for the game end's panel: counting those reads, throwing on
+ * the next few.
+ */
+function drawnLinks(): {
+    readonly links: ReplayLinks;
+    readonly reads: { count: number; throwing: number };
+} {
+    const reads = { count: 0, throwing: 0 };
+    return {
+        links: {
+            history: LINKS.history,
+            get lobby(): string {
+                reads.count += 1;
+                if (reads.throwing > 0) {
+                    reads.throwing -= 1;
+                    throw new Error("the board failed to draw");
+                }
+                return LINKS.lobby;
+            },
+        },
+        reads,
+    };
+}
 
 async function settle(turns = 6): Promise<void> {
     if (turns > 0) {
@@ -126,7 +155,7 @@ function fakePrefsStore(prefs: ReplayPrefs): {
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
 function mountReplay(
     search = "?v=2",
-    standings = new FakeStandingsLoad(),
+    links: ReplayLinks = LINKS,
     prefs = DEFAULT_REPLAY_PREFS,
 ): MountedReplay {
     const host = document.createElement("div");
@@ -137,11 +166,10 @@ function mountReplay(
     const { answer, loadReplay, signals } = fakeLoader();
     const dispose = mountReplayView(host, "g1", {
         clock,
-        links: LINKS,
+        links,
         loadReplay,
         location,
         prefs: store,
-        startStandings: () => standings,
     });
     const mounted: MountedReplay = {
         answer,
@@ -160,16 +188,16 @@ function mountReplay(
 }
 
 interface MountOptions {
-    readonly standings?: FakeStandingsLoad;
+    readonly links?: ReplayLinks;
     readonly prefs?: ReplayPrefs;
 }
 
 async function mountLoadedReplay(
     name = "riichi",
     search = "?v=2",
-    { prefs = DEFAULT_REPLAY_PREFS, standings = new FakeStandingsLoad() }: MountOptions = {},
+    { links = LINKS, prefs = DEFAULT_REPLAY_PREFS }: MountOptions = {},
 ): Promise<MountedReplay> {
-    const mounted = mountReplay(search, standings, prefs);
+    const mounted = mountReplay(search, links, prefs);
     await mounted.answer({ ok: true, text: engineReplayText(name) });
     return mounted;
 }
@@ -316,27 +344,6 @@ async function answerNotFound(
         clock.advanceTo(at);
         await answerNotFound(answer, clock, later);
     }
-}
-
-/** Final standings whose drawing, which every stop but a result asks for, throws once `fail` is called. */
-function standingsFailingOnCall(): {
-    readonly standings: FakeStandingsLoad;
-    readonly fail: () => void;
-} {
-    const standings = new FakeStandingsLoad();
-    const draws = { failing: false };
-    vi.spyOn(standings, "value").mockReturnValue(() => {
-        if (draws.failing) {
-            throw new Error("the board failed to draw");
-        }
-        return undefined;
-    });
-    return {
-        fail: () => {
-            draws.failing = true;
-        },
-        standings,
-    };
 }
 
 afterEach(() => {
@@ -531,20 +538,20 @@ describe("mountReplayView - wheel and hold", () => {
     });
 
     it("steps once for a trackpad's small ticks until they add up, drawing nothing until then", async () => {
-        const standings = new FakeStandingsLoad();
-        const { host } = await mountLoadedReplay("riichi", "?v=2", { standings });
+        const { links, reads } = drawnLinks();
+        const { host } = await mountLoadedReplay("riichi", "?v=2&round=0&step=0", { links });
         const board = element(host, ".game-board");
-        const draws = vi.spyOn(standings, "value");
+        reads.count = 0;
 
         const taken = [wheel(board, 12), wheel(board, 12)];
-        const before = [position(host), draws.mock.calls.length];
+        const before = [position(host), reads.count];
         wheel(board, 12);
 
         expect([taken, before]).toEqual([
             [true, true],
             ["East 1 Step 1 of 28", 0],
         ]);
-        expect([position(host), draws.mock.calls.length]).toEqual(["East 1 Step 2 of 28", 1]);
+        expect([position(host), reads.count]).toEqual(["East 1 Step 2 of 28", 1]);
     });
 
     it("repeats a held step button on its timer, dropping the click its press ends in", async () => {
@@ -663,54 +670,50 @@ describe("mountReplayView - focus", () => {
     });
 });
 
-describe("mountReplayView - standings", () => {
-    it("shows the standings at the game's end with a row per round and the ways back, the wheel left to scroll them", async () => {
+describe("mountReplayView - seating and game end", () => {
+    it("opens on the seating at the starting scores, its start focused, when the address names no position; Start shows the board", async () => {
+        const { host } = await mountLoadedReplay("riichi", "?v=2");
+        const start = button(host, ".seating__action");
+        const names = [...host.querySelectorAll(".seating__name")].map((name) => name.textContent);
+        const scores = [...host.querySelectorAll(".seating__score")].map(
+            (score) => score.textContent,
+        );
+
+        start.click();
+
+        expect([document.activeElement === start, names.length]).toEqual([false, 4]);
+        expect(scores).toEqual(["25,000", "25,000", "25,000", "25,000"]);
+        expect(host.querySelector(".seating__seat--viewer")).toBeNull();
+        expect([host.querySelector(".seating"), document.activeElement]).toEqual([
+            null,
+            rootOf(host),
+        ]);
+    });
+
+    it("closes the seating on the first step, and never opens it where the address names a position", async () => {
+        const { host } = await mountLoadedReplay("riichi", "?v=2");
+        pressKey(rootOf(host), "ArrowRight");
+        const deepLinked = await mountLoadedReplay("riichi", "?v=2&round=0&step=0");
+
+        expect([position(host), host.querySelector(".seating")]).toEqual([
+            "East 1 Step 2 of 28",
+            null,
+        ]);
+        expect(deepLinked.host.querySelector(".seating")).toBeNull();
+    });
+
+    it("shows the final scores at the game's end with the ways back", async () => {
         const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141");
-        const links = [...host.querySelectorAll<HTMLAnchorElement>(".standings__action")];
+        const links = [...host.querySelectorAll<HTMLAnchorElement>(".seating__action")];
+        const placements = [...host.querySelectorAll(".seating__placement")].map(
+            (placement) => placement.textContent,
+        );
 
-        const [row] = host.querySelectorAll<HTMLButtonElement>(".standings__round--jump");
-        const atEnd = position(host);
-        pressKey(row, "ArrowLeft");
-
-        expect(position(host)).toBe(atEnd);
-        expect(host.querySelectorAll(".standings__round--jump")).toHaveLength(12);
+        expect(placements).toEqual(["1st", "2nd", "3rd", "4th"]);
         expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
             ["Lobby", LINKS.lobby],
             ["Game history", LINKS.history],
         ]);
-        expect(wheel(element(host, ".standings__sheet"), -100)).toBe(false);
-    });
-
-    it("says at the game's end that the standings failed to load, and shows them once a retry lands", async () => {
-        const standings = new FakeStandingsLoad("failed");
-        const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141", {
-            standings,
-        });
-        const failed = [host.querySelector(".standings"), textOf(host, ".board-notice--error")];
-
-        standings.moveTo("ready");
-
-        expect(failed).toEqual([
-            null,
-            "The final standings did not load; reload the page to try again",
-        ]);
-        expect([host.querySelector(".standings") !== null, textOf(host, ".board-notice")]).toEqual([
-            true,
-            undefined,
-        ]);
-    });
-
-    it("jumps from a round's row to that round's result, its arrow keys stepping on from there", async () => {
-        const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141");
-        const [, , row] = host.querySelectorAll<HTMLButtonElement>(".standings__round--jump");
-        row.focus();
-
-        row.click();
-        const shown = [position(host), textOf(host, ".round-end-result__title")];
-        pressOnFocus(host, "ArrowRight");
-
-        expect(shown).toEqual(["East 3, 2 honba Step 141 of 141", "Exhaustive draw"]);
-        expect(position(host)).toBe("East 4, 3 honba Step 1 of 141");
     });
 });
 
@@ -881,13 +884,15 @@ describe("mountReplayView - loading", () => {
     });
 
     it("says a replay that throws while a held button repeats cannot be shown, arming no further repeat", async () => {
-        const { fail, standings } = standingsFailingOnCall();
+        const { links, reads } = drawnLinks();
         vi.spyOn(console, "error").mockImplementation(() => {});
-        const { clock, dispose, host } = await mountLoadedReplay("riichi", "?v=2", { standings });
+        const { clock, dispose, host } = await mountLoadedReplay("riichi", "?v=2&round=0&step=0", {
+            links,
+        });
 
         button(host, ".replay-controls__move--next").dispatchEvent(pointer("pointerdown"));
         const pressed = position(host);
-        fail();
+        reads.throwing = 1;
         clock.advanceTo(HOLD_DELAY_MS);
         const shown = [
             pressed,
@@ -905,21 +910,18 @@ describe("mountReplayView - loading", () => {
     });
 
     it("says a replay that throws while autoplay steps cannot be shown, its timers stopped and the error on the console", async () => {
-        const thrown = new Error("standings failed to draw");
-        const standings = new FakeStandingsLoad();
-        vi.spyOn(standings, "value").mockReturnValue(() => {
-            throw thrown;
-        });
+        const { links, reads } = drawnLinks();
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
         const { clock, host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=140", {
-            standings,
+            links,
         });
+        reads.throwing = 1;
 
         button(host, ".replay-controls__play").click();
         runTimers(clock);
 
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
-        expect(logged).toHaveBeenCalledWith("The replay could not be shown:", thrown);
+        expect(logged).toHaveBeenCalledWith("The replay could not be shown:", expect.any(Error));
         expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
     });
 

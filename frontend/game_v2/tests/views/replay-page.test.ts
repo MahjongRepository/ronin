@@ -360,7 +360,6 @@ describe("stepReplayPage - hold and wheel", () => {
         ["a held pointer with no hold", { kind: "hold_pointer", over: false }],
         ["a hold's end with no hold", { cancelled: false, kind: "hold_end" }],
         ["a wheel back from the first stop", { deltaPx: -100, kind: "wheel" }],
-        ["a standings row of a round with no result", { kind: "round_result", round: 99 }],
     ] as const)("leaves the screen as it was on %s", (_name, input) => {
         const start = opened("riichi");
 

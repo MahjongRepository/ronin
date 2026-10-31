@@ -14,7 +14,6 @@ import {
     readReplay,
     replayMoves,
     resolveReplayAddress,
-    roundResultCursor,
 } from "@/entities/replay";
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
 import { type ReplayFetch } from "@/shared/api";
@@ -54,6 +53,8 @@ export interface LoadedScreen {
     /** Whether the other seats' hands hide, as a seat would see the table. */
     readonly hideHands: boolean;
     readonly hold: ReplayHold | null;
+    /** Whether the seating shows over the board: a replay opened at its start, until the reader starts or moves. */
+    readonly seating: boolean;
     /** The step button whose press stepped already, so the click that press ends in is dropped, once. */
     readonly pressedStep: StepDirection | null;
     readonly wheel: WheelGesture | null;
@@ -106,12 +107,11 @@ type StepInput =
     | { readonly kind: "wheel"; readonly deltaPx: number }
     | { readonly kind: "tick" };
 
-/** A move to a cursor: the controls', a key's, a result's page, a standings row and a round chosen from the list. */
+/** A move to a cursor: the controls', a key's, a result's page and a round chosen from the list. */
 type MoveInput =
     | { readonly kind: "move"; readonly cursor: ReplayCursor }
     | KeyInput
     | { readonly kind: "result_page"; readonly page: number }
-    | { readonly kind: "round_result"; readonly round: number }
     | { readonly kind: "select_round"; readonly cursor: ReplayCursor };
 
 /** The round list opened, closed (its own close or Escape) or dismissed (a click outside it). */
@@ -120,8 +120,12 @@ type RoundListInput =
     | { readonly kind: "close_round_list" }
     | { readonly kind: "dismiss_round_list" };
 
-/** The options, a seat chosen to view from (its plate or score, by board position) and the page hiding. */
+/**
+ * The seating's start, the options, a seat chosen to view from (its plate or score, by board position) and the page
+ * hiding.
+ */
 type OptionInput =
+    | { readonly kind: "start" }
     | { readonly kind: "toggle_play" }
     | { readonly kind: "view_seat"; readonly seat: SeatPosition }
     | { readonly kind: "toggle_hands" }
@@ -137,8 +141,11 @@ export type ReplayPageInput = LoadEvent | LoadedInput;
 /** An input of the page, stamped with the logical time its source read from the clock. */
 export type ReplayPageEvent = { readonly at: number } & ReplayPageInput;
 
-/** Where the page puts the focus after drawing: its root, the round list's current row, or the list's toggle. */
-export type ReplayFocusTarget = "root" | "current_round" | "round_list_toggle";
+/**
+ * Where the page puts the focus after drawing: its root, the round list's current row, the list's toggle, or the
+ * seating's start.
+ */
+export type ReplayFocusTarget = "root" | "current_round" | "round_list_toggle" | "start";
 
 /** The IO a transition asks of the view, which runs it after drawing the new screen. */
 export type ReplayPageEffect =
@@ -208,11 +215,11 @@ function withoutPressedStep(screen: LoadedScreen): LoadedScreen {
     return screen.pressedStep === null ? screen : { ...screen, pressedStep: null };
 }
 
-/** Autoplay playing, its next move armed from `at` at the pace of the stop shown. */
+/** Autoplay playing, its next move armed from `at` at the pace of the stop shown, the seating closed. */
 function armed(screen: LoadedScreen, at: number): LoadedScreen {
     const { autoplay, replay, view } = screen;
     const dueAt = at + autoplayDelayMs(replay, view.cursor);
-    return { ...screen, autoplay: { ...autoplay, dueAt, playing: true } };
+    return { ...screen, autoplay: { ...autoplay, dueAt, playing: true }, seating: false };
 }
 
 function paused(screen: LoadedScreen): LoadedScreen {
@@ -225,15 +232,11 @@ function unheld(screen: LoadedScreen): LoadedScreen {
     return screen.hold === null ? screen : { ...screen, hold: null };
 }
 
-/** A move the reader asked for, which stops autoplay and a held step button. */
-function moveTo(
-    screen: LoadedScreen,
-    cursor: ReplayCursor,
-    after: readonly ReplayPageEffect[] = [],
-): LoadedStep {
+/** A move the reader asked for, which stops autoplay and a held step button and closes the seating. */
+function moveTo(screen: LoadedScreen, cursor: ReplayCursor): LoadedStep {
     return {
-        effects: [WRITE_ADDRESS, ...after],
-        screen: withCursor(paused(unheld(screen)), cursor),
+        effects: [WRITE_ADDRESS],
+        screen: { ...withCursor(paused(unheld(screen)), cursor), seating: false },
     };
 }
 
@@ -242,8 +245,13 @@ function savingPrefs(screen: LoadedScreen): LoadedStep {
     return { effects: [{ kind: "save_prefs", prefs }], screen };
 }
 
+/**
+ * A replay opened where its address says, from the seat it names; one whose address names no position opens on the
+ * seating, its start focused, unless autoplay was asked.
+ */
 function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number): ReplayPageStep {
-    const view = resolveReplayAddress(replay.navigation, parseReplayAddress(opening.search), {
+    const address = parseReplayAddress(opening.search);
+    const view = resolveReplayAddress(replay.navigation, address, {
         bottomSeat: replay.firstDealerSeat,
         cursor: replay.opening,
         seatCount: replay.seatCount,
@@ -256,10 +264,17 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         pressedStep: null,
         replay,
         roundListOpen: opening.roundListOpen,
+        seating: address.round === null,
         view,
         wheel: null,
     };
-    return { effects: [WRITE_ADDRESS], screen: opening.autoplay ? armed(screen, at) : screen };
+    if (opening.autoplay) {
+        return { effects: [WRITE_ADDRESS], screen: armed(screen, at) };
+    }
+    return {
+        effects: screen.seating ? [WRITE_ADDRESS, focusOn("start")] : [WRITE_ADDRESS],
+        screen,
+    };
 }
 
 /** A fetch's answer: a 404 the retries outlasted, another status refused, else the file read and opened. */
@@ -454,10 +469,11 @@ function selectRound(screen: LoadedScreen, cursor: ReplayCursor): LoadedStep {
     return { effects: [...moved.effects, ...closed.effects], screen: closed.screen };
 }
 
-/** A standings row: its round's result, the focus back on the root, where the arrow keys step on from it. */
-function showRoundResult(screen: LoadedScreen, round: number): LoadedStep {
-    const target = roundResultCursor(screen.replay.navigation, round);
-    return target === null ? quiet(screen) : moveTo(screen, target, [focusOn("root")]);
+/** The seating's start: the board shown, the focus on the root, where the keys step on from it. */
+function start(screen: LoadedScreen): LoadedStep {
+    return screen.seating
+        ? { effects: [focusOn("root")], screen: { ...screen, seating: false } }
+        : quiet(screen);
 }
 
 function stepInput(screen: LoadedScreen, event: Timed<StepInput>): LoadedStep {
@@ -497,9 +513,6 @@ function stepMove(screen: LoadedScreen, event: Timed<MoveInput>): LoadedStep {
         case "result_page": {
             return moveTo(screen, { ...screen.view.cursor, page: event.page });
         }
-        case "round_result": {
-            return showRoundResult(screen, event.round);
-        }
         case "select_round": {
             return selectRound(screen, event.cursor);
         }
@@ -528,6 +541,9 @@ function stepRoundList(screen: LoadedScreen, event: Timed<RoundListInput>): Load
 
 function stepOption(screen: LoadedScreen, event: Timed<OptionInput>): LoadedStep {
     switch (event.kind) {
+        case "start": {
+            return start(screen);
+        }
         case "toggle_play": {
             return togglePlay(screen, event.at);
         }
@@ -559,7 +575,6 @@ function stepLoaded(screen: LoadedScreen, event: Timed<LoadedInput>): LoadedStep
         case "move":
         case "key":
         case "result_page":
-        case "round_result":
         case "select_round": {
             return stepMove(screen, event);
         }

@@ -1,6 +1,5 @@
 import { type SeatPosition } from "@/entities/table";
 import { type TileFace, type TileSpriteStatus } from "@/entities/tile";
-import { type LoadStatus } from "@/shared/lib";
 
 import { type LocalIntent } from "./types";
 
@@ -9,16 +8,10 @@ export type TileChoiceKind = "chi" | "kan";
 
 /**
  * What a notice tells, in the stack's order: the ongoing conditions (the connection, messages the client could not
- * read, tile faces, the standings) that stay until they recover, then the acknowledgements (the seat back, a refused
+ * read, tile faces) that stay until they recover, then the acknowledgements (the seat back, a refused
  * move) that leave on their own.
  */
-export type NoticeKind =
-    | "connection"
-    | "unread"
-    | "tile_sprite"
-    | "standings"
-    | "reconnected"
-    | "refused";
+export type NoticeKind = "connection" | "unread" | "tile_sprite" | "reconnected" | "refused";
 
 /**
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
@@ -54,7 +47,7 @@ export interface PlayAction {
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player asked to leave mid-game and has yet to confirm it; and where the
- * tile sprite's load and the final standings' stand, which the page's IO owns.
+ * tile sprite's load stands, which the page's IO owns.
  */
 export interface PlayUi {
     readonly riichiPickWaitId: number | null;
@@ -65,7 +58,6 @@ export interface PlayUi {
     /** The notice the player opened whole in its sheet, while it shows. */
     readonly noticeSheet: NoticeKind | null;
     readonly tileSprite: TileSpriteStatus;
-    readonly standings: LoadStatus;
 }
 
 export const NO_PLAY_UI: PlayUi = {
@@ -74,7 +66,6 @@ export const NO_PLAY_UI: PlayUi = {
     pinnedNameplate: null,
     resultPage: null,
     riichiPickWaitId: null,
-    standings: "loading",
     tileChoice: null,
     tileSprite: "loading",
 };

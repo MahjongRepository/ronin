@@ -91,7 +91,7 @@ export function followRoundConfirm(
 }
 
 /**
- * Whether the game's last result shows over the standings after a message: the game's end shows it when it follows a
+ * Whether the game's last result shows over the game's end after a message: the game's end shows it when it follows a
  * round end, and nothing else changes it.
  */
 export function showsLastResultAfter(state: LiveClient, message: ParsedServerMessage): boolean {
@@ -102,7 +102,7 @@ export function showsLastResultAfter(state: LiveClient, message: ParsedServerMes
 
 /**
  * Confirm the round result: send the owed confirm by its wait id once, on a socket the client can send on
- * (`sendable`), and wait for the others; or dismiss the game's last result for the standings, sending nothing. Null
+ * (`sendable`), and wait for the others; or dismiss the game's last result for the game's end, sending nothing. Null
  * when there is nothing to confirm.
  */
 export function confirmStep(state: LiveClient, sendable: boolean): ClientStep<LiveClient> | null {
@@ -121,8 +121,8 @@ export function confirmStep(state: LiveClient, sendable: boolean): ClientStep<Li
 }
 
 /**
- * Reopen the game's last result over the standings it was dismissed for, sending nothing. Null unless the game ended on
- * a result the standings show.
+ * Reopen the game's last result over the game's end it was dismissed for, sending nothing. Null unless the game ended
+ * on a result.
  */
 export function reopenResultStep(state: LiveClient): ClientStep<LiveClient> | null {
     const { showsLastResult, table } = state;

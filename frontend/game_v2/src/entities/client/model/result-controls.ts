@@ -13,7 +13,7 @@ const FINAL: ResultRead = { kind: "final" };
 
 /**
  * The round result's controls in its panel: its one primary button (the next page of a result the player still has
- * to confirm, then the confirm on its last page, or the game's last result's way to the standings), whether the seat
+ * to confirm, then the confirm on its last page, or the game's last result's way to the game's end), whether the seat
  * waits for the others after confirming, and the countdown to the server's round advance while the confirm is owed.
  */
 export interface ResultControls {
@@ -26,7 +26,7 @@ const CONFIRM_RESULT: PlayIntent = { type: "confirm_result" };
 const SHOW_LAST_RESULT: PlayIntent = { type: "show_last_result" };
 
 const CONFIRM_LABELS: Readonly<Record<"owed" | "final", string>> = {
-    final: "Standings",
+    final: "Final scores",
     owed: "OK",
 };
 
@@ -90,7 +90,7 @@ export function resultControls(state: LiveClient, page: number): ResultControls 
     return { action, countdown, waiting: false };
 }
 
-/** The standings' button back to the game's last result, when the dispatcher takes it now. */
+/** The game end's button back to the game's last result, when the dispatcher takes it now. */
 export function lastResultAction(state: LiveClient): PlayAction | null {
     if (!takesIntent(state, SHOW_LAST_RESULT)) {
         return null;

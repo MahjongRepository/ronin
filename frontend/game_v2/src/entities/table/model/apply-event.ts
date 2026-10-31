@@ -187,7 +187,6 @@ function applyGameEnd(state: TableState, event: GameEndEvent): TableState {
             endCause: event.endCause,
             leftoverRiichiBonus: event.leftoverRiichiBonus,
             leftoverSticks: event.leftoverRiichiSticks,
-            numRounds: event.numRounds,
             standings: event.standings.map((s) => ({
                 finalScore: s.finalScore,
                 score: s.score,
@@ -250,7 +249,7 @@ const PHASES_TAKING: Readonly<Record<TableEvent["type"], readonly OrderPhase[]>>
 };
 
 function orderPhase(state: TableState): OrderPhase {
-    if (!state.roundHistoryInStep) {
+    if (!state.inStep) {
         return "out_of_step";
     }
     return state.phase === "pre_game" && state.players.length === 0 ? "unseated" : state.phase;
@@ -308,7 +307,7 @@ export function applyEvent(state: TableState, event: TableEvent): TableState {
             return applySeatControl(state, event);
         }
         case "lost_step": {
-            return { ...state, roundEndResult: null, roundHistoryInStep: false };
+            return { ...state, inStep: false, roundEndResult: null };
         }
         default: {
             return assertNever(event);

@@ -89,10 +89,6 @@ $scroller-room: 4px;
     }
 }
 
-.board-overlay__panel:has(> .standings) {
-    container: overlay-panel / inline-size;
-}
-
 @container (height < #{$short-height}) and (aspect-ratio >= 1) {
     .game-board > .board-overlay {
         align-items: flex-start;

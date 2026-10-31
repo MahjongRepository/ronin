@@ -10,7 +10,6 @@ import {
 import {
     WIRE_GAME_JOINED,
     WIRE_GAME_STARTED,
-    WIRE_ROUND_RECORD,
     WIRE_ROUND_STARTED,
     type WirePayload,
     wireNumberList,
@@ -34,13 +33,12 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import { boardOverlay } from "@/entities/table";
-import { standingsDisplay } from "@/entities/table/lib/standings-display";
+import { gameEndDisplay } from "@/entities/table/lib/game-end-display";
 import {
     CLIENT_MESSAGE_TYPE,
     EVENT_TYPE,
     NUM_TILES,
     PLAYER_ACTION,
-    ROUND_RESULT_TYPE,
     SESSION_ERROR_CODE,
     buildDiscardAction,
     buildReconnectMessage,
@@ -335,27 +333,12 @@ describe("stepGameClient - desync", () => {
         },
     );
 
-    it("ends the page as failed on a snapshot that parses but the table cannot take, never put back in step by it", () => {
-        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
-        const reasonless = { ...WIRE_ROUND_RECORD, rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW };
-
-        const failed = run(desynced, [message(AT + 100, { ...SNAPSHOT, n: 1, rh: [reasonless] })]);
-        expect(sends(failed.effects)).toEqual([{ type: "close_socket" }]);
-        expect(failed.state.session).toMatchObject({
-            reason: { detail: expect.stringContaining("names no reason"), kind: "failed" },
-            status: "ended",
-        });
-        expect(desyncOf(failed.state)).toMatchObject({ cause: "unreadable_message", since: AT });
-        expect(desyncOf(failed.state)?.unreadMessages).toBe(2);
-        expect(failed.state.table).toBe(desynced.table);
-    });
-
     it("records a loss of step when the snapshot that ends the page came while it was in step", () => {
         const failed = run(onTurn(), [message(AT, withoutSeatState(2))]);
 
         expect(failed.state.session).toMatchObject({ reason: { kind: "failed" } });
         expect(desyncOf(failed.state)).toMatchObject({ cause: "unreadable_message", since: AT });
-        expect(failed.state.table.roundHistoryInStep).toBe(false);
+        expect(failed.state.table.inStep).toBe(false);
     });
 
     it.each([
@@ -431,13 +414,12 @@ describe("stepGameClient - desync", () => {
 });
 
 describe("stepGameClient - a game's end its table refuses in step", () => {
-    it("ends on the server's standings when the game's end is the first sign of a missed round end, sending nothing", () => {
+    it("ends on the server's final scores when the game's end is the first sign of a missed round end, sending nothing", () => {
         const final = loadSeatScenario("final_round_seat_1").transcript;
         const gameEnd = message(5000, receivedPayload(final, "game end"));
 
         const ended = run(checkpointState("final_round_seat_1", "ron chosen"), [gameEnd]);
         const { session, table } = ended.state;
-        const standings = standingsDisplay(table, ended.state.viewerSeat);
         expect(session).toMatchObject({ reason: { kind: "game_ended" }, status: "ended" });
         expect([
             table.phase,
@@ -445,7 +427,7 @@ describe("stepGameClient - a game's end its table refuses in step", () => {
             table.roundEndResult,
             roundConfirmOf(ended.state),
             sends(ended.effects),
-            standings?.ledgerComplete,
+            table.inStep,
         ]).toEqual(["game_ended", 4, null, null, [], false]);
     });
 });
@@ -456,22 +438,17 @@ describe("stepGameClient - desync around the game's start and end", () => {
     const finalRoundEnd = receivedPayload(finalRound, "round end");
     const gameEnd = receivedPayload(finalRound, "game end");
 
-    function ledgerOf(state: LiveClient): { rows: number; complete: boolean } {
-        const display = standingsDisplay(state.table, state.viewerSeat);
-        return { complete: display?.ledgerComplete ?? false, rows: display?.ledger.length ?? -1 };
-    }
-
-    /** The note the last result's panel, shown over the standings, gives when its details may be wrong, or null. */
+    /** The note the last result's panel, shown over the game's end, gives when its details may be wrong, or null. */
     function resultNote(state: LiveClient): string | null {
         const host = document.createElement("div");
-        render(boardOverlay(state.table, { paging: { overStandings: true, page: 0 } }), host);
+        render(boardOverlay(state.table, { paging: { overGameEnd: true, page: 0 } }), host);
         expect(host.querySelector(".round-end-result")).not.toBeNull();
         return host.querySelector(".round-end-result__uncertain")?.getAttribute("role") ?? null;
     }
 
-    it("ends on the server's last result and standings out of step, its ledger and result marked uncertain", () => {
+    it("ends on the server's last result and final scores out of step, the table and result marked uncertain", () => {
         const inStep = checkpointState(FINAL, "game end");
-        expect([ledgerOf(inStep), resultNote(inStep)]).toEqual([{ complete: true, rows: 1 }, null]);
+        expect([inStep.table.inStep, resultNote(inStep)]).toEqual([true, null]);
         const desynced = run(checkpointState(FINAL, "ron chosen"), [
             message(5000, { t: 999 }),
         ]).state;
@@ -485,10 +462,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
             "game_ended",
             true,
         ]);
-        expect([ledgerOf(ended.state), resultNote(ended.state)]).toEqual([
-            { complete: false, rows: 1 },
-            "note",
-        ]);
+        expect([ended.state.table.inStep, resultNote(ended.state)]).toEqual([false, "note"]);
     });
 
     it("never shows an earlier hand's result as the last one when the page lost step after it", () => {
@@ -507,7 +481,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
             null,
             false,
         ]);
-        expect(ledgerOf(ended.state).complete).toBe(false);
+        expect(ended.state.table.inStep).toBe(false);
     });
 
     it("marks the ledger incomplete when the last round end itself could not be read, the leftover sticks the server's", () => {
@@ -526,9 +500,9 @@ describe("stepGameClient - desync around the game's start and end", () => {
             "game_ended",
             null,
         ]);
-        expect(ledgerOf(ended.state)).toEqual({ complete: false, rows: 0 });
+        expect(ended.state.table.inStep).toBe(false);
         expect(gameEnd.lr).toBe(0);
-        expect(standingsDisplay(ended.state.table, ended.state.viewerSeat)?.leftover).toBeNull();
+        expect(gameEndDisplay(ended.state.table, ended.state.viewerSeat)?.leftover).toBeNull();
     });
 
     it("asks again when the first deal is due once the server says the game has not dealt yet", () => {

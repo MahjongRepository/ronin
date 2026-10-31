@@ -389,7 +389,6 @@ describe("readReplayTimeline - engine replays", () => {
             endCause: gameEnd.endCause,
             leftoverRiichiBonus: gameEnd.leftoverRiichiBonus,
             leftoverSticks: gameEnd.leftoverRiichiSticks,
-            numRounds: gameEnd.numRounds,
             standings: gameEnd.standings,
             winnerSeat: gameEnd.winnerSeat,
         });

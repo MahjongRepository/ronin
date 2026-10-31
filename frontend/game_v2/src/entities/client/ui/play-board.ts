@@ -15,8 +15,7 @@ import {
     type BoardNotice,
     GameBoard,
     NoticeSheet,
-    type StandingsAction,
-    type StandingsRenderer,
+    type PanelAction,
     type TableState,
     boardOverlay,
     showsRoundResult,
@@ -27,25 +26,23 @@ import { GameMenu } from "./game-menu";
 import { countdownAnnouncement, expiryNote, moveName } from "./rotate-panel";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
-/** Where the standings lead the player once the game ends: this game's replay and the game history. */
-export interface StandingsLinks {
+/** Where the game's end leads the player: this game's replay and the game history. */
+export interface GameEndLinks {
     readonly replay: string;
     readonly history: string;
 }
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
-    /** The table the display was mapped from, whose panel (seating, result, standings) shows over the board. */
+    /** The table the display was mapped from, whose panel (seating, result, game end) shows over the board. */
     readonly table: TableState;
     readonly onCommand: (command: PlayCommand) => void;
     /** The session's status, which the board's corner shows beside the way back; none on a board with no session. */
     readonly status?: SessionStatusDisplay;
     /** What the page adds to the corner before the status (the debug log). */
     readonly menuExtra?: TemplateResult;
-    /** The standings' links; without them the standings offer only the game's last result and the way back. */
-    readonly links?: StandingsLinks;
-    /** What draws the final standings once the view loaded it; until then the ended game shows no panel. */
-    readonly standings: StandingsRenderer | null;
+    /** The game end's links; without them it offers only the game's last result and the way back. */
+    readonly links?: GameEndLinks;
 }
 
 /** What the timer's caption line says over its digits: that time ran out, the answer went, or the bank alone drains. */
@@ -320,23 +317,20 @@ function ResultControlsView(
     </span>`;
 }
 
-function commandAction(
-    action: PlayAction,
-    onCommand: PlayBoardProps["onCommand"],
-): StandingsAction {
+function commandAction(action: PlayAction, onCommand: PlayBoardProps["onCommand"]): PanelAction {
     return { kind: "button", label: action.label, onClick: () => onCommand(action.command) };
 }
 
 /**
- * The standings' ways on: back to the game's last result while it can reopen, this game's replay, the game history,
+ * The game end's ways on: back to the game's last result while it can reopen, this game's replay, the game history,
  * and the lobby, the primary one.
  */
-function standingsActions(
+function gameEndActions(
     display: PlayDisplay,
-    links: StandingsLinks | undefined,
+    links: GameEndLinks | undefined,
     onCommand: PlayBoardProps["onCommand"],
-): StandingsAction[] {
-    const actions: StandingsAction[] = [];
+): PanelAction[] {
+    const actions: PanelAction[] = [];
     if (display.lastResult !== null) {
         actions.push(commandAction(display.lastResult, onCommand));
     }
@@ -384,7 +378,7 @@ function SheetNote(countdown: NoticeSheetDisplay["countdown"]): TemplateResult {
 /**
  * The panel over the board, in the overlay's precedence: an end that blocks it, else the question leaving mid-game
  * asks, both shown at once, else a notice the player opened whole, else the table's own (seating, a result, the
- * standings from the viewer's seat), which comes back as the sheet closes.
+ * game's end from the viewer's seat), which comes back as the sheet closes.
  */
 function PlayOverlay(props: PlayBoardProps): PlayPanel {
     const { display, onCommand, table } = props;
@@ -407,7 +401,7 @@ function PlayOverlay(props: PlayBoardProps): PlayPanel {
         };
     }
     return {
-        isResult: showsRoundResult(table, display.resultOverStandings),
+        isResult: showsRoundResult(table, display.resultOverGameEnd),
         panel: tablePanel(props),
     };
 }
@@ -416,20 +410,18 @@ function tablePanel({
     display,
     links,
     onCommand,
-    standings,
     table,
 }: PlayBoardProps): TemplateResult | undefined {
     return boardOverlay(table, {
+        end: {
+            actions: gameEndActions(display, links, onCommand),
+            viewerSeat: display.viewerSeat,
+        },
         paging: {
             controls: ResultControlsView(display.result, onCommand),
             onPage: (page) => onCommand({ kind: "show_result_page", page }),
-            overStandings: display.resultOverStandings,
+            overGameEnd: display.resultOverGameEnd,
             page: display.resultPage,
-        },
-        standings: {
-            actions: standingsActions(display, links, onCommand),
-            renderer: standings,
-            viewerSeat: display.viewerSeat,
         },
         start: { secondsLeft: display.firstDealSeconds, viewerSeat: display.viewerSeat },
     });
@@ -453,7 +445,7 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
 /**
  * The live board: the table from the viewer's seat with its decision's controls in their corner, its notices over the
  * table, and a panel over it: an end that blocks the board, the leave question, or the table's own, a round's result
- * at the page the display picked with its controls, or the game's last result over the standings until the player
+ * at the page the display picked with its controls, or the game's last result over the game's end until the player
  * dismisses it. A tap on one of the viewer's tiles sends the intent the display gives it, and a tile with none sends
  * nothing; turning the result's page is a command too. While an end, the leave question or a notice's sheet blocks
  * the board, the board under it is inert. Each new showing of calls is read out once.

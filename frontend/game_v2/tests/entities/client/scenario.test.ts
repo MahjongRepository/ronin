@@ -33,7 +33,6 @@ import {
     timelineStates,
 } from "@/entities/client";
 import { roundEndDisplay, tableStateToDisplayState } from "@/entities/table";
-import { standingsDisplay } from "@/entities/table/lib/standings-display";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
     CALL_TYPE,
@@ -698,16 +697,6 @@ describe("stepGameClient - generated riichi reconnect", () => {
         );
         expect(body.kind === "win" && body.notes).toEqual(["Riichi ×1 +1,500"]);
     });
-
-    it("nets the 2,000 deposit, not the 1,500 stick the ron collected, out of the riichi's round in the final ledger", () => {
-        const display = standingsDisplay(
-            stateAt(scenario, runClean(scenario), "game end").table,
-            1,
-        );
-        const column = display?.seats.findIndex((seat) => seat.seat === 1) ?? -1;
-
-        expect(display?.ledger[0].cells[column]).toMatchObject({ riichi: true, text: "+4,700" });
-    });
 });
 
 describe("stepGameClient - generated round advance", () => {
@@ -806,7 +795,7 @@ describe("stepGameClient - generated round advance", () => {
         expect(roundConfirmOf(lastState(run))).toBeNull();
     });
 
-    it("keeps the game's last result over the standings until the player dismisses it, sending nothing", () => {
+    it("keeps the game's last result over the game's end until the player dismisses it, sending nothing", () => {
         const { scenario } = FINAL_ROUND;
         const run = runClean(scenario);
         const roundEnd = stateAt(scenario, run, "round end");

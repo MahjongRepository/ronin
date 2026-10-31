@@ -416,13 +416,13 @@ honours this contract can replace it.
   `REPLAY_VERSION` it was built for. The page's query names what it shows,
   `/play/history/{game_id}?seat=&round=&step=`, all zero-based whole numbers: `seat` the seat at the
   bottom of the table (default: the recorded first dealer's), `round` the recorded deal (repeats
-  counted), `step` the position in that round (0 its deal; the final standings are the last round's
+  counted), `step` the position in that round (0 its deal; the game's end is the last round's
   last step). A link opens there. A bad `seat` falls back to the default, a missing or bad `round`
   to round 0's deal (its `step` ignored), a bad `step` to its round's deal. The page then keeps the
   query on the position shown with `history.replaceState`, so the address bar is the share link and
   Back leaves the replay. The lobby history page links a participant to a replay from their own
   seat, but its copy-link button copies the link without `seat`, so a shared link imposes no
-  viewpoint. The game client's final standings link the player to the replay from their seat too;
+  viewpoint. The game client's game end links the player to the replay from their seat too;
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
 * **Leaving:** the client returns players to the lobby at `/`.

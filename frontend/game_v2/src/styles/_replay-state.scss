@@ -309,7 +309,8 @@ $place-gap: 6px;
     }
 }
 
-/* A panel over the replay leaves the band to its controls, and on a wide desktop the left field to its status. */
+/* A panel over the replay leaves the band to its controls, and on a wide desktop the left field to its status; the
+   seating, narrow enough, leaves the same field on the right too, so it stands centred on the board. */
 .game-board--replay > .board-overlay {
     --band-reserve-top: var(--foreground-top);
 
@@ -327,6 +328,35 @@ $place-gap: 6px;
         @include overlay-unit(var(--reach-left));
 
         padding-left: var(--reach-left);
+
+        &:has(.seating) {
+            padding-right: var(--reach-left);
+        }
+    }
+}
+
+/* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
+   stands centred on the block, past its edges and its text scaled to it. */
+@container game-board (height >= #{$short-height}) or (aspect-ratio < 1) {
+    .game-board--replay > .board-overlay:has(.seating) {
+        padding-bottom: max(100cqh - var(--band-reserve-top), 100cqh - 2 * var(--cy));
+    }
+
+    /* The start, shorter than the end, stands on the block's centre even where the band leaves less room below it. */
+    .game-board--replay > .board-overlay:has(.seating:not(.seating--end)) {
+        padding-top: max(0px, 2 * var(--cy) - var(--band-reserve-top));
+    }
+
+    .game-board--replay > .board-overlay > .board-overlay__panel:has(> .seating) {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-width: calc(var(--c) + 6rem);
+        min-height: calc(var(--c) + 3rem);
+    }
+
+    .game-board--replay .seating {
+        --seating-font: clamp(1rem, calc(var(--c) * 0.1), 1.6rem);
     }
 }
 

@@ -337,13 +337,15 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   (the seat back, a refused move) leaves on its own after a moment. Nothing dismisses a failure that
   goes on. A connection replaced by another tab is an end, with its reason, its corner status in the
   ended tone rather than an error's.
-- **Panels.** Round results, standings, the seating before the first deal and the leave question use
+- **Panels.** Round results, the seating before the first deal and at the game's end, and the leave question use
   a legible overlay area over the board and dim it beneath; each has the size its content needs, not
   the core's; at the floor viewport a panel that does not fit scrolls inside its area with its
-  primary button and countdown kept in view. The result, standings and seating leave the page corner
+  primary button and countdown kept in view. The result and the seating leave the page corner
   reachable; the leave question need not, since it is modal: it says that an AI takes the seat over
   and makes staying the clear default. The seating shows the game's length and first round, every seat's
-  wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits.
+  wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits; a replay opens on it
+  with a Start in the countdown's place, and off a phone's short board the replay's seating (start and end) covers
+  the table's centre block, its text scaled to the block.
   Decision (placements drawn in step 4.1): on a desktop a panel stands centred, the page corner's width kept free
   on both sides, and past the left river's reach while notices show; on a narrow desktop (narrower than
   `$small-chrome-width`) it stands under the corner's height, between the side strips, and past the left river's reach
@@ -367,10 +369,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   an abortive draw says why (four winds, four riichi, four kans, triple ron, kyuushu kyuuhai with
   its declarer). A first-turn win is an ordinary result over the board as it stands: empty rivers
   for tenhou, the earlier seats' first discards for chiihou.
-- **Standings.** Placement in the server's order, table points and adjusted results (uma and oka,
-  the leftover riichi sticks, or a note that the game's rules award them to nobody) told apart, signed values kept, the ledger of every finished round
-  with what its marks mean and each round reachable from it, the viewer's seat marked, and the
-  ways on (the last result, this game's replay, the history, the lobby). A game that ended by
+- **Game end.** The seating panel again, its seats in the server's placement order with table points
+  and adjusted results (uma and oka) told apart, signed values kept, the leftover riichi sticks (or a
+  note that the game's rules award them to nobody), the viewer's seat marked, and the ways on (the
+  last result, this game's replay, the history, the lobby). No per-round ledger. A game that ended by
   tobi or at a round threshold is shown as completed, saying how it ended as the server decided it
   (tobi, the game's length, the target score reached in the extension, the extension's last round),
   never as a failure. An ended session says
@@ -479,7 +481,7 @@ scores stay readable at the floor.
 - **The sparse and the interrupted**: the first turn of a hand with its kyuushu offer; a
   first-turn win; a declared kan in its chankan window; a long notice; reconnecting; a lost seat;
   an AI standing in and the human returning; faces that did not load; an ended session.
-- **The rest**: the seating before the first deal, the round results, the standings, the leave
+- **The rest**: the seating before the first deal and at the game's end, the round results, the leave
   question, a long notice opened in its sheet, the rotate panel during an open decision,
   the replay controls and its loading, incomplete and damaged states.
 

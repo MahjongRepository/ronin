@@ -12,7 +12,6 @@ function renderBoard(state: LiveClient): HTMLElement {
         PlayBoard({
             display: playDisplay(state, NO_PLAY_UI),
             onCommand: () => {},
-            standings: null,
             table: state.table,
         }),
         host,
@@ -21,8 +20,8 @@ function renderBoard(state: LiveClient): HTMLElement {
 }
 
 function seatRows(host: HTMLElement): string[][] {
-    return [...host.querySelectorAll(".game-start__seat")].map((row) =>
-        [".game-start__wind", ".game-start__name", ".game-start__marks"].map(
+    return [...host.querySelectorAll(".seating__seat")].map((row) =>
+        [".seating__wind", ".seating__name", ".seating__marks"].map(
             (part) => row.querySelector(part)?.textContent?.replace(/\s+/gu, " ").trim() ?? "",
         ),
     );
@@ -34,15 +33,15 @@ describe("GameStartDisplay", () => {
         const dealer = STARTED.table.firstDealerSeat;
         const names = STARTED.table.players.map((player) => player.name);
 
-        expect(host.querySelector(".game-start__title")?.textContent).toBe("Hanchan · East 1");
+        expect(host.querySelector(".seating__title")?.textContent).toBe("Hanchan · East 1");
         expect(seatRows(host).map(([wind]) => wind)).toEqual(["E", "S", "W", "N"]);
         expect(seatRows(host)[0][1]).toBe(names[dealer]);
         expect(seatRows(host)[0][2]).toMatch(/^Dealer/u);
-        expect(host.querySelector(".game-start__seat--viewer .game-start__name")?.textContent).toBe(
+        expect(host.querySelector(".seating__seat--viewer .seating__name")?.textContent).toBe(
             "Alice",
         );
         expect(
-            host.querySelectorAll(".game-start__seat .game-start__mark:not([class*='--'])"),
+            host.querySelectorAll(".seating__seat .seating__mark:not([class*='--'])"),
         ).toHaveLength(3);
     });
 
@@ -61,8 +60,7 @@ describe("GameStartDisplay", () => {
 
     it("counts the server's start pause down to the first deal, then only says the game is starting", () => {
         function status(now: number): string | undefined {
-            return renderBoard({ ...STARTED, now }).querySelector(".game-start__status")
-                ?.textContent;
+            return renderBoard({ ...STARTED, now }).querySelector(".seating__status")?.textContent;
         }
 
         expect([status(0), status(2500), status(3000)]).toEqual([
@@ -71,9 +69,7 @@ describe("GameStartDisplay", () => {
             "Starting…",
         ]);
         expect(
-            renderBoard(checkpointState("own_turn_seat_1", "first draw")).querySelector(
-                ".game-start",
-            ),
+            renderBoard(checkpointState("own_turn_seat_1", "first draw")).querySelector(".seating"),
         ).toBeNull();
     });
 });

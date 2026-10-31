@@ -513,7 +513,6 @@ describe("applyEvent - game_end result data", () => {
             endCause: GAME_END_CAUSE.TOBI,
             leftoverRiichiBonus: 2000,
             leftoverSticks: 2,
-            numRounds: event.numRounds,
             standings: event.standings,
             winnerSeat: 0,
         });

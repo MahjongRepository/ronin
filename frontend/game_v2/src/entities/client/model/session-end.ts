@@ -102,7 +102,7 @@ function exhaustedFailure(gameStarted: boolean): FailureDisplay {
     };
 }
 
-/** What an end that stays on the page tells the player; null for one that leaves it or shows the standings. */
+/** What an end that stays on the page tells the player; null for one that leaves it or shows the game's end. */
 function endFailure(reason: EndReason): FailureDisplay | null {
     switch (reason.kind) {
         case "closed": {

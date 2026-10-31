@@ -43,11 +43,11 @@ describe("storybookNav", () => {
 describe("storybookHref", () => {
     test("carries only the page's client version, beside the link's own query", () => {
         expect([
-            storybookHref("/play/storybook/replay?state=standings", "?state=kicked&v=2&debug"),
+            storybookHref("/play/storybook/replay?state=game_end", "?state=kicked&v=2&debug"),
             storybookHref("/play/storybook", "?state=kicked"),
             storybookHref("/play/storybook/board?state=worst#seat", "?v=2"),
         ]).toEqual([
-            "/play/storybook/replay?state=standings&v=2",
+            "/play/storybook/replay?state=game_end&v=2",
             "/play/storybook",
             "/play/storybook/board?state=worst&v=2#seat",
         ]);
@@ -179,7 +179,7 @@ describe("mountStorybookDecisions", () => {
     });
 
     test("the page's corner says what ended the session: removed, replaced by another tab, or the game's end", () => {
-        const words = ["kicked", "replaced", "standings"].map(
+        const words = ["kicked", "replaced", "game_end"].map(
             (story) => mountStory(story).querySelector(".game-menu__status-word")?.textContent,
         );
 

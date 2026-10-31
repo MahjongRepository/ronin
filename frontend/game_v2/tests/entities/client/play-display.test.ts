@@ -225,7 +225,7 @@ describe("playDisplay", () => {
         expect(nextCountdownChange(confirmed)).toBeGreaterThan(confirmed.now);
     });
 
-    it("shows the game's last result over the standings with the way to them, then the standings", () => {
+    it("shows the game's last result over the game's end with the way to it, then the game's end", () => {
         const gameEnd = checkpointState("final_round_seat_1", "game end");
         const display = playDisplay(gameEnd, NO_PLAY_UI);
         const dismissed = stepGameClient(gameEnd, {
@@ -234,18 +234,18 @@ describe("playDisplay", () => {
             kind: "intent",
         }).state;
 
-        expect([display.resultOverStandings, display.result?.action?.label]).toEqual([
+        expect([display.resultOverGameEnd, display.result?.action?.label]).toEqual([
             true,
-            "Standings",
+            "Final scores",
         ]);
         expect(display.result?.countdown).toBeNull();
         expect([
-            playDisplay(dismissed, NO_PLAY_UI).resultOverStandings,
+            playDisplay(dismissed, NO_PLAY_UI).resultOverGameEnd,
             playDisplay(dismissed, NO_PLAY_UI).result,
         ]).toEqual([false, null]);
     });
 
-    it("offers the game's last result again from the standings, reopening it on its first page", () => {
+    it("offers the game's last result again from the game's end, reopening it on its first page", () => {
         const gameEnd = checkpointState("final_round_seat_1", "game end");
         const dismissed = stepGameClient(gameEnd, {
             at: gameEnd.now,
@@ -268,8 +268,8 @@ describe("playDisplay", () => {
         expect(reopened.effects).toEqual([]);
         expect(playDisplay(reopened.state, NO_PLAY_UI)).toMatchObject({
             lastResult: null,
-            result: { action: { label: "Standings" } },
-            resultOverStandings: true,
+            result: { action: { label: "Final scores" } },
+            resultOverGameEnd: true,
         });
         expect(nextPlayUi(reopened.state, turned, lastResult.command).resultPage).toBeNull();
     });

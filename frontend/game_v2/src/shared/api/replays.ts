@@ -12,7 +12,7 @@ const HTTP_NOT_FOUND = 404;
 
 /**
  * The waits before asking again for a replay the server has not stored yet: the game end reaches the players before
- * the server saves it (`docs/architecture.md`, Replays), so a link from the final standings may race it.
+ * the server saves it (`docs/architecture.md`, Replays), so a link from the game's end may race it.
  */
 export const REPLAY_NOT_FOUND_RETRY_MS = [500, 1000, 2000] as const;
 

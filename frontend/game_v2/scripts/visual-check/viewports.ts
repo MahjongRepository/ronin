@@ -73,7 +73,7 @@ export const LAPTOPS: readonly string[] = [SHORT_LAPTOP, SHORTEST_REGULAR_DESKTO
 
 /**
  * Small desktop windows (700x540, 900x600) where a panel's content meets the board's height and width at once: the
- * standings' rounds must scroll inside their sheet, a short result's pager and confirm stay clickable.
+ * a short result's pager and confirm stay clickable.
  */
 const SMALL_WINDOW_VIEWPORTS: readonly Viewport[] = [
     [700, 540],

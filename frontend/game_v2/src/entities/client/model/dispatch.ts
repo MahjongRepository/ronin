@@ -281,7 +281,7 @@ function takeMessage(
 
 /**
  * A game's end its in-step table refused, the first sign the client missed the round end before it, taken once more
- * by the client that loss put out of step (`lost`), since its standings are the server's whatever the table missed. A
+ * by the client that loss put out of step (`lost`), since its final scores are the server's whatever the table missed. A
  * table out of step takes any game end, so this take cannot refuse it again.
  */
 function gameEndOutOfStep(

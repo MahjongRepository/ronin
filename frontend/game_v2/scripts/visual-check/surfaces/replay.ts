@@ -21,7 +21,6 @@ import {
     type PageCase,
     PageRecord,
     type PageReport,
-    type PageRun,
     SELECTOR_TIMEOUT_MS,
     type Surface,
     type TaskResult,
@@ -103,7 +102,7 @@ interface ReplayMeasure {
         readonly clippedAcross: boolean;
     } | null;
     readonly status: Box | null;
-    /** The notices shown in the place, over the status (the standings that failed to load). */
+    /** The notices shown in the place, over the status. */
     readonly notices: readonly Box[];
     /** The parts present in the page, by name; a part absent from the page (no incompleteness) is missing. */
     readonly parts: Readonly<Partial<Record<StatusPart, StatusText>>>;
@@ -220,49 +219,8 @@ async function stepReplayToLocalMelds(page: Page): Promise<void> {
 }
 
 /**
- * A throw while stepping shows the replay's failure screen, its error on the console: checked on a page of its own in
- * the same context, whose console error is expected, before the board the story opened on is checked.
- */
-async function checkThrowOnStep(
-    { page, report }: PageRun,
-    checkShownBoard: () => Promise<string>,
-): Promise<string> {
-    const stepping = await page.context().newPage();
-    try {
-        const errors: string[] = [];
-        stepping.on("console", (message) => {
-            if (message.type() === "error") {
-                errors.push(message.text());
-            }
-        });
-        await stepping.goto(page.url());
-        await stepping.waitForSelector("[data-step='next']", { timeout: SELECTOR_TIMEOUT_MS });
-        await stepping.locator("[data-step='next']").click();
-        const title = await stepping
-            .locator(".replay-state--failed .replay-state__title")
-            .textContent({ timeout: SELECTOR_TIMEOUT_MS });
-        report.expect(
-            title === "This replay cannot be shown",
-            `a throw while stepping showed "${title}", not the failure screen`,
-        );
-        report.expect(
-            errors.some((error) => error.startsWith("The replay could not be shown:")),
-            `a throw while stepping left no error on the console: ${errors.join("; ")}`,
-        );
-        report.expect(
-            (await stepping.locator(".replay-state__links a").count()) === 2,
-            "the failure screen after a throw offers no way back",
-        );
-    } finally {
-        await stepping.close();
-    }
-    return checkShownBoard();
-}
-
-/**
  * The replay's worst cases: its first stop wherever the live board's geometry is compared with it (the notch phone's
- * insets aside), a desktop's status where its lines bind (a damaged recording's, the long standings, a notice over
- * it), the open round list's desktop rows, a panel over the upright and the short tablet's board, and every other
+ * insets aside), a desktop's status where its lines bind (a damaged recording's), the open round list's desktop rows, a panel over the upright and the short tablet's board, and every other
  * story once, at the floor or, with no board, upright. A story a kept one shows in a harsher form is left out (an
  * incomplete recording, under the damaged one's longer words).
  */
@@ -271,16 +229,14 @@ const PAGES: readonly PageCase[] = [
         ...replayCase("start", []),
         at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, UPRIGHT_PHONE],
     },
-    { ...replayCase("mid", []), prepare: expectStep(14) },
     {
-        ...replayCase("standings_failed", [".board-notices .board-notice--error"]),
-        at: [FLOOR, MID_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
-        prepare: (page) =>
-            expectTexts(page, {
-                ".board-notices .board-notice--error .board-notice__body":
-                    "The final standings did not load; reload the page to try again",
-            }),
+        ...replayCase("seating", []),
+        at: [FLOOR, UPRIGHT_PHONE],
+        required: {
+            visible: [".seating__name", ".seating__action", ".replay-controls__moves"],
+        },
     },
+    { ...replayCase("mid", []), prepare: expectStep(14) },
     replayCase("autoplay", [".replay-controls__play[aria-pressed='true']"]),
     replayCase("viewpoint_hidden", [".replay-controls__option--hands[aria-pressed='true']"]),
     {
@@ -304,27 +260,7 @@ const PAGES: readonly PageCase[] = [
             visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__title"],
         },
     },
-    replayCase("standings", [
-        ".standings__round--jump",
-        ".standings__cell--win",
-        ".standings__ending--tobi",
-    ]),
-    {
-        ...replayCase("standings_long", [
-            ".standings__round--jump",
-            ".standings__foot-row--result",
-            ".standings__ending--extension_limit",
-        ]),
-        at: [FLOOR, MID_DESKTOP],
-    },
-    {
-        at: [FLOOR, MID_DESKTOP],
-        check: checkThrowOnStep,
-        kind: "own",
-        name: "replay-throws-on-step",
-        path: "/play/storybook/replay?state=throws_on_step",
-        required: { visible: [...BOARD_VISIBLE, ".replay-controls__moves"] },
-    },
+    replayCase("game_end", [".seating__ending--tobi", ".seating__result--positive"]),
     replayStateCase("loading", { ".replay-state__detail": "Loading the replay…" }, null),
     replayStateCase(
         "waiting",

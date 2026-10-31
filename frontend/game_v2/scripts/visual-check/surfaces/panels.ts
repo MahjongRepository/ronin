@@ -39,20 +39,12 @@ import {
 /** The least room between two names on a line of a result's scores, so each name and its end read as one. */
 const MIN_RESULT_NAME_GAP = 12;
 
-/**
- * The final standings over the board: its panel, the sheet its rounds scroll in, the totals that stick to the sheet's
- * foot, its controls (its ways on and the rounds shown whole in the sheet) and its smallest text.
- */
-interface StandingsMeasure {
+/** The seating panel over the board (before the first deal or at the game's end): its controls and smallest text. */
+interface SeatingMeasure {
     readonly panel: Box;
-    readonly sheet: Box;
-    readonly sheetScroll: Size;
-    readonly sheetClient: Size;
-    readonly sheetOverflowY: string;
-    readonly totals: Box | null;
     readonly controls: readonly Box[];
     readonly minFontPx: number;
-    /** A positive and a negative round's cell and result, where the ledger has one: the colour each shows and its tone's. */
+    /** A positive and a negative result, where the game's end shows one: the colour each shows and its tone's. */
     readonly tones: readonly ToneColour[];
 }
 
@@ -235,7 +227,7 @@ async function checkLeaveQuestion(
 }
 
 /**
- * The panels' worst cases: the densest results (pao, a double ron's pager, a hand with its melds) and the standings
+ * The panels' worst cases: the densest results (pao, a double ron's pager, a hand with its melds) and the game end
  * at the desktops and the notch phone too, the results a forced short panel makes scroll at the small windows, and
  * every other panel once, at the floor or, for the rotate panel, upright. A panel a kept one shows in a harsher form
  * is left out (the plain round end and its reconnected copy, a head bump, an all-noten draw, a double ron's first page
@@ -254,9 +246,7 @@ const PAGES: readonly PageCase[] = [
     },
     resultCase("yakuman", "", [".round-end-result__limit"]),
     resultCase("triple_ron", "", [".round-end-result__from"]),
-    boardCase("board-standings-stick-lost", "?overlay=game_end&leftover=lost", [
-        ".standings__unawarded",
-    ]),
+    boardCase("board-game-end-stick-lost", "?overlay=game_end&leftover=lost", [".seating__note"]),
     {
         ...resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
         at: [FLOOR, MID_DESKTOP],
@@ -313,12 +303,11 @@ const PAGES: readonly PageCase[] = [
         ".round-end-result__title": "Four kans",
     }),
     {
-        ...boardCase("board-standings", "?overlay=game_end", [
-            ".standings__ending--length",
-            ".standings__foot-row--leftover",
-            ".standings__cell .standings__riichi",
-            ".standings__cell .standings__mark--deal-in",
-            ".standings__legend",
+        ...boardCase("board-game-end", "?overlay=game_end", [
+            ".seating__ending--length",
+            ".seating__note",
+            ".seating__result--positive",
+            ".seating__seat--viewer",
         ]),
         at: [...WORST_CASES, NOTCH_PHONE, SHORTEST_REGULAR_DESKTOP, ...SMALL_WINDOWS],
     },
@@ -326,7 +315,7 @@ const PAGES: readonly PageCase[] = [
         kind: "board",
         name: "decisions-game-start",
         path: "/play/storybook/decisions?state=game_start",
-        required: { visible: [".game-start__seat--viewer", ".game-start__status", ".nameplate"] },
+        required: { visible: [".seating__seat--viewer", ".seating__status", ".nameplate"] },
     },
     {
         ...decisionCase("round_end", [".round-end-result__confirm"]),
@@ -362,11 +351,10 @@ const PAGES: readonly PageCase[] = [
         prepare: (page) => expectTexts(page, { ".board-overlay .round-end-result__page": "2 / 2" }),
     },
     decisionCase("waiting", [".round-end-result__waiting"]),
-    decisionCase("standings", [
-        ".standings__ending--tobi",
-        ".standings__cell--win",
-        ".standings__foot-row--result",
-        ".standings__actions a[href*='seat=1']",
+    decisionCase("game_end", [
+        ".seating__ending--tobi",
+        ".seating__result--positive",
+        ".seating__actions a[href*='seat=1']",
     ]),
     {
         ...decisionCase("out_of_step_result", [
@@ -376,7 +364,7 @@ const PAGES: readonly PageCase[] = [
         ]),
         at: [FLOOR, SMALLEST_WINDOW],
     },
-    decisionCase("out_of_step_standings", [".standings__incomplete"]),
+    decisionCase("out_of_step_game_end", [".seating__ending", ".seating__actions"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
     rotateCase("leave", { content: ".rotate-panel .leave-confirm__leave", countdown: false }),
     rotateCase("ended", { content: ".rotate-panel .failure-panel__reload", countdown: false }),
@@ -764,35 +752,11 @@ async function checkResultPaging(page: Page, report: PageReport): Promise<void> 
     report.expect(waits, "confirming the last page of the result did not leave the seat waiting");
 }
 
-/**
- * A standings row that is a button shows its round's result, and the focus goes back to the page's root (an ancestor
- * of the board), where the keys go on.
- */
-async function checkStandingsRound(page: Page, report: PageReport): Promise<void> {
-    const row = page.locator(".board-overlay .standings__round--jump").first();
-    if ((await row.count()) === 0) {
-        return;
-    }
-    await row.click();
-    const shown = await page
-        .waitForSelector(".board-overlay .round-end-result", { timeout: SELECTOR_TIMEOUT_MS })
-        .then(() => true)
-        .catch(() => false);
-    report.expect(shown, "a standings row did not show its round's result");
-    const focusAtRoot = await page.evaluate(() => {
-        const board = document.querySelector(".game-board");
-        const focused = document.activeElement;
-        return board !== null && focused !== null && focused !== board && focused.contains(board);
-    });
-    report.expect(focusAtRoot, "after a standings row, the focus is not back on the page's root");
-}
-
 async function checkAfterShot(page: Page, report: PageReport): Promise<void> {
     await checkResultPaging(page, report);
-    await checkStandingsRound(page, report);
 }
 
-function measureStandings(page: Page): Promise<StandingsMeasure | null> {
+function measureSeating(page: Page): Promise<SeatingMeasure | null> {
     return page.evaluate(() => {
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function box(element: Element): Box {
@@ -804,17 +768,10 @@ function measureStandings(page: Page): Promise<StandingsMeasure | null> {
                 width: rect.width,
             };
         }
-        const panel = document.querySelector(".board-overlay__panel:has(> .standings)");
-        const sheet = panel?.querySelector(".standings__sheet");
-        if (panel === null || panel === undefined || sheet === null || sheet === undefined) {
+        const panel = document.querySelector(".board-overlay__panel:has(> .seating)");
+        if (panel === null) {
             return null;
         }
-        const shown = sheet.getBoundingClientRect();
-        const rounds = [...sheet.querySelectorAll(".standings__round--jump")].filter((row) => {
-            const { bottom, top } = row.getBoundingClientRect();
-            return top >= shown.top && bottom <= shown.bottom;
-        });
-        const totals = sheet.querySelector("tfoot");
         // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
         function toneOf(token: string, within: Element): string {
             const probe = document.createElement("span");
@@ -825,21 +782,11 @@ function measureStandings(page: Page): Promise<StandingsMeasure | null> {
             return color;
         }
         const toneCells = [
-            ["round +", "tbody .standings__cell--positive", "--ronin-score-positive"],
-            ["round −", "tbody .standings__cell--negative", "--ronin-score-negative"],
-            [
-                "result +",
-                ".standings__foot-row--result .standings__cell--positive",
-                "--ronin-score-positive",
-            ],
-            [
-                "result −",
-                ".standings__foot-row--result .standings__cell--negative",
-                "--ronin-score-negative",
-            ],
+            ["result +", ".seating__result--positive", "--ronin-score-positive"],
+            ["result −", ".seating__result--negative", "--ronin-score-negative"],
         ] as const;
         const tones = toneCells.map(([cell, selector, token]) => {
-            const found = sheet.querySelector(selector);
+            const found = panel.querySelector(selector);
             return {
                 cell,
                 shown: found === null ? null : getComputedStyle(found).color,
@@ -848,83 +795,58 @@ function measureStandings(page: Page): Promise<StandingsMeasure | null> {
         });
         const texts = [
             ...panel.querySelectorAll(
-                ".standings th, .standings td, .standings__action, .standings__legend-item",
+                ".seating__seat > *, .seating__action, .seating__ending, .seating__note, .seating__status",
             ),
         ];
         return {
-            controls: [...panel.querySelectorAll(".standings__action"), ...rounds].map(box),
+            controls: [...panel.querySelectorAll(".seating__action")].map(box),
             minFontPx: Math.min(
                 ...texts.map((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
             ),
             panel: box(panel),
-            sheet: box(sheet),
-            sheetClient: { height: sheet.clientHeight, width: sheet.clientWidth },
-            sheetOverflowY: getComputedStyle(sheet).overflowY,
-            sheetScroll: { height: sheet.scrollHeight, width: sheet.scrollWidth },
             tones,
-            totals: totals === null ? null : box(totals),
         };
     });
 }
 
 /**
- * The final standings fit their panel: the rounds scroll inside the sheet rather than past the board, and in landscape
- * never sideways (an upright page may scroll), the totals stay in view at the sheet's foot, no text is under the
- * floor, and on a supported landscape screen every control (its ways on, the rounds shown) is on the screen and large
- * enough to tap.
+ * The seating panel reads: no text is under the floor, a game end's results show in their tones, and on a supported
+ * landscape screen every way on is on the screen, inside the panel and large enough to tap.
  */
-function checkStandings(
-    standings: StandingsMeasure | null,
+function checkSeating(
+    seating: SeatingMeasure | null,
     { screen, viewport }: { readonly screen: Box; readonly viewport: Viewport },
     report: PageReport,
 ): void {
-    if (standings === null) {
+    if (seating === null) {
         return;
     }
-    const scrolls = standings.sheetScroll.height > standings.sheetClient.height + EPSILON;
+    const offTone = seating.tones.filter(({ shown, tone }) => shown !== null && shown !== tone);
     report.expect(
-        !scrolls || standings.sheetOverflowY === "auto" || standings.sheetOverflowY === "scroll",
-        "the standings' rounds overflow their sheet with no way to scroll to them",
+        offTone.length === 0,
+        `seating results not in their tone: ${offTone.map(({ cell, shown, tone }) => `${cell} ${shown} for ${tone}`).join(", ")}`,
     );
     report.expect(
-        viewport.portrait || standings.sheetScroll.width <= standings.sheetClient.width + EPSILON,
-        `the standings' sheet scrolls sideways: ${describeSize(standings.sheetScroll)} > ${describeSize(standings.sheetClient)}`,
-    );
-    report.expect(
-        contains(standings.panel, standings.sheet),
-        `the standings' sheet ${describeBox(standings.sheet)} leaves its panel`,
-    );
-    report.expect(
-        standings.totals !== null && contains(standings.sheet, standings.totals),
-        "the standings' totals are not in view at the sheet's foot",
-    );
-    const toned = standings.tones.filter(({ shown }) => shown !== null);
-    const offTone = toned.filter(({ shown, tone }) => shown !== tone);
-    report.expect(
-        toned.length > 0 && offTone.length === 0,
-        `standings cells not in their tone: ${offTone.map(({ cell, shown, tone }) => `${cell} ${shown} for ${tone}`).join(", ") || "none to check"}`,
-    );
-    report.expect(
-        standings.minFontPx >= MIN_TEXT_PX,
-        `standings text at ${standings.minFontPx}px, under ${MIN_TEXT_PX}px`,
+        seating.minFontPx >= MIN_TEXT_PX,
+        `seating text at ${seating.minFontPx}px, under ${MIN_TEXT_PX}px`,
     );
     if (!viewport.supported || viewport.portrait) {
         return;
     }
-    const outside = standings.controls.filter(
-        (control) => !contains(screen, control) || !contains(standings.panel, control),
+    const outside = seating.controls.filter(
+        (control) => !contains(screen, control) || !contains(seating.panel, control),
     );
     report.expect(
         outside.length === 0,
-        `${outside.length} standings control(s) off the panel or screen`,
+        `${outside.length} seating control(s) off the panel or screen`,
     );
-    const small = standings.controls.filter(
+    const small = seating.controls.filter(
         (control) =>
             control.width < MIN_ACTION_SIZE - EPSILON || control.height < MIN_ACTION_SIZE - EPSILON,
     );
     report.expect(
         small.length === 0,
-        `standings controls under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
+        `seating controls under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(describeBox).join(", ")}`,
     );
 }
 
@@ -982,7 +904,7 @@ async function checkRotatePanel(
 
 /**
  * The panels over the board: inside it and clear of the page's corner, a round result scrolling where it does not fit,
- * the standings, and on a landscape board the names of a result's scores apart.
+ * the seating, and on a landscape board the names of a result's scores apart.
  */
 async function checkBoard({
     board,
@@ -1003,7 +925,7 @@ async function checkBoard({
             report,
         );
     }
-    checkStandings(await measureStandings(page), { screen, viewport }, report);
+    checkSeating(await measureSeating(page), { screen, viewport }, report);
     const wrapped = await measureWrappedFigures(page);
     report.expect(
         wrapped.length === 0,
@@ -1017,7 +939,7 @@ async function checkBoard({
     }
 }
 
-/** The panels: round results, the standings, the seating, the leave question, an end, and the rotate panel. */
+/** The panels: round results, the seating (and the game's end on it), the leave question, an end, and the rotate panel. */
 export const panelsSurface: Surface = {
     checkAfterShot,
     checkBoard,

@@ -1,41 +1,52 @@
+@use "game-board/queries";
 @use "type";
 
-/* ─── Game Start Panel ────────────────────────────────────────── */
+/* ─── Seating Panel ───────────────────────────────────────────── */
 
-.game-start {
+/* The seats before the first deal, and again at the game's end with their placements, scores and uma/oka results.
+   Every length scales with `--seating-font`, so a view sets the panel's size in one place. */
+
+@function s($factor) {
+    @return calc(#{$factor} * var(--seating-font));
+}
+
+.seating {
+    --seating-font: 1rem;
+
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    min-width: min(18rem, 100%);
+    gap: s(0.5);
+    margin: 0;
+    min-width: min(s(18), 100%);
     color: var(--ronin-text);
 }
 
-.game-start__title {
+.seating__title {
     margin: 0;
-    font-size: 1rem;
+    font-size: s(1);
     font-weight: 600;
     color: var(--ronin-text);
 }
 
-.game-start__seats {
+.seating__seats {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.25rem 0.6rem;
+    gap: s(0.25) s(0.6);
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.game-start__seat {
+.seating__seat {
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: subgrid;
     align-items: center;
     margin: 0;
-    padding: 0.2rem 0.4rem;
+    padding: s(0.2) s(0.4);
     border: 1px solid transparent;
-    border-radius: 0.375rem;
-    font-size: 0.85rem;
+    border-radius: s(0.375);
+    font-size: s(0.85);
     list-style: none;
 
     &--viewer {
@@ -44,16 +55,16 @@
     }
 }
 
-.game-start__wind {
+.seating__wind {
     display: inline-grid;
     place-items: center;
-    width: 1.6rem;
-    height: 1.6rem;
+    width: s(1.6);
+    height: s(1.6);
     border: 1px solid var(--ronin-border);
-    border-radius: 0.25rem;
+    border-radius: s(0.25);
     font-weight: 700;
 
-    .game-start__seat--dealer & {
+    .seating__seat--dealer & {
         border-color: var(--ronin-dealer);
         background: var(--ronin-dealer);
         color: var(--ronin-dealer-ink);
@@ -77,16 +88,16 @@
     flex: none;
 }
 
-.game-start__marks {
+.seating__marks {
     display: inline-flex;
-    gap: 0.25rem;
+    gap: s(0.25);
 }
 
-.game-start__mark {
-    padding: 0 0.3rem;
+.seating__mark {
+    padding: 0 s(0.3);
     border: 1px solid var(--ronin-border);
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
+    border-radius: s(0.25);
+    font-size: s(0.75);
     color: var(--ronin-text-secondary);
 
     &--dealer {
@@ -100,12 +111,106 @@
     }
 }
 
-.game-start__status {
+.seating__status {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: s(0.95);
     font-weight: 700;
     color: var(--ronin-text);
     text-align: center;
+}
+
+.seating__ending {
+    margin: 0;
+    font-size: s(0.85);
+    color: var(--ronin-text-secondary);
+}
+
+.seating--scored .seating__seats {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.seating--end .seating__seats {
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+}
+
+.seating__seat--head {
+    padding-block: 0;
+    font-size: s(0.7);
+    color: var(--ronin-text-secondary);
+}
+
+.seating__placement {
+    font-weight: 700;
+}
+
+.seating__score,
+.seating__result {
+    @include type.figures;
+
+    text-align: right;
+}
+
+.seating__result {
+    font-weight: 700;
+
+    &--positive {
+        color: var(--ronin-score-positive);
+    }
+
+    &--negative {
+        color: var(--ronin-score-negative);
+    }
+}
+
+.seating__note {
+    margin: 0;
+    font-size: s(0.8);
+    color: var(--ronin-text-secondary);
+}
+
+.seating__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: s(0.4);
+
+    .seating__action {
+        min-height: 2.5rem;
+        margin: 0;
+        padding: s(0.2) s(1);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.2;
+        font-size: s(0.85);
+        touch-action: manipulation;
+    }
+}
+
+/* A phone's board has a short panel area: the rows tighten so the seats, the results and the ways on fit it whole. */
+@include queries.phone-board {
+    .seating {
+        gap: s(0.3);
+    }
+
+    .seating__seats {
+        row-gap: 0;
+    }
+
+    .seating__seat {
+        padding-block: s(0.05);
+        font-size: s(0.8);
+    }
+
+    .seating__wind {
+        width: s(1.35);
+        height: s(1.35);
+    }
+
+    .seating__actions .seating__action {
+        min-height: 40px;
+        padding-block: s(0.15);
+    }
 }
 
 /* ─── Round-End Result Panel ───────────────────────────────── */

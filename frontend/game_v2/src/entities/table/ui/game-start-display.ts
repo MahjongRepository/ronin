@@ -5,36 +5,47 @@ import {
     type GameStartSeat,
 } from "@/entities/table/lib/game-start-display";
 
+import { type PanelAction, PanelActions } from "./panel-actions";
 import { PlayerName } from "./player-name";
 
-function SeatRow(seat: GameStartSeat): TemplateResult {
-    const classes = [
-        "game-start__seat",
-        seat.isViewer ? "game-start__seat--viewer" : "",
-        seat.isDealer ? "game-start__seat--dealer" : "",
+function seatClasses(seat: GameStartSeat): string {
+    return [
+        "seating__seat",
+        seat.isViewer ? "seating__seat--viewer" : "",
+        seat.isDealer ? "seating__seat--dealer" : "",
     ]
         .filter(Boolean)
         .join(" ");
-    return html`<li class=${classes}>
-        <span class="game-start__wind" title=${seat.windName} aria-label=${seat.windName}>${seat.wind}</span>
-        ${PlayerName(seat.name, "game-start__name")}
-        <span class="game-start__marks">
-            ${seat.isDealer ? html`<span class="game-start__mark game-start__mark--dealer">Dealer</span>` : nothing}
-            ${seat.isAiPlayer ? html`<span class="game-start__mark">AI</span>` : nothing}
-            ${seat.isViewer ? html`<span class="game-start__mark game-start__mark--viewer">You</span>` : nothing}
+}
+
+function SeatRow(seat: GameStartSeat): TemplateResult {
+    return html`<li class=${seatClasses(seat)}>
+        <span class="seating__wind" title=${seat.windName} aria-label=${seat.windName}>${seat.wind}</span>
+        ${PlayerName(seat.name, "seating__name")}
+        <span class="seating__marks">
+            ${seat.isDealer ? html`<span class="seating__mark seating__mark--dealer">Dealer</span>` : nothing}
+            ${seat.isAiPlayer ? html`<span class="seating__mark">AI</span>` : nothing}
+            ${seat.isViewer ? html`<span class="seating__mark seating__mark--viewer">You</span>` : nothing}
         </span>
+        ${seat.score === null ? nothing : html`<span class="seating__score">${seat.score}</span>`}
     </li>`;
 }
 
 /**
  * The seating before the first deal: the game's length and first round, each seat's wind and player in wind order
- * (the dealer, the viewer and AI players marked), and the game start pause counting down to the deal.
+ * (the dealer, the viewer and AI players marked) with its starting score where known, then the game start pause
+ * counting down to the deal, or the panel's ways on (a replay's start).
  */
-export function GameStartDisplay(display: GameStartDisplayState): TemplateResult {
+export function GameStartDisplay(
+    display: GameStartDisplayState,
+    actions: readonly PanelAction[] = [],
+): TemplateResult {
     const heading = [display.gameType, display.round].filter(Boolean).join(" · ");
-    return html`<div class="game-start">
-        <h2 class="game-start__title">${heading}</h2>
-        <ol class="game-start__seats">${display.seats.map(SeatRow)}</ol>
-        <p class="game-start__status">${display.status}</p>
-    </div>`;
+    const scored = display.seats.some((seat) => seat.score !== null);
+    return html`<section class=${scored ? "seating seating--scored" : "seating"} aria-label="Seating">
+        <h2 class="seating__title">${heading}</h2>
+        <ol class="seating__seats">${display.seats.map(SeatRow)}</ol>
+        ${display.status === null ? nothing : html`<p class="seating__status">${display.status}</p>`}
+        ${PanelActions(actions)}
+    </section>`;
 }

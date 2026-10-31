@@ -25,8 +25,8 @@ const KEY_COMMANDS: ReadonlyMap<string, ReplayKeyCommand> = new Map([
     ["Space", "play"],
 ]);
 
-/** Where a key belongs to something else: a field typed into, the round list's and standings' own keys. */
-const OWN_KEYS_SELECTOR = "input, textarea, select, [contenteditable], .round-list, .standings";
+/** Where a key belongs to something else: a field typed into, the round list's own keys. */
+const OWN_KEYS_SELECTOR = "input, textarea, select, [contenteditable], .round-list";
 /** The panel over the board a round's result shows in, which scrolls when the result is taller than the board. */
 const OVERLAY_PANEL_SELECTOR = ".board-overlay__panel";
 /** Where Space and Enter activate the focused control itself, which the page must not repeat. */
@@ -106,7 +106,7 @@ function scrollsVertically(element: Element): boolean {
 
 /**
  * The page's command for a key, or null where the key is not the page's: typed into a field or composed by an input
- * method, held with a modifier, inside the round list or the standings, Space and Enter on a control they activate
+ * method, held with a modifier, inside the round list, Space and Enter on a control they activate
  * (a step button's are its step), or a key that would scroll a round's result scrolling inside its panel.
  */
 export function keyCommand(event: KeyboardEvent): ReplayKeyCommand | null {
@@ -131,7 +131,7 @@ export function keyCommand(event: KeyboardEvent): ReplayKeyCommand | null {
 }
 
 /**
- * A wheel turned up or down over the board, outside the round list, the standings' rounds, the notices' place (the
+ * A wheel turned up or down over the board, outside the round list, the notices' place (the
  * position) and a round's result scrolling in its panel, and not a pinch: its distance in pixels, the
  * step it asks for, or null where the wheel is not the page's.
  */
@@ -144,7 +144,7 @@ export function boardWheel(
         !event.ctrlKey &&
         over !== null &&
         over.closest(".board-page__board") !== null &&
-        over.closest(".round-list, .standings__sheet, .board-notices") === null &&
+        over.closest(".round-list, .board-notices") === null &&
         !inScrollingPanel(over);
     return taken
         ? { deltaPx: wheelPixels(event), direction: event.deltaY > 0 ? "next" : "prev" }

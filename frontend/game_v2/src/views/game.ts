@@ -24,16 +24,10 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
-import { type StandingsRenderer } from "@/entities/table";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import {
-    type DeadlineTimer,
-    type RetryingLoad,
-    assertNever,
-    createDeadlineTimer,
-} from "@/shared/lib";
+import { type DeadlineTimer, assertNever, createDeadlineTimer } from "@/shared/lib";
 import { CLOSE_CODE, EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
@@ -59,12 +53,10 @@ export interface GameViewDeps {
     readonly debug: boolean;
     /** The tile sprite's load, which the board's notice reports while the faces are missing. */
     readonly tileSprite: TileSprite;
-    /** Start loading the final standings, which the view does as it mounts and stops on dispose. */
-    readonly startStandings: () => RetryingLoad<StandingsRenderer>;
     readonly links: GameLinks;
 }
 
-/** Where the standings lead once the game ends: the game history, and this game's replay from a seat. */
+/** Where the game's end leads: the game history, and this game's replay from a seat. */
 export interface GameLinks {
     readonly history: string;
     readonly replay: (seat: number | null) => string;
@@ -93,7 +85,6 @@ interface LogEntry {
 
 interface GameViewProps {
     readonly links: GameLinks;
-    readonly standings: StandingsRenderer | null;
     readonly log: readonly LogEntry[] | null;
     readonly state: LiveClient;
     readonly ui: PlayUi;
@@ -220,14 +211,13 @@ function logTemplate(
  * and countdown stay current while it is hidden.
  */
 function gameTemplate(props: GameViewProps): TemplateResult {
-    const { links, log, onCommand, panel, standings, state, ui } = props;
+    const { links, log, onCommand, panel, state, ui } = props;
     const display: PlayDisplay = playDisplay(state, ui);
     const board = PlayBoard({
         display,
         links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
-        standings,
         status: describePlayerClientStatus(state),
         table: state.table,
     });
@@ -284,7 +274,6 @@ class GameViewController {
     private state: LiveClient;
     private ui: PlayUi;
     private readonly stopTileSprite: () => void;
-    private readonly standings: RetryingLoad<StandingsRenderer>;
     /** The control that opened the leave question, which takes the focus back when the player stays. */
     private leaveOpener: HTMLElement | null = null;
     private readonly recovery = new AbortController();
@@ -303,24 +292,15 @@ class GameViewController {
         this.deps = deps;
         this.log = deps.debug ? [] : null;
         this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
-        this.standings = deps.startStandings();
-        this.ui = {
-            ...NO_PLAY_UI,
-            standings: this.standings.status(),
-            tileSprite: deps.tileSprite.status(),
-        };
-        this.stopTileSprite = this.followLoads();
+        this.ui = { ...NO_PLAY_UI, tileSprite: deps.tileSprite.status() };
+        this.stopTileSprite = this.followTileSprite();
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
         this.state = state;
         this.settle(effects);
     }
 
-    /** Draw the page again as the tile sprite's and the standings' loads move on; returns the sprite's unsubscribe. */
-    private followLoads(): () => void {
-        this.standings.subscribe((standings) => {
-            this.ui = { ...this.ui, standings };
-            this.guard(() => this.draw());
-        });
+    /** Draw the page again as the tile sprite's load moves on; returns its unsubscribe. */
+    private followTileSprite(): () => void {
         return this.deps.tileSprite.subscribe((tileSprite) => {
             this.ui = { ...this.ui, tileSprite };
             this.guard(() => this.draw());
@@ -330,7 +310,6 @@ class GameViewController {
     dispose(): void {
         this.disposed = true;
         this.stopTileSprite();
-        this.standings.stop();
         this.recovery.abort();
         this.queue.length = 0;
         this.timer.disarm();
@@ -482,7 +461,6 @@ class GameViewController {
             log,
             onCommand: command,
             panel,
-            standings: this.standings.value(),
             state,
             ui,
         };

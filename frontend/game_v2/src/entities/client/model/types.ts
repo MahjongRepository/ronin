@@ -90,7 +90,7 @@ export type Decision = TurnDecision | CallDecision;
 
 /**
  * A local user intent: leave for the lobby, answer the open decision, confirm the round result read, reopen the
- * game's last result from the standings, or turn a play switch on or off, which sends nothing itself.
+ * game's last result from the game's end, or turn a play switch on or off, which sends nothing itself.
  */
 export type LocalIntent =
     | { readonly type: "leave" }
@@ -278,9 +278,9 @@ export interface LiveClient extends ClientBase {
     /** Whether the client is in step with the server, and what the seat owes it while it is. */
     readonly sync: Sync;
     /**
-     * The game's last result shown over the standings: the game end follows it at once, the player dismisses it to
-     * read the standings and may reopen it from them, none of which sends anything. Out of step too, since that result
-     * and the standings are the server's.
+     * The game's last result shown over the game's end: the game end follows it at once, the player dismisses it to
+     * read the final scores and may reopen it from them, none of which sends anything. Out of step too, since that
+     * result and the final scores are the server's.
      */
     readonly showsLastResult: boolean;
     /** The latest short-lived notice, until it expires or a newer one replaces it. */

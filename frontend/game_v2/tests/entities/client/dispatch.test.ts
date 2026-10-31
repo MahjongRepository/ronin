@@ -171,7 +171,7 @@ describe("stepGameClient", () => {
         expect(scenario.state.session).toBe(session);
     });
 
-    it("ends a game no round result preceded on its standings alone, and takes no server message after it, so the table stays as the game's end left it", () => {
+    it("ends a game no round result preceded on its final scores alone, and takes no server message after it, so the table stays as the game's end left it", () => {
         const scenario = playingScenario();
         scenario.step(message(100, WIRE_GAME_END));
         const ended = scenario.state;

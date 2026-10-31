@@ -19,7 +19,6 @@ import {
 } from "@/shared/protocol";
 
 import { applyKanDeclared, robbedKanDeclared } from "./kan-declared";
-import { roundRecordOfResult } from "./round-record";
 
 function settleScores(players: readonly PlayerState[], event: RoundEndEvent): PlayerState[] {
     return players.map((p) => {
@@ -304,7 +303,7 @@ export function showRobbedKan(state: TableState, event: RoundEndEvent): TableSta
  */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     const declared = showRobbedKan(state, event);
-    const result = { ...extractRoundEndResult(event, state), inStep: state.roundHistoryInStep };
+    const result = { ...extractRoundEndResult(event, state), inStep: state.inStep };
     return revealHands(
         {
             ...declared,
@@ -312,7 +311,6 @@ export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableSta
             players: settleScores(declared.players, event),
             riichiSticks: state.riichiSticks - riichiSticksCollected(event),
             roundEndResult: result,
-            roundHistory: [...state.roundHistory, roundRecordOfResult(state, result)],
         },
         event,
     );

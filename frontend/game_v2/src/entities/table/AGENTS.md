@@ -16,17 +16,16 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - **Scores come from the server.** A round end's wire `scores` are pre-payment and post-deposit; settle each player at
   that score plus `scoreChanges`, never from the prior state, so a deposit is never deducted twice. Riichi cost
   (`riichiCost`) and a collected stick's value (`riichiStickValue`) are separate game settings. A snapshot's scores
-  already hold every deposit and a game end's standings the leftover sticks paid; take both as they are. Standings
-  take the server's placement and uma/oka, never recomputed; leftover sticks are the server's `lr`, never the
-  table's count.
-- The standings' ledger is marked incomplete unless the history is in step and holds a record for every round the
-  game's end counts (`nr`); a ledger is never shown as whole when it may miss a round.
+  already hold every deposit and a game end's standings the leftover sticks paid; take both as they are. The game's
+  end takes the server's placement and uma/oka, never recomputed; leftover sticks are the server's `lr`, never the
+  table's count. A table out of step (`inStep`) names no last round in how the game ended.
 - A limit's name (`handLimitName`) comes from the points paid, never from han; yakuman vs kazoe from the server's
   per-yaku flag, never the id.
 - A round's name is its number within its wind (`roundInWind`), from the dealer's distance to the first dealer.
 - The latest discard is the server's on reconnect (`ld`); the client never infers it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
-- The board marks no tile playable and no offer source: that is the client mapper's. The standings are a lazy chunk
-  (`ui/standings.ts`); `boardOverlay` draws them only through the renderer a view hands it.
+- The board marks no tile playable and no offer source: that is the client mapper's.
+- The seating panel is the game's start and its end: the seats in wind order before the first deal, then in
+  placement order with their scores and uma/oka results once the game ends.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.

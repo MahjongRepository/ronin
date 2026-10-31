@@ -3,7 +3,6 @@ import { type MockInstance, describe, expect, it, onTestFinished, vi } from "vit
 import { ManualClock } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
-import { FakeStandingsLoad } from "#tests/fixtures/standings";
 import {
     WIRE_GAME_END,
     WIRE_GAME_JOINED,
@@ -14,7 +13,6 @@ import {
 } from "#tests/fixtures/wire";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
-import { type LoadStatus } from "@/shared/lib";
 import {
     type ClientMessage,
     buildChiAction,
@@ -77,7 +75,6 @@ interface FakeOverrides {
     readonly clearHandoff?: () => void;
     readonly handoff?: GameViewDeps["handoff"];
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
-    readonly standings?: FakeStandingsLoad;
 }
 
 /** A socket factory that keeps every connection it opens. */
@@ -97,11 +94,12 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     host: HTMLElement;
     sink: GameViewDeps["sink"];
     tileSprite: FakeTileSprite;
+    throwOnDraws: (count: number) => void;
     dispose: () => void;
 } {
     const clock = new ManualClock();
     const tileSprite = new FakeTileSprite();
-    const standings = overrides.standings ?? new FakeStandingsLoad();
+    const draws = { throwing: 0 };
     const { connect, connections } = fakeConnector();
     const sink = {
         clearHandoff: vi.fn(overrides.clearHandoff),
@@ -118,16 +116,25 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         handoff: overrides.handoff === undefined ? HANDOFF : overrides.handoff,
         links: {
             history: "/history",
-            replay: (seat) => `/play/history/${GAME_ID}?v=2&seat=${String(seat)}`,
+            replay: (seat) => {
+                if (draws.throwing > 0) {
+                    draws.throwing -= 1;
+                    throw new Error("the board broke");
+                }
+                return `/play/history/${GAME_ID}?v=2&seat=${String(seat)}`;
+            },
         },
         recoverHandoff:
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
         sink,
-        startStandings: () => standings,
         tileSprite,
     });
-    return { clock, connections, dispose, host, sink, tileSprite };
+    /** Make the next `count` draws throw, as a bug the view meets mid-draw would: every draw asks for the replay link. */
+    function throwOnDraws(count: number): void {
+        draws.throwing = count;
+    }
+    return { clock, connections, dispose, host, sink, throwOnDraws, tileSprite };
 }
 
 /** The server's answer to the join, then the game's start. */
@@ -397,63 +404,6 @@ describe("mountGameView tile faces", () => {
     });
 });
 
-/** Whether the board shows the final standings, and the error notice it shows. */
-function standingsShown(host: HTMLElement): [boolean, string | undefined] {
-    return [
-        host.querySelector(".game__play .standings") !== null,
-        host
-            .querySelector(".game__play .board-notice--error .board-notice__body")
-            ?.textContent?.trim(),
-    ];
-}
-
-function endGameOnStandings(socket: FakeConnection, host: HTMLElement): void {
-    endGame(socket);
-    press(host, ".round-end-result__confirm");
-}
-
-function moveStandings(
-    standings: FakeStandingsLoad,
-    status: LoadStatus,
-    host: HTMLElement,
-): [boolean, string | undefined] {
-    standings.moveTo(status);
-    return standingsShown(host);
-}
-
-describe("mountGameView final standings", () => {
-    it("shows the standings once their load lands, says so with a reload when it fails, and stops it on dispose", () => {
-        const standings = new FakeStandingsLoad("loading");
-        const { connections, dispose, host, sink } = mountWithFakes({ standings });
-        endGameOnStandings(connections[0], host);
-
-        const loading = standingsShown(host);
-        const failed = moveStandings(standings, "failed", host);
-        press(host, ".board-notice__action");
-        const ready = moveStandings(standings, "ready", host);
-        dispose();
-
-        expect([loading, failed, ready]).toEqual([
-            [false, undefined],
-            [false, expect.stringMatching(/^The final standings did not load\s*Reload$/)],
-            [true, undefined],
-        ]);
-        expect([vi.mocked(sink.reload).mock.calls.length, standings.stopped]).toEqual([1, true]);
-    });
-});
-
-/** Make the standings' `value`, which every draw reads, throw on the next `count` draws: a bug the view meets mid-draw. */
-function throwOnDraws(standings: FakeStandingsLoad, count: number): void {
-    let left = count;
-    standings.value = () => {
-        if (left > 0) {
-            left -= 1;
-            throw new Error("the board broke");
-        }
-        return null;
-    };
-}
-
 function statusLabel(host: HTMLElement): string | null | undefined {
     return host.querySelector(".game-menu__status-label")?.textContent;
 }
@@ -467,10 +417,9 @@ function silenceConsoleErrors(): MockInstance<typeof console.error> {
 describe("mountGameView failure boundary", () => {
     it("ends as failed, with its socket closed, when drawing the state a step left throws, its error on the console", () => {
         const consoleError = silenceConsoleErrors();
-        const standings = new FakeStandingsLoad();
-        const { connections, host } = mountWithFakes({ standings });
+        const { connections, host, throwOnDraws } = mountWithFakes();
         connections[0].handlers.onOpen();
-        throwOnDraws(standings, 1);
+        throwOnDraws(1);
 
         connections[0].handlers.onMessage(WIRE_GAME_JOINED);
 
@@ -483,10 +432,9 @@ describe("mountGameView failure boundary", () => {
 
     it("ends as failed, with its socket closed, when drawing a page command's view change throws", () => {
         silenceConsoleErrors();
-        const standings = new FakeStandingsLoad();
-        const { connections, host } = mountWithFakes({ standings });
+        const { connections, host, throwOnDraws } = mountWithFakes();
         openCallPrompt(connections[0]);
-        throwOnDraws(standings, 1);
+        throwOnDraws(1);
 
         press(host, ".game-menu__leave");
 
@@ -499,10 +447,9 @@ describe("mountGameView failure boundary", () => {
 
     it("shows a bare notice with a reload, and nothing of the board, when even the failed state cannot be drawn", () => {
         const consoleError = silenceConsoleErrors();
-        const standings = new FakeStandingsLoad();
-        const { connections, host, sink } = mountWithFakes({ standings });
+        const { connections, host, sink, throwOnDraws } = mountWithFakes();
         connections[0].handlers.onOpen();
-        throwOnDraws(standings, Number.POSITIVE_INFINITY);
+        throwOnDraws(Number.POSITIVE_INFINITY);
 
         connections[0].handlers.onMessage(WIRE_GAME_JOINED);
         host.querySelector<HTMLElement>(".game--broken button")?.click();
@@ -526,14 +473,12 @@ describe("mountGameView failure boundary", () => {
 
     it("ends as failed, shown on the page with its socket closed, when a load's redraw throws", () => {
         const consoleError = silenceConsoleErrors();
-        const standings = new FakeStandingsLoad("loading");
-        const { connections, host } = mountWithFakes({ standings });
-        endGameOnStandings(connections[0], host);
-        standings.value = () => () => {
-            throw new Error("the standings broke");
-        };
+        const { connections, host, throwOnDraws, tileSprite } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        connections[0].handlers.onMessage(WIRE_GAME_JOINED);
+        throwOnDraws(1);
 
-        standings.moveTo("ready");
+        tileSprite.moveTo("ready");
 
         expect(host.querySelector(".game-menu__status-label")?.textContent).toBe(
             "Something went wrong",

@@ -74,7 +74,7 @@ export interface PlayDisplay {
     /** What Escape does: step back from a call's choice of tiles or the riichi toggle; null with neither on. */
     readonly escape: PlayCommand | null;
     readonly countdown: DecisionCountdown | null;
-    /** The seat is furiten, shown only while a round plays, never under its result or the standings. */
+    /** The seat is furiten, shown only while a round plays, never under its result or the game's end. */
     readonly furiten: boolean;
     /** The play switches, while the player may turn them (a live seat in a round); else none. */
     readonly switches: readonly SwitchControl[];
@@ -84,11 +84,11 @@ export interface PlayDisplay {
     readonly pinnedNameplate: SeatPosition | null;
     /** The result panel's controls while the viewer has a round result to confirm or waits on one; else null. */
     readonly result: ResultControls | null;
-    /** Whether the game's last result still shows over the standings, until the player dismisses it. */
-    readonly resultOverStandings: boolean;
-    /** The standings' way back to the game's last result once the player dismissed it; else null. */
+    /** Whether the game's last result still shows over the game's end, until the player dismisses it. */
+    readonly resultOverGameEnd: boolean;
+    /** The game end's way back to the game's last result once the player dismissed it; else null. */
     readonly lastResult: PlayAction | null;
-    /** The viewer's seat, which the standings mark; null before the seat is known. */
+    /** The viewer's seat, which the game's end marks; null before the seat is known. */
     readonly viewerSeat: number | null;
     /** The notices over the table, in `NoticeKind`'s order; none while a failure blocks the board. */
     readonly notices: readonly PlayNotice[];
@@ -244,7 +244,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         notices,
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
-        resultOverStandings: state.showsLastResult,
+        resultOverGameEnd: state.showsLastResult,
         resultPage,
         switches: switchControls(state),
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,

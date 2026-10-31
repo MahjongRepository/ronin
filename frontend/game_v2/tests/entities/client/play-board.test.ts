@@ -1,11 +1,7 @@
 import { render } from "lit-html";
 import { describe, expect, it } from "vitest";
 
-import {
-    checkpointState,
-    loadSeatScenario,
-    receivedPayload,
-} from "#tests/fixtures/seat-transcripts";
+import { checkpointState } from "#tests/fixtures/seat-transcripts";
 import {
     type LiveClient,
     NO_PLAY_UI,
@@ -17,14 +13,12 @@ import {
     stepGameClient,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
-import { renderStandings } from "@/entities/table/ui/standings";
 
 function drawPlay(host: HTMLElement, state: LiveClient, ui: PlayUi = NO_PLAY_UI): void {
     render(
         PlayBoard({
             display: playDisplay(state, ui),
             onCommand: () => {},
-            standings: null,
             table: state.table,
         }),
         host,
@@ -97,7 +91,6 @@ function mountLive(
                     ui = nextPlayUi(state, ui, command);
                     draw();
                 },
-                standings: null,
                 table: state.table,
             }),
             host,
@@ -143,7 +136,6 @@ function renderSwitches(
         PlayBoard({
             display: playDisplay(state, NO_PLAY_UI),
             onCommand,
-            standings: null,
             table: state.table,
         }),
         host,
@@ -153,10 +145,10 @@ function renderSwitches(
 
 const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
 
-function renderLiveStandings(
+function renderLiveGameEnd(
     gameEnd: LiveClient = checkpointState("final_round_seat_1", "game end"),
 ): { host: HTMLElement; commands: PlayCommand[] } {
-    const standings = stepGameClient(gameEnd, {
+    const ended = stepGameClient(gameEnd, {
         at: gameEnd.now,
         intent: { type: "confirm_result" },
         kind: "intent",
@@ -165,11 +157,10 @@ function renderLiveStandings(
     const host = document.createElement("div");
     render(
         PlayBoard({
-            display: playDisplay(standings, NO_PLAY_UI),
+            display: playDisplay(ended, NO_PLAY_UI),
             links: LINKS,
             onCommand: (command) => commands.push(command),
-            standings: renderStandings,
-            table: standings.table,
+            table: ended.table,
         }),
         host,
     );
@@ -177,10 +168,20 @@ function renderLiveStandings(
 }
 
 describe("PlayBoard", () => {
-    it("leads from the live standings to the last result, the replay, the history and the lobby", () => {
-        const { commands, host } = renderLiveStandings();
-        const actions = [...host.querySelectorAll<HTMLElement>(".standings__action")];
+    it("ranks the seats at the game's end, the viewer marked, and leads to the last result, the replay, the history and the lobby", () => {
+        const { commands, host } = renderLiveGameEnd();
+        const actions = [...host.querySelectorAll<HTMLElement>(".seating__action")];
+        const rows = [...host.querySelectorAll(".seating__seat:not(.seating__seat--head)")];
 
+        expect(rows.map((row) => row.querySelector(".seating__placement")?.textContent)).toEqual([
+            "1st",
+            "2nd",
+            "3rd",
+            "4th",
+        ]);
+        expect(host.querySelector(".seating__seat--viewer .seating__name")?.textContent).toBe(
+            "Alice",
+        );
         expect(
             actions.map((action) => [action.textContent?.trim(), action.getAttribute("href")]),
         ).toEqual([
@@ -189,9 +190,6 @@ describe("PlayBoard", () => {
             ["Game history", LINKS.history],
             ["Lobby", null],
         ]);
-        expect(host.querySelector(".standings__col--viewer .standings__name")?.textContent).toBe(
-            "Alice",
-        );
 
         actions[0].click();
         actions[3].click();
@@ -199,25 +197,6 @@ describe("PlayBoard", () => {
             { intent: { type: "show_last_result" }, kind: "intent" },
             { intent: { type: "leave" }, kind: "intent" },
         ]);
-        expect(host.querySelector(".standings__incomplete")).toBeNull();
-    });
-
-    it("says on the standings that the rounds may be wrong when the page lost step before the game's end", () => {
-        const before = checkpointState("final_round_seat_1", "ron chosen");
-        const lostStep = stepGameClient(before, {
-            at: 5000,
-            kind: "server_message",
-            raw: { t: 999 },
-        });
-        const { transcript } = loadSeatScenario("final_round_seat_1");
-        const gameEnd = stepGameClient(lostStep.state, {
-            at: 5000,
-            kind: "server_message",
-            raw: receivedPayload(transcript, "game end"),
-        }).state;
-
-        const { host } = renderLiveStandings(gameEnd);
-        expect(host.querySelector(".standings__incomplete")?.getAttribute("role")).toBe("note");
     });
 
     it("holds a won round's result back for its call, but asks about leaving over it at once, with no furiten", () => {
@@ -228,7 +207,6 @@ describe("PlayBoard", () => {
                 PlayBoard({
                     display: playDisplay(roundEnd, { ...NO_PLAY_UI, confirmingLeave }),
                     onCommand: () => {},
-                    standings: null,
                     table: roundEnd.table,
                 }),
                 host,

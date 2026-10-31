@@ -8,7 +8,6 @@ import {
 import { type GameReconnectedEvent, decodeMeldCompact } from "@/shared/protocol";
 
 import { extractRoundEndResult, revealHands, showRobbedKan } from "./round-end";
-import { roundRecordOfHistory } from "./round-record";
 
 type SnapshotSeat = GameReconnectedEvent["playerStates"][number];
 
@@ -86,6 +85,7 @@ export function applyGameReconnected(
         gameEndResult: null,
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
+        inStep: true,
         lastDiscardSeat: snapshot.latestDiscardSeat,
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info.seat, claimed)),
@@ -94,8 +94,6 @@ export function applyGameReconnected(
         riichiStickValue: snapshot.riichiStickValue,
         riichiSticks: snapshot.riichiSticks,
         roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
-        roundHistory: snapshot.roundHistory.map(roundRecordOfHistory),
-        roundHistoryInStep: true,
         roundNumber: snapshot.roundNumber,
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,

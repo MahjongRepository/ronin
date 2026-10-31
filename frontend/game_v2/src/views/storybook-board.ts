@@ -17,13 +17,11 @@ import {
     type CalloutKind,
     GameBoard,
     NoticeSheet,
+    type PanelAction,
     type PlayerState,
     RoundEndDisplay,
-    type RoundRecord,
     SEAT_POSITIONS,
     type SeatPosition,
-    type StandingsAction,
-    type StandingsRenderer,
     type TableState,
     boardCallouts,
     boardOverlay,
@@ -40,7 +38,6 @@ import {
     type TileFace,
     meldTiles,
 } from "@/entities/tile";
-import { browserClock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
 import { GAME_END_CAUSE, SEAT_CONTROL_REASON } from "@/shared/protocol";
 
@@ -51,7 +48,6 @@ import {
     resultStoryLabel,
     resultStoryTable,
 } from "./storybook-results";
-import { startStorybookStandings } from "./storybook-standings";
 
 type OverlayMode = "none" | "round_end" | "game_end";
 
@@ -152,7 +148,7 @@ interface BoardStoryState {
     /** The nameplate pinned for the others' score differences, kept in the page's `?pin=`. */
     readonly pinned: SeatPosition | null;
     readonly overlay: OverlayMode;
-    /** The standings end under rules that award the leftover sticks to nobody, kept in the page's `?leftover=lost`. */
+    /** The game ends under rules that award the leftover sticks to nobody, kept in the page's `?leftover=lost`. */
     readonly leftoverLost: boolean;
     readonly story: BoardStory;
     readonly result: ResultStory;
@@ -199,7 +195,7 @@ const OWN_TURN_OFFERS: ReadonlySet<StoryOffers> = new Set(["riichi", "bank"]);
 /**
  * The story's board, one seat cued in turn while its round plays (the centre's bar and the badge's underline on it
  * alone): the viewer's on its own turn, else the seat whose discard is the latest, as a call prompt on it finds the
- * table. Under a round's result or the standings the round is over, so, as on the live board, no seat is cued.
+ * table. Under a round's result or the game's end the round is over, so, as on the live board, no seat is cued.
  */
 function cuedInTurn(state: BoardDisplayState, story: BoardStoryState): BoardDisplayState {
     if (story.overlay !== "none") {
@@ -927,104 +923,21 @@ const BOARD_STATES: Readonly<Record<BoardStory, BoardDisplayState>> = {
     },
 };
 
-const STANDINGS_PLAYERS: readonly PlayerState[] = [
+const END_PLAYERS: readonly PlayerState[] = [
     createInitialPlayerState({ isAiPlayer: false, name: "You", score: 39_500, seat: 0 }),
     createInitialPlayerState({ isAiPlayer: true, name: "Bot South", score: 12_000, seat: 1 }),
     createInitialPlayerState({ isAiPlayer: true, name: "Bot West", score: 29_100, seat: 2 }),
     createInitialPlayerState({ isAiPlayer: true, name: "Bot North", score: 19_400, seat: 3 }),
 ];
 
-const NO_RIICHI: readonly number[] = [];
-const NO_PAO: readonly number[] = [];
-
-/**
- * A short East-only game that ends on a draw with a riichi stick left: a ron on a riichi, a tenpai draw, a tsumo on
- * honba, a draw that keeps a riichi stick on the table, a ron collecting it, then a draw leaving one to the winner.
- */
-const STANDINGS_HISTORY: readonly RoundRecord[] = [
-    {
-        dealerSeat: 0,
-        honba: 0,
-        loserSeat: 3,
-        outcome: "ron",
-        paoSeats: NO_PAO,
-        riichiSeats: [0],
-        scoreChanges: { "0": 4900, "3": -3900 },
-        tenpaiSeats: null,
-        wind: 0,
-        winnerSeats: [0],
-    },
-    {
-        dealerSeat: 0,
-        honba: 1,
-        loserSeat: null,
-        outcome: "exhaustive",
-        paoSeats: NO_PAO,
-        riichiSeats: NO_RIICHI,
-        scoreChanges: { "0": 1500, "1": -1500, "2": 1500, "3": -1500 },
-        tenpaiSeats: [0, 2],
-        wind: 0,
-        winnerSeats: [],
-    },
-    {
-        dealerSeat: 0,
-        honba: 2,
-        loserSeat: null,
-        outcome: "tsumo",
-        paoSeats: NO_PAO,
-        riichiSeats: NO_RIICHI,
-        scoreChanges: { "0": -2200, "1": -1200, "2": 4600, "3": -1200 },
-        tenpaiSeats: null,
-        wind: 0,
-        winnerSeats: [2],
-    },
-    {
-        dealerSeat: 1,
-        honba: 0,
-        loserSeat: null,
-        outcome: "exhaustive",
-        paoSeats: NO_PAO,
-        riichiSeats: [3],
-        scoreChanges: { "0": -1000, "1": -1000, "2": -1000, "3": 3000 },
-        tenpaiSeats: [3],
-        wind: 0,
-        winnerSeats: [],
-    },
-    {
-        dealerSeat: 2,
-        honba: 1,
-        loserSeat: 1,
-        outcome: "ron",
-        paoSeats: NO_PAO,
-        riichiSeats: NO_RIICHI,
-        scoreChanges: { "0": 9300, "1": -8300 },
-        tenpaiSeats: null,
-        wind: 0,
-        winnerSeats: [0],
-    },
-    {
-        dealerSeat: 3,
-        honba: 0,
-        loserSeat: null,
-        outcome: "exhaustive",
-        paoSeats: NO_PAO,
-        riichiSeats: [0],
-        scoreChanges: { "0": 3000, "1": -1000, "2": -1000, "3": -1000 },
-        tenpaiSeats: [0],
-        wind: 0,
-        winnerSeats: [],
-    },
-];
-
-/** The table that short game ends on, its standings as the server ranks them with uma and oka. */
-const STANDINGS_TABLE: TableState = {
+/** A short East-only game's end, ranked as the server ranks it with uma and oka, a riichi stick left to the winner. */
+const END_TABLE: TableState = {
     ...createInitialTableState(),
     dealerSeat: 3,
     gameEndResult: {
         endCause: GAME_END_CAUSE.LENGTH,
         leftoverRiichiBonus: 1000,
         leftoverSticks: 1,
-        numRounds: STANDINGS_HISTORY.length,
         standings: [
             { finalScore: 50, score: 39_500, seat: 0 },
             { finalScore: 9, score: 29_100, seat: 2 },
@@ -1034,19 +947,17 @@ const STANDINGS_TABLE: TableState = {
         winnerSeat: 0,
     },
     phase: "game_ended",
-    players: STANDINGS_PLAYERS,
+    players: END_PLAYERS,
     riichiCost: 1000,
-    roundHistory: STANDINGS_HISTORY,
 };
 
 /** The same game under rules that award the leftover stick to nobody: the winner's score never took it. */
-const STANDINGS_TABLE_STICK_LOST: TableState = {
-    ...STANDINGS_TABLE,
+const END_TABLE_STICK_LOST: TableState = {
+    ...END_TABLE,
     gameEndResult: {
         endCause: GAME_END_CAUSE.LENGTH,
         leftoverRiichiBonus: 0,
         leftoverSticks: 1,
-        numRounds: STANDINGS_HISTORY.length,
         standings: [
             { finalScore: 49, score: 38_500, seat: 0 },
             { finalScore: 9, score: 29_100, seat: 2 },
@@ -1057,10 +968,10 @@ const STANDINGS_TABLE_STICK_LOST: TableState = {
     },
 };
 
-function standingsActions(): readonly StandingsAction[] {
+function gameEndActions(): readonly PanelAction[] {
     return [
         {
-            href: storybookHref("/play/storybook/replay?state=standings", window.location.search),
+            href: storybookHref("/play/storybook/replay?state=game_end", window.location.search),
             kind: "link",
             label: "Replay",
         },
@@ -1071,7 +982,6 @@ function standingsActions(): readonly StandingsAction[] {
 function buildOverlay(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
-    standings: StandingsRenderer | null,
 ): TemplateResult | undefined {
     const { overlay } = story;
     if (overlay === "round_end") {
@@ -1081,8 +991,8 @@ function buildOverlay(
         });
     }
     if (overlay === "game_end") {
-        return boardOverlay(story.leftoverLost ? STANDINGS_TABLE_STICK_LOST : STANDINGS_TABLE, {
-            standings: { actions: standingsActions(), renderer: standings, viewerSeat: 0 },
+        return boardOverlay(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
+            end: { actions: gameEndActions(), viewerSeat: 0 },
         });
     }
     return undefined;
@@ -1196,7 +1106,6 @@ function noticeSheetOverlay(
 function storybookBoardTemplate(
     story: BoardStoryState,
     handlers: BoardStoryHandlers,
-    standings: StandingsRenderer | null,
 ): TemplateResult {
     const state = cuedInTurn(BOARD_STATES[story.story], story);
     const offers = storyOffers(story.offers);
@@ -1215,7 +1124,7 @@ function storybookBoardTemplate(
                             ? PLAYED_HAND
                             : undefined,
                     notices,
-                    overlay: sheet ?? buildOverlay(story, handlers, standings),
+                    overlay: sheet ?? buildOverlay(story, handlers),
                     platePress: { kind: "pin", onPin: handlers.pin, pinned: story.pinned },
                     state,
                 })}
@@ -1269,7 +1178,6 @@ function storybookBoardTemplate(
 
 /** Mount the board storybook into `host`; its story and overlay are kept in the page's `?state=` and `?overlay=`. */
 export function mountStorybookBoard(host: HTMLElement): () => void {
-    const standings = startStorybookStandings(browserClock.setTimer);
     const query = new URLSearchParams(window.location.search);
     let story: BoardStoryState = {
         callout: parseStoryCall(query.get("callout")),
@@ -1287,7 +1195,7 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
 
     function show(next: BoardStoryState): void {
         story = next;
-        render(storybookBoardTemplate(story, handlers, standings.value()), host);
+        render(storybookBoardTemplate(story, handlers), host);
     }
 
     const handlers: BoardStoryHandlers = {
@@ -1335,7 +1243,6 @@ export function mountStorybookBoard(host: HTMLElement): () => void {
         },
     };
 
-    standings.subscribe(() => show(story));
     show(story);
-    return () => standings.stop();
+    return () => {};
 }

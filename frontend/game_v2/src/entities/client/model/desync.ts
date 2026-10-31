@@ -62,8 +62,8 @@ export function isSnapshotPayload(raw: Readonly<Record<string, unknown>>): boole
 /**
  * Whether an out-of-step client takes a message: the snapshot that rebuilds it, and the game's end, after which no
  * snapshot comes, with the round end before it, the game's last, which carries no wait: both carry the scores and the
- * result the server settled, so the page ends on them, its ledger marked incomplete (the table's
- * `roundHistoryInStep`). Every other message builds on the table it lost, so it is dropped.
+ * result the server settled, so the page ends on them, the table marked out of step (`inStep`). Every other message
+ * builds on the table it lost, so it is dropped.
  */
 export function takesWhileDesynced(message: ParsedServerMessage): boolean {
     return (

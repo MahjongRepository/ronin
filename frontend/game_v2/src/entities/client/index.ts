@@ -49,7 +49,7 @@ export { failureDisplay } from "./model/session-end";
 export type { PlayDisplay, SwitchControl } from "./model/play-display";
 export { playDisplay } from "./model/play-display";
 export { nextPlayUi, settledPlayUi } from "./model/play-ui-reducer";
-export type { DecisionView, PlayBoardProps, StandingsLinks } from "./ui/play-board";
+export type { DecisionView, GameEndLinks, PlayBoardProps } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
 export type { RotatePanelProps } from "./ui/rotate-panel";
 export { RotatePanel, rotatePanelProps } from "./ui/rotate-panel";

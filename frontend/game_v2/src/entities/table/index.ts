@@ -11,8 +11,6 @@ export type {
     HandValue,
     GameEndResult,
     GamePhase,
-    RoundOutcome,
-    RoundRecord,
     KanDeclaredEvent,
 } from "./model/types";
 export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
@@ -44,13 +42,8 @@ export { focusOnFirstRender, keepTabInside } from "./ui/focus";
 export type { BoardNotice } from "./ui/board-notices";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
 export type { PlatePress } from "./ui/nameplate";
-export { boardOverlay, showsRoundResult, startStandingsLoad } from "./ui/board-overlay";
-export type {
-    OverlayView,
-    ResultPaging,
-    StandingsRenderer,
-    StandingsView,
-} from "./ui/board-overlay";
+export { boardOverlay, showsRoundResult } from "./ui/board-overlay";
+export type { GameEndView, OverlayView, ResultPaging } from "./ui/board-overlay";
 export { SEAT_POSITIONS } from "./model/board-types";
 export type {
     BoardCallout,
@@ -80,8 +73,8 @@ export type {
 } from "./lib/round-end-display";
 export { handLimitName } from "./lib/hand-limit";
 export { drawName } from "./lib/draw-name";
-export type { StandingsAction } from "./ui/standings-panel";
+export type { PanelAction } from "./ui/panel-actions";
 export { GameStartDisplay } from "./ui/game-start-display";
 export type { GameStartDisplayState, GameStartSeat, GameStartView } from "./lib/game-start-display";
-export { gameStartDisplay } from "./lib/game-start-display";
+export { gameStartDisplay, replaySeatingDisplay } from "./lib/game-start-display";
 export { formatRoundName, honbaName, roundName } from "./lib/round-name";

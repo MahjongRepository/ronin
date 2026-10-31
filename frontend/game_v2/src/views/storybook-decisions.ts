@@ -23,7 +23,7 @@ import {
     settledPlayUi,
     stepGameClient,
 } from "@/entities/client";
-import { CALLOUT_MS, type StandingsRenderer } from "@/entities/table";
+import { CALLOUT_MS } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
 import ANCHOR_SEAT_1 from "@/fixtures/seat-scenarios/anchor_seat_1.json";
 import CALL_PROMPT_SEAT_1 from "@/fixtures/seat-scenarios/call_prompt_seat_1.json";
@@ -38,11 +38,9 @@ import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
-import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
 
 import { storybookIndexHref } from "./storybook-nav";
-import { startStorybookStandings } from "./storybook-standings";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
 const TRANSCRIPTS = {
@@ -88,7 +86,7 @@ interface DecisionStory {
  * three checkpoints and its call answered and expired, the seating before the first deal, the call prompts and a
  * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
  * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou, chiihou), the round results the
- * player confirms, the standings and the last result reopened from them, a game ended out of step, then another
+ * player confirms, the game's end and the last result reopened from it, a game ended out of step, then another
  * player's seat left to an AI and back, the viewer's own seat back, the board's notices (alone, stacked, long, over a
  * panel and opened whole over a decision, over the round confirm and under the leave question), the ends (a kick,
  * another tab) and the leave question.
@@ -124,10 +122,10 @@ const STORY_KEYS = [
     "waiting",
     "reconnect_owed",
     "last_result",
-    "standings",
+    "game_end",
     "last_result_reopened",
     "out_of_step_result",
-    "out_of_step_standings",
+    "out_of_step_game_end",
     "player_left",
     "player_back",
     "seat_back",
@@ -285,6 +283,10 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "turn", "Faces missing"),
         tileSprite: "failed",
     },
+    game_end: {
+        ...checkpoint("final_round_seat_1", "game end", "Game end"),
+        followUp: intentsAfterCall({ type: "confirm_result" }),
+    },
     game_start: checkpoint("own_turn_seat_1", "game started", "Game start"),
     kan_choice: {
         ...checkpoint("kan_choice_seat_1", "kan offer", "Kan: choose the tiles"),
@@ -341,13 +343,13 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         followUp: refusedDiscard,
         tileSprite: "failed",
     },
+    out_of_step_game_end: {
+        ...checkpoint("final_round_seat_1", "ron chosen", "Out of step: game end"),
+        followUp: endedOutOfStep({ type: "confirm_result" }),
+    },
     out_of_step_result: {
         ...checkpoint("final_round_seat_1", "ron chosen", "Out of step: last result"),
         followUp: endedOutOfStep(),
-    },
-    out_of_step_standings: {
-        ...checkpoint("final_round_seat_1", "ron chosen", "Out of step: standings"),
-        followUp: endedOutOfStep({ type: "confirm_result" }),
     },
     own_turn: checkpoint("own_turn_seat_1", "first draw", "Own turn"),
     player_back: checkpoint("seat_left_seat_1", "player back", "Player back"),
@@ -362,10 +364,6 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     ron_prompt: checkpoint("reconnect_seat_1", "ron prompt", "Ron prompt"),
     round_end: checkpoint("own_turn_seat_1", "round end", "Round end"),
     seat_back: checkpoint("seat_left_seat_3", "reconnected", "Own seat back"),
-    standings: {
-        ...checkpoint("final_round_seat_1", "game end", "Standings"),
-        followUp: intentsAfterCall({ type: "confirm_result" }),
-    },
     switches_furiten: {
         ...checkpoint("own_turn_seat_1", "furiten", "Switches on, furiten"),
         followUp: allSwitchesOn,
@@ -476,7 +474,6 @@ interface StoryHandlers {
 
 function storybookTemplate(
     screen: StoryScreen,
-    standings: StandingsRenderer | null,
     { onCommand, show }: StoryHandlers,
 ): TemplateResult {
     const { sent, state, story, ui } = screen;
@@ -494,7 +491,6 @@ function storybookTemplate(
                         ),
                     },
                     onCommand,
-                    standings,
                     status: describePlayerClientStatus(state),
                     table: state.table,
                 })}
@@ -521,11 +517,10 @@ function storybookTemplate(
  * live game would send and the state it leaves, with no socket behind it.
  */
 export function mountStorybookDecisions(host: HTMLElement): () => void {
-    const standings = startStorybookStandings(browserClock.setTimer);
     let screen = storyScreen(parseStory(window.location.search));
 
     function draw(): void {
-        render(storybookTemplate(screen, standings.value(), { onCommand, show }), host);
+        render(storybookTemplate(screen, { onCommand, show }), host);
     }
 
     function show(key: DecisionStoryKey): void {
@@ -554,10 +549,8 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
         draw();
     }
 
-    standings.subscribe(draw);
     draw();
     return () => {
-        standings.stop();
         render(nothing, host);
     };
 }

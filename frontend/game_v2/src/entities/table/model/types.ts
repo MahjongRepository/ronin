@@ -154,35 +154,10 @@ export type RoundEndPage =
     | { readonly kind: "win"; readonly winner: WinnerResult }
     | { readonly kind: "draw"; readonly draw: DrawResult };
 
-/** What ended a finished round: a tsumo, a ron (a double ron's too), or a draw of its kind. */
-export type RoundOutcome = "tsumo" | "ron" | DrawKind;
-
-/**
- * A finished round as the final standings' ledger reads it, the same whether the table saw the round end or a
- * reconnect's snapshot listed it: its wind, dealer and honba, its outcome, the seats it names and its payments.
- * `riichiSeats` are the seats whose riichi stood, so each paid its deposit in the round; `paoSeats` the seats liable
- * for a winner's yakuman; `tenpaiSeats` is set only on a draw that judges tenpai (exhaustive or nagashi mangan).
- */
-export interface RoundRecord {
-    readonly wind: number;
-    readonly dealerSeat: number;
-    readonly honba: number;
-    readonly outcome: RoundOutcome;
-    readonly winnerSeats: readonly number[];
-    readonly loserSeat: number | null;
-    readonly riichiSeats: readonly number[];
-    readonly paoSeats: readonly number[];
-    readonly tenpaiSeats: readonly number[] | null;
-    /** The round's payments, collected riichi sticks and honba included, riichi deposits not. */
-    readonly scoreChanges: Readonly<Record<string, number>>;
-}
-
 export interface GameEndResult {
     readonly winnerSeat: number;
     /** The rule that ended the game, as the server's engine decided it. */
     readonly endCause: GameEndCause;
-    /** How many rounds the server played, one ledger row each. */
-    readonly numRounds: number;
     /** The riichi sticks left on the table at the end, paid to the winner: its standing's score holds them. */
     readonly leftoverRiichiBonus: number;
     /**
@@ -240,13 +215,11 @@ export interface TableState {
      */
     readonly revealedSeats: readonly number[];
     readonly gameEndResult: GameEndResult | null;
-    /** Every finished round of the game in play order, for the final standings' ledger. */
-    readonly roundHistory: readonly RoundRecord[];
     /**
-     * Whether the round history follows the server: false from a live client's loss of step (`LostStepEvent`) until a
-     * snapshot rebuilds the history, since a round the client missed is a row missing or wrong.
+     * Whether the table follows the server: false from a live client's loss of step (`LostStepEvent`) until a snapshot
+     * rebuilds it.
      */
-    readonly roundHistoryInStep: boolean;
+    readonly inStep: boolean;
 }
 
 export type ReplayEvent =

@@ -1,7 +1,6 @@
 import { type SessionState, hasLostSeat } from "@/entities/session";
-import { type BoardNotice, type TableState } from "@/entities/table";
+import { type BoardNotice } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
-import { type LoadStatus } from "@/shared/lib";
 import { GAME_ERROR_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
 import { type DecisionCountdown, pendingCountdown } from "./countdown";
@@ -97,22 +96,6 @@ function tileSpriteNotice(status: TileSpriteStatus): PlayNotice | null {
     };
 }
 
-/**
- * The final standings' notice once the game ended and every try at loading them failed: the board shows no panel
- * meanwhile, and a reload is the player's way to try at once.
- */
-function standingsNotice(table: TableState, status: LoadStatus): PlayNotice | null {
-    if (table.phase !== "game_ended" || status !== "failed") {
-        return null;
-    }
-    return {
-        action: { command: { kind: "reload" }, label: "Reload" },
-        kind: "standings",
-        text: "The final standings did not load",
-        tone: "error",
-    };
-}
-
 /** The notices over the table, ongoing conditions before acknowledgements (`NoticeKind`); none while a failure blocks it. */
 export function boardNotices(state: LiveClient, ui: PlayUi): PlayNotice[] {
     if (failureDisplay(state.session) !== null) {
@@ -122,7 +105,6 @@ export function boardNotices(state: LiveClient, ui: PlayUi): PlayNotice[] {
         connectionNotice(state.session),
         unreadNotice(desyncOf(state)?.unreadMessages ?? 0),
         tileSpriteNotice(ui.tileSprite),
-        standingsNotice(state.table, ui.standings),
         timedNotice(state.notice),
     ].filter((notice) => notice !== null);
 }

@@ -2,7 +2,6 @@ import "@/zod-setup";
 import "@/styles/game-app.scss";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
-import { type StandingsRenderer, startStandingsLoad } from "@/entities/table";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";
@@ -14,7 +13,7 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import { type RetryingLoad, localStore } from "@/shared/lib";
+import { localStore } from "@/shared/lib";
 import {
     type GameSessionData,
     clearGameSession,
@@ -68,14 +67,6 @@ function startTileSprite(): TileSprite {
     });
 }
 
-function startStandings(): RetryingLoad<StandingsRenderer> {
-    return startStandingsLoad({
-        onOnline,
-        reportFailure: (error) => console.warn("The final standings failed to load:", error),
-        setTimer: browserClock.setTimer,
-    });
-}
-
 function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
     return {
         clock: browserClock,
@@ -94,7 +85,6 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
             reload: () => window.location.reload(),
             storeHandoff,
         },
-        startStandings,
         tileSprite,
     };
 }
@@ -126,7 +116,6 @@ function replayDeps() {
         loadReplay: fetchReplay,
         location: { onPageHide, replaceSearch, search: window.location.search },
         prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
-        startStandings,
     };
 }
 
