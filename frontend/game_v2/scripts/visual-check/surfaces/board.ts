@@ -34,6 +34,7 @@ import {
     NOTCH_PHONE,
     SHORT_DESKTOP,
     SHORT_UPRIGHT,
+    SQUARE_UPRIGHT,
     UPRIGHT_PHONE,
     WIDER_PHONES,
     WORST_CASES,
@@ -155,7 +156,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+        at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES, SQUARE_UPRIGHT],
         longNames: true,
     },
     {
@@ -927,6 +928,9 @@ async function checkBoard({
     if (viewport.supported) {
         checkBadgeTaps(board, report);
     }
+    if (viewport.name === SQUARE_UPRIGHT) {
+        await expectRightSecondLine(page, report);
+    }
     if (!viewport.supported || viewport.portrait) {
         return;
     }
@@ -945,6 +949,26 @@ async function checkBoard({
             `badge name(s) shortened though ordinary: ${board.cutNames.join(", ")}`,
         );
     }
+}
+
+/**
+ * The near-square upright window's pages are there for the right strip's second meld line, so they must draw one: the
+ * strip's depth as laid out (`--right-depth`) past its first line's reserve (`--strip-depth`), or the places beside
+ * it go untested. The tiles' rims draw a one-line strip a few pixels past that reserve, so their boxes cannot tell.
+ */
+async function expectRightSecondLine(page: Page, report: PageReport): Promise<void> {
+    const { depth, firstLine } = await page.evaluate(() => {
+        const table = document.querySelector(".game-board .board-table");
+        const style = table === null ? null : getComputedStyle(table);
+        return {
+            depth: Number.parseFloat(style?.getPropertyValue("--right-depth") ?? "0"),
+            firstLine: Number.parseFloat(style?.getPropertyValue("--strip-depth") ?? "0"),
+        };
+    });
+    report.expect(
+        firstLine > 0 && depth > firstLine + EPSILON,
+        `the right strip is ${Math.round(depth)}px deep, within its first line's ${Math.round(firstLine)}px: no second meld line to test`,
+    );
 }
 
 /** The table: the storybooks of tiles and boards, dense and sparse, and the face's fallback. */

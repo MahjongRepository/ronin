@@ -145,9 +145,10 @@ function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, 
 }
 
 /**
- * What a place beside a side strip reads of it (the decisions' and the replay's options beside the right strip, the
- * notices beside the left): its hand's and melds' lengths, its deepest meld and its oldest, which a second line of its
- * melds starts with, so the place stays clear of that line.
+ * What the places beside a side strip read of it (the decisions, the replay's options and an upright board's notices
+ * beside the right strip, the notices beside the left), handed to the table holding them all: its hand's and melds'
+ * lengths, its deepest meld and its oldest, which a second line of its melds starts with, so a place stays clear of
+ * that line.
  */
 function sideStripStyle(
     side: "left" | "right",
@@ -486,16 +487,16 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         <div class="${boardClass}" @click=${unpinOnClickElsewhere} @keydown=${onKey}>
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
-                <div class="board-table" style=${styleMap(sideStripStyle("left", seatPlayer(state, "left")))}>
+                <div class="board-table" style=${styleMap({ ...sideStripStyle("left", seatPlayer(state, "left")), ...sideStripStyle("right", seatPlayer(state, "right")) })}>
                     ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                     ${state ? CenterInfo(state.center, state.nameplates) : EmptyCenterArea()}
                     ${STRIP_SEATS.map((seat) => Strip(seat, state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null))}
                     ${state ? DoraDisplay(state.center) : ""}
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
-                    ${props.actions ? html`<div class="board-actions" data-area="actions" style=${styleMap(sideStripStyle("right", seatPlayer(state, "right")))}>${props.actions}</div>` : ""}
+                    ${props.actions ? html`<div class="board-actions" data-area="actions">${props.actions}</div>` : ""}
                     ${props.switches ?? ""}
-                    ${props.replay ? html`<div class="board-replay" style=${styleMap(sideStripStyle("right", seatPlayer(state, "right")))}>${props.replay.controls}</div>` : ""}
+                    ${props.replay ? html`<div class="board-replay">${props.replay.controls}</div>` : ""}
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
                     ${props.callouts ? Callouts(props.callouts, state) : ""}
                 </div>

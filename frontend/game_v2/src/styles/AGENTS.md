@@ -57,7 +57,8 @@ How the board's stylesheets (`game-board/`, the partials beside it) place the ta
   the left strip as drawn (its second meld line included, from the lengths `sideStripStyle` hands the table; with a
   phone's chrome only that, not the strip's deepest reserve, and a phone's margins, so a narrow window's notice keeps a
   few words a line), above a panel's dimming; upright, where that field is too narrow for text, the place spans the
-  board between the bottom river's reach and the decisions' rows, as the replay's status does; what a page shows in
+  board between the bottom river's reach and the decisions' rows, short of the right strip as drawn, as the replay's
+  status does; what a page shows in
   their place lies under them (a replay's status); a desktop panel over the board then starts past the left river's
   reach, and over a short or upright board's panel they move to the reserve under the right strip's end, but under a
   modal panel (their sheet, the leave question) they stay put, hidden, their clamp kept.
@@ -118,9 +119,10 @@ What the code keeps that the spec (Composition, Elements) does not say:
 - On a phone the lowest-ranked control that is neither a win, a choice of tiles nor a call's first step takes the band
   row beside the timer (the riichi toggle among them), starting past the own river's capacity reach; the rest stack
   upward, right-aligned, between the right river's capacity reach and the right strip as drawn (its second meld line
-  counted, from the per-meld units `rightStripStyle` hands the stylesheet), a win or a choice across the column, and
+  counted, from the lengths `sideStripStyle` hands the table), a win or a choice across the column, and
   pair up, shedding their tile previews, where the column (a size container, `decisions`) is too short for one a row
-  (the count `data-upper`). Rings lie inside a control's box.
+  (the count `data-upper`). Upright, the decisions' rows end short of the right strip as drawn, its second meld line
+  counted too (a near-square upright board's strip takes one). Rings lie inside a control's box.
 - The play switches (`_play-switches.scss`) stand in their slot on the band row, bottom-aligned with the band, their
   height `--switch-h` (which the left hand's reach is measured against): each a native button with the switch role and
   `aria-checked`, at least 40x40, its knob over its label on a phone and a narrow desktop, before it on a desktop; on
@@ -151,8 +153,8 @@ control per viewport, never moved by what a stop shows.
   rivers' capacity reach, before the right hand where it crosses the band): speed, the viewpoint, hiding the hands,
   the round list's toggle. Where that row is too short for all four (`--opts-fit`, a length switch, never a measure)
   they stand as two rows of two, the round list's toggle in the band, the upper pair ending before the right strip as
-  drawn (`side-strip-depth`, from the lengths `sideStripStyle` hands it). Upright, the options take a row above the
-  moves, short of the right strip.
+  drawn (`side-strip-depth`, from the lengths `sideStripStyle` hands the table). Upright, the options take a row above
+  the moves, short of the right strip as drawn.
 - The position (round, honba, step), a replay that is not the whole game (and where it ends at its last stop; a phone
   shows the label alone until then, its detail still read out) and the narration take the notices' place, under any
   notice. The narration is read out by its own polite live region, empty while autoplay runs; the narration drawn is

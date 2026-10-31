@@ -14,7 +14,7 @@
 }
 
 /* The place starts past the left strip as drawn, its second line of melds included where it has one; upright, it
-   spans the board between the bottom river's reach and the decisions' rows. */
+   spans the board between the bottom river's reach and the decisions' rows, short of the right strip as drawn. */
 .board-notices {
     @include side-strip-depth(left, calc(var(--band-top) - 8px - var(--side-start)));
 
@@ -56,7 +56,9 @@
         --notice-gap: 6px;
         --notice-top: calc(var(--cy) + var(--h) + var(--g) + 3 * var(--rh) + var(--notice-gap));
 
-        width: calc(100cqw - var(--notice-left) - var(--m) - var(--strip-depth) - 8px);
+        width: calc(
+            100cqw - var(--notice-left) - var(--m) - max(var(--strip-depth), var(--right-depth)) - 8px
+        );
         max-height: calc(var(--notices-bottom) - var(--notice-top));
     }
 }

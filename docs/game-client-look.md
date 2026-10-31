@@ -487,7 +487,8 @@ on a desktop's geometry), 1280x720 and 1440x770 (laptop windows either side of t
 desktop's 760px, the latter the shortest regular desktop), 700x540 and 900x600 (small windows, a
 panel against the board's width), 1024x510 (a short tablet, wide but under a phone's height) and
 680x375 and 700x375 (wider phones at the floor's height). The composition is identical on all the
-landscape ones.
+landscape ones. Upright, beside the iPhone 13 it adds 800x801, a near-square window with no touch
+screen, whose densest right strip takes a second meld line beside the decisions and the notices.
 
 ## Review checklist
 

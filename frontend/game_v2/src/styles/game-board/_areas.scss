@@ -27,10 +27,22 @@ $strip-lengths:
     align-items: flex-end;
 }
 
+@property --right-depth {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
 .board-table,
 .board-zones {
     position: absolute;
     inset: 0;
+}
+
+/* The right strip's depth as drawn, which every place beside it (the decisions, the replay's options, upright notices)
+   stays clear of. */
+.board-table {
+    @include right-strip-depth;
 }
 
 .board-zones {

@@ -39,6 +39,11 @@ export const UPRIGHT_PHONE = "phone-portrait";
  * the notices' place over them against the core.
  */
 export const SHORT_UPRIGHT = "window-upright";
+/**
+ * A near-square upright window (800x801, no touch screen), where the river tile is largest against the right strip's
+ * room, so the densest right strip takes its second meld line beside the decisions, the options and the notices.
+ */
+export const SQUARE_UPRIGHT = "window-square";
 /** The mid desktop (1440x900), the spec's reference desktop. */
 export const MID_DESKTOP = "desktop-1440";
 /** The three classes the representative worst cases are chosen across: the floor, the mid and the largest desktop. */
@@ -178,6 +183,15 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: true,
         engine: chromium,
         name: SHORT_UPRIGHT,
+        portrait: true,
+        rotates: false,
+        supported: true,
+    },
+    {
+        context: { viewport: { height: 801, width: 800 } },
+        desktop: true,
+        engine: chromium,
+        name: SQUARE_UPRIGHT,
         portrait: true,
         rotates: false,
         supported: true,

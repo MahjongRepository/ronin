@@ -18,6 +18,7 @@ import {
     SHORTEST_REGULAR_DESKTOP,
     SHORT_UPRIGHT,
     SMALLEST_WINDOW,
+    SQUARE_UPRIGHT,
     UPRIGHT_PHONE,
 } from "../viewports.ts";
 
@@ -38,8 +39,9 @@ const MIN_NOTICE_MEASURE = 7.5;
 
 /**
  * The notices' worst cases: the stack on the desktops too, the long ones also in the smaller window's field and the
- * shortest upright board's place over the decisions, one over the upright panel, the keys on both engines, and every other once at the floor. The single notices the stack holds
- * (a refused move, faces that did not load) are left out.
+ * shortest upright board's place over the decisions, one over the upright panel, one beside the right strip's second
+ * meld line on a near-square upright board, the keys on both engines, and every other once at the floor. The single
+ * notices the stack holds (a refused move, faces that did not load) are left out.
  */
 const PAGES: readonly PageCase[] = [
     decisionCase("connection_lost", [
@@ -73,6 +75,13 @@ const PAGES: readonly PageCase[] = [
         ...boardCase("board-notice-second-line", "?state=worst&notice=long", [
             ".board-notice--error",
         ]),
+        longNames: true,
+    },
+    {
+        ...boardCase("board-notice-right-lines", "?state=kans_c&notice=long", [
+            ".board-notice--error",
+        ]),
+        at: [SQUARE_UPRIGHT],
         longNames: true,
     },
     {

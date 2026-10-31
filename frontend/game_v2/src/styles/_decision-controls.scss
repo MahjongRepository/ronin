@@ -8,19 +8,15 @@ $win-rise: 4px;
 $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
 
-@each $name in right-depth, upper-clear {
-    @property --#{$name} {
-        syntax: "<length>";
-        inherits: true;
-        initial-value: 0;
-    }
+@property --upper-clear {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
 }
 
 /* The decisions' place: a desktop's band row past the switches' slot to the hand's right end; a phone's column beside
    the right river's reach and the right strip as drawn, down to the band, whose row starts past the own river's reach. */
 .board-actions {
-    @include right-strip-depth;
-
     --upper-clear: max(
         0px,
         var(--m) + var(--right-depth) + #{$desktop-gap} - (100cqw - var(--own-hand-right))
@@ -52,7 +48,7 @@ $preview-tile-share: 0.42;
 
     @include upright-board {
         left: var(--m);
-        right: calc(var(--m) + var(--strip-depth) + 8px);
+        right: calc(var(--m) + max(var(--strip-depth), var(--right-depth)) + 8px);
         bottom: calc(100cqh - var(--hand-top) + max(0px, var(--badge-h) - var(--oh)) + 4px);
     }
 }
