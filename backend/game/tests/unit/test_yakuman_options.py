@@ -52,6 +52,8 @@ class TestDoubleYakumanSetting:
         # single yakuman non-dealer tsumo: dealer pays 16000, non-dealer pays 8000
         assert result.cost_main == 16000
         assert result.cost_additional == 8000
+        assert result.yaku
+        assert all(yaku.is_yakuman for yaku in result.yaku)
 
     def test_daisuushii_setting__when_double_disabled__should_score_single_yakuman(self):
         # pair is 1m (not honor), so tsuuiisou does NOT apply — only daisuushii
@@ -208,6 +210,7 @@ class TestKazoeYakuman:
         # payment is yakuman-level: non-dealer tsumo = dealer pays 16000, non-dealer pays 8000
         assert result.cost_main == 16000
         assert result.cost_additional == 8000
+        assert not any(yaku.is_yakuman for yaku in result.yaku)
 
     def test_kazoe_yakuman__when_disabled__should_cap_at_sanbaiman(self):
         tiles = TilesConverter.string_to_136_array(man="2233445556677")

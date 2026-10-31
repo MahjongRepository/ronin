@@ -1,6 +1,6 @@
 import { type TemplateResult, html } from "lit-html";
 
-import { TILE_FACES, TILE_FACES_SET, Tile, type TileFace } from "@/entities/tile";
+import { TILE_FACES, TILE_FACES_SET, Tile } from "@/entities/tile";
 import { storybookNav } from "@/views/storybook-nav";
 import { REPLAY_STORIES } from "@/views/storybook-replay";
 
@@ -16,7 +16,7 @@ function storybookView(): TemplateResult {
                     ${TILE_FACES.map(
                         (id) => html`
                             <div class="storybook-tile-cell">
-                                ${Tile(id as TileFace, "face")}
+                                ${Tile(id, "face")}
                                 <small>${id}</small>
                             </div>
                         `,

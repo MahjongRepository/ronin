@@ -201,10 +201,11 @@ export interface InStep {
  * session can (at once while it holds the seat), whether it just lost step, its socket dropped (the reconnect bringing
  * a snapshot of its own) or the game moved while it awaited the deal. Sent: its request is outstanding on the open
  * socket until `due`, when it counts as unanswered and is sent again; a rate limit meanwhile answers it, never the
- * session's identity message. Awaiting the snapshot: the identifying socket's own snapshot is the answer, asked for
- * only once it goes unanswered at `due`. At the deal: the server said the game has not dealt yet, so the client asks
- * again at the first deal's time `due`. On a game message: the same refusal with no deal time ahead, so the client
- * asks again only once the server's next game message says the game moved.
+ * session's identity message. Awaiting the snapshot: the socket identifies with RECONNECT, whose own snapshot is the
+ * answer, asked for only once it goes unanswered at `due`. At the deal: the server said the game has not dealt yet, or
+ * the socket identifies with JOIN_GAME (answered by `game_joined`, never a snapshot, and only before the deal), so the
+ * client asks again at the first deal's time `due`. On a game message: the same with no deal time ahead, so the
+ * client asks again only once the server's next game message says the game moved.
  */
 export type ResyncRequest =
     | { readonly kind: "unsent" }
@@ -269,6 +270,11 @@ export interface LiveClient extends ClientBase {
     /** The furiten the server last reported to the viewer's seat; a new deal clears it. */
     readonly furiten: boolean;
     readonly timer: TimerSettings | null;
+    /**
+     * How long the server holds the pending game the seat joined for its players before it starts, from its
+     * `game_joined`, in seconds; null before the server said so.
+     */
+    readonly pendingGameSeconds: number | null;
     /** Whether the client is in step with the server, and what the seat owes it while it is. */
     readonly sync: Sync;
     /**
@@ -318,12 +324,10 @@ export interface ClientStep<State extends GameClientState = GameClientState> {
 
 /**
  * A step plus what it took of its event, as parsed: a server message or replay line, the kan a replay's round end
- * robbed as declared, or null for any other. A partial step took only part of its event: the dispatcher steps the
- * same event again for the rest.
+ * robbed as declared, or null for any other.
  */
 export interface TracedStep<
     State extends GameClientState = GameClientState,
 > extends ClientStep<State> {
     readonly parsed: ReplayLine | KanDeclaredEvent | null;
-    readonly partial: boolean;
 }

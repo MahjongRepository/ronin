@@ -61,9 +61,11 @@ export interface PlayerState {
     readonly isRiichi: boolean;
 }
 
+/** A yaku of a winning hand: its id, its han, and whether the server scored it as a yakuman. */
 export interface YakuResult {
     readonly yakuId: number;
     readonly han: number;
+    readonly isYakuman: boolean;
 }
 
 /** A winning hand's value as the server scored it. */

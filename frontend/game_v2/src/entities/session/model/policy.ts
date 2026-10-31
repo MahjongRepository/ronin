@@ -38,15 +38,12 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set([
 const RESENDABLE_CODES: ReadonlySet<string> = new Set([SESSION_ERROR_CODE.RATE_LIMITED]);
 
 /**
- * Session errors that answer a request other than the identity message: `game_not_started` and `not_in_game` refuse
- * only a game action or a resync request (`backend/game/session/manager.py`); an identifying session resends its
- * identity on the second, which says the socket holds no seat. Every other one it gets answers its JOIN_GAME or
- * RECONNECT.
+ * Session errors that answer a request other than the identity message and refuse nothing: `game_not_started` refuses
+ * only a game action or a resync request (`backend/game/session/manager.py`). `not_in_game` answers a resync request
+ * too, but it is a refusal, which an identifying session takes before asking this. Every other one it gets answers its
+ * JOIN_GAME or RECONNECT.
  */
-const NON_IDENTITY_CODES: ReadonlySet<string> = new Set([
-    SESSION_ERROR_CODE.GAME_NOT_STARTED,
-    SESSION_ERROR_CODE.NOT_IN_GAME,
-]);
+const NON_IDENTITY_CODES: ReadonlySet<string> = new Set([SESSION_ERROR_CODE.GAME_NOT_STARTED]);
 
 interface RetryBudget {
     readonly maxAttempts: number;

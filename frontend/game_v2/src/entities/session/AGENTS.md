@@ -15,7 +15,9 @@ One machine owns finding the handoff, joining, playing, reconnecting and the end
   a transport retry (no socket, with its due time). Whether this page lost the seat it held belongs to the RECONNECT
   identity alone, so a join never has lost one; a drop before the game started joins again with JOIN_GAME, the only
   identity a game waiting to start takes (the server turns it into RECONNECT if the game started meanwhile). Only an
-  open socket carries a message, so connecting and awaiting a retry ignore every one.
+  open socket carries a message, so connecting and awaiting a retry ignore every one. What a state allows another
+  slice is the session's to say (`holdsSeat`, `takesMessages`, `canRequestResync`, `awaitsSnapshot`), so no other
+  slice reads its status, identity or retry fields.
 - Only the server's answer admits an identifying session (`game_joined` a JOIN_GAME, the snapshot a RECONNECT), never
   a game message. A refusal ends any active session; only identifying schedules identity retries:
   `join_game_already_started` turns a JOIN_GAME into RECONNECT and is ignored once the session reconnects or plays,

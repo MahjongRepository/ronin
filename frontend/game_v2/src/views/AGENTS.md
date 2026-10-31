@@ -44,8 +44,8 @@ The route views: the live game's driver, the replay page and the storybook. Each
   disables the focused control gives the focus back to the root.
 - The viewpoint switch moves the seat at the bottom and the address's `seat`, never the cursor or a result's page.
   Hiding the hands draws the board and the narration as the bottom seat sees them. That and autoplay's speed are the
-  reader's settings (`entities/table/model/replay-prefs.ts`, `localStorage` read and written in try/catch, the
-  defaults when it is blocked), never the address: the address names a position, and a shared link imposes no way of
+  reader's settings (read by `entities/table/model/replay-prefs.ts`, kept by the entry in `localStorage` through
+  `shared/lib`'s `localStore`, the defaults when it is blocked), never the address: the address names a position, and a shared link imposes no way of
   reading it.
 - Its IO stays at the edge, given by `index.ts`: the load, which asks again on 404 after 500, 1000 and 2000 ms (the
   game end reaches players before the server saves the replay) and is aborted with its waiting retry on dispose; and

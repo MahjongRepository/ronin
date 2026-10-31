@@ -6,6 +6,7 @@ import {
     loadSeatScenario,
     receivedPayload,
     scenarioFromTranscript,
+    switchedOnBefore,
 } from "#tests/fixtures/seat-transcripts";
 import {
     WIRE_SEAT_TO_AI,
@@ -21,6 +22,7 @@ import {
     type ScenarioStep,
     type SeatScenario,
     decisionOf,
+    desyncOf,
     nextDeadline,
     parseSeatTranscript,
     playDisplay,
@@ -45,6 +47,7 @@ import {
     buildDiscardAction,
     buildJoinGameMessage,
     buildPonAction,
+    buildResyncMessage,
 } from "@/shared/protocol";
 
 const ANCHOR = loadSeatScenario("anchor_seat_1");
@@ -517,21 +520,71 @@ describe("stepGameClient - generated own turn", () => {
             16_000 + (5 + 39) * 1000,
         );
     });
+});
 
-    it("gives a turn whose draw names no bank no deadline rather than a guessed one", () => {
-        const noBank = scenario.steps.map((step): ScenarioStep => {
-            const { event } = step;
-            if (step.label !== "dealer draw" || event.kind !== "server_message") {
-                return step;
-            }
-            const { bk: _bank, ...raw } = event.raw;
-            return { ...step, event: { ...event, raw } };
-        });
-        const variant = { ...scenario, steps: noBank };
+/** The scenario with the payload of the step labelled `label` edited to a shape the server never sends. */
+function editedAt(
+    scenario: SeatScenario,
+    label: string,
+    edit: (raw: WirePayload) => WirePayload,
+): SeatScenario {
+    const steps = scenario.steps.map((step): ScenarioStep => {
+        const { event } = step;
+        return step.label === label && event.kind === "server_message"
+            ? { ...step, event: { ...event, raw: edit(event.raw) } }
+            : step;
+    });
+    return { ...scenario, steps };
+}
 
-        const dealerDraw = stateAt(variant, runClean(variant), "dealer draw");
+function withoutKey(key: string): (raw: WirePayload) => WirePayload {
+    return (raw) => Object.fromEntries(Object.entries(raw).filter(([name]) => name !== key));
+}
 
-        expect(decisionOf(dealerDraw)?.deadline).toBeNull();
+/** What the run's step labelled `label` described, by effect type, and every message the run sent from it on. */
+function effectsFrom(scenario: SeatScenario, run: ScenarioRun, label: string): unknown[] {
+    const entries = run.timeline.entries.slice(scenarioStateIndex(scenario, label) - 1);
+    const sent = entries.flatMap(({ effects }) =>
+        effects.flatMap((effect) => (effect.type === "send" ? [effect.message] : [])),
+    );
+    return [entries[0]?.effects.map((effect) => effect.type), sent];
+}
+
+describe("stepGameClient - incomplete or out-of-row live messages", () => {
+    const RESYNC_MESSAGE = buildResyncMessage();
+
+    it("goes out of step on a live deal naming no hand, so Auto discard answers nothing and only snapshots are asked for", () => {
+        const noHand = editedAt(ANCHOR.scenario, "east 2 dealt", withoutKey("mt"));
+        const variant = switchedOnBefore(noHand, "own turn", ["auto_discard"]);
+        const run = runSeatScenario(variant);
+        const [dealt, sent] = effectsFrom(variant, run, "east 2 dealt");
+
+        expect(dealt).toEqual(["report_protocol_failure", "send"]);
+        expect(sent).toEqual([RESYNC_MESSAGE, RESYNC_MESSAGE]);
+        expect(decisionOf(stateAt(variant, run, "own turn"))).toBeNull();
+    });
+
+    it("goes out of step on a prompt after the round end rather than let it replace the confirm, Auto win on", () => {
+        const { scenario, transcript } = DOUBLE_RON;
+        const { at } = scenario.steps[scenarioStateIndex(scenario, "round end") - 1].event;
+        const prompt = { ...receivedPayload(transcript, "ron prompt"), wi: 999 };
+        const variant = branchAfter(
+            switchedOnBefore(scenario, "round end", ["auto_win"]),
+            "round end",
+            [{ event: { at, kind: "server_message", raw: prompt }, label: "stale prompt" }],
+        );
+        const run = runSeatScenario(variant);
+        const prompted = stateAt(variant, run, "stale prompt");
+
+        expect(roundConfirmOf(stateAt(variant, run, "round end"))?.kind).toBe("owed");
+        expect(effectsFrom(variant, run, "stale prompt")).toEqual([
+            ["report_protocol_failure", "send"],
+            [RESYNC_MESSAGE],
+        ]);
+        expect([roundConfirmOf(prompted), desyncOf(prompted)?.cause]).toEqual([
+            null,
+            "impossible_state",
+        ]);
     });
 });
 

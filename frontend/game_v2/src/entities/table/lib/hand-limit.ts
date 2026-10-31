@@ -1,7 +1,5 @@
 import { type HandValue } from "@/entities/table/model/types";
 
-const YAKUMAN_IDS = { first: 100, last: 119 } as const;
-
 /** A limit hand's basic points, which every payment of it is a multiple of: 4x for a non-dealer, 6x for the dealer. */
 const LIMITS = [
     { basicPoints: 8000, name: "Yakuman" },
@@ -18,8 +16,9 @@ const MULTIPLE_YAKUMAN_NAMES: Readonly<Record<number, string>> = {
     3: "Triple Yakuman",
 };
 
-export function isYakumanYaku(yakuId: number): boolean {
-    return yakuId >= YAKUMAN_IDS.first && yakuId <= YAKUMAN_IDS.last;
+/** Whether the server scored a hand as a yakuman: a yaku of it is one, never inferred from its han or yaku ids. */
+export function isYakumanHand(hand: HandValue): boolean {
+    return hand.yaku.some((yaku) => yaku.isYakuman);
 }
 
 /** A yakuman's name for how many yakuman it counts: "Yakuman", "Double Yakuman", … */
@@ -40,7 +39,7 @@ export function yakumanName(multiple: number): string {
 export function handLimitName(hand: HandValue, isDealer: boolean): string | null {
     const basicPoints = hand.points / (isDealer ? 6 : 4);
     if (basicPoints >= YAKUMAN_BASIC_POINTS) {
-        if (!hand.yaku.some((yaku) => isYakumanYaku(yaku.yakuId))) {
+        if (!isYakumanHand(hand)) {
             return "Kazoe Yakuman";
         }
         return yakumanName(Math.floor(basicPoints / YAKUMAN_BASIC_POINTS));

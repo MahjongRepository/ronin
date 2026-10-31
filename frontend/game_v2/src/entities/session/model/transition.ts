@@ -52,6 +52,33 @@ function identityMessage({ handoff, identity }: SeekingSession): ClientMessage {
         : buildReconnectMessage(handoff.gameTicket);
 }
 
+/** Whether the session holds the seat, the only state that sends game messages: playing. */
+export function holdsSeat(state: SessionState): boolean {
+    return state.status === "playing";
+}
+
+/** Whether the session takes server messages: on an open socket, identifying or playing; no other carries one. */
+export function takesMessages(state: SessionState): boolean {
+    return state.status === "identifying" || state.status === "playing";
+}
+
+/**
+ * Whether the session can ask its server for a snapshot: on an open socket, holding the seat or identifying with no
+ * session retry waiting, since a socket whose identity message the server refused holds no seat until the retry
+ * resends it.
+ */
+export function canRequestResync(state: SessionState): boolean {
+    return holdsSeat(state) || (state.status === "identifying" && state.sessionRetryAt === null);
+}
+
+/**
+ * Whether the session awaits a snapshot as the answer to its identity message: identifying with RECONNECT, which the
+ * server answers with one. JOIN_GAME is answered with `game_joined`, and no snapshot comes before the deal.
+ */
+export function awaitsSnapshot(state: SessionState): boolean {
+    return state.status === "identifying" && state.identity.kind === "reconnect";
+}
+
 /** Whether the session has a socket open or opening: connecting, identifying or playing. */
 export function hasSocket(state: SessionState): boolean {
     return (

@@ -2,7 +2,7 @@ import { z } from "zod/mini";
 
 import { SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 
-import { seatControlReasonSchema, seatSchema, waitIdSchema } from "./common";
+import { seatControlReasonSchema, seatSchema, secondsSchema, waitIdSchema } from "./common";
 
 // --- Session Error ---
 
@@ -22,10 +22,13 @@ const sessionErrorSchema = z.pipe(
     })),
 );
 
-/** The server's answer to an accepted JOIN_GAME: the connection holds the seat, ahead of anything the game sends it. */
+/**
+ * The server's answer to an accepted JOIN_GAME: the connection holds the seat, ahead of anything the game sends it,
+ * and the pending game waits for its players at most `pt` seconds before it starts.
+ */
 const gameJoinedSchema = z.pipe(
-    z.object({ type: z.literal(SESSION_MESSAGE_TYPE.GAME_JOINED) }),
-    z.transform(() => ({ type: "game_joined" as const })),
+    z.object({ pt: secondsSchema, type: z.literal(SESSION_MESSAGE_TYPE.GAME_JOINED) }),
+    z.transform((raw) => ({ pendingGameSeconds: raw.pt, type: "game_joined" as const })),
 );
 
 /**

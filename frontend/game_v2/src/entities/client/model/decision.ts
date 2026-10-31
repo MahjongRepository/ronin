@@ -1,4 +1,4 @@
-import { DesyncError, type PlayerState, ponOfType } from "@/entities/table";
+import { DesyncError, type GamePhase, type PlayerState, ponOfType } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
     CALL_TYPE,
@@ -67,11 +67,12 @@ const DECISION_AFTER: Readonly<Record<ParsedServerMessage["type"], "close" | "ke
 };
 
 /**
- * What opening a decision reads besides its message: when it opens, the timer settings, the viewer's known hand and
- * its melds.
+ * What opening a decision reads besides its message: when it opens, the table's phase, the timer settings, the
+ * viewer's known hand and its melds.
  */
 export interface DecisionContext {
     readonly at: number;
+    readonly phase: GamePhase;
     readonly timer: TimerSettings | null;
     readonly viewerSeat: number | null;
     readonly hand: readonly number[];
@@ -216,12 +217,21 @@ function openCall(prompt: CallPromptEvent, waitId: number, context: DecisionCont
  * The decision a message opens for the viewer's seat, or null: the seat's own draw or `turn` event opens its turn,
  * a call prompt its call. Only a message that carries a wait id opens one, so a replay never does. An offer of a code
  * or shape the client does not know never parses; one it cannot resolve against the hand (a kan of a type the hand
- * lacks, an added kan with no pon) throws a `DesyncError` rather than being dropped.
+ * lacks, an added kan with no pon) throws a `DesyncError` rather than being dropped, as does an opening outside a
+ * round (a `turn` before the deal, a prompt after the round end), which no table event guards.
  */
 export function openDecision(
     message: ParsedServerMessage,
     context: DecisionContext,
 ): Decision | null {
+    const opened = openedBy(message, context);
+    if (opened !== null && context.phase !== "in_round") {
+        throw new DesyncError(`A ${message.type} opens a decision on a ${context.phase} table`);
+    }
+    return opened;
+}
+
+function openedBy(message: ParsedServerMessage, context: DecisionContext): Decision | null {
     switch (message.type) {
         case "draw": {
             const { waitId } = message;

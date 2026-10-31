@@ -9,7 +9,9 @@ how the client recovers.
 
 - **Decisions.** A decision opens only from a message carrying a wait id to the viewer's seat (its draw, its `turn`
   event, its call prompt), with the offers the server listed and nothing the client judged but the discard rule
-  (kuikae, riichi's drawn tile). Its deadline is the client's estimate of the server's timer, in logical time from the
+  (kuikae, riichi's drawn tile), and only while the table's round plays: an opening on any other table (a `turn`
+  before the deal, a prompt after the round end, which no table event guards) is a `DesyncError`, so it never
+  replaces a round confirm or lets a switch answer. Its deadline is the client's estimate of the server's timer, in logical time from the
   timer settings and the bank the opening message names (none when it names no bank), backdated by a re-sent wait's
   elapsed time, so a countdown reads from `now`, never the wall clock. A turn also keeps when its base time runs out
   (the elapsed time comes off the base first), so its countdown shows the base and the bank apart, then the bank
@@ -92,12 +94,15 @@ how the client recovers.
   next game message, which a game start answers with the deal's time (its timer settings kept, so the
   silence limit covers the pause) and any other with a request at once, so a long start pause spends no requests. A
   dropped socket forgets the request and that wait, since the reconnect's own snapshot rebuilds it, so a refusal on
-  the next socket is never taken for the old request's. While the reopened socket identifies, that snapshot is the answer awaited: the client asks on
-  the same socket (which a RECONNECT the server took binds) only once it goes unanswered for `RESYNC_ANSWER_MS`, as
-  when its frame did not decode, and never while a session retry waits (the socket then holds no seat; the resent
-  identity's snapshot gets its own wait), so out of step and identifying always has a deadline, and the session
-  admits it by the snapshot that answers, never by other traffic (`not_in_game` in answer means the socket holds no
-  seat: `entities/session/AGENTS.md`).
+  the next socket is never taken for the old request's. While the reopened socket identifies with RECONNECT, that
+  snapshot is the answer awaited: the client asks on the same socket (which a RECONNECT the server took binds) only
+  once it goes unanswered for `RESYNC_ANSWER_MS`, as when its frame did not decode, and never while a session retry
+  waits (the socket then holds no seat; the resent identity's snapshot gets its own wait), so out of step and
+  reconnecting always has a deadline, and the session admits it by the snapshot that answers, never by other traffic
+  (`not_in_game` in answer means the socket holds no seat: `entities/session/AGENTS.md`). A JOIN_GAME is answered by
+  `game_joined`, never a snapshot, and only a game that has not dealt takes one, so a reopened socket that joins
+  waits for the deal as a refusal of the game not dealt does, and drops during a long wait for the players spend no
+  requests. Only the session's state voids a request (none while the session cannot ask), in one place.
 - A snapshot puts the client back in step before it is taken, so what it says the seat owes is owed in step, and
   alone resets the board's count of failures (`unreadMessages`, the desync record's). A second snapshot that answers a
   request sent again can follow the player's answer to the first one's wait: a snapshot or re-sent opening naming the
@@ -114,11 +119,12 @@ how the client recovers.
   (one that never opens is the session's connect deadline instead). `GameSocket`, the socket's thin IO adapter (one
   connection attempt per instance; it never reconnects), therefore reports a server silent longer than its limit as a
   close, measured on the wall clock so the first check after a device wake sees the whole gap. The limit is the
-  client's policy (`serverSilenceLimitMs`), which the driver keeps on its socket: the longest wait the game's timer
-  settings allow (a turn's base and full bank, a call window, a result's advance over a double ron's pages, the start
-  pause) plus a margin for late timers, never under the default (`DEFAULT_SERVER_SILENCE_LIMIT_MS`, hand-derived from
-  the session `TimerConfig` defaults, `backend/game/session/AGENTS.md`, Pacing), which also holds before the settings
-  arrive; re-derive the default when the default pacing changes.
+  client's policy (`serverSilenceLimitMs`), which the driver keeps on its socket: the longest wait the server names
+  plus a margin for late timers, from the game's timer settings once it started (a turn's base and full bank, a call
+  window, a result's advance over the most winners one discard allows, the start pause), before that from the
+  pending game's wait for its players that `game_joined` names. Only the identity exchange, which the server answers
+  at once, waits the socket's own default (`DEFAULT_SERVER_SILENCE_LIMIT_MS`), so the limit copies none of the
+  backend's pacing.
 
 ## Calls and the game start
 

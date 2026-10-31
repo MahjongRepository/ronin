@@ -172,6 +172,11 @@ describe("stepSession", () => {
             ["a message while the socket opens", sessionScenario, message(10, WIRE_GAME_END)],
             ["a message with no socket", awaitingRetry, message(200, WIRE_GAME_RECONNECTED)],
             ["the lobby's answer while identifying", joining, recovered(10, FOUND)],
+            [
+                "game_not_started while identifying, which answers no identity message",
+                joining,
+                message(10, wireSessionError("game_not_started")),
+            ],
             ["the lobby's answer while playing", playing, recovered(10, FOUND)],
         ];
 
@@ -309,6 +314,17 @@ describe("stepSession", () => {
             expect(scenario.step(rateLimited)).toEqual([]);
             expect(scenario.step(retryLater(20))).toEqual([]);
             expect(scenario.state).toBe(held);
+        });
+
+        it("ends as refused when told the socket holds no seat, which no retry of the held seat can mend", () => {
+            const scenario = playing();
+
+            const notInGame = message(10, wireSessionError("not_in_game"));
+            expect(scenario.step(notInGame)).toEqual([{ type: "close_socket" }, FORGET_HANDOFF]);
+            expect(scenario.state).toMatchObject({
+                reason: { code: "not_in_game", kind: "refused" },
+                status: "ended",
+            });
         });
 
         it("retries a 1000 close when no game end arrived, so the server's answer to RECONNECT decides", () => {

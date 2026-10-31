@@ -5,7 +5,7 @@
   "events": [
     {"at": 0, "kind": "opened"},
     {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
-    {"at": 0, "kind": "received", "payload": {"type": "game_joined"}},
+    {"at": 0, "kind": "received", "payload": {"pt": 30.0, "type": "game_joined"}},
     {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-kan-choice", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "rc": 10, "rsv": 10, "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}}},
     {"at": 3000, "kind": "received", "label": "dealt", "payload": {"cp": 0, "dc": [1, 1], "di": [124], "dl": 0, "h": 0, "mt": [0, 1, 2, 3, 40, 48, 56, 68, 69, 70, 76, 88, 100], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "s": 1, "t": 9, "w": 0}},
     {"at": 3000, "kind": "received", "payload": {"s": 0, "t": 13}},

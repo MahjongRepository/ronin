@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 import { EVENT_TYPE, REPLAY_LINE_TYPE, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
 import { seatControlReasonSchema, seatSchema } from "./common";
-import { type ParsedServerMessage, parseServerMessage } from "./message";
+import { type ParsedServerMessage, parseRecordedMessage } from "./message";
 
 const aiReplacementSchema = z.pipe(
     z.object({
@@ -70,6 +70,16 @@ function withRecordedRiichiSettings(raw: Record<string, unknown>): Record<string
     };
 }
 
+/** A recorded message as the replay needs it: a deal records every seat's hand, since a replay shows them all. */
+function recordedMessage(raw: Record<string, unknown>): ReplayLineParseResult {
+    const parsed = parseRecordedMessage(raw);
+    const [, message] = parsed;
+    if (message?.type === "round_started" && message.players.some(({ tiles }) => tiles === null)) {
+        return [new Error("Failed to parse deal t=9: it does not record every seat's hand"), null];
+    }
+    return parsed;
+}
+
 /** Parse one replay event line: a game event, or a replay-only line the live socket never sends. */
 export function parseReplayLine(raw: Record<string, unknown>): ReplayLineParseResult {
     try {
@@ -78,10 +88,10 @@ export function parseReplayLine(raw: Record<string, unknown>): ReplayLineParseRe
                 return [null, parseSeatControl(raw)];
             }
             case EVENT_TYPE.GAME_STARTED: {
-                return parseServerMessage(withRecordedRiichiSettings(raw));
+                return recordedMessage(withRecordedRiichiSettings(raw));
             }
             default: {
-                return parseServerMessage(raw);
+                return recordedMessage(raw);
             }
         }
     } catch (error) {

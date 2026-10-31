@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { REPLAY_GAME_STARTED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
+import { REPLAY_GAME_STARTED, REPLAY_ROUND_STARTED } from "#tests/fixtures/wire";
 import { readReplayTimeline } from "@/entities/client";
 import { REPLAY_VERSION } from "@/shared/protocol";
 
@@ -22,7 +22,7 @@ describe("readReplayTimeline - a bug in the client", () => {
         const text = [
             JSON.stringify({ version: REPLAY_VERSION }),
             JSON.stringify(REPLAY_GAME_STARTED),
-            JSON.stringify(WIRE_ROUND_STARTED),
+            JSON.stringify(REPLAY_ROUND_STARTED),
             '{"d": 0, "t": 1}',
             '{"d": 0, "t": 2}',
         ].join("\n");

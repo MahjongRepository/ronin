@@ -76,7 +76,8 @@ interleave.
   timer runs until the deal, a seat left empty then gets its AI player only with the deal (no AI
   move goes out ahead of it), and a RECONNECT answers retry later until then. The v1 game client's
   silence watchdog limit is derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait
-  needs a longer limit there; the v2 client derives its own from the timer settings it is sent.
+  needs a longer limit there; the v2 client derives its own from the timer settings it is sent and,
+  before the game starts, from the pending game timeout `game_joined` names.
   The client also re-implements the turn, call, bank, round advance and game start pause rules
   from the timer settings it is sent once, taking only the bank from each turn's
   opening message (`messaging/AGENTS.md`), so a change to how a wait is paced changes its countdown

@@ -125,11 +125,15 @@ class KanActionData(BaseModel):
 
 class YakuInfo(BaseModel):
     """
-    Per-yaku breakdown with han value and library yaku ID.
+    Per-yaku breakdown with han value, library yaku ID and whether the yaku is a yakuman.
+
+    The yakuman flag lets a client tell a yakuman hand from a kazoe yakuman (13 han of ordinary yaku) without keeping
+    its own list of the library's yakuman ids.
     """
 
     yaku_id: int = Field(serialization_alias="yi")
     han: int
+    is_yakuman: bool = Field(default=False, serialization_alias="ym")
 
 
 class HandResultInfo(BaseModel):

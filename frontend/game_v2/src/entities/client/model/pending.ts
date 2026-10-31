@@ -1,3 +1,5 @@
+import { holdsSeat } from "@/entities/session";
+
 import { type Decision, type LiveClient, type Pending, type RoundConfirm } from "./types";
 
 /** What the seat owes the server: nothing out of step, else what its in-step state holds. */
@@ -47,5 +49,5 @@ export function replaceRoundConfirm(state: LiveClient, confirm: RoundConfirm | n
  * the server, admitting the seat again, re-sends every wait it still owes and its snapshot says whether the confirm is.
  */
 export function settledPending(state: LiveClient): LiveClient {
-    return state.session.status === "playing" ? state : withPending(state, null);
+    return holdsSeat(state.session) ? state : withPending(state, null);
 }

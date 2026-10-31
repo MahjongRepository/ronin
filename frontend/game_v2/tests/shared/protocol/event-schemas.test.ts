@@ -226,43 +226,6 @@ describe("roundStartedSchema (live)", () => {
         expect(result.players[0].score).toBe(25_000);
     });
 
-    it("defaults dice to [1, 1] when dc is absent", () => {
-        const wire = {
-            cp: 0,
-            di: [10],
-            dl: 0,
-            h: 0,
-            mt: [0],
-            n: 1,
-            p: fourViews({ s: 0, sc: 250 }),
-            r: 0,
-            s: 0,
-            t: EVENT_TYPE.ROUND_STARTED,
-            w: 0,
-        };
-        const result = roundStartedSchema.parse(wire);
-        expect(result.dice).toEqual([1, 1]);
-    });
-
-    it("uses provided dice when dc is present", () => {
-        const wire = {
-            cp: 0,
-            dc: [3, 5] as [number, number],
-            di: [10],
-            dl: 0,
-            h: 0,
-            mt: [0],
-            n: 1,
-            p: fourViews({ s: 0, sc: 250 }),
-            r: 0,
-            s: 0,
-            t: EVENT_TYPE.ROUND_STARTED,
-            w: 0,
-        };
-        const result = roundStartedSchema.parse(wire);
-        expect(result.dice).toEqual([3, 5]);
-    });
-
     it("live format player tiles default to null", () => {
         const wire = {
             cp: 0,
@@ -514,6 +477,10 @@ describe("furitenSchema", () => {
     });
 });
 
+function standing(seat: number): Record<string, number> {
+    return { fs: 0, s: seat, sc: 250 };
+}
+
 describe("gameEndSchema", () => {
     it("parses valid wire payload with standings", () => {
         const wire = {
@@ -537,5 +504,14 @@ describe("gameEndSchema", () => {
         expect([result.leftoverRiichiBonus, result.leftoverRiichiSticks]).toEqual([2000, 2]);
         expect(result.standings[0]).toEqual({ finalScore: 42, score: 35_000, seat: 0 });
         expect(result.standings[3]).toEqual({ finalScore: -36, score: 20_000, seat: 3 });
+    });
+
+    it("refuses standings that rank a seat twice, in whatever order the server ranks them", () => {
+        const wire = { ec: "length", lb: 0, lr: 0, nr: 8, t: EVENT_TYPE.GAME_END, ws: 1 };
+
+        expect(gameEndSchema.parse({ ...wire, st: [1, 2, 3, 0].map(standing) }).winnerSeat).toBe(1);
+        expect(() => gameEndSchema.parse({ ...wire, st: [1, 2, 3, 1].map(standing) })).toThrow(
+            "rank each of the four seats once",
+        );
     });
 });

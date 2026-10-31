@@ -61,7 +61,7 @@ describe("isReplayEvent", () => {
         const replayLines: Record<ReplayEvent["type"], Record<string, unknown>> = {
             discard: { d: 0, t: 2 },
             dora_revealed: { t: 6, ti: 0 },
-            draw: { d: 136, t: 1 },
+            draw: { bk: 20, d: 136, t: 1, wi: 1 },
             game_end: WIRE_GAME_END,
             game_started: WIRE_GAME_STARTED,
             meld: { m: 24_384, t: 0 },

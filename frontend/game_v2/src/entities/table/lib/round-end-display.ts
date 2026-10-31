@@ -1,5 +1,5 @@
 import { drawName, isAbortiveDraw } from "@/entities/table/lib/draw-name";
-import { handLimitName, isYakumanYaku, yakumanName } from "@/entities/table/lib/hand-limit";
+import { handLimitName, isYakumanHand, yakumanName } from "@/entities/table/lib/hand-limit";
 import { windName } from "@/entities/table/lib/wind-name";
 import { yakuName } from "@/entities/table/lib/yaku-names";
 import { roundEndPages } from "@/entities/table/model/handlers/round-end";
@@ -159,7 +159,7 @@ function yakuLines(winner: WinnerResult): ResultYakuLine[] {
         .filter((entry) => !DORA_YAKU_IDS.has(entry.yakuId))
         .map((entry) => {
             const name = yakuName(entry.yakuId);
-            if (!isYakumanYaku(entry.yakuId)) {
+            if (!entry.isYakuman) {
                 return { han: entry.han, isDora: false, name, yakuman: null };
             }
             const multiple = Math.round(entry.han / YAKUMAN_HAN);
@@ -179,8 +179,8 @@ function yakuLines(winner: WinnerResult): ResultYakuLine[] {
 }
 
 function hanFuLabel(winner: WinnerResult): string | null {
-    const { fu, han, yaku } = winner.handResult;
-    if (yaku.some((entry) => isYakumanYaku(entry.yakuId))) {
+    const { fu, han } = winner.handResult;
+    if (isYakumanHand(winner.handResult)) {
         return null;
     }
     return fu > 0 ? `${han} han ${fu} fu` : `${han} han`;

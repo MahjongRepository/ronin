@@ -78,7 +78,11 @@ describe("stepGameClient - round confirm", () => {
         ]);
         expect(scenario.step(tick(60_000))).toEqual([]);
         expect(scenario.step(confirm(60_100))).toEqual([sent]);
-        expect(roundConfirmOf(scenario.state)).toEqual({ deadline: null, kind: "sent", waitId: 5 });
+        expect(roundConfirmOf(scenario.state)).toEqual({
+            deadline: 100 + 15_000,
+            kind: "sent",
+            waitId: 5,
+        });
         expect(scenario.step(confirm(60_200))).toEqual([]);
     });
 

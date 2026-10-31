@@ -48,10 +48,32 @@ describe("handLimitName", () => {
     });
 
     test("names a limit from the payment, not the han: kazoe capped at sanbaiman, a double yakuman", () => {
-        const kazoeCapped = { fu: 30, han: 13, points: 24_000, yaku: [{ han: 6, yakuId: 39 }] };
-        const doubleYakuman = { fu: 0, han: 26, points: 64_000, yaku: [{ han: 26, yakuId: 113 }] };
+        const kazoeCapped = {
+            fu: 30,
+            han: 13,
+            points: 24_000,
+            yaku: [{ han: 6, isYakuman: false, yakuId: 39 }],
+        };
+        const doubleYakuman = {
+            fu: 0,
+            han: 26,
+            points: 64_000,
+            yaku: [{ han: 26, isYakuman: true, yakuId: 113 }],
+        };
 
         expect(handLimitName(kazoeCapped, false)).toBe("Sanbaiman");
         expect(handLimitName(doubleYakuman, false)).toBe("Double Yakuman");
+    });
+
+    test("tells a yakuman from a kazoe yakuman by the server's yakuman flag, whatever the yaku's id", () => {
+        const yakuman = { fu: 0, han: 13, points: 32_000 };
+
+        expect([
+            handLimitName({ ...yakuman, yaku: [{ han: 13, isYakuman: true, yakuId: 150 }] }, false),
+            handLimitName(
+                { ...yakuman, yaku: [{ han: 13, isYakuman: false, yakuId: 103 }] },
+                false,
+            ),
+        ]).toEqual(["Yakuman", "Kazoe Yakuman"]);
     });
 });

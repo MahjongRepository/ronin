@@ -41,7 +41,7 @@ class TestWebSocketIntegration:
         tickets = create_pending_game(client, game_id="test_game")
         with client.websocket_connect("/ws/test_game") as ws:
             joined, *events = join_game_and_start(ws, tickets[0])
-            assert joined == {"type": "game_joined"}
+            assert joined == {"pt": 30, "type": "game_joined"}
             assert [message["t"] for message in events] == [
                 EVENT_TYPE_INT[EventType.GAME_STARTED],
                 EVENT_TYPE_INT[EventType.ROUND_STARTED],

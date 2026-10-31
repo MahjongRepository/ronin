@@ -26,6 +26,11 @@ export function coversEverySeat(entries: readonly { readonly seat: number }[]): 
     return entries.length === NUM_PLAYERS && entries.every((entry, index) => entry.seat === index);
 }
 
+/** Whether a list names no seat twice, in whatever order (a game end's ranked standings, a double ron's winners). */
+export function namesDistinctSeats(seats: readonly number[]): boolean {
+    return new Set(seats).size === seats.length;
+}
+
 export const seatControlReasonSchema = z.union([
     z.literal(SEAT_CONTROL_REASON.LEFT),
     z.literal(SEAT_CONTROL_REASON.ABSENT),

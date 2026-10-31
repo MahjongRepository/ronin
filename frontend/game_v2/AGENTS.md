@@ -50,9 +50,11 @@ replay page) and `src/styles/` (the board's layout).
   only its own dropdown, so two mounts never move together. Its dispose cancels every timer, socket, fetch and
   listener it owns and clears its host, and a callback that still fires afterwards is dropped.
 * **One dispatcher over client events.** The live game, the replay and scripted scenarios all run on
-  `entities/client`'s dispatcher, a pure `(state, event) → { state, effects }` over an explicit client event union
-  (`ClientEvent`): server messages arrive as raw wire payloads and replay lines as raw JSON objects, both parsed
-  inside, beside the transport's events, logical time ticks and local user intents. Every event carries the logical
+  `entities/client`'s dispatcher, pure `(state, event) → { state, effects }` transitions over an explicit client event
+  union (`ClientEvent`), with one entry per client kind: a live seat's (`stepGameClient`, `traceLiveClient`) takes
+  every event but a replay line (`LiveEvent`), server messages arriving as raw wire payloads parsed inside, beside the
+  transport's events, logical time ticks and local user intents; a replay's (`traceReplayClient`) takes only its
+  file's lines (`ReplayLineEvent`), raw JSON objects parsed inside. Every event carries the logical
   time its source stamped, and the state keeps the last one as its `now`, never running back (an event stamped
   earlier is taken at `now`), so a state kept at a historical cursor keeps its time. The transitions never run IO,
   read a clock or start a timer: they return descriptions of real IO only (`ClientEffect`), and only the live driver
@@ -88,9 +90,9 @@ replay page) and `src/styles/` (the board's layout).
   that the table refuses, since every later state would build on a table that missed it, and the page labels such a
   replay damaged, as it labels one whose recording ends before the game's end incomplete. The dispatcher takes one
   event in one step, except a replay's round end that robbed a kan, which the replay records no declaration line for:
-  it takes that in two steps, the kan declared and then the result, each an entry of the timeline (`stepGameClient`
-  returns both as one). A live game's own history review, if ever wanted, keeps the authoritative state moving
-  forward apart from its cursor.
+  `traceReplayClient` takes that in two parts, the kan declared and then the result, each an entry of the timeline; a
+  live seat sees the kan from its chankan prompt or the round end alone. A live game's own history review, if ever
+  wanted, keeps the authoritative state moving forward apart from its cursor.
 * **Components take faces, mappers take ids.** `Hand`, `Discards` and `Meld` take display tiles keyed by `TileFace` (a
   meld as the tiles `meldTiles` lays it out), never raw tile ids; the mappers convert. A hand tile keeps its tile id
   when it came from a table, and one of the viewer's own may be playable: selectable, selected, disabled or waiting.

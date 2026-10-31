@@ -143,7 +143,6 @@ export const gameReconnectedSchema = z.pipe(
     z
         .object({
             cp: seatSchema,
-            dc: z.tuple([z.number(), z.number()]),
             dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
             di: z.array(tileIdSchema),
             dl: seatSchema,
@@ -180,7 +179,6 @@ export const gameReconnectedSchema = z.pipe(
         currentPlayerSeat: raw.cp,
         dealerDice: raw.dd,
         dealerSeat: raw.dl,
-        dice: raw.dc,
         doraIndicators: raw.di,
         elapsedSeconds: raw.el ?? null,
         gameId: raw.gid,

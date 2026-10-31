@@ -43,14 +43,22 @@ const TILE_FACES = [
 
 type TileFace = (typeof TILE_FACES)[number];
 
-// Red five constants (136-format IDs)
 const FIVE_RED_MAN = 16;
 const FIVE_RED_PIN = 52;
 const FIVE_RED_SOU = 88;
 
-const RED_FIVES = new Set([FIVE_RED_MAN, FIVE_RED_PIN, FIVE_RED_SOU]);
+/** The red fives (aka-dora) by their 136-format ids, each its own face. */
+const RED_FIVE_FACES: ReadonlyMap<number, TileFace> = new Map([
+    [FIVE_RED_MAN, "0m"],
+    [FIVE_RED_PIN, "0p"],
+    [FIVE_RED_SOU, "0s"],
+]);
 
-const SUITS = ["m", "p", "s"] as const;
+const RED_FIVES: ReadonlySet<number> = new Set(RED_FIVE_FACES.keys());
+
+/** Every tile type's face by its 34-format index: the suits' 1 to 9, then the honors, no red five among them. */
+const TYPE_FACES: readonly TileFace[] = TILE_FACES.filter((face) => !face.startsWith("0"));
+
 const MAX_TILE_ID = 135;
 
 function assertValidTileId(tileId: number): void {
@@ -66,23 +74,7 @@ function assertValidTileId(tileId: number): void {
  */
 function tile136toString(tileId: number): TileFace {
     assertValidTileId(tileId);
-
-    if (RED_FIVES.has(tileId)) {
-        const suit = SUITS[(tileId / 36) | 0];
-        return `0${suit}` as TileFace;
-    }
-
-    const type34 = tileType(tileId);
-
-    // Suited tiles (man, pin, sou): type34 0-26
-    if (type34 < 27) {
-        const suit = SUITS[(type34 / 9) | 0];
-        const number = (type34 % 9) + 1;
-        return `${number}${suit}` as TileFace;
-    }
-
-    // Honor tiles: type34 27-33 -> 1z-7z
-    return `${type34 - 26}z` as TileFace;
+    return RED_FIVE_FACES.get(tileId) ?? TYPE_FACES[tileType(tileId)];
 }
 
 const HONOR_NAMES = [

@@ -1,7 +1,12 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
-import { type StandingsRenderer, localReplayPrefs, startStandingsLoad } from "@/entities/table";
+import {
+    DEFAULT_REPLAY_PREFS,
+    type StandingsRenderer,
+    readReplayPrefs,
+    startStandingsLoad,
+} from "@/entities/table";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";
@@ -13,7 +18,7 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import { type RetryingLoad } from "@/shared/lib";
+import { type RetryingLoad, localStore } from "@/shared/lib";
 import {
     type GameSessionData,
     clearGameSession,
@@ -23,6 +28,9 @@ import {
 import { GameSocket } from "@/shared/websocket";
 import { type GameViewDeps, mountGameView } from "@/views/game";
 import type * as StorybookRoutes from "@/views/storybook-routes";
+
+/** Where this browser keeps the replay reader's settings. */
+const REPLAY_PREFS_KEY = "ronin.v2.replay-prefs";
 
 function leaveToLobby(): void {
     window.location.replace(getLobbyUrl());
@@ -121,7 +129,7 @@ function replayDeps() {
         links: { history: getLobbyHistoryUrl(), lobby: getLobbyUrl() },
         loadReplay: fetchReplay,
         location: { onPageHide, replaceSearch, search: window.location.search },
-        prefs: localReplayPrefs,
+        prefs: localStore(REPLAY_PREFS_KEY, readReplayPrefs, DEFAULT_REPLAY_PREFS),
         startStandings,
     };
 }

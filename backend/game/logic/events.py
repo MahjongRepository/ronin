@@ -231,7 +231,7 @@ class RoundStartedEvent(GameEvent):
     riichi_sticks: int = Field(serialization_alias="r")
     my_tiles: list[int] = Field(serialization_alias="mt")
     players: list[PlayerView] = Field(serialization_alias="p")
-    dice: tuple[int, int] = Field(default=(1, 1), serialization_alias="dc")
+    dice: tuple[int, int] = Field(serialization_alias="dc")
 
 
 class GameEndedEvent(GameEvent):

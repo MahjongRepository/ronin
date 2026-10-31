@@ -196,7 +196,7 @@ def _evaluate_hand(
     if result.yaku:
         for y in result.yaku:
             han = y.han_open if result.is_open_hand and y.han_open > 0 else y.han_closed
-            yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=han))
+            yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=han, is_yakuman=y.is_yakuman))
 
     return HandResult(
         han=result.han or 0,

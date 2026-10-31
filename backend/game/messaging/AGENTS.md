@@ -15,6 +15,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
 * An accepted JOIN_GAME is answered by `game_joined` to the joining connection alone, ahead of anything
   the game sends it, as an accepted RECONNECT is by the snapshot; every refused one by a session error.
   So a client is admitted by the server's answer, never by inferring it from the game's messages.
+  `game_joined` names the pending game's timeout (`pt`), the longest the server stays silent before the game
+  starts, so a client's silence watchdog follows the server's pacing rather than a copy of its defaults.
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
   current bank; the client counts its own turns, the game start pause and the round results down

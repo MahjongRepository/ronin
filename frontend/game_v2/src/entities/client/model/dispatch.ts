@@ -4,6 +4,7 @@ import {
     sessionDeadline,
     startSession,
     stepSession,
+    takesMessages,
 } from "@/entities/session";
 import {
     DesyncError,
@@ -34,16 +35,16 @@ import {
     openDecision,
 } from "./decision";
 import {
-    deferredUntilDeal,
     desyncDeadline,
     desyncStep,
     isSnapshotPayload,
     recoveryFailedStep,
     refusesResyncRequest,
+    requestAfterDropped,
     resynced,
     settleDesync,
-    takesServerMessages,
     takesWhileDesynced,
+    withPacing,
 } from "./desync";
 import { canAnswer, decisionIntentStep, switchStep, toggleSwitchStep } from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
@@ -76,13 +77,19 @@ import {
     type TracedStep,
 } from "./types";
 
-const MS_PER_SECOND = 1000;
-
-function untraced(step: ClientStep<LiveClient>): TracedStep<LiveClient> {
-    return { ...step, parsed: null, partial: false };
+/**
+ * A replay's step as a part of its line: a partial one took only part of it (the kan a round end robbed, declared),
+ * so the dispatcher steps the same line again for the rest.
+ */
+interface ReplayPart extends TracedStep<ReplayClient> {
+    readonly partial: boolean;
 }
 
-function reportProtocolFailure(state: ReplayClient, detail: string): TracedStep<ReplayClient> {
+function untraced(step: ClientStep<LiveClient>): TracedStep<LiveClient> {
+    return { ...step, parsed: null };
+}
+
+function reportProtocolFailure(state: ReplayClient, detail: string): ReplayPart {
     return {
         effects: [{ detail, type: "report_protocol_failure" }],
         parsed: null,
@@ -151,18 +158,11 @@ function serverTableEvent(message: ParsedServerMessage): TableEvent | null {
     }
 }
 
-/** The viewer's own facts a message carries: its seat, its timer settings, its furiten. */
+/** The viewer's own facts a message carries: its seat, its timer settings, its furiten, its pending game's wait. */
 function withViewer(state: LiveClient, message: ParsedServerMessage): LiveClient {
     switch (message.type) {
         case "game_started": {
-            const { timer } = message;
-            return {
-                ...state,
-                firstDealDue:
-                    timer === null ? null : state.now + timer.gameStartPauseSeconds * MS_PER_SECOND,
-                timer: timer ?? state.timer,
-                viewerSeat: message.seat ?? state.viewerSeat,
-            };
+            return { ...withPacing(state, message), viewerSeat: message.seat ?? state.viewerSeat };
         }
         case "round_started": {
             return { ...state, furiten: false, viewerSeat: message.seat ?? state.viewerSeat };
@@ -173,6 +173,9 @@ function withViewer(state: LiveClient, message: ParsedServerMessage): LiveClient
         }
         case "furiten": {
             return { ...state, furiten: message.isFuriten };
+        }
+        case "game_joined": {
+            return withPacing(state, message);
         }
         default: {
             return state;
@@ -202,7 +205,14 @@ function withSwitches(
 function decisionContext(state: LiveClient): DecisionContext {
     const { now, table, timer, viewerSeat } = state;
     const viewer = table.players.find((player) => player.seat === viewerSeat);
-    return { at: now, hand: viewer?.tiles ?? [], melds: viewer?.melds ?? [], timer, viewerSeat };
+    return {
+        at: now,
+        hand: viewer?.tiles ?? [],
+        melds: viewer?.melds ?? [],
+        phase: table.phase,
+        timer,
+        viewerSeat,
+    };
 }
 
 /** What the seat owed before a message, as the message leaves it when it opens nothing. */
@@ -325,7 +335,8 @@ function takeParsedMessage(
     const step = withSession(state, { at: state.now, kind: "message", message });
     const { sync } = state;
     if (sync.kind === "out_of_step" && !takesWhileDesynced(message)) {
-        return { effects: step.effects, state: deferredUntilDeal(step.state, sync, message) };
+        const paced = withPacing(step.state, message);
+        return { effects: step.effects, state: requestAfterDropped(paced, sync, message) };
     }
     const taken = takeMessageInStep(state, step.state, message);
     return { effects: [...step.effects, ...taken.effects], state: taken.state };
@@ -336,7 +347,7 @@ function takeParsedMessage(
  * that does not parse ends the page).
  */
 function onServerMessage(state: LiveClient, raw: Record<string, unknown>): TracedStep<LiveClient> {
-    if (!takesServerMessages(state.session)) {
+    if (!takesMessages(state.session)) {
         return untraced({ effects: [], state });
     }
     const [error, message] = parseServerMessage(raw);
@@ -347,14 +358,14 @@ function onServerMessage(state: LiveClient, raw: Record<string, unknown>): Trace
                 : desyncStep(state, "unreadable_message", error.message),
         );
     }
-    return { ...takeParsedMessage(state, message), parsed: message, partial: false };
+    return { ...takeParsedMessage(state, message), parsed: message };
 }
 
 /**
  * The first part of a replay's round end that robbed a kan the table does not show yet: the kan declared, as a part
  * of its own, since the replay records no line for the declaration. Null for any other line.
  */
-function robbedKanPart(state: ReplayClient, line: ReplayLine): TracedStep<ReplayClient> | null {
+function robbedKanPart(state: ReplayClient, line: ReplayLine): ReplayPart | null {
     const declared = line.type === "round_end" ? robbedKanDeclared(line) : null;
     if (declared === null) {
         return null;
@@ -368,11 +379,7 @@ function robbedKanPart(state: ReplayClient, line: ReplayLine): TracedStep<Replay
 }
 
 /** A replay line's whole step: its table event applied, and the calls the move makes. */
-function replayLineStep(
-    state: ReplayClient,
-    line: ReplayLine,
-    event: TableEvent,
-): TracedStep<ReplayClient> {
+function replayLineStep(state: ReplayClient, line: ReplayLine, event: TableEvent): ReplayPart {
     const table = applyEvent(state.table, event);
     const calls = replayCalls(state, event, table);
     return { effects: [], parsed: line, partial: false, state: { ...state, calls, table } };
@@ -382,7 +389,7 @@ function replayLineStep(
  * A replay file's line: a replay event or seat control line moves the table; any other is reported. A round end that
  * robbed a kan is taken in two parts, the kan declared and then the result, so a replay stops on the kan.
  */
-function onReplayLine(state: ReplayClient, raw: Record<string, unknown>): TracedStep<ReplayClient> {
+function onReplayLine(state: ReplayClient, raw: Record<string, unknown>): ReplayPart {
     const [error, line] = parseReplayLine(raw);
     if (error) {
         return reportProtocolFailure(state, `Parse error: ${error.message}`);
@@ -462,7 +469,7 @@ function stepLiveEvent(timed: LiveClient, event: LiveEvent): TracedStep<LiveClie
         }
         case "frame_undecodable": {
             return untraced(
-                takesServerMessages(timed.session)
+                takesMessages(timed.session)
                     ? desyncStep(timed, "undecodable_frame", event.detail)
                     : { effects: [], state: timed },
             );
@@ -497,6 +504,7 @@ export function startGameClient(
         kind: "live",
         notice: null,
         now: at,
+        pendingGameSeconds: null,
         resyncRequests: 0,
         session: step.state,
         showsLastResult: false,
@@ -548,11 +556,12 @@ function expireAt(state: LiveClient, at: number): LiveClient {
 }
 
 /**
- * One part of the live dispatcher's step with what it took of its event, as parsed: the event, then what the seat
- * owes settled on the session it left, the resync settlement and the expiry every event runs. Logical time never runs
- * back: an event stamped before the state's `now` (a wall clock stepped back) is taken at `now`.
+ * The live dispatcher's step with what it took of its event, as parsed, for a timeline to index by: the event, then
+ * what the seat owes settled on the session it left, the resync settlement and the expiry every event runs. A live
+ * event is always one step. Logical time never runs back: an event stamped before the state's `now` (a wall clock
+ * stepped back) is taken at `now`.
  */
-function traceLivePart(state: LiveClient, stamped: LiveEvent): TracedStep<LiveClient> {
+export function traceLiveClient(state: LiveClient, stamped: LiveEvent): TracedStep<LiveClient> {
     const event = { ...stamped, at: Math.max(state.now, stamped.at) };
     const step = stepLiveEvent({ ...state, now: event.at }, event);
     const settled = settleDesync({ ...step, state: settledPending(step.state) });
@@ -561,21 +570,10 @@ function traceLivePart(state: LiveClient, stamped: LiveEvent): TracedStep<LiveCl
 }
 
 /**
- * The live dispatcher's step as the parts it took, each with what it took of the event, as parsed, for a timeline to
- * index by: one part, but two for a replay's round end that robbed a kan (the kan declared, then the result). The
- * second part finds the kan shown, so the parts always end.
- */
-export function traceLiveClient(
-    state: LiveClient,
-    event: LiveEvent,
-): readonly TracedStep<LiveClient>[] {
-    const step = traceLivePart(state, event);
-    return step.partial ? [step, ...traceLiveClient(step.state, event)] : [step];
-}
-
-/**
- * A replay's step over one line of its file, as the parts it took, as `traceLiveClient` takes them: the line's table
- * event and the calls it makes, a replay having nothing else to take.
+ * A replay's step over one line of its file, as the parts it took, each with what it took of the line, as parsed: one
+ * part, but two for a round end that robbed a kan (the kan declared, then the result), the second finding the kan
+ * shown, so the parts always end. A part is the line's table event and the calls it makes, a replay having nothing
+ * else to take.
  */
 export function traceReplayClient(
     state: ReplayClient,
@@ -592,9 +590,6 @@ export function traceReplayClient(
  * starts a timer; the effects are descriptions only a live driver executes, and the time is the event's `at`.
  */
 export function stepGameClient(state: LiveClient, event: LiveEvent): ClientStep<LiveClient> {
-    const parts = traceLiveClient(state, event);
-    return {
-        effects: parts.flatMap((part) => part.effects),
-        state: parts.at(-1)?.state ?? state,
-    };
+    const { effects, state: next } = traceLiveClient(state, event);
+    return { effects, state: next };
 }

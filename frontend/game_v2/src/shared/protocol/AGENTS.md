@@ -17,13 +17,18 @@ the protocol's source files, and a protocol change lands here and in the backend
   each once, and a round history of every finished round (`n` deals before the one shown, plus that
   one once its result is pending). A game start's and a deal's player lists name each seat once,
   in seat order (`coversEverySeat`), and a score map (`wireScoreMapSchema`) every seat, as the
-  server's always do. A compact meld parses only within the decoder's range
-  (`compactMeldSchema`), which is every value it unpacks because its meld ranges are contiguous,
+  server's always do; a game end's standings rank each seat once and a double ron names two
+  or more distinct winners (`namesDistinctSeats`), in the server's order. A compact meld parses
+  only within the decoder's range (`compactMeldSchema`), which is every value it unpacks because
+  its meld ranges are contiguous,
   and a seat's melds (a snapshot's, a winner's, a tenpai hand's) only as that seat's calls.
 - A replay file's event lines go through `parseReplayLine` instead, which also reads the replay-only
   lines (`REPLAY_LINE_TYPE`) the live socket never sends and defers every other line to
-  `parseServerMessage`. Fields only the live socket stamps (viewer seat, timers, wait ids, banks,
-  elapsed seconds) parse as optional and read as null in a replay. A replay's `game_started` carries no
+  the recorded messages' parser (`parseRecordedMessage`). Fields only the live socket stamps (viewer
+  seat, timers, wait ids, banks, elapsed seconds) read as null in a replay, while `parseServerMessage`
+  requires the ones the server always stamps (a game start's seat and timer settings, a deal's seat and
+  private hand, a turn's or call prompt's wait id, a turn's bank), so an incomplete live message fails to
+  parse; a replay's deal parses only with every seat's hand. A replay's `game_started` carries no
   riichi cost (`rc`) or stick value (`rsv`): `parseReplayLine` gives it those its recorded settings
   (`gs.riichi_cost`, `gs.riichi_stick_value`) name.
 - An offer parses only as an action or a call the client knows, in the shape the server sends it (a

@@ -136,12 +136,16 @@ class TestJoinGame:
         manager.create_pending_game(game_id="game1", player_specs=_make_specs(2))
         first = _join(manager, "ticket-0")
         assert game_of(manager).lifecycle is GameLifecycle.PENDING
-        assert first.sent_messages == [{"type": SessionMessageType.GAME_JOINED}]
+        joined = {
+            "pt": game_of(manager).timer_config.pending_game_timeout_seconds,
+            "type": SessionMessageType.GAME_JOINED,
+        }
+        assert first.sent_messages == [joined]
 
         second = _join(manager, "ticket-1")
         assert game_of(manager).lifecycle is GameLifecycle.PLAYING
         assert manager.started_game_count == 1
-        assert second.sent_messages[0] == {"type": SessionMessageType.GAME_JOINED}
+        assert second.sent_messages[0] == joined
         assert second.sent_messages[1]["t"] == GAME_STARTED_T
 
     async def test_handle_game_action__when_game_still_pending__should_return_game_not_started_error(self, manager):

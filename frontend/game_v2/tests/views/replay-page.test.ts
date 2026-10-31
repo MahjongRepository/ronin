@@ -378,6 +378,17 @@ describe("stepReplayPage - hold and wheel", () => {
         expect(loaded(screens[3]).hold).toBeNull();
     });
 
+    it.each([
+        ["a held pointer with no hold", { kind: "hold_pointer", over: false }],
+        ["a hold's end with no hold", { cancelled: false, kind: "hold_end" }],
+        ["a wheel back from the first stop", { deltaPx: -100, kind: "wheel" }],
+        ["a standings row of a round with no result", { kind: "round_result", round: 99 }],
+    ] as const)("leaves the screen as it was on %s", (_name, input) => {
+        const start = opened("riichi");
+
+        expect(step(start, input)).toEqual({ effects: [], screen: start });
+    });
+
     it("pauses a turning wheel at a round's result until it rests", () => {
         const { screens } = script(
             opened("double_ron_on_honba", "?round=0&step=139"),

@@ -143,6 +143,7 @@ def _make_round_started_event(seat: int = 0) -> RoundStartedEvent:
         riichi_sticks=0,
         my_tiles=_SEAT_TILES[seat],
         players=players,
+        dice=(1, 1),
         target=SeatTarget(seat=seat),
     )
 

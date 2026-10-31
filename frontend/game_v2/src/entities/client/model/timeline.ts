@@ -40,10 +40,9 @@ export function buildClientTimeline(
     const entries: TimelineEntry<LiveClient>[] = [];
     let state = start;
     for (const event of events) {
-        for (const step of traceLiveClient(state, event)) {
-            entries.push({ effects: step.effects, event, parsed: step.parsed, state: step.state });
-            ({ state } = step);
-        }
+        const step = traceLiveClient(state, event);
+        entries.push({ effects: step.effects, event, parsed: step.parsed, state: step.state });
+        ({ state } = step);
     }
     return { entries, start };
 }

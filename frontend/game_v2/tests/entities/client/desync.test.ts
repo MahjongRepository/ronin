@@ -10,6 +10,7 @@ import {
 import {
     WIRE_GAME_JOINED,
     WIRE_GAME_STARTED,
+    WIRE_ROUND_RECORD,
     WIRE_ROUND_STARTED,
     type WirePayload,
     wireNumberList,
@@ -35,9 +36,11 @@ import {
 import { boardOverlay } from "@/entities/table";
 import { standingsDisplay } from "@/entities/table/lib/standings-display";
 import {
+    CLIENT_MESSAGE_TYPE,
     EVENT_TYPE,
     NUM_TILES,
     PLAYER_ACTION,
+    ROUND_RESULT_TYPE,
     SESSION_ERROR_CODE,
     buildDiscardAction,
     buildReconnectMessage,
@@ -214,6 +217,11 @@ function sends(effects: readonly ClientEffect[]): ClientEffect[] {
     return effects.filter((effect) => effect.type === "send" || effect.type === "close_socket");
 }
 
+/** Whether a send or close is anything but the JOIN_GAME a reopened socket identifies with. */
+function isNoJoin(effect: ClientEffect): boolean {
+    return effect.type !== "send" || effect.message.t !== CLIENT_MESSAGE_TYPE.JOIN_GAME;
+}
+
 function discardIntent(at: number, tileId: number): LiveEvent {
     return { at, intent: { tileId, type: "discard" }, kind: "intent" };
 }
@@ -326,6 +334,21 @@ describe("stepGameClient - desync", () => {
             expect(nextDeadline(failed.state)).toBeNull();
         },
     );
+
+    it("ends the page as failed on a snapshot that parses but the table cannot take, never put back in step by it", () => {
+        const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
+        const reasonless = { ...WIRE_ROUND_RECORD, rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW };
+
+        const failed = run(desynced, [message(AT + 100, { ...SNAPSHOT, n: 1, rh: [reasonless] })]);
+        expect(sends(failed.effects)).toEqual([{ type: "close_socket" }]);
+        expect(failed.state.session).toMatchObject({
+            reason: { detail: expect.stringContaining("names no reason"), kind: "failed" },
+            status: "ended",
+        });
+        expect(desyncOf(failed.state)).toMatchObject({ cause: "unreadable_message", since: AT });
+        expect(desyncOf(failed.state)?.unreadMessages).toBe(2);
+        expect(failed.state.table).toBe(desynced.table);
+    });
 
     it("records a loss of step when the snapshot that ends the page came while it was in step", () => {
         const failed = run(onTurn(), [message(AT, withoutSeatState(2))]);
@@ -536,6 +559,28 @@ function refusedBeforeDeal(): { state: LiveClient; effects: ClientEffect[] } {
     ]);
 }
 
+/**
+ * The seat after its socket drops at `at` and reopens, joined again with JOIN_GAME and admitted, a resync answer's wait
+ * later; the effects follow those it had.
+ */
+function rejoinedAfterDrop(
+    before: { state: LiveClient; effects: ClientEffect[] },
+    at: number,
+): { state: LiveClient; effects: ClientEffect[] } {
+    const dropped = run(before.state, [closed(at, 1006)]);
+    const retryAt = nextDeadline(dropped.state) ?? 0;
+    const rejoined = run(dropped.state, [
+        tick(retryAt),
+        opened(retryAt),
+        message(retryAt, WIRE_GAME_JOINED),
+        tick(retryAt + RESYNC_ANSWER_MS),
+    ]);
+    return {
+        effects: [...before.effects, ...dropped.effects, ...rejoined.effects],
+        state: rejoined.state,
+    };
+}
+
 describe("stepGameClient - desync before the first deal", () => {
     it("asks again only once the game moves when the server says it has not dealt and no deal time is known, so a long wait spends no requests", () => {
         const refused = refusedBeforeDeal();
@@ -573,6 +618,36 @@ describe("stepGameClient - desync before the first deal", () => {
         expect(serverSilenceLimitMs(started.state)).toBe(265_000);
     });
 
+    it("keeps a game start that came while its request was outstanding, so the refusal that follows asks at the deal and the socket waits out the pause", () => {
+        const timer = { bk: 20, gp: 75, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+        const refused = run(startGameClient(GAME_ID, HANDOFF, 0).state, [
+            opened(0),
+            message(0, WIRE_GAME_JOINED),
+            undecodable(1),
+            message(2, { ...WIRE_GAME_STARTED, s: 0, tm: timer }),
+            message(3, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
+        ]);
+        const dealt = run(refused.state, [tick(75_002)]);
+
+        expect(desyncOf(refused.state)?.request).toEqual({ due: 75_002, kind: "at_deal" });
+        expect(serverSilenceLimitMs(refused.state)).toBe(100_000);
+        expect(sends(dealt.effects)).toEqual([RESYNC]);
+    });
+
+    it("forgets the wait for the deal with its socket, the reconnect's snapshot rebuilding it", () => {
+        const started = checkpointState(SCENARIO, "game started");
+        const firstDealDue = started.firstDealDue ?? 0;
+        const refused = run(started, [
+            message(100, { t: 999 }),
+            message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
+        ]);
+
+        const dropped = run(refused.state, [closed(130, 1006)]);
+        expect(desyncOf(refused.state)?.request.kind).toBe("at_deal");
+        expect(desyncOf(dropped.state)?.request).toEqual({ kind: "unsent" });
+        expect(nextDeadline(dropped.state)).not.toBe(firstDealDue);
+    });
+
     it("forgets the answered request with the socket, so a rate limit of the reopened socket's JOIN retries the identity", () => {
         const reopened = run(refusedBeforeDeal().state, [
             closed(500, 1006),
@@ -586,9 +661,27 @@ describe("stepGameClient - desync before the first deal", () => {
         const { session } = limited.state;
         assert(session.status === "identifying");
 
-        expect(desyncOf(reopened.state)?.request.kind).toBe("awaiting_snapshot");
+        expect(desyncOf(reopened.state)?.request.kind).toBe("on_game_message");
         expect(session.sessionRetryAt).toBeGreaterThan(1502);
         expect(sends(limited.effects)).toEqual([]);
+    });
+
+    it("spends no request on a JOIN_GAME's answer however often the socket drops before the game starts, asking at the deal", () => {
+        const drops = Array.from({ length: MAX_RESYNC_REQUESTS }, (_unused, index) => index + 1);
+        const { effects, state } = drops.reduce(
+            (before, drop) => rejoinedAfterDrop(before, drop * 60_000),
+            refusedBeforeDeal(),
+        );
+        const resent = sends(effects.slice(refusedBeforeDeal().effects.length)).filter(isNoJoin);
+        const started = run(state, [message(400_000, { ...WIRE_GAME_STARTED, s: 0 })]);
+        const dealt = run(started.state, [tick(started.state.firstDealDue ?? 0)]);
+
+        expect([resent, state.resyncRequests, desyncOf(state)?.request.kind]).toEqual([
+            [],
+            1,
+            "on_game_message",
+        ]);
+        expect([sends(dealt.effects), dealt.state.resyncRequests]).toEqual([[RESYNC], 2]);
     });
 });
 

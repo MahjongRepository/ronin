@@ -544,16 +544,17 @@ describe("mountGameView failure boundary", () => {
 });
 
 describe("mountGameView connection", () => {
-    it("sets the socket's silence limit past the longest wait the game's timer settings allow, never under the default", () => {
+    it("sets the socket's silence limit past the longest wait the server names: the pending game's once joined, then the game's timer settings", () => {
         const { connections } = mountWithFakes();
         const [socket] = connections;
         socket.handlers.onOpen();
-        socket.handlers.onMessage(WIRE_GAME_JOINED);
-        const beforeSettings = socket.silenceLimitMs;
+        const identifying = socket.silenceLimitMs;
+        socket.handlers.onMessage({ ...WIRE_GAME_JOINED, pt: 300 });
+        const joined = socket.silenceLimitMs;
         const timer = { bk: 120, gp: 3, mb: 180, md: 5, ra: 15, rb: 10, tb: 10 };
         socket.handlers.onMessage({ ...WIRE_GAME_STARTED, s: 0, tm: timer });
 
-        expect([beforeSettings, socket.silenceLimitMs]).toEqual([90_000, 215_000]);
+        expect([identifying, joined, socket.silenceLimitMs]).toEqual([90_000, 325_000, 215_000]);
     });
 
     it("gives up on a socket that never opens after 10 s and opens another on the retry", () => {

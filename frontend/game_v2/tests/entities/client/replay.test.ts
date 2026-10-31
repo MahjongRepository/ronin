@@ -2,7 +2,12 @@ import { assert, describe, expect, test } from "vitest";
 
 import { ENGINE_REPLAYS, type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
 import { GAME_ID, HANDOFF, clientEvent } from "#tests/fixtures/scenario";
-import { REPLAY_GAME_STARTED, WIRE_GAME_JOINED, WIRE_ROUND_STARTED } from "#tests/fixtures/wire";
+import {
+    REPLAY_GAME_STARTED,
+    REPLAY_ROUND_STARTED,
+    WIRE_GAME_JOINED,
+    WIRE_ROUND_STARTED,
+} from "#tests/fixtures/wire";
 import {
     type ClientStep,
     type ClientTimeline,
@@ -34,7 +39,7 @@ import {
 } from "@/shared/protocol";
 
 const VERSION_LINE = JSON.stringify({ version: REPLAY_VERSION });
-const SEAT_0_TABLE = [JSON.stringify(REPLAY_GAME_STARTED), JSON.stringify(WIRE_ROUND_STARTED)];
+const SEAT_0_TABLE = [JSON.stringify(REPLAY_GAME_STARTED), JSON.stringify(REPLAY_ROUND_STARTED)];
 const REPLAY_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 const drawLine = '{"d": 0, "t": 1}';
 const discardLine = '{"d": 0, "t": 2}';
@@ -86,6 +91,10 @@ describe("readReplayTimeline - lines", () => {
             /^Parse error: Failed to parse replay line t=101: Unknown seat control: ai=2$/,
         ],
         [JSON.stringify(REPLAY_GAME_STARTED), /^Cannot be played: /],
+        [
+            JSON.stringify(WIRE_ROUND_STARTED),
+            /^Parse error: Failed to parse deal t=9: it does not record every seat.s hand$/,
+        ],
     ])("stops at a line it cannot show (%s), keeping only the lines before it", (bad, detail) => {
         const { damage, types } = readLines(drawLine, bad, discardLine);
 
@@ -553,6 +562,8 @@ describe("readReplayTimeline - engine fixtures", () => {
 
 type WireLine = Readonly<Record<string, unknown>>;
 
+const PROJECTED_TIMER = { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+
 function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | null {
     switch (line.type) {
         case "game_started": {
@@ -561,6 +572,7 @@ function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | 
                 rc: line.riichiCost / WIRE_SCORE_DIVISOR,
                 rsv: line.riichiStickValue / WIRE_SCORE_DIVISOR,
                 s: seat,
+                tm: PROJECTED_TIMER,
             };
         }
         case "round_started": {
@@ -572,7 +584,9 @@ function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | 
             return { ...raw, mt: own, p: players, s: seat };
         }
         case "draw": {
-            return line.seat === seat ? raw : { s: line.seat, t: EVENT_TYPE.DRAW_NOTICE };
+            return line.seat === seat
+                ? { ...raw, bk: PROJECTED_TIMER.bk, wi: 1 }
+                : { s: line.seat, t: EVENT_TYPE.DRAW_NOTICE };
         }
         case "ai_replacement":
         case "human_return": {

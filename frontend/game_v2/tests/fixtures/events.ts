@@ -29,7 +29,7 @@ export function makeHandResult(overrides: Partial<HandResult> = {}): HandResult 
         fu: 30,
         han: 4,
         points: 7700,
-        yaku: [{ han: 1, yakuId: 0 }],
+        yaku: [{ han: 1, isYakuman: false, yakuId: 0 }],
         ...overrides,
     };
 }
@@ -64,7 +64,6 @@ export function makeRoundStartedEvent(
     return {
         currentPlayerSeat: 0,
         dealerSeat: 0,
-        dice: [3, 4],
         doraIndicators: [10],
         honbaSticks: 0,
         myTiles: null,

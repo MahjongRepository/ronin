@@ -129,6 +129,7 @@ class MockGameService(GameService):
                 riichi_sticks=0,
                 my_tiles=[],
                 players=[PlayerView(seat=i, score=25000) for i in range(4)],
+                dice=(1, 1),
                 target=SeatTarget(seat=0),
             ),
         ]

@@ -1,4 +1,10 @@
-import { type SessionState, failSession, hasSocket } from "@/entities/session";
+import {
+    awaitsSnapshot,
+    canRequestResync,
+    failSession,
+    hasSocket,
+    holdsSeat,
+} from "@/entities/session";
 import { type TableEvent, applyEvent } from "@/entities/table";
 import { assertNever } from "@/shared/lib";
 import {
@@ -32,19 +38,6 @@ const MS_PER_SECOND = 1000;
 /** Where the client stands since it lost step with the server, or null while in step. */
 export function desyncOf(state: LiveClient): Desync | null {
     return state.sync.kind === "out_of_step" ? state.sync : null;
-}
-
-/** Whether the client can send on its session: it holds the seat, which only an open socket does. */
-export function canSend(session: SessionState): boolean {
-    return session.status === "playing";
-}
-
-/**
- * Whether the client takes server messages on its session at all: on an open socket, identifying or playing, as the
- * session itself does. Any other has no open socket, so any message then is dropped.
- */
-export function takesServerMessages(session: SessionState): boolean {
-    return session.status === "identifying" || session.status === "playing";
 }
 
 /** End the client because its driver failed while stepping it; nothing is pending or shown afterwards. */
@@ -124,14 +117,15 @@ export function recoveryFailedStep(
 }
 
 /**
- * The out-of-step client after a message it drops. One saying the game has not dealt yet (a resync refused while the
- * game waits for its players or in its start pause) answers the request: the client asks again when the first deal
- * is due, rather than a whole answer's wait later, which would eat into a first dealer's turn; where no deal time lies
- * ahead, it waits for the server's next game message instead of asking on a timer, which would spend the page's
- * requests however long the game waits to start. Waiting so, a game start names the deal's time, and any other game
- * message says the game moved, so the client asks at once.
+ * The out-of-step client's request after a message it drops. One saying the game has not dealt yet (a resync refused
+ * while the game waits for its players or in its start pause) answers the request: the client asks again when the
+ * first deal is due, rather than a whole answer's wait later, which would eat into a first dealer's turn; where no
+ * deal time lies ahead, it waits for the server's next game message instead of asking on a timer, which would spend
+ * the page's requests however long the game waits to start. Waiting so, a game start names the deal's time, and any
+ * other game message says the game moved, so the client asks at once; a session message (the join's answer, an
+ * error) says nothing of the game.
  */
-export function deferredUntilDeal(
+export function requestAfterDropped(
     state: LiveClient,
     sync: Desync,
     message: ParsedServerMessage,
@@ -139,7 +133,10 @@ export function deferredUntilDeal(
     if (message.type === "session_error" && message.code === SESSION_ERROR_CODE.GAME_NOT_STARTED) {
         return withRequest(state, sync, awaitingDeal(state));
     }
-    const gameMoved = message.type !== "session_error" && message.type !== "error";
+    const gameMoved =
+        message.type !== "session_error" &&
+        message.type !== "error" &&
+        message.type !== "game_joined";
     return sync.request.kind === "on_game_message" && gameMoved
         ? movedOn(state, sync, message)
         : state;
@@ -158,17 +155,37 @@ function awaitingDeal(state: LiveClient): ResyncRequest {
 }
 
 /**
- * The client awaiting the deal after a game message: at the deal's time a game start names, else at once. The game
- * start's timer settings are kept too, so the socket's silence limit covers its pause.
+ * The client awaiting the deal after a game message: a game start, which says the deal is still to come, waits for it
+ * as a refusal of the game not dealt does (at the time it names, `withPacing` keeping it); any other asks at once.
  */
 function movedOn(state: LiveClient, sync: Desync, message: ParsedServerMessage): LiveClient {
-    if (message.type !== "game_started" || message.timer === null) {
-        return withRequest(state, sync, UNSENT);
+    const request = message.type === "game_started" ? awaitingDeal(state) : UNSENT;
+    return withRequest(state, sync, request);
+}
+
+/**
+ * The client with the pacing a message names kept, in step or out of it, whatever its resync request awaits: a game
+ * start's timer settings and the first deal's due time, and the pending game's wait `game_joined` names. The socket's
+ * silence limit and the request at the deal both read them, so a dropped game start never cuts its pause short.
+ */
+export function withPacing(state: LiveClient, message: ParsedServerMessage): LiveClient {
+    switch (message.type) {
+        case "game_started": {
+            const { timer } = message;
+            return {
+                ...state,
+                firstDealDue:
+                    timer === null ? null : state.now + timer.gameStartPauseSeconds * MS_PER_SECOND,
+                timer: timer ?? state.timer,
+            };
+        }
+        case "game_joined": {
+            return { ...state, pendingGameSeconds: message.pendingGameSeconds };
+        }
+        default: {
+            return state;
+        }
     }
-    const { timer } = message;
-    const dealDue = state.now + timer.gameStartPauseSeconds * MS_PER_SECOND;
-    const waiting = withRequest(state, sync, { due: dealDue, kind: "at_deal" });
-    return { ...waiting, firstDealDue: dealDue, timer };
 }
 
 /**
@@ -197,25 +214,15 @@ export function resynced(state: LiveClient): LiveClient {
 }
 
 /**
- * Whether an out-of-step client can ask its session's server for a snapshot: on an open socket, the session playing
- * or identifying with no session retry waiting, since a socket whose identity message the server refused holds no
- * seat to resync until the retry resends it. Identifying, only the request is sent, never an answer to the game.
- */
-function canRequestResync(session: SessionState): boolean {
-    return (
-        session.status === "playing" ||
-        (session.status === "identifying" && session.sessionRetryAt === null)
-    );
-}
-
-/**
  * Ask an out-of-step client's server for a fresh snapshot once it holds the seat and has no request outstanding, or
- * its request went unanswered past its due time. A dropped socket forgets the request, and any wait for the deal,
- * since its reconnect brings a snapshot of its own. While the reopened socket identifies, that snapshot is the
- * request's answer: the client asks only once it goes unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not
- * decode), on the same socket, which a RECONNECT the server took binds. The requests are counted for the page,
- * whatever the session's own retries reset: one past `MAX_RESYNC_REQUESTS` ends the page as failed. A client awaiting
- * the deal asks nothing until a game message comes (`deferredUntilDeal`).
+ * its request went unanswered past its due time. A session that cannot ask voids the request (`voidedRequest`), so a
+ * dropped socket forgets it, and any wait for the deal, since its reconnect brings a snapshot of its own. While the
+ * reopened socket identifies with RECONNECT, that snapshot is the request's answer: the client asks only once it goes
+ * unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not decode), on the same socket, which a RECONNECT the
+ * server took binds. A JOIN_GAME is answered by `game_joined`, never a snapshot, and only a game that has not dealt
+ * takes one, so the client then waits for the deal as a refusal of the game not dealt would have it. The requests are
+ * counted for the page, whatever the session's own retries reset: one past `MAX_RESYNC_REQUESTS` ends the page as
+ * failed. A client awaiting the deal asks nothing until a game message comes (`requestAfterDropped`).
  */
 export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
     const { state } = step;
@@ -223,28 +230,39 @@ export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClien
     if (sync.kind === "in_step") {
         return step;
     }
-    if (canRequestResync(session)) {
-        return settledRequest(step, sync);
+    return voidedRequest(canRequestResync(session) ? settledRequest(step, sync) : step);
+}
+
+/** The step with its request voided where the session cannot ask, the one place that rule lives. */
+function voidedRequest(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
+    const { state } = step;
+    const { session, sync } = state;
+    if (sync.kind === "in_step" || sync.request.kind === "unsent" || canRequestResync(session)) {
+        return step;
     }
-    return sync.request.kind === "unsent"
-        ? step
-        : { ...step, state: withRequest(state, sync, UNSENT) };
+    return { ...step, state: withRequest(state, sync, UNSENT) };
+}
+
+/** The request of an unsent client whose identifying socket cannot ask yet: the answer it awaits instead. */
+function identifyingRequest(state: LiveClient): ResyncRequest {
+    return awaitsSnapshot(state.session)
+        ? { due: state.now + RESYNC_ANSWER_MS, kind: "awaiting_snapshot" }
+        : awaitingDeal(state);
 }
 
 /**
  * An out-of-step client that can ask, by where its request stands: unsent, it asks at once while it holds the seat, and
- * while it identifies awaits its own snapshot first; any other with a due time asks once that comes.
+ * while it identifies awaits the answer its identity message brings first; any other with a due time asks once that
+ * comes.
  */
 function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
     const { state } = step;
     const { request } = sync;
     switch (request.kind) {
         case "unsent": {
-            if (canSend(state.session)) {
-                return requestResync(step, sync);
-            }
-            const due = state.now + RESYNC_ANSWER_MS;
-            return { ...step, state: withRequest(state, sync, { due, kind: "awaiting_snapshot" }) };
+            return holdsSeat(state.session)
+                ? requestResync(step, sync)
+                : { ...step, state: withRequest(state, sync, identifyingRequest(state)) };
         }
         case "sent":
         case "awaiting_snapshot":
@@ -277,8 +295,8 @@ function requestResync(step: ClientStep<LiveClient>, desync: Desync): ClientStep
 
 /** When an out-of-step client's resync request counts as unanswered or comes due, or null. */
 export function desyncDeadline(state: LiveClient): number | null {
-    const { session, sync } = state;
-    if (sync.kind === "in_step" || !canRequestResync(session)) {
+    const { sync } = state;
+    if (sync.kind === "in_step") {
         return null;
     }
     const { request } = sync;

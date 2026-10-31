@@ -112,7 +112,8 @@ replay view, the live game and the storybook read the tables it produces.
   result at a page to the panel's display state (faces, names, limit, notes, score rows, the
   clamped page and the count), which `ui/round-end-display.ts` only renders. A limit's name
   (`handLimitName`) comes from the points the server paid, 4x (6x for the dealer) the limit's basic
-  points, never from han, so it follows whatever kiriage, kazoe and yakuman rules the game used.
+  points, never from han, so it follows whatever kiriage, kazoe and yakuman rules the game used; a
+  yakuman is told from a kazoe yakuman by the server's flag on each yaku (`isYakuman`), never by its id.
 - The wire's round number counts every deal of the game; a round's name ("East 1", "South 3") is
   its number within its wind, the dealer's distance from the first dealer (`roundInWind`), which
   the table keeps from the game start or, on a reconnect, the snapshot's first listed round.

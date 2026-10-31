@@ -136,7 +136,7 @@ describe("roundEndDisplay - a win", () => {
             ...winner,
             handResult: {
                 ...winner.handResult,
-                yaku: [...winner.handResult.yaku, { han: 13, yakuId: 107 }],
+                yaku: [...winner.handResult.yaku, { han: 13, isYakuman: true, yakuId: 107 }],
             },
         };
         function notesWhen(loserSeat: number | null, honbaBonus: number): readonly string[] {
@@ -160,7 +160,7 @@ describe("roundEndDisplay - a win", () => {
         const [winner] = result.winners;
         const doubled = {
             ...winner,
-            handResult: { ...winner.handResult, yaku: [{ han: 26, yakuId: 111 }] },
+            handResult: { ...winner.handResult, yaku: [{ han: 26, isYakuman: true, yakuId: 111 }] },
         };
         const page = winPage({ ...table, roundEndResult: { ...result, winners: [doubled] } });
 

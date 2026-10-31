@@ -164,9 +164,19 @@ class GameJoinedMessage(BaseModel):
     """
     The answer to an accepted JOIN_GAME, sent to the joining connection alone once it holds the participant's seat,
     ahead of anything the game sends it, so the client is admitted by the server's word rather than by inference.
+
+    It names how long the pending game waits for its players before it starts without them (`pt`, seconds), the longest
+    the server can then stay silent before its game start, so the client never takes that wait for a lost connection.
     """
 
     type: Literal[SessionMessageType.GAME_JOINED] = SessionMessageType.GAME_JOINED
+    pending_game_timeout_seconds: float = Field(serialization_alias="pt")
+
+    def payload(self) -> dict[str, Any]:
+        """
+        Return the wire-format dict.
+        """
+        return self.model_dump(by_alias=True)
 
 
 class SeatControlMessage(BaseModel):

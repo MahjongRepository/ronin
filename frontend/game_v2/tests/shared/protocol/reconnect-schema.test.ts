@@ -194,10 +194,9 @@ describe("gameReconnectedSchema", () => {
         ]);
     });
 
-    it("parses dice and dora indicators", () => {
+    it("parses the dealer dice and dora indicators", () => {
         const result = parsePayload();
 
-        expect(result.dice).toEqual([3, 5]);
         expect(result.dealerDice).toEqual([
             [1, 4],
             [2, 6],

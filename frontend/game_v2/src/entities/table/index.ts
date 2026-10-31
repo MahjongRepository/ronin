@@ -61,7 +61,7 @@ export {
     nextAutoplaySpeed,
 } from "./model/replay-autoplay";
 export type { ReplayPrefs, ReplayPrefsStore } from "./model/replay-prefs";
-export { DEFAULT_REPLAY_PREFS, localReplayPrefs } from "./model/replay-prefs";
+export { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "./model/replay-prefs";
 export type { ReplayAddress, ReplayView } from "./model/replay-address";
 export {
     parseReplayAddress,

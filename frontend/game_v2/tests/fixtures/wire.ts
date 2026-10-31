@@ -2,9 +2,11 @@ import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 export type WirePayload = Record<string, unknown>;
 
-export const WIRE_DRAW: WirePayload = { d: 0, t: 1 };
+export const WIRE_DRAW: WirePayload = { bk: 20, d: 0, t: 1, wi: 1 };
 
-export const WIRE_GAME_JOINED: WirePayload = { type: "game_joined" };
+export const WIRE_GAME_JOINED: WirePayload = { pt: 30, type: "game_joined" };
+
+const WIRE_TIMER: WirePayload = { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
 
 export const WIRE_GAME_STARTED: WirePayload = {
     dd: [
@@ -22,7 +24,9 @@ export const WIRE_GAME_STARTED: WirePayload = {
     ],
     rc: 10,
     rsv: 10,
+    s: 0,
     t: 8,
+    tm: WIRE_TIMER,
 };
 
 /**
@@ -91,18 +95,25 @@ export const WIRE_GAME_RECONNECTED: WirePayload = {
     rh: [WIRE_ROUND_RECORD],
     rsv: 10,
     s: 0,
-    tm: { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 },
+    tm: WIRE_TIMER,
     tr: 70,
     type: "game_reconnected",
     w: 0,
     wi: 7,
 };
 
+/** Thirteen tile ids from `first` on, a dealt hand. */
+function dealtTiles(first: number): number[] {
+    return Array.from({ length: 13 }, (_unused, index) => first + index);
+}
+
+/** A live deal to seat 0: every seat's score, its own hand alone. */
 export const WIRE_ROUND_STARTED: WirePayload = {
     cp: 0,
     di: [0],
     dl: 0,
     h: 0,
+    mt: dealtTiles(4),
     n: 1,
     p: [
         { s: 0, sc: 250 },
@@ -110,6 +121,20 @@ export const WIRE_ROUND_STARTED: WirePayload = {
         { s: 2, sc: 250 },
         { s: 3, sc: 250 },
     ],
+    r: 0,
+    s: 0,
+    t: 9,
+    w: 0,
+};
+
+/** A replay file's deal: every seat's hand, and no viewer. */
+export const REPLAY_ROUND_STARTED: WirePayload = {
+    cp: 0,
+    di: [0],
+    dl: 0,
+    h: 0,
+    n: 1,
+    p: [0, 1, 2, 3].map((seat) => ({ s: seat, sc: 250, tl: dealtTiles(4 + seat * 13) })),
     r: 0,
     t: 9,
     w: 0,
@@ -120,7 +145,7 @@ export const WIRE_GAME_END: WirePayload = {
     lb: 0,
     lr: 0,
     nr: 1,
-    st: [{ fs: 0, s: 0, sc: 250 }],
+    st: [0, 1, 2, 3].map((seat) => ({ fs: 0, s: seat, sc: 250 })),
     t: 10,
     ws: 0,
 };
@@ -129,7 +154,7 @@ export const WIRE_GAME_END: WirePayload = {
 export function wireRoundEnd(waitId: number | null): WirePayload {
     const roundEnd: WirePayload = {
         ct: [0, 4, 8],
-        hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0 }] },
+        hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0, ym: false }] },
         ml: [],
         rc: 0,
         rt: ROUND_RESULT_TYPE.TSUMO,

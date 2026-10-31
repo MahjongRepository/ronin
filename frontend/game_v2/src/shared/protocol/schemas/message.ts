@@ -125,12 +125,67 @@ function wrapParseError(raw: Record<string, unknown>, err: unknown): Error {
     return err instanceof Error ? err : new Error(message);
 }
 
-// --- Public API ---
+/**
+ * The fields the live socket stamps on a message for its recipient alone, by wire key, as parsed: a game start's
+ * viewer seat and timer settings, a deal's viewer seat and private hand, and the wait id of a turn or call prompt
+ * opening, a turn's with its bank. A replay records none of them.
+ */
+function liveStamps(message: ParsedServerMessage): readonly (readonly [string, unknown])[] {
+    switch (message.type) {
+        case "game_started": {
+            return [
+                ["s", message.seat],
+                ["tm", message.timer],
+            ];
+        }
+        case "round_started": {
+            return [
+                ["s", message.seat],
+                ["mt", message.myTiles],
+            ];
+        }
+        case "draw":
+        case "turn": {
+            return [
+                ["wi", message.waitId],
+                ["bk", message.bankSeconds],
+            ];
+        }
+        case "call_prompt": {
+            return [["wi", message.waitId]];
+        }
+        default: {
+            return [];
+        }
+    }
+}
 
-export function parseServerMessage(raw: Record<string, unknown>): ParseResult {
+function parseLiveMessage(raw: Record<string, unknown>): ParsedServerMessage {
+    const message = tryParse(raw);
+    const missing = liveStamps(message).find(([, value]) => value === null);
+    if (missing !== undefined) {
+        throw new Error(`the live message has no ${missing[0]}, which the server always stamps`);
+    }
+    return message;
+}
+
+function parseResult(
+    raw: Record<string, unknown>,
+    parse: (raw: Record<string, unknown>) => ParsedServerMessage,
+): ParseResult {
     try {
-        return [null, tryParse(raw)];
+        return [null, parse(raw)];
     } catch (error) {
         return [wrapParseError(raw, error), null];
     }
+}
+
+/** Parse a message the live socket sent, complete with what the server stamps for its recipient. */
+export function parseServerMessage(raw: Record<string, unknown>): ParseResult {
+    return parseResult(raw, parseLiveMessage);
+}
+
+/** Parse a message a replay file records, which carries none of the live socket's stamps (`parseReplayLine`). */
+export function parseRecordedMessage(raw: Record<string, unknown>): ParseResult {
+    return parseResult(raw, tryParse);
 }

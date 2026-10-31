@@ -334,7 +334,8 @@ class SessionManager:
         """
         structlog.contextvars.bind_contextvars(game_id=game.game_id)
         self._bind(participant, connection)
-        connection.send_message(GameJoinedMessage().model_dump())
+        joined = GameJoinedMessage(pending_game_timeout_seconds=game.timer_config.pending_game_timeout_seconds)
+        connection.send_message(joined.payload())
         connected = len(game.connected())
         logger.info(
             "player joined pending game",

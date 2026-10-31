@@ -3,6 +3,36 @@ import { describe, expect, it } from "vitest";
 import { EVENT_TYPE, SESSION_MESSAGE_TYPE } from "@/shared/protocol/constants";
 import { parseServerMessage } from "@/shared/protocol/schemas/message";
 
+const LIVE_GAME_STARTED = {
+    dd: [
+        [1, 2],
+        [3, 4],
+    ],
+    dl: 0,
+    gid: "g-abc",
+    gt: 0,
+    p: [0, 1, 2, 3].map((seat) => ({ ai: 0, nm: `P${seat}`, s: seat })),
+    rc: 10,
+    rsv: 10,
+    s: 0,
+    t: EVENT_TYPE.GAME_STARTED,
+    tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
+};
+
+const LIVE_ROUND_STARTED = {
+    cp: 0,
+    di: [10],
+    dl: 0,
+    h: 0,
+    mt: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    n: 0,
+    p: [0, 1, 2, 3].map((seat) => ({ s: seat, sc: 250 })),
+    r: 0,
+    s: 0,
+    t: EVENT_TYPE.ROUND_STARTED,
+    w: 0,
+};
+
 describe("parseServerMessage", () => {
     describe("session messages (string type field)", () => {
         it("parses a session error message", () => {
@@ -68,12 +98,12 @@ describe("parseServerMessage", () => {
     describe("game events (integer t field)", () => {
         it("parses a draw event", () => {
             // seat=0, tileId=5 -> d = 0*136 + 5 = 5
-            const raw = { d: 5, t: EVENT_TYPE.DRAW, wi: 3 };
+            const raw = { bk: 20, d: 5, t: EVENT_TYPE.DRAW, wi: 3 };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
                 availableActions: [],
-                bankSeconds: null,
+                bankSeconds: 20,
                 elapsedSeconds: null,
                 seat: 0,
                 tileId: 5,
@@ -83,7 +113,7 @@ describe("parseServerMessage", () => {
         });
 
         it("parses a turn event", () => {
-            const raw = { kt: [3], t: EVENT_TYPE.TURN, wi: 5 };
+            const raw = { bk: 20, kt: [3], t: EVENT_TYPE.TURN, wi: 5 };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toMatchObject({ kuikaeTileTypes: [3], type: "turn", waitId: 5 });
@@ -120,7 +150,9 @@ describe("parseServerMessage", () => {
                 ],
                 rc: 10,
                 rsv: 10,
+                s: 0,
                 t: EVENT_TYPE.GAME_STARTED,
+                tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -134,6 +166,7 @@ describe("parseServerMessage", () => {
                 frs: 1,
                 t: EVENT_TYPE.CALL_PROMPT,
                 ti: 50,
+                wi: 4,
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -145,14 +178,14 @@ describe("parseServerMessage", () => {
                 fromSeat: 1,
                 tileId: 50,
                 type: "call_prompt",
-                waitId: null,
+                waitId: 4,
             });
         });
 
         it("parses a round_end event (tsumo)", () => {
             const raw = {
                 ct: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0 }] },
+                hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0, ym: false }] },
                 ml: [],
                 rc: 1,
                 rt: 0,
@@ -234,6 +267,23 @@ describe("parseServerMessage", () => {
             expect(err!.message).toContain("t=1");
             expect(err!.message).toContain("expected number, received undefined");
             expect(parsed).toBeNull();
+        });
+
+        it.each([
+            ["game start without its viewer seat", { ...LIVE_GAME_STARTED, s: undefined }, "s"],
+            [
+                "game start without its timer settings",
+                { ...LIVE_GAME_STARTED, tm: undefined },
+                "tm",
+            ],
+            ["deal without the viewer's hand", { ...LIVE_ROUND_STARTED, mt: undefined }, "mt"],
+            ["deal without its viewer seat", { ...LIVE_ROUND_STARTED, s: undefined }, "s"],
+            ["draw without its wait id", { bk: 20, d: 5, t: EVENT_TYPE.DRAW }, "wi"],
+            ["turn without its bank", { kt: [], t: EVENT_TYPE.TURN, wi: 5 }, "bk"],
+            ["call prompt without its wait id", { clt: 0, cs: 2, frs: 1, t: 3, ti: 50 }, "wi"],
+        ])("refuses a %s, which the live socket always stamps", (_name, raw, key) => {
+            const [err, parsed] = parseServerMessage(raw);
+            expect([err?.message, parsed]).toEqual([expect.stringContaining(`no ${key},`), null]);
         });
 
         it("returns error when valid type but malformed payload", () => {

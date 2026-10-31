@@ -27,7 +27,10 @@ export type ConnectSocket = (url: string, handlers: SocketHandlers) => GameConne
 /** The close the silence watchdog reports: what a browser reports for a connection lost without a close frame. */
 const SERVER_SILENT_CLOSE = { code: CLOSE_CODE.ABNORMAL, reason: "server_silent" } as const;
 
-/** The silence a socket waits for until the client sets its limit: the longest legitimate one at the default pacing. */
+/**
+ * The silence a socket waits for until the client sets its limit from a wait the server names: the client's own bound
+ * on the identity exchange, which the server answers at once, so it mirrors no server pacing.
+ */
 export const DEFAULT_SERVER_SILENCE_LIMIT_MS = 90_000;
 const SILENCE_CHECK_INTERVAL_MS = 5000;
 

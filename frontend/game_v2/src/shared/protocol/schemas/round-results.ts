@@ -10,12 +10,16 @@ import {
 import {
     calledBy,
     compactMeldSchema,
+    namesDistinctSeats,
     seatSchema,
     tileIdSchema,
     waitIdSchema,
     wireScoreMapSchema,
 } from "./common";
 import { handResultSchema } from "./events";
+
+/** A double ron names two winners, or more where the game allows more than two rons on one discard. */
+const MIN_DOUBLE_RON_WINNERS = 2;
 
 // --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
 
@@ -173,18 +177,27 @@ const ronSchema = z.pipe(
 // --- Double Ron (rt=2) ---
 
 const doubleRonSchema = z.pipe(
-    z.object({
-        hbs: z.optional(z.array(seatSchema)),
-        ls: seatSchema,
-        rk: z.optional(robbedKanSchema),
-        rt: z.literal(ROUND_RESULT_TYPE.DOUBLE_RON),
-        sch: wireScoreMapSchema,
-        scs: wireScoreMapSchema,
-        t: z.literal(EVENT_TYPE.ROUND_END),
-        wi: z.optional(waitIdSchema),
-        wn: z.array(doubleRonWinnerSchema),
-        wt: tileIdSchema,
-    }),
+    z
+        .object({
+            hbs: z.optional(z.array(seatSchema)),
+            ls: seatSchema,
+            rk: z.optional(robbedKanSchema),
+            rt: z.literal(ROUND_RESULT_TYPE.DOUBLE_RON),
+            sch: wireScoreMapSchema,
+            scs: wireScoreMapSchema,
+            t: z.literal(EVENT_TYPE.ROUND_END),
+            wi: z.optional(waitIdSchema),
+            wn: z.array(doubleRonWinnerSchema),
+            wt: tileIdSchema,
+        })
+        .check(
+            z.refine(
+                (raw) =>
+                    raw.wn.length >= MIN_DOUBLE_RON_WINNERS &&
+                    namesDistinctSeats(raw.wn.map((winner) => winner.winnerSeat)),
+                { message: "the double ron does not name at least two distinct winners" },
+            ),
+        ),
     z.transform((raw) => ({
         headBumpedSeats: raw.hbs ?? [],
         loserSeat: raw.ls,

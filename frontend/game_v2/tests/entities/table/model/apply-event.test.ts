@@ -166,10 +166,22 @@ describe("applyEvent - event order", () => {
         ["a discard after the round end", roundEnded, makeDiscardEvent({ tileId: heldTile })],
         ["a round end outside a round", roundEnded, makeTsumoRoundEnd()],
         ["a deal after the game end", ended, makeRoundStartedEvent()],
+        ["a second deal in a round", stateAfterRoundStarted(), makeRoundStartedEvent()],
+        ["a second game end", ended, makeGameEndEvent()],
+        ["a meld after the round end", roundEnded, makeMeldEvent()],
+        [
+            "a kan declared after the round end",
+            roundEnded,
+            { kanType: "closed", seat: 0, tileId: heldTile, type: "kan_declared" },
+        ],
+        ["a riichi after the round end", roundEnded, makeRiichiDeclaredEvent()],
+        ["a dora after the round end", roundEnded, makeDoraRevealedEvent()],
+        ["a draw notice after the round end", roundEnded, makeDrawNoticeEvent(1)],
     ];
 
-    test.each(outOfOrder)("refuses %s as a desync", (_name, state, event) => {
+    test.each(outOfOrder)("refuses %s as a desync, by its phase", (_name, state, event) => {
         expect(() => applyEvent(state, event)).toThrow(DesyncError);
+        expect(() => applyEvent(state, event)).toThrow(/reached a table in phase/);
     });
 
     test("refuses as a desync a round end paying collected sticks on a table out of step that never learned their value", () => {
@@ -444,8 +456,8 @@ describe("applyEvent - round_end", () => {
             fu: 30,
             han: 4,
             yaku: [
-                { han: 1, yakuId: 0 },
-                { han: 1, yakuId: 120 },
+                { han: 1, isYakuman: false, yakuId: 0 },
+                { han: 1, isYakuman: false, yakuId: 120 },
             ],
         });
         const event = makeTsumoRoundEnd({

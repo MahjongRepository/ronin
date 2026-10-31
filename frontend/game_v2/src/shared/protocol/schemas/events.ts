@@ -4,6 +4,7 @@ import {
     EVENT_TYPE,
     GAME_END_CAUSE,
     GAME_TYPE,
+    NUM_PLAYERS,
     PLAYER_ACTION,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
@@ -14,6 +15,7 @@ import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 import {
     coversEverySeat,
     gamePlayerInfoSchema,
+    namesDistinctSeats,
     seatSchema,
     secondsSchema,
     tileIdSchema,
@@ -75,9 +77,11 @@ const yakuInfoSchema = z.pipe(
     z.object({
         han: z.int(),
         yi: z.int(),
+        ym: z.boolean(),
     }),
     z.transform((raw) => ({
         han: raw.han,
+        isYakuman: raw.ym,
         yakuId: raw.yi,
     })),
 );
@@ -150,13 +154,11 @@ export const gameStartedSchema = z.pipe(
 );
 
 // --- Round Started (t=9) ---
-// Accepts both live format (has `s` and `mt`) and replay format (no `s`/`mt`, but `p[].tl`).
 
 export const roundStartedSchema = z.pipe(
     z
         .object({
             cp: seatSchema,
-            dc: z.optional(z.tuple([z.number(), z.number()])),
             di: z.array(tileIdSchema),
             dl: seatSchema,
             h: z.int(),
@@ -176,7 +178,6 @@ export const roundStartedSchema = z.pipe(
     z.transform((raw) => ({
         currentPlayerSeat: raw.cp,
         dealerSeat: raw.dl,
-        dice: raw.dc ?? ([1, 1] as [number, number]),
         doraIndicators: raw.di,
         honbaSticks: raw.h,
         myTiles: raw.mt ?? null,
@@ -325,15 +326,24 @@ export const furitenSchema = z.pipe(
 // --- Game End (t=10) ---
 
 export const gameEndSchema = z.pipe(
-    z.object({
-        ec: z.enum(GAME_END_CAUSE),
-        lb: wireScoreSchema,
-        lr: z.int().check(z.gte(0)),
-        nr: z.int(),
-        st: z.array(playerStandingSchema),
-        t: z.literal(EVENT_TYPE.GAME_END),
-        ws: seatSchema,
-    }),
+    z
+        .object({
+            ec: z.enum(GAME_END_CAUSE),
+            lb: wireScoreSchema,
+            lr: z.int().check(z.gte(0)),
+            nr: z.int(),
+            st: z.array(playerStandingSchema),
+            t: z.literal(EVENT_TYPE.GAME_END),
+            ws: seatSchema,
+        })
+        .check(
+            z.refine(
+                (raw) =>
+                    raw.st.length === NUM_PLAYERS &&
+                    namesDistinctSeats(raw.st.map((standing) => standing.seat)),
+                { message: "the standings do not rank each of the four seats once" },
+            ),
+        ),
     z.transform((raw) => ({
         endCause: raw.ec,
         leftoverRiichiBonus: raw.lb,

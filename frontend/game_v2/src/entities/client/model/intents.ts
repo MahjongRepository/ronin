@@ -1,8 +1,8 @@
+import { holdsSeat } from "@/entities/session";
 import { type PlayerState } from "@/entities/table";
 import { type ClientMessage } from "@/shared/protocol";
 
 import { answerDecision, offerAnswer } from "./decision";
-import { canSend } from "./desync";
 import { decisionOf, replaceDecision } from "./pending";
 import { switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep } from "./round-confirm";
@@ -19,7 +19,7 @@ import {
  * so it answers nothing.
  */
 export function canAnswer(state: LiveClient): boolean {
-    return canSend(state.session);
+    return holdsSeat(state.session);
 }
 
 function viewerOf(state: LiveClient): PlayerState | undefined {
