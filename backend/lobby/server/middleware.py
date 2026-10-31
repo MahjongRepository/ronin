@@ -16,8 +16,6 @@ if TYPE_CHECKING:
 
     type ExceptionHandler = Callable[[Request, Exception], Awaitable[Response]]
 
-_FONTS_FONT_SRC = "font-src 'self' https://fonts.gstatic.com; "
-
 _COMMON_HEADERS: list[tuple[bytes, bytes]] = [
     (b"x-content-type-options", b"nosniff"),
     (b"x-frame-options", b"DENY"),
@@ -34,8 +32,8 @@ def _build_csp_headers(
     Build path-specific CSP header sets.
 
     Two tiers:
-    - Lobby (all non-game pages, including rooms): scripts + same-origin connect
-    - Game: scripts + external WebSocket connect
+    - Lobby (all non-game pages, including rooms): scripts + same-origin connect, Google Fonts
+    - Game: scripts + external WebSocket connect, self-hosted fonts only
 
     When vite_dev_url is set, both tiers also allow scripts and WebSocket from that origin.
     """
@@ -53,14 +51,12 @@ def _build_csp_headers(
         vite_style = f" {vite_dev_url}"
         vite_img = f"img-src 'self' {vite_dev_url}; "
 
-    fonts_style_src = f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com{vite_style}; "
-
     # Lobby pages (including rooms): scripts + same-origin WS
     lobby_csp = (
         "default-src 'self'; "
         f"script-src 'self'{vite_script}; "
-        + fonts_style_src
-        + _FONTS_FONT_SRC
+        f"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com{vite_style}; "
+        "font-src 'self' https://fonts.gstatic.com; "
         + vite_img
         + f"connect-src 'self'{vite_connect}; "
         + "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
@@ -70,8 +66,8 @@ def _build_csp_headers(
     game_csp = (
         "default-src 'self'; "
         f"script-src 'self'{vite_script}; "
-        + fonts_style_src
-        + _FONTS_FONT_SRC
+        f"style-src 'self' 'unsafe-inline'{vite_style}; "
+        "font-src 'self'; "
         + vite_img
         + f"connect-src 'self' ws: wss:{vite_connect}; "
         + "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"

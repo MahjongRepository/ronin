@@ -213,6 +213,15 @@ class TestSecurityHeadersMiddleware:
         csp = response.headers["content-security-policy"]
         assert "connect-src 'self' ws: wss:" in csp
 
+    def test_security_headers_middleware__when_game_route__should_refuse_google_fonts(
+        self, security_client: TestClient
+    ):
+        response = security_client.get("/play/test-game")
+        csp = response.headers["content-security-policy"]
+        assert "style-src 'self' 'unsafe-inline'; font-src 'self';" in csp
+        assert "fonts.googleapis.com" not in csp
+        assert "fonts.gstatic.com" not in csp
+
     def test_security_headers_middleware__when_game_assets_route__should_allow_self_scripts(
         self, security_client: TestClient
     ):
