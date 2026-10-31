@@ -30,6 +30,15 @@
     max-height: calc(var(--band-top) - 24px - var(--notice-top));
     overflow-y: auto;
 
+    /* A board with a phone's chrome has a narrow left field: the place keeps a phone's margins and starts past the
+       strip as drawn rather than its deepest, so a notice keeps a few words a line. */
+    @include small-chrome {
+        --notice-gap: 8px;
+        --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
+
+        width: calc(var(--reach-left) - 8px - var(--notice-left));
+    }
+
     @include phone-board {
         --notice-gap: 6px;
 

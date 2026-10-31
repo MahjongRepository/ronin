@@ -33,6 +33,8 @@ const SHEET_OVER_DECISION = "/play/storybook/decisions?state=notice_sheet_decisi
 const CONFIRM = ".round-end-result__confirm";
 /** The long notices also checked where the smaller window gives the notices their narrowest field of their own. */
 const NARROW_FIELD = [FLOOR, SMALLEST_WINDOW];
+/** The least width of the notices' own place, in its notices' ems: a few words a line, never a column of single words. */
+const MIN_NOTICE_MEASURE = 7.5;
 
 /**
  * The notices' worst cases: the stack on the desktops too, the long ones also in the smaller window's field and the
@@ -138,6 +140,8 @@ interface PlaceClamp {
     readonly overflows: boolean;
     /** It holds a replay's status under the notices, which may scroll its own way. */
     readonly status: boolean;
+    /** Its width in its notices' ems, or null where it is the reserve over a short or upright board's panel. */
+    readonly measure: number | null;
 }
 
 function measureClamp(page: Page): Promise<PlaceClamp | null> {
@@ -169,7 +173,15 @@ function measureClamp(page: Page): Promise<PlaceClamp | null> {
                 withinWidth: box.left >= room.left - 1 && box.right <= room.right + 1,
             };
         });
+        const board = place.closest(".game-board")?.getBoundingClientRect();
+        const room = place.getBoundingClientRect();
+        const first = place.querySelector(".board-notice");
+        const reserve = board !== undefined && room.left > board.left + board.width / 2;
         return {
+            measure:
+                first === null || reserve
+                    ? null
+                    : room.width / Number.parseFloat(getComputedStyle(first).fontSize),
             notices,
             overflows: place.scrollHeight > place.clientHeight + 1,
             status: place.querySelector(".replay-status") !== null,
@@ -207,6 +219,10 @@ function checkNoticeClamp(notice: NoticeClamp, standsForMore: boolean, report: P
  * wider than the place.
  */
 function checkClamp(place: PlaceClamp, report: PageReport): void {
+    report.expect(
+        place.measure === null || place.measure >= MIN_NOTICE_MEASURE,
+        `the notices' place is ${place.measure?.toFixed(1)}em wide, under ${MIN_NOTICE_MEASURE}em: its notices break into word columns`,
+    );
     const shown = place.notices.filter((notice) => !notice.left);
     const leftOut = place.notices.length - shown.length;
     const last = shown.at(-1);
