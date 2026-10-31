@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import sys
 import threading
+from contextlib import closing
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -21,7 +22,7 @@ def _insert_marker(conn: sqlite3.Connection, marker: str) -> None:
 
 
 def _player_ids(db_path: Path) -> list[str]:
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         return [row[0] for row in conn.execute("SELECT id FROM players ORDER BY id")]
 
 

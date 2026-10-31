@@ -18,6 +18,7 @@ import logging
 import sqlite3
 import sys
 import traceback
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,7 @@ OUTCOME_EVENT_TYPES = frozenset({WireEventType.ROUND_END, WireEventType.GAME_END
 
 
 def read_end_reason(database_path: Path, game_id: str) -> str | None:
-    with sqlite3.connect(f"file:{database_path}?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(f"file:{database_path}?mode=ro", uri=True)) as conn:
         row = conn.execute("SELECT end_reason FROM played_games WHERE id = ?", (game_id,)).fetchone()
 
     return row[0] if row else None
