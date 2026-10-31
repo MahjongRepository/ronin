@@ -244,6 +244,13 @@ $upright-counters-h: 52px;
         --band-gap: 8px;
         --centre-share: 0.39;
         --own-cap: 36px;
+
+        /* The own tile is the spec's fixed 36x48: the own badge's slot gives up what a full hand's row needs. */
+        --badge-slot: clamp(
+            64px,
+            100cqw - 2 * var(--m) - var(--furiten-slot) - #{$full-hand} * var(--own-cap),
+            96px
+        );
         --core-cap: 9999px;
         --core-room-band: 9999px;
         --core-top: calc(var(--core-top-slot) + var(--core-top-free));

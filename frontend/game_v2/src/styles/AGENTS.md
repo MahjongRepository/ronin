@@ -8,12 +8,12 @@ How the board's stylesheets (`game-board/`, the partials beside it) place the ta
 - **The board sizes itself from its own box.** `.game-board` is a size container and every length in it derives from its
   box (container query units), never the viewport, so a page that gives it a box (`.board-page`) decides its size alone.
   The spec's sizing rule (`docs/game-client-look.md`, Proportions) lives in `game-board/_grid.scss` alone, as custom
-  properties on the board's layout and its overlay: the own tile (36x48 under 520px high, else min(5cqw, 10cqh), capped
-  by a full hand's row beside its badge's and furiten's slots), the river tile, the core, the centre and every place
-  derived from them (the rivers' capacity reach, the foreground band, a badge's place); its breakpoints, viewport
-  mixins, the side strips' depth as drawn and the overlay's tile unit (`overlay-unit`, from the width a panel leaves)
-  are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the replay's) uses them without
-  repeating the board's rules.
+  properties on the board's layout and its overlay: the own tile (36x48 under 520px high, the own badge's slot giving up
+  what a full hand's row needs at the floor's width; else min(5cqw, 10cqh), capped by a full hand's row beside its
+  badge's and furiten's slots), the river tile, the core, the centre and every place derived from them (the rivers'
+  capacity reach, the foreground band, a badge's place); its breakpoints, viewport mixins, the side strips' depth as
+  drawn and the overlay's tile unit (`overlay-unit`, from the width a panel leaves) are `game-board/_queries.scss`'s,
+  which emits no CSS, so a lazy chunk's stylesheet (the replay's) uses them without repeating the board's rules.
 - Its lengths are registered (`@property`, `<length>`), so each computes once to pixels where it is set: an
   unregistered chain grows with every reference until a browser drops the declaration.
 - A desktop's core also stays above the foreground band's controls and below the top strip's slot; a short desktop

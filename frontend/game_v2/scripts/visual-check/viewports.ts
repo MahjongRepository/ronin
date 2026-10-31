@@ -87,8 +87,8 @@ export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ na
 export const [SMALLEST_WINDOW] = SMALL_WINDOWS;
 
 /**
- * Wider phones at the floor's height, where the own tile reaches 36px and the right hand's placement must still keep
- * the band whole.
+ * Wider phones at the floor's height, where the own badge's slot is whole again beside the 36px own tile and the right
+ * hand's placement must still keep the band whole.
  */
 const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [680, 700].map((width) => ({
     context: {
