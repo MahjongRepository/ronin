@@ -1,21 +1,46 @@
 /* The tile box, 3:4 from its width (60px standalone; a board sets `--tile-w`): the face artwork inset by the same
    room on every side, 8% of the width (6% of the height), and the corners a share of the box. */
 $glyph-room: 0.08;
-$edge-share: 0.07;
 
-/* A face's material: ivory with a rim, a small edge and a shadow that fall toward the screen's bottom whatever the
-   tile's turn (`--tile-turn`, the frame's turn plus a sideways tile's own), so none of it takes any room. */
+/* One light for every seat (docs/game-client-look.md, Flat top-down), in shares of the tile's width. */
+$body-share: 0.095;
+$back-share: 0.035;
+$bevel-share: 0.045;
+$top-share: 0.05;
+$cast-x: 0.05;
+$cast-y: 0.07;
+$cast-blur: 0.07;
+
+/* `$name-x`/`$name-y`: the screen offset (`$x`, `$y`) times `$size`, in the frame turned by `$turn`, so it lands on the
+   screen where it would on an unturned tile. */
+@mixin screen-offset($name, $x, $y, $size, $turn) {
+    --#{$name}-x: calc((#{$x} * cos(#{$turn}) + #{$y} * sin(#{$turn})) * #{$size});
+    --#{$name}-y: calc((#{$y} * cos(#{$turn}) - #{$x} * sin(#{$turn})) * #{$size});
+}
+
+/* A lone tile's shadow is pulled in by its blur, so on a row only the later tile, which covers it, lies under it. */
 .tile {
     --tile-w: 60px;
     --tile-turn: var(--frame-turn, 0deg);
-    --edge: max(1px, calc(var(--tile-w) * #{$edge-share}));
-    --edge-x: calc(sin(var(--tile-turn)) * var(--edge));
-    --edge-y: calc(cos(var(--tile-turn)) * var(--edge));
+    --unit: var(--tile-w);
+
+    @include screen-offset(body, 0, $body-share, var(--unit), var(--tile-turn));
+    @include screen-offset(back, 0, $body-share + $back-share, var(--unit), var(--tile-turn));
+    @include screen-offset(bevel, 0, $bevel-share, var(--unit), var(--tile-turn));
+    @include screen-offset(cast, $cast-x, $cast-y + $body-share, var(--unit), var(--tile-turn));
+
     --tile-ring: inset 0 0 0 1px var(--ronin-tile-rim);
+    --tile-top: 0 0 transparent;
+    --tile-bevel:
+        inset var(--bevel-x) var(--bevel-y) calc(var(--unit) * #{$bevel-share})
+            var(--ronin-tile-shine),
+        inset calc(var(--bevel-x) * -1) calc(var(--bevel-y) * -1)
+            calc(var(--unit) * #{$bevel-share * 1.5}) var(--ronin-tile-shade);
     --tile-lift:
-        var(--edge-x) var(--edge-y) 0 var(--ronin-tile-edge),
-        calc(var(--edge-x) * 2) calc(var(--edge-y) * 2) calc(var(--edge) * 2.5)
-            var(--ronin-tile-shadow);
+        var(--body-x) var(--body-y) 0 var(--ronin-tile-edge),
+        var(--back-x) var(--back-y) 0 var(--ronin-tile-back-edge),
+        var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
+            calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
 
     display: inline-block;
     width: var(--tile-w);
@@ -23,7 +48,7 @@ $edge-share: 0.07;
     padding: calc(var(--tile-w) * #{$glyph-room});
     border-radius: 9% / 7%;
     background: var(--ronin-tile-face);
-    box-shadow: var(--tile-ring), var(--tile-lift);
+    box-shadow: var(--tile-ring), var(--tile-top), var(--tile-bevel), var(--tile-lift);
 
     svg {
         display: block;
@@ -32,11 +57,53 @@ $edge-share: 0.07;
     }
 }
 
+/* One edge and shadow under a whole group, so none lies on a face; the own playable hand keeps each tile's own,
+   since a held-back tile lies flat without one. */
+.discards,
+.meld,
+.hand:not(:has(> button)) {
+    --unit: var(--board-tile-w, 60px);
+
+    @include screen-offset(group-body, 0, $body-share, var(--unit), var(--frame-turn, 0deg));
+    @include screen-offset(group-back, 0, $back-share, var(--unit), var(--frame-turn, 0deg));
+    @include screen-offset(group-cast, $cast-x, $cast-y, var(--unit), var(--frame-turn, 0deg));
+
+    filter: drop-shadow(var(--group-body-x) var(--group-body-y) 0 var(--ronin-tile-edge))
+        drop-shadow(var(--group-back-x) var(--group-back-y) 0 var(--ronin-tile-back-edge))
+        drop-shadow(
+            var(--group-cast-x) var(--group-cast-y) calc(var(--unit) * #{$cast-blur * 0.5})
+                var(--ronin-tile-shadow)
+        );
+
+    .tile {
+        --tile-lift: 0 0 transparent;
+    }
+}
+
+/* The own hand's tiles stand facing their player, as Tenhou draws them: a band across their top, the tile's top edge
+   seen above its face, inside the room the glyph keeps. */
+.board-local .hand .tile:not(.tile-back) {
+    --tile-top:
+        inset 0 calc(var(--unit) * #{$top-share}) 0 var(--ronin-tile-top),
+        inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
+}
+
 /* A back: one quiet colour with its own rim, on the same edge and shadow, so a strip of backs reads tile by tile. */
 .tile-back {
     --tile-ring: inset 0 0 0 1px var(--ronin-back-rim);
 
     background: var(--ronin-back);
+}
+
+/* An opponent's concealed tile stands on its edge, seen from above: its top, ivory toward its owner and the back's
+   colour toward the centre, at its owner's edge of the slot it keeps whole for the face a reveal shows. */
+$cap-share: 0.5;
+
+.board-strip .hand-tile > .tile-back {
+    height: calc(var(--tile-w) * 4 / 3 * #{$cap-share});
+    margin-top: calc(var(--tile-w) * 4 / 3 * #{1 - $cap-share});
+    border-radius: 9% / 14%;
+    background: linear-gradient(to bottom, var(--ronin-back) 0 45%, var(--ronin-tile-face) 45%);
 }
 
 /* A face's name stands in for it until the sprite is in the document, in the tile's own viewBox units. */

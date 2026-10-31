@@ -58,17 +58,26 @@
         bottom: var(--board-tile-w);
     }
 
-    /* The latest discard: a neutral ring on the tile and a notch on its far side, in its river's own frame, so the
-       notch points at the tile from away from the centre whatever the river's turn. */
-    .discard-tile--last {
-        position: relative;
-        border-radius: 9% / 7%;
-        outline: 2px solid var(--ronin-table-latest);
-        box-shadow: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
+    /* The latest discard's ring and notch lie over its slot outside the river's tiles (`LatestMark`), so the tiles'
+       shared edge and shadow leave them flat; the notch points at the tile from away from the centre. */
+    .discard-tile--last > .tile {
+        --tile-ring: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
+    }
 
-        > .tile {
-            --tile-ring: inset 0 0 0 1.5px var(--ronin-table-latest-inner);
-        }
+    .board-river__latest {
+        --turned: calc(var(--board-tile-h) - var(--board-tile-w));
+        --wide: calc(var(--latest-wide) * var(--turned));
+
+        position: absolute;
+        left: calc(
+            var(--latest-col) * var(--board-tile-w) + var(--latest-wide-before) * var(--turned)
+        );
+        top: calc(var(--latest-row) * var(--board-tile-h));
+        width: calc(var(--board-tile-w) + var(--wide));
+        height: calc(var(--board-tile-h) - var(--wide));
+        border-radius: calc(var(--board-tile-w) * 0.09);
+        outline: 2px solid var(--ronin-table-latest);
+        pointer-events: none;
 
         &::after {
             content: "";
@@ -85,13 +94,10 @@
 
     /* A chankan offer's source: the whole kan, ringed in its meld like the latest discard, until the offer resolves. */
     .meld--source {
+        display: inline-flex;
         border-radius: 6px;
         outline: 2px solid var(--ronin-table-latest);
         outline-offset: 2px;
         box-shadow: 0 0 0 1px var(--ronin-table-latest-inner);
-    }
-
-    .discard-tile-riichi.discard-tile--last {
-        border-radius: 7% / 9%;
     }
 }

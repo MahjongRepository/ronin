@@ -26,10 +26,12 @@ function MeldTileView(tile: MeldTile): TemplateResult {
 
 /**
  * Render a meld from its laid tiles (`meldTiles` lays a recorded meld out), faces like a hand's and a river's; a meld an
- * offer refers to (a kan a chankan may rob) is marked as the offer's source.
+ * offer refers to (a kan a chankan may rob) is marked as the offer's source, by a ring around the tiles rather than on
+ * them, so their shared edge and shadow leave the ring flat.
  */
 function Meld(tiles: readonly MeldTile[], source = false): TemplateResult {
-    return html`<span class="meld ${source ? "meld--source" : ""}">${tiles.map(MeldTileView)}</span>`;
+    const meld = html`<span class="meld">${tiles.map(MeldTileView)}</span>`;
+    return source ? html`<span class="meld--source">${meld}</span>` : meld;
 }
 
 export { Meld };

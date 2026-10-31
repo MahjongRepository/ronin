@@ -216,7 +216,7 @@ $strip-lengths:
     }
 
     @for $k from 0 through $max-melds - 1 {
-        .board-melds > .meld:nth-child(#{$k + 1}) {
+        .board-melds > :is(.meld, .meld--source):nth-child(#{$k + 1}) {
             --meld-over: var(--over-#{$k});
             --line1-x: calc(var(--head-#{$k}) + var(--mp-#{$k}) * var(--rw));
             --line2-x: calc(var(--line2-base) + var(--line2-at-#{$k}) - var(--line2-start));
@@ -291,7 +291,7 @@ $strip-lengths:
     min-width: 0;
     gap: calc(var(--g) + 2px);
 
-    &:has(> .meld) {
+    &:has(> :is(.meld, .meld--source)) {
         margin-left: calc(#{$drawn-gap} * var(--ow));
     }
 
@@ -301,7 +301,7 @@ $strip-lengths:
         );
     }
 
-    > .meld {
+    > :is(.meld, .meld--source) {
         --board-tile-w: max(
             #{$face-floor},
             min(

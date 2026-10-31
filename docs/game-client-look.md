@@ -30,7 +30,13 @@ The derived proportions are the three reference viewports' values under the sizi
 - **A map before tiles.** The board is a table with four seat zones a player perceives, not tiles
   on a void. Every tile has an obvious owner and every seat a fixed place for its identity.
 - **Flat top-down.** No camera, no perspective. Depth comes from the surface, the tile's edge and
-  its shadow. This keeps the client light and fast on low-end phones.
+  its shadow. This keeps the client light and fast on low-end phones. Decision: one light for every
+  seat, as Tenhou's: each tile's edge shows toward the screen's bottom (its ivory body over the
+  back's layer) and its shadow falls down and to the right, whatever the seat; tiles lying together
+  (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
+  a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
+  lies on a face. The latest discard's ring and a chankan source's ring lie flat over the tiles.
+  The own hand's tiles stand facing their player (Tenhou's): a band across each one's top.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
   stay legible and unambiguous but never reshape the ordinary composition.
@@ -158,7 +164,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   right end at river scale. The strip is not a turn cue. Invariant: a strip stands apart from its own
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
-  opponent's hand reads as plainly as its river. A side strip that cannot hold four melds on its
+  opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
+  drawn as its top seen from above (Tenhou's side seats draw it in profile): half its 3:4 slot,
+  at its owner's edge, ivory toward its owner and the back's colour toward the centre, so a live
+  hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
+  kept whole, so a reveal shows the faces in the same place. A side strip that cannot hold four melds on its
   line runs its oldest on a second line inside it, from the foreground band toward its badge; the
   top strip and the own melds scale down instead; no meld face goes under the 13x17 face floor.
   Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
@@ -386,8 +396,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   Loading, not found, incomplete
   and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
   screen); an incomplete one shows no result for its unfinished round.
-- **Material and type.** Ivory tile faces with room around the glyph, a small consistent edge and
-  shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
+- **Material and type.** Ivory tile faces with room around the glyph and a soft bevel lit from the
+  screen's top, a small consistent two-tone edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
   backs in one quiet colour. Decision: the face artwork (the committed SVG set) stays; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: one face,

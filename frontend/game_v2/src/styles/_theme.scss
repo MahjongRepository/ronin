@@ -73,11 +73,16 @@
     --ronin-table-latest-inner: #26332f;
     --ronin-table-turn: #e8efeb;
 
-    /* Tiles: an ivory face with a rim, an edge and a shadow that fall toward the screen's bottom; backs one quiet teal. */
+    /* Tiles: an ivory face with a rim, lit from the screen's top; an edge toward the screen's bottom, the ivory body over
+       the back's layer; a shadow down and to the right; backs one quiet teal. */
     --ronin-tile-face: #f7f3e7;
     --ronin-tile-rim: #d9d0b9;
-    --ronin-tile-edge: #a99a74;
-    --ronin-tile-shadow: rgb(0 0 0 / 42%);
+    --ronin-tile-top: #e4dbc4;
+    --ronin-tile-shine: rgb(255 255 255 / 85%);
+    --ronin-tile-shade: rgb(110 90 40 / 18%);
+    --ronin-tile-edge: #d2c7aa;
+    --ronin-tile-back-edge: #3b6a61;
+    --ronin-tile-shadow: rgb(0 0 0 / 38%);
     --ronin-tile-red: #d71e1e;
     --ronin-back: #4a7a71;
     --ronin-back-rim: #5d8f85;

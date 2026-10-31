@@ -325,6 +325,7 @@
     .tile {
         box-shadow:
             var(--tile-ring),
+            var(--tile-bevel),
             0 0 0 2px var(--ronin-table-latest),
             var(--tile-lift);
     }

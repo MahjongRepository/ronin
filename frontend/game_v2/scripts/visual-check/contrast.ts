@@ -54,7 +54,7 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         ],
         name: "latest discard's ring and notch",
         reach: 12,
-        selector: ".discard-tile--last",
+        selector: ".board-river__latest",
     },
     { hide: [["", NO_OUTLINE]], name: "offered kan's ring", reach: 4, selector: ".meld--source" },
     {
@@ -230,7 +230,7 @@ interface ContrastTargets {
     readonly glyphs: readonly ContrastTarget[];
     /** The marks in batches whose boxes never meet, so each batch hides at once and no mark lends another its pixels. */
     readonly marks: readonly (readonly ContrastTarget[])[];
-    /** Targets the check cannot read honestly: a face whose symbol names no ink, anything under a CSS filter. */
+    /** Targets the check cannot read honestly: a face whose symbol names no ink, anything under a recolouring filter. */
     readonly unreadable: readonly string[];
 }
 
@@ -322,7 +322,18 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                           rgb: [Number(parts.red), Number(parts.green), Number(parts.blue)],
                       };
             }
-            /** The opacity every element from `element` up to `until` (exclusive) applies, or null under a filter. */
+            /** Whether `filter` changes an element's own pixels: drop shadows alone are painted beneath them. */
+            // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+            function recolours(filter: string): boolean {
+                return (
+                    filter !== "none" &&
+                    filter.replaceAll(/drop-shadow\((?:[^()]|\([^()]*\))*\)/g, "").trim() !== ""
+                );
+            }
+            /**
+             * The opacity every element from `element` up to `until` (exclusive) applies, or null under a filter that
+             * recolours it.
+             */
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
             function opacityOf(element: Element, until: Element | null): number | null {
                 let opacity = 1;
@@ -332,7 +343,7 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                     at = at.parentElement
                 ) {
                     const style = getComputedStyle(at);
-                    if (style.filter !== "none" || style.mixBlendMode !== "normal") {
+                    if (recolours(style.filter) || style.mixBlendMode !== "normal") {
                         return null;
                     }
                     opacity *= Number(style.opacity);
