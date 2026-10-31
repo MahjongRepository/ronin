@@ -76,7 +76,7 @@ $plate-seats: bottom, right, top, left;
     @include upright-board {
         left: calc(var(--m) + var(--counters-w) + var(--badge-gap));
         top: var(--counters-top);
-        max-width: none;
+        max-width: calc(100cqw - 2 * var(--m) - var(--counters-w) - var(--badge-gap));
     }
 }
 
@@ -178,13 +178,6 @@ $plate-seats: bottom, right, top, left;
 .nameplate__name.player-name {
     min-width: 0;
     overflow: hidden;
-
-    @include upright-board {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        clip-path: inset(50%);
-    }
 }
 
 .nameplate__ai,

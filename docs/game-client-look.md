@@ -189,8 +189,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   shows the other seats' scores in the centre as differences from it, labelled as that seat's
   differences (kept from the current board). The badge is therefore a control: its tap area meets
   the control floor whatever the drawn badge's size, a key activates it like a tap, a tap pins the
-  differences, and tapping it again, tapping elsewhere or Escape returns the totals. An upright
-  replay or storybook board may reduce the badge to the wind and marks. Decision: on a phone a side
+  differences, and tapping it again, tapping elsewhere or Escape returns the totals. The name
+  shows on every board, upright ones included, shortened rather than dropped. Decision: on a phone a side
   badge stands below the top river's capacity reach, so a long third row never meets it.
 - **Pooled counters.** The five dora indicator slots (each indicator as a face once the event
   that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles) with
