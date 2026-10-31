@@ -50,7 +50,12 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   shaped like the replay's seat control line, ahead of the moves that follow; the snapshot marks a
   seat an AI player holds for its participant by why (`sr`), never as an AI player's (`ai`).
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
-  the reconnect snapshot always carries it. Every game action must echo it, and one for another wait
+  the reconnect snapshot always carries it. Wait ids are one counter per game that only grows (the
+  service bumps it by one per call that ends a wait, `MahjongGameService._end_call`), so across the
+  frames that open a wait and the snapshots a seat receives the id never decreases: a new wait has
+  a larger id, a re-send of the same wait (a reconnect, a resync) repeats it, and the waits of
+  other seats leave gaps. Refusals are outside this order, since they echo the refused action's
+  id. Every game action must echo it, and one for another wait
   is refused as stale. A refusal of a game action names the wait id that action echoed, never the
   current wait's: a game error (stale or a rule judgment) always, and the endpoint's rate limit when
   the frame it drops is a game action with a readable id, since that limit answers before any
