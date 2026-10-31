@@ -1,6 +1,6 @@
 ---
 name: app-browser
-description: This project's agent-browser recipes — run the local stack, log in to the ronin lobby, reach every page (room, live game, matchmaking, history, replay, storybooks), shoot settled screenshots, and check a layout in WebKit as an iPhone. Load together with agent-browser whenever driving ronin in a browser.
+description: This project's agent-browser recipes — run the local stack, log in to the ronin lobby, reach every page (room, live game, matchmaking, history, replay, storybooks) in the v1 client and the v2 client (`?v=2`), shoot settled and targeted screenshots, and check a layout in WebKit as an iPhone. Load together with agent-browser whenever driving ronin in a browser.
 allowed-tools: Bash(agent-browser:*), Bash(curl:*)
 ---
 
@@ -22,7 +22,8 @@ your scratchpad (`$S` below).
    all three servers land there.
 3. Always open pages on the lobby, `http://localhost:8710`. It serves every page: lobby pages pull
    their scripts from the lobby's Vite on `:5173`, and the game client under `/play/` is proxied
-   from its Vite on `:5174`. Neither Vite serves a page you should open.
+   from its Vite on `:5174` (the v2 client's, on a `?v=2` page, from `:5175`). No Vite serves a
+   page you should open.
 
 ## Logging in
 
@@ -53,8 +54,9 @@ agent-browser wait 1000 && agent-browser get url
 ## Reaching the pages
 
 Take ids from the UI, never invent them. Templates in `backend/lobby/views/templates/` are the
-lobby pages; the game client routes are in `frontend/game/src/js/routes.js`. There are no test ids:
-select by element id, class or `snapshot -i` refs.
+lobby pages; the game client routes are in `frontend/game/src/js/routes.js` (v2's in
+`frontend/game_v2/src/index.ts`, *The v2 game client* below). There are no test ids: select by
+element id, class or `snapshot -i` refs.
 
 - **Room:** click `.lobby-create-btn` (Custom table) on `/`. A new room seats `dev` as host with three
   tsumogiri bots.
@@ -63,8 +65,8 @@ select by element id, class or `snapshot -i` refs.
   that is the occupancy rule, not a bug.
 - **Matchmaking:** `/matchmaking` queues for a 4-human match; one browser user only shows the
   waiting state.
-- **History and replay:** `/history` lists recent games; each card's `.games-card-link` ("View
-  replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
+- **History and replay (v1 client):** `/history` lists recent games; each card's
+  `.games-card-link` ("View replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
   the board at its first deal (or at `?seat=&round=&step=`, all zero-based, which the address bar
   then follows; `docs/architecture.md`, Replays), with `.replay-back` / `.replay-play` (autoplay) /
   `.replay-next`, the jumps `.replay-first`, `.replay-prev-round`, `.replay-next-round`,
@@ -96,6 +98,82 @@ select by element id, class or `snapshot -i` refs.
   horizontally scrolling row, so the board keeps nearly full height. The WebKit recipe below
   reaches it only with the `"iPhone 13 landscape"` device; its default portrait `"iPhone 13"` is
   too tall and shows the full wrapped header.
+
+## The v2 game client (`?v=2`)
+
+The lobby serves `frontend/game_v2/` instead of the v1 client on any game page whose query has
+`v=2`; it never adds the parameter, so type it. The client's links to its own game pages (another
+game, a game's replay) keep it, but the storybook's header links, its Back and the index's replay
+links drop it: add `v=2` again after following one. The pages below need no login but the live
+game.
+
+- **Storybooks:** `/play/storybook?v=2` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate}?v=2`.
+  A board page takes its story as `&state=<key>`; its switches (offers, callout, pinned badge,
+  overlay) write their own parameters into the address, so a shot's URL reproduces it. The
+  decisions page runs a generated seat transcript to a labelled checkpoint, `&state=<story>`; the
+  look spec's anchor is `anchor_turn`, `anchor_call` and `anchor_riichi`. A story's board is the
+  live game's box with its switches below, so shoot it at the viewport you are checking.
+- **Live game:** start a game as in *Reaching the pages*; it lands on the v1 client at
+  `/play/<game_id>`. Keep that tab and open the game in a new one:
+  `agent-browser tab new "http://localhost:8710/play/<game_id>?v=2"`. A tab with no handoff
+  recovers it (`GET /api/game-session`) and takes the seat over; the v1 tab says it was replaced.
+  Never move the v1 tab itself to `?v=2`: the seat empties between the two pages, the server ends
+  a game left with no human at once, and the v2 page shows "Game unavailable". When done, leave
+  through `.game-menu__leave` and its Leave, so `dev` is free for the next game. `?debug` adds the
+  message log.
+- **Replay:** `/play/history/<game_id>?v=2`, optionally with `&seat=&round=&step=` (zero-based; a
+  part the replay does not hold falls back). The moves are
+  `.replay-controls__move--{first,prevRound,prev,next,nextRound,last}` and `.replay-controls__play`
+  (autoplay), the options `.replay-controls__option--{speed,view,hands,rounds}`, the position
+  `.replay-status__position`; a replay it cannot show gets `.replay-state` instead. Keys: ArrowLeft
+  and ArrowRight step, ArrowUp, ArrowDown, PageUp and PageDown change round, Home and End go to the
+  ends. The address is kept on the position shown with `history.replaceState` at most once per
+  500 ms, a waiting write flushed as the page hides, so read it a moment after the last move. A
+  replay recorded before a format change reads as Damaged: for a particular case, gzip a fixture
+  as *History and replay* says. The speed and hidden hands are stored under
+  `ronin.v2.replay-prefs` in `localStorage`: remove it after a session that changed them.
+
+### Settled v2 screenshots
+
+Ask for reduced motion, as the gate does, so a callout or a moving tile shows its resting state.
+Routes load their chunks on their own, so first wait for a visible element that proves the state
+(the gate's pages name theirs in `required.visible`; the anchor call's is its countdown), then for
+the tile sprite (before it lands a face shows its short name, `5m`), the face and any animation:
+
+```bash
+agent-browser set media dark reduced-motion
+agent-browser set viewport 1440 900
+agent-browser open "http://localhost:8710/play/storybook/decisions?v=2&state=anchor_call"
+agent-browser wait ".game-board .decision-controls__countdown"
+agent-browser wait --fn "document.documentElement.dataset.tileSprite === 'ready' && document.fonts.status === 'loaded' && document.getAnimations().every(a => a.playState !== 'running' || a.effect.getTiming().iterations === Infinity)"
+agent-browser screenshot $T/<name>.png
+```
+
+For a phone, use the visual gate's runner rather than agent-browser (Chromium only) or a
+hand-written WebKit script, for any state it has a page for: it builds nothing, so build first,
+then it checks the page as well as shooting it, the notch phone's insets and capture model
+included, with no backend:
+
+```bash
+cd frontend/game_v2 && npx vite build
+node scripts/visual-check/run.ts --page decisions-anchor-call --viewport phone-se-landscape --shots ../../thoughts/screenshots/<topic>
+```
+
+Names match by substring and each flag repeats; given both, a page is shot at every viewport
+named, whether its gate entry names it or not. A filter that matches nothing prints every page and
+viewport name. A state with no page there takes the *WebKit phone check* below, on the
+`"iPhone SE (3rd gen) landscape"` device (667x375), in the same order: `page.wait_for_selector`
+on the state's element with `state="visible"`, then the polled settle with the sprite and face
+added (`document.documentElement.dataset.tileSprite === 'ready' && document.fonts.status ===
+'loaded' && ` before the animations' test).
+
+### Targeted v2 screenshots
+
+Shoot the changed area plus one worst case (the smallest phone, or the densest state that holds
+the changed element), before and after, and nothing else: never a sweep of every viewport or
+story, and never the full `make visual-check` mid-work, which runs once at wrap-up. A visual
+review is the anchor's three checkpoints at the spec's three viewports
+(`frontend/game_v2/AGENTS.md`, Layout).
 
 ## Screenshots
 
@@ -149,7 +227,7 @@ with sync_playwright() as p:
     browser.close()
 ```
 
-The game pages draw at `width=800` and the phone scales them down, so `page.tap(selector)` can miss
+The v1 game pages draw at `width=800` and the phone scales them down (v2's are `device-width`), so `page.tap(selector)` can miss
 an element near the page's edge ("`<html>` intercepts pointer events"). Tap where the element is
 instead: its `getBoundingClientRect()` centre times `visualViewport.scale`, with
 `page.touchscreen.tap(x, y)`.
@@ -161,7 +239,7 @@ to the version whose browsers are installed:
 to show a whole page, set the viewport height to `document.documentElement.scrollHeight` and take a
 normal screenshot. Delete the script once done.
 
-Verdana, the game client's UI font, isn't installed on this machine. So WebKit here draws that
+Verdana, the v1 game client's UI font, isn't installed on this machine. So WebKit here draws that
 text in DejaVu Sans, while Chromium (on the `lang="ja"` game pages) uses Noto Sans CJK JP. That
 font difference between the two engines comes from this machine, not from the client, so don't
 chase it. Real iPhones, Macs and Windows have Verdana.
