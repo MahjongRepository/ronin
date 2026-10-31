@@ -1,6 +1,6 @@
 # Replay entity
 
-Moving through a recorded game: navigation, stops, cursor, address, autoplay, reader settings, narration, controls.
+Moving through a recorded game: navigation, stops, cursor, address, autoplay, reader settings, controls.
 
 - Every stop is a client timeline state; none is a table patched outside the dispatcher. Controls, round list,
   address, ledger and autoplay all move through the cursor functions over `buildNavigationIndex`.
@@ -12,4 +12,3 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   never go in the address.
 - Continuous moves (autoplay, held button, wheel) pause on every result page and at the last stop (`isPauseStop`).
 - A replay that stops short of the game's end, or was cut at a damaged line, says so on every stop.
-- Narration (`narrateStop`) is derived from a stop's entries and tables; the table stores no description.

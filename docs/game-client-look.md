@@ -318,7 +318,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   badge, beside the left strip and outside every river's capacity, which a panel leaves free, so an
   automatic notice covers no tile, badge, control or panel; worded for a player, and a recoverable
   interruption looks different from an end. Several stack there, ongoing conditions first; in a
-  replay the position and narration share the place, under any notice; they stand above a panel's
+  replay an incomplete recording's note takes the place, under any notice; it stands above a panel's
   dimming. A notice never loses its ending silently: one taller than its place shows whole lines and a
   "Show all" control, which opens the whole message in a sheet. Decision (step 4.2): "Show all" is the
   clamped notice's last line and the whole notice its target (at least 40px high); where even one
@@ -376,24 +376,23 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   never as a failure. An ended session says
   why and offers the way back; it is not quiet.
 - **Replay.** The board unchanged, its geometry identical to live play's, drawn from the chosen
-  viewpoint seat, which need not be the reader's; plus controls with the position (round, step), the
-  moves, play and speed, the viewpoint and hide-hands switches, the round list and the narration,
-  readable at the floor viewport. Decision: the controls take the foreground band outside the own
+  viewpoint seat, which need not be the reader's; plus controls with the
+  moves, play and speed, the viewpoint and hide-hands switches and the round list, readable at the
+  floor viewport. Decision: no narration and no visible position line; the board itself shows each
+  move and its centre the round, and the position (round, step) is read out to assistive technology only. Decision: the controls take the foreground band outside the own
   river's capacity reach, the moves in the switches' place and the options in the decisions' place,
   those that do not fit beside the reach on a phone in a row above before the right strip; the
-  position and narration share the notices' place, under any notice. Decision: the moves are a round
+  status (an incomplete recording's note) takes the notices' place, under any notice. Decision: the moves are a round
   back, a step back, play (in the accent, the player's own action), a step on and a round on, with
   either end too where the switches' place holds seven (a desktop's chrome; elsewhere the round list's
   first row and its foot, Last step, always in view, reach them by touch); the options are speed, the viewpoint,
   hide hands and the round list, in two rows of two where the band holds fewer than four, the round
   list's toggle in the band. A panel over a replay's board never covers the controls, so the replay
   always moves on. Decision, a panel-only exception: on a board smaller than a desktop's chrome a panel
-  takes all but the moves' row, the options hide but the round list's toggle, and the position
-  stands between them, compact, with an incomplete recording's "Ends here" at its end; the narration
-  is then read out only, since the panel shows the same stop, and the panel's tiles keep their size,
-  its content scrolling with its pager and action in reach. The options return as the panel closes.
-  The narration is announced once, by a live region of its own, and is silent while autoplay runs.
-  Loading, not found, incomplete
+  takes all but the moves' row, the options hide but the round list's toggle, and an incomplete
+  recording's "Ends here" stands between them, compact, and the panel's
+  tiles keep their size, its content scrolling with its pager and action in reach. The options return
+  as the panel closes. Loading, not found, incomplete
   and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
   screen); an incomplete one shows no result for its unfinished round.
 - **Material and type.** Ivory tile faces with room around the glyph and a soft bevel lit from the

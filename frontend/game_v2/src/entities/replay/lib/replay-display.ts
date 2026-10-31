@@ -1,4 +1,3 @@
-import { type StepEvent } from "@/entities/replay/model/action-steps";
 import { type NavigationIndex } from "@/entities/replay/model/navigation-index";
 import {
     type ReplayCursor,
@@ -25,8 +24,6 @@ import {
     roundResultSummary,
 } from "@/entities/table";
 
-import { narrateStop } from "./replay-narration";
-
 /** A replay that is not the whole game: a short label, and why. */
 export interface ReplayIncompleteness {
     readonly label: string;
@@ -34,11 +31,10 @@ export interface ReplayIncompleteness {
 }
 
 /**
- * A replay as its page reads it: the timeline's step events, and its tables with the calls each state shows (index by
- * index), its navigation, and where it broke off.
+ * A replay as its page reads it: its tables with the calls each state shows (index by index), its navigation, and where
+ * it broke off.
  */
 export interface ReplaySource {
-    readonly events: readonly StepEvent[];
     readonly tables: readonly TableState[];
     readonly calls: readonly (readonly Call[])[];
     readonly navigation: NavigationIndex;
@@ -63,7 +59,7 @@ export interface ReplayRoundRow {
     readonly start: ReplayCursor;
 }
 
-/** What a replay page shows at a cursor beside the board: where it stands, what happened, where it can go. */
+/** What a replay page shows at a cursor beside the board: where it stands and where it can go. */
 export interface ReplayDisplay {
     readonly table: TableState;
     /** The calls the stop's own move made, by their seats from the perspective's; null for a move that made none. */
@@ -75,7 +71,6 @@ export interface ReplayDisplay {
     readonly honbaLabel: string | null;
     /** The stop within its round, from 1 at the deal: "Step 3 of 42". */
     readonly step: { readonly index: number; readonly count: number };
-    readonly narration: string;
     readonly moves: ReplayMoves;
     readonly rounds: readonly ReplayRoundRow[];
     /** Why the replay is not the whole game, shown on every stop; null for a whole game read in full. */
@@ -150,7 +145,7 @@ function stopCallouts(
     return { items: boardCallouts(calls, perspective.bottomSeat), key: `stop-${stop}` };
 }
 
-/** What the page shows at `cursor` from `perspective`: the table, the round and step, the narration and the moves. */
+/** What the page shows at `cursor` from `perspective`: the table, the round and step and the moves. */
 export function replayDisplay(
     source: ReplaySource,
     cursor: ReplayCursor,
@@ -166,7 +161,6 @@ export function replayDisplay(
         honbaLabel: honbaName(round.honba),
         incomplete: incompleteness(source),
         moves: replayMoves(nav, cursor),
-        narration: narrateStop(source, stop, perspective),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
         roundTitle: roundName(round.wind, round.roundInWind),
         rounds: roundRows(nav, stop.round),

@@ -304,7 +304,7 @@ function loadedTemplate(
     { links, standings }: ReplayPage,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { autoplay, hideHands, pinnedNameplate, replay, view } = screen;
+    const { hideHands, pinnedNameplate, replay, view } = screen;
     const perspective = {
         bottomSeat: view.bottomSeat,
         reveal: hideHands ? "bottom" : "all",
@@ -337,7 +337,7 @@ function loadedTemplate(
                 overlayIsResult: showsRoundResult(display.table),
                 replay: {
                     controls: controlsTemplate(screen, display, handlers),
-                    status: ReplayStatus({ display, playing: autoplay.playing }),
+                    status: ReplayStatus({ display }),
                 },
                 scoreDiff,
                 state: tableStateToDisplayState(display.table, perspective),

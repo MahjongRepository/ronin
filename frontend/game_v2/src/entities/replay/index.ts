@@ -33,7 +33,6 @@ export {
 } from "./model/replay-address";
 export type { LoadedReplay, ReplayRead, ReplayUnshowable } from "./model/read-replay";
 export { readReplay, timelineStepEvents } from "./model/read-replay";
-export { narrateStop } from "./lib/replay-narration";
 export type {
     ReplayDisplay,
     ReplayIncompleteness,

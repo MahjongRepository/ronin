@@ -44,10 +44,8 @@ export interface ReplayControlsProps {
 export interface ReplayStatusProps {
     readonly display: Pick<
         ReplayDisplay,
-        "endNotice" | "honbaLabel" | "incomplete" | "narration" | "roundTitle" | "step"
+        "endNotice" | "honbaLabel" | "incomplete" | "roundTitle" | "step"
     >;
-    /** Autoplay runs, so the narration is not read out at each of its stops. */
-    readonly playing: boolean;
 }
 
 type MoveName = keyof ReplayMoves;
@@ -229,11 +227,10 @@ function IncompleteNote(
 }
 
 /**
- * What the replay shows in the notices' place: the round and step, a replay that is not the whole game saying so (and
- * where it ends at its last stop), and the narration of the stop, read out once by a live region of its own that
- * stays empty while autoplay runs; the narration drawn is hidden from assistive technology, which reads that region.
+ * What the replay shows in the notices' place: a replay that is not the whole game saying so (and where it ends at its
+ * last stop). The round and step are for assistive technology alone; the board's centre shows the round.
  */
-export function ReplayStatus({ display, playing }: ReplayStatusProps): TemplateResult {
+export function ReplayStatus({ display }: ReplayStatusProps): TemplateResult {
     const { step } = display;
     return html`<div class="replay-status">
         <p class="replay-status__position">
@@ -245,7 +242,5 @@ export function ReplayStatus({ display, playing }: ReplayStatusProps): TemplateR
             <span class="replay-status__step">Step ${step.index} of ${step.count}</span>
         </p>
         ${IncompleteNote(display.incomplete, display.endNotice)}
-        <p class="replay-status__narration" aria-hidden="true">${display.narration}</p>
-        <p class="replay-status__announcer" aria-live="polite">${playing ? "" : display.narration}</p>
     </div>`;
 }

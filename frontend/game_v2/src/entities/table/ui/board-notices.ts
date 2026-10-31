@@ -48,8 +48,8 @@ function noticeKey(notice: BoardNotice): string {
 /**
  * The notices' place in the table's left field, outside every river's capacity, so a notice never covers a tile, a
  * badge or a control: the notices, ongoing conditions first, each clamped to whole lines with "Show all" where the
- * stack is taller than the place, and under them what the board's page shows there too (a replay's position and
- * narration). They are read out by `NoticeAnnouncements`, never from here, so a clamp is never announced.
+ * stack is taller than the place, and under them what the board's page shows there too (a replay's position). They
+ * are read out by `NoticeAnnouncements`, never from here, so a clamp is never announced.
  */
 export function BoardNotices(
     notices: readonly BoardNotice[],

@@ -48,9 +48,6 @@ describe("replayDisplay", () => {
         const display = replayDisplay(replay, { page: 0, stop: riichiStop }, ALL);
         const [, alice, charlie] = display.table.players;
 
-        expect(display.narration).toBe(
-            "Alice declares riichi, discarding Red dragon · AI plays for Charlie, who left",
-        );
         expect([display.table.riichiSticks, alice.score, alice.isRiichi]).toEqual([
             1,
             24_000,
@@ -65,7 +62,6 @@ describe("replayDisplay", () => {
         const replay = replayOf([version, gameStarted, dealt, replacement, ...rest].join("\n"));
         const display = replayDisplay(replay, { page: 0, stop: 0 }, ALL);
 
-        expect(display.narration).toBe("East 1: Diana deals · AI plays for Charlie, who left");
         expect(display.table.players[0].tiles).toHaveLength(14);
         expect(display.step.index).toBe(1);
     });

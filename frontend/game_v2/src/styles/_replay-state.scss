@@ -1,5 +1,4 @@
 @use "game-board/queries" as *;
-@use "type";
 
 $controls-z: 26;
 $round-list-z: 30;
@@ -235,7 +234,7 @@ $place-gap: 6px;
     stroke-linejoin: round;
 }
 
-/* The position and narration in the notices' place, under any notice. */
+/* The status in the notices' place, under any notice; its position is read out only. */
 .replay-status {
     display: flex;
     flex-direction: column;
@@ -249,26 +248,6 @@ $place-gap: 6px;
 }
 
 .replay-status__position {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 0.5em;
-    font-weight: 650;
-    color: var(--ronin-text);
-}
-
-.replay-status__step {
-    @include type.figures;
-
-    font-weight: 500;
-    color: var(--ronin-text-secondary);
-}
-
-.replay-status__narration {
-    color: var(--ronin-text-secondary);
-    overflow-wrap: break-word;
-}
-
-.replay-status__announcer {
     @include visually-hidden;
 }
 
@@ -325,7 +304,7 @@ $place-gap: 6px;
     }
 }
 
-/* A panel over the replay leaves the band to its controls, and on a wide desktop the left field to its narration. */
+/* A panel over the replay leaves the band to its controls, and on a wide desktop the left field to its status. */
 .game-board--replay > .board-overlay {
     --band-reserve-top: var(--foreground-top);
 
@@ -347,7 +326,7 @@ $place-gap: 6px;
 }
 
 /* On a smaller board a panel takes all but the moves' row: the options hide but the round list's toggle (its last row
-   is the end), and the position and the end's mark stand between them, the narration read out only. */
+   is the end), and the end's mark stands between them. */
 @include small-chrome {
     .game-board--replay:has(> .board-overlay) {
         .replay-controls__options {
@@ -374,18 +353,14 @@ $place-gap: 6px;
 
         .replay-status {
             gap: 0;
-            padding: 0 0.5em;
             line-height: 1.2;
-            background: var(--ronin-notice);
-            border: 1px solid var(--ronin-border-mark);
-            border-radius: 10px;
         }
 
         .replay-status__incomplete {
             padding-block: 0;
         }
 
-        :is(.replay-status__narration, .replay-status__incomplete-detail) {
+        .replay-status__incomplete-detail {
             @include visually-hidden;
         }
 
@@ -395,7 +370,7 @@ $place-gap: 6px;
     }
 }
 
-/* Upright, the position stands in the options' row, before the round list's toggle. */
+/* Upright, the status stands in the options' row, before the round list's toggle. */
 @include upright-board {
     .game-board--replay:has(> .board-overlay) .board-notices {
         --band-middle-end: calc(var(--opt-right) + var(--rb) + var(--rgap));

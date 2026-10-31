@@ -18,7 +18,7 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
-import { type ActionStep, buildNavigationIndex, narrateStop } from "@/entities/replay";
+import { type ActionStep, buildNavigationIndex } from "@/entities/replay";
 import {
     type BoardPerspective,
     type PlayerState,
@@ -261,15 +261,6 @@ describe("readReplayTimeline - engine replays", () => {
         });
         expect(end.players.map((player) => player.tiles.length)).toEqual([13, 10, 10, 11]);
         expect(end.doraIndicators).toEqual([102, 103, 104, 107]);
-        const callNarration = buildNavigationIndex(timeline.events, timeline.tables)
-            .stops.filter((stop) => timeline.events[stop.moveEntry]?.type === "meld")
-            .map((stop) => narrateStop(timeline, stop, REPLAY_VIEW));
-        expect(callNarration).toEqual([
-            "Charlie calls kan on Green dragon from Diana",
-            "Alice calls pon on White dragon from Bob",
-            "Alice adds a kan of White dragon",
-            "Bob declares a closed kan of 1s · new dora indicator 9s",
-        ]);
     });
 
     test("kans: the tsumo wins on the rinshan draw after the last kan", () => {

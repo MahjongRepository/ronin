@@ -43,7 +43,7 @@ interface GameBoardProps {
     readonly menu?: TemplateResult;
     /** The calls shown by their seats for a moment, over the table and never over the local hand; they take no input. */
     readonly callouts?: BoardCallouts | null;
-    /** Each new showing of calls is read out once, by its seats' names (a live board's; a replay's narration tells them). */
+    /** Each new showing of calls is read out once, by its seats' names (a live board's). */
     readonly announceCalls?: boolean;
     /** The overlay's panel is a round's result, which waits until a win's call has been seen; any other shows at once. */
     readonly overlayIsResult?: boolean;
@@ -53,7 +53,7 @@ interface GameBoardProps {
     readonly switches?: TemplateResult;
     /**
      * A replay's controls, over the foreground band in the switches' and the decisions' places (a board that shows
-     * them plays no hand), and what it shows in the notices' place under any notice (its position and narration).
+     * them plays no hand), and what it shows in the notices' place under any notice (its position).
      */
     readonly replay?: { readonly controls: TemplateResult; readonly status: TemplateResult };
     /**

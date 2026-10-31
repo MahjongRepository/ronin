@@ -348,12 +348,11 @@ afterEach(() => {
 });
 
 describe("mountReplayView - moving", () => {
-    it("renders the board, the position and the narration of the stop it opens on", async () => {
+    it("renders the board and the position of the stop it opens on", async () => {
         const { host } = await mountLoadedReplay();
 
         expect(host.querySelector(".game-board")).not.toBeNull();
         expect(position(host)).toBe("East 1 Step 1 of 28");
-        expect(textOf(host, ".replay-status__narration")).toBe("East 1: Diana deals");
         expect(button(host, ".replay-controls__move--prev").disabled).toBe(true);
     });
 
@@ -368,10 +367,10 @@ describe("mountReplayView - moving", () => {
         expect(position(host)).toBe("East 1 Step 2 of 28");
     });
 
-    it("leaves the wheel to the narration's place and to where no step goes", async () => {
+    it("leaves the wheel to the status's place and to where no step goes", async () => {
         const { host } = await mountLoadedReplay();
 
-        expect(wheel(element(host, ".replay-status__narration"), 100)).toBe(false);
+        expect(wheel(element(host, ".replay-status"), 100)).toBe(false);
         expect(wheel(element(host, ".game-board"), -100)).toBe(false);
         expect(position(host)).toBe("East 1 Step 1 of 28");
     });
@@ -475,25 +474,6 @@ describe("mountReplayView - autoplay", () => {
         clock.advanceTo(clock.lastTimer().at);
 
         expect([position(host), playing(host)]).toEqual(["East 1 Step 2 of 28", true]);
-    });
-
-    it("reads the narration out once by its own live region, which stays empty while autoplay runs", async () => {
-        const { clock, host } = await mountLoadedReplay();
-        function announced(): string[] {
-            return [...host.querySelectorAll("[aria-live='polite']")]
-                .map((region) => region.textContent.trim())
-                .filter((text) => text !== "");
-        }
-        button(host, ".replay-controls__move--next").click();
-        const stepped = [announced(), textOf(host, ".replay-status__narration")];
-
-        button(host, ".replay-controls__play").click();
-        clock.advanceTo(clock.now() + 1000);
-        const whilePlaying = [position(host), announced()];
-
-        expect(stepped).toEqual([["Diana discards East"], "Diana discards East"]);
-        expect(element(host, ".replay-status__narration").getAttribute("aria-hidden")).toBe("true");
-        expect(whilePlaying).toEqual(["East 1 Step 3 of 28", []]);
     });
 
     it("shows the speed the reader's settings name, and re-arms its timer at a new one", async () => {
@@ -656,7 +636,7 @@ describe("mountReplayView - view", () => {
         expect(written.at(-1)).toBe("?v=2&round=0&step=10&seat=1");
     });
 
-    it("hides the other hands and their draws, and keeps the choice in the reader's settings", async () => {
+    it("hides the other hands, and keeps the choice in the reader's settings", async () => {
         const { host, savedPrefs } = await mountLoadedReplay("riichi", "?round=0&step=2");
         const shownBacks = host.querySelectorAll(".board-strip .tile-back").length;
 
@@ -664,7 +644,6 @@ describe("mountReplayView - view", () => {
 
         expect(shownBacks).toBe(0);
         expect(host.querySelectorAll(".board-strip .tile-back").length).toBeGreaterThan(0);
-        expect(textOf(host, ".replay-status__narration")).toBe("Alice draws");
         expect(savedPrefs).toEqual([{ hideHands: true, speed: 1 }]);
     });
     it("shows the hands a round's result reveals face up while the other hands hide", async () => {

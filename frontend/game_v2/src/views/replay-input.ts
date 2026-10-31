@@ -132,7 +132,7 @@ export function keyCommand(event: KeyboardEvent): ReplayKeyCommand | null {
 
 /**
  * A wheel turned up or down over the board, outside the round list, the standings' rounds, the notices' place (the
- * position and narration) and a round's result scrolling in its panel, and not a pinch: its distance in pixels, the
+ * position) and a round's result scrolling in its panel, and not a pinch: its distance in pixels, the
  * step it asks for, or null where the wheel is not the page's.
  */
 export function boardWheel(

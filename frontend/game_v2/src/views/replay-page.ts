@@ -54,7 +54,7 @@ export interface LoadedScreen {
     /** The nameplate pinned for the others' score differences, kept from step to step until unpinned. */
     readonly pinnedNameplate: SeatPosition | null;
     readonly autoplay: ReplayAutoplay;
-    /** Whether the other seats' hands hide, as a seat would see the table, their draws in the narration too. */
+    /** Whether the other seats' hands hide, as a seat would see the table. */
     readonly hideHands: boolean;
     readonly hold: ReplayHold | null;
     /** The step button whose press stepped already, so the click that press ends in is dropped, once. */

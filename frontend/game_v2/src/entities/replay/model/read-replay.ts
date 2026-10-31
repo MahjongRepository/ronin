@@ -35,6 +35,8 @@ export function timelineStepEvents(timeline: ClientTimeline): StepEvent[] {
 
 /** A replay ready for its page: what it shows, where it opens, and the seats a viewer may look from. */
 export interface LoadedReplay extends ReplaySource {
+    /** Each timeline entry's step event, by which autoplay paces its stops. */
+    readonly events: readonly StepEvent[];
     /** The first deal, where the page opens when its address names no stop the replay holds. */
     readonly opening: ReplayCursor;
     /** The recorded first dealer's seat, the default seat at the bottom (`docs/architecture.md`, Replays). */
@@ -54,7 +56,7 @@ export type ReplayRead =
 /** Each timeline entry's step event, and each timeline state's table and the calls it shows. */
 function timelineSource(
     timeline: ClientTimeline,
-): Pick<ReplaySource, "calls" | "events" | "tables"> {
+): Pick<LoadedReplay, "calls" | "events" | "tables"> {
     const states = timelineStates(timeline);
     return {
         calls: states.map((state) => state.calls?.calls ?? []),

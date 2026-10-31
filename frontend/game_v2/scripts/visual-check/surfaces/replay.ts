@@ -40,19 +40,12 @@ import {
 const REPLAY_TEXT_PX: Readonly<Record<StatusPart, number>> = {
     end: 12,
     incomplete: 12,
-    narration: 13,
-    position: 13,
 };
 
 /** The most lines each part wraps to on a desktop window, the narrow one's narrow left field included. */
 const DESKTOP_TEXT_LINES: Readonly<Partial<Record<StatusPart, number>>> = {
     incomplete: 4,
-    narration: 3,
-    position: 2,
 };
-
-/** The fewest of the narration's lines its place shows at once, without scrolling to them. */
-const MIN_NARRATION_LINES = 3;
 
 /** A board with the desktop's chrome: at least this wide and high (smaller chrome holds five moves, not seven). */
 const DESKTOP_CHROME = { height: 520, width: 1100 };
@@ -76,30 +69,21 @@ const OPTIONS = [
 
 const REPLAY_MAX_STEPS = 300;
 const REPLAY_LOCAL_MELDS = 2;
-/** Autoplay's stops the gate waits through while it checks the narration stays silent. */
-const AUTOPLAY_STEPS = 2;
-const AUTOPLAY_TIMEOUT_MS = 5000;
-/** Autoplay's fastest speed's label, and how many presses of its speed button cycle through every speed. */
-const FASTEST_SPEED = "4";
-const SPEED_TRIES = 4;
 
-type StatusPart = "end" | "incomplete" | "narration" | "position";
+type StatusPart = "end" | "incomplete";
 
-/** Each part of the status by its selector: the position, the incompleteness, its compact end mark, the narration. */
+/** Each part of the status drawn, by its selector: the incompleteness and its compact end mark. */
 const STATUS_PARTS: Readonly<Record<StatusPart, string>> = {
     end: ".replay-status__incomplete-end",
     incomplete: ".replay-status__incomplete",
-    narration: ".replay-status__narration",
-    position: ".replay-status__position",
 };
 
-/** A part of the status as drawn: shown (drawn at least a line high), its size, lines, box and lines in its place. */
+/** A part of the status as drawn: shown (drawn at least a line high), its size, lines and box. */
 interface StatusText {
     readonly shown: boolean;
     readonly px: number;
     readonly lines: number;
     readonly box: Box;
-    readonly linesInPlace: number;
 }
 
 /** A control as drawn: its box, and whether it shows (rendered and at least a pixel each way). */
@@ -139,7 +123,7 @@ function replayCase(story: string, extra: readonly string[]): BoardCase {
         name: `replay-${story.replaceAll("_", "-")}`,
         path: `/play/storybook/replay?state=${story}`,
         required: {
-            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".replay-status", ...extra],
+            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ...extra],
         },
     };
 }
@@ -196,7 +180,10 @@ async function replayStep(page: Page): Promise<number> {
  */
 function expectStep(step: number): (page: Page) => Promise<void> {
     return async (page) => {
-        await page.waitForSelector(".replay-status__step", { timeout: SELECTOR_TIMEOUT_MS });
+        await page.waitForSelector(".replay-status__step", {
+            state: "attached",
+            timeout: SELECTOR_TIMEOUT_MS,
+        });
         const shown = await replayStep(page);
         if (shown !== step + 1) {
             throw new Error(`the replay shows step ${shown}, not its address's ${step + 1}`);
@@ -225,98 +212,9 @@ async function checkStepButton(page: Page): Promise<void> {
     }
 }
 
-/** Press autoplay's speed until its label starts with the one asked for, at most once round every speed. */
-async function cycleSpeedTo(page: Page, label: string): Promise<void> {
-    const speed = page.locator(".replay-controls__option--speed");
-    for (let tries = 0; tries < SPEED_TRIES; tries += 1) {
-        const shown = await speed.textContent();
-        if (shown?.startsWith(label) === true) {
-            return;
-        }
-        await speed.click();
-    }
-    throw new Error(`autoplay's speed never showed ${label}`);
-}
-
-/** Start recording every text the narration's live region holds, as a screen reader would hear its changes. */
-async function recordAnnouncements(page: Page): Promise<void> {
-    await page.evaluate(() => {
-        const live = document.querySelector(".replay-status [aria-live='polite']");
-        if (live === null) {
-            throw new Error("the narration has no polite live region");
-        }
-        const heard: string[] = [];
-        Reflect.set(window, "__heard", heard);
-        new MutationObserver(() => heard.push(live.textContent.trim())).observe(live, {
-            characterData: true,
-            childList: true,
-            subtree: true,
-        });
-    });
-}
-
-/** The texts recorded since the last take, drained from the one queue the observer keeps writing to. */
-async function takeAnnouncements(page: Page): Promise<string[]> {
-    return page.evaluate(() => {
-        const heard: unknown = Reflect.get(window, "__heard");
-        return Array.isArray(heard) ? heard.splice(0).map(String) : [];
-    });
-}
-
-/** The live regions' texts in the page's accessibility tree that carry the narration shown. */
-async function narrationInTree(page: Page): Promise<{ narration: string; count: number }> {
-    const shown = await page.locator(".replay-status__narration").textContent();
-    const narration = shown?.trim() ?? "";
-    const tree = await page.locator(".replay-board-mode").ariaSnapshot();
-    return { count: tree.split(narration).length - 1, narration };
-}
-
-/**
- * The narration is in the accessibility tree once, a step announces its new narration once, and autoplay is silent:
- * the live region holds nothing while it runs, at its fastest speed.
- */
-async function checkNarrationAnnounced(page: Page): Promise<void> {
-    const shown = await narrationInTree(page);
-    if (shown.narration === "" || shown.count !== 1) {
-        throw new Error(
-            `the narration "${shown.narration}" is in the accessibility tree ${shown.count} time(s), not once`,
-        );
-    }
-    await recordAnnouncements(page);
-    await page.locator("[data-step='next']").click();
-    const stepped = await takeAnnouncements(page);
-    const nextText = await page.locator(".replay-status__narration").textContent();
-    const next = nextText?.trim();
-    const heard = stepped.filter((text) => text !== "");
-    if (heard.length !== 1 || heard[0] !== next) {
-        throw new Error(`a step announced ${JSON.stringify(heard)}, not its narration once`);
-    }
-    const reader = await page.locator(".replay-controls__option--speed").textContent();
-    await cycleSpeedTo(page, FASTEST_SPEED);
-    await takeAnnouncements(page);
-    const before = await replayStep(page);
-    await page.locator(".replay-controls__play").click();
-    await page.waitForFunction(
-        ([from, steps]) => {
-            const text = document.querySelector(".replay-status__step")?.textContent ?? "";
-            return Number(/Step (?<index>\d+) of/u.exec(text)?.groups?.index) >= from + steps;
-        },
-        [before, AUTOPLAY_STEPS] as const,
-        { timeout: AUTOPLAY_TIMEOUT_MS },
-    );
-    const playing = await takeAnnouncements(page);
-    await page.locator(".replay-controls__play").click();
-    await cycleSpeedTo(page, reader ?? "");
-    const spoken = playing.filter((text) => text !== "");
-    if (spoken.length > 0) {
-        throw new Error(`autoplay announced ${JSON.stringify(spoken)}`);
-    }
-}
-
 async function stepReplayToLocalMelds(page: Page): Promise<void> {
     await page.waitForSelector(".replay-controls", { timeout: SELECTOR_TIMEOUT_MS });
     await checkStepButton(page);
-    await checkNarrationAnnounced(page);
     for (let step = 0; step < REPLAY_MAX_STEPS; step += 1) {
         if ((await page.locator(".board-local .meld").count()) >= REPLAY_LOCAL_MELDS) {
             return;
@@ -375,10 +273,10 @@ async function checkThrowOnStep(
  */
 const PAGES: readonly PageCase[] = [
     {
-        ...replayCase("start", [".replay-status__narration"]),
+        ...replayCase("start", []),
         at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, UPRIGHT_PHONE],
     },
-    { ...replayCase("mid", [".replay-status__narration"]), prepare: expectStep(14) },
+    { ...replayCase("mid", []), prepare: expectStep(14) },
     {
         ...replayCase("standings_failed", [".board-notices .board-notice--error"]),
         at: [FLOOR, MID_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
@@ -531,10 +429,6 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
             });
             const status = document.querySelector(".replay-status");
             const placeElement = status?.closest(".board-notices") ?? null;
-            const placeBottom =
-                placeElement === null
-                    ? 0
-                    : placeElement.getBoundingClientRect().top + placeElement.clientHeight;
             const measured = Object.entries(parts).flatMap(([part, selector]) => {
                 const element = document.querySelector(selector);
                 if (element === null) {
@@ -554,9 +448,6 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                         {
                             box: box(element),
                             lines: middles.length,
-                            linesInPlace: middles.filter(
-                                (middle) => middle + lineHeight / 2 <= placeBottom + 1,
-                            ).length,
                             px: Number.parseFloat(getComputedStyle(element).fontSize),
                             shown,
                         },
@@ -603,7 +494,7 @@ interface ReplayState {
     readonly desktopChrome: boolean;
     /**
      * The panel-only exception: on a board with smaller chrome a panel over it takes all but the moves' row, so the
-     * options but the round list's toggle hide, and the status is compact (the position and the end's mark).
+     * options but the round list's toggle hide, and the status is compact (the end's mark).
      */
     readonly compact: boolean;
 }
@@ -690,11 +581,11 @@ function checkReplayControls(
     }
 }
 
-/** The status's parts the board must show: the position always, the narration unless compact, the end's mark there. */
+/** The status's parts the board must show: an incomplete replay's note, its end's mark where compact. */
 function expectedParts(replay: ReplayMeasure, { compact }: ReplayState): readonly StatusPart[] {
     const incomplete = replay.parts.incomplete === undefined ? [] : (["incomplete"] as const);
     const end = compact && replay.atEnd ? (["end"] as const) : [];
-    return ["position", ...(compact ? [] : (["narration"] as const)), ...incomplete, ...end];
+    return [...incomplete, ...end];
 }
 
 /** A part of the status the state asks for: shown, at its size, and within its lines on a desktop window. */
@@ -719,7 +610,7 @@ function checkStatusPart(
  * The replay's status in the notices' place: on the board and the screen, wholly inside its place under any notice,
  * which scrolls down where it is too short but never clips sideways or silently, over no tile, badge, control or panel (over a panel's
  * dimming it covers only the inert table); every part the state asks for shown at its size, within its lines on a
- * desktop window, and with no panel at least three of the narration's lines (or all it has) in view at once.
+ * desktop window.
  */
 function checkReplayStatus(
     replay: ReplayMeasure,
@@ -771,13 +662,6 @@ function checkReplayStatus(
     );
     for (const part of expectedParts(replay, state)) {
         checkStatusPart(part, { desktop, text: replay.parts[part] }, report);
-    }
-    const { narration } = replay.parts;
-    if (panel === undefined && narration !== undefined && narration.shown) {
-        report.expect(
-            narration.linesInPlace >= Math.min(narration.lines, MIN_NARRATION_LINES),
-            `the replay's narration shows ${narration.linesInPlace} of its ${narration.lines} line(s) at once, under ${MIN_NARRATION_LINES}`,
-        );
     }
 }
 
@@ -878,15 +762,6 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
         const shown = replay.band.filter((control) => control.shown).map((control) => control.box);
         const outside = shown.filter((control) => !contains(board.board, control));
         report.expect(outside.length === 0, `${outside.length} replay control(s) off the board`);
-        const { position } = replay.parts;
-        const panel = board.overlay?.box;
-        report.expect(
-            position !== undefined &&
-                position.shown &&
-                contains(board.board, position.box) &&
-                (panel === undefined || !intersects(panel, position.box)),
-            "the replay's position is not shown on the board, clear of the panel",
-        );
         return;
     }
     checkReplayControls(replay, { board, screen, state }, report);
