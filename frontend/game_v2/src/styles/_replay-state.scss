@@ -313,7 +313,9 @@ $place-gap: 6px;
 /* Upright, the left field is too narrow for text: the place spans the board above the options' row. */
 .game-board--replay .board-notices {
     @include upright-board {
-        --place-bottom: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap) - #{$place-gap});
+        --place-bottom: calc(
+            var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap) - #{$place-gap}
+        );
 
         top: auto;
         bottom: calc(100cqh - var(--place-bottom));

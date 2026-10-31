@@ -55,10 +55,9 @@
     @include upright-board {
         --notice-gap: 6px;
         --notice-top: calc(var(--cy) + var(--h) + var(--g) + 3 * var(--rh) + var(--notice-gap));
+        --notice-right: max(var(--strip-depth), var(--right-depth));
 
-        width: calc(
-            100cqw - var(--notice-left) - var(--m) - max(var(--strip-depth), var(--right-depth)) - 8px
-        );
+        width: calc(100cqw - var(--notice-left) - var(--m) - var(--notice-right) - 8px);
         max-height: calc(var(--notices-bottom) - var(--notice-top));
     }
 }

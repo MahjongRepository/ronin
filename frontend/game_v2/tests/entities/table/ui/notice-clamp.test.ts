@@ -44,7 +44,10 @@ describe("planNoticeClamp", () => {
 
     it("never clamps a notice to all its lines, which would hide only its way out", () => {
         expect(planNoticeClamp(52, GAP, [notice(2, true, 18)])).toEqual({ lines: [1], shown: 1 });
-        expect(planNoticeClamp(45, GAP, [notice(1, true, 30)])).toEqual({ lines: [null], shown: 1 });
+        expect(planNoticeClamp(45, GAP, [notice(1, true, 30)])).toEqual({
+            lines: [null],
+            shown: 1,
+        });
     });
 
     it("never clamps a notice the board cannot open whole", () => {
