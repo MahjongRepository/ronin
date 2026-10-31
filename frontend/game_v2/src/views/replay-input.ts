@@ -79,10 +79,29 @@ export function stepKeyDirection(event: KeyboardEvent): StepDirection | null {
     return step === "next" || step === "prev" ? step : null;
 }
 
-/** Whether `element` is inside the panel over the board while that panel scrolls. */
+/**
+ * Whether `element` is inside the panel over the board while that panel, or a part of it between the element and the
+ * panel (a round result's yaku, value or score rows), scrolls.
+ */
 function inScrollingPanel(element: Element): boolean {
     const panel = element.closest(OVERLAY_PANEL_SELECTOR);
-    return panel !== null && panel.scrollHeight > panel.clientHeight;
+    if (panel === null) {
+        return false;
+    }
+    for (let node: Element | null = element; node !== panel; node = node.parentElement) {
+        if (node === null) {
+            return false;
+        }
+        if (node.scrollHeight > node.clientHeight && scrollsVertically(node)) {
+            return true;
+        }
+    }
+    return panel.scrollHeight > panel.clientHeight;
+}
+
+function scrollsVertically(element: Element): boolean {
+    const { overflowY } = getComputedStyle(element);
+    return overflowY === "auto" || overflowY === "scroll";
 }
 
 /**

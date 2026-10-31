@@ -28,7 +28,7 @@ export interface BoardMeasure {
         readonly box: Box;
         readonly scroll: Size;
         readonly client: Size;
-        /** A round result's panel, which may scroll under its foot (`checkResultPanel`); any other panel fits. */
+        /** A round result's panel, which may scroll its parts in place (`checkResultPanel`); any other panel fits. */
         readonly result: boolean;
     } | null;
     readonly tiles: readonly Box[];

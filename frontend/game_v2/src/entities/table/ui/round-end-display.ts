@@ -136,12 +136,16 @@ function WinValue(page: WinPageDisplay): TemplateResult {
     </div>`;
 }
 
-/** The panel's foot: the scores, and the viewer's controls beside them when it has any. */
+/**
+ * The panel's foot: the scores, and the viewer's controls beside them when it has any, in a cell of their own, so a
+ * panel too short for the result scrolls the scores and keeps the controls in view.
+ */
 function ScoreFoot(
     rows: readonly ResultScoreRow[],
     controls: TemplateResult | undefined,
 ): TemplateResult {
-    return html`<div class="round-end-result__foot">${ScoreGrid(rows)}${controls ?? nothing}</div>`;
+    return html`<div class="round-end-result__foot">${ScoreGrid(rows)}</div>
+        ${controls ?? nothing}`;
 }
 
 function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {

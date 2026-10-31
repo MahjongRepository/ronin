@@ -43,8 +43,11 @@ interface Required {
 
 /** What a board page asks of the board's checks beyond the board itself. */
 export interface BoardOptions {
-    /** The round result's panel is made shorter than its content, which must then scroll. */
-    readonly panelScrolls?: boolean;
+    /**
+     * The round result's panel is made shorter than its content, which must then scroll: its parts in place
+     * (`parts`), or, shorter than even its head, hands and controls, the panel itself (`panel`).
+     */
+    readonly panelScrolls?: "parts" | "panel";
     /** Its names are longer than any badge holds, so a badge may shorten them in the middle. */
     readonly longNames?: boolean;
 }

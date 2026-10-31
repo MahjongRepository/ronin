@@ -242,6 +242,16 @@ function pressOnFocus(host: HTMLElement, key: string): Element | null {
     return document.activeElement;
 }
 
+/** Give `target` the layout of a box that scrolls: `scroll` pixels of content in `client` pixels shown. */
+function overflow(
+    target: HTMLElement,
+    { client, scroll }: { client: number; scroll: number },
+): void {
+    target.style.overflowY = "auto";
+    Object.defineProperty(target, "scrollHeight", { value: scroll });
+    Object.defineProperty(target, "clientHeight", { value: client });
+}
+
 /** Turn the wheel over `target` and return whether the page took it, so it did not scroll. */
 function wheel(target: EventTarget, deltaY: number): boolean {
     const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY });
@@ -507,14 +517,22 @@ describe("mountReplayView - autoplay", () => {
 describe("mountReplayView - wheel and hold", () => {
     it("leaves the wheel and the round keys to a round's result scrolling in its panel", async () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10");
-        const panel = element(host, ".board-overlay__panel");
-        Object.defineProperty(panel, "scrollHeight", { value: 600 });
-        Object.defineProperty(panel, "clientHeight", { value: 300 });
+        const foot = element(host, ".round-end-result__foot");
+        overflow(foot, { client: 60, scroll: 200 });
+        const score = element(host, ".round-end-result__score");
+        const inFoot = [
+            wheel(score, 100),
+            ...["PageDown", "ArrowDown", "Home", "End"].map((key) => pressKey(score, key)),
+        ];
+        overflow(element(host, ".board-overlay__panel"), { client: 300, scroll: 600 });
         const pager = button(host, "[aria-label='Next winner']");
 
-        const taken = [wheel(element(host, ".round-end-result"), -100), pressKey(pager, "Home")];
+        const inPanel = [wheel(element(host, ".round-end-result"), -100), pressKey(pager, "Home")];
 
-        expect(taken).toEqual([false, false]);
+        expect([inFoot, inPanel]).toEqual([
+            [false, false, false, false, false],
+            [false, false],
+        ]);
         expect(position(host)).toBe("East 1 Step 11 of 11");
     });
 

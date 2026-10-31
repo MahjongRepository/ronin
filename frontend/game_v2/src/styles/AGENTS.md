@@ -26,12 +26,16 @@ How the board's stylesheets (`game-board/`, the partials beside it) place the ta
 - The perimeter's chrome (badges, counters, the page's corner, callouts) takes a phone's size on a phone, upright and
   on a desktop board under 1100px wide, whose geometry stays the desktop's, and a step larger on a board of at least
   2000x1200; the top strip's hand starts right of the counters however narrow the board.
-- Nothing is measured in script (but the notices' clamp, `entities/client/AGENTS.md`): what content changes a
-  placement (a strip's hand and meld lengths, in tile widths) the board hands its stylesheet as custom properties from
-  the display state (`stripStyle`). The own hand's tiles are always the board's largest. Every tile's box (its 3:4
-  from `--tile-w`, the room around the glyph, the corners) is `_tile.scss`'s; each region sets `--board-tile-w`. A
-  round result taller than its panel scrolls under its foot, which keeps the scores, the primary button and its
-  countdown at the panel's bottom.
+- Nothing is measured in script (but the notices' clamp, `entities/client/AGENTS.md`): what content changes a placement
+  (a strip's hand and meld lengths, in tile widths) the board hands its stylesheet as custom properties from the display
+  state (`stripStyle`). The own hand's tiles are always the board's largest. Every tile's box (its 3:4 from `--tile-w`,
+  the room around the glyph, the corners) is `_tile.scss`'s; each region sets `--board-tile-w`. A round result taller
+  than its panel keeps its head, its hand row (a draw's tenpai hands) and the viewer's controls (the primary button and
+  its countdown, a cell of their own beside the scores) whole, and scrolls its yaku, value and score rows in place, each
+  its own scroller sharing what height is left and keeping a readable row at least (a scroller clips sideways too, so
+  the yaku and the value keep room for the tiles' rims); the panel itself scrolls only where even those parts do not
+  fit, its controls then sticking to its bottom. The overlay's `--board-unit` is a registered length, so the result
+  panel's own container (`result-foot`, which the controls and score rows query) never answers a tile's units.
 - The board's container is named `game-board` and its viewport mixins query it by name, so a container inside the
   board never answers them. Text the board scales keeps a 10px floor, a safety limit, never the size to design to.
 - **Pages never clip the board.** `.board-page` gives it a definite box, the safe area exactly (sized with `dvh` and
@@ -154,11 +158,11 @@ control per viewport, never moved by what a stop shows.
   `aria-hidden`, so it is in the accessibility tree once. Upright, the place spans the board above the options' row.
 - A panel over the replay's board never covers its controls. On a board with the desktop's chrome it stops at the
   foreground's top, every option in the band row (the board beneath is inert), and on a wide desktop also leaves the
-  left field to the status, starting past the left river's reach. On a smaller board (the panel-only exception) it
-  takes all but the moves' row: the options hide but the round list's toggle, which keeps the touch way to every round
-  and the end, and the status turns compact between them (the position and, at an incomplete recording's end, its
-  label and an "Ends here" mark), the narration and the incompleteness's detail then read out only, since the panel
-  shows the same stop; upright, the compact status and the toggle take the options' row. The panel's tiles keep their
-  size; a result taller than its panel scrolls under its foot. The options come back as the panel closes, and a render
-  that hides the focused control gives the focus back to the root. The round list opens above the options,
+  left field to the status, starting past the left river's reach. On a smaller board (the panel-only exception) it takes
+  all but the moves' row: the options hide but the round list's toggle, which keeps the touch way to every round and the
+  end, and the status turns compact between them (the position and, at an incomplete recording's end, its label and an
+  "Ends here" mark), the narration and the incompleteness's detail then read out only, since the panel shows the same
+  stop; upright, the compact status and the toggle take the options' row. The panel's tiles keep their size; a result
+  taller than its panel scrolls its parts in place, as the live one does. The options come back as the panel closes, and
+  a render that hides the focused control gives the focus back to the root. The round list opens above the options,
   right-aligned, over the board and a result's dimming, as tall as its rounds.

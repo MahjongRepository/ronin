@@ -5,6 +5,14 @@
 
 $tenpai-scale: 0.5;
 $indicator-scale: 0.6;
+$scroller-room: 4px;
+
+/* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
+@property --board-unit {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
 
 .board-overlay {
     @include overlay-unit;
@@ -38,26 +46,51 @@ $indicator-scale: 0.6;
     }
 }
 
+/* A result taller than its panel keeps its head, its hands and the controls whole and scrolls the rest in place: the
+   yaku, the value and the score rows; the panel scrolls only where even those parts do not fit. */
 .board-overlay__panel:has(> .round-end-result) {
+    container: result-foot / inline-size;
+    display: flex;
+    flex-direction: column;
     width: min(100%, #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
 }
 
-/* A result taller than its panel scrolls under its foot, which stays at the panel's bottom with the scores, the
-   primary button and its countdown; its shadow covers the panel's bottom padding, so nothing scrolls beneath it. */
-.board-overlay__panel > .round-end-result > .round-end-result__foot {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    background: var(--ronin-surface);
-    box-shadow: 0 1.25rem 0 var(--ronin-surface);
+.board-overlay__panel > .round-end-result {
+    min-height: 0;
+
+    /* Each scroller keeps a readable row at least: a yaku, the points, a score's name and change. */
+    > :is(.round-end-result__yaku, .round-end-result__value, .round-end-result__foot) {
+        overflow-y: auto;
+    }
+
+    > .round-end-result__yaku {
+        min-height: calc(1lh + 2 * #{$scroller-room});
+    }
+
+    > .round-end-result__value {
+        min-height: calc(3rem + 2 * #{$scroller-room});
+    }
+
+    > .round-end-result__foot {
+        min-height: 2lh;
+    }
+
+    /* A scroller clips sideways too: the yaku's and the value's room keeps the indicator tiles' rims and shadows. */
+    > :is(.round-end-result__yaku, .round-end-result__value) {
+        margin: -$scroller-room;
+        padding: $scroller-room;
+    }
+
+    /* Where even the head, the hands and the controls overflow the panel, the controls stay at its bottom. */
+    > .round-end-result__controls {
+        position: sticky;
+        bottom: 0;
+        background: var(--ronin-surface);
+    }
 }
 
 .board-overlay__panel:has(> .standings) {
     container: overlay-panel / inline-size;
-}
-
-.board-overlay .round-end-result__foot {
-    container: result-foot / inline-size;
 }
 
 @container (height < #{$short-height}) and (aspect-ratio >= 1) {
@@ -138,9 +171,57 @@ $indicator-scale: 0.6;
             "yaku value"
             "scores scores";
     }
+
+    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        grid-template-areas:
+            "head head head"
+            "hand hand hand"
+            "yaku value value"
+            "scores scores controls";
+    }
 }
 
-@container (width < 800px) {
+/* The controls stand beside the scores while both fit, else under them, so no figure wraps. */
+@container result-foot (width < 24rem) {
+    .board-overlay .round-end-result:has(> .round-end-result__controls) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "head"
+            "hand"
+            "value"
+            "yaku"
+            "scores"
+            "controls";
+    }
+
+    .board-overlay .round-end-result--draw:has(> .round-end-result__controls) {
+        grid-template-areas:
+            "head"
+            "tenpai"
+            "scores"
+            "controls";
+    }
+
+    .board-overlay
+        .round-end-result--draw:has(> .round-end-result__rivers):has(
+            > .round-end-result__controls
+        ) {
+        grid-template-areas:
+            "head"
+            "rivers"
+            "tenpai"
+            "scores"
+            "controls";
+    }
+
+    .board-overlay .round-end-result__controls {
+        justify-self: end;
+        border-top: 0;
+    }
+}
+
+@container game-board (width < 800px) {
     .board-overlay .round-end-result__head {
         column-gap: 0.4rem;
     }
@@ -191,7 +272,7 @@ $indicator-scale: 0.6;
 }
 
 @container result-foot (width < 45rem) {
-    .round-end-result__foot:has(> .round-end-result__controls) {
+    .round-end-result:has(> .round-end-result__controls) {
         @include score-name-line;
     }
 }

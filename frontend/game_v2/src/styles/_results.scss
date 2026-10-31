@@ -142,6 +142,32 @@
         "scores";
 }
 
+/* The viewer's controls stand in a cell of their own beside the scores. */
+.round-end-result:has(> .round-end-result__controls) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "head head"
+        "hand hand"
+        "value value"
+        "yaku yaku"
+        "scores controls";
+}
+
+.round-end-result--draw:has(> .round-end-result__controls) {
+    grid-template-areas:
+        "head head"
+        "tenpai tenpai"
+        "scores controls";
+}
+
+.round-end-result--draw:has(> .round-end-result__rivers):has(> .round-end-result__controls) {
+    grid-template-areas:
+        "head head"
+        "rivers rivers"
+        "tenpai tenpai"
+        "scores controls";
+}
+
 .round-end-result__head {
     grid-area: head;
     display: flex;
@@ -195,10 +221,11 @@
 /* The live game's controls sit beside the scores, toward the thumb, no taller than them and as narrow as their button,
    the time left to the round advance under its label (or under the note that the seat waits for the others). */
 .round-end-result__controls {
-    flex: none;
+    grid-area: controls;
     display: flex;
     align-items: center;
     padding-top: 0.4rem;
+    border-top: 1px solid var(--ronin-border);
 }
 
 .round-end-result__confirm {
@@ -468,19 +495,13 @@
     list-style: none;
 }
 
-/* The controls stand beside the scores while both fit, else under them, so no figure wraps. */
 .round-end-result__foot {
     grid-area: scores;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0 0.75rem;
     min-width: 0;
     border-top: 1px solid var(--ronin-border);
 }
 
 .round-end-result__scores {
-    flex: 1 1 18rem;
     min-width: 0;
     list-style: none;
     margin: 0;
