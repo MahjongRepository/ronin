@@ -88,7 +88,8 @@ The `Makefile` lists the targets; the non-obvious ones:
 
 * While iterating, run only the tests your change touches (`cd backend && uv run pytest <path> -k <expr>`,
   `cd frontend/<app> && npx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
-  `make lint` and `make typecheck` are fine.
+  `make lint` and `make typecheck` (backend only, so they run without `make install-frontend`) and
+  `make lint-frontend` and `make typecheck-frontend` are fine.
 * The same goes for `make visual-check`: never run the full gate mid-work, not even for a baseline
   or a timing. To check a visual change, screenshot only the changed area plus its single worst
   case (the smallest phone, the densest state); the full gate runs once, at wrap-up.
