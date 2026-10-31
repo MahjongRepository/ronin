@@ -41,6 +41,9 @@ package joins a layer in the contract, or gets its own contract, in the same cha
   restructure it away.
 * The Makefile's `DOCFORMATTER_PATHS` lists the backend's top-level packages (add a new one there),
   and docformatter rewraps a triple-quoted call argument as a docstring: assign it to a variable first.
+* `make lint` and `make format` run ruff over `bin/` too. `bin/ruff.toml` extends this project's
+  ruff config and only allows what a CLI script needs: `print`, no `__init__.py`, and the positional
+  boolean of `signal.siginterrupt`, which takes no keywords.
 
 ## Configuration
 

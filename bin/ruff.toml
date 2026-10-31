@@ -1,0 +1,8 @@
+extend = "../backend/pyproject.toml"
+src = [".", "../backend"]
+
+[lint]
+extend-ignore = ["INP001", "T201"]
+
+[lint.flake8-boolean-trap]
+extend-allowed-calls = ["signal.siginterrupt"]

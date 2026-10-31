@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from __future__ import annotations
 
 import ast
 import importlib
@@ -19,8 +19,8 @@ def _is_test_file(path: Path) -> bool:
 @dataclass
 class _ProductionScan:
     defs: dict[str, list[str]]
-    def_refs: dict[str, "_ReferenceBucket"]
-    module_refs: "_ReferenceBucket"
+    def_refs: dict[str, _ReferenceBucket]
+    module_refs: _ReferenceBucket
     method_aliases: dict[str, set[str]]
     class_methods: dict[str, set[str]]
     class_implicit_methods: dict[str, set[str]]
@@ -32,7 +32,7 @@ class _ReferenceBucket:
     names: set[str]
     attrs: set[str]
 
-    def merge(self, other: "_ReferenceBucket") -> None:
+    def merge(self, other: _ReferenceBucket) -> None:
         self.names.update(other.names)
         self.attrs.update(other.attrs)
 
@@ -94,13 +94,13 @@ class _ReferenceCollector(ast.NodeVisitor):
         self.generic_visit(node)
         self._exit_definition()
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._visit_top_level_function(node)
 
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._visit_top_level_function(node)
 
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
         if self._scope_stack:
             self.generic_visit(node)
             return
@@ -128,19 +128,28 @@ class _ReferenceCollector(ast.NodeVisitor):
         self.generic_visit(node)
         self._exit_definition()
 
-    def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
+    def visit_Name(self, node: ast.Name) -> None:
         self._add_name_reference(node.id)
 
-    def visit_Attribute(self, node: ast.Attribute) -> None:  # noqa: N802
+    def visit_Attribute(self, node: ast.Attribute) -> None:
         self._add_attr_reference(node.attr)
         qualified = self._resolve_method_reference(node)
         if qualified is not None:
             self._add_name_reference(qualified)
         self.generic_visit(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:  # noqa: N802
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         for alias in node.names:
             self._add_name_reference(alias.asname or alias.name)
+
+
+def _load_base_class(module_name: str, attr_name: str) -> type | None:
+    try:
+        base_cls = getattr(importlib.import_module(module_name), attr_name, None)
+    except Exception:  # noqa: BLE001
+        return None
+
+    return base_cls if isinstance(base_cls, type) else None
 
 
 def _resolve_base_methods(tree: ast.AST) -> dict[str, set[str]]:
@@ -155,21 +164,19 @@ def _resolve_base_methods(tree: ast.AST) -> dict[str, set[str]]:
     for node in ast.iter_child_nodes(tree):
         if not isinstance(node, ast.ClassDef):
             continue
+
         base_methods: set[str] = set()
         for base_node in node.bases:
-            base_name = base_node.id if isinstance(base_node, ast.Name) else None
-            if base_name is None or base_name not in import_map:
+            if not isinstance(base_node, ast.Name) or base_node.id not in import_map:
                 continue
-            mod_name, attr_name = import_map[base_name]
-            try:
-                mod = importlib.import_module(mod_name)
-                base_cls = getattr(mod, attr_name, None)
-            except Exception:  # noqa: BLE001
-                continue
-            if base_cls is not None and isinstance(base_cls, type):
+
+            base_cls = _load_base_class(*import_map[base_node.id])
+            if base_cls is not None:
                 base_methods.update(dir(base_cls))
+
         if base_methods:
             result[node.name] = base_methods
+
     return result
 
 
@@ -181,16 +188,8 @@ def _has_ignore_comment(source_lines: list[str], lineno: int) -> bool:
     return _IGNORE_COMMENT in source_lines[lineno - 1]
 
 
-def _collect_production_scan(src: Path) -> _ProductionScan:
-    """Return definitions and production references split by module vs def scope."""
-    defs: dict[str, list[str]] = {}
-    def_refs: dict[str, _ReferenceBucket] = {}
-    module_refs = _ReferenceBucket(names=set(), attrs=set())
-    class_methods: dict[str, set[str]] = {}
-    class_implicit_methods: dict[str, set[str]] = {}
-    ignored: set[str] = set()
-    trees: list[tuple[Path, ast.AST]] = []
-    implicit_decorators = {
+_IMPLICIT_DECORATORS = frozenset(
+    {
         "model_validator",
         "field_validator",
         "validator",
@@ -198,72 +197,118 @@ def _collect_production_scan(src: Path) -> _ProductionScan:
         "computed_field",
         "field_serializer",
         "model_serializer",
-    }
+    },
+)
 
-    def decorator_name(decorator: ast.AST) -> str | None:
-        if isinstance(decorator, ast.Name):
-            return decorator.id
-        if isinstance(decorator, ast.Attribute):
-            return decorator.attr
-        if isinstance(decorator, ast.Call):
-            return decorator_name(decorator.func)
-        return None
 
-    def has_implicit_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-        return any(decorator_name(d) in implicit_decorators for d in node.decorator_list)
+def _decorator_name(decorator: ast.AST) -> str | None:
+    if isinstance(decorator, ast.Name):
+        return decorator.id
+    if isinstance(decorator, ast.Attribute):
+        return decorator.attr
+    if isinstance(decorator, ast.Call):
+        return _decorator_name(decorator.func)
+    return None
 
+
+def _has_implicit_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    return any(_decorator_name(d) in _IMPLICIT_DECORATORS for d in node.decorator_list)
+
+
+@dataclass
+class _DefinitionIndex:
+    defs: dict[str, list[str]]
+    class_methods: dict[str, set[str]]
+    class_implicit_methods: dict[str, set[str]]
+    ignored: set[str]
+
+    def add_definition(self, key: str, location: str, *, is_ignored: bool) -> None:
+        self.defs.setdefault(key, []).append(location)
+        if is_ignored:
+            self.ignored.add(key)
+
+    def add_class(
+        self, node: ast.ClassDef, location_prefix: str, source_lines: list[str], base_methods: set[str]
+    ) -> None:
+        for child in node.body:
+            if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+
+            self.class_methods.setdefault(node.name, set()).add(child.name)
+            self.add_definition(
+                f"{node.name}.{child.name}",
+                f"{location_prefix}:{child.lineno}",
+                is_ignored=_has_ignore_comment(source_lines, child.lineno),
+            )
+            if _has_implicit_decorator(child) or child.name in base_methods:
+                self.class_implicit_methods.setdefault(node.name, set()).add(child.name)
+
+
+def _parse_production_files(src: Path) -> list[tuple[Path, str, ast.AST]]:
+    parsed: list[tuple[Path, str, ast.AST]] = []
     for py_file in _source_files(src):
         if _is_test_file(py_file):
             continue
+
         try:
             source = py_file.read_text()
             tree = ast.parse(source)
         except SyntaxError:
             continue
+
+        parsed.append((py_file, source, tree))
+
+    return parsed
+
+
+def _index_definitions(src: Path, parsed: list[tuple[Path, str, ast.AST]]) -> _DefinitionIndex:
+    index = _DefinitionIndex(defs={}, class_methods={}, class_implicit_methods={}, ignored=set())
+    for py_file, source, tree in parsed:
         source_lines = source.splitlines()
-        trees.append((py_file, tree))
+        location_prefix = str(py_file.relative_to(src))
         base_methods_map = _resolve_base_methods(tree)
         for node in ast.iter_child_nodes(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                defs.setdefault(node.name, []).append(f"{py_file.relative_to(src)}:{node.lineno}")
-                if _has_ignore_comment(source_lines, node.lineno):
-                    ignored.add(node.name)
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+
+            index.add_definition(
+                node.name,
+                f"{location_prefix}:{node.lineno}",
+                is_ignored=_has_ignore_comment(source_lines, node.lineno),
+            )
             if isinstance(node, ast.ClassDef):
-                for child in node.body:
-                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        class_methods.setdefault(node.name, set()).add(child.name)
-                        method_key = f"{node.name}.{child.name}"
-                        defs.setdefault(method_key, []).append(
-                            f"{py_file.relative_to(src)}:{child.lineno}",
-                        )
-                        is_implicit = (
-                            has_implicit_decorator(child)
-                            or child.name in base_methods_map.get(node.name, set())
-                        )
-                        if is_implicit:
-                            class_implicit_methods.setdefault(node.name, set()).add(child.name)
-                        if _has_ignore_comment(source_lines, child.lineno):
-                            ignored.add(method_key)
+                index.add_class(node, location_prefix, source_lines, base_methods_map.get(node.name, set()))
+
+    return index
+
+
+def _collect_production_scan(src: Path) -> _ProductionScan:
+    """Return definitions and production references split by module vs def scope."""
+    parsed = _parse_production_files(src)
+    index = _index_definitions(src, parsed)
+
     method_aliases: dict[str, set[str]] = {}
-    for class_name, methods in class_methods.items():
+    for class_name, methods in index.class_methods.items():
         for method_name in methods:
             method_aliases.setdefault(method_name, set()).add(f"{class_name}.{method_name}")
 
-    for _, tree in trees:
-        collector = _ReferenceCollector(class_methods)
+    def_refs: dict[str, _ReferenceBucket] = {}
+    module_refs = _ReferenceBucket(names=set(), attrs=set())
+    for _, _, tree in parsed:
+        collector = _ReferenceCollector(index.class_methods)
         collector.visit(tree)
         module_refs.merge(collector.module_refs)
         for def_name, refs in collector.def_refs.items():
             def_refs.setdefault(def_name, _ReferenceBucket(names=set(), attrs=set())).merge(refs)
 
     return _ProductionScan(
-        defs=defs,
+        defs=index.defs,
         def_refs=def_refs,
         module_refs=module_refs,
         method_aliases=method_aliases,
-        class_methods=class_methods,
-        class_implicit_methods=class_implicit_methods,
-        ignored=ignored,
+        class_methods=index.class_methods,
+        class_implicit_methods=index.class_implicit_methods,
+        ignored=index.ignored,
     )
 
 
@@ -293,58 +338,55 @@ def _collect_references(src: Path, *, test_files: bool) -> _ReferenceBucket:
     return refs
 
 
-def _resolve_live_definitions(
-    defs: dict[str, list[str]],
-    def_refs: dict[str, _ReferenceBucket],
-    module_refs: _ReferenceBucket,
-    method_aliases: dict[str, set[str]],
-    class_methods: dict[str, set[str]],
-    class_implicit_methods: dict[str, set[str]],
-    ignored: set[str] | None = None,
-) -> set[str]:
-    live: set[str] = set()
-    stack: list[str] = []
+class _LivenessWalk:
+    def __init__(self, scan: _ProductionScan) -> None:
+        self._scan = scan
+        self.live: set[str] = set()
+        self._stack: list[str] = []
 
-    def add_class_method(class_name: str, method_name: str) -> None:
-        method_key = f"{class_name}.{method_name}"
-        if method_key in defs and method_key not in live:
-            live.add(method_key)
-            stack.append(method_key)
+    def _mark(self, key: str) -> None:
+        if key in self._scan.defs and key not in self.live:
+            self.live.add(key)
+            self._stack.append(key)
 
-    def add_live(name: str) -> None:
-        if name in defs and name not in live:
-            live.add(name)
-            stack.append(name)
-            if name in class_methods:
-                for method_name in class_methods[name]:
-                    if method_name.startswith("__") and method_name.endswith("__"):
-                        add_class_method(name, method_name)
-                for method_name in class_implicit_methods.get(name, set()):
-                    add_class_method(name, method_name)
+    def add_name(self, name: str) -> None:
+        if name in self.live:
+            return
 
-    def add_attr_live(name: str) -> None:
-        add_live(name)
-        for method_key in method_aliases.get(name, set()):
-            if method_key not in live:
-                live.add(method_key)
-                stack.append(method_key)
+        self._mark(name)
+        if name not in self.live:
+            return
 
-    for name in module_refs.names:
-        add_live(name)
-    for name in module_refs.attrs:
-        add_attr_live(name)
-    for name in ignored or ():
-        add_live(name)
-    while stack:
-        name = stack.pop()
-        refs = def_refs.get(name)
-        if refs is None:
-            continue
+        for method_name in self._scan.class_methods.get(name, set()):
+            if method_name.startswith("__") and method_name.endswith("__"):
+                self._mark(f"{name}.{method_name}")
+        for method_name in self._scan.class_implicit_methods.get(name, set()):
+            self._mark(f"{name}.{method_name}")
+
+    def add_attr(self, name: str) -> None:
+        self.add_name(name)
+        for method_key in self._scan.method_aliases.get(name, set()):
+            if method_key not in self.live:
+                self.live.add(method_key)
+                self._stack.append(method_key)
+
+    def add_refs(self, refs: _ReferenceBucket) -> None:
         for ref in refs.names:
-            add_live(ref)
+            self.add_name(ref)
         for ref in refs.attrs:
-            add_attr_live(ref)
-    return live
+            self.add_attr(ref)
+
+    def run(self) -> set[str]:
+        self.add_refs(self._scan.module_refs)
+        for name in self._scan.ignored:
+            self.add_name(name)
+
+        while self._stack:
+            refs = self._scan.def_refs.get(self._stack.pop())
+            if refs is not None:
+                self.add_refs(refs)
+
+        return self.live
 
 
 def find_dead_code(src: Path) -> DeadCodeReport:
@@ -356,15 +398,7 @@ def find_dead_code(src: Path) -> DeadCodeReport:
     """
     scan = _collect_production_scan(src)
     test_refs = _collect_references(src, test_files=True)
-    live = _resolve_live_definitions(
-        scan.defs,
-        scan.def_refs,
-        scan.module_refs,
-        scan.method_aliases,
-        scan.class_methods,
-        scan.class_implicit_methods,
-        scan.ignored,
-    )
+    live = _LivenessWalk(scan).run()
     test_referenced_defs: set[str] = set()
     for name in test_refs.names:
         if name in scan.defs:

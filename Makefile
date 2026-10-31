@@ -21,15 +21,15 @@ run-local-server:
 
 lint:
 	cd backend && uv run docformatter --check --diff $(DOCFORMATTER_PATHS)
-	cd backend && uv run ruff format --check
-	cd backend && uv run ruff check
+	cd backend && uv run ruff format --check . ../bin
+	cd backend && uv run ruff check . ../bin
 	cd backend && uv run lint-imports
 	$(BE_RUN) python bin/check_i18n.py
 
 format:
 	cd backend && (uv run docformatter --in-place $(DOCFORMATTER_PATHS) ; rc=$$?; [ $$rc -eq 0 ] || [ $$rc -eq 3 ])
-	cd backend && uv run ruff check --fix
-	cd backend && uv run ruff format
+	cd backend && uv run ruff check --fix . ../bin
+	cd backend && uv run ruff format . ../bin
 
 typecheck:
 	cd backend && uv run ty check

@@ -8,12 +8,15 @@ import statistics
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import game
 from game.replay import load_replay_from_file, run_replay
-from game.replay.models import ReplayInput, ReplayTrace
 from sampled_profile import CpuSampler, ProfileKey, format_func, print_sampled_profile
 from shared.logging import setup_logging
+
+if TYPE_CHECKING:
+    from game.replay.models import ReplayInput, ReplayTrace
 
 DEFAULT_REPLAY = (
     Path(__file__).resolve().parent.parent
@@ -212,9 +215,7 @@ def load_profile() -> None:
             continue
         # Sort callers by cumulative time contributed
         caller_list = []
-        for caller_key, caller_data in callers.items():
-            # caller_data: (nc, cc, tt, ct)
-            c_nc, _, c_tt, c_ct = caller_data
+        for caller_key, (c_nc, _, c_tt, c_ct) in callers.items():
             caller_list.append((caller_key, c_nc, c_tt, c_ct))
         caller_list.sort(key=lambda c: c[3], reverse=True)
         for caller_key, c_nc, c_tt, c_ct in caller_list[:5]:

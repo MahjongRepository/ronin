@@ -269,10 +269,10 @@ def check_usage(app: App, en_path: Path, en: Catalog) -> list[Problem]:
 
     A key counts as used when it appears in code as a whole string literal (a lookup, a data-i18n attribute or a
     constant naming it), or when it falls under one of the app's dynamic prefixes. A literal lookup or data-i18n
-    attribute whose value is not shaped like a key fails; `data-i18n-slot` and `data-i18n-params` hold no key. In an app whose code holds keys in
-    tables and constants (the lobby server's error pages and notices), every dotted literal whose first word is one of
-    the catalog's namespaces counts as a lookup too, so a typo in a table fails like one in a call. In the app's markup
-    roots only the data-i18n attributes count.
+    attribute whose value is not shaped like a key fails; `data-i18n-slot` and `data-i18n-params` hold no key. In an
+    app whose code holds keys in tables and constants (the lobby server's error pages and notices), every dotted
+    literal whose first word is one of the catalog's namespaces counts as a lookup too, so a typo in a table fails like
+    one in a call. In the app's markup roots only the data-i18n attributes count.
     """
     problems: list[Problem] = []
     used: set[str] = set()

@@ -3,10 +3,14 @@ from __future__ import annotations
 import signal
 import sys
 from pathlib import Path
-from types import FrameType
+from typing import TYPE_CHECKING
+
+from uvicorn.main import main as uvicorn_main
 
 from sampled_profile import CpuSampler
-from uvicorn.main import main as uvicorn_main
+
+if TYPE_CHECKING:
+    from types import FrameType
 
 
 def _exit_on_signal(signum: int, _frame: FrameType | None) -> None:
