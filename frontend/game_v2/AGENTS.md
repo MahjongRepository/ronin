@@ -112,44 +112,39 @@ replay page) and `src/styles/` (the board's layout).
 
 ## Layout
 
-The board's target is `docs/game-client-look.md`, which wins where it and this section disagree; what follows holds
-through the rebuild to it. The board's own placement rules are `src/styles/AGENTS.md`'s.
+The board's look is `docs/game-client-look.md`, the committed spec: its composition, elements, proportions and review
+checklist bind the board, and where this file or the gate disagrees with it, the spec wins.
 
-* **Browser floor: iOS Safari 16.4** (range media syntax; container queries need 16.0, `dvh` 15.4), and the smallest
-  supported landscape is 667x375 (iPhone SE 2nd and 3rd generation): the 568x320 phones never got iOS 16.4, so they
-  are below the floor. The board's sizing rule needs CSS `round()` (Chrome 125, Firefox 118, Safari 15.4) and
-  `@property` (Safari 16.4).
-* **The live game's page** is the board alone, its own controls in the board's corner (`entities/client/AGENTS.md`,
-  The live board), so a phone gives the board its whole width.
-* **Phone policy: the live game is played in landscape.** On an upright touch screen narrower than 600px
-  (`(orientation: portrait) and (width < 600px) and (pointer: coarse)`, so a narrow desktop window is never told to
-  rotate a phone), the game view shows the rotate panel (`entities/client`) in place of its play area. A media query
-  alone chooses it: no Screen Orientation lock, which iOS Safari lacks. Both are rendered from the same state, so the
-  socket, the session and its timers run on underneath. The server's timer never pauses for it, so a decision left
-  unrotated can time out: an accepted cost. Replay and storybook pages take no timed input: they allow portrait and
-  scroll rather than clip.
-* **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/` with a replay fixture
-  and a seat transcript over a mocked socket (no backend), and loads each surface's worst cases in Chromium and WebKit
-  at the viewports each page names (`PageCase.at`, the 667x375 floor when it names none; the viewports are
-  `scripts/visual-check/viewports.ts`'s). The gate selects representative worst cases (the densest board, the longest
-  names and strings, the most melds, the densest results) across the floor in WebKit and 1440x900 and 2560x1440 in
-  Chromium. Each further page/viewport combination exercises a distinct layout path or a denser form not already
-  covered. Other states run once where they bind, or are omitted when a kept case covers the same elements and
-  layout path in a harsher form. The runner fails a page naming no viewport or an unknown one, a viewport no page
-  names, an unknown contrast viewport, and a contrast page at none. Its checks are the scripts'
-  (`scripts/visual-check/`): the layout's geometry (nothing outside the board or the screen, nothing over a tile, a
-  control, the action source or the panel it must clear, every tap target at least 40x40, text never under 10px, the
-  own hand the board's largest tiles), the replay's and the live board's input and live regions, the panels' scroll
-  and focus, the face's load, contrast at 4.5:1 for every text, mark and glyph on the contrast viewports, and any
-  console error, failed request or missing element. Every request off the page's origin is answered empty, so the
-  app's own face is the only one a capture draws. Each context asks for reduced motion, so a shot shows an
-  animation's resting state; the stories that test real input timing (the replay's) run on the browser's clock. It
-  writes a screenshot per page to `thoughts/screenshots/visual-check/`.
-* A board state worth checking at phone size is a storybook state; one the generated scenarios reach is a decisions
-  story rather than a hand-written one. It earns a page in the gate only by showing what no kept page does, and a
-  viewport earns a place only by guarding a path of the layout no kept one reaches. `make install-frontend` installs
-  the gate's Chromium and WebKit (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host
-  their system libraries come from `npx playwright install-deps`, which needs root.
+* **The supported floor:** iOS Safari 16.4 (range media syntax; container queries need 16.0, `dvh` 15.4) and the
+  667x375 landscape (iPhone SE 2nd and 3rd generation); the 568x320 phones never got iOS 16.4, so they are below it.
+  The board's sizing rule needs CSS `round()` (Chrome 125, Firefox 118, Safari 15.4) and `@property` (Safari 16.4).
+* **The rotate panel is a media query's choice alone**, on an upright touch screen narrower than 600px, so a narrow
+  desktop window is never told to rotate: no Screen Orientation lock, which iOS Safari lacks. The panel and the play
+  area are drawn from one state, so the socket, the session and its timers run on underneath, and the server's timer
+  never pauses for it: a decision left unrotated can time out, an accepted cost.
+* **A board state worth checking at phone size is a story**: a storybook state, and one the generated scenarios reach
+  a decisions story (`/play/storybook/decisions?state=<story>`, with `v=2` through the lobby) rather than a
+  hand-written board.
+* **The review recipe.** A visual review opens the anchor's three checkpoints, the decisions stories `anchor_turn`,
+  `anchor_call` and `anchor_riichi` (the spec's States), at the spec's three viewports (the 667x375 floor, the notch
+  phone's safe area and 1440x900, the spec's Viewports), and answers the spec's Review checklist for each in writing,
+  before and after for a fix. The gate shoots them, with their sent, expired and riichi-off variants:
+  `--page decisions-anchor --viewport phone-se-landscape --viewport phone-notch-landscape --viewport desktop-1440`
+  (Visual gate). The gate is the floor under the review, never the review: it measures what the spec's Automated
+  checks list, and a passing run says nothing about clarity, hierarchy or coherence.
+
+## Visual gate
+
+`make visual-check` builds the app, checks the bundle budget, serves `dist/` with a replay fixture and a seat
+transcript over a mocked socket (no backend), and loads each surface's worst cases, the phones in WebKit and the rest
+in Chromium, at the viewports each page names (`PageCase.at`, the 667x375 floor when it names none), a matrix chosen
+as the spec's Viewports says. Each context asks for reduced motion, so a shot shows an animation's resting state (the
+replay's stories that test real input timing run on the browser's clock), and every request off the page's origin is
+answered empty, so the app's own face is the only one a capture draws. It writes a screenshot per page to
+`thoughts/screenshots/visual-check/`. `make install-frontend` installs its Chromium and WebKit
+(`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host their system libraries come from
+`npx playwright install-deps`, which needs root.
+
 * On success `make visual-check` stamps a fingerprint of its inputs (every non-ignored file under `frontend/game_v2`,
   tracked or not, and the `Makefile`) in `node_modules/.cache/visual-check.pass`; `make run-all-checks` skips the gate
   only when the current fingerprint matches that stamp, so a skip always means these exact inputs passed. Run

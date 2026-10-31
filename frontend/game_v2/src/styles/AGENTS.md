@@ -1,7 +1,7 @@
 # Board layout
 
 How the board's stylesheets (`game-board/`, the partials beside it) place the table. The board's target is
-`docs/game-client-look.md`, which wins where it and this file disagree; what follows holds through the rebuild to it.
+`docs/game-client-look.md`, which wins where it and this file disagree; what follows is how the code meets it.
 
 ## Sizing
 

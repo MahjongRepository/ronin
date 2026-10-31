@@ -29,8 +29,8 @@ Ronin is a Riichi Mahjong game server and browser client.
   `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
   `bin/check_i18n.py` over the lobby's catalogs (the v1 game client's are no longer checked).
-* `docs/game-client-look.md` — the v2 game client's target look (composition, elements, review
-  checklist), a draft until the drawn proposal is approved; read before any v2 board work.
+* `docs/game-client-look.md` — the v2 game client's look (composition, elements, proportions, review
+  checklist), approved; read before any v2 board work.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
 
 ## Commands
@@ -74,7 +74,7 @@ The `Makefile` lists the targets; the non-obvious ones:
   time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
   longer matches what the server sends a seat.
 * `make visual-check` — the v2 game client's layout gate and its bundle and replay-load budgets
-  (`frontend/game_v2/AGENTS.md`, Layout): Playwright's Chromium and WebKit, which
+  (`frontend/game_v2/AGENTS.md`, Visual gate): Playwright's Chromium and WebKit, which
   `make install-frontend` installs; no backend. It writes screenshots to
   `thoughts/screenshots/visual-check/`.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**

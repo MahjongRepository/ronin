@@ -216,11 +216,11 @@ how the client recovers.
   additions alone (never `role="status"`, which is atomic), one line per notice keyed by its words, so a new notice is
   read alone, once, and a clamp, a redraw or a notice leaving never; the live board's calls likewise (`announceCalls`,
   each showing once by its callers' names, the drawn chips `aria-hidden`).
-- **The rotate panel** (the app's Phone policy) shows the session's status in a player's terms, a way back to the
-  lobby and, while a decision or a round result's confirm awaits the viewer, that play and its countdown go on, with
-  the seconds left. Only the status line and the countdown's thresholds (10 s, 5 s, expiry) are live regions, never
-  each second. The countdown reads the deadline against the state's `now`, never the wall clock; the driver also wakes
-  at each change of the shown second (`nextCountdownChange`) so `now` moves.
+- **The rotate panel** (when it shows: `frontend/game_v2/AGENTS.md`, Layout) shows the session's status in a player's
+  terms, a way back to the lobby and, while a decision or a round result's confirm awaits the viewer, that play and its
+  countdown go on, with the seconds left. Only the status line and the countdown's thresholds (10 s, 5 s, expiry) are
+  live regions, never each second. The countdown reads the deadline against the state's `now`, never the wall clock;
+  the driver also wakes at each change of the shown second (`nextCountdownChange`) so `now` moves.
 
 ## Scenarios
 
