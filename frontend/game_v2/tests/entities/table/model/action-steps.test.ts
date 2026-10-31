@@ -2,12 +2,12 @@ import { describe, expect, test } from "vitest";
 
 import {
     makeAiReplacementLine,
+    makeClosedKanEvent,
     makeDiscardEvent,
     makeDoraRevealedEvent,
     makeDrawEvent,
     makeGameEndEvent,
     makeGameStartedEvent,
-    makeMeldEvent,
     makeRiichiDeclaredEvent,
     makeRoundStartedEvent,
     makeTsumoRoundEnd,
@@ -45,7 +45,7 @@ describe("buildActionSteps", () => {
         const events = [
             makeRoundStartedEvent(),
             makeDrawEvent(),
-            makeMeldEvent({ meldType: "closed_kan" }),
+            makeClosedKanEvent(),
             makeDoraRevealedEvent(),
             makeDrawEvent(),
         ];

@@ -1,13 +1,25 @@
 import { type MeldType } from "@/shared/protocol/constants";
 import { tileTypeCopies } from "@/shared/protocol/tiles";
 
-export interface DecodedMeld {
-    calledTileId: number | null;
+/** A meld built on another seat's tile: a call (chi, pon, open kan) or an added kan on a called pon. */
+interface ClaimedMeld {
+    calledTileId: number;
     callerSeat: number;
-    fromSeat: number | null;
-    meldType: MeldType;
+    fromSeat: number;
+    meldType: Exclude<MeldType, "closed_kan">;
     tileIds: number[];
 }
+
+/** A kan of four tiles from the caller's own hand, which no other seat gave. */
+interface ClosedKanMeld {
+    calledTileId: null;
+    callerSeat: number;
+    fromSeat: null;
+    meldType: "closed_kan";
+    tileIds: number[];
+}
+
+export type DecodedMeld = ClaimedMeld | ClosedKanMeld;
 
 // IMME offset ranges
 const CHI_OFFSET = 0;
@@ -95,7 +107,11 @@ function decodePon(ponIndex: number, callerSeat: number): DecodedMeld {
     };
 }
 
-function decodeOpenKan(localIndex: number, callerSeat: number, meldType: MeldType): DecodedMeld {
+function decodeOpenKan(
+    localIndex: number,
+    callerSeat: number,
+    meldType: "added_kan" | "open_kan",
+): DecodedMeld {
     const fromOffset = localIndex % FROM_OFFSETS;
     const remainder = Math.trunc(localIndex / FROM_OFFSETS);
     const calledCopy = remainder % CALLED_COPIES;

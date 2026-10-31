@@ -1,6 +1,7 @@
 import {
     type AbortiveDrawRoundEnd,
     type AiReplacementLine,
+    type ClaimedMeldEvent,
     type DiscardEvent,
     type DoraRevealedEvent,
     type DoubleRonRoundEnd,
@@ -110,13 +111,27 @@ export function makeDiscardEvent(overrides: Partial<DiscardEvent> = {}): Discard
     };
 }
 
-export function makeMeldEvent(overrides: Partial<MeldEvent> = {}): MeldEvent {
+export function makeMeldEvent(overrides: Partial<ClaimedMeldEvent> = {}): ClaimedMeldEvent {
     return {
         calledTileId: 0,
         callerSeat: 1,
         fromSeat: 0,
         meldType: MELD_TYPE.PON,
         tileIds: [1, 2, 0],
+        type: "meld",
+        ...overrides,
+    };
+}
+
+export function makeClosedKanEvent(
+    overrides: Partial<Pick<MeldEvent, "callerSeat" | "tileIds">> = {},
+): MeldEvent {
+    return {
+        calledTileId: null,
+        callerSeat: 1,
+        fromSeat: null,
+        meldType: MELD_TYPE.CLOSED_KAN,
+        tileIds: [0, 1, 2, 3],
         type: "meld",
         ...overrides,
     };

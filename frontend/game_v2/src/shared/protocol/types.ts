@@ -24,6 +24,8 @@ export type DrawEvent = z.output<typeof drawSchema>;
 export type DrawNoticeEvent = z.output<typeof drawNoticeSchema>;
 export type DiscardEvent = z.output<typeof discardSchema>;
 export type MeldEvent = z.output<typeof meldSchema>;
+/** A meld on another seat's tile, which names that seat and tile: every meld but a closed kan. */
+export type ClaimedMeldEvent = Exclude<MeldEvent, { meldType: "closed_kan" }>;
 export type RiichiDeclaredEvent = z.output<typeof riichiDeclaredSchema>;
 export type DoraRevealedEvent = z.output<typeof doraRevealedSchema>;
 export type ErrorEvent = z.output<typeof errorEventSchema>;

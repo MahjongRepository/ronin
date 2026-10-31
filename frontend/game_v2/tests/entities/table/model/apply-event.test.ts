@@ -2,6 +2,7 @@ import { assert, describe, expect, test } from "vitest";
 
 import {
     makeAbortiveDrawRoundEnd,
+    makeClosedKanEvent,
     makeDiscardEvent,
     makeDoraRevealedEvent,
     makeDoubleRonRoundEnd,
@@ -24,12 +25,7 @@ import { applyEvent } from "@/entities/table/model/apply-event";
 import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type ReplayEvent, type TableEvent, type TableState } from "@/entities/table/model/types";
-import {
-    GAME_END_CAUSE,
-    MELD_TYPE,
-    ROUND_RESULT_TYPE,
-    parseServerMessage,
-} from "@/shared/protocol";
+import { GAME_END_CAUSE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
 
 describe("applyEvent - game_started", () => {
     test("seats the event's players at score 0 before the first deal, with its game id and dealer", () => {
@@ -279,13 +275,7 @@ describe("applyEvent - hidden hands", () => {
     });
 
     test("a hidden hand's closed kan after its draw notice takes four tiles from a hand of 14", () => {
-        const kan = makeMeldEvent({
-            calledTileId: null,
-            callerSeat: 3,
-            fromSeat: null,
-            meldType: MELD_TYPE.CLOSED_KAN,
-            tileIds: [104, 105, 106, 107],
-        });
+        const kan = makeClosedKanEvent({ callerSeat: 3, tileIds: [104, 105, 106, 107] });
         const next = applyEvent(applyEvent(liveDeal(), makeDrawNoticeEvent(3)), kan);
 
         expect(next.players[3].concealedCount).toBe(10);

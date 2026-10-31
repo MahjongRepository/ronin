@@ -6,7 +6,8 @@ import {
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
-import { type MeldEvent, tileType } from "@/shared/protocol";
+import { assertNever } from "@/shared/lib";
+import { type ClaimedMeldEvent, type MeldEvent, tileType } from "@/shared/protocol";
 
 import { shownKanIndex } from "./kan-declared";
 
@@ -62,7 +63,7 @@ function meldFromHand(
 function requireCalledDiscard(
     state: TableState,
     fromPlayer: PlayerState,
-    calledTileId: number | null,
+    calledTileId: number,
 ): DiscardRecord {
     const latest = fromPlayer.discards.at(-1);
     const isCalled =
@@ -72,18 +73,15 @@ function requireCalledDiscard(
         latest.tileId === calledTileId;
     if (!isCalled) {
         throw new DesyncError(
-            `Called tile ${String(calledTileId)} is not the table's latest discard, from seat ${fromPlayer.seat}`,
+            `Called tile ${calledTileId} is not the table's latest discard, from seat ${fromPlayer.seat}`,
         );
     }
     return latest;
 }
 
 /** Mark the called tile claimed in its discarder's river. */
-function markFromSeatDiscard(state: TableState, event: MeldEvent): TableState {
+function markFromSeatDiscard(state: TableState, event: ClaimedMeldEvent): TableState {
     const { fromSeat } = event;
-    if (fromSeat === null) {
-        return state;
-    }
     const fromPlayer = state.players.find((p) => p.seat === fromSeat);
     if (!fromPlayer) {
         throw new DesyncError(`fromSeat player not found for seat ${fromSeat}`);
@@ -97,7 +95,7 @@ function markFromSeatDiscard(state: TableState, event: MeldEvent): TableState {
     };
 }
 
-function applyOpenMeld(state: TableState, event: MeldEvent): TableState {
+function applyOpenMeld(state: TableState, event: ClaimedMeldEvent): TableState {
     const caller = findCaller(state, event);
     const tilesFromHand = event.tileIds.filter((id) => id !== event.calledTileId);
     const melds = [...caller.melds, buildMeldRecord(event)];
@@ -181,8 +179,7 @@ function applyMeldByType(state: TableState, event: MeldEvent): TableState {
             return applyAddedKan(state, event);
         }
         default: {
-            const unhandled: never = event.meldType;
-            throw new Error(`Unhandled meld type: ${String(unhandled)}`);
+            return assertNever(event);
         }
     }
 }

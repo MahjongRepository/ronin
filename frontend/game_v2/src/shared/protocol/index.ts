@@ -98,6 +98,7 @@ export type {
     DrawNoticeEvent,
     DiscardEvent,
     MeldEvent,
+    ClaimedMeldEvent,
     RiichiDeclaredEvent,
     DoraRevealedEvent,
     ErrorEvent,

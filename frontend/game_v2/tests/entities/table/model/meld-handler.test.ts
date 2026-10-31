@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+    makeClosedKanEvent,
     makeDiscardEvent,
     makeDrawEvent,
     makeGameStartedEvent,
@@ -11,7 +12,7 @@ import { DesyncError } from "@/entities/table";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type KanDeclaredEvent, type TableState } from "@/entities/table/model/types";
-import { KAN_TYPE, type MeldEvent, type RoundStartedEvent } from "@/shared/protocol";
+import { type ClaimedMeldEvent, KAN_TYPE, type RoundStartedEvent } from "@/shared/protocol";
 
 function roundStartedWithMeldHands(): RoundStartedEvent {
     return makeRoundStartedEvent({
@@ -42,7 +43,7 @@ function stateWithDiscard(seat: number, tileId: number): TableState {
     return applyEvent(state, makeDiscardEvent({ seat, tileId }));
 }
 
-function ponOf1p(calledTileId = 38): MeldEvent {
+function ponOf1p(calledTileId = 38): ClaimedMeldEvent {
     return makeMeldEvent({
         calledTileId,
         callerSeat: 0,
@@ -143,13 +144,7 @@ describe("applyEvent - meld - closed_kan", () => {
         const state = drawTile(stateWithDiscard(1, 120), 0, 3);
         const next = applyEvent(
             state,
-            makeMeldEvent({
-                calledTileId: null,
-                callerSeat: 0,
-                fromSeat: null,
-                meldType: "closed_kan",
-                tileIds: [0, 1, 2, 3],
-            }),
+            makeClosedKanEvent({ callerSeat: 0, tileIds: [0, 1, 2, 3] }),
         );
 
         expect(next.players[0].tiles).toEqual(state.players[0].tiles.filter((t) => t > 3));
