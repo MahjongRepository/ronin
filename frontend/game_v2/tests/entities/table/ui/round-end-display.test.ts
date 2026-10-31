@@ -81,4 +81,29 @@ describe("RoundEndDisplay", () => {
             "North Bob Noten −1,500 23,500",
         ]);
     });
+
+    test("a nagashi mangan: its maker's river under their name, the riichi discard sideways as in the river", () => {
+        const table = lastRoundEndTable("nagashi");
+        const declaredOn9p = table.players.map((player) =>
+            player.seat === 1
+                ? {
+                      ...player,
+                      discards: player.discards.map((discard) => ({
+                          ...discard,
+                          isRiichi: discard.tileId === 68,
+                      })),
+                  }
+                : player,
+        );
+        const el = renderResult({ ...table, players: declaredOn9p });
+        const sideways = [
+            ...el.querySelectorAll(".round-end-result__river-tiles .discard-tile-riichi svg"),
+        ].map((face) => face.getAttribute("aria-label"));
+
+        expect(texts(el, ".round-end-result__river .round-end-result__label")).toEqual([
+            "Alice's river",
+        ]);
+        expect(el.querySelectorAll(".round-end-result__river-tiles .tile")).toHaveLength(18);
+        expect(sideways).toEqual(["9p"]);
+    });
 });

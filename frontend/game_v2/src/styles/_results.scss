@@ -133,6 +133,15 @@
         "scores";
 }
 
+/* A nagashi mangan shows its proof, the river, between the head and the tenpai verdicts. */
+.round-end-result--draw:has(> .round-end-result__rivers) {
+    grid-template-areas:
+        "head"
+        "rivers"
+        "tenpai"
+        "scores";
+}
+
 .round-end-result__head {
     grid-area: head;
     display: flex;
@@ -424,6 +433,31 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem 1.25rem;
+}
+
+.round-end-result__rivers {
+    grid-area: rivers;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.round-end-result__river {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin: 0;
+    list-style: none;
+}
+
+.round-end-result__river-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 2px;
 }
 
 .round-end-result__tenpai-hand {

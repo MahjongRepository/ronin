@@ -232,6 +232,7 @@ describe("roundEndDisplay - a draw", () => {
 
         expect(page.title).toBe("Exhaustive draw");
         expect(page.subtitle).toBeNull();
+        expect(page.rivers).toEqual([]);
         expect(page.tenpaiHands.map((hand) => [hand.name, handFaces(hand.hand).length])).toEqual([
             ["Alice", 13],
             ["Charlie", 13],
@@ -263,6 +264,29 @@ describe("roundEndDisplay - a draw", () => {
         expect([drawPage(noten).subtitle, drawPage(allTenpai).subtitle]).toEqual([
             "All noten: no payments",
             "All tenpai: no payments",
+        ]);
+    });
+
+    test("a nagashi mangan shows its maker's river as the proof", () => {
+        const page = drawPage(lastRoundEndTable("nagashi"));
+
+        expect(
+            page.rivers.map((river) => ({
+                name: river.name,
+                tiles: river.tiles.map((tile) => tile.face),
+            })),
+        ).toEqual([
+            {
+                name: "Alice",
+                tiles: [
+                    ...Array.from({ length: 4 }, () => "1m"),
+                    ...Array.from({ length: 4 }, () => "9m"),
+                    ...Array.from({ length: 4 }, () => "1p"),
+                    ...Array.from({ length: 4 }, () => "9p"),
+                    "1s",
+                    "1s",
+                ],
+            },
         ]);
     });
 

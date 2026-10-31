@@ -140,7 +140,8 @@ $indicator-scale: 0.6;
     --board-tile-h: calc(#{$tile-h} * #{$tenpai-scale} * var(--board-unit));
 }
 
-.board-overlay .round-end-result__indicator-tiles {
+.board-overlay .round-end-result__indicator-tiles,
+.board-overlay .round-end-result__river-tiles {
     --board-tile-w: calc(#{$tile-w} * #{$indicator-scale} * var(--board-unit));
     --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * var(--board-unit));
 }

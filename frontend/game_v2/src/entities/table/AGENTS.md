@@ -110,7 +110,10 @@ replay view, the live game and the storybook read the tables it produces.
   winner (a double ron's two) or the draw's one; the view picks the page, and `roundEndPageAt` is
   the one place that clamps it to the pages and counts them. `lib/round-end-display.ts` maps a
   result at a page to the panel's display state (faces, names, limit, notes, score rows, the
-  clamped page and the count), which `ui/round-end-display.ts` only renders. A limit's name
+  clamped page and the count), which `ui/round-end-display.ts` only renders. A nagashi mangan's
+  proof, its maker's river, is the river the table holds: the server names the seats that made it
+  and the client draws the discards it already shows, so a result read out of step says the river
+  may be wrong. A limit's name
   (`handLimitName`) comes from the points the server paid, 4x (6x for the dealer) the limit's basic
   points, never from han, so it follows whatever kiriage, kazoe and yakuman rules the game used; a
   yakuman is told from a kazoe yakuman by the server's flag on each yaku (`isYakuman`), never by its id.

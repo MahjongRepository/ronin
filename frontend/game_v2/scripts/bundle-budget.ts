@@ -85,9 +85,11 @@ interface RouteBudget {
  * (tobi, its length or an extra wind).
  * The game's JS re-set on 2026-10-31 from 208 / 64.2 to 229 / 70 at 208.4 / 63.6: the snapshot's completeness checks,
  * the table's phase guards, the offers parsed as a closed union, the riichi stick value and the explicit join.
+ * The game's CSS re-set on 2026-10-31 from 130 / 21.7 to 143 / 23.6 at 130.0 / 21.4 (129.6 / 21.3 before): a nagashi
+ * mangan's river shown as its proof on the result.
  */
 const BUDGETS: Readonly<Record<string, RouteBudget>> = {
-    game: { chunk: "index.html", css: { gzip: 21.7, raw: 130 }, js: { gzip: 70, raw: 229 } },
+    game: { chunk: "index.html", css: { gzip: 23.6, raw: 143 }, js: { gzip: 70, raw: 229 } },
     replay: {
         chunk: "src/views/replay.ts",
         css: { gzip: 3.8, raw: 13.5 },

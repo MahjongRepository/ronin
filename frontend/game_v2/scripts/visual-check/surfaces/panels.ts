@@ -260,7 +260,7 @@ const PAGES: readonly PageCase[] = [
             ".round-end-result__kind": "Draw",
             ".round-end-result__title": "Nagashi Mangan",
         },
-        [".round-end-result__tenpai .tile"],
+        [".round-end-result__river .tile", ".round-end-result__tenpai .tile"],
     ),
     resultStory("kyuushu", {
         ".round-end-result__from": "declared by Alice",

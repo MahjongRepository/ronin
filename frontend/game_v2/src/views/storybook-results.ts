@@ -18,6 +18,8 @@ interface ResultSource {
     readonly riichiStickValue: number;
     /** The round end's wire line as the fixture records it. */
     readonly roundEnd: string;
+    /** The rivers the result shows from the table (a nagashi mangan's proof), as the fixture's table holds them. */
+    readonly rivers?: readonly { readonly seat: number; readonly tileIds: readonly number[] }[];
 }
 
 /**
@@ -167,6 +169,12 @@ const RESULT_SOURCES = [
         label: "Nagashi",
         names: ["Diana", "Alice", "Charlie", "Bob"],
         riichiStickValue: 1000,
+        rivers: [
+            {
+                seat: 1,
+                tileIds: [0, 1, 2, 3, 32, 33, 34, 35, 36, 37, 38, 39, 68, 69, 70, 71, 72, 73],
+            },
+        ],
         roundEnd:
             '{"t": 4, "rt": 5, "qs": [1], "ts": [3], "ns": [0, 1, 2], "th": [{"s": 3, "ct": [7, 11, 15, 19, 23, 27, 79, 83, 87, 91, 95, 99, 127], "ml": []}], "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "sch": {"0": -40, "1": 80, "2": -20, "3": -20}}',
     },
@@ -259,17 +267,27 @@ function parseWireRoundEnd(line: string): RoundEndEvent {
     return parseRoundEnd(Object.fromEntries(Object.entries(raw)));
 }
 
+function riverOf(source: ResultSource, seat: number): PlayerState["discards"] {
+    const river = source.rivers?.find((candidate) => candidate.seat === seat);
+    return (river?.tileIds ?? []).map((tileId) => ({
+        isRiichi: false,
+        isTsumogiri: false,
+        tileId,
+    }));
+}
+
 export function resultStoryTable(story: ResultStory): ResultStoryTable {
     const source = resultSource(story);
     const event = parseWireRoundEnd(source.roundEnd);
-    const players = source.names.map((name, seat) =>
-        createInitialPlayerState({
+    const players = source.names.map((name, seat) => ({
+        ...createInitialPlayerState({
             isAiPlayer: false,
             name,
             score: event.scores[String(seat)] ?? 0,
             seat,
         }),
-    );
+        discards: riverOf(source, seat),
+    }));
     return {
         dealerSeat: source.dealerSeat,
         fixture: source.fixture,

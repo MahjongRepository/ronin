@@ -1,3 +1,4 @@
+import { buildDiscardTiles } from "@/entities/table/lib/board-mapper";
 import { drawName, isAbortiveDraw } from "@/entities/table/lib/draw-name";
 import { handLimitName, isYakumanHand, yakumanName } from "@/entities/table/lib/hand-limit";
 import { windName } from "@/entities/table/lib/wind-name";
@@ -12,6 +13,7 @@ import {
     type WinnerResult,
 } from "@/entities/table/model/types";
 import {
+    type DiscardTile,
     type HandTile,
     type MeldTile,
     type TileFace,
@@ -88,6 +90,14 @@ export interface DrawPageDisplay {
     readonly title: string;
     readonly subtitle: string | null;
     readonly tenpaiHands: readonly { readonly name: string; readonly hand: ResultHandDisplay }[];
+    /** A nagashi mangan's proof: each seat that made it, with its river as the table holds it. */
+    readonly rivers: readonly NagashiRiverDisplay[];
+}
+
+export interface NagashiRiverDisplay {
+    readonly name: string;
+    /** The river as the board lays it, its riichi declaration's discard sideways. */
+    readonly tiles: readonly DiscardTile[];
 }
 
 /** A round's result with the table it ended on that the panel reads: the players' names and the round's dealer. */
@@ -104,7 +114,10 @@ export interface RoundEndDisplayState {
     readonly pageCount: number;
     readonly body: WinPageDisplay | DrawPageDisplay;
     readonly scores: readonly ResultScoreRow[];
-    /** The result was read against a table out of step with the server, so its dora and dealer may be wrong. */
+    /**
+     * The result was read against a table out of step with the server, so what it took from the table (the dora, the
+     * dealer, a nagashi river) may be wrong.
+     */
     readonly uncertain: boolean;
 }
 
@@ -299,9 +312,26 @@ function tenpaiHand(
     return { hand: resultHand(hand.closedTiles, hand.melds), name: names.name(hand.seat) };
 }
 
-function drawPage(draw: DrawResult, names: SeatNames): DrawPageDisplay {
+function nagashiRiver(
+    seat: number,
+    players: readonly PlayerState[],
+    names: SeatNames,
+): NagashiRiverDisplay {
+    const player = players.find((candidate) => candidate.seat === seat);
+    return {
+        name: names.name(seat),
+        tiles: player === undefined ? [] : buildDiscardTiles(player, null),
+    };
+}
+
+function drawPage(
+    draw: DrawResult,
+    players: readonly PlayerState[],
+    names: SeatNames,
+): DrawPageDisplay {
     return {
         kind: "draw",
+        rivers: draw.nagashiSeats.map((seat) => nagashiRiver(seat, players, names)),
         subtitle: drawSubtitle(draw, names),
         tenpaiHands: draw.tenpaiHands.map((hand) => tenpaiHand(hand, names)),
         title: drawName(draw.kind),
@@ -362,7 +392,7 @@ export function roundEndDisplay(table: RoundEndTable, page: number): RoundEndDis
     const shown = roundEndPageAt(result, page);
     const body =
         shown.page.kind === "draw"
-            ? drawPage(shown.page.draw, names)
+            ? drawPage(shown.page.draw, players, names)
             : winPage(result, shown.page.winner, names);
     return {
         body,
