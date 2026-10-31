@@ -1,6 +1,6 @@
 import { CLOSE_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
-import { type RetryKind } from "./types";
+import { type RetryKind, type TerminalCloseCode } from "./types";
 
 /**
  * Closes after which the client must not reconnect (`docs/architecture.md`, Game client contract): another
@@ -8,7 +8,7 @@ import { type RetryKind } from "./types";
  * other close is retried, a 1000 `game_ended` included, so a client that missed the game end is refused on the
  * reconnect and says so.
  */
-const TERMINAL_CLOSE_CODES: ReadonlySet<number> = new Set([
+const TERMINAL_CLOSE_CODES: ReadonlySet<number> = new Set<TerminalCloseCode>([
     CLOSE_CODE.INVALID_GAME_ACTION,
     CLOSE_CODE.REPLACED_BY_NEW_CONNECTION,
 ]);
@@ -69,7 +69,7 @@ export const CONNECT_TIMEOUT_MS = 10_000;
  */
 const LOOKUP_RETRY_DELAYS_MS: readonly number[] = [2000];
 
-export function isTerminalClose(code: number): boolean {
+export function isTerminalClose(code: number): code is TerminalCloseCode {
     return TERMINAL_CLOSE_CODES.has(code);
 }
 

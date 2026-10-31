@@ -1,5 +1,5 @@
 import { type HandoffRecovery } from "@/shared/api";
-import { type ClientMessage, type ParsedServerMessage } from "@/shared/protocol";
+import { type CLOSE_CODE, type ClientMessage, type ParsedServerMessage } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 
 /**
@@ -81,13 +81,21 @@ export interface RecoveringSession {
     readonly retryAt: number | null;
 }
 
+/**
+ * A close after which the session never reconnects (`policy.ts`): another socket took the seat over, or the server
+ * removed it. Only these end a session as closed; every other close is retried.
+ */
+export type TerminalCloseCode =
+    | typeof CLOSE_CODE.INVALID_GAME_ACTION
+    | typeof CLOSE_CODE.REPLACED_BY_NEW_CONNECTION;
+
 export type EndReason =
     | { readonly kind: "game_ended" }
     | { readonly kind: "no_handoff" }
     | { readonly kind: "recovery_failed"; readonly detail: string }
     | { readonly kind: "moved"; readonly gameId: string }
     | { readonly kind: "left" }
-    | { readonly kind: "closed"; readonly code: number; readonly reason: string }
+    | { readonly kind: "closed"; readonly code: TerminalCloseCode; readonly reason: string }
     | { readonly kind: "refused"; readonly code: string }
     | {
           readonly kind: "retries_exhausted";

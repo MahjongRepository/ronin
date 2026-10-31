@@ -4,6 +4,7 @@ import {
     type EndReason,
     type Identity,
     type SessionState,
+    type TerminalCloseCode,
 } from "@/entities/session/model/types";
 import { assertNever } from "@/shared/lib";
 import { CLOSE_CODE, CONNECTION_STATUS, type ConnectionStatus } from "@/shared/protocol";
@@ -26,12 +27,11 @@ const ACTIVE_WORDS: Readonly<Record<ConnectionStatus, string>> = {
     [CONNECTION_STATUS.ERROR]: "Error",
 };
 
-function closedWord(code: number): string {
-    if (code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION) {
-        return "Replaced";
-    }
-    return code === CLOSE_CODE.INVALID_GAME_ACTION ? "Removed" : "Offline";
-}
+/** A terminal close's word: the seat taken by another socket, or removed by the server. */
+const CLOSED_WORDS: Readonly<Record<TerminalCloseCode, string>> = {
+    [CLOSE_CODE.INVALID_GAME_ACTION]: "Removed",
+    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: "Replaced",
+};
 
 /** What an ended session's word says happened; none for an end that leaves the page. */
 function endWord(reason: EndReason): string {
@@ -40,7 +40,7 @@ function endWord(reason: EndReason): string {
             return "Ended";
         }
         case "closed": {
-            return closedWord(reason.code);
+            return CLOSED_WORDS[reason.code];
         }
         case "retries_exhausted": {
             return "Offline";
@@ -169,12 +169,11 @@ function describeActive(state: ActiveSession): string {
     }
 }
 
-function closedLabel(code: number): string {
-    if (code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION) {
-        return "Opened in another tab";
-    }
-    return code === CLOSE_CODE.INVALID_GAME_ACTION ? "Removed from the game" : "Disconnected";
-}
+/** A terminal close in the player's words. */
+const CLOSED_LABELS: Readonly<Record<TerminalCloseCode, string>> = {
+    [CLOSE_CODE.INVALID_GAME_ACTION]: "Removed from the game",
+    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: "Opened in another tab",
+};
 
 function describeEndForPlayer(reason: EndReason): string {
     switch (reason.kind) {
@@ -197,7 +196,7 @@ function describeEndForPlayer(reason: EndReason): string {
             return "Can't reach the lobby";
         }
         case "closed": {
-            return closedLabel(reason.code);
+            return CLOSED_LABELS[reason.code];
         }
         case "refused":
         case "retries_exhausted": {

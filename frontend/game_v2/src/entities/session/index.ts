@@ -1,4 +1,10 @@
-export type { EndReason, SessionEffect, SessionInput, SessionState } from "./model/types";
+export type {
+    EndReason,
+    SessionEffect,
+    SessionInput,
+    SessionState,
+    TerminalCloseCode,
+} from "./model/types";
 export {
     awaitsSnapshot,
     canRequestResync,

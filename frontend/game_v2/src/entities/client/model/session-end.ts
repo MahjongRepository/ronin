@@ -1,4 +1,4 @@
-import { type EndReason, type SessionState } from "@/entities/session";
+import { type EndReason, type SessionState, type TerminalCloseCode } from "@/entities/session";
 import { assertNever } from "@/shared/lib";
 import { CLOSE_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
@@ -37,21 +37,19 @@ export function leaveControls(state: LiveClient, ui: PlayUi): LeaveControls {
     return { command: ASK_LEAVE, confirming: ui.confirmingLeave };
 }
 
-/** A close that ended the session: only the two terminal codes do (`policy.ts`), every other close is retried. */
-function closedFailure(code: number): FailureDisplay {
-    if (code === CLOSE_CODE.REPLACED_BY_NEW_CONNECTION) {
-        return {
-            detail: "Your seat is now played from another tab or device.",
-            reload: false,
-            title: "Opened elsewhere",
-        };
-    }
-    return {
+/** A close that ended the session: only the terminal codes do (`TerminalCloseCode`), every other close is retried. */
+const CLOSED_FAILURES: Readonly<Record<TerminalCloseCode, FailureDisplay>> = {
+    [CLOSE_CODE.INVALID_GAME_ACTION]: {
         detail: "The server ended your session after a move it could not accept.",
         reload: false,
         title: "Removed from the game",
-    };
-}
+    },
+    [CLOSE_CODE.REPLACED_BY_NEW_CONNECTION]: {
+        detail: "Your seat is now played from another tab or device.",
+        reload: false,
+        title: "Opened elsewhere",
+    },
+};
 
 /**
  * Refusals of the identity message on this connection rather than of the ticket: the server would not seat it there, or
@@ -108,7 +106,7 @@ function exhaustedFailure(gameStarted: boolean): FailureDisplay {
 function endFailure(reason: EndReason): FailureDisplay | null {
     switch (reason.kind) {
         case "closed": {
-            return closedFailure(reason.code);
+            return CLOSED_FAILURES[reason.code];
         }
         case "refused": {
             return refusedFailure(reason.code);
