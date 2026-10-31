@@ -3,25 +3,8 @@
 /* The overlay sizes its tiles from the board's box like the board does; a wide board lays the round end out in
    two columns under the hand so it fits without scrolling. */
 
-$overlay-unit-min: 0.25px;
-$overlay-unit-max: 0.8px;
-$overlay-hand-units: 1000;
-$overlay-height-units: 640;
-$overlay-chrome: 3rem;
 $tenpai-scale: 0.5;
 $indicator-scale: 0.6;
-
-/* The overlay's unit, from the board's width less what the panel leaves free beside it, and the board's height. */
-@mixin overlay-unit($beside: 0px) {
-    --board-unit: clamp(
-        #{$overlay-unit-min},
-        min(
-            (100cqw - #{$overlay-chrome} - #{$beside}) / #{$overlay-hand-units},
-            100cqh / #{$overlay-height-units}
-        ),
-        #{$overlay-unit-max}
-    );
-}
 
 .board-overlay {
     @include overlay-unit;

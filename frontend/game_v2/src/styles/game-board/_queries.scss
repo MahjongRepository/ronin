@@ -20,6 +20,24 @@ $side-reach-tiles: 10.6667;
 
 /* An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding. */
 $upright-notice-room: 44px;
+$overlay-unit-min: 0.25px;
+$overlay-unit-max: 0.8px;
+$overlay-hand-units: 1000;
+$overlay-height-units: 640;
+$overlay-chrome: 3rem;
+
+/* The overlay's tile unit, from the board's width less what a panel leaves free beside it, and the board's height:
+   the live overlay's and the replay's alike. */
+@mixin overlay-unit($beside: 0px) {
+    --board-unit: clamp(
+        #{$overlay-unit-min},
+        min(
+            (100cqw - #{$overlay-chrome} - #{$beside}) / #{$overlay-hand-units},
+            100cqh / #{$overlay-height-units}
+        ),
+        #{$overlay-unit-max}
+    );
+}
 
 @mixin phone-board {
     @container game-board (height < #{$short-height}) and (aspect-ratio >= 1) {

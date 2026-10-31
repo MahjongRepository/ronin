@@ -4,9 +4,6 @@
 $controls-z: 26;
 $round-list-z: 30;
 $place-gap: 6px;
-$overlay-unit-min: 0.25px;
-$overlay-unit-max: 0.8px;
-$overlay-chrome: 3rem;
 
 @each $name in rb, rgap, opt-right, opt-left, opts-w, pair-w, small-moves-w, opts-fit, pair-clear,
     pair-shift, upper-extra, list-rise, band-reserve-top
@@ -335,11 +332,7 @@ $overlay-chrome: 3rem;
     }
 
     @container game-board (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
-        --board-unit: clamp(
-            #{$overlay-unit-min},
-            min((100cqw - #{$overlay-chrome} - var(--reach-left)) / 1000, 100cqh / 640),
-            #{$overlay-unit-max}
-        );
+        @include overlay-unit(var(--reach-left));
 
         padding-left: var(--reach-left);
     }
