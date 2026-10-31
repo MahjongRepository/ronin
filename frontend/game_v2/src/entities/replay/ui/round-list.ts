@@ -3,8 +3,8 @@ import { type TemplateResult, html, nothing } from "lit-html";
 import {
     type ReplayIncompleteness,
     type ReplayRoundRow,
-} from "@/entities/table/lib/replay-display";
-import { type ReplayCursor } from "@/entities/table/model/replay-cursor";
+} from "@/entities/replay/lib/replay-display";
+import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
 
 import { REPLAY_ROUND_LIST_ID } from "./replay-controls";
 

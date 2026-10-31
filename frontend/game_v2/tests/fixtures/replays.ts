@@ -1,10 +1,6 @@
-import {
-    type ClientTimeline,
-    readReplayTimeline,
-    timelineStates,
-    timelineStepEvents,
-} from "@/entities/client";
-import { type StepEvent, type TableState } from "@/entities/table";
+import { type ClientTimeline, readReplayTimeline, timelineStates } from "@/entities/client";
+import { type StepEvent, timelineStepEvents } from "@/entities/replay";
+import { type TableState } from "@/entities/table";
 
 const REPLAY_FILES = import.meta.glob("/src/fixtures/replays/*.txt", {
     eager: true,

@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import { type EngineReplay, loadEngineReplay } from "#tests/fixtures/replays";
-import { type BoardPerspective, buildNavigationIndex, narrateStop } from "@/entities/table";
+import { buildNavigationIndex, narrateStop } from "@/entities/replay";
+import { type BoardPerspective } from "@/entities/table";
 import { SEAT_CONTROL_REASON } from "@/shared/protocol";
 
 const ALL: BoardPerspective = { bottomSeat: 0, reveal: "all" };

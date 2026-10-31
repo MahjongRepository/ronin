@@ -19,12 +19,12 @@ The route views: the live game's driver, the replay page and the storybook. Each
 
 ## The replay page (`replay.ts`, `replay-page.ts`, `replay-input.ts`)
 
-- It opens where its address says, else on the first deal, and moves only through the table slice's cursor functions
-  (`entities/table/AGENTS.md`); its view state is the cursor, the seat at the bottom, the round list's openness, the
+- It opens where its address says, else on the first deal, and moves only through the replay slice's cursor functions
+  (`entities/replay/AGENTS.md`); its view state is the cursor, the seat at the bottom, the round list's openness, the
   pinned plate, autoplay, a held step button, the wheel's gesture and whether the other hands hide.
 - Every transition of the page, its load's answers and failure screen included, is one pure reducer the page owns
-  (`replay-page.ts`, never the table slice, which has no other consumer of it): an input stamped with the clock's
-  logical time in, the screen and the IO it asks for out (the address written, the reader's settings saved, the focus
+  (`replay-page.ts`, never the replay slice, which holds what the page moves through): an input stamped with the
+  clock's logical time in, the screen and the IO it asks for out (the address written, the reader's settings saved, the focus
   moved), which the view runs after drawing. Autoplay's next move and a hold's next repeat are deadlines in the
   screen, as the live client's are: the view keeps one timer armed to the earliest (`replayPageDeadline`), which comes
   back as a tick, and a tick before it does nothing. The reducer reads no DOM: what a key, the wheel or a held
@@ -44,7 +44,7 @@ The route views: the live game's driver, the replay page and the storybook. Each
   disables the focused control gives the focus back to the root.
 - The viewpoint switch moves the seat at the bottom and the address's `seat`, never the cursor or a result's page.
   Hiding the hands draws the board and the narration as the bottom seat sees them. That and autoplay's speed are the
-  reader's settings (read by `entities/table/model/replay-prefs.ts`, kept by the entry in `localStorage` through
+  reader's settings (read by `entities/replay/model/replay-prefs.ts`, kept by the entry in `localStorage` through
   `shared/lib`'s `localStore`, the defaults when it is blocked), never the address: the address names a position, and a shared link imposes no way of
   reading it.
 - Its IO stays at the edge, given by `index.ts`: the load, which asks again on 404 after 500, 1000 and 2000 ms (the

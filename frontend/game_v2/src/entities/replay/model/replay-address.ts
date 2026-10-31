@@ -1,5 +1,5 @@
 import { type NavigationIndex } from "./navigation-index";
-import { type ReplayCursor, firstCursor, positionCursor, roundPosition } from "./replay-cursor";
+import { type ReplayCursor, positionCursor, roundPosition } from "./replay-cursor";
 
 /** The query parameters of a replay page's address (`docs/architecture.md`, Replays). */
 export const REPLAY_ADDRESS_PARAM = { ROUND: "round", SEAT: "seat", STEP: "step" } as const;
@@ -40,26 +40,29 @@ export function parseReplayAddress(search: string): ReplayAddress {
     };
 }
 
+/** The view an address falls back to, part by part, and how many seats the game has. */
+export interface ReplayViewDefaults extends ReplayView {
+    readonly seatCount: number;
+}
+
 /**
  * Where an address opens a replay, each bad part replaced by its fallback: a seat the game does not seat by the
- * default, a round the replay does not hold by the first deal (its step ignored), a step its round does not hold by
- * that round's deal. Null for a replay with no deal.
+ * default seat, a round the replay does not hold by the default cursor (the first deal; its step ignored), a step its
+ * round does not hold by that round's deal.
  */
 export function resolveReplayAddress(
     nav: NavigationIndex,
     address: ReplayAddress,
-    seats: { readonly count: number; readonly fallback: number },
-): ReplayView | null {
-    const opening = firstCursor(nav);
-    if (opening === null) {
-        return null;
-    }
+    defaults: ReplayViewDefaults,
+): ReplayView {
     const seat =
-        address.seat !== null && address.seat < seats.count ? address.seat : seats.fallback;
+        address.seat !== null && address.seat < defaults.seatCount
+            ? address.seat
+            : defaults.bottomSeat;
     const round =
         address.round === null ? null : positionCursor(nav, { round: address.round, step: 0 });
     if (address.round === null || round === null) {
-        return { bottomSeat: seat, cursor: opening };
+        return { bottomSeat: seat, cursor: defaults.cursor };
     }
     const step =
         address.step === null

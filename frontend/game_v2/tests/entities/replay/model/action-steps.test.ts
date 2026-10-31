@@ -16,7 +16,7 @@ import {
     type ActionStep,
     type StepEvent,
     buildActionSteps,
-} from "@/entities/table/model/action-steps";
+} from "@/entities/replay/model/action-steps";
 
 function ranges(events: readonly StepEvent[]): [number, number, number][] {
     return buildActionSteps(events).map((step: ActionStep) => [

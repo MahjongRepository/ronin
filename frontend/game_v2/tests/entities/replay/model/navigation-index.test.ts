@@ -4,7 +4,7 @@ import { loadEngineReplay } from "#tests/fixtures/replays";
 import {
     type NavigationIndex,
     buildNavigationIndex,
-} from "@/entities/table/model/navigation-index";
+} from "@/entities/replay/model/navigation-index";
 
 function navigationOf(name: string): NavigationIndex {
     const { events, tables } = loadEngineReplay(name);

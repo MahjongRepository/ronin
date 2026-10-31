@@ -1,6 +1,5 @@
-import { type StepEvent } from "@/entities/table/model/action-steps";
-import { type BoardCallouts, type BoardPerspective } from "@/entities/table/model/board-types";
-import { type NavigationIndex } from "@/entities/table/model/navigation-index";
+import { type StepEvent } from "@/entities/replay/model/action-steps";
+import { type NavigationIndex } from "@/entities/replay/model/navigation-index";
 import {
     type ReplayCursor,
     cursorRound,
@@ -12,14 +11,21 @@ import {
     prevRoundCursor,
     roundPosition,
     roundStartCursor,
-} from "@/entities/table/model/replay-cursor";
-import { type ReplayLineError } from "@/entities/table/model/replay-file";
-import { type TableState } from "@/entities/table/model/types";
+} from "@/entities/replay/model/replay-cursor";
+import {
+    type BoardCallouts,
+    type BoardPerspective,
+    type Call,
+    type ReplayLineError,
+    type TableState,
+    boardCallouts,
+    formatRoundName,
+    honbaName,
+    roundName,
+    roundResultSummary,
+} from "@/entities/table";
 
-import { type Call, boardCallouts } from "./callouts";
 import { narrateStop } from "./replay-narration";
-import { formatRoundName, honbaName, roundName } from "./round-name";
-import { roundResultSummary } from "./round-summary";
 
 /** A replay that is not the whole game: a short label, and why. */
 export interface ReplayIncompleteness {

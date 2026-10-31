@@ -56,13 +56,8 @@ export { RotatePanel, rotatePanelProps } from "./ui/rotate-panel";
 export { describeClientStatus, describePlayerClientStatus } from "./model/client-status";
 export type { ClientTimeline, TimelineEntry } from "./model/timeline";
 export { buildClientTimeline, timelineStates } from "./model/timeline";
-export type {
-    LoadedReplay,
-    ReplayRead,
-    ReplayTimelineRead,
-    ReplayUnshowable,
-} from "./model/replay";
-export { readReplay, readReplayTimeline, timelineStepEvents } from "./model/replay";
+export type { ReplayTimelineRead } from "./model/replay";
+export { readReplayTimeline } from "./model/replay";
 export type {
     ScenarioEvent,
     ScenarioMismatch,

@@ -1,4 +1,4 @@
-import { STEP_BUTTON_ATTRIBUTE, type StepDirection } from "@/entities/table";
+import { STEP_BUTTON_ATTRIBUTE, type StepDirection } from "@/entities/replay";
 import { wheelPixels } from "@/shared/lib";
 import { type ReplayKeyCommand } from "@/views/replay-page";
 

@@ -18,14 +18,12 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
+import { type ActionStep, buildNavigationIndex, narrateStop } from "@/entities/replay";
 import {
-    type ActionStep,
     type BoardPerspective,
     type PlayerState,
     type ReplayEvent,
     type TableState,
-    buildNavigationIndex,
-    narrateStop,
     tableStateToDisplayState,
 } from "@/entities/table";
 import {

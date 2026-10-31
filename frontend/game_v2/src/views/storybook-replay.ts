@@ -1,4 +1,5 @@
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, type StandingsRenderer } from "@/entities/table";
+import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
+import { type StandingsRenderer } from "@/entities/table";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { type Clock, browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, getLobbyUrl } from "@/shared/config";

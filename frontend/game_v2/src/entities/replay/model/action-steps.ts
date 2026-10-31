@@ -1,6 +1,5 @@
+import { type KanDeclaredEvent, type ReplayEvent } from "@/entities/table";
 import { type SeatControlLine } from "@/shared/protocol";
-
-import { type KanDeclaredEvent, type ReplayEvent } from "./types";
 
 /** What each timeline entry shows: its replay event, the kan a round end's win robbed as declared before it, or a seat control line. */
 export type StepEvent = ReplayEvent | KanDeclaredEvent | SeatControlLine;

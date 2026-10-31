@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
-import { buildNavigationIndex, roundResultSummary } from "@/entities/table";
+import { buildNavigationIndex } from "@/entities/replay";
+import { roundResultSummary } from "@/entities/table";
 
 function summaries(name: string): string[] {
     const { events, tables } = loadEngineReplay(name);

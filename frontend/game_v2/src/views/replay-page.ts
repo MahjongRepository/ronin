@@ -1,21 +1,23 @@
-import { type LoadedReplay, type ReplayUnshowable, readReplay } from "@/entities/client";
 import {
     type AutoplayState,
+    type LoadedReplay,
     type ReplayCursor,
     type ReplayMoves,
     type ReplayPrefs,
+    type ReplayUnshowable,
     type ReplayView,
-    type SeatPosition,
     type StepDirection,
     autoplayDelayMs,
     autoplayStep,
     isPauseStop,
     nextAutoplaySpeed,
     parseReplayAddress,
+    readReplay,
     replayMoves,
     resolveReplayAddress,
     roundResultCursor,
-} from "@/entities/table";
+} from "@/entities/replay";
+import { type SeatPosition } from "@/entities/table";
 import { type ReplayFetch } from "@/shared/api";
 import { type WheelGesture, assertNever, wheelStep } from "@/shared/lib";
 
@@ -247,12 +249,10 @@ function savingPrefs(screen: LoadedScreen): LoadedStep {
 
 function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number): ReplayPageStep {
     const view = resolveReplayAddress(replay.navigation, parseReplayAddress(opening.search), {
-        count: replay.seatCount,
-        fallback: replay.firstDealerSeat,
+        bottomSeat: replay.firstDealerSeat,
+        cursor: replay.opening,
+        seatCount: replay.seatCount,
     });
-    if (view === null) {
-        return quiet({ failure: { damage: replay.damage, kind: "no_deal" }, kind: "failed" });
-    }
     const screen: LoadedScreen = {
         autoplay: { dueAt: null, playing: false, speed: opening.prefs.speed },
         hideHands: opening.prefs.hideHands,

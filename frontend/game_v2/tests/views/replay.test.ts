@@ -3,7 +3,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { ManualClock } from "#tests/fixtures/clock";
 import { engineReplayText } from "#tests/fixtures/replays";
 import { FakeStandingsLoad } from "#tests/fixtures/standings";
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/table";
+import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { REPLAY_VERSION } from "@/shared/protocol";
 import { REPLAY_URL_WRITE_INTERVAL_MS, type ReplayLocation, mountReplayView } from "@/views/replay";
@@ -825,11 +825,22 @@ describe("mountReplayView - loading", () => {
         expect(host.querySelector(".replay-state__links button")).toBeNull();
     });
 
-    it("says a replay holding no deal holds no round", async () => {
-        const { answer, host } = mountReplay();
-        await answer({ ok: true, text: JSON.stringify({ version: REPLAY_VERSION }) });
+    it("says a replay holding no deal holds no round, and which line broke it off", async () => {
+        const empty = mountReplay();
+        await empty.answer({ ok: true, text: JSON.stringify({ version: REPLAY_VERSION }) });
+        const damaged = mountReplay();
+        await damaged.answer({
+            ok: true,
+            text: [JSON.stringify({ version: REPLAY_VERSION }), "not json"].join("\n"),
+        });
 
-        expect(textOf(host, ".replay-state__title")).toBe("This replay holds no round");
+        expect(textOf(empty.host, ".replay-state__title")).toBe("This replay holds no round");
+        expect(textOf(empty.host, ".replay-state__detail")).toBe(
+            "The recording stops before the first deal.",
+        );
+        expect(textOf(damaged.host, ".replay-state__detail")).toBe(
+            "The recording stops before the first deal. Line 2 could not be read.",
+        );
     });
 
     it("labels a replay that stops before the game's end, and says where it ends at its last stop", async () => {

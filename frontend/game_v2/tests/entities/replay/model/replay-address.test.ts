@@ -4,14 +4,15 @@ import { loadEngineReplay } from "#tests/fixtures/replays";
 import {
     type NavigationIndex,
     buildNavigationIndex,
-} from "@/entities/table/model/navigation-index";
+} from "@/entities/replay/model/navigation-index";
 import {
     parseReplayAddress,
     replayAddressSearch,
     resolveReplayAddress,
-} from "@/entities/table/model/replay-address";
+} from "@/entities/replay/model/replay-address";
 
-const SEATS = { count: 4, fallback: 3 };
+const FIRST_DEAL = { page: 0, stop: 0 };
+const DEFAULTS = { bottomSeat: 3, cursor: FIRST_DEAL, seatCount: 4 };
 
 function navigationOf(name: string): NavigationIndex {
     const { events, tables } = loadEngineReplay(name);
@@ -42,38 +43,36 @@ describe("resolveReplayAddress", () => {
     const nav = navigationOf("full_game");
 
     test("opens the named seat, round and step", () => {
-        expect(resolveReplayAddress(nav, { round: 2, seat: 1, step: 5 }, SEATS)).toEqual({
+        expect(resolveReplayAddress(nav, { round: 2, seat: 1, step: 5 }, DEFAULTS)).toEqual({
             bottomSeat: 1,
             cursor: { page: 0, stop: nav.rounds[2].firstStop + 5 },
         });
     });
 
     test("falls back to the default seat for a seat the game does not seat", () => {
-        expect(resolveReplayAddress(nav, { round: 0, seat: 4, step: 0 }, SEATS)?.bottomSeat).toBe(
+        expect(resolveReplayAddress(nav, { round: 0, seat: 4, step: 0 }, DEFAULTS).bottomSeat).toBe(
             3,
         );
     });
 
     test("opens the first deal for a missing or out-of-range round, its step ignored", () => {
-        const first = { page: 0, stop: 0 };
-
         expect(
-            resolveReplayAddress(nav, { round: null, seat: null, step: 7 }, SEATS)?.cursor,
-        ).toEqual(first);
+            resolveReplayAddress(nav, { round: null, seat: null, step: 7 }, DEFAULTS).cursor,
+        ).toEqual(FIRST_DEAL);
         expect(
-            resolveReplayAddress(nav, { round: 99, seat: null, step: 7 }, SEATS)?.cursor,
-        ).toEqual(first);
+            resolveReplayAddress(nav, { round: 99, seat: null, step: 7 }, DEFAULTS).cursor,
+        ).toEqual(FIRST_DEAL);
     });
 
     test("opens the round's deal for a missing or out-of-range step", () => {
         const deal = { page: 0, stop: nav.rounds[3].firstStop };
         const pastEnd = nav.rounds[3].stopCount;
 
-        expect(resolveReplayAddress(nav, { round: 3, seat: 0, step: null }, SEATS)?.cursor).toEqual(
-            deal,
-        );
         expect(
-            resolveReplayAddress(nav, { round: 3, seat: 0, step: pastEnd }, SEATS)?.cursor,
+            resolveReplayAddress(nav, { round: 3, seat: 0, step: null }, DEFAULTS).cursor,
+        ).toEqual(deal);
+        expect(
+            resolveReplayAddress(nav, { round: 3, seat: 0, step: pastEnd }, DEFAULTS).cursor,
         ).toEqual(deal);
     });
 });
@@ -94,6 +93,6 @@ describe("replayAddressSearch", () => {
 
         const address = parseReplayAddress(replayAddressSearch("?v=2", nav, view));
 
-        expect(resolveReplayAddress(nav, address, SEATS)).toEqual(view);
+        expect(resolveReplayAddress(nav, address, DEFAULTS)).toEqual(view);
     });
 });

@@ -4,8 +4,8 @@ import {
     type ReplayDisplay,
     type ReplayIncompleteness,
     type ReplayMoves,
-} from "@/entities/table/lib/replay-display";
-import { type ReplayCursor } from "@/entities/table/model/replay-cursor";
+} from "@/entities/replay/lib/replay-display";
+import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
 
 /** The round list's element id, which its toggle controls. */
 export const REPLAY_ROUND_LIST_ID = "replay-round-list";

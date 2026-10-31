@@ -1,12 +1,8 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
-import {
-    DEFAULT_REPLAY_PREFS,
-    type StandingsRenderer,
-    readReplayPrefs,
-    startStandingsLoad,
-} from "@/entities/table";
+import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
+import { type StandingsRenderer, startStandingsLoad } from "@/entities/table";
 import { type TileSprite, injectTileSprite, loadTileSprite } from "@/entities/tile";
 import { type Route, lazyRoute, startRouter } from "@/router";
 import { fetchGameHandoff, fetchReplay } from "@/shared/api";

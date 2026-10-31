@@ -1,8 +1,8 @@
 import { assert, describe, expect, test } from "vitest";
 
 import { engineReplayText } from "#tests/fixtures/replays";
-import { type LoadedReplay, readReplay } from "@/entities/client";
-import { type BoardPerspective, replayDisplay } from "@/entities/table";
+import { type LoadedReplay, readReplay, replayDisplay } from "@/entities/replay";
+import { type BoardPerspective } from "@/entities/table";
 
 const ALL: BoardPerspective = { bottomSeat: 0, reveal: "all" };
 

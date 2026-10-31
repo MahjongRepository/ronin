@@ -1,7 +1,7 @@
 import { assert, describe, expect, it } from "vitest";
 
 import { engineReplayText } from "#tests/fixtures/replays";
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, roundPosition } from "@/entities/table";
+import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, roundPosition } from "@/entities/replay";
 import {
     HOLD_DELAY_MS,
     HOLD_REPEAT_MS,

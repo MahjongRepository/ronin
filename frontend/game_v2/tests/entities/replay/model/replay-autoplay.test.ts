@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
-import { autoplayDelayMs, autoplayStep, buildNavigationIndex } from "@/entities/table";
+import { autoplayDelayMs, autoplayStep, buildNavigationIndex } from "@/entities/replay";
 
 function loaded(name: string) {
     const replay = loadEngineReplay(name);

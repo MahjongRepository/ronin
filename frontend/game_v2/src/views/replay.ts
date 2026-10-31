@@ -4,8 +4,6 @@ import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
-    type BoardNotice,
-    GameBoard,
     REPLAY_ROUND_LIST_ID,
     ROUND_LIST_ROW_CLASS,
     ReplayControls,
@@ -14,15 +12,19 @@ import {
     type ReplayPrefsStore,
     ReplayStatus,
     RoundList,
-    type ScoreDiffPin,
-    type SeatPosition,
-    type StandingsRenderer,
     type StepDirection,
-    type TableState,
-    boardOverlay,
     lastCursor,
     replayAddressSearch,
     replayDisplay,
+} from "@/entities/replay";
+import {
+    type BoardNotice,
+    GameBoard,
+    type ScoreDiffPin,
+    type SeatPosition,
+    type StandingsRenderer,
+    type TableState,
+    boardOverlay,
     showsRoundResult,
     tableStateToDisplayState,
 } from "@/entities/table";

@@ -1,7 +1,12 @@
-import { type ActionStep, type StepEvent } from "@/entities/table/model/action-steps";
-import { type BoardPerspective } from "@/entities/table/model/board-types";
-import { roundInWind } from "@/entities/table/model/helpers";
-import { type KanDeclaredEvent, type TableState } from "@/entities/table/model/types";
+import { type ActionStep, type StepEvent } from "@/entities/replay/model/action-steps";
+import {
+    type BoardPerspective,
+    type KanDeclaredEvent,
+    type TableState,
+    formatRoundName,
+    roundInWind,
+    roundResultSummary,
+} from "@/entities/table";
 import { RED_FIVES, tileName } from "@/entities/tile";
 import {
     type DiscardEvent,
@@ -10,9 +15,6 @@ import {
     SEAT_CONTROL_REASON,
     type SeatControlLine,
 } from "@/shared/protocol";
-
-import { formatRoundName } from "./round-name";
-import { roundResultSummary } from "./round-summary";
 
 const CALL_NAMES = { chi: "chi", open_kan: "kan", pon: "pon" } as const;
 

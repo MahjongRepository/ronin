@@ -1,7 +1,6 @@
+import { type RoundEndResult, type TableState, roundEndPages, roundInWind } from "@/entities/table";
+
 import { type ActionStep, type StepEvent, buildActionSteps } from "./action-steps";
-import { roundEndPages } from "./handlers/round-end";
-import { roundInWind } from "./helpers";
-import { type RoundEndResult, type TableState } from "./types";
 
 /** One stop of the replay, in the round it belongs to, with the result pages it shows (a double ron's per winner). */
 export interface ReplayStop extends ActionStep {

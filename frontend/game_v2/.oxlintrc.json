@@ -345,7 +345,9 @@
                                     "@/entities/session",
                                     "@/entities/session/**",
                                     "@/entities/client",
-                                    "@/entities/client/**"
+                                    "@/entities/client/**",
+                                    "@/entities/replay",
+                                    "@/entities/replay/**"
                                 ],
                                 "message": "The tile slice uses no other slice: slices depend downward only."
                             },
@@ -400,7 +402,9 @@
                                     "@/entities/session",
                                     "@/entities/session/**",
                                     "@/entities/client",
-                                    "@/entities/client/**"
+                                    "@/entities/client/**",
+                                    "@/entities/replay",
+                                    "@/entities/replay/**"
                                 ],
                                 "message": "The table slice uses only tile: slices depend downward only."
                             },
@@ -457,7 +461,9 @@
                                     "@/entities/table",
                                     "@/entities/table/**",
                                     "@/entities/client",
-                                    "@/entities/client/**"
+                                    "@/entities/client/**",
+                                    "@/entities/replay",
+                                    "@/entities/replay/**"
                                 ],
                                 "message": "The session slice uses no other slice: slices depend downward only."
                             },
@@ -508,7 +514,61 @@
                                 "message": "An entity imports no view and not the app's entry or router: layers depend downward only."
                             },
                             {
+                                "group": ["@/entities/replay", "@/entities/replay/**"],
+                                "message": "The client slice uses only session and table: slices depend downward only."
+                            },
+                            {
                                 "group": ["@/entities/*/**", "!@/entities/client/**"],
+                                "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/entities/replay/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "An entity imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": ["@/entities/session", "@/entities/session/**"],
+                                "message": "The replay slice uses only client, table and tile: slices depend downward only."
+                            },
+                            {
+                                "group": ["@/entities/*/**", "!@/entities/replay/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
                             }
                         ]

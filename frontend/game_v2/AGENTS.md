@@ -7,8 +7,8 @@ furiten) and the round results the player confirms, and the replay reads a recor
 server rather than the server to it.
 
 Each part's rules are in its own `AGENTS.md`: `src/entities/client/` (what the seat owes, the loss of step, the live
-board), `src/entities/session/`, `src/entities/table/`, `src/shared/protocol/`, `src/views/` (the live driver, the
-replay page) and `src/styles/` (the board's layout).
+board), `src/entities/replay/` (moving through a recorded game), `src/entities/session/`, `src/entities/table/`,
+`src/shared/protocol/`, `src/views/` (the live driver, the replay page) and `src/styles/` (the board's layout).
 
 ## Build
 
@@ -184,9 +184,10 @@ introducing new FSD layers:
 * `views/` — route views; they compose entities and shared code.
 * `entities/` — domain UI and models (`tile`: tiles, hands, melds, discards; `table`: the game table model, the replay
   file reader and the board UI; `session`: the session machine; `client`: the dispatcher over client events, its
-  state, timelines and seat scenarios, and the live board and rotate panel drawn from that state), imported through
-  each slice's `index.ts`. A slice uses only slices below it: `client` may use `session` and `table`, `table` may use
-  `tile`, never the reverse. Lint enforces the layering in `src`: `.oxlintrc.json` has one `no-restricted-imports`
+  state, timelines and seat scenarios, and the live board and rotate panel drawn from that state; `replay`: the
+  replay's navigation over the client's timeline, its controls and round list), imported through each slice's
+  `index.ts`. A slice uses only slices below it: `replay` may use `client`, `table` and `tile`, `client` may use
+  `session` and `table`, `table` may use `tile`, never the reverse. Lint enforces the layering in `src`: `.oxlintrc.json` has one `no-restricted-imports`
   override per layer and slice, banning upward imports (the entry and the router included), any slice's internals but
   its own, and the tests. The tests are exempt from the slice and public-entry bans. A new slice needs its own
   override, or its self-imports fail. An override replaces the rule's options, so each one repeats the zod paths and
