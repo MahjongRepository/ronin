@@ -26,13 +26,16 @@ import {
 } from "../model.ts";
 import { checkVisible } from "../page-checks.ts";
 import {
-    LAPTOPS,
+    FLOOR,
     LARGE_DESKTOP,
+    MID_DESKTOP,
     NARROW_DESKTOP,
+    NOTCH_PHONE,
     SHORT_DESKTOP,
     SHORT_TABLET,
+    UPRIGHT_PHONE,
     VIEWPORTS,
-    WIDER_PHONES,
+    WORST_CASES,
 } from "../viewports.ts";
 
 /** The least room between a decision control and any tile outside the controls, so a tap meant for one never lands on the other. */
@@ -120,15 +123,32 @@ function gameCase(checkpoint: LiveCheckpoint, shown: string): PageCase {
     };
 }
 
+/** Where the live board's geometry is held to the replay's (`checkLiveGeometry`), and its rotate panel shown. */
+const LIVE_AT = [
+    ...WORST_CASES,
+    NOTCH_PHONE,
+    SHORT_DESKTOP,
+    NARROW_DESKTOP,
+    SHORT_TABLET,
+    UPRIGHT_PHONE,
+] as const;
+
+/**
+ * The live board's worst cases: the anchor's call offer at the viewports guarding a path of the layout, its turn
+ * beside it at the notch phone and the short desktop so the badges' places are compared there, the pages a check
+ * across pages compares at the floor and the mid desktop, and every other decision once at the floor. A
+ * decision whose controls a kept one shows in a denser state is left out (a ron prompt, an own turn, a riichi pick, a
+ * kuikae turn, a turn in the bank, a chiihou offer, a seat back).
+ */
 const PAGES: readonly PageCase[] = [
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
+        at: [FLOOR, NOTCH_PHONE, SHORT_DESKTOP],
         contrast: true,
     },
     {
         ...decisionCase("anchor_call", [ACTION, ".decision-controls__countdown"]),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, LARGE_DESKTOP, ...WIDER_PHONES],
+        at: [...WORST_CASES, NOTCH_PHONE, SHORT_DESKTOP, NARROW_DESKTOP],
         contrast: true,
     },
     {
@@ -136,29 +156,25 @@ const PAGES: readonly PageCase[] = [
             `${ACTION}[aria-pressed="true"]`,
             ".hand-tile--disabled",
         ]),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
         contrast: true,
     },
     { ...decisionCase("anchor_riichi_off", [`${ACTION}[aria-pressed="false"]`]), contrast: true },
-    decisionCase("anchor_call_sent", [`${ACTION}--chosen`, ".decision-timer--sent"]),
-    decisionCase("anchor_call_expired", [ACTION, ".decision-timer--time-up"]),
     {
-        ...decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
-        alsoAt: [NARROW_DESKTOP],
+        ...decisionCase("anchor_call_sent", [`${ACTION}--chosen`, ".decision-timer--sent"]),
+        at: [FLOOR, MID_DESKTOP],
     },
     {
-        ...decisionCase("chi_choice", [`${ACTION}--choice .meld-tile-sideways`, `${ACTION}--pass`]),
-        alsoAt: [NARROW_DESKTOP, LARGE_DESKTOP],
+        ...decisionCase("anchor_call_expired", [ACTION, ".decision-timer--time-up"]),
+        at: [FLOOR, MID_DESKTOP],
     },
+    decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
+    decisionCase("chi_choice", [`${ACTION}--choice .meld-tile-sideways`, `${ACTION}--pass`]),
     decisionCase("kan_offer", [`${ACTION}[aria-pressed="false"]`, ".decision-controls__countdown"]),
     {
         ...decisionCase("kan_choice", [`${ACTION}--choice .tile-back`, `${ACTION}--pass`]),
-        alsoAt: [NARROW_DESKTOP, LARGE_DESKTOP],
+        at: [FLOOR, NARROW_DESKTOP, LARGE_DESKTOP],
     },
-    decisionCase("ron_prompt", [ACTION, ".decision-controls__countdown"]),
     decisionCase("chankan_prompt", [ACTION, ".board-strip .meld--source"]),
-    decisionCase("kuikae_turn", [".hand-tile--disabled", ".hand-tile--selectable"]),
-    decisionCase("riichi_pick", [`${ACTION}[aria-pressed="true"]`, ".hand-tile--disabled"]),
     decisionCase("riichi_turn", [
         ACTION,
         ".board-furiten__word",
@@ -170,20 +186,10 @@ const PAGES: readonly PageCase[] = [
             ".play-switch--on .play-switch__knob",
             ".board-furiten__word",
         ]),
-        alsoAt: WIDER_PHONES,
+        at: [FLOOR, MID_DESKTOP],
         contrast: true,
-        onlyAt: [
-            "desktop",
-            "desktop-1440",
-            "desktop-wide",
-            "phone-notch-landscape",
-            "phone-se-landscape",
-            "phone-680",
-            "phone-700",
-        ],
         prepare: checkSwitchKeys,
     },
-    decisionCase("turn_in_bank", [".decision-controls__bank--draining", ".decision-timer--bank"]),
     decisionCase("answered", [".hand-tile--selected"]),
     decisionCase("kyuushu_offer", [
         `${ACTION}[aria-label="Kyuushu"]`,
@@ -193,14 +199,9 @@ const PAGES: readonly PageCase[] = [
         `${ACTION}[aria-label="Tsumo"]`,
         ".decision-controls__countdown",
     ]),
-    decisionCase("chiihou_offer", [
-        `${ACTION}[aria-label="Tsumo"]`,
-        ".decision-controls__countdown",
-    ]),
     decisionCase("tenhou_result", [".round-end-result__confirm", ".round-end-result__countdown"]),
     decisionCase("player_left", [".nameplate__ai--away"]),
     decisionCase("player_back", [".board-notice--success"]),
-    decisionCase("seat_back", [".board-notice--success"]),
     {
         ...decisionCase("replaced", [
             ".failure-panel__leave",
@@ -210,12 +211,8 @@ const PAGES: readonly PageCase[] = [
         ]),
         prepare: (page) => expectAnnounced(page, { ".game-menu__status-word": "Replaced" }),
     },
-    decisionCase("own_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
     gameCase("prompt", ".game__play .decision-controls__action"),
-    {
-        ...gameCase("turn", ".game__play .board-local .hand-tile--selectable"),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, ...LAPTOPS, ...WIDER_PHONES],
-    },
+    { ...gameCase("turn", ".game__play .board-local .hand-tile--selectable"), at: LIVE_AT },
 ];
 
 function measureLamps(page: Page): Promise<readonly LampMeasure[]> {

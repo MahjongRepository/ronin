@@ -27,11 +27,15 @@ import {
 } from "../model.ts";
 import { MIN_TEXT_PX } from "../text.ts";
 import {
+    FLOOR,
     LAPTOPS,
-    LARGE_DESKTOP,
+    MID_DESKTOP,
     NARROW_DESKTOP,
+    NOTCH_PHONE,
     SHORT_DESKTOP,
+    UPRIGHT_PHONE,
     WIDER_PHONES,
+    WORST_CASES,
 } from "../viewports.ts";
 
 /** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
@@ -49,42 +53,45 @@ const MIN_STRIP_GAP = 6;
 /** Each badge's fixed point by its seat, where a page measured a board in landscape (`checkBadgePlaces`). */
 const BADGE_ANCHORS = new PageRecord<Readonly<Record<string, readonly [number, number]>>>();
 
-/**
- * Where density binds, the dense stories' only viewports: the landscape phones, the narrow desktop (a phone's chrome on
- * a desktop's geometry) and the short desktop (the band's corners shared).
- */
-const DENSE = {
-    alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...WIDER_PHONES],
-    onlyAt: [
-        "phone-se-landscape",
-        "phone-notch-landscape",
-        SHORT_DESKTOP,
-        NARROW_DESKTOP,
-        ...WIDER_PHONES,
-    ],
-} as const;
+const DOCUMENT_AT = { at: [UPRIGHT_PHONE] } as const;
 
+/**
+ * The board's worst cases. The full hands with five offers bind the band and the worst case is the densest table, so
+ * both stand at the viewports guarding a path of the layout, as the longest strips (four open kans a seat) do where a
+ * strip binds and the riichi call at every seat where a call's words do; a story they cover in a harsher form is left
+ * out (full rivers, concealed hands, a tsumo at every seat), and every other dense story is checked once at the
+ * floor, where density binds, or also where its own path does.
+ */
 const PAGES: readonly PageCase[] = [
-    documentCase("storybook", "/play/storybook", ".storybook .tile"),
-    documentCase("storybook-hand", "/play/storybook/hand", ".storybook .hand .tile"),
-    documentCase("storybook-discards", "/play/storybook/discards", ".storybook .discards .tile"),
-    documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
-    boardCase("board-full-rivers", "?state=full_rivers"),
+    { ...documentCase("storybook", "/play/storybook", ".storybook .tile"), ...DOCUMENT_AT },
+    {
+        ...documentCase("storybook-hand", "/play/storybook/hand", ".storybook .hand .tile"),
+        ...DOCUMENT_AT,
+    },
+    {
+        ...documentCase(
+            "storybook-discards",
+            "/play/storybook/discards",
+            ".storybook .discards .tile",
+        ),
+        ...DOCUMENT_AT,
+    },
+    {
+        ...documentCase("storybook-melds", "/play/storybook/melds", ".storybook .meld .tile"),
+        ...DOCUMENT_AT,
+    },
     {
         ...boardCase("board-callouts-riichi", "?state=worst&callout=riichi", [".board-callout"]),
+        at: [FLOOR, MID_DESKTOP, NARROW_DESKTOP],
         longNames: true,
     },
-    boardCase("board-callouts-tsumo", "?state=full_rivers&callout=tsumo&pin=top", [
-        ".board-callout",
-        ".board-center__diff-label--top",
-    ]),
     {
         ...boardCase("board-callouts-adjacent", "?state=riichi_latest&callout=riichi&offers=five", [
             ".board-callout",
             ".discard-tile--last.discard-tile-riichi",
             ACTION,
         ]),
-        alsoAt: [SHORT_DESKTOP],
+        at: [FLOOR, SHORT_DESKTOP],
     },
     {
         ...boardCase("board-worst", "?state=worst&pin=right", [
@@ -93,7 +100,7 @@ const PAGES: readonly PageCase[] = [
             ".board-center__seat--left .board-center__diff--right",
             ".nameplate__ai",
         ]),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...WIDER_PHONES],
+        at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, NARROW_DESKTOP, UPRIGHT_PHONE],
         contrast: true,
         longNames: true,
     },
@@ -102,40 +109,29 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        alsoAt: [NARROW_DESKTOP, ...LAPTOPS, LARGE_DESKTOP, ...WIDER_PHONES],
+        at: WORST_CASES,
         longNames: true,
     },
     {
         ...boardCase("board-full-hands", "?state=full_hands&offers=five", [ACTION]),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, LARGE_DESKTOP, ...WIDER_PHONES],
+        at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
     },
     {
         ...boardCase("board-full-hands-riichi", "?state=full_hands&offers=riichi", [
             `${ACTION}[aria-pressed="true"]`,
             ".decision-controls__bank",
         ]),
-        alsoAt: [SHORT_DESKTOP, ...LAPTOPS, LARGE_DESKTOP, ...WIDER_PHONES],
+        at: [FLOOR, SHORT_DESKTOP],
     },
-    { ...boardCase("board-concealed-hands", "?state=concealed_hands"), alsoAt: [SHORT_DESKTOP] },
-    {
-        ...boardCase("board-mixed-hands-a", "?state=mixed_hands_a", [".board-strip .meld"]),
-        alsoAt: [SHORT_DESKTOP, ...WIDER_PHONES],
-    },
-    {
-        ...boardCase("board-mixed-hands-b", "?state=mixed_hands_b", [".board-strip .meld"]),
-        alsoAt: [SHORT_DESKTOP, ...WIDER_PHONES],
-    },
-    {
-        ...boardCase("board-mixed-hands-c", "?state=mixed_hands_c", [".board-strip .meld"]),
-        alsoAt: [SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
-    },
+    boardCase("board-mixed-hands-a", "?state=mixed_hands_a", [".board-strip .meld"]),
+    boardCase("board-mixed-hands-b", "?state=mixed_hands_b", [".board-strip .meld"]),
+    boardCase("board-mixed-hands-c", "?state=mixed_hands_c", [".board-strip .meld"]),
     {
         ...boardCase("board-kans-a", "?state=kans_a&callout=every&pin=left", [
             ".board-strip .meld",
             ".board-callout",
             ".board-center__diff-label--left",
         ]),
-        ...DENSE,
         longNames: true,
     },
     {
@@ -144,7 +140,6 @@ const PAGES: readonly PageCase[] = [
             ".board-callout--ron",
             ".discard-tile--last",
         ]),
-        ...DENSE,
         longNames: true,
     },
     {
@@ -152,7 +147,6 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".decision-timer--bank .decision-controls__bank--draining",
         ]),
-        ...DENSE,
         longNames: true,
     },
     {
@@ -160,14 +154,14 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        ...DENSE,
+        at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES],
         longNames: true,
     },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
+        at: [FLOOR, MID_DESKTOP],
         fontBlocked: true,
         name: "font-blocked-anchor-turn",
-        onlyAt: ["desktop-1440", "phone-se-landscape"],
     },
 ];
 

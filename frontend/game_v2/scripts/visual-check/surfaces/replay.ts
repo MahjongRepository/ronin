@@ -26,7 +26,15 @@ import {
     type Surface,
     type TaskResult,
 } from "../model.ts";
-import { NARROW_DESKTOP, SHORT_DESKTOP, SHORT_TABLET, WIDER_PHONES } from "../viewports.ts";
+import {
+    FLOOR,
+    MID_DESKTOP,
+    NARROW_DESKTOP,
+    SHORT_DESKTOP,
+    SHORT_TABLET,
+    UPRIGHT_PHONE,
+    WORST_CASES,
+} from "../viewports.ts";
 
 /** The replay's text: the least font size in px each part reads at on a landscape board. */
 const REPLAY_TEXT_PX: Readonly<Record<StatusPart, number>> = {
@@ -146,6 +154,7 @@ function replayStateCase(
     retry: boolean | null,
 ): PageCase {
     return {
+        at: [UPRIGHT_PHONE],
         async check({ measure, page, report }) {
             await expectTexts(page, texts);
             if (retry !== null) {
@@ -357,15 +366,22 @@ async function checkThrowOnStep(
     return checkShownBoard();
 }
 
+/**
+ * The replay's worst cases: its first stop wherever the live board's geometry is compared with it (the notch phone's
+ * insets aside), a desktop's status where its lines bind (a damaged recording's, the long standings, a notice over
+ * it), the open round list's desktop rows, a panel over the upright and the short tablet's board, and every other
+ * story once, at the floor or, with no board, upright. A story a kept one shows in a harsher form is left out (an
+ * incomplete recording, under the damaged one's longer words).
+ */
 const PAGES: readonly PageCase[] = [
     {
         ...replayCase("start", [".replay-status__narration"]),
-        alsoAt: [...WIDER_PHONES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
+        at: [...WORST_CASES, SHORT_DESKTOP, NARROW_DESKTOP, SHORT_TABLET, UPRIGHT_PHONE],
     },
     { ...replayCase("mid", [".replay-status__narration"]), prepare: expectStep(14) },
     {
         ...replayCase("standings_failed", [".board-notices .board-notice--error"]),
-        alsoAt: [NARROW_DESKTOP, SHORT_TABLET],
+        at: [FLOOR, MID_DESKTOP, NARROW_DESKTOP, SHORT_TABLET],
         prepare: (page) =>
             expectTexts(page, {
                 ".board-notices .board-notice--error .board-notice__body":
@@ -376,13 +392,18 @@ const PAGES: readonly PageCase[] = [
     replayCase("viewpoint_hidden", [".replay-controls__option--hands[aria-pressed='true']"]),
     {
         ...replayCase("round_list", [".round-list__row[aria-current]", ".round-list__row--end"]),
-        alsoAt: [SHORT_TABLET],
+        at: [FLOOR, MID_DESKTOP, SHORT_TABLET],
         longNames: true,
     },
-    replayCase("incomplete", [".replay-status__incomplete--end"]),
-    replayCase("ends_on_result", [".round-end-result__title", ".replay-status__incomplete--end"]),
-    replayCase("damaged", [".replay-status__incomplete--end"]),
-    { ...replayCase("double_ron", [".round-end-result__pager"]), alsoAt: [SHORT_TABLET] },
+    {
+        ...replayCase("ends_on_result", [
+            ".round-end-result__title",
+            ".replay-status__incomplete--end",
+        ]),
+        at: [FLOOR, UPRIGHT_PHONE],
+    },
+    { ...replayCase("damaged", [".replay-status__incomplete--end"]), at: [FLOOR, MID_DESKTOP] },
+    { ...replayCase("double_ron", [".round-end-result__pager"]), at: [FLOOR, SHORT_TABLET] },
     {
         ...replayCase("result_hidden", [".round-end-result__title"]),
         required: {
@@ -395,16 +416,19 @@ const PAGES: readonly PageCase[] = [
         ".standings__cell--win",
         ".standings__ending--tobi",
     ]),
-    replayCase("standings_long", [
-        ".standings__round--jump",
-        ".standings__foot-row--result",
-        ".standings__ending--extension_limit",
-    ]),
     {
+        ...replayCase("standings_long", [
+            ".standings__round--jump",
+            ".standings__foot-row--result",
+            ".standings__ending--extension_limit",
+        ]),
+        at: [FLOOR, MID_DESKTOP],
+    },
+    {
+        at: [FLOOR, MID_DESKTOP],
         check: checkThrowOnStep,
         kind: "own",
         name: "replay-throws-on-step",
-        onlyAt: ["desktop-1440", "phone-se-landscape"],
         path: "/play/storybook/replay?state=throws_on_step",
         required: { visible: [...BOARD_VISIBLE, ".replay-controls__moves"] },
     },
@@ -441,7 +465,7 @@ const PAGES: readonly PageCase[] = [
         false,
     ),
     {
-        alsoAt: [SHORT_DESKTOP],
+        at: [FLOOR, SHORT_DESKTOP],
         kind: "board",
         name: "replay",
         path: `/play/history/${GAME_ID}`,
@@ -463,8 +487,9 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                     width: rect.width,
                 };
             }
+            /** Each line's middle: its text's, which its line box centres whatever the leading. */
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
-            function lineTops(element: Element): number[] {
+            function lineMiddles(element: Element): number[] {
                 const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
                 const rects: DOMRect[] = [];
                 for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
@@ -472,11 +497,13 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                     range.selectNodeContents(node);
                     rects.push(...[...range.getClientRects()].filter((rect) => rect.height > 0));
                 }
-                const tops = rects
-                    .map((rect) => rect.top)
+                const middles = rects
+                    .map((rect) => rect.top + rect.height / 2)
                     .toSorted((first, second) => first - second);
                 const lineGap = Math.min(...rects.map((rect) => rect.height)) / 2;
-                return tops.filter((top, index) => index === 0 || top - tops[index - 1] > lineGap);
+                return middles.filter(
+                    (middle, index) => index === 0 || middle - middles[index - 1] > lineGap,
+                );
             }
             const roundList = document.querySelector(".round-list");
             const roundRows = document.querySelector(".round-list__rows");
@@ -515,7 +542,7 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                 }
                 const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight);
                 const rect = element.getBoundingClientRect();
-                const tops = lineTops(element);
+                const middles = lineMiddles(element);
                 const shown =
                     element.checkVisibility() &&
                     element.textContent.trim() !== "" &&
@@ -526,9 +553,10 @@ function measureReplay(page: Page): Promise<ReplayMeasure> {
                         part,
                         {
                             box: box(element),
-                            lines: tops.length,
-                            linesInPlace: tops.filter((top) => top + lineHeight <= placeBottom + 1)
-                                .length,
+                            lines: middles.length,
+                            linesInPlace: middles.filter(
+                                (middle) => middle + lineHeight / 2 <= placeBottom + 1,
+                            ).length,
                             px: Number.parseFloat(getComputedStyle(element).fontSize),
                             shown,
                         },

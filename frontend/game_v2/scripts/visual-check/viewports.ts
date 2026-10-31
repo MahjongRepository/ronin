@@ -27,25 +27,38 @@ export const LARGE_DESKTOP = "desktop-large";
 /** A short tablet's or a small laptop's window (1024x510): wide, but under the phone board's 520px height. */
 export const SHORT_TABLET = "tablet-short";
 
-/**
- * Laptop windows on either side of the short desktop's 760px: 1280x720 and 1536x730 share the band's corners,
- * 1440x770 does not.
- */
-const LAPTOP_VIEWPORTS: readonly Viewport[] = [
-    [1280, 720],
-    [1536, 730],
-    [1440, 770],
-].map(([width, height]) => ({
+/** The smallest supported landscape (667x375), the one viewport a page names none is checked at. */
+export const FLOOR = "phone-se-landscape";
+/** The notched landscape phone, whose insets and capture model only it emulates. */
+export const NOTCH_PHONE = "phone-notch-landscape";
+/** The upright phone, where the live game shows the rotate panel and a board lays out upright. */
+export const UPRIGHT_PHONE = "phone-portrait";
+/** The mid desktop (1440x900), the spec's reference desktop. */
+export const MID_DESKTOP = "desktop-1440";
+/** The three classes the representative worst cases are chosen across: the floor, the mid and the largest desktop. */
+export const WORST_CASES: readonly string[] = [FLOOR, MID_DESKTOP, LARGE_DESKTOP];
+
+/** A laptop window under the short desktop's 760px (1280x720), which shares the band's corners. */
+export const SHORT_LAPTOP = "laptop-720";
+/** The shortest regular desktop (1440x770), just over the short desktop's 760px: the band's corners its own. */
+export const SHORTEST_REGULAR_DESKTOP = "laptop-770";
+
+/** Laptop windows on either side of the short desktop's 760px. */
+const LAPTOP_VIEWPORTS: readonly Viewport[] = (
+    [
+        [SHORT_LAPTOP, 1280, 720],
+        [SHORTEST_REGULAR_DESKTOP, 1440, 770],
+    ] as const
+).map(([name, width, height]) => ({
     context: { viewport: { height, width } },
     desktop: true,
     engine: chromium,
-    name: `laptop-${height}`,
-    optIn: true,
+    name,
     portrait: false,
     rotates: false,
     supported: true,
 }));
-export const LAPTOPS: readonly string[] = LAPTOP_VIEWPORTS.map(({ name }) => name);
+export const LAPTOPS: readonly string[] = [SHORT_LAPTOP, SHORTEST_REGULAR_DESKTOP];
 
 /**
  * Small desktop windows (700x540, 900x600) where a panel's content meets the board's height and width at once: the
@@ -59,12 +72,13 @@ const SMALL_WINDOW_VIEWPORTS: readonly Viewport[] = [
     desktop: true,
     engine: chromium,
     name: `window-${width}`,
-    optIn: true,
     portrait: false,
     rotates: false,
     supported: true,
 }));
 export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ name }) => name);
+/** The smaller window, smaller each way, where a panel's content binds first. */
+export const [SMALLEST_WINDOW] = SMALL_WINDOWS;
 
 /**
  * Wider phones at the floor's height, where the own tile reaches 36px and the right hand's placement must still keep
@@ -79,7 +93,6 @@ const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [680, 700].map((width) => ({
     desktop: false,
     engine: webkit,
     name: `phone-${width}`,
-    optIn: true,
     ownTileFloor: MIN_TAP,
     portrait: false,
     rotates: false,
@@ -88,37 +101,20 @@ const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [680, 700].map((width) => ({
 export const WIDER_PHONES: readonly string[] = WIDER_PHONE_VIEWPORTS.map(({ name }) => name);
 
 /**
- * The acceptance viewports: two 16:10 desktops and a 16:9 one, the opt-in desktops and laptops, each on the pages that
- * name it, the upright phone that gets the rotate panel, the notched landscape phone (its insets cover the plain one),
- * and the smallest supported landscape, which also keeps the aside's scroll honest. The notched phone is the agreed
- * capture model, not measured Safari chrome: Playwright's "iPhone 13 landscape" options with the viewport and screen
- * set to the full 844x390 display after them (the device's own 750x342 is Safari's viewport with its chrome), then the
- * insets, so its safe area is 750x369.
+ * The acceptance viewports, each checked only on the pages that name it (`PageCase.at`): the floor, the mid and the
+ * largest desktop, across which the representative worst cases are chosen (`WORST_CASES`), the desktops, laptops,
+ * windows, tablet and phones that each guard one path of the layout, the upright phone that gets the rotate panel,
+ * and the notched landscape phone (its insets cover the plain one). The notched phone is the agreed capture model,
+ * not measured Safari chrome: Playwright's "iPhone 13 landscape" options with the viewport and screen set to the full
+ * 844x390 display after them (the device's own 750x342 is Safari's viewport with its chrome), then the insets, so its
+ * safe area is 750x369.
  */
 export const VIEWPORTS: readonly Viewport[] = [
-    {
-        context: { viewport: { height: 800, width: 1280 } },
-        desktop: true,
-        engine: chromium,
-        name: "desktop",
-        portrait: false,
-        rotates: false,
-        supported: true,
-    },
     {
         context: { viewport: { height: 900, width: 1440 } },
         desktop: true,
         engine: chromium,
-        name: "desktop-1440",
-        portrait: false,
-        rotates: false,
-        supported: true,
-    },
-    {
-        context: { viewport: { height: 1080, width: 1920 } },
-        desktop: true,
-        engine: chromium,
-        name: "desktop-wide",
+        name: MID_DESKTOP,
         portrait: false,
         rotates: false,
         supported: true,
@@ -128,7 +124,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: true,
         engine: chromium,
         name: SHORT_DESKTOP,
-        optIn: true,
         portrait: false,
         rotates: false,
         supported: true,
@@ -138,7 +133,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: true,
         engine: chromium,
         name: NARROW_DESKTOP,
-        optIn: true,
         portrait: false,
         rotates: false,
         supported: true,
@@ -150,7 +144,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: false,
         engine: chromium,
         name: SHORT_TABLET,
-        optIn: true,
         portrait: false,
         rotates: false,
         supported: true,
@@ -160,7 +153,6 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: true,
         engine: chromium,
         name: LARGE_DESKTOP,
-        optIn: true,
         portrait: false,
         rotates: false,
         supported: true,
@@ -169,7 +161,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         context: deviceOptions("iPhone 13"),
         desktop: false,
         engine: webkit,
-        name: "phone-portrait",
+        name: UPRIGHT_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: true,
         rotates: true,
@@ -185,7 +177,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         desktop: false,
         engine: webkit,
         insets: NOTCH_INSETS,
-        name: "phone-notch-landscape",
+        name: NOTCH_PHONE,
         ownTileFloor: MIN_TAP,
         portrait: false,
         rotates: false,
@@ -195,7 +187,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         context: deviceOptions("iPhone SE (3rd gen) landscape"),
         desktop: false,
         engine: webkit,
-        name: "phone-se-landscape",
+        name: FLOOR,
         ownTileFloor: MIN_TAP,
         portrait: false,
         rotates: false,

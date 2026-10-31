@@ -476,15 +476,18 @@ scores stay readable at the floor.
 
 The reference is drawn, and every review opens, the same three: the 667x375 floor (iPhone SE), an
 iPhone 13 in landscape with a notch's safe area (844x390 with insets of 47, 47 and 21), and
-1440x900. The gate runs every page at those three, at 1280x800 and 1920x1080, and on an iPhone 13
-upright (the rotate panel, and the storybooks and the replay read upright). It runs a page at a
-further viewport only where that page names it, each guarding one path of the layout: 1366x657
-(a short desktop, the band's corners shared), 800x600 (a narrow desktop, a phone's chrome on a
-desktop's geometry), 1280x720, 1536x730 and 1440x770 (laptop windows either side of the short
-desktop's 760px), 700x540 and 900x600 (small windows, a panel against the board's width),
-1024x510 (a short tablet, wide but under a phone's height), 2560x1440 (a large desktop, the
-chrome a step up) and 680x375 and 700x375 (wider phones at the floor's height). The composition
-is identical on all the landscape ones.
+1440x900. The gate's automated matrix is its own, apart from these reference viewports. It selects
+representative worst cases across the floor, 1440x900 and 2560x1440 (a large desktop, the chrome
+a step up). Each further page/viewport combination exercises a distinct layout path or a denser
+form not already covered. Other states run once where they bind, or are omitted when a kept case
+covers the same elements and layout path in a harsher form. Its further viewports: the notch
+phone, an iPhone 13 upright (the rotate panel, and the storybooks and the replay read upright),
+1366x657 (a short desktop, the band's corners shared), 800x600 (a narrow desktop, a phone's chrome
+on a desktop's geometry), 1280x720 and 1440x770 (laptop windows either side of the short
+desktop's 760px, the latter the shortest regular desktop), 700x540 and 900x600 (small windows, a
+panel against the board's width), 1024x510 (a short tablet, wide but under a phone's height) and
+680x375 and 700x375 (wider phones at the floor's height). The composition is identical on all the
+landscape ones.
 
 ## Review checklist
 

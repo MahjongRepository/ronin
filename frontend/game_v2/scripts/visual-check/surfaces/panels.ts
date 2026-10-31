@@ -25,7 +25,16 @@ import {
 } from "../model.ts";
 import { checkVisible } from "../page-checks.ts";
 import { MIN_TEXT_PX } from "../text.ts";
-import { SMALL_WINDOWS } from "../viewports.ts";
+import {
+    FLOOR,
+    MID_DESKTOP,
+    NOTCH_PHONE,
+    SHORTEST_REGULAR_DESKTOP,
+    SMALLEST_WINDOW,
+    SMALL_WINDOWS,
+    UPRIGHT_PHONE,
+    WORST_CASES,
+} from "../viewports.ts";
 
 /** The least room between two names on a line of a result's scores, so each name and its end read as one. */
 const MIN_RESULT_NAME_GAP = 12;
@@ -116,6 +125,7 @@ function rotateCase(
     { announced = {}, content, countdown, texts = {} }: RotateExpectation,
 ): PageCase {
     return {
+        at: [UPRIGHT_PHONE],
         async check({ page, report }) {
             await expectTexts(page, texts);
             await expectAnnounced(page, announced);
@@ -190,26 +200,39 @@ async function checkLeaveQuestion(
     return summary;
 }
 
+/**
+ * The panels' worst cases: the densest results (pao, a double ron's pager, a hand with its melds) and the standings
+ * at the desktops and the notch phone too, the results a forced short panel makes scroll at the small windows, and
+ * every other panel once, at the floor or, for the rotate panel, upright. A panel a kept one shows in a harsher form
+ * is left out (the plain round end and its reconnected copy, a head bump, an all-noten draw, a double ron's first page
+ * unforced, the last result and its reopened copy, a kick, the leave question after a win, the rotate panel waiting
+ * or counting down).
+ */
 const PAGES: readonly PageCase[] = [
     {
+        at: [FLOOR, MID_DESKTOP],
         check: checkLeaveQuestion,
         checkpoint: "turn",
         kind: "own",
         name: "game-leave-question",
-        onlyAt: ["desktop-1440", "phone-se-landscape"],
         path: `/play/${GAME_ID}`,
         required: { visible: [".game__play .game-menu__leave", ".game__play .hand-tile"] },
     },
     resultCase("yakuman", "", [".round-end-result__limit"]),
-    resultCase("head_bump", "", [".round-end-result__notes"]),
-    resultCase("all_noten", "", [".round-end-result__from"]),
     resultCase("triple_ron", "", [".round-end-result__from"]),
     boardCase("board-standings-stick-lost", "?overlay=game_end&leftover=lost", [
         ".standings__unawarded",
     ]),
-    resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
-    { ...resultCase("sanbaiman", "", [".round-end-result__hand .meld"]), contrast: true },
-    resultCase("pao", "", [".round-end-result__notes"]),
+    {
+        ...resultCase("double_ron", "&page=1", [".round-end-result__pager"]),
+        at: [FLOOR, MID_DESKTOP],
+    },
+    {
+        ...resultCase("sanbaiman", "", [".round-end-result__hand .meld"]),
+        at: [FLOOR, MID_DESKTOP],
+        contrast: true,
+    },
+    { ...resultCase("pao", "", [".round-end-result__notes"]), at: [...WORST_CASES, NOTCH_PHONE] },
     resultCase("exhaustive", "", [".round-end-result__tenpai .tile"]),
     resultStory("tsumo", {
         ".round-end-result__kind": "Tsumo",
@@ -263,7 +286,7 @@ const PAGES: readonly PageCase[] = [
             ".standings__cell .standings__mark--deal-in",
             ".standings__legend",
         ]),
-        alsoAt: SMALL_WINDOWS,
+        at: [...WORST_CASES, NOTCH_PHONE, SHORTEST_REGULAR_DESKTOP, ...SMALL_WINDOWS],
     },
     {
         kind: "board",
@@ -271,25 +294,23 @@ const PAGES: readonly PageCase[] = [
         path: "/play/storybook/decisions?state=game_start",
         required: { visible: [".game-start__seat--viewer", ".game-start__status", ".nameplate"] },
     },
-    decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
     {
         ...decisionCase("round_end", [".round-end-result__confirm"]),
+        at: [UPRIGHT_PHONE],
         name: "decisions-round-end-tall",
-        onlyAt: ["phone-portrait"],
         prepare: forceResultPanelTall,
     },
     scrollingResultCase("round_end", [
         ".round-end-result__confirm",
         ".round-end-result__countdown",
     ]),
-    decisionCase("double_ron_first", [".round-end-result__pager", ".round-end-result__confirm"]),
     {
         ...scrollingResultCase("double_ron_first", [
             ".round-end-result__pager",
             ".round-end-result__confirm",
             ".round-end-result__countdown",
         ]),
-        alsoAt: SMALL_WINDOWS,
+        at: [FLOOR, MID_DESKTOP, ...SMALL_WINDOWS],
     },
     {
         ...decisionCase("double_ron_last", [
@@ -299,34 +320,24 @@ const PAGES: readonly PageCase[] = [
         prepare: (page) => expectTexts(page, { ".board-overlay .round-end-result__page": "2 / 2" }),
     },
     decisionCase("waiting", [".round-end-result__waiting"]),
-    decisionCase("reconnect_owed", [".round-end-result__confirm", ".round-end-result__countdown"]),
-    decisionCase("last_result", [".round-end-result__confirm"]),
-    {
-        ...decisionCase("standings", [
-            ".standings__ending--tobi",
-            ".standings__cell--win",
-            ".standings__foot-row--result",
-            ".standings__actions a[href*='seat=1']",
-        ]),
-        alsoAt: SMALL_WINDOWS,
-    },
-    decisionCase("last_result_reopened", [".round-end-result__confirm"]),
+    decisionCase("standings", [
+        ".standings__ending--tobi",
+        ".standings__cell--win",
+        ".standings__foot-row--result",
+        ".standings__actions a[href*='seat=1']",
+    ]),
     {
         ...decisionCase("out_of_step_result", [
             ".round-end-result__uncertain",
             ".round-end-result__confirm",
             ".round-end-result__indicator-tiles .tile",
         ]),
-        alsoAt: SMALL_WINDOWS,
+        at: [FLOOR, SMALLEST_WINDOW],
     },
     decisionCase("out_of_step_standings", [".standings__incomplete"]),
-    decisionCase("kicked", [".failure-panel__leave", ".game-menu__status:not(.status-connected)"]),
     decisionCase("leave_confirm", [".leave-confirm__leave", ".leave-confirm__stay"]),
-    decisionCase("leave_after_win", [".leave-confirm__stay"]),
-    rotateCase("waiting", { content: ".rotate-panel .connection-status", countdown: false }),
     rotateCase("leave", { content: ".rotate-panel .leave-confirm__leave", countdown: false }),
     rotateCase("ended", { content: ".rotate-panel .failure-panel__reload", countdown: false }),
-    rotateCase("countdown", { content: ".rotate-panel__seconds", countdown: true }),
     rotateCase("expired", {
         announced: { ".rotate-panel__announce": "Time is up" },
         content: ".rotate-panel__decision--expired",

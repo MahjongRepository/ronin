@@ -32,11 +32,6 @@ export interface Viewport {
     readonly insets?: Insets;
     /** The viewport and safe-area box a capture model must produce, asserted on every page before its checks. */
     readonly captureModel?: { readonly viewport: Size; readonly safeArea: Box };
-    /**
-     * It guards one path of the layout, where the rest would only repeat: only the pages that name it in their
-     * `alsoAt` are checked here.
-     */
-    readonly optIn?: boolean;
 }
 
 interface Required {
@@ -74,10 +69,11 @@ export type PageCase = PageKind & {
     readonly required: Required;
     /** The face's request is refused, so the page must stay readable in the fallback stack. */
     readonly fontBlocked?: boolean;
-    /** The only viewports the page is checked at, by name; every viewport when absent. */
-    readonly onlyAt?: readonly string[];
-    /** The opt-in viewports (`Viewport.optIn`) it is also checked at, by name. */
-    readonly alsoAt?: readonly string[];
+    /**
+     * The viewports it is checked at, by name: where it is a worst case, or the one page guarding a path of the layout.
+     * The floor alone (`FLOOR`) when absent.
+     */
+    readonly at?: readonly string[];
     /** Its texts, marks and faces are measured for contrast, at `CONTRAST_VIEWPORTS` (`checkContrast`). */
     readonly contrast?: boolean;
 };

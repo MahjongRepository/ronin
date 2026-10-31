@@ -32,16 +32,16 @@ import { noticesSurface } from "./surfaces/notices.ts";
 import { panelsSurface } from "./surfaces/panels.ts";
 import { replaySurface } from "./surfaces/replay.ts";
 import { checkFont, isBlockedFont } from "./text.ts";
-import { VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.ts";
+import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.ts";
 
 /**
  * The v2 client's layout gate. It builds nothing itself: it serves the built `dist/` (the app page for every
  * `/play/` path, as the lobby does), a replay fixture under the replay API and a seat transcript over a mocked
- * game socket, then loads every storybook page, the replay and the live game at each viewport and asserts what a
- * player would see: content visible, nothing overlapping, everything inside the board and the screen, readable
- * text and tappable tiles. Any console error, failed request or missing element fails it. It writes a screenshot
- * of each page for review. Each surface (`Surface`) declares its pages and its checks; the runner loads the
- * pages and runs every surface's checks on each.
+ * game socket, then loads each surface's worst cases at the viewports each names and asserts what a player would
+ * see: content visible, nothing overlapping, everything inside the board and the screen, readable text and tappable
+ * tiles. Any console error, failed request or missing element fails it. It writes a screenshot of each page for
+ * review. Each surface (`Surface`) declares its pages and its checks; the runner loads the pages and runs every
+ * surface's checks on each.
  */
 
 const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
@@ -218,17 +218,56 @@ interface Selection {
     readonly pages: readonly PageCase[];
     readonly viewports: readonly Viewport[];
     readonly partial: boolean;
+    /** Both were named: each page is checked at every viewport named, whether it names it or not (a before and after). */
+    readonly anyViewport: boolean;
 }
 
-/** The selected pages at each of an engine's selected viewports. */
+/** The viewports a page is checked at, by name. */
+function viewportsOf(pageCase: PageCase): readonly string[] {
+    return pageCase.at ?? [FLOOR];
+}
+
+/** The selected pages at each of an engine's selected viewports that the page names, or every one (`anyViewport`). */
 function tasksOf(engine: BrowserType, selection: Selection): PageTask[] {
     const viewports = selection.viewports.filter((viewport) => viewport.engine === engine);
     return viewports.flatMap((viewport) =>
         selection.pages
-            .filter(({ onlyAt }) => onlyAt === undefined || onlyAt.includes(viewport.name))
-            .filter(({ alsoAt = [] }) => viewport.optIn !== true || alsoAt.includes(viewport.name))
+            .filter(
+                (pageCase) =>
+                    selection.anyViewport || viewportsOf(pageCase).includes(viewport.name),
+            )
             .map((pageCase) => ({ pageCase, viewport })),
     );
+}
+
+/**
+ * What would make the gate check less than it says, silently: a page naming no viewport or an unknown one, a viewport
+ * no page names, an unknown contrast viewport, and a page measured for contrast at none of the contrast viewports.
+ */
+function findSelectionErrors(): string[] {
+    const names = new Set(VIEWPORTS.map(({ name }) => name));
+    const named = new Set(PAGES.flatMap(viewportsOf));
+    return [
+        ...PAGES.filter((pageCase) => viewportsOf(pageCase).length === 0).map(
+            (pageCase) => `${pageCase.name} names no viewport`,
+        ),
+        ...PAGES.flatMap((pageCase) =>
+            viewportsOf(pageCase)
+                .filter((name) => !names.has(name))
+                .map((name) => `${pageCase.name} names an unknown viewport "${name}"`),
+        ),
+        ...[...names]
+            .filter((name) => !named.has(name))
+            .map((name) => `no page is checked at ${name}`),
+        ...[...CONTRAST_VIEWPORTS]
+            .filter((name) => !names.has(name))
+            .map((name) => `the contrast viewport "${name}" is unknown`),
+        ...PAGES.filter(
+            (pageCase) =>
+                pageCase.contrast === true &&
+                !viewportsOf(pageCase).some((name) => CONTRAST_VIEWPORTS.has(name)),
+        ).map((pageCase) => `${pageCase.name} is measured for contrast at no contrast viewport`),
+    ];
 }
 
 /** Check an engine's tasks in one browser, several pages at once. */
@@ -300,6 +339,7 @@ function matching<Item extends { readonly name: string }>(
 /** The run's selection from `--page` and `--viewport` (each repeatable, matching a name by substring). */
 function selectRun(pageFilters: readonly string[], viewportFilters: readonly string[]): Selection {
     return {
+        anyViewport: pageFilters.length > 0 && viewportFilters.length > 0,
         pages: matching(PAGES, pageFilters),
         partial: pageFilters.length > 0 || viewportFilters.length > 0,
         viewports: matching(VIEWPORTS, viewportFilters),
@@ -314,6 +354,13 @@ async function main(): Promise<number> {
             viewport: { default: [], multiple: true, type: "string" },
         },
     });
+    const errors = findSelectionErrors();
+    if (errors.length > 0) {
+        console.error(
+            `Visual check misconfigured:\n${errors.map((line) => `  ${line}`).join("\n")}`,
+        );
+        return 1;
+    }
     const selection = selectRun(values.page, values.viewport);
     if (tasksOf(chromium, selection).length + tasksOf(webkit, selection).length === 0) {
         console.error(

@@ -11,7 +11,14 @@ import {
     SELECTOR_TIMEOUT_MS,
     type Surface,
 } from "../model.ts";
-import { NARROW_DESKTOP, SMALL_WINDOWS } from "../viewports.ts";
+import {
+    FLOOR,
+    MID_DESKTOP,
+    NARROW_DESKTOP,
+    SHORTEST_REGULAR_DESKTOP,
+    SMALLEST_WINDOW,
+    UPRIGHT_PHONE,
+} from "../viewports.ts";
 
 /** The stacked story's notices in the stack's order: the ongoing condition, then the acknowledgement. */
 const STACK_ORDER = ["tile_sprite", "refused"];
@@ -23,31 +30,34 @@ const CLAMPING_SIZE = { height: 375, width: 667 };
 const OVER_CONFIRM = "/play/storybook/decisions?state=notice_over_confirm";
 const SHEET_OVER_DECISION = "/play/storybook/decisions?state=notice_sheet_decision";
 const CONFIRM = ".round-end-result__confirm";
-/** The notice stories also checked where a narrow desktop and small windows give the notices their own field. */
-const NARROW_FIELDS = [NARROW_DESKTOP, ...SMALL_WINDOWS];
+/** The long notices also checked where the smaller window gives the notices their narrowest field of their own. */
+const NARROW_FIELD = [FLOOR, SMALLEST_WINDOW];
 
+/**
+ * The notices' worst cases: the stack on the desktops too, the long ones also in the smaller window's field, one over
+ * the upright panel, the keys on both engines, and every other once at the floor. The single notices the stack holds
+ * (a refused move, faces that did not load) are left out.
+ */
 const PAGES: readonly PageCase[] = [
     decisionCase("connection_lost", [
         ".board-notice--warning",
         ".game-menu__status:not(.status-connected)",
     ]),
-    decisionCase("move_refused", [".board-notice--warning", ".hand-tile--selectable"]),
-    decisionCase("faces_missing", [".board-notice--warning", ".hand-tile--selectable"]),
     {
         ...decisionCase("notices_stacked", [".board-notice--warning", ".hand-tile--selectable"]),
-        alsoAt: NARROW_FIELDS,
+        at: [FLOOR, MID_DESKTOP, SHORTEST_REGULAR_DESKTOP, NARROW_DESKTOP],
     },
-    { ...decisionCase("notice_long", [".board-notice--error"]), alsoAt: NARROW_FIELDS },
+    { ...decisionCase("notice_long", [".board-notice--error"]), at: NARROW_FIELD },
     {
         ...decisionCase("notice_over_confirm", [".board-notice--warning", CONFIRM]),
-        alsoAt: NARROW_FIELDS,
+        at: [...NARROW_FIELD, UPRIGHT_PHONE],
     },
     {
         ...decisionCase("notice_sheet_decision", [
             `${SHEET} .notice-sheet__close`,
             `${SHEET} .notice-sheet__seconds`,
         ]),
-        alsoAt: NARROW_FIELDS,
+        at: NARROW_FIELD,
     },
     decisionCase("notice_sheet_confirm", [
         `${SHEET} .notice-sheet__close`,
@@ -60,18 +70,18 @@ const PAGES: readonly PageCase[] = [
         longNames: true,
     },
     {
+        at: [FLOOR, MID_DESKTOP],
         check: checkSheetKeys,
         kind: "own",
         name: "notices-sheet-keys",
-        onlyAt: ["desktop-1440", "phone-se-landscape"],
         path: "/play/storybook/decisions?state=notices_stacked",
         required: { visible: [".board-notice--warning", ".hand-tile--selectable"] },
     },
     {
+        at: [FLOOR, MID_DESKTOP],
         check: checkPrecedence,
         kind: "own",
         name: "notices-precedence",
-        onlyAt: ["desktop-1440", "phone-se-landscape"],
         path: "/play/storybook/decisions?state=notice_sheet_leave",
         required: { visible: [".leave-confirm__stay"] },
     },

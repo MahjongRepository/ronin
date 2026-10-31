@@ -129,27 +129,34 @@ through the rebuild to it. The board's own placement rules are `src/styles/AGENT
   unrotated can time out: an accepted cost. Replay and storybook pages take no timed input: they allow portrait and
   scroll rather than clip.
 * **Visual gate:** `make visual-check` builds the app, checks the bundle budget, serves `dist/` with a replay fixture
-  and a seat transcript over a mocked socket (no backend), and loads every storybook page, the replay and the live
-  game in Chromium and WebKit at the capture model's viewports (`scripts/visual-check/viewports.ts`; the spec's three,
-  the notch phone and the 667x375 floor on every page, each other only on the pages that name it, `optIn` and
-  `alsoAt`). Its checks are the scripts' (`scripts/visual-check/`): the layout's geometry (nothing outside the board or
-  the screen, nothing over a tile, a control, the action source or the panel it must clear, every tap target at
-  least 40x40, text never under 10px, the own hand the board's largest tiles), the replay's and the live board's
-  input and live regions, the panels' scroll and focus, the face's load, contrast at 4.5:1 for every text, mark and
-  glyph on the contrast viewports, and any console error, failed request or missing element. Every request off the
-  page's origin is answered empty, so the app's own face is the only one a capture draws. Each context asks for
-  reduced motion, so a shot shows an animation's resting state; the stories that test real input timing (the
-  replay's) run on the browser's clock. It writes a screenshot per page to `thoughts/screenshots/visual-check/`.
-* A board state worth checking at phone size is a storybook state and a case there; one the generated scenarios reach
-  is a decisions story rather than a hand-written one. `make install-frontend` installs the gate's Chromium and WebKit
-  (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host their system libraries come from
-  `npx playwright install-deps`, which needs root.
+  and a seat transcript over a mocked socket (no backend), and loads each surface's worst cases in Chromium and WebKit
+  at the viewports each page names (`PageCase.at`, the 667x375 floor when it names none; the viewports are
+  `scripts/visual-check/viewports.ts`'s). The gate selects representative worst cases (the densest board, the longest
+  names and strings, the most melds, the densest results) across the floor in WebKit and 1440x900 and 2560x1440 in
+  Chromium. Each further page/viewport combination exercises a distinct layout path or a denser form not already
+  covered. Other states run once where they bind, or are omitted when a kept case covers the same elements and
+  layout path in a harsher form. The runner fails a page naming no viewport or an unknown one, a viewport no page
+  names, an unknown contrast viewport, and a contrast page at none. Its checks are the scripts'
+  (`scripts/visual-check/`): the layout's geometry (nothing outside the board or the screen, nothing over a tile, a
+  control, the action source or the panel it must clear, every tap target at least 40x40, text never under 10px, the
+  own hand the board's largest tiles), the replay's and the live board's input and live regions, the panels' scroll
+  and focus, the face's load, contrast at 4.5:1 for every text, mark and glyph on the contrast viewports, and any
+  console error, failed request or missing element. Every request off the page's origin is answered empty, so the
+  app's own face is the only one a capture draws. Each context asks for reduced motion, so a shot shows an
+  animation's resting state; the stories that test real input timing (the replay's) run on the browser's clock. It
+  writes a screenshot per page to `thoughts/screenshots/visual-check/`.
+* A board state worth checking at phone size is a storybook state; one the generated scenarios reach is a decisions
+  story rather than a hand-written one. It earns a page in the gate only by showing what no kept page does, and a
+  viewport earns a place only by guarding a path of the layout no kept one reaches. `make install-frontend` installs
+  the gate's Chromium and WebKit (`npx playwright install`, matching the pinned `playwright`); on a fresh Linux host
+  their system libraries come from `npx playwright install-deps`, which needs root.
 * On success `make visual-check` stamps a fingerprint of its inputs (every non-ignored file under `frontend/game_v2`,
   tracked or not, and the `Makefile`) in `node_modules/.cache/visual-check.pass`; `make run-all-checks` skips the gate
   only when the current fingerprint matches that stamp, so a skip always means these exact inputs passed. Run
   directly, it always runs. While iterating, `node scripts/visual-check/run.ts --page <name> --viewport <name> --shots
-  <dir>` (after `vite build`; each repeatable, matching names by substring) checks and shoots only those pages; it
-  skips the replay load budget and never stamps.
+  <dir>` (after `vite build`; each repeatable, matching names by substring) checks and shoots only those pages: at
+  the viewports they name with `--page` alone, at every viewport named, whether the page names it or not, when both
+  are given (a change's before and after); it skips the replay load budget and never stamps.
 * **The gate's structure** (`scripts/visual-check/`): the runner loads the pages and composes one module per surface,
   each declaring its pages and its checks, so a new page or check goes in its surface's module alone, never the
   runner or another surface. Every surface's board checks run on every page that draws a board, whichever surface's
