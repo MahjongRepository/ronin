@@ -22,7 +22,7 @@
     {"at": 6000, "kind": "received", "payload": {"s": 1, "t": 13}},
     {"at": 7000, "kind": "received", "label": "chankan prompt", "payload": {"clt": 2, "cs": 3, "frs": 1, "t": 3, "ti": 32, "wi": 4}},
     {"at": 8000, "kind": "sent", "label": "ron chosen", "message": {"a": 3, "t": 3, "wi": 4}},
-    {"at": 8000, "kind": "received", "label": "round end", "payload": {"ct": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "hr": {"fu": 0, "han": 13, "pt": 320, "yk": [{"han": 13, "yi": 100, "ym": true}]}, "ls": 1, "ml": [], "rc": 0, "rk": {"kty": "closed", "s": 1, "ti": 32}, "rt": 1, "sch": {"0": 0, "1": -320, "2": 0, "3": 320}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "wi": 5, "ws": 3, "wt": 32}},
+    {"at": 8000, "kind": "received", "label": "round end", "payload": {"at": 10, "ct": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "hr": {"fu": 0, "han": 13, "pt": 320, "yk": [{"han": 13, "yi": 100, "ym": true}]}, "ls": 1, "ml": [], "rc": 0, "rk": {"kty": "closed", "s": 1, "ti": 32}, "rt": 1, "sch": {"0": 0, "1": -320, "2": 0, "3": 320}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "wi": 5, "ws": 3, "wt": 32}},
     {"at": 9000, "kind": "sent", "label": "confirmed", "message": {"a": 9, "t": 3, "wi": 5}},
     {"at": 10250, "kind": "received", "payload": {"cp": 1, "dc": [4, 3], "di": [85], "dl": 1, "h": 0, "mt": [13, 22, 24, 28, 33, 38, 45, 76, 81, 96, 100, 127, 133], "n": 1, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": -70}, {"s": 2, "sc": 250}, {"s": 3, "sc": 570}], "r": 0, "s": 3, "t": 9, "w": 0}},
     {"at": 10250, "kind": "received", "payload": {"s": 1, "t": 13}}

@@ -20,6 +20,7 @@ from game.logic.events import (
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
     CONFIRMATION_OWED_KEY,
+    ROUND_ADVANCE_SECONDS_KEY,
     TURN_BANK_KEY,
     WAIT_ELAPSED_KEY,
     WAIT_ID_KEY,
@@ -692,7 +693,7 @@ class SessionManager:
 
         The snapshot carries the current wait id, every seat an AI player holds for its participant marked as such, the
         seat's timer settings (its bank as of its last turn) and, during a round advance, whether the seat still owes
-        its confirmation, with how long that wait's timer has run when it does.
+        its confirmation, with how long that wait's timer has run and its whole timeout when it does.
         """
         game = participant.game
         seat = self._seat_of(participant)
@@ -706,6 +707,7 @@ class SessionManager:
             elapsed = participant.timer.elapsed_seconds
             if seat in awaiting.seats and elapsed is not None:
                 payload[WAIT_ELAPSED_KEY] = elapsed
+                payload[ROUND_ADVANCE_SECONDS_KEY] = game.timer_config.round_advance_seconds(awaiting.results_shown)
 
         connection.send_message(stamp_timer_settings(payload, self._timer_settings(participant)))
         self._send_wait_on_reconnect(participant, connection, awaiting=awaiting)
@@ -885,7 +887,7 @@ class SessionManager:
         Start the round advance timer: the round advance timeout once for each result the round end shows in turn.
         """
         participant.timer.start_fixed_timer(
-            participant.game.timer_config.round_advance_timeout_seconds * results_shown,
+            participant.game.timer_config.round_advance_seconds(results_shown),
             lambda: self._handle_timeout(participant, TimeoutType.ROUND_ADVANCE),
         )
 
@@ -908,6 +910,8 @@ class SessionManager:
 
         `game_started` is broadcast as one copy per seat, each stamped with its recipient's own seat (`s`). A draw goes
         whole to the drawer and as its public notice to every other seat, so each seat gets one representation of it.
+        The round end that opens a round advance also names the advance's whole timeout (`at`), so the client counts it
+        down by the server's word rather than by its own count of the results.
         """
         if game.replay is not None:
             self._replay_collector.collect_events(game.replay, events)
@@ -918,6 +922,9 @@ class SessionManager:
                 message = shape_call_prompt_payload(message)
 
             message = stamp_wait_id(message, event, awaiting)
+            if awaiting.kind == WaitKind.ROUND_ADVANCE and WAIT_ID_KEY in message:
+                message[ROUND_ADVANCE_SECONDS_KEY] = game.timer_config.round_advance_seconds(awaiting.results_shown)
+
             if isinstance(event, GameStartedEvent):
                 self._send_to_each_seat(game, message)
             elif isinstance(event.target, BroadcastTarget):

@@ -1,4 +1,3 @@
-import { roundEndPages } from "@/entities/table";
 import { type ParsedServerMessage, buildConfirmRoundAction } from "@/shared/protocol";
 
 import { refusalOf } from "./decision";
@@ -9,16 +8,10 @@ const MS_PER_SECOND = 1000;
 const CONFIRMED: RoundConfirm = { kind: "confirmed" };
 
 /**
- * When the server's round advance timer for the table's result likely runs out, in logical time: one deadline per
- * round, the round advance timeout times the result's pages (the server's `results_shown`, a double ron's winners),
- * armed at the round end, less the time the timer has run already.
+ * When the server's round advance timer likely runs out, in logical time: the whole timeout the server names for the
+ * round advance, less the time it has run already.
  */
-function roundAdvanceDeadline(state: LiveClient, elapsedSeconds: number): number | null {
-    const { now, table, timer } = state;
-    if (timer === null || table.roundEndResult === null) {
-        return null;
-    }
-    const seconds = timer.roundAdvanceTimeoutSeconds * roundEndPages(table.roundEndResult).length;
+function roundAdvanceDeadline(now: number, seconds: number, elapsedSeconds: number): number {
     return now + Math.max(0, seconds - elapsedSeconds) * MS_PER_SECOND;
 }
 
@@ -31,7 +24,7 @@ function reconnectRoundConfirm(
     state: LiveClient,
     snapshot: Extract<ParsedServerMessage, { type: "game_reconnected" }>,
 ): RoundConfirm | null {
-    const { confirmationOwed, elapsedSeconds, waitId } = snapshot;
+    const { advanceTimer, confirmationOwed, waitId } = snapshot;
     const roundConfirm = roundConfirmOf(state);
     if (state.table.roundEndResult === null) {
         return null;
@@ -42,7 +35,10 @@ function reconnectRoundConfirm(
     if (roundConfirm?.kind === "sent" && roundConfirm.waitId === waitId) {
         return roundConfirm;
     }
-    const deadline = elapsedSeconds === null ? null : roundAdvanceDeadline(state, elapsedSeconds);
+    const deadline =
+        advanceTimer === null
+            ? null
+            : roundAdvanceDeadline(state.now, advanceTimer.seconds, advanceTimer.elapsedSeconds);
     return { deadline, kind: "owed", waitId };
 }
 
@@ -57,9 +53,12 @@ export function openedRoundConfirm(
 ): RoundConfirm | null | undefined {
     switch (message.type) {
         case "round_end": {
-            const { waitId } = message;
-            const deadline = roundAdvanceDeadline(state, 0);
-            return waitId === null ? null : { deadline, kind: "owed", waitId };
+            const { roundAdvance } = message;
+            if (roundAdvance === null) {
+                return null;
+            }
+            const deadline = roundAdvanceDeadline(state.now, roundAdvance.seconds, 0);
+            return { deadline, kind: "owed", waitId: roundAdvance.waitId };
         }
         case "game_reconnected": {
             return reconnectRoundConfirm(state, message);

@@ -139,9 +139,23 @@ function isComplete(raw: SnapshotWhole): boolean {
     );
 }
 
+/**
+ * The round advance timer of a snapshot that owes the confirm while the seat's timer runs: how long it has run (`el`)
+ * and its whole timeout (`at`), which the server names together, or neither.
+ */
+function advanceTimerOf(raw: {
+    readonly at?: number;
+    readonly el?: number;
+}): { readonly elapsedSeconds: number; readonly seconds: number } | null {
+    return raw.at === undefined || raw.el === undefined
+        ? null
+        : { elapsedSeconds: raw.el, seconds: raw.at };
+}
+
 export const gameReconnectedSchema = z.pipe(
     z
         .object({
+            at: z.optional(secondsSchema),
             cp: seatSchema,
             dd: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]),
             di: z.array(tileIdSchema),
@@ -173,14 +187,18 @@ export const gameReconnectedSchema = z.pipe(
                 message:
                     "the snapshot lacks a seat's player or state, or a finished round of its history",
             }),
+            z.refine((raw) => (raw.at === undefined) === (raw.el === undefined), {
+                message:
+                    "the snapshot names its round advance's elapsed time without its timeout, or its timeout without it",
+            }),
         ),
     z.transform((raw) => ({
+        advanceTimer: advanceTimerOf(raw),
         confirmationOwed: raw.oc ?? false,
         currentPlayerSeat: raw.cp,
         dealerDice: raw.dd,
         dealerSeat: raw.dl,
         doraIndicators: raw.di,
-        elapsedSeconds: raw.el ?? null,
         gameId: raw.gid,
         honbaSticks: raw.h,
         isFuriten: raw.f,

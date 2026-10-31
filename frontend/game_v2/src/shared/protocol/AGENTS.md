@@ -18,7 +18,8 @@ the protocol's source files, and a protocol change lands here and in the backend
   one once its result is pending). A game start's and a deal's player lists name each seat once,
   in seat order (`coversEverySeat`), and a score map (`wireScoreMapSchema`) every seat, as the
   server's always do; a game end's standings rank each seat once and a double ron names two
-  or more distinct winners (`namesDistinctSeats`), in the server's order. A compact meld parses
+  or more distinct winners (`namesDistinctSeats`), in the server's order. A round end's wait id and its round
+  advance's timeout (`at`) parse only together, as a snapshot's elapsed time (`el`) and that timeout do. A compact meld parses
   only within the decoder's range (`compactMeldSchema`), which is every value it unpacks because
   its meld ranges are contiguous,
   and a seat's melds (a snapshot's, a winner's, a tenpai hand's) only as that seat's calls.

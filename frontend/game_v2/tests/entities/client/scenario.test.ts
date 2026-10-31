@@ -153,7 +153,7 @@ describe("seatScenarioFromTranscript", () => {
             if (event.kind !== "received" || event.label !== "round end") {
                 return event;
             }
-            const { wi: _waitId, ...payload } = event.payload;
+            const { at: _advanceSeconds, wi: _waitId, ...payload } = event.payload;
             return { ...event, payload };
         });
         const { scenario } = scenarioFromTranscript({ ...transcript, events: unawaited });

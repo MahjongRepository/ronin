@@ -78,10 +78,11 @@ interleave.
   silence watchdog limit is derived from its defaults (`frontend/game/AGENTS.md`), so a longer wait
   needs a longer limit there; the v2 client derives its own from the timer settings it is sent and,
   before the game starts, from the pending game timeout `game_joined` names.
-  The client also re-implements the turn, call, bank, round advance and game start pause rules
+  The client also re-implements the turn, call, bank and game start pause rules
   from the timer settings it is sent once, taking only the bank from each turn's
   opening message (`messaging/AGENTS.md`), so a change to how a wait is paced changes its countdown
-  too. A new round's bonus goes into the banks before the wait's events go out, so that bank
+  too; a round advance's timeout is named on its round end and in the snapshot instead
+  (`TimerConfig.round_advance_seconds`, which the timer arms too). A new round's bonus goes into the banks before the wait's events go out, so that bank
   includes it.
   The timers sleep on the event loop and measure the bank and elapsed time on the manager's clock,
   which every monotonic time the manager reads comes from (`time.monotonic` unless given), so the two

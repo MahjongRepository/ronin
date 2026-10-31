@@ -58,9 +58,10 @@ how the client recovers.
   for the others. Only the next deal (the last confirm's or the timeout's) closes it, and only a refusal naming its
   wait id reopens a sent one, as it does a decision; a late refusal of an earlier move names that move's wait, and the
   confirm's own stale reply follows the deal that closed it. A session that holds no seat drops it, since the
-  snapshot says again whether it is owed. Its deadline is one per round, armed at the round end: the round advance
-  timeout times the result's pages (the server's `results_shown`, a double ron's winners), backdated by the snapshot's
-  elapsed time, and none when the snapshot names none: never a fresh full timeout. It is display only, shown labelled
+  snapshot says again whether it is owed. Its deadline is one per round, armed at the round end: the whole timeout the
+  round end names with its wait (`roundAdvance`, never the client's count of the result's pages), backdated by the
+  snapshot's elapsed time, which the snapshot names with that timeout, and none when the snapshot names neither: never
+  a fresh full timeout. It is display only, shown labelled
   and kept while the seat waits: the client never confirms on its own and arms no timer for it. A double ron's pages
   each show Next until the last, which alone confirms, so the player has seen every winner before confirming.
 - The game's last round end carries no wait and its game end follows at once: the table keeps that result and the

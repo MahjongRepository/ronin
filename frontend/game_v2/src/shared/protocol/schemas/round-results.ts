@@ -12,6 +12,7 @@ import {
     compactMeldSchema,
     namesDistinctSeats,
     seatSchema,
+    secondsSchema,
     tileIdSchema,
     waitIdSchema,
     wireScoreMapSchema,
@@ -20,6 +21,34 @@ import { handResultSchema } from "./events";
 
 /** A double ron names two winners, or more where the game allows more than two rons on one discard. */
 const MIN_DOUBLE_RON_WINNERS = 2;
+
+/**
+ * The round advance a live round end opens: its wait id (`wi`) and the advance's whole timeout (`at`, seconds), which
+ * the server names together; the game's last round end and a replay's name neither.
+ */
+const roundAdvanceShape = {
+    at: z.optional(secondsSchema),
+    wi: z.optional(waitIdSchema),
+};
+
+const roundAdvanceWaitSchema = z.object(roundAdvanceShape).check(
+    z.refine((raw) => (raw.at === undefined) === (raw.wi === undefined), {
+        message:
+            "a round end names its round advance's wait without its timeout, or its timeout without its wait",
+    }),
+);
+
+interface RoundAdvance {
+    /** How long the server's round advance timer waits from the round end, over every result it shows. */
+    readonly seconds: number;
+    readonly waitId: number;
+}
+
+function roundAdvanceOf(raw: { at?: number; wi?: number }): RoundAdvance | null {
+    return raw.at === undefined || raw.wi === undefined
+        ? null
+        : { seconds: raw.at, waitId: raw.wi };
+}
 
 // --- Tenpai hand (inside exhaustive_draw and nagashi_mangan `th` array) ---
 
@@ -101,7 +130,7 @@ const tsumoSchema = z.pipe(
             scs: wireScoreMapSchema,
             t: z.literal(EVENT_TYPE.ROUND_END),
             ud: z.optional(z.array(tileIdSchema)),
-            wi: z.optional(waitIdSchema),
+            ...roundAdvanceShape,
             ws: seatSchema,
             wt: tileIdSchema,
         })
@@ -117,11 +146,11 @@ const tsumoSchema = z.pipe(
         paoSeat: raw.ps ?? null,
         resultType: ROUND_RESULT_TYPE.TSUMO as typeof ROUND_RESULT_TYPE.TSUMO,
         riichiSticksCollected: raw.rc,
+        roundAdvance: roundAdvanceOf(raw),
         scoreChanges: raw.sch,
         scores: raw.scs,
         type: "round_end" as const,
         uraDoraIndicators: raw.ud ?? null,
-        waitId: raw.wi ?? null,
         winnerSeat: raw.ws,
         winningTile: raw.wt,
     })),
@@ -145,7 +174,7 @@ const ronSchema = z.pipe(
             scs: wireScoreMapSchema,
             t: z.literal(EVENT_TYPE.ROUND_END),
             ud: z.optional(z.array(tileIdSchema)),
-            wi: z.optional(waitIdSchema),
+            ...roundAdvanceShape,
             ws: seatSchema,
             wt: tileIdSchema,
         })
@@ -164,11 +193,11 @@ const ronSchema = z.pipe(
         resultType: ROUND_RESULT_TYPE.RON as typeof ROUND_RESULT_TYPE.RON,
         riichiSticksCollected: raw.rc,
         robbedKan: raw.rk ?? null,
+        roundAdvance: roundAdvanceOf(raw),
         scoreChanges: raw.sch,
         scores: raw.scs,
         type: "round_end" as const,
         uraDoraIndicators: raw.ud ?? null,
-        waitId: raw.wi ?? null,
         winnerSeat: raw.ws,
         winningTile: raw.wt,
     })),
@@ -186,7 +215,7 @@ const doubleRonSchema = z.pipe(
             sch: wireScoreMapSchema,
             scs: wireScoreMapSchema,
             t: z.literal(EVENT_TYPE.ROUND_END),
-            wi: z.optional(waitIdSchema),
+            ...roundAdvanceShape,
             wn: z.array(doubleRonWinnerSchema),
             wt: tileIdSchema,
         })
@@ -203,10 +232,10 @@ const doubleRonSchema = z.pipe(
         loserSeat: raw.ls,
         resultType: ROUND_RESULT_TYPE.DOUBLE_RON as typeof ROUND_RESULT_TYPE.DOUBLE_RON,
         robbedKan: raw.rk ?? null,
+        roundAdvance: roundAdvanceOf(raw),
         scoreChanges: raw.sch,
         scores: raw.scs,
         type: "round_end" as const,
-        waitId: raw.wi ?? null,
         winners: raw.wn,
         winningTile: raw.wt,
     })),
@@ -223,17 +252,17 @@ const exhaustiveDrawSchema = z.pipe(
         t: z.literal(EVENT_TYPE.ROUND_END),
         th: z.array(tenpaiHandSchema),
         ts: z.array(seatSchema),
-        wi: z.optional(waitIdSchema),
+        ...roundAdvanceShape,
     }),
     z.transform((raw) => ({
         notenSeats: raw.ns,
         resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW as typeof ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
+        roundAdvance: roundAdvanceOf(raw),
         scoreChanges: raw.sch,
         scores: raw.scs,
         tenpaiHands: raw.th,
         tenpaiSeats: raw.ts,
         type: "round_end" as const,
-        waitId: raw.wi ?? null,
     })),
 );
 
@@ -249,18 +278,18 @@ const abortiveDrawSchema = z.pipe(
         sch: wireScoreMapSchema,
         scs: wireScoreMapSchema,
         t: z.literal(EVENT_TYPE.ROUND_END),
-        wi: z.optional(waitIdSchema),
+        ...roundAdvanceShape,
     }),
     z.transform((raw) => ({
         reason: raw.rn,
         resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW as typeof ROUND_RESULT_TYPE.ABORTIVE_DRAW,
         robbedKan: raw.rk ?? null,
         ronSeats: raw.rcl ?? [],
+        roundAdvance: roundAdvanceOf(raw),
         scoreChanges: raw.sch,
         scores: raw.scs,
         seat: raw.s ?? null,
         type: "round_end" as const,
-        waitId: raw.wi ?? null,
     })),
 );
 
@@ -276,18 +305,18 @@ const nagashiManganSchema = z.pipe(
         t: z.literal(EVENT_TYPE.ROUND_END),
         th: z.array(tenpaiHandSchema),
         ts: z.array(seatSchema),
-        wi: z.optional(waitIdSchema),
+        ...roundAdvanceShape,
     }),
     z.transform((raw) => ({
         notenSeats: raw.ns,
         qualifyingSeats: raw.qs,
         resultType: ROUND_RESULT_TYPE.NAGASHI_MANGAN as typeof ROUND_RESULT_TYPE.NAGASHI_MANGAN,
+        roundAdvance: roundAdvanceOf(raw),
         scoreChanges: raw.sch,
         scores: raw.scs,
         tenpaiHands: raw.th,
         tenpaiSeats: raw.ts,
         type: "round_end" as const,
-        waitId: raw.wi ?? null,
     })),
 );
 
@@ -310,6 +339,7 @@ export type RoundEndEvent =
 
 /** Dispatch on `rt` by hand: Zod's discriminatedUnion does not work with `.transform()`. */
 export function parseRoundEnd(raw: Record<string, unknown>): RoundEndEvent {
+    roundAdvanceWaitSchema.parse(raw);
     const { rt } = raw;
     switch (rt) {
         case ROUND_RESULT_TYPE.TSUMO: {

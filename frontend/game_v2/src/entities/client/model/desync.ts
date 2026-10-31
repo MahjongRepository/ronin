@@ -69,7 +69,7 @@ export function takesWhileDesynced(message: ParsedServerMessage): boolean {
     return (
         message.type === "game_reconnected" ||
         message.type === "game_end" ||
-        (message.type === "round_end" && message.waitId === null)
+        (message.type === "round_end" && message.roundAdvance === null)
     );
 }
 

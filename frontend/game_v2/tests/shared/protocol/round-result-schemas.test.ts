@@ -478,7 +478,7 @@ describe("parseRoundEnd", () => {
             expect(result.tenpaiHands[0].melds).toEqual([5000, 5100, 5200]);
         });
 
-        it("reads the wait id of the round advance it opens, and null without one", () => {
+        it("reads the wait id and timeout of the round advance it opens, null without one, and refuses half of them", () => {
             const wire = {
                 ns: [1],
                 rt: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
@@ -488,8 +488,13 @@ describe("parseRoundEnd", () => {
                 th: [{ ct: [0], ml: [], s: 0 }],
                 ts: [0],
             };
-            expect(parseRoundEnd({ ...wire, wi: 6 }).waitId).toBe(6);
-            expect(parseRoundEnd(wire).waitId).toBeNull();
+            expect(parseRoundEnd({ ...wire, at: 20, wi: 6 }).roundAdvance).toEqual({
+                seconds: 20,
+                waitId: 6,
+            });
+            expect(parseRoundEnd(wire).roundAdvance).toBeNull();
+            expect(() => parseRoundEnd({ ...wire, wi: 6 })).toThrow("without its timeout");
+            expect(() => parseRoundEnd({ ...wire, at: 20 })).toThrow("without its timeout");
         });
 
         it("decodes wire scores (265 -> 26500)", () => {

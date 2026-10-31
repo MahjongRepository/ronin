@@ -32,6 +32,12 @@ class TimerConfig(BaseModel):
 
         return self
 
+    def round_advance_seconds(self, results_shown: int) -> float:
+        """
+        How long a round advance waits: its timeout once for each result the round end shows in turn.
+        """
+        return self.round_advance_timeout_seconds * results_shown
+
 
 class TurnTimer:
     """

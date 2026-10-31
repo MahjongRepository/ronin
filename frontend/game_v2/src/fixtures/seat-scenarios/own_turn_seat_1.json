@@ -34,7 +34,7 @@
     {"at": 13000, "kind": "received", "payload": {"d": 672, "t": 2}},
     {"at": 13000, "kind": "received", "label": "tsumo draw", "payload": {"aa": [{"a": 2}], "bk": 29.0, "d": 240, "t": 1, "wi": 4}},
     {"at": 15000, "kind": "sent", "label": "tsumo chosen", "message": {"a": 2, "t": 3, "wi": 4}},
-    {"at": 15000, "kind": "received", "label": "round end", "payload": {"ct": [40, 44, 48, 53, 57, 61, 89, 90, 96, 100], "hr": {"fu": 60, "han": 3, "pt": 80, "yk": [{"han": 1, "yi": 0, "ym": false}, {"han": 1, "yi": 1, "ym": false}, {"han": 1, "yi": 3, "ym": false}]}, "ml": [24289], "rc": 1, "rt": 0, "sch": {"0": -40, "1": 90, "2": -20, "3": -20}, "scs": {"0": 250, "1": 240, "2": 250, "3": 250}, "t": 4, "ud": [131, 132], "wi": 5, "ws": 1, "wt": 104}},
+    {"at": 15000, "kind": "received", "label": "round end", "payload": {"at": 10, "ct": [40, 44, 48, 53, 57, 61, 89, 90, 96, 100], "hr": {"fu": 60, "han": 3, "pt": 80, "yk": [{"han": 1, "yi": 0, "ym": false}, {"han": 1, "yi": 1, "ym": false}, {"han": 1, "yi": 3, "ym": false}]}, "ml": [24289], "rc": 1, "rt": 0, "sch": {"0": -40, "1": 90, "2": -20, "3": -20}, "scs": {"0": 250, "1": 240, "2": 250, "3": 250}, "t": 4, "ud": [131, 132], "wi": 5, "ws": 1, "wt": 104}},
     {"at": 16000, "kind": "sent", "label": "confirmed", "message": {"a": 9, "t": 3, "wi": 5}},
     {"at": 16000, "kind": "received", "label": "next round", "payload": {"cp": 1, "dc": [4, 3], "di": [85], "dl": 1, "h": 0, "mt": [7, 10, 12, 35, 44, 50, 61, 69, 80, 83, 94, 101, 123], "n": 1, "p": [{"s": 0, "sc": 210}, {"s": 1, "sc": 330}, {"s": 2, "sc": 230}, {"s": 3, "sc": 230}], "r": 0, "s": 1, "t": 9, "w": 0}},
     {"at": 16000, "kind": "received", "label": "dealer draw", "payload": {"bk": 39.0, "d": 213, "t": 1, "wi": 6}}

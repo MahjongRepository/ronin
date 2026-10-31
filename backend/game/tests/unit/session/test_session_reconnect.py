@@ -289,9 +289,9 @@ class TestReconnectTakeover:
             manager.reconnect(new_conn, session_token=participant.ticket)
             [reconnected] = new_conn.sent_messages
             assert reconnected["re"]["rt"] == WireRoundResultType.EXHAUSTIVE_DRAW
-            owed[participant.name] = (reconnected["oc"], reconnected.get("el"))
+            owed[participant.name] = (reconnected["oc"], reconnected.get("el"), reconnected.get("at"))
 
-        assert owed == {"Alice": (False, None), "Bob": (True, 4)}
+        assert owed == {"Alice": (False, None, None), "Bob": (True, 4, 10)}
         assert bob.timer.task is bob_deadline
 
         manager.handle_game_action(bob.connection, action=GameAction.CONFIRM_ROUND, data={}, wait_id=advance.wait_id)

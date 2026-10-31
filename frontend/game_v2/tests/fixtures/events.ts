@@ -150,11 +150,11 @@ export function makeTsumoRoundEnd(overrides: Partial<TsumoRoundEnd> = {}): Tsumo
         paoSeat: null,
         resultType: ROUND_RESULT_TYPE.TSUMO,
         riichiSticksCollected: 0,
+        roundAdvance: null,
         scoreChanges: { "0": 10_000, "1": -3000, "2": -3000, "3": -4000 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         type: "round_end",
         uraDoraIndicators: null,
-        waitId: null,
         winnerSeat: 0,
         winningTile: 52,
         ...overrides,
@@ -172,11 +172,11 @@ export function makeRonRoundEnd(overrides: Partial<RonRoundEnd> = {}): RonRoundE
         resultType: ROUND_RESULT_TYPE.RON,
         riichiSticksCollected: 0,
         robbedKan: null,
+        roundAdvance: null,
         scoreChanges: { "0": 8000, "1": -8000, "2": 0, "3": 0 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         type: "round_end",
         uraDoraIndicators: null,
-        waitId: null,
         winnerSeat: 0,
         winningTile: 52,
         ...overrides,
@@ -207,10 +207,10 @@ export function makeDoubleRonRoundEnd(
         loserSeat: 1,
         resultType: ROUND_RESULT_TYPE.DOUBLE_RON,
         robbedKan: null,
+        roundAdvance: null,
         scoreChanges: { "0": 8000, "1": -16_000, "2": 8000, "3": 0 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         type: "round_end",
-        waitId: null,
         winners: [
             makeDoubleRonWinner({ scoreChanges: { "0": 8000, "1": -8000 }, winnerSeat: 0 }),
             makeDoubleRonWinner({
@@ -230,6 +230,7 @@ export function makeExhaustiveDrawRoundEnd(
     return {
         notenSeats: [1, 3],
         resultType: ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW,
+        roundAdvance: null,
         scoreChanges: { "0": 1500, "1": -1500, "2": 1500, "3": -1500 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         tenpaiHands: [
@@ -238,7 +239,6 @@ export function makeExhaustiveDrawRoundEnd(
         ],
         tenpaiSeats: [0, 2],
         type: "round_end",
-        waitId: null,
         ...overrides,
     };
 }
@@ -251,11 +251,11 @@ export function makeAbortiveDrawRoundEnd(
         resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
         robbedKan: null,
         ronSeats: [],
+        roundAdvance: null,
         scoreChanges: { "0": 0, "1": 0, "2": 0, "3": 0 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         seat: null,
         type: "round_end",
-        waitId: null,
         ...overrides,
     };
 }
@@ -267,12 +267,12 @@ export function makeNagashiManganRoundEnd(
         notenSeats: [1, 2, 3],
         qualifyingSeats: [0],
         resultType: ROUND_RESULT_TYPE.NAGASHI_MANGAN,
+        roundAdvance: null,
         scoreChanges: { "0": 12_000, "1": -4000, "2": -4000, "3": -4000 },
         scores: { "0": 25_000, "1": 25_000, "2": 25_000, "3": 25_000 },
         tenpaiHands: [{ closedTiles: [0, 1, 2], melds: [], seat: 0 }],
         tenpaiSeats: [0],
         type: "round_end",
-        waitId: null,
         ...overrides,
     };
 }

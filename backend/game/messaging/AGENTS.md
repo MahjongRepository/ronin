@@ -19,8 +19,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   starts, so a client's silence watchdog follows the server's pacing rather than a copy of its defaults.
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
-  current bank; the client counts its own turns, the game start pause and the round results down
-  from them), and the
+  current bank; the client counts its own turns and the game start pause down from them, the v1
+  client its round results too), and the
   first deal follows it only after the session's game start pause; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
@@ -41,7 +41,10 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   snapshot taken during a round advance shows the round that ended: its dealer, wind, round number
   and honba with its tiles, the scores and riichi sticks its result left, that result (`re`) in the
   round end's shape, and whether the seat still owes its confirmation (`oc`), with how long that
-  wait's timer has run (`el`) when it does. The snapshot names the seat of the round's latest
+  wait's timer has run (`el`) and its whole timeout (`at`) only when the seat owes it and its timer
+  is running. The round end that opens a
+  round advance names that whole timeout too (`at`, seconds), so the client times the confirm by
+  the server's word, never by its own count of the results. The snapshot names the seat of the round's latest
   discard (`ld`, from the engine's ordered discard history), which lies last in that seat's river and
   is kept through draws, kans from the hand and a pending result; it is absent, never null, before the
   round's first discard and once a call claimed that discard, never naming an earlier one. The snapshot gives

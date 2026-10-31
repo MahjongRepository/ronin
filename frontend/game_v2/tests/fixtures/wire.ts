@@ -6,7 +6,17 @@ export const WIRE_DRAW: WirePayload = { bk: 20, d: 0, t: 1, wi: 1 };
 
 export const WIRE_GAME_JOINED: WirePayload = { pt: 30, type: "game_joined" };
 
-const WIRE_TIMER: WirePayload = { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+const WIRE_ROUND_ADVANCE_SECONDS = 15;
+
+const WIRE_TIMER: WirePayload = {
+    bk: 20,
+    gp: 3,
+    mb: 60,
+    md: 10,
+    ra: WIRE_ROUND_ADVANCE_SECONDS,
+    rb: 5,
+    tb: 5,
+};
 
 export const WIRE_GAME_STARTED: WirePayload = {
     dd: [
@@ -150,8 +160,14 @@ export const WIRE_GAME_END: WirePayload = {
     ws: 0,
 };
 
-/** A tsumo round end; a wait id opens the round advance, and the game's last round end carries none. */
-export function wireRoundEnd(waitId: number | null): WirePayload {
+/**
+ * A tsumo round end; a wait id opens the round advance, with its timeout (one result's `ra` unless given), and the
+ * game's last round end carries neither.
+ */
+export function wireRoundEnd(
+    waitId: number | null,
+    advanceSeconds: number = WIRE_ROUND_ADVANCE_SECONDS,
+): WirePayload {
     const roundEnd: WirePayload = {
         ct: [0, 4, 8],
         hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0, ym: false }] },
@@ -164,7 +180,7 @@ export function wireRoundEnd(waitId: number | null): WirePayload {
         ws: 0,
         wt: 12,
     };
-    return waitId === null ? roundEnd : { ...roundEnd, wi: waitId };
+    return waitId === null ? roundEnd : { ...roundEnd, at: advanceSeconds, wi: waitId };
 }
 
 /**

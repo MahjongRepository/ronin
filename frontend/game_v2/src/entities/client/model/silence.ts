@@ -6,11 +6,12 @@ import { type LiveClient } from "./types";
 const MS_PER_SECOND = 1000;
 
 /**
- * The most pages a round result's advance can wait out in turn, one per winner: every seat but the discarder's, where
- * the game allows that many rons on one discard. The limit covers a result the client may never have read, so it
- * takes the most the rules allow rather than the result's own count.
+ * The most results one round end can show, each waited out for the timer settings' round advance timeout (`ra`, per
+ * result shown): one per winner of a discard, at most every seat but the discarder's, whatever the game's double ron
+ * setting allows. The limit covers a round end the client may never have read (out of step), so it takes this bound
+ * rather than the timeout a round end names.
  */
-const MAX_RESULT_PAGES = NUM_PLAYERS - 1;
+const MAX_RESULTS_SHOWN = NUM_PLAYERS - 1;
 
 /** What late timers and a slow network may add to the longest wait before the server speaks again. */
 const SILENCE_MARGIN_MS = 25_000;
@@ -24,7 +25,7 @@ function longestWaitSeconds(timer: TimerSettings): number {
     return Math.max(
         timer.baseTurnSeconds + timer.maxBankSeconds,
         timer.meldDecisionSeconds,
-        timer.roundAdvanceTimeoutSeconds * MAX_RESULT_PAGES,
+        timer.roundAdvanceTimeoutSeconds * MAX_RESULTS_SHOWN,
         timer.gameStartPauseSeconds,
     );
 }

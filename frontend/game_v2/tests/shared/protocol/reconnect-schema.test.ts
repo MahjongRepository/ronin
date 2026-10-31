@@ -120,8 +120,9 @@ describe("gameReconnectedSchema", () => {
         expect(result.timer.bankSeconds).toBe(20);
     });
 
-    it("reads a round advance's result, owed confirmation and the finished rounds' ledger", () => {
+    it("reads a round advance's result, owed confirmation, its timer and the finished rounds' ledger", () => {
         const result = parsePayload({
+            at: 20,
             el: 4.5,
             n: 1,
             oc: true,
@@ -158,7 +159,7 @@ describe("gameReconnectedSchema", () => {
         });
 
         expect(result.confirmationOwed).toBe(true);
-        expect(result.elapsedSeconds).toBe(4.5);
+        expect(result.advanceTimer).toEqual({ elapsedSeconds: 4.5, seconds: 20 });
         expect(result.roundResult).toMatchObject({
             reason: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
             resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,

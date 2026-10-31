@@ -86,6 +86,17 @@ describe("stepGameClient - round confirm", () => {
         expect(scenario.step(confirm(60_200))).toEqual([]);
     });
 
+    it("times the confirm by the timeout the round end names, never by the timer settings and the result's pages", () => {
+        const scenario = playingScenario();
+        scenario.step(message(100, wireRoundEnd(5, 7)));
+
+        expect(roundConfirmOf(scenario.state)).toEqual({
+            deadline: 100 + 7000,
+            kind: "owed",
+            waitId: 5,
+        });
+    });
+
     it("closes the round confirm when the server deals the next round, so a late press sends nothing", () => {
         const scenario = playingScenario();
         scenario.step(message(100, wireRoundEnd(5)));
