@@ -34,13 +34,13 @@ describe("autoplayStep", () => {
 });
 
 describe("autoplayDelayMs", () => {
-    it("reads a deal longest and a draw shortest, scaled by the speed", () => {
+    it("reads a deal longest and a draw shortest", () => {
         const replay = loaded("riichi");
 
         expect([
-            autoplayDelayMs(replay, { page: 0, stop: 0 }, 1),
-            autoplayDelayMs(replay, { page: 0, stop: 1 }, 0.5),
-            autoplayDelayMs(replay, { page: 0, stop: 2 }, 4),
-        ]).toEqual([1600, 1600, 100]);
+            autoplayDelayMs(replay, { page: 0, stop: 0 }),
+            autoplayDelayMs(replay, { page: 0, stop: 1 }),
+            autoplayDelayMs(replay, { page: 0, stop: 2 }),
+        ]).toEqual([1600, 800, 400]);
     });
 });

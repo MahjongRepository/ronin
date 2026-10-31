@@ -20,7 +20,7 @@ import {
 import {
     type BoardNotice,
     GameBoard,
-    type ScoreDiffPin,
+    type PlatePress,
     type SeatPosition,
     type StandingsRenderer,
     type TableState,
@@ -90,7 +90,7 @@ export interface ReplayViewDeps {
     readonly links: ReplayLinks;
     /** Start loading the final standings, which the view does as it mounts and stops on dispose. */
     readonly startStandings: () => RetryingLoad<StandingsRenderer>;
-    /** The reader's own settings: whether the other hands hide, and autoplay's speed. */
+    /** The reader's own settings: whether the other hands hide. */
     readonly prefs: ReplayPrefsStore;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
@@ -122,7 +122,7 @@ interface ReplayHandlers {
     readonly keyup: (event: KeyboardEvent) => void;
     readonly move: (cursor: ReplayCursor) => void;
     readonly showResultPage: (page: number) => void;
-    readonly pinNameplate: (seat: SeatPosition | null) => void;
+    readonly viewSeat: (seat: SeatPosition) => void;
     readonly toggleRoundList: () => void;
     readonly closeRoundList: () => void;
     readonly selectRound: (start: ReplayCursor) => void;
@@ -132,8 +132,6 @@ interface ReplayHandlers {
     readonly stepPress: (direction: StepDirection, event: PointerEvent) => void;
     readonly stepClick: (direction: StepDirection) => void;
     readonly togglePlay: () => void;
-    readonly cycleSpeed: () => void;
-    readonly switchView: () => void;
     readonly toggleHands: () => void;
 }
 
@@ -224,19 +222,9 @@ function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
         shown.replay === next.replay &&
         shown.view === next.view &&
         shown.roundListOpen === next.roundListOpen &&
-        shown.pinnedNameplate === next.pinnedNameplate &&
         shown.hideHands === next.hideHands &&
-        shown.autoplay.playing === next.autoplay.playing &&
-        shown.autoplay.speed === next.autoplay.speed
+        shown.autoplay.playing === next.autoplay.playing
     );
-}
-
-function nextSeat(seat: number, seatCount: number): number {
-    return (seat + 1) % seatCount;
-}
-
-function seatName(table: TableState, seat: number): string {
-    return table.players.find((player) => player.seat === seat)?.name ?? `Seat ${seat}`;
 }
 
 /** Says the final standings failed to load, where the table shown has ended and would show them. */
@@ -251,12 +239,10 @@ function standingsNotices(table: TableState, standings: StandingsState): BoardNo
 
 /** The replay's moves and options over the board's band, and the round list over the board while it is open. */
 function controlsTemplate(
-    { autoplay, hideHands, replay, roundListOpen, view }: LoadedScreen,
+    { autoplay, hideHands, replay, roundListOpen }: LoadedScreen,
     display: ReplayDisplay,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const viewName = seatName(display.table, view.bottomSeat);
-    const nextViewName = seatName(display.table, nextSeat(view.bottomSeat, replay.seatCount));
     const last = lastCursor(replay.navigation);
     const end =
         last === null
@@ -280,21 +266,13 @@ function controlsTemplate(
         : nothing;
     return html`${ReplayControls({
         moves: display.moves,
-        onCycleSpeed: handlers.cycleSpeed,
         onMove: handlers.move,
         onStepClick: handlers.stepClick,
         onStepPress: handlers.stepPress,
-        onSwitchView: handlers.switchView,
         onToggleHands: handlers.toggleHands,
         onTogglePlay: handlers.togglePlay,
         onToggleRoundList: handlers.toggleRoundList,
-        playback: {
-            hideHands,
-            nextViewName,
-            playing: autoplay.playing,
-            speed: autoplay.speed,
-            viewName,
-        },
+        playback: { hideHands, playing: autoplay.playing },
         roundListOpen,
     })}${roundList}`;
 }
@@ -304,13 +282,13 @@ function loadedTemplate(
     { links, standings }: ReplayPage,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { hideHands, pinnedNameplate, replay, view } = screen;
+    const { hideHands, replay, view } = screen;
     const perspective = {
         bottomSeat: view.bottomSeat,
         reveal: hideHands ? "bottom" : "all",
     } as const;
     const display = replayDisplay(replay, view.cursor, perspective);
-    const scoreDiff: ScoreDiffPin = { onPin: handlers.pinNameplate, pinned: pinnedNameplate };
+    const platePress: PlatePress = { kind: "view", onView: handlers.viewSeat };
     return html`
         <div class="board-page__board">
             ${GameBoard({
@@ -335,11 +313,11 @@ function loadedTemplate(
                     },
                 }),
                 overlayIsResult: showsRoundResult(display.table),
+                platePress,
                 replay: {
                     controls: controlsTemplate(screen, display, handlers),
                     status: ReplayStatus({ display }),
                 },
-                scoreDiff,
                 state: tableStateToDisplayState(display.table, perspective),
             })}
         </div>
@@ -438,11 +416,9 @@ class ReplayViewController {
 
     private readonly handlers: ReplayHandlers = {
         closeRoundList: () => this.dispatch({ kind: "close_round_list" }),
-        cycleSpeed: () => this.dispatch({ kind: "cycle_speed" }),
         keydown: (event) => this.onKeydown(event),
         keyup: (event) => this.onKeyup(event),
         move: (cursor) => this.dispatch({ cursor, kind: "move" }),
-        pinNameplate: (seat) => this.dispatch({ kind: "pin", seat }),
         retry: () => this.startLoad(),
         root: createRef<HTMLElement>(),
         selectRound: (cursor) => this.dispatch({ cursor, kind: "select_round" }),
@@ -450,10 +426,10 @@ class ReplayViewController {
         showRoundResult: (round) => this.dispatch({ kind: "round_result", round }),
         stepClick: (direction) => this.dispatch({ direction, kind: "step_click" }),
         stepPress: (direction, event) => this.onStepPress(direction, event),
-        switchView: () => this.dispatch({ kind: "switch_view" }),
         toggleHands: () => this.dispatch({ kind: "toggle_hands" }),
         togglePlay: () => this.dispatch({ kind: "toggle_play" }),
         toggleRoundList: () => this.dispatch({ kind: "toggle_round_list" }),
+        viewSeat: (seat) => this.dispatch({ kind: "view_seat", seat }),
         wheel: { handleEvent: (event) => this.onWheel(event), passive: false },
     };
 

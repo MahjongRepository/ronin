@@ -487,7 +487,8 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             escape === null || inert ? undefined : (board) => stepBack(board, escape, onCommand),
         overlay: panel,
         overlayIsResult: isResult,
-        scoreDiff: {
+        platePress: {
+            kind: "pin",
             onPin: (seat) => onCommand({ kind: "pin_nameplate", seat }),
             pinned: display.pinnedNameplate,
         },

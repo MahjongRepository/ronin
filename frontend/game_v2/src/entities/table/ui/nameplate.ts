@@ -14,8 +14,23 @@ import { RiichiStickIcon } from "./riichi-stick-icon";
  * or an unpin goes. Hovering a plate shows the same differences without pinning it.
  */
 interface ScoreDiffPin {
+    readonly kind: "pin";
     readonly pinned: SeatPosition | null;
     readonly onPin: (seat: SeatPosition | null) => void;
+}
+
+/** A replay's plates and centre scores: pressing another seat's views the table from it; hovering still diffs. */
+interface SeatViewPress {
+    readonly kind: "view";
+    readonly onView: (seat: SeatPosition) => void;
+}
+
+/** What pressing a plate does: pin its score differences, or view the table from its seat. */
+type PlatePress = ScoreDiffPin | SeatViewPress;
+
+/** The plate pinned for the others' score differences, or null: always null where a press views from a seat. */
+function pinnedPlate(press: PlatePress): SeatPosition | null {
+    return press.kind === "pin" ? press.pinned : null;
 }
 
 interface NameplateProps {
@@ -23,15 +38,16 @@ interface NameplateProps {
     readonly position: SeatPosition;
     /** The pinned plate, when another one is: this plate's label then reads its difference from it. */
     readonly pinnedOther: { readonly position: SeatPosition; readonly name: string } | null;
-    readonly pressed: boolean;
+    /** Whether the plate is pinned, or null where pressing it views from its seat, which is no toggle. */
+    readonly pressed: boolean | null;
     readonly onToggle: () => void;
 }
 
 /**
  * What a screen reader hears for a plate: what it shows, its whole name, whose turn it is, the difference from the
- * pinned plate in place of the score, and why an AI player is marked.
+ * pinned plate in place of the score, why an AI player is marked, and where pressing it views from its seat, that.
  */
-function nameplateLabel({ pinnedOther, plate }: NameplateProps): string {
+function nameplateLabel({ pinnedOther, plate, position, pressed }: NameplateProps): string {
     const seat = plate.isDealer ? `${plate.windName}, dealer` : plate.windName;
     const points =
         pinnedOther === null
@@ -42,15 +58,24 @@ function nameplateLabel({ pinnedOther, plate }: NameplateProps): string {
         points,
         plate.isRiichi ? "riichi" : null,
         plate.aiMark?.words ?? null,
+        viewWords(position, pressed),
     ].filter((mark) => mark !== null);
     return [plate.name, seat, ...marks].join(", ");
+}
+
+/** Where pressing a plate views from its seat: the bottom plate's is the seat viewed from, any other's is a choice. */
+function viewWords(position: SeatPosition, pressed: boolean | null): string | null {
+    if (pressed !== null) {
+        return null;
+    }
+    return position === "bottom" ? "viewing from this seat" : "view from this seat";
 }
 
 /**
  * A seat's badge, one shape on every side: its wind (the dealer's marked), its player's name, then its AI and riichi
  * marks, quiet; whose turn it is underlines it. Its score is the centre's, on the seat's side. It is a button: pressing
  * it pins it, so the centre shows the other seats' scores as differences from its own, and pressing it again unpins
- * it; its label reads the score, or the difference from the pinned badge.
+ * it, or on a replay views the table from its seat; its label reads the score, or the difference from the pinned badge.
  */
 function Nameplate(props: NameplateProps): TemplateResult {
     const { onToggle, plate, position, pressed } = props;
@@ -68,7 +93,7 @@ function Nameplate(props: NameplateProps): TemplateResult {
         class=${classes}
         title=${plate.name}
         aria-label=${nameplateLabel(props)}
-        aria-pressed=${String(pressed)}
+        aria-pressed=${pressed === null ? nothing : String(pressed)}
         @click=${onToggle}
     >
         <span class="nameplate__pill">
@@ -86,21 +111,37 @@ function Nameplate(props: NameplateProps): TemplateResult {
     </button>`;
 }
 
-/** The four seats' nameplates, by board position, each pinning itself or, pinned already, unpinning. */
+/**
+ * The four seats' nameplates, by board position, each pinning itself or, pinned already, unpinning; or, where a press
+ * views from a seat, each viewing from its own.
+ */
 function Nameplates(
     plates: readonly [BoardNameplate, BoardNameplate, BoardNameplate, BoardNameplate],
-    pin: ScoreDiffPin,
+    press: PlatePress,
 ): Readonly<Record<SeatPosition, TemplateResult>> {
-    const pinnedIndex = pin.pinned === null ? -1 : SEAT_POSITIONS.indexOf(pin.pinned);
-    const pinnedPlate = plates[pinnedIndex];
+    if (press.kind === "view") {
+        const [bottom, right, top, left] = SEAT_POSITIONS.map((position, index) =>
+            Nameplate({
+                onToggle: () => press.onView(position),
+                pinnedOther: null,
+                plate: plates[index],
+                position,
+                pressed: null,
+            }),
+        );
+        return { bottom, left, right, top };
+    }
+    const { pinned } = press;
+    const pinnedIndex = pinned === null ? -1 : SEAT_POSITIONS.indexOf(pinned);
+    const pinnedBadge = plates[pinnedIndex];
     const [bottom, right, top, left] = SEAT_POSITIONS.map((position, index) => {
-        const pressed = pin.pinned === position;
+        const pressed = pinned === position;
         const pinnedOther =
-            pin.pinned === null || pressed || pinnedPlate === undefined
+            pinned === null || pressed || pinnedBadge === undefined
                 ? null
-                : { name: pinnedPlate.name, position: pin.pinned };
+                : { name: pinnedBadge.name, position: pinned };
         return Nameplate({
-            onToggle: () => pin.onPin(pressed ? null : position),
+            onToggle: () => press.onPin(pressed ? null : position),
             pinnedOther,
             plate: plates[index],
             position,
@@ -110,5 +151,5 @@ function Nameplates(
     return { bottom, left, right, top };
 }
 
-export { Nameplates };
-export type { ScoreDiffPin };
+export { Nameplates, pinnedPlate };
+export type { PlatePress, ScoreDiffPin, SeatViewPress };

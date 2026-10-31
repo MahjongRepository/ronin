@@ -4,7 +4,7 @@ $controls-z: 26;
 $round-list-z: 30;
 $place-gap: 6px;
 
-@each $name in rb, rgap, opt-right, opt-left, opts-w, pair-w, small-moves-w, opts-fit, pair-clear,
+@each $name in rb, rgap, opt-right, opt-left, opts-w, small-moves-w, opts-fit, pair-clear,
     pair-shift, upper-extra, list-rise, band-reserve-top, replay-bottom
 {
     @property --#{$name} {
@@ -66,16 +66,15 @@ $place-gap: 6px;
     outline: none;
 }
 
-/* The replay's places on the band: its button and gap, its bottom (upright, clear of the own row's rise, as the
-   decisions are), the options' row, and whether all four options fit a row (`--opts-fit`, 1px) or stand two by two. */
+/* The replay's places on the band; `--opts-fit` (1px) is whether both options fit a row, else the hands' switch
+   stands over the round list's toggle. */
 .game-board--replay > :is(.board-layout, .board-overlay) {
     --rb: 52px;
     --rgap: 6px;
     --replay-bottom: var(--band-bottom);
     --opt-right: calc(100cqw - var(--own-hand-right));
     --opt-left: calc(var(--switches-left) + var(--switches-w) + var(--band-gap));
-    --opts-w: calc(4 * var(--rb) + 3 * var(--rgap));
-    --pair-w: calc(2 * var(--rb) + var(--rgap));
+    --opts-w: calc(2 * var(--rb) + var(--rgap));
     --small-moves-w: calc(5 * var(--rb) + 5 * var(--rgap));
 
     @include small-chrome {
@@ -120,7 +119,7 @@ $place-gap: 6px;
     --pair-shift: clamp(
         0px,
         var(--pair-clear),
-        100cqw - var(--opt-left) - var(--pair-w) - var(--opt-right)
+        100cqw - var(--opt-left) - var(--rb) - var(--opt-right)
     );
     --upper-extra: min(var(--pair-clear) - var(--pair-shift), (1px - var(--opts-fit)) * 100000);
     --list-rise: min(var(--rb) + var(--rgap), (1px - var(--opts-fit)) * 100000);
@@ -154,16 +153,17 @@ $place-gap: 6px;
     }
 }
 
-/* The options in one row, or two rows of two clear of the right strip as drawn, the round list's toggle in the band. */
+/* The options in one row, or the hands' switch over the round list's toggle, clear of the right strip as drawn, the
+   toggle in the band. */
 .replay-controls__options {
     right: calc(var(--opt-right) + min(var(--pair-shift), (1px - var(--opts-fit)) * 100000));
     flex-wrap: wrap;
     place-content: flex-end flex-end;
-    width: calc(var(--pair-w) + min(var(--pair-w) + var(--rgap), var(--opts-fit) * 100000));
+    width: calc(var(--rb) + min(var(--rb) + var(--rgap), var(--opts-fit) * 100000));
     height: auto;
 
-    /* The upper pair steps further from the right strip where the band's pair must stay past the river's reach. */
-    > :nth-child(-n + 2) {
+    /* The upper switch steps further from the right strip where the band's toggle must stay past the river's reach. */
+    > :first-child {
         position: relative;
         right: var(--upper-extra);
     }
@@ -171,6 +171,11 @@ $place-gap: 6px;
     @include upright-board {
         bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap));
     }
+}
+
+/* The bottom plate is the seat viewed from, which pressing leaves as it is. */
+.game-board--replay .nameplate--bottom {
+    cursor: default;
 }
 
 /* The moves and the options are quiet controls, a pressed one ringed; autoplay is the player's own action, the accent. */

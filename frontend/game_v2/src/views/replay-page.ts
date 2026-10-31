@@ -10,14 +10,13 @@ import {
     autoplayDelayMs,
     autoplayStep,
     isPauseStop,
-    nextAutoplaySpeed,
     parseReplayAddress,
     readReplay,
     replayMoves,
     resolveReplayAddress,
     roundResultCursor,
 } from "@/entities/replay";
-import { type SeatPosition } from "@/entities/table";
+import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
 import { type ReplayFetch } from "@/shared/api";
 import { type WheelGesture, assertNever, wheelStep } from "@/shared/lib";
 
@@ -51,8 +50,6 @@ export interface LoadedScreen {
     readonly replay: LoadedReplay;
     readonly view: ReplayView;
     readonly roundListOpen: boolean;
-    /** The nameplate pinned for the others' score differences, kept from step to step until unpinned. */
-    readonly pinnedNameplate: SeatPosition | null;
     readonly autoplay: ReplayAutoplay;
     /** Whether the other seats' hands hide, as a seat would see the table. */
     readonly hideHands: boolean;
@@ -123,12 +120,10 @@ type RoundListInput =
     | { readonly kind: "close_round_list" }
     | { readonly kind: "dismiss_round_list" };
 
-/** The options, the pin and the page hiding, which move nothing. */
+/** The options, a seat chosen to view from (its plate or score, by board position) and the page hiding. */
 type OptionInput =
-    | { readonly kind: "pin"; readonly seat: SeatPosition | null }
     | { readonly kind: "toggle_play" }
-    | { readonly kind: "cycle_speed" }
-    | { readonly kind: "switch_view" }
+    | { readonly kind: "view_seat"; readonly seat: SeatPosition }
     | { readonly kind: "toggle_hands" }
     | { readonly kind: "page_hide" };
 
@@ -216,7 +211,7 @@ function withoutPressedStep(screen: LoadedScreen): LoadedScreen {
 /** Autoplay playing, its next move armed from `at` at the pace of the stop shown. */
 function armed(screen: LoadedScreen, at: number): LoadedScreen {
     const { autoplay, replay, view } = screen;
-    const dueAt = at + autoplayDelayMs(replay, view.cursor, autoplay.speed);
+    const dueAt = at + autoplayDelayMs(replay, view.cursor);
     return { ...screen, autoplay: { ...autoplay, dueAt, playing: true } };
 }
 
@@ -243,7 +238,7 @@ function moveTo(
 }
 
 function savingPrefs(screen: LoadedScreen): LoadedStep {
-    const prefs = { hideHands: screen.hideHands, speed: screen.autoplay.speed };
+    const prefs = { hideHands: screen.hideHands };
     return { effects: [{ kind: "save_prefs", prefs }], screen };
 }
 
@@ -254,11 +249,10 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         seatCount: replay.seatCount,
     });
     const screen: LoadedScreen = {
-        autoplay: { dueAt: null, playing: false, speed: opening.prefs.speed },
+        autoplay: { dueAt: null, playing: false },
         hideHands: opening.prefs.hideHands,
         hold: null,
         kind: "loaded",
-        pinnedNameplate: null,
         pressedStep: null,
         replay,
         roundListOpen: opening.roundListOpen,
@@ -291,12 +285,18 @@ function togglePlay(screen: LoadedScreen, at: number): LoadedStep {
     return quiet(armed(unheld(screen), at));
 }
 
-/** The next seat at the bottom, where the cursor and the result's page stay; a pin by position would move seats. */
-function switchView(screen: LoadedScreen): LoadedStep {
-    const bottomSeat = (screen.view.bottomSeat + 1) % screen.replay.seatCount;
+/**
+ * The seat `turns` seats on from the bottom's taken to the bottom, where the cursor and the result's page stay; the
+ * bottom's own (no turn) changes nothing.
+ */
+function switchView(screen: LoadedScreen, turns: number): LoadedStep {
+    if (turns % screen.replay.seatCount === 0) {
+        return quiet(screen);
+    }
+    const bottomSeat = (screen.view.bottomSeat + turns) % screen.replay.seatCount;
     return {
         effects: [WRITE_ADDRESS],
-        screen: { ...screen, pinnedNameplate: null, view: { ...screen.view, bottomSeat } },
+        screen: { ...screen, view: { ...screen.view, bottomSeat } },
     };
 }
 
@@ -310,7 +310,7 @@ function runToggle(screen: LoadedScreen, toggle: ReplayToggle, at: number): Load
             return togglePlay(screen, at);
         }
         case "view": {
-            return switchView(screen);
+            return switchView(screen, 1);
         }
         case "hands": {
             return toggleHands(screen);
@@ -434,16 +434,6 @@ function onTick(screen: LoadedScreen, at: number): LoadedStep {
     return quiet(screen);
 }
 
-/** The next speed, kept in the reader's settings; a playing autoplay re-arms its move at the new pace. */
-function cycleSpeed(screen: LoadedScreen, at: number): LoadedStep {
-    const { autoplay } = screen;
-    const changed = {
-        ...screen,
-        autoplay: { ...autoplay, speed: nextAutoplaySpeed(autoplay.speed) },
-    };
-    return savingPrefs(autoplay.playing ? armed(changed, at) : changed);
-}
-
 function closeRoundList(screen: LoadedScreen): LoadedStep {
     const closed = screen.roundListOpen ? { ...screen, roundListOpen: false } : screen;
     return { effects: [focusOn("round_list_toggle")], screen: closed };
@@ -538,17 +528,11 @@ function stepRoundList(screen: LoadedScreen, event: Timed<RoundListInput>): Load
 
 function stepOption(screen: LoadedScreen, event: Timed<OptionInput>): LoadedStep {
     switch (event.kind) {
-        case "pin": {
-            return quiet({ ...screen, pinnedNameplate: event.seat });
-        }
         case "toggle_play": {
             return togglePlay(screen, event.at);
         }
-        case "cycle_speed": {
-            return cycleSpeed(screen, event.at);
-        }
-        case "switch_view": {
-            return switchView(screen);
+        case "view_seat": {
+            return switchView(screen, SEAT_POSITIONS.indexOf(event.seat));
         }
         case "toggle_hands": {
             return toggleHands(screen);

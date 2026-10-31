@@ -43,7 +43,7 @@ export { BoardNotices, NoticeSheet } from "./ui/board-notices";
 export { focusOnFirstRender, keepTabInside } from "./ui/focus";
 export type { BoardNotice } from "./ui/board-notices";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
-export type { ScoreDiffPin } from "./ui/nameplate";
+export type { PlatePress } from "./ui/nameplate";
 export { boardOverlay, showsRoundResult, startStandingsLoad } from "./ui/board-overlay";
 export type {
     OverlayView,

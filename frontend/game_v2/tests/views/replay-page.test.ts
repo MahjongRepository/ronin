@@ -138,7 +138,7 @@ describe("stepReplayPage - loading", () => {
             kind: "fetched",
             opening: {
                 autoplay: true,
-                prefs: { hideHands: true, speed: 2 },
+                prefs: { hideHands: true },
                 roundListOpen: false,
                 search: "",
             },
@@ -146,7 +146,7 @@ describe("stepReplayPage - loading", () => {
 
         expect([where(paused), replayPageDeadline(paused)]).toEqual([[0, 5, 0], null]);
         expect(effects).toEqual([WRITE_ADDRESS]);
-        expect([loaded(screen).hideHands, replayPageDeadline(screen)]).toEqual([true, 1800]);
+        expect([loaded(screen).hideHands, replayPageDeadline(screen)]).toEqual([true, 2600]);
     });
 
     it("shows the failure screen from a playing replay, its deadline dropped, and loads again on a retry", () => {
@@ -235,20 +235,6 @@ describe("stepReplayPage - autoplay", () => {
         ]);
     });
 
-    it("takes its speed from the reader's settings, saves a change and re-arms a playing autoplay at the new pace", () => {
-        const playing = step(
-            opened("riichi", "", { prefs: { hideHands: false, speed: 4 } }),
-            { kind: "toggle_play" },
-            0,
-        ).screen;
-
-        const { effects, screen } = step(playing, { kind: "cycle_speed" }, 100);
-
-        expect(replayPageDeadline(playing)).toBe(400);
-        expect(effects).toEqual([{ kind: "save_prefs", prefs: { hideHands: false, speed: 0.5 } }]);
-        expect(replayPageDeadline(screen)).toBe(3300);
-    });
-
     it("switches autoplay, the view and the hands once per press however long the key is held", () => {
         const start = opened("riichi");
         const { effects, screens } = script(
@@ -266,7 +252,7 @@ describe("stepReplayPage - autoplay", () => {
             (start.view.bottomSeat + 1) % start.replay.seatCount,
         ]);
         expect(effects).toEqual([
-            { kind: "save_prefs", prefs: { hideHands: true, speed: 1 } },
+            { kind: "save_prefs", prefs: { hideHands: true } },
             WRITE_ADDRESS,
         ]);
     });
@@ -288,31 +274,23 @@ describe("stepReplayPage - autoplay", () => {
     });
 });
 
-describe("stepReplayPage - view and pin", () => {
-    it("switches the view without moving the cursor or the result's page, unpinning the nameplate and saving no settings", () => {
-        const { screens } = script(opened("double_ron", "?round=0&step=10"), [
-            [{ kind: "result_page", page: 1 }, 0],
-            [{ kind: "pin", seat: "left" }, 0],
-        ]);
-        const pinned = loaded(screens[1]);
+describe("stepReplayPage - view", () => {
+    it("views from a chosen seat without moving the cursor or the result's page, and the bottom's own changes nothing", () => {
+        const onPage = step(opened("double_ron", "?round=0&step=10"), {
+            kind: "result_page",
+            page: 1,
+        }).screen;
+        const { bottomSeat } = loaded(onPage).view;
 
-        const { effects, screen } = step(pinned, { kind: "switch_view" });
+        const top = step(onPage, { kind: "view_seat", seat: "top" });
+        const bottom = step(top.screen, { kind: "view_seat", seat: "bottom" });
 
-        expect([where(screen), loaded(screen).pinnedNameplate, effects]).toEqual([
+        expect([where(top.screen), loaded(top.screen).view.bottomSeat, top.effects]).toEqual([
             [0, 10, 1],
-            null,
+            (bottomSeat + 2) % 4,
             [WRITE_ADDRESS],
         ]);
-        expect(loaded(screen).view.bottomSeat).not.toBe(pinned.view.bottomSeat);
-    });
-
-    it("keeps a pinned nameplate from step to step, saving neither the settings nor the address", () => {
-        const pin = step(opened("riichi"), { kind: "pin", seat: "top" });
-
-        const stepped = step(pin.screen, { command: "next", kind: "key", repeat: false }).screen;
-
-        expect(pin.effects).toEqual([]);
-        expect(loaded(stepped).pinnedNameplate).toBe("top");
+        expect(bottom).toEqual({ effects: [], screen: top.screen });
     });
 });
 

@@ -6,12 +6,8 @@ describe("readReplayPrefs", () => {
     it("keeps only the readable fields of what was stored, the defaults for the rest", () => {
         expect([
             readReplayPrefs({ hideHands: true, speed: 2 }),
-            readReplayPrefs({ hideHands: "yes", speed: 4 }),
+            readReplayPrefs({ hideHands: "yes" }),
             readReplayPrefs("not settings"),
-        ]).toEqual([
-            { hideHands: true, speed: 2 },
-            { hideHands: false, speed: 4 },
-            DEFAULT_REPLAY_PREFS,
-        ]);
+        ]).toEqual([{ hideHands: true }, { hideHands: false }, DEFAULT_REPLAY_PREFS]);
     });
 });

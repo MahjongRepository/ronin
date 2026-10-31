@@ -1216,7 +1216,7 @@ function storybookBoardTemplate(
                             : undefined,
                     notices,
                     overlay: sheet ?? buildOverlay(story, handlers, standings),
-                    scoreDiff: { onPin: handlers.pin, pinned: story.pinned },
+                    platePress: { kind: "pin", onPin: handlers.pin, pinned: story.pinned },
                     state,
                 })}
             </div>

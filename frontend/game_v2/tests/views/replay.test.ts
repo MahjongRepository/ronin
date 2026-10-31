@@ -426,10 +426,10 @@ describe("mountReplayView - keys", () => {
 
     it("leaves Space to a focused button, which activates itself, and takes it as autoplay's switch elsewhere", async () => {
         const { host } = await mountLoadedReplay();
-        const speed = button(host, ".replay-controls__option--speed");
-        speed.focus();
+        const hands = button(host, ".replay-controls__option--hands");
+        hands.focus();
 
-        pressKey(speed, " ", SPACE);
+        pressKey(hands, " ", SPACE);
         const onButton = [position(host), playing(host)];
         pressKey(rootOf(host), " ", SPACE);
 
@@ -476,22 +476,6 @@ describe("mountReplayView - autoplay", () => {
         expect([position(host), playing(host)]).toEqual(["East 1 Step 2 of 28", true]);
     });
 
-    it("shows the speed the reader's settings name, and re-arms its timer at a new one", async () => {
-        const { clock, host } = await mountLoadedReplay("riichi", "?v=2", {
-            prefs: { hideHands: false, speed: 4 },
-        });
-        button(host, ".replay-controls__play").click();
-        const label = textOf(host, ".replay-controls__option--speed");
-
-        button(host, ".replay-controls__option--speed").click();
-
-        expect([label, textOf(host, ".replay-controls__option--speed")]).toEqual([
-            "4\u00D7",
-            "0.5\u00D7",
-        ]);
-        expect(clock.lastTimer().at).toBe(3200);
-    });
-
     it("stops when the page hides, and cancels its timer on dispose", async () => {
         const { clock, dispose, hidePage, host } = await mountLoadedReplay();
         button(host, ".replay-controls__play").click();
@@ -508,9 +492,10 @@ describe("mountReplayView - autoplay", () => {
 
     it("says the replay cannot be shown when the address it writes as the page hides throws, autoplay stopped", async () => {
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-        const { clock, failWrites, hidePage, host } = await mountLoadedReplay("riichi", "?v=2", {
-            prefs: { hideHands: false, speed: 4 },
-        });
+        const { clock, failWrites, hidePage, host } = await mountLoadedReplay(
+            "riichi",
+            "?round=0&step=2",
+        );
         button(host, ".replay-controls__play").click();
         clock.advanceTo(clock.lastTimer().at);
         failWrites();
@@ -622,18 +607,22 @@ describe("mountReplayView - wheel and hold", () => {
 });
 
 describe("mountReplayView - view", () => {
-    it("draws the next seat at the bottom and writes it into the address", async () => {
+    it("draws the seat whose plate or centre score is pressed at the bottom and writes it into the address", async () => {
         const { clock, host, written } = await mountLoadedReplay(
             "double_ron",
             "?v=2&round=0&step=10",
         );
-        const nameplate = textOf(host, ".board-local .nameplate__name");
+        const right = textOf(host, ".nameplate--right .nameplate__name");
 
-        button(host, ".replay-controls__option--view").click();
+        button(host, ".nameplate--right").click();
+        const afterPlate = textOf(host, ".board-local .nameplate__name");
+        host.querySelector<HTMLElement>(
+            ".board-center__seat--top .board-center__score-line",
+        )?.click();
         clock.advanceTo(REPLAY_URL_WRITE_INTERVAL_MS);
 
-        expect(textOf(host, ".board-local .nameplate__name")).not.toBe(nameplate);
-        expect(written.at(-1)).toBe("?v=2&round=0&step=10&seat=1");
+        expect(afterPlate).toBe(right);
+        expect(written.at(-1)).toBe("?v=2&round=0&step=10&seat=3");
     });
 
     it("hides the other hands, and keeps the choice in the reader's settings", async () => {
@@ -644,11 +633,11 @@ describe("mountReplayView - view", () => {
 
         expect(shownBacks).toBe(0);
         expect(host.querySelectorAll(".board-strip .tile-back").length).toBeGreaterThan(0);
-        expect(savedPrefs).toEqual([{ hideHands: true, speed: 1 }]);
+        expect(savedPrefs).toEqual([{ hideHands: true }]);
     });
     it("shows the hands a round's result reveals face up while the other hands hide", async () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10", {
-            prefs: { hideHands: true, speed: 1 },
+            prefs: { hideHands: true },
         });
         expect(textOf(host, ".round-end-result__title")).toBe("Alice South");
         expect(["right", "top", "left"].map((seat) => handTiles(host, seat))).toEqual([

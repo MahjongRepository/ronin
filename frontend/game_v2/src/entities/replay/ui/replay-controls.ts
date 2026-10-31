@@ -10,12 +10,9 @@ import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
 /** The round list's element id, which its toggle controls. */
 export const REPLAY_ROUND_LIST_ID = "replay-round-list";
 
-/** How the replay plays and is seen: autoplay, its speed, the seat at the bottom and the next one, the other hands. */
+/** How the replay plays and is seen: autoplay and the other hands. */
 export interface ReplayPlayback {
     readonly playing: boolean;
-    readonly speed: number;
-    readonly viewName: string;
-    readonly nextViewName: string;
     readonly hideHands: boolean;
 }
 
@@ -36,8 +33,6 @@ export interface ReplayControlsProps {
     /** A step button was clicked, which the view drops when it ends a press that stepped already. */
     readonly onStepClick: (direction: StepDirection) => void;
     readonly onTogglePlay: () => void;
-    readonly onCycleSpeed: () => void;
-    readonly onSwitchView: () => void;
     readonly onToggleHands: () => void;
 }
 
@@ -74,7 +69,6 @@ const OPTION_ICONS = {
     pause: "M9 5v14M15 5v14",
     play: "M8 5l11 7-11 7z",
     rounds: "M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1",
-    view: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM16.2 7.8l-2.1 6.3-6.3 2.1 2.1-6.3z",
 } as const;
 
 function Icon(path: string): TemplateResult {
@@ -166,31 +160,17 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
 /**
  * The replay's controls over the foreground band: the moves in the play switches' place (a round back, a step back,
  * autoplay, a step on, a round on, and either end where the place holds them), and the options in the decisions'
- * place (autoplay's speed, the seat at the bottom, the other hands and the round list), two rows of two where the band
- * beside the own river's reach is too short for all four. A move that cannot go is disabled.
+ * place (the other hands and the round list), the hands' switch over the round list's toggle in the band where the
+ * band beside the own river's reach is too short for both. A move that cannot go is disabled. The seat at the bottom
+ * is the board's: pressing another seat's plate or score views from it.
  */
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
     const { playback } = props;
-    const speed = `${playback.speed}×`;
     return html`
         <div class="replay-controls replay-controls__moves" role="group" aria-label="Move through the replay">
             ${JumpButton("first", props)}${JumpButton("prevRound", props)}${StepButton("prev", props.moves.prev, props)}${PlayButton(props)}${StepButton("next", props.moves.next, props)}${JumpButton("nextRound", props)}${JumpButton("last", props)}
         </div>
-        <div class="replay-controls replay-controls__options" role="group" aria-label="Speed and view">
-            ${OptionButton({
-                content: speed,
-                kind: "speed",
-                label: `Autoplay speed ${speed}, change`,
-                onClick: props.onCycleSpeed,
-                title: "Autoplay speed",
-            })}
-            ${OptionButton({
-                content: Icon(OPTION_ICONS.view),
-                kind: "view",
-                label: `Viewing from ${playback.viewName}; view from ${playback.nextViewName}`,
-                onClick: props.onSwitchView,
-                title: `View from ${playback.nextViewName}`,
-            })}
+        <div class="replay-controls replay-controls__options" role="group" aria-label="View">
             ${OptionButton({
                 content: Icon(playback.hideHands ? OPTION_ICONS.handsHidden : OPTION_ICONS.hands),
                 kind: "hands",

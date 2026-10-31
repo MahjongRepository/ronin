@@ -31,7 +31,7 @@ function renderBoard(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement 
     };
     const state = tableStateToDisplayState(table, { bottomSeat: 0, reveal: "bottom" });
     const host = document.createElement("div");
-    render(GameBoard({ debug: false, scoreDiff: { onPin, pinned }, state }), host);
+    render(GameBoard({ debug: false, platePress: { kind: "pin", onPin, pinned }, state }), host);
     return host;
 }
 
@@ -116,7 +116,12 @@ describe("GameBoard nameplates", () => {
         function renderWith(pinned: SeatPosition | null): HTMLElement {
             const host = document.createElement("div");
             render(
-                GameBoard({ debug: false, onEscape, scoreDiff: { onPin, pinned }, state: null }),
+                GameBoard({
+                    debug: false,
+                    onEscape,
+                    platePress: { kind: "pin", onPin, pinned },
+                    state: null,
+                }),
                 host,
             );
             return host;
@@ -159,7 +164,7 @@ describe("GameBoard announcements", () => {
                 callouts,
                 debug: false,
                 notices,
-                scoreDiff: { onPin: vi.fn(), pinned: null },
+                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state: null,
             }),
             host,
@@ -214,7 +219,7 @@ describe("GameBoard callouts", () => {
                 debug: false,
                 overlay: html`<p>Result</p>`,
                 overlayIsResult: true,
-                scoreDiff: { onPin: vi.fn(), pinned: null },
+                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state: null,
             }),
             host,
@@ -293,7 +298,7 @@ describe("GameBoard callouts", () => {
                     key: "call-4",
                 },
                 debug: false,
-                scoreDiff: { onPin: vi.fn(), pinned: null },
+                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state,
             }),
             host,
@@ -336,7 +341,7 @@ describe("GameBoard rivers", () => {
         render(
             GameBoard({
                 debug: false,
-                scoreDiff: { onPin: vi.fn(), pinned: null },
+                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state: { ...board, players: [{ ...bottom, discards }, ...others] as const },
             }),
             host,

@@ -15,14 +15,8 @@ export {
     roundResultCursor,
     roundStartCursor,
 } from "./model/replay-cursor";
-export type { AutoplaySpeed, AutoplayState } from "./model/replay-autoplay";
-export {
-    AUTOPLAY_SPEEDS,
-    autoplayDelayMs,
-    autoplayStep,
-    isPauseStop,
-    nextAutoplaySpeed,
-} from "./model/replay-autoplay";
+export type { AutoplayState } from "./model/replay-autoplay";
+export { autoplayDelayMs, autoplayStep, isPauseStop } from "./model/replay-autoplay";
 export type { ReplayPrefs, ReplayPrefsStore } from "./model/replay-prefs";
 export { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "./model/replay-prefs";
 export type { ReplayAddress, ReplayView, ReplayViewDefaults } from "./model/replay-address";

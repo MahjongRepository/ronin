@@ -131,7 +131,7 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
         autoplay: true,
         clock: STILL_CLOCK,
         load: servesFixture(paoReplay),
-        prefs: { hideHands: false, speed: 2 },
+        prefs: { hideHands: false },
         search: "?round=0&step=14",
     },
     damaged: { load: servesFixture(paoReplay, withBrokenLine), search: "?round=0&step=8" },
@@ -153,7 +153,7 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     not_found: { clock: HURRIED_CLOCK, load: () => Promise.resolve(NOT_FOUND), search: "" },
     result_hidden: {
         load: servesFixture(() => import("@/fixtures/replays/double_ron_head_bump.txt?raw")),
-        prefs: { hideHands: true, speed: 1 },
+        prefs: { hideHands: true },
         search: "?round=0&step=2",
     },
     round_list: {
@@ -181,7 +181,7 @@ const STORIES: Readonly<Record<ReplayStory, StorySetup>> = {
     unsupported: { load: serves('{"version": "0.1"}\n{"t": 8}'), search: "" },
     viewpoint_hidden: {
         load: servesFixture(paoReplay),
-        prefs: { hideHands: true, speed: 1 },
+        prefs: { hideHands: true },
         search: "?seat=2&round=0&step=18",
     },
     waiting: { load: notFoundThen(NEVER), search: "" },

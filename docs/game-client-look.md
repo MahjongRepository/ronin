@@ -377,7 +377,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   why and offers the way back; it is not quiet.
 - **Replay.** The board unchanged, its geometry identical to live play's, drawn from the chosen
   viewpoint seat, which need not be the reader's; plus controls with the
-  moves, play and speed, the viewpoint and hide-hands switches and the round list, readable at the
+  moves, play, the hide-hands switch and the round list, readable at the
   floor viewport. Decision: no narration and no visible position line; the board itself shows each
   move and its centre the round, and the position (round, step) is read out to assistive technology only. Decision: the controls take the foreground band outside the own
   river's capacity reach, the moves in the switches' place and the options in the decisions' place,
@@ -385,9 +385,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   status (an incomplete recording's note) takes the notices' place, under any notice. Decision: the moves are a round
   back, a step back, play (in the accent, the player's own action), a step on and a round on, with
   either end too where the switches' place holds seven (a desktop's chrome; elsewhere the round list's
-  first row and its foot, Last step, always in view, reach them by touch); the options are speed, the viewpoint,
-  hide hands and the round list, in two rows of two where the band holds fewer than four, the round
-  list's toggle in the band. A panel over a replay's board never covers the controls, so the replay
+  first row and its foot, Last step, always in view, reach them by touch); the options are hide hands and
+  the round list, the switch over the round list's toggle where the band holds fewer than two, the
+  toggle in the band. Decision: autoplay has one pace, no speed control. Decision: the viewpoint has no
+  control of its own: pressing another seat's badge, or its score in the centre, views from that seat,
+  so a replay's badge pins no differences (hovering still shows them). A panel over a replay's board never covers the controls, so the replay
   always moves on. Decision, a panel-only exception: on a board smaller than a desktop's chrome a panel
   takes all but the moves' row, the options hide but the round list's toggle, and an incomplete
   recording's "Ends here" stands between them, compact, and the panel's

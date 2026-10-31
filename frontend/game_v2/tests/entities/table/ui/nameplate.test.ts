@@ -33,7 +33,7 @@ function nameplates(): BoardDisplayState["nameplates"] {
 
 function renderPlates(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement {
     const host = document.createElement("div");
-    const plates = Nameplates(nameplates(), { onPin, pinned });
+    const plates = Nameplates(nameplates(), { kind: "pin", onPin, pinned });
     render(
         SEAT_POSITIONS.map((position) => plates[position]),
         host,
