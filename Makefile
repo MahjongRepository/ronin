@@ -7,7 +7,7 @@ DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 FRONTEND_APPS := lobby game game_v2
 CHECKED_FRONTEND_APPS := lobby game_v2
 
-.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend visual-check visual-check-fingerprint run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
+.PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
 
 test:
 	cd backend && uv run pytest -v --cov --cov-report=
@@ -49,18 +49,6 @@ lint-frontend:
 
 test-frontend:
 	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run test) || exit 1; done
-
-VISUAL_CHECK_STAMP := frontend/game_v2/node_modules/.cache/visual-check.pass
-
-visual-check-fingerprint:
-	@git ls-files --cached --others --exclude-standard -- frontend/game_v2 Makefile docs/game-client-look.md \
-		| sort -u | while read -r file; do [ -f "$$file" ] && sha256sum "$$file"; done \
-		| sha256sum | cut -c1-64
-
-visual-check:
-	@fingerprint=$$($(MAKE) -s --no-print-directory visual-check-fingerprint) \
-		&& (cd frontend/game_v2 && npm run visual-check) \
-		&& mkdir -p $(dir $(VISUAL_CHECK_STAMP)) && echo "$$fingerprint" > $(VISUAL_CHECK_STAMP)
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

@@ -38,7 +38,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 The `Makefile` lists the targets; the non-obvious ones:
 
 * `make install-frontend` — `npm ci` in each frontend app, then the Playwright browsers the v2
-  client's `make visual-check` drives.
+  client's targeted visual check drives.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
   frontend app (`:5173` lobby, `:5174` game client, `:5175` game client v2) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
@@ -73,16 +73,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   scenarios of `backend/scripts/seat_scenarios/` through the real session manager and router on virtual
   time; `make seat-scenarios-check` (a `run-all-checks` gate) fails when a committed transcript no
   longer matches what the server sends a seat.
-* `make visual-check` — the v2 game client's layout gate and its bundle and replay-load budgets
-  (`frontend/game_v2/AGENTS.md`, Visual gate): Playwright's Chromium and WebKit, which
-  `make install-frontend` installs; no backend. It writes screenshots to
-  `thoughts/screenshots/visual-check/`.
 * `make run-all-checks` — every gate in order, stopping at the first failure. It **rewrites files**
   (it runs both formatters) and **always exits 0**, so success is only the final
-  `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output. It
-  skips the v2 client's `make visual-check` (layout and budgets), saying so, only when the gate
-  already passed on these exact inputs (the fingerprint `make visual-check` stamps on success,
-  `frontend/game_v2/AGENTS.md`); a direct `make visual-check` always runs.
+  `All checks are good` line; a failure prints `❌ CHECK FAILED` with the failing gate's output.
 
 ## Workflow
 
@@ -90,9 +83,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   `cd frontend/<app> && npx vitest run <path>`). Never run `make test` or `make run-all-checks` mid-work;
   `make lint` and `make typecheck` (backend only, so they run without `make install-frontend`) and
   `make lint-frontend` and `make typecheck-frontend` are fine.
-* The same goes for `make visual-check`: never run the full gate mid-work, not even for a baseline
-  or a timing. To check a visual change, screenshot only the changed area plus its single worst
-  case (the smallest phone, the densest state); the full gate runs once, at wrap-up.
+* To check a visual change, screenshot only the changed area plus its single worst case (the
+  smallest phone, the densest state); there is no full screenshot sweep (`frontend/game_v2/AGENTS.md`,
+  Visual check).
 * When wrapping up, run `make run-all-checks`, read its output for the success line, and report
   which checks ran.
 * After a structural change, update the nearest `AGENTS.md` it invalidates; after a rule change,

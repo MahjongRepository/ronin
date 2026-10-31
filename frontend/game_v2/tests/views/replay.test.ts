@@ -3,7 +3,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { ManualClock } from "#tests/fixtures/clock";
 import { engineReplayText } from "#tests/fixtures/replays";
 import { FakeStandingsLoad } from "#tests/fixtures/standings";
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs } from "@/entities/replay";
+import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, type ReplayPrefsStore } from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { REPLAY_VERSION } from "@/shared/protocol";
 import { REPLAY_URL_WRITE_INTERVAL_MS, type ReplayLocation, mountReplayView } from "@/views/replay";
@@ -17,6 +17,8 @@ interface MountedReplay {
     readonly hidePage: () => void;
     /** Make every later address write throw, as a browser refusing a history write would. */
     readonly failWrites: () => void;
+    /** Make every later settings read throw `error`. */
+    readonly failPrefsLoad: (error: Error) => void;
     readonly signals: AbortSignal[];
     /** Every settings write, the last one what the reader keeps. */
     readonly savedPrefs: ReplayPrefs[];
@@ -95,6 +97,32 @@ function fakeLoader(): FakeLoader {
     };
 }
 
+/** A settings store holding `prefs`, recording every write, whose reads throw once `failPrefsLoad` is called. */
+function fakePrefsStore(prefs: ReplayPrefs): {
+    readonly store: ReplayPrefsStore;
+    readonly savedPrefs: ReplayPrefs[];
+    readonly failPrefsLoad: (error: Error) => void;
+} {
+    const savedPrefs: ReplayPrefs[] = [];
+    let loadError: Error | null = null;
+    const store: ReplayPrefsStore = {
+        load: () => {
+            if (loadError !== null) {
+                throw loadError;
+            }
+            return prefs;
+        },
+        save: (saved) => savedPrefs.push(saved),
+    };
+    return {
+        failPrefsLoad: (error) => {
+            loadError = error;
+        },
+        savedPrefs,
+        store,
+    };
+}
+
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
 function mountReplay(
     search = "?v=2",
@@ -104,7 +132,7 @@ function mountReplay(
     const host = document.createElement("div");
     document.body.append(host);
     const clock = new ManualClock();
-    const savedPrefs: ReplayPrefs[] = [];
+    const { failPrefsLoad, savedPrefs, store } = fakePrefsStore(prefs);
     const { failWrites, hidePage, location, written } = fakeLocation(search);
     const { answer, loadReplay, signals } = fakeLoader();
     const dispose = mountReplayView(host, "g1", {
@@ -112,13 +140,14 @@ function mountReplay(
         links: LINKS,
         loadReplay,
         location,
-        prefs: { load: () => prefs, save: (saved) => savedPrefs.push(saved) },
+        prefs: store,
         startStandings: () => standings,
     });
     const mounted: MountedReplay = {
         answer,
         clock,
         dispose,
+        failPrefsLoad,
         failWrites,
         hidePage,
         host,
@@ -871,13 +900,12 @@ describe("mountReplayView - loading", () => {
     });
 
     it("says a replay that throws while it is read cannot be shown, without a retry, the error on the console", async () => {
-        const thrown = new Error("measure failed");
-        vi.spyOn(performance, "measure").mockImplementation(() => {
-            throw thrown;
-        });
+        const thrown = new Error("settings unreadable");
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+        const { answer, failPrefsLoad, host } = mountReplay();
+        failPrefsLoad(thrown);
 
-        const { host } = await mountLoadedReplay();
+        await answer({ ok: true, text: engineReplayText("riichi") });
 
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
         expect(host.querySelector(".replay-state__links button")).toBeNull();

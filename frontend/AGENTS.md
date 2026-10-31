@@ -59,10 +59,9 @@ Vitest does not show what a page looks like, so a change to the UI is checked in
   changed component or layout container (a lobby card restyle touches the room cards and the history
   cards; a board change touches the live game, the replay and the board storybook), not only the
   one the change targets.
-* The v2 client is the exception: `make visual-check` is its regression pass over its worst cases, so
-  its before and after are only the changed area plus its one worst case, shot by the gate itself
-  (the skill's *Targeted v2 screenshots*; `frontend/game_v2/AGENTS.md`, `--page` with `--viewport`,
-  which shoots a page at a viewport its gate entry does not name too).
+* The v2 client is the exception: its before and after are only the changed area plus its one worst
+  case, shot by its targeted visual check (the skill's *Targeted v2 screenshots*;
+  `frontend/game_v2/AGENTS.md`, Visual check).
 * Take the before shots ahead of the first UI edit. Once the change exists, serve the base from a
   scratchpad `git worktree` with its own ports (`GAME_PORT`, `LOBBY_PORT`, `VITE_PORT`,
   `GAME_VITE_PORT`, `GAME_V2_VITE_PORT` on `bin/run-local-server.sh`, after `make install-frontend` there). Its

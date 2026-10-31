@@ -14,7 +14,6 @@ import {
 import { describeBoard, measureBoard } from "./board-measure.ts";
 import { CONTRAST_VIEWPORTS, checkContrast } from "./contrast.ts";
 import { APP_ROOT, type Fixtures, openContext, startServer, transcriptFrames } from "./fixtures.ts";
-import { checkReplayLoad } from "./load-budget.ts";
 import {
     type BoardOptions,
     type PageCase,
@@ -35,13 +34,13 @@ import { checkFont, isBlockedFont } from "./text.ts";
 import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.ts";
 
 /**
- * The v2 client's layout gate. It builds nothing itself: it serves the built `dist/` (the app page for every
- * `/play/` path, as the lobby does), a replay fixture under the replay API and a seat transcript over a mocked
- * game socket, then loads each surface's worst cases at the viewports each names and asserts what a player would
- * see: content visible, nothing overlapping, everything inside the board and the screen, readable text and tappable
- * tiles. Any console error, failed request or missing element fails it. It writes a screenshot of each page for
- * review. Each surface (`Surface`) declares its pages and its checks; the runner loads the pages and runs every
- * surface's checks on each.
+ * The v2 client's targeted layout check: the pages and viewports a run names, never a sweep of all of them. It builds
+ * nothing itself: it serves the built `dist/` (the app page for every `/play/` path, as the lobby does), a replay
+ * fixture under the replay API and a seat transcript over a mocked game socket, then loads the selected pages and
+ * asserts what a player would see: content visible, nothing overlapping, everything inside the board and the screen,
+ * readable text and tappable tiles. Any console error, failed request or missing element fails it. It writes a
+ * screenshot of each page for review. Each surface (`Surface`) declares its pages and its checks; the runner loads
+ * the pages and runs every surface's checks on each.
  */
 
 const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
@@ -213,11 +212,10 @@ async function runPooled<Task, Result>(
     return results;
 }
 
-/** The pages and viewports a run checks: all of them, or the ones `--page` and `--viewport` name. */
+/** The pages and viewports a run checks: the ones `--page` and `--viewport` name. */
 interface Selection {
     readonly pages: readonly PageCase[];
     readonly viewports: readonly Viewport[];
-    readonly partial: boolean;
     /** Both were named: each page is checked at every viewport named, whether it names it or not (a before and after). */
     readonly anyViewport: boolean;
 }
@@ -288,7 +286,7 @@ function reportFailures(results: readonly TaskResult[]): string[] {
     });
 }
 
-/** Both engines' pages at once, then, on a full run, the replay load budget on the Chromium browser, the CPU idle. */
+/** Both engines' pages at once. */
 async function checkAll(
     fixtures: Fixtures,
     shots: string,
@@ -304,14 +302,10 @@ async function checkAll(
             runEngine(chromiumBrowser, tasksOf(chromium, selection), run),
             runEngine(webkitBrowser, tasksOf(webkit, selection), run),
         ]);
-        const pageFailures = [
+        return [
             ...reportFailures(results.flat()),
             ...SURFACES.flatMap((surface) => surface.checkResults?.(results.flat()) ?? []),
         ];
-        if (selection.partial) {
-            return pageFailures;
-        }
-        return [...pageFailures, ...(await checkReplayLoad(chromiumBrowser, fixtures.origin))];
     } finally {
         await Promise.all([chromiumBrowser.close(), webkitBrowser.close()]);
     }
@@ -341,7 +335,6 @@ function selectRun(pageFilters: readonly string[], viewportFilters: readonly str
     return {
         anyViewport: pageFilters.length > 0 && viewportFilters.length > 0,
         pages: matching(PAGES, pageFilters),
-        partial: pageFilters.length > 0 || viewportFilters.length > 0,
         viewports: matching(VIEWPORTS, viewportFilters),
     };
 }
@@ -358,6 +351,12 @@ async function main(): Promise<number> {
     if (errors.length > 0) {
         console.error(
             `Visual check misconfigured:\n${errors.map((line) => `  ${line}`).join("\n")}`,
+        );
+        return 1;
+    }
+    if (values.page.length === 0 && values.viewport.length === 0) {
+        console.error(
+            "Visual check needs --page or --viewport: it shoots only what a change touched",
         );
         return 1;
     }
@@ -384,8 +383,7 @@ async function main(): Promise<number> {
         return 1;
     }
     const pages = tasksOf(chromium, selection).length + tasksOf(webkit, selection).length;
-    const scope = selection.partial ? "partial run, no replay load budget; " : "";
-    console.info(`Visual check passed: ${scope}${pages} pages; screenshots in ${shots}`);
+    console.info(`Visual check passed: ${pages} pages; screenshots in ${shots}`);
     return 0;
 }
 

@@ -149,7 +149,7 @@ agent-browser wait --fn "document.documentElement.dataset.tileSprite === 'ready'
 agent-browser screenshot $T/<name>.png
 ```
 
-For a phone, use the visual gate's runner rather than agent-browser (Chromium only) or a
+For a phone, use the v2 visual check's runner rather than agent-browser (Chromium only) or a
 hand-written WebKit script, for any state it has a page for: it builds nothing, so build first,
 then it checks the page as well as shooting it, the notch phone's insets and capture model
 included, with no backend:
@@ -160,7 +160,7 @@ node scripts/visual-check/run.ts --page decisions-anchor-call --viewport phone-s
 ```
 
 Names match by substring and each flag repeats; given both, a page is shot at every viewport
-named, whether its gate entry names it or not. A filter that matches nothing prints every page and
+named, whether its page entry names it or not. A filter that matches nothing prints every page and
 viewport name. A state with no page there takes the *WebKit phone check* below, on the
 `"iPhone SE (3rd gen) landscape"` device (667x375), in the same order: `page.wait_for_selector`
 on the state's element with `state="visible"`, then the polled settle with the sprite and face
@@ -171,9 +171,7 @@ added (`document.documentElement.dataset.tileSprite === 'ready' && document.font
 
 Shoot the changed area plus one worst case (the smallest phone, or the densest state that holds
 the changed element), before and after, and nothing else: never a sweep of every viewport or
-story, and never the full `make visual-check` mid-work, which runs once at wrap-up. A visual
-review is the anchor's three checkpoints at the spec's three viewports
-(`frontend/game_v2/AGENTS.md`, Layout).
+story. The runner refuses a run that names no page or viewport.
 
 ## Screenshots
 

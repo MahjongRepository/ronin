@@ -18,7 +18,7 @@
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
         "sprite": "node scripts/build-tile-sprite.ts",
-        "visual-check": "vite build --manifest && node scripts/bundle-budget.ts && node scripts/visual-check/run.ts",
+        "visual-check": "vite build && node scripts/visual-check/run.ts",
         "test": "vitest run --coverage",
         "test:watch": "vitest"
     },

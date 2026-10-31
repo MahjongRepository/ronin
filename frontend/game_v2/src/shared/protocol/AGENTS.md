@@ -1,38 +1,15 @@
 # Game protocol (client side)
 
-The client mirror of the game server's wire protocol; `backend/game/messaging/AGENTS.md` routes to
-the protocol's source files, and a protocol change lands here and in the backend in the same change.
+The client mirror of the game server's wire protocol (`backend/game/messaging/AGENTS.md`); a protocol change lands
+here and in the backend in the same change.
 
-- `constants.ts` holds the wire values; `schemas/` parse every server message with Zod (`zod/mini`'s functional API) from compact
-  wire keys into camelCase objects; `decoders/` unpack the packed integer draw, discard and IMME
-  meld values; `builders/` construct every client message. The tile id's type and copies and the
-  distance between seats are the encoding's (`tiles.ts`), so every layer uses that one spelling.
-- `parseServerMessage` is the single entry for inbound messages and returns an `[error, message]`
-  tuple that callers check before using the value. The per-message parsers under it throw on a bad
-  payload and rely on that wrapper, so a new parser throws too rather than returning its own tuple.
-- A schema requires what its consumer needs rather than defaulting it, so an incomplete message
-  fails to parse. The reconnect snapshot parses only whole, as the server's builder sends it: each
-  seat's player and state once, in seat order, each state's melds its own and its closed count one a
-  turn leaves beside them (13 or 14, less 3 a meld), the viewer's own tiles as many as its count,
-  each once, and a round history of every finished round (`n` deals before the one shown, plus that
-  one once its result is pending). A game start's and a deal's player lists name each seat once,
-  in seat order (`coversEverySeat`), and a score map (`wireScoreMapSchema`) every seat, as the
-  server's always do; a game end's standings rank each seat once and a double ron names two
-  or more distinct winners (`namesDistinctSeats`), in the server's order. A round end's wait id and its round
-  advance's timeout (`at`) parse only together, as a snapshot's elapsed time (`el`) and that timeout do. A compact meld parses
-  only within the decoder's range (`compactMeldSchema`), which is every value it unpacks because
-  its meld ranges are contiguous,
-  and a seat's melds (a snapshot's, a winner's, a tenpai hand's) only as that seat's calls.
-- A replay file's event lines go through `parseReplayLine` instead, which also reads the replay-only
-  lines (`REPLAY_LINE_TYPE`) the live socket never sends and defers every other line to
-  the recorded messages' parser (`parseRecordedMessage`). Fields only the live socket stamps (viewer
-  seat, timers, wait ids, banks, elapsed seconds) read as null in a replay, while `parseServerMessage`
-  requires the ones the server always stamps (a game start's seat and timer settings, a deal's seat and
-  private hand, a turn's or call prompt's wait id, a turn's bank), so an incomplete live message fails to
-  parse; a replay's deal parses only with every seat's hand. A replay's `game_started` carries no
-  riichi cost (`rc`) or stick value (`rsv`): `parseReplayLine` gives it those its recorded settings
-  (`gs.riichi_cost`, `gs.riichi_stick_value`) name.
-- An offer parses only as an action or a call the client knows, in the shape the server sends it (a
-  riichi's tile ids, a kan's tile types and a chi's pairs each nonempty, a meld prompt's calls too), so
-  an unknown or malformed one fails its whole message (the client's loss of step), never a turn or a
-  prompt offering less than the server's.
+- `parseServerMessage` is the single inbound entry and returns an `[error, message]` tuple; the per-message parsers
+  under it throw. `parseReplayLine` is the replay file's entry.
+- A schema requires what its consumer needs rather than defaulting it, so an incomplete message fails to parse. This
+  includes the reconnect snapshot, which parses only whole.
+- An offer parses only as an action or call the client knows, in the server's shape: an unknown one fails its whole
+  message (a loss of step), never a turn offering less than the server's.
+- Live and recorded parsing stay distinct: a field the live socket always stamps (seat, timers, wait id, bank) is
+  required live even though a replay reads it as null. A replay's riichi cost and stick value come from its recorded
+  settings, never client defaults.
+- Tile id, copies and seat distance are spelled once, in `tiles.ts`.

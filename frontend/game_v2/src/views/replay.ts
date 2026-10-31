@@ -137,12 +137,6 @@ interface ReplayHandlers {
     readonly toggleHands: () => void;
 }
 
-/**
- * The User Timing measure of reading a fetched replay: parsing it, reducing it into the client timeline and building
- * its stops and navigation, before the first render. The layout gate's load budget reads it.
- */
-const REPLAY_LOAD_MEASURE = "replay-load";
-
 interface FailureText {
     readonly title: string;
     readonly detail: string;
@@ -208,25 +202,6 @@ function failureText(failure: ReplayFailure): FailureText {
             return assertNever(failure);
         }
     }
-}
-
-/**
- * What a replay's reading produced, as the `replay-load` measure's detail, so whoever reads the timing can check it
- * timed the whole file: its stops, rounds, completeness and final standings (seat and score), or why it failed.
- */
-function loadDetail(screen: ReplayScreen): Record<string, unknown> {
-    if (screen.kind !== "loaded") {
-        return { failure: screen.kind === "failed" ? screen.failure.kind : screen.kind };
-    }
-    const { damage, navigation, tables } = screen.replay;
-    const standings = tables.at(-1)?.gameEndResult?.standings ?? [];
-    return {
-        complete: navigation.complete,
-        damagedLine: damage?.lineNumber ?? null,
-        rounds: navigation.rounds.length,
-        standings: standings.map(({ score, seat }) => [seat, score]),
-        stops: navigation.stops.length,
-    };
 }
 
 /** Whether `element` is drawn: a control the board's stylesheet hides (an option under a small board's panel) is not. */
@@ -737,7 +712,7 @@ class ReplayViewController {
         }
     }
 
-    /** The page after a fetch's answer; a file read is timed as the `replay-load` measure. */
+    /** The page after a fetch's answer. */
     private readFetched(fetched: ReplayFetch): ReplayPageStep {
         const opening: ReplayOpening = {
             autoplay: this.deps.autoplay ?? false,
@@ -745,20 +720,12 @@ class ReplayViewController {
             roundListOpen: this.deps.roundListOpen ?? false,
             search: this.deps.location.search,
         };
-        const started = performance.now();
-        const step = stepReplayPage(this.screen, {
+        return stepReplayPage(this.screen, {
             at: this.deps.clock.now(),
             fetched,
             kind: "fetched",
             opening,
         });
-        if (fetched.ok) {
-            performance.measure(REPLAY_LOAD_MEASURE, {
-                detail: loadDetail(step.screen),
-                start: started,
-            });
-        }
-        return step;
     }
 
     /**

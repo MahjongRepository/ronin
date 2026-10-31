@@ -12,9 +12,6 @@ export const APP_ROOT = resolve(import.meta.dirname, "../..");
 const DIST = join(APP_ROOT, "dist");
 const ASSET_PREFIX = "/game-assets/v2/";
 const REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/four_kans.txt");
-/** The largest engine replay fixture, which the replay load budget reads. */
-const BUDGET_REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/full_game.txt");
-export const BUDGET_GAME_ID = "load-budget";
 const TRANSCRIPT_FIXTURE = join(APP_ROOT, "src/fixtures/seat-scenarios/call_prompt_seat_1.json");
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
@@ -77,8 +74,6 @@ async function respond(request: IncomingMessage, response: ServerResponse): Prom
     let file: string | null = null;
     if (pathname.startsWith(ASSET_PREFIX)) {
         file = assetPath(pathname);
-    } else if (pathname === `/api/replays/${BUDGET_GAME_ID}`) {
-        file = BUDGET_REPLAY_FIXTURE;
     } else if (pathname.startsWith("/api/replays/")) {
         file = REPLAY_FIXTURE;
     } else if (pathname.startsWith("/play/")) {
