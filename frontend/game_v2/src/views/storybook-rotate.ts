@@ -9,6 +9,8 @@ import {
 } from "@/entities/client";
 import { type SessionState, describePlayerSessionStatus } from "@/entities/session";
 
+import { storybookIndexHref } from "./storybook-nav";
+
 const HANDOFF = { gameTicket: "story", wsUrl: "ws://story" } as const;
 const PLAYING: SessionState = {
     gameId: "story",
@@ -111,7 +113,7 @@ function rotateStorybookTemplate(
         <div class="rotate-storybook">
             ${RotatePanel(STORY_PROPS[current])}
             <nav class="rotate-storybook__stories">
-                <a class="board-storybook__btn" href="/play/storybook">Back</a>
+                <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
                 ${ROTATE_STORIES.map(
                     (key) => html`<button
                         class="board-storybook__btn ${key === current ? "board-storybook__btn--active" : ""}"

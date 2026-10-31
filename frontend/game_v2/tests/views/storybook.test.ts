@@ -1,5 +1,5 @@
 import { type TemplateResult, render } from "lit-html";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 
 import { loadSeatScenario, receivedPayload } from "#tests/fixtures/seat-transcripts";
 import { CLIENT_MESSAGE_TYPE, GAME_ACTION, buildRiichiAction } from "@/shared/protocol";
@@ -8,7 +8,7 @@ import { mountStorybookDecisions } from "@/views/storybook-decisions";
 import { storybookDiscardsView } from "@/views/storybook-discards";
 import { storybookHandView } from "@/views/storybook-hand";
 import { storybookMeldsView } from "@/views/storybook-melds";
-import { storybookNav } from "@/views/storybook-nav";
+import { storybookHref, storybookNav } from "@/views/storybook-nav";
 
 function renderTo(template: TemplateResult): HTMLElement {
     const el = document.createElement("div");
@@ -40,7 +40,35 @@ describe("storybookNav", () => {
     });
 });
 
+describe("storybookHref", () => {
+    test("carries only the page's client version, beside the link's own query", () => {
+        expect([
+            storybookHref("/play/storybook/replay?state=standings", "?state=kicked&v=2&debug"),
+            storybookHref("/play/storybook", "?state=kicked"),
+            storybookHref("/play/storybook/board?state=worst#seat", "?v=2"),
+        ]).toEqual([
+            "/play/storybook/replay?state=standings&v=2",
+            "/play/storybook",
+            "/play/storybook/board?state=worst&v=2#seat",
+        ]);
+    });
+});
+
 describe("storybookView", () => {
+    afterEach(() => {
+        history.replaceState(null, "", "/");
+    });
+
+    test("keeps the v2 client's query on every link: the header's and the replay stories'", () => {
+        history.replaceState(null, "", "/play/storybook?v=2");
+        const hrefs = [...renderTo(storybookView()).querySelectorAll("a")].map((link) =>
+            new URL(link.href).searchParams.get("v"),
+        );
+
+        expect(hrefs.length).toBeGreaterThan(8);
+        expect(hrefs.filter((version) => version !== "2")).toEqual([]);
+    });
+
     test("renders nav with index badge active", () => {
         const el = renderTo(storybookView());
         const active = el.querySelector(".storybook-badge.active");
@@ -129,6 +157,15 @@ describe("mountStorybookDecisions", () => {
 
         expect([pressed?.textContent?.trim(), tiles.length]).toEqual(["Riichi", 1]);
         expect(JSON.parse(sent)).toEqual({ message: buildRiichiAction(120, 2), type: "send" });
+    });
+
+    test("its Back link keeps the v2 client's query", () => {
+        const back =
+            mountStory("call_prompt&v=2").querySelector<HTMLAnchorElement>(
+                "a.board-storybook__btn",
+            );
+
+        expect(back?.getAttribute("href")).toBe("/play/storybook?v=2");
     });
 
     test("builds every story the picker lists from its transcript's checkpoint", () => {

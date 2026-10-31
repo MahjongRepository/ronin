@@ -41,6 +41,7 @@ import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { browserClock } from "@/shared/clock";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
 
+import { storybookIndexHref } from "./storybook-nav";
 import { startStorybookStandings } from "./storybook-standings";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
@@ -499,7 +500,7 @@ function storybookTemplate(
                 })}
             </div>
             <div class="board-page__aside">
-                <a class="board-storybook__btn" href="/play/storybook">Back</a>
+                <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
                 <div class="board-storybook__picker"><select
                     class="board-storybook__select"
                     aria-label="Story"

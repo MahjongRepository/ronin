@@ -44,6 +44,7 @@ import { browserClock } from "@/shared/clock";
 import { assertNever } from "@/shared/lib";
 import { GAME_END_CAUSE, SEAT_CONTROL_REASON } from "@/shared/protocol";
 
+import { storybookHref, storybookIndexHref } from "./storybook-nav";
 import {
     RESULT_STORIES,
     type ResultStory,
@@ -1056,10 +1057,16 @@ const STANDINGS_TABLE_STICK_LOST: TableState = {
     },
 };
 
-const STANDINGS_ACTIONS: readonly StandingsAction[] = [
-    { href: "/play/storybook/replay?state=standings", kind: "link", label: "Replay" },
-    { href: "/play/storybook", kind: "link", label: "Storybook", primary: true },
-];
+function standingsActions(): readonly StandingsAction[] {
+    return [
+        {
+            href: storybookHref("/play/storybook/replay?state=standings", window.location.search),
+            kind: "link",
+            label: "Replay",
+        },
+        { href: storybookIndexHref(), kind: "link", label: "Storybook", primary: true },
+    ];
+}
 
 function buildOverlay(
     story: BoardStoryState,
@@ -1075,7 +1082,7 @@ function buildOverlay(
     }
     if (overlay === "game_end") {
         return boardOverlay(story.leftoverLost ? STANDINGS_TABLE_STICK_LOST : STANDINGS_TABLE, {
-            standings: { actions: STANDINGS_ACTIONS, renderer: standings, viewerSeat: 0 },
+            standings: { actions: standingsActions(), renderer: standings, viewerSeat: 0 },
         });
     }
     return undefined;
@@ -1214,7 +1221,7 @@ function storybookBoardTemplate(
                 })}
             </div>
             <div class="board-page__aside">
-                <a class="board-storybook__btn" href="/play/storybook">Back</a>
+                <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
                 ${storyPicker({
                     label: "Story",
                     onPick: handlers.showStory,
