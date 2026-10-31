@@ -262,9 +262,9 @@ describe("stepGameClient - desync", () => {
             ]);
             expect(failed.effects[1]).toEqual(RESYNC);
             expect(desyncOf(failed.state)).toMatchObject({
-                answerDue: AT + RESYNC_ANSWER_MS,
                 cause,
                 detail: expect.stringContaining(detail),
+                request: { due: AT + RESYNC_ANSWER_MS, kind: "sent" },
                 since: AT,
             });
             expect([
@@ -367,9 +367,9 @@ describe("stepGameClient - desync", () => {
         expect(sends(early.effects)).toEqual([]);
         const late = run(early.state, [tick(due)]);
         expect(sends(late.effects)).toEqual([RESYNC]);
-        expect([late.state.resyncRequests, desyncOf(late.state)?.answerDue]).toEqual([
+        expect([late.state.resyncRequests, desyncOf(late.state)?.request]).toEqual([
             2,
-            due + RESYNC_ANSWER_MS,
+            { due: due + RESYNC_ANSWER_MS, kind: "sent" },
         ]);
     });
 
@@ -392,7 +392,7 @@ describe("stepGameClient - desync", () => {
         const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
 
         const dropped = run(desynced, [closed(AT + 100, 1006)]);
-        expect(desyncOf(dropped.state)?.answerDue).toBeNull();
+        expect(desyncOf(dropped.state)?.request).toEqual({ kind: "unsent" });
         const retryAt = nextDeadline(dropped.state) ?? 0;
         const reconnected = run(dropped.state, [
             tick(retryAt),
@@ -517,7 +517,10 @@ describe("stepGameClient - desync around the game's start and end", () => {
         const refused = run(desynced.state, [
             message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
         ]);
-        expect([refused.effects, desyncOf(refused.state)?.answerDue]).toEqual([[], firstDealDue]);
+        expect([refused.effects, desyncOf(refused.state)?.request]).toEqual([
+            [],
+            { due: firstDealDue, kind: "at_deal" },
+        ]);
         const dealDue = run(refused.state, [tick(firstDealDue)]);
         expect(sends(dealDue.effects)).toEqual([RESYNC]);
     });
@@ -583,7 +586,7 @@ describe("stepGameClient - desync before the first deal", () => {
         const { session } = limited.state;
         assert(session.status === "identifying");
 
-        expect(desyncOf(reopened.state)).toMatchObject({ awaitsDeal: false, requested: false });
+        expect(desyncOf(reopened.state)?.request.kind).toBe("awaiting_snapshot");
         expect(session.sessionRetryAt).toBeGreaterThan(1502);
         expect(sends(limited.effects)).toEqual([]);
     });

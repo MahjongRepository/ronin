@@ -84,10 +84,12 @@ how the client recovers.
   (`entities/table/AGENTS.md`); a last round end it cannot take is one more message dropped. A game's end its in-step
   table refuses (the round end before it missed) is the first sign of the loss of step: the client goes out of step
   and takes that end once more, so the game still ends on the server's standings.
-- It sends one resync request on the open socket and again only once one goes unanswered for `RESYNC_ANSWER_MS`. A
+- Where the resync request stands is one field of the desync record (`ResyncRequest`), one variant per state with
+  only its own due time, so no combination of flags implies one. It sends one resync request on the open socket and
+  again only once one goes unanswered for `RESYNC_ANSWER_MS`. A
   request refused because the game has not dealt yet is answered: the client asks again when the first deal is due
   (`firstDealDue`), or, with no deal time ahead (a joined seat waiting for the game's players), only on the server's
-  next game message (`awaitsDeal`), which a game start answers with the deal's time (its timer settings kept, so the
+  next game message, which a game start answers with the deal's time (its timer settings kept, so the
   silence limit covers the pause) and any other with a request at once, so a long start pause spends no requests. A
   dropped socket forgets the request and that wait, since the reconnect's own snapshot rebuilds it, so a refusal on
   the next socket is never taken for the old request's. While the reopened socket identifies, that snapshot is the answer awaited: the client asks on

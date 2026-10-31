@@ -1,5 +1,6 @@
 import { type SessionState, failSession, hasSocket } from "@/entities/session";
 import { type TableEvent, applyEvent } from "@/entities/table";
+import { assertNever } from "@/shared/lib";
 import {
     type ParsedServerMessage,
     SESSION_ERROR_CODE,
@@ -8,9 +9,17 @@ import {
 } from "@/shared/protocol";
 
 import { settledPending } from "./pending";
-import { type ClientStep, type Desync, type DesyncCause, type LiveClient } from "./types";
+import {
+    type ClientStep,
+    type Desync,
+    type DesyncCause,
+    type LiveClient,
+    type ResyncRequest,
+} from "./types";
 
 const LOST_STEP: TableEvent = { type: "lost_step" };
+
+const UNSENT: ResyncRequest = { kind: "unsent" };
 
 /** How long a resync request waits for its snapshot before the client asks again. */
 export const RESYNC_ANSWER_MS = 10_000;
@@ -89,12 +98,10 @@ export function desyncStep(
         return { effects, state: { ...state, sync: counted } };
     }
     const desync: Desync = {
-        answerDue: null,
-        awaitsDeal: false,
         cause,
         detail,
         kind: "out_of_step",
-        requested: false,
+        request: UNSENT,
         since: now,
         unreadMessages: 1,
     };
@@ -124,24 +131,30 @@ export function recoveryFailedStep(
  * requests however long the game waits to start. Waiting so, a game start names the deal's time, and any other game
  * message says the game moved, so the client asks at once.
  */
-export function deferredUntilDeal(state: LiveClient, message: ParsedServerMessage): LiveClient {
-    const { sync } = state;
-    if (sync.kind === "in_step") {
-        return state;
-    }
+export function deferredUntilDeal(
+    state: LiveClient,
+    sync: Desync,
+    message: ParsedServerMessage,
+): LiveClient {
     if (message.type === "session_error" && message.code === SESSION_ERROR_CODE.GAME_NOT_STARTED) {
-        return awaitingDeal(state, sync);
+        return withRequest(state, sync, awaitingDeal(state));
     }
     const gameMoved = message.type !== "session_error" && message.type !== "error";
-    return sync.awaitsDeal && gameMoved ? movedOn(state, sync, message) : state;
+    return sync.request.kind === "on_game_message" && gameMoved
+        ? movedOn(state, sync, message)
+        : state;
 }
 
-/** The client told the game has not dealt: asking at the first deal's time ahead, else on the next game message. */
-function awaitingDeal(state: LiveClient, sync: Desync): LiveClient {
+function withRequest(state: LiveClient, sync: Desync, request: ResyncRequest): LiveClient {
+    return { ...state, sync: { ...sync, request } };
+}
+
+/** The request of a client told the game has not dealt: at the first deal's time ahead, else on the next game message. */
+function awaitingDeal(state: LiveClient): ResyncRequest {
     const { firstDealDue, now } = state;
-    const dealAhead = firstDealDue !== null && firstDealDue > now;
-    const answerDue = dealAhead ? firstDealDue : null;
-    return { ...state, sync: { ...sync, answerDue, awaitsDeal: !dealAhead, requested: false } };
+    return firstDealDue !== null && firstDealDue > now
+        ? { due: firstDealDue, kind: "at_deal" }
+        : { kind: "on_game_message" };
 }
 
 /**
@@ -150,12 +163,12 @@ function awaitingDeal(state: LiveClient, sync: Desync): LiveClient {
  */
 function movedOn(state: LiveClient, sync: Desync, message: ParsedServerMessage): LiveClient {
     if (message.type !== "game_started" || message.timer === null) {
-        return { ...state, sync: { ...sync, answerDue: null, awaitsDeal: false } };
+        return withRequest(state, sync, UNSENT);
     }
     const { timer } = message;
     const dealDue = state.now + timer.gameStartPauseSeconds * MS_PER_SECOND;
-    const waiting = { ...sync, answerDue: dealDue, awaitsDeal: false };
-    return { ...state, firstDealDue: dealDue, sync: waiting, timer };
+    const waiting = withRequest(state, sync, { due: dealDue, kind: "at_deal" });
+    return { ...waiting, firstDealDue: dealDue, timer };
 }
 
 /**
@@ -167,7 +180,7 @@ function movedOn(state: LiveClient, sync: Desync, message: ParsedServerMessage):
 export function refusesResyncRequest(state: LiveClient, message: ParsedServerMessage): boolean {
     return (
         state.sync.kind === "out_of_step" &&
-        state.sync.requested &&
+        state.sync.request.kind === "sent" &&
         message.type === "session_error" &&
         message.code === SESSION_ERROR_CODE.RATE_LIMITED
     );
@@ -197,56 +210,54 @@ function canRequestResync(session: SessionState): boolean {
 
 /**
  * Ask an out-of-step client's server for a fresh snapshot once it holds the seat and has no request outstanding, or
- * its request went unanswered past its due time. A dropped socket forgets the request, since its reconnect brings a
- * snapshot of its own. While the reopened socket identifies, that snapshot is the request's answer: the client asks
- * only once it goes unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not decode), on the same socket, which
- * a RECONNECT the server took binds. The requests are counted for the page, whatever the session's own retries reset:
- * one past `MAX_RESYNC_REQUESTS` ends the page as failed. A client awaiting the deal asks nothing until a game message
- * comes (`deferredUntilDeal`), and forgets the wait with its socket.
+ * its request went unanswered past its due time. A dropped socket forgets the request, and any wait for the deal,
+ * since its reconnect brings a snapshot of its own. While the reopened socket identifies, that snapshot is the
+ * request's answer: the client asks only once it goes unanswered for `RESYNC_ANSWER_MS` (a snapshot frame that did not
+ * decode), on the same socket, which a RECONNECT the server took binds. The requests are counted for the page,
+ * whatever the session's own retries reset: one past `MAX_RESYNC_REQUESTS` ends the page as failed. A client awaiting
+ * the deal asks nothing until a game message comes (`deferredUntilDeal`).
  */
 export function settleDesync(step: ClientStep<LiveClient>): ClientStep<LiveClient> {
     const { state } = step;
-    const { sync } = state;
+    const { session, sync } = state;
     if (sync.kind === "in_step") {
         return step;
     }
-    return sync.awaitsDeal ? awaitedDeal(step, sync) : settledRequest(step, sync);
-}
-
-/** Ask for a snapshot when the request comes due, after moving when it does to where the socket now stands. */
-function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
-    const { state } = step;
-    const answerDue = awaitedAnswerDue(state, sync);
-    if (answerDue !== sync.answerDue) {
-        const requested = answerDue !== null && sync.requested;
-        return { ...step, state: { ...state, sync: { ...sync, answerDue, requested } } };
+    if (canRequestResync(session)) {
+        return settledRequest(step, sync);
     }
-    const due = answerDue === null || state.now >= answerDue;
-    return canRequestResync(state.session) && due ? requestResync(step, sync) : step;
-}
-
-/** A client awaiting the deal asks nothing; once its socket can ask no more, it forgets the wait with the request. */
-function awaitedDeal(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
-    const { state } = step;
-    const forgotten = {
-        ...state,
-        sync: { ...sync, answerDue: null, awaitsDeal: false, requested: false },
-    };
-    return canRequestResync(state.session) ? step : { ...step, state: forgotten };
+    return sync.request.kind === "unsent"
+        ? step
+        : { ...step, state: withRequest(state, sync, UNSENT) };
 }
 
 /**
- * When an out-of-step client's snapshot counts as unanswered before it sends a request: none with no socket to ask
- * on (the request forgotten), `RESYNC_ANSWER_MS` from now for an identifying session's own snapshot, else as it was.
+ * An out-of-step client that can ask, by where its request stands: unsent, it asks at once while it holds the seat, and
+ * while it identifies awaits its own snapshot first; any other with a due time asks once that comes.
  */
-function awaitedAnswerDue(state: LiveClient, desync: Desync): number | null {
-    if (!canRequestResync(state.session)) {
-        return null;
+function settledRequest(step: ClientStep<LiveClient>, sync: Desync): ClientStep<LiveClient> {
+    const { state } = step;
+    const { request } = sync;
+    switch (request.kind) {
+        case "unsent": {
+            if (canSend(state.session)) {
+                return requestResync(step, sync);
+            }
+            const due = state.now + RESYNC_ANSWER_MS;
+            return { ...step, state: withRequest(state, sync, { due, kind: "awaiting_snapshot" }) };
+        }
+        case "sent":
+        case "awaiting_snapshot":
+        case "at_deal": {
+            return state.now >= request.due ? requestResync(step, sync) : step;
+        }
+        case "on_game_message": {
+            return step;
+        }
+        default: {
+            return assertNever(request);
+        }
     }
-    if (desync.answerDue === null && !canSend(state.session)) {
-        return state.now + RESYNC_ANSWER_MS;
-    }
-    return desync.answerDue;
 }
 
 /** Send a resync request after `step`, or end the page once the page's requests are spent. */
@@ -257,18 +268,19 @@ function requestResync(step: ClientStep<LiveClient>, desync: Desync): ClientStep
         const failed = failStep(state, detail);
         return { effects: [...step.effects, ...failed.effects], state: failed.state };
     }
+    const sent = withRequest(state, desync, { due: state.now + RESYNC_ANSWER_MS, kind: "sent" });
     return {
         effects: [...step.effects, { message: buildResyncMessage(), type: "send" }],
-        state: {
-            ...state,
-            resyncRequests: state.resyncRequests + 1,
-            sync: { ...desync, answerDue: state.now + RESYNC_ANSWER_MS, requested: true },
-        },
+        state: { ...sent, resyncRequests: state.resyncRequests + 1 },
     };
 }
 
-/** When an out-of-step client's resync request counts as unanswered, or null. */
+/** When an out-of-step client's resync request counts as unanswered or comes due, or null. */
 export function desyncDeadline(state: LiveClient): number | null {
     const { session, sync } = state;
-    return sync.kind === "out_of_step" && canRequestResync(session) ? sync.answerDue : null;
+    if (sync.kind === "in_step" || !canRequestResync(session)) {
+        return null;
+    }
+    const { request } = sync;
+    return request.kind === "unsent" || request.kind === "on_game_message" ? null : request.due;
 }

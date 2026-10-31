@@ -323,8 +323,9 @@ function takeParsedMessage(
         return { effects: [], state };
     }
     const step = withSession(state, { at: state.now, kind: "message", message });
-    if (state.sync.kind === "out_of_step" && !takesWhileDesynced(message)) {
-        return { effects: step.effects, state: deferredUntilDeal(step.state, message) };
+    const { sync } = state;
+    if (sync.kind === "out_of_step" && !takesWhileDesynced(message)) {
+        return { effects: step.effects, state: deferredUntilDeal(step.state, sync, message) };
     }
     const taken = takeMessageInStep(state, step.state, message);
     return { effects: [...step.effects, ...taken.effects], state: taken.state };

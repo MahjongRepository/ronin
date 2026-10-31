@@ -197,23 +197,34 @@ export interface InStep {
 }
 
 /**
+ * Where an out-of-step client's resync request stands. Unsent: none is outstanding, so the client asks as soon as its
+ * session can (at once while it holds the seat), whether it just lost step, its socket dropped (the reconnect bringing
+ * a snapshot of its own) or the game moved while it awaited the deal. Sent: its request is outstanding on the open
+ * socket until `due`, when it counts as unanswered and is sent again; a rate limit meanwhile answers it, never the
+ * session's identity message. Awaiting the snapshot: the identifying socket's own snapshot is the answer, asked for
+ * only once it goes unanswered at `due`. At the deal: the server said the game has not dealt yet, so the client asks
+ * again at the first deal's time `due`. On a game message: the same refusal with no deal time ahead, so the client
+ * asks again only once the server's next game message says the game moved.
+ */
+export type ResyncRequest =
+    | { readonly kind: "unsent" }
+    | { readonly kind: "sent"; readonly due: number }
+    | { readonly kind: "awaiting_snapshot"; readonly due: number }
+    | { readonly kind: "at_deal"; readonly due: number }
+    | { readonly kind: "on_game_message" };
+
+/**
  * A client out of step with the server since logical time `since`: it owes and answers nothing and drops every server
- * message but a snapshot, the game's end and the round end before it (the game's last) until a snapshot rebuilds it.
- * `answerDue` is when the resync request it sent counts as unanswered and is sent again; null while none is
- * outstanding (none sent yet, or the socket dropped, whose reconnect brings a snapshot of its own). `requested`: a
- * resync request the client sent is outstanding on the open socket, so a rate limit then answers it, never the
- * session's identity message. `awaitsDeal`: the server said the game has not dealt yet and no deal time lies ahead, so
- * the client asks again only on the server's next game message. `unreadMessages`: the protocol failures it met since
- * it lost step, the first included, so the board says its table may be wrong.
+ * message but a snapshot, the game's end and the round end before it (the game's last) until a snapshot rebuilds it,
+ * which its resync request asks for. `unreadMessages`: the protocol failures it met since it lost step, the first
+ * included, so the board says its table may be wrong.
  */
 export interface Desync {
     readonly kind: "out_of_step";
     readonly cause: DesyncCause;
     readonly detail: string;
     readonly since: number;
-    readonly answerDue: number | null;
-    readonly requested: boolean;
-    readonly awaitsDeal: boolean;
+    readonly request: ResyncRequest;
     readonly unreadMessages: number;
 }
 
