@@ -156,7 +156,16 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [FLOOR, SHORT_DESKTOP, NARROW_DESKTOP, ...LAPTOPS, ...WIDER_PHONES, SQUARE_UPRIGHT],
+        at: [
+            FLOOR,
+            SHORT_DESKTOP,
+            NARROW_DESKTOP,
+            ...LAPTOPS,
+            ...WIDER_PHONES,
+            UPRIGHT_PHONE,
+            SHORT_UPRIGHT,
+            SQUARE_UPRIGHT,
+        ],
         longNames: true,
     },
     {

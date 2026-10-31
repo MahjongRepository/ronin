@@ -6,7 +6,7 @@ $face-floor: 13px;
 $selected: 1000;
 $strip-lengths:
     hand-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start, line2-total, line2-len,
-    line2-base, line1-x, line2-x, meld-over, meld-x, meld-tile, meld-rise;
+    line2-base, line1-x, line2-x, meld-over, meld-x, meld-tile, meld-rise, top-x;
 
 @for $k from 0 through $max-melds - 1 {
     @each $part in head, end, over, room2, line2-tile, line2-at, pick-tile, pick-at {
@@ -112,10 +112,23 @@ $strip-lengths:
 
     &--top {
         --frame-turn: 180deg;
+        --top-x: var(--top-strip-x);
 
-        left: var(--top-strip-x);
+        left: var(--top-x);
         top: var(--m);
         transform: rotate(180deg);
+
+        /* Upright, the strip starts as far right as its melds at the face floor need, short of the page's corner. */
+        @include upright-board {
+            --top-need: calc(var(--hand-len) + var(--meld-n) * var(--meld-gap));
+            --top-x: min(
+                100cqw - var(--m) - var(--corner-reserve),
+                max(
+                    var(--top-strip-x),
+                    var(--top-room-left) + var(--top-need) + var(--meld-units) * #{$face-floor}
+                )
+            );
+        }
     }
 
     &--right {
@@ -142,7 +155,7 @@ $strip-lengths:
 /* The top strip keeps one line: its melds scale down to stay above the top river and the side badges, and right of the
    counters. */
 .board-strip--top .board-melds {
-    --top-room: calc(var(--top-strip-x) - var(--top-room-left));
+    --top-room: calc(var(--top-x) - var(--top-room-left));
     --top-floor: min(var(--core-top) - 8px, var(--side-badge-top) - 6px);
     --top-depth-tile: calc((var(--top-floor) - var(--m)) / var(--meld-deep));
     --top-free: calc(var(--top-room) - var(--hand-len) - var(--meld-n) * var(--meld-gap));
@@ -254,6 +267,13 @@ $strip-lengths:
     > .nameplate {
         flex: none;
         width: var(--badge-slot);
+
+        /* Upright, the row is too narrow for four open kans at the face floor beside a full slot: the badge's slot
+           gives up what they need, down to a phone's least. */
+        @include upright-board {
+            flex: 0 1 auto;
+            min-width: 64px;
+        }
     }
 
     > .board-area--bottom-hand {
@@ -273,6 +293,12 @@ $strip-lengths:
 
     &:has(> .meld) {
         margin-left: calc(#{$drawn-gap} * var(--ow));
+    }
+
+    @include upright-board {
+        min-width: calc(
+            var(--meld-units) * #{$face-floor} + max(0, var(--meld-n) - 1) * (var(--g) + 2px) + 2px
+        );
     }
 
     > .meld {

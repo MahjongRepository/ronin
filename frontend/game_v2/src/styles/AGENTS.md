@@ -90,12 +90,14 @@ What the code keeps that the spec (Composition, Elements) does not say:
   hands it (`--mu-k`), never by measuring. The top strip keeps one line and scales its melds down, above the top river
   and the side badges and right of the counters; the own melds keep 1.2 river tiles, scaled down to end before the
   board's edge (their area is a size container, from the meld units the board hands the own row). No meld face goes
-  under 13px wide.
+  under 13px wide: where an upright board's row is too narrow for that (four open kans), the top strip starts further
+  right, short of the page's corner, and the own badge's slot gives up what the own melds need, down to 64px.
 - A badge's place is fixed per viewport and never reads a tile count: the side badges stand clear of the deepest a
   strip's first line can be (two river tiles), and below the top river's capacity row wherever they would meet it
   (always on a phone), the right one level with the left unless that puts it beside the right river's rows (the top
   river's row never reaches that side); a side badge beside its river's rows ends before its reach. The own badge has
-  its slot at the start of the own row, whose hand starts where a full hand's would, whatever it holds. Badges are the
+  its slot at the start of the own row, whose hand starts where a full hand's would, whatever it holds (but upright,
+  above). Badges are the
   plates' one shape; a long name is shortened in the middle so its end shows; an upright board shows the wind and
   marks alone, its name in the label.
 - The pooled counters (top-left) hold the dora and the honba and riichi counts as icon and number; the centre holds
