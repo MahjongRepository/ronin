@@ -5,9 +5,13 @@ import { type ElementPart, type PartInfo, PartType, directive } from "lit-html/d
 /** A clamped notice's least height: the whole notice is its "Show all" control's tap target. */
 export const NOTICE_TAP_MIN = 40;
 
-/** What the clamp reads of one notice: its padding and rim, its text's whole height and line, and whether it may clamp. */
+/**
+ * What the clamp reads of one notice: its padding and rim clamped, what more padding it takes shown whole (a way out's
+ * tap target's room), its text's whole height and line, and whether it may clamp.
+ */
 export interface NoticeMeasure {
     readonly chrome: number;
+    readonly wholeExtra: number;
     readonly textHeight: number;
     readonly lineHeight: number;
     readonly clampable: boolean;
@@ -31,7 +35,7 @@ export interface NoticeClampPlan {
 /** A notice's height at `lines` of its text with "Show all" on a line of its own under them, or whole at null. */
 function shownHeight(notice: NoticeMeasure, lines: number | null): number {
     if (lines === null) {
-        return notice.chrome + notice.textHeight;
+        return notice.chrome + notice.wholeExtra + notice.textHeight;
     }
     return Math.max(NOTICE_TAP_MIN, notice.chrome + (lines + 1) * notice.lineHeight);
 }
@@ -52,14 +56,21 @@ function stackHeight(
     );
 }
 
-/** The most whole lines (at least one, at most `current`) that bring a notice's stack within its room, if fewer help. */
+/**
+ * The most whole lines (at least one, at most `current`, and fewer than the text holds, since a clamp to all of them
+ * hides no text, only a way out) that bring a notice's stack within its room, if fewer help.
+ */
 function fittedLines(
     place: NoticePlace,
     notice: NoticeMeasure,
     { current, others }: { readonly current: number | null; readonly others: number },
 ): number | null {
+    const most = Math.min(current ?? Number.POSITIVE_INFINITY, fullLines(notice) - 1);
+    if (most < 1) {
+        return current;
+    }
     const fitting = Math.floor((place.room - others - notice.chrome) / notice.lineHeight) - 1;
-    const lines = Math.min(Math.max(1, fitting), current ?? Number.POSITIVE_INFINITY);
+    const lines = Math.min(Math.max(1, fitting), most);
     return shownHeight(notice, lines) < shownHeight(notice, current) ? lines : current;
 }
 
@@ -132,16 +143,19 @@ function measureNotice(notice: HTMLElement): NoticeMeasure | null {
         return null;
     }
     const style = getComputedStyle(notice);
+    const clamped = notice.hasAttribute("data-clamped");
+    const wholeExtra = pixels(style.getPropertyValue("--whole-extra"));
     const chrome =
         pixels(style.paddingTop) +
         pixels(style.paddingBottom) +
         pixels(style.borderTopWidth) +
         pixels(style.borderBottomWidth);
     return {
-        chrome,
+        chrome: clamped ? chrome : chrome - wholeExtra,
         clampable: notice.querySelector(".board-notice__more") !== null,
         lineHeight: pixels(getComputedStyle(text).lineHeight),
-        textHeight: text.scrollHeight,
+        textHeight: clamped ? text.scrollHeight : text.clientHeight,
+        wholeExtra,
     };
 }
 
@@ -219,8 +233,9 @@ function readPlace(place: HTMLElement): {
 /**
  * Clamp the notices of a place to whole lines, and leave out the last ones, where the stack is taller than the place
  * lets it be: a text's overflow is the one thing CSS cannot tell, so this alone reads the layout. It reads each text's
- * whole height (a clamped text's scroll height), so it never undoes a clamp to measure; only a notice it left out is
- * shown again for a moment, within the same task, so nothing paints between.
+ * whole height (a clamped text's scroll height, so it never undoes a clamp to measure; a whole one's own height, which
+ * its way out's tap target overflowing it never adds to); only a notice it left out is shown again for a moment,
+ * within the same task, so nothing paints between.
  */
 function clampPlace(element: HTMLElement): void {
     const read = readPlace(element);

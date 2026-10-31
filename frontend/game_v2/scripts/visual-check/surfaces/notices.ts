@@ -127,6 +127,7 @@ interface NoticeClamp {
     readonly left: boolean;
     readonly lines: number | null;
     readonly shownHeight: number;
+    /** A clamped text's scroll height, a whole one's text as laid out, which its way out's target never adds to. */
     readonly wholeHeight: number;
     readonly lineHeight: number;
     readonly showAll: boolean;
@@ -159,6 +160,12 @@ function measureClamp(page: Page): Promise<PlaceClamp | null> {
                     : Number(getComputedStyle(notice).getPropertyValue("--notice-lines"));
             const box = notice.getBoundingClientRect();
             const room = place.getBoundingClientRect();
+            const text = document.createRange();
+            if (body !== null) {
+                text.selectNodeContents(body);
+            }
+            const textHeight =
+                text.getBoundingClientRect().bottom - (body?.getBoundingClientRect().top ?? 0);
             return {
                 clampable: more !== null,
                 height: box.height,
@@ -169,7 +176,7 @@ function measureClamp(page: Page): Promise<PlaceClamp | null> {
                 lines,
                 showAll: more !== null && more.getBoundingClientRect().height > 0,
                 shownHeight: body?.clientHeight ?? 0,
-                wholeHeight: body?.scrollHeight ?? 0,
+                wholeHeight: lines === null ? textHeight : (body?.scrollHeight ?? 0),
                 withinWidth: box.left >= room.left - 1 && box.right <= room.right + 1,
             };
         });
@@ -266,6 +273,98 @@ function measureShownNotices(page: Page): Promise<readonly Box[]> {
     );
 }
 
+/** A notice's way out as a tap finds it: its target's box, whether taps reach it there, and whether it reaches past. */
+interface ActionTap {
+    /** The tap floor's box around the button where taps at its edges reach it, else the button's own box. */
+    readonly box: Box;
+    /** A tap at each edge's middle of the floor's box around the button lands on the button. */
+    readonly reached: boolean;
+    /** A tap just outside that box, still inside the button's notice, lands on the button. */
+    readonly leaks: boolean;
+}
+
+/** The notices' ways out (a Reload) a player sees, on the board and in the sheet, as a tap finds them. */
+function measureShownActions(page: Page): Promise<readonly ActionTap[]> {
+    return page.evaluate(
+        (floor) =>
+            [...document.querySelectorAll(".board-notice__action, .notice-sheet__action")]
+                .filter(
+                    (action) =>
+                        getComputedStyle(action).visibility !== "hidden" &&
+                        action.closest(".board-notice[data-overflow]") === null &&
+                        action.getBoundingClientRect().width > 0,
+                )
+                .map((action) => {
+                    const button = action.getBoundingClientRect();
+                    const width = Math.max(button.width, floor);
+                    const height = Math.max(button.height, floor);
+                    const left = button.left + (button.width - width) / 2;
+                    const top = button.top + (button.height - height) / 2;
+                    function lands([pointX, pointY]: readonly number[]): boolean {
+                        return (
+                            document.elementFromPoint(pointX, pointY)?.closest("button") === action
+                        );
+                    }
+                    function edge(offset: number): number[][] {
+                        return [
+                            [left + width / 2, top + offset],
+                            [left + width / 2, top + height - offset],
+                            [left + offset, top + height / 2],
+                            [left + width - offset, top + height / 2],
+                        ];
+                    }
+                    const reached = edge(1).every(lands);
+                    const notice = action.closest(".board-notice")?.getBoundingClientRect();
+                    const leaks =
+                        notice !== undefined &&
+                        edge(-3)
+                            .filter(
+                                ([pointX, pointY]) =>
+                                    pointX > notice.left + 1 &&
+                                    pointX < notice.right - 1 &&
+                                    pointY > notice.top + 1 &&
+                                    pointY < notice.bottom - 1,
+                            )
+                            .some(lands);
+                    const box = reached
+                        ? { height, left, top, width }
+                        : {
+                              height: button.height,
+                              left: button.left,
+                              top: button.top,
+                              width: button.width,
+                          };
+                    return { box, leaks, reached };
+                }),
+        MIN_ACTION_SIZE,
+    );
+}
+
+/**
+ * A notice's way out is a button: taps reach it across the tap floor's box around it, which it meets wherever it shows,
+ * and never past that box, so a tap elsewhere on its notice does not reload the page.
+ */
+function checkActionTaps(actions: readonly ActionTap[], report: PageReport): void {
+    const small = actions.filter(
+        ({ box }) =>
+            box.width < MIN_ACTION_SIZE - EPSILON || box.height < MIN_ACTION_SIZE - EPSILON,
+    );
+    report.expect(
+        small.length === 0,
+        `notice action(s) under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${small.map(({ box }) => describeBox(box)).join(", ")}`,
+    );
+    const unreached = actions.filter((action) => !action.reached);
+    report.expect(
+        unreached.length === 0,
+        `notice action(s) a tap at their ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE} target's edges does not reach: ${unreached.map(({ box }) => describeBox(box)).join(", ")}`,
+    );
+    const leaking = actions.filter((action) => action.leaks);
+    report.expect(
+        leaking.length === 0,
+        `notice action(s) a tap past their ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE} target still reaches: ${leaking.map(({ box }) => describeBox(box)).join(", ")}`,
+    );
+}
+
 async function checkBoard({ board, page, report, viewport }: BoardRun): Promise<void> {
     if (!viewport.supported) {
         return;
@@ -273,6 +372,7 @@ async function checkBoard({ board, page, report, viewport }: BoardRun): Promise<
     const notices = await measureShownNotices(page);
     const center = await measureBoxes(page, ".board-center");
     checkNotices({ center, notices }, board, report);
+    checkActionTaps(await measureShownActions(page), report);
     const place = await measureClamp(page);
     if (place !== null) {
         checkClamp(place, report);

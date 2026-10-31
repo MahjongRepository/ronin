@@ -199,9 +199,11 @@ how the client recovers.
 - A notice is never wider than its place, and a stack taller than it is never cut (`entities/table/ui/notice-clamp.ts`):
   the tallest notices clamp to whole lines, then, where even one line each does not fit, the last notices are left
   out; a clamped notice ends in "Show all" on a line of its own (the whole notice its target, at least 40px high; "+n"
-  where it stands for notices left out), its way out (Reload) moving to the sheet. A text's overflow is the one thing
-  CSS cannot tell, so the clamp is the board's one script measure: a directive on the place reads each text's whole
-  height (a clamped text's scroll height, so it never undoes a clamp to measure) after each render, as the board's box
+  where it stands for notices left out), its way out (Reload) moving to the sheet; unclamped, that way out keeps its
+  small pill inside a 40x40 target of its own, which the notice's padding holds and its clip keeps off its
+  neighbours. A text's overflow is the one thing CSS cannot tell, so the clamp is the board's one script measure: a
+  directive on the place reads each text's whole height (a clamped text's scroll height, so it never undoes a clamp to
+  measure; a whole one's own height, which that target never adds to) after each render, as the board's box
   changes (in the next frame, so a write never loops the observer, watching the board once the render put the place in
   it) and once the face loads, and writes only attributes, the lines and "Show all"'s name (its "+n" included).
 - "Show all" opens the notices' sheet (`PlayUi.noticeSheet`, the opener's kind): every notice whole with its way out,

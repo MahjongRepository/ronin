@@ -1,6 +1,12 @@
 @use "grid" as *;
 @use "../type";
 
+@property --whole-extra {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0;
+}
+
 @property --left-depth {
     syntax: "<length>";
     inherits: true;
@@ -142,13 +148,42 @@
     display: block;
 }
 
+/* Reload's 40x40 target: shown whole, the notice's padding grows by `--whole-extra` (the clamp counts it) to hold it,
+   clipped off every neighbour; the pill's margins keep its focus ring inside the content box the clip never cuts. */
+.board-notice:has(.board-notice__action) {
+    --whole-extra: max(0px, calc(42px - 1.9em));
+
+    overflow: clip;
+
+    &:not([data-clamped]) {
+        padding-block: calc(0.3em + var(--whole-extra) / 2);
+    }
+}
+
 .board-notice__action {
+    position: relative;
     width: auto;
-    margin: 0 0 0 0.6em;
+    margin: 0 3px 0 0.6em;
     padding: 0 0.7em;
     font-size: inherit;
     line-height: inherit;
     pointer-events: auto;
+
+    &:focus-visible {
+        outline: 2px solid var(--ronin-text);
+        outline-offset: 1px;
+        box-shadow: none;
+    }
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: max(100%, 40px);
+        height: max(100%, 40px);
+        translate: -50% -50%;
+    }
 }
 
 /* A notice taller than its place shows the whole lines its clamp counted (`--notice-lines`), then "Show all" on a line
@@ -180,6 +215,10 @@
 
     .board-notice__action {
         visibility: hidden;
+
+        &::after {
+            content: none;
+        }
     }
 
     .board-notice__more {
