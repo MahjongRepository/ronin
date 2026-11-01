@@ -13,6 +13,7 @@ import {
     type BoardSlots,
     type BoardTracks,
     boardGeometry,
+    shellTracks,
 } from "@/entities/table/lib/board-geometry";
 
 /** The sizes pinned, in the order each case lists them. */
@@ -360,6 +361,17 @@ describe("boardGeometry's shell tracks", () => {
         expect(
             areas.filter(([left, top, right, bottom]) => !(left < right && top < bottom)),
         ).toEqual([]);
+    });
+
+    it("keeps an empty or inverted area's end on a line past its start, a 0px track apart", () => {
+        const kept = { bottom: 60, left: 40, right: 120, top: 20 };
+        const inverted = { bottom: 50, left: 90, right: 70, top: 50 };
+
+        expect(shellTracks({ inverted, kept }, { height: 100, width: 200 })).toEqual({
+            columns:
+                "40px [kept-start] 50px [inverted-start] 0px [inverted-end] 30px [kept-end] 80px",
+            rows: "20px [kept-start] 30px [inverted-start] 0px [inverted-end] 10px [kept-end] 40px",
+        });
     });
 });
 

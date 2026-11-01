@@ -1891,7 +1891,10 @@ function axisEdges(
 }
 
 /** The shell's grid: a line at every slot's edges. */
-function shellTracks(areas: BoardShell["areas"], { height, width }: BoardBox): BoardTracks {
+function shellTracks(
+    areas: Readonly<Record<string, BoardRect>>,
+    { height, width }: BoardBox,
+): BoardTracks {
     const rects = Object.entries(areas);
     return {
         columns: lineTemplate(
@@ -1969,7 +1972,7 @@ function boardGeometry(input: BoardInput): BoardGeometry {
     });
 }
 
-export { boardGeometry };
+export { boardGeometry, shellTracks };
 export type {
     BoardBox,
     BoardCentre,
@@ -1978,6 +1981,7 @@ export type {
     BoardGeometry,
     BoardInput,
     BoardLengths,
+    BoardRect,
     BoardSlots,
     BoardTracks,
 };
