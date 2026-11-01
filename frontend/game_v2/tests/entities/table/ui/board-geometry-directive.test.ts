@@ -67,6 +67,14 @@ async function renderBoard(
     return { element, part };
 }
 
+function written(element: HTMLElement): Record<string, string | undefined> {
+    return {
+        chrome: element.dataset.boardChrome,
+        family: element.dataset.boardFamily,
+        rw: element.style.getPropertyValue("--geo-rw"),
+    };
+}
+
 function nextFrame(): void {
     const due = [...frames.values()];
     frames.clear();
@@ -94,6 +102,8 @@ beforeEach(() => {
     });
     vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
     host = document.createElement("div");
+    host.className = "board-page";
+    host.style.setProperty("--page-gutter", "10px");
     document.body.append(host);
 });
 
@@ -105,7 +115,7 @@ afterEach(() => {
 
 describe("sizeBoard", () => {
     it("writes the board's family, chrome and sizes once its first render is in the document", async () => {
-        box = { height: 900, width: 1440 };
+        box = { height: 880, width: 1420 };
 
         const { element } = await renderBoard();
 
@@ -126,31 +136,32 @@ describe("sizeBoard", () => {
             false,
         ]);
 
-        observer.resize(1440, 900);
-        nextFrame();
+        observer.resize(1420, 880);
 
         expect(element.dataset.boardFamily).toBe("desktop");
         expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
     });
 
-    it("rewrites the family in the next frame and drops sizes it no longer has when the box crosses families", async () => {
-        box = { height: 900, width: 1440 };
+    it("writes a change keeping the gutter at once and one moving it in the next frame, dropping sizes it lost", async () => {
+        box = { height: 880, width: 1420 };
         const { element } = await renderBoard();
 
-        latestObserver().resize(667, 375);
+        latestObserver().resize(1420, 780);
 
-        expect(element.dataset).toMatchObject({ boardChrome: "regular", boardFamily: "desktop" });
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
+        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "36px" });
+
+        latestObserver().resize(647, 355);
+
+        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "36px" });
 
         nextFrame();
 
-        expect(element.dataset).toMatchObject({ boardChrome: "small", boardFamily: "phone" });
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("17px");
+        expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "17px" });
         expect(element.style.getPropertyValue("--geo-band-reserve")).toBe("");
     });
 
     it("keeps the written sizes through a re-render that adds the overlay", async () => {
-        box = { height: 900, width: 1440 };
+        box = { height: 880, width: 1420 };
         const { element } = await renderBoard();
 
         await renderBoard(html`<p>Panel</p>`);
@@ -162,12 +173,12 @@ describe("sizeBoard", () => {
     });
 
     it("stops observing a removed board, even through a re-render, and measures it again once it is back", async () => {
-        box = { height: 900, width: 1440 };
+        box = { height: 880, width: 1420 };
         const { element, part } = await renderBoard();
         const first = latestObserver();
 
         part.setConnected(false);
-        box = { height: 800, width: 1440 };
+        box = { height: 780, width: 1420 };
         await renderBoard();
 
         expect(FakeObserver.all).toEqual([first]);

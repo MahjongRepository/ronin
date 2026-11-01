@@ -68,9 +68,14 @@ describe("boardGeometry", () => {
                 expect(FULL_HAND * length("ow")).toBeLessThanOrEqual(
                     box.width - 2 * length("m") - length("own-inline"),
                 );
-                expect(length("core-top") + length("core")).toBeLessThanOrEqual(
-                    length("hand-top") - (lengths["band-reserve"] ?? 0) + 0.001,
-                );
+                const [aboveBand, bandTop] =
+                    family === "short-desktop"
+                        ? [length("cy") + length("h"), length("band-bottom") - length("control-h")]
+                        : [
+                              length("core-top") + length("core"),
+                              length("hand-top") - length("band-reserve"),
+                          ];
+                expect(aboveBand).toBeLessThanOrEqual(bandTop + 0.001);
             }
         },
     );

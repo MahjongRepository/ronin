@@ -10,15 +10,18 @@ import {
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
 
-/** The page's raw safe-area insets and applied gutter around the board, none without a page. */
-function pageEdges(board: HTMLElement): Omit<BoardInput, "box"> {
+const NO_PAGE = { gutter: 0, safeInsets: { bottom: 0, left: 0, right: 0, top: 0 } };
+
+/** The page's raw safe-area insets and applied gutter around the board, or null without a page. */
+function pageEdges(board: HTMLElement): Omit<BoardInput, "box"> | null {
     const page = board.closest(".board-page");
     if (page === null) {
-        return { gutter: 0, safeInsets: { bottom: 0, left: 0, right: 0, top: 0 } };
+        return null;
     }
     const style = getComputedStyle(page);
     function px(name: string): number {
-        return Number.parseFloat(style.getPropertyValue(name));
+        const length = Number.parseFloat(style.getPropertyValue(name));
+        return Number.isFinite(length) ? length : 0;
     }
     return {
         gutter: px("--page-gutter"),
@@ -89,14 +92,15 @@ class SizeBoard extends AsyncDirective {
         this.size(board, board.getBoundingClientRect(), false);
     }
 
-    /** A family change moves the page's gutter, so one found while the observer delivers waits for the next frame. */
+    /** A gutter change resizes the observed board, so one found while the observer delivers waits for the next frame. */
     private size(board: HTMLElement, { width, height }: BoardBox, delivering: boolean): void {
         if (width <= 0 || height <= 0) {
             return;
         }
         this.cancelFrame();
-        const geometry = boardGeometry({ box: { height, width }, ...pageEdges(board) });
-        if (delivering && board.dataset.boardFamily !== geometry.family) {
+        const edges = pageEdges(board);
+        const geometry = boardGeometry({ box: { height, width }, ...(edges ?? NO_PAGE) });
+        if (delivering && edges !== null && geometry.gutter !== edges.gutter) {
             this.frame = requestAnimationFrame(() => {
                 this.frame = null;
                 this.write(board, geometry);
