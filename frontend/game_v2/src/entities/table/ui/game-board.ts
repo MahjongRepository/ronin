@@ -228,7 +228,7 @@ function ScoreFigures(score: string): TemplateResult {
 
 /**
  * A seat's side of the centre, turned to face it: its wind (the dealer's, East, on a muted red chip) and score, or while a plate is
- * hovered or pinned its difference from that plate's seat, and above them its riichi stick once its riichi stands. A
+ * hovered or pinned (or the centre, standing for the bottom plate, is hovered) its difference from that plate's seat, and above them its riichi stick once its riichi stands. A
  * bar along its edge marks whose turn it is. Where pressing a plate views from its seat, so does a pointer's press of
  * another seat's score; the keyboard's is the plate's.
  */

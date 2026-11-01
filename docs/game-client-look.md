@@ -240,7 +240,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   A long name is shortened in the middle so its end, which tells AI players apart, stays. Decision:
   the badge carries no wind or score; the centre holds every seat's score, and hovering or tapping a badge
   shows the other seats' scores in the centre as differences from it, labelled as that seat's
-  differences (kept from the current board). The badge is therefore a control: its tap area meets
+  differences (kept from the current board); hovering the centre does the same for the bottom seat's
+  badge, as Tenhou's. The badge is therefore a control: its tap area meets
   the control floor whatever the drawn badge's size, a key activates it like a tap, a tap pins the
   differences, and tapping it again, tapping elsewhere or Escape returns the totals; a pinned badge
   shows a faint 1px inset ring on a slightly lighter plate, quieter than the turn cue, and a focused one the accent's outline. The name

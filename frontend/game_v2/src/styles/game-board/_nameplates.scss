@@ -270,12 +270,12 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* A hovered badge wins over the pinned one where a pointer hovers; a touch screen's tap, which may leave its badge
-   hovered, only pins. The scores in the centre then read as differences from that badge's seat, named there. */
+/* A hovered badge, or the hovered centre for the bottom seat's, wins over the pinned one where a pointer hovers; a touch
+   screen's tap, which may leave its badge hovered, only pins. */
 @each $seat in $plate-seats {
     @media (hover: hover) {
         .board-layout:has(.nameplate--#{$seat}:hover),
-        .game-board--diff-#{$seat} .board-layout:not(:has(.nameplate:hover)) {
+        .game-board--diff-#{$seat} .board-layout:not(:has(.nameplate:hover, .board-center:hover)) {
             @include diffs-from($seat);
         }
     }
@@ -284,6 +284,12 @@ $plate-seats: bottom, right, top, left;
         .game-board--diff-#{$seat} .board-layout {
             @include diffs-from($seat);
         }
+    }
+}
+
+@media (hover: hover) {
+    .board-layout:has(.board-center:hover) {
+        @include diffs-from(bottom);
     }
 }
 
