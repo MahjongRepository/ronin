@@ -17,10 +17,12 @@ const VIEW: TablePanelView = {
     viewerSeat: null,
 };
 const RON: BoardCallouts = {
+    announced: true,
     items: [{ kind: "ron", label: "Ron", position: "right" }],
     key: "c1",
 };
 const PON: BoardCallouts = {
+    announced: true,
     items: [{ kind: "pon", label: "Pon", position: "top" }],
     key: "c2",
 };

@@ -89,6 +89,18 @@ function tickThrough(screen: ReplayScreen, limit = 50): ReplayScreen {
 
 const WRITE_ADDRESS = { kind: "write_address" };
 
+/** The first stop that shows calls: a replay's first meld. */
+function firstCallStop(screen: LoadedReplayScreen): number {
+    const { events, navigation } = screen.replay;
+    return navigation.stops.findIndex((stop) => events[stop.moveEntry].type === "meld");
+}
+
+/** The stop whose calls the screen shows and whether the board reads them out. */
+function shownCallOf(screen: ReplayScreen): [number, boolean] | null {
+    const { shownCall } = loaded(screen);
+    return shownCall === null ? null : [shownCall.stop, shownCall.announce];
+}
+
 describe("stepReplayPage - loading", () => {
     it("fails a fetch answered 404 as not found and any other status as refused", () => {
         expect(
@@ -226,8 +238,7 @@ describe("stepReplayPage - moving", () => {
 
     it("keeps a call showing as the reader moves on until its time is up, never back before it", () => {
         const start = opened("kans");
-        const { events, navigation } = start.replay;
-        const kan = navigation.stops.findIndex((stop) => events[stop.moveEntry].type === "meld");
+        const kan = firstCallStop(start);
         const next = { command: "next", kind: "key", repeat: false } as const;
         const onKan = step(start, { cursor: { page: 0, stop: kan }, kind: "move" }).screen;
         const movedOn = step(onKan, next, 1000).screen;
@@ -241,6 +252,56 @@ describe("stepReplayPage - moving", () => {
         expect(
             [onKan, movedOn, late, back].map((screen) => loaded(screen).shownCall?.stop ?? null),
         ).toEqual([kan, kan, null, null]);
+    });
+
+    it("announces a call shown by a step on or back and by autoplay", () => {
+        const start = opened("kans");
+        const kan = firstCallStop(start);
+        const before = step(start, { cursor: { page: 0, stop: kan - 1 }, kind: "move" }).screen;
+        const after = step(start, { cursor: { page: 0, stop: kan + 1 }, kind: "move" }).screen;
+        const playing = step(before, { kind: "toggle_play" }).screen;
+
+        const shown = [
+            step(before, { direction: "next", kind: "step_press", primary: true }).screen,
+            step(before, { command: "next", kind: "key", repeat: false }).screen,
+            step(after, { direction: "prev", kind: "step_click" }).screen,
+            step(playing, { kind: "tick" }, replayPageDeadline(playing) ?? 0).screen,
+        ];
+
+        expect(shown.map(shownCallOf)).toEqual(shown.map(() => [kan, true]));
+    });
+
+    it("shows a call reached by a jump, a held Next or the wheel without announcing it", () => {
+        const start = opened("kans");
+        const kan = firstCallStop(start);
+        const { round, step: at } = roundPosition(start.replay.navigation, { page: 0, stop: kan });
+        const twoBefore = step(start, { cursor: { page: 0, stop: kan - 2 }, kind: "move" }).screen;
+        const before = step(start, { cursor: { page: 0, stop: kan - 1 }, kind: "move" }).screen;
+        const pressed = step(twoBefore, {
+            direction: "next",
+            kind: "step_press",
+            primary: true,
+        }).screen;
+
+        const shown = [
+            opened("kans", `?round=${round}&step=${at}`),
+            step(start, { cursor: { page: 0, stop: kan }, kind: "move" }).screen,
+            step(pressed, { kind: "tick" }, HOLD_DELAY_MS).screen,
+            step(before, { command: "next", kind: "key", repeat: true }).screen,
+            step(before, { deltaPx: 100, kind: "wheel" }).screen,
+        ];
+
+        expect(shown.map(shownCallOf)).toEqual(shown.map(() => [kan, false]));
+    });
+
+    it("keeps a silently shown call silent when the reader steps on while it still shows", () => {
+        const start = opened("kans");
+        const kan = firstCallStop(start);
+        const onKan = step(start, { cursor: { page: 0, stop: kan }, kind: "move" }).screen;
+
+        const movedOn = step(onKan, { command: "next", kind: "key", repeat: false }, 1000).screen;
+
+        expect(shownCallOf(movedOn)).toEqual([kan, false]);
     });
 });
 

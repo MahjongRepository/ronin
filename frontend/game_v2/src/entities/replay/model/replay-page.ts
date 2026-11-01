@@ -21,7 +21,11 @@ import {
     autoplayStep,
     isPauseStop,
 } from "@/entities/replay/model/replay-autoplay";
-import { type ShownReplayCall, shownReplayCall } from "@/entities/replay/model/replay-calls";
+import {
+    type CallMove,
+    type ShownReplayCall,
+    shownReplayCall,
+} from "@/entities/replay/model/replay-calls";
 import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
 import { type ReplayPrefs } from "@/entities/replay/model/replay-prefs";
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
@@ -208,6 +212,10 @@ function isToggle(command: ReplayKeyCommand): command is ReplayToggle {
     return command === "play" || command === "view" || command === "hands";
 }
 
+function isStep(command: keyof ReplayMoves): command is StepDirection {
+    return command === "next" || command === "prev";
+}
+
 /** Where one step toward `direction` goes from the cursor shown; null where it cannot go on. */
 function stepTarget(screen: LoadedReplayScreen, direction: StepDirection): ReplayCursor | null {
     return replayMoves(screen.replay.navigation, screen.view.cursor)[direction];
@@ -240,16 +248,15 @@ export function replayPageDeadline(screen: ReplayScreen): number | null {
     return dues.length === 0 ? null : Math.min(...dues);
 }
 
-function withCursor(
-    screen: LoadedReplayScreen,
-    cursor: ReplayCursor,
-    at: number,
-): LoadedReplayScreen {
+/** A move from the cursor shown: where to, when, and whether calls it shows are announced (a single step's). */
+type CursorMove = Omit<CallMove, "from">;
+
+function withCursor(screen: LoadedReplayScreen, move: CursorMove): LoadedReplayScreen {
     const { replay, shownCall, view } = screen;
     return {
         ...screen,
-        shownCall: shownReplayCall(replay, shownCall, { at, from: view.cursor, to: cursor }),
-        view: { ...view, cursor },
+        shownCall: shownReplayCall(replay, shownCall, { ...move, from: view.cursor }),
+        view: { ...view, cursor: move.to },
     };
 }
 
@@ -290,10 +297,10 @@ function unheld(screen: LoadedReplayScreen): LoadedReplayScreen {
 }
 
 /** A move the reader asked for, which stops autoplay and a held step button and closes the seating. */
-function moveTo(screen: LoadedReplayScreen, cursor: ReplayCursor, at: number): LoadedStep {
+function moveTo(screen: LoadedReplayScreen, move: CursorMove): LoadedStep {
     return {
-        effects: moveEffects(screen, cursor),
-        screen: { ...withCursor(paused(unheld(screen)), cursor, at), seating: false },
+        effects: moveEffects(screen, move.to),
+        screen: { ...withCursor(paused(unheld(screen)), move), seating: false },
     };
 }
 
@@ -323,7 +330,12 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         roundListOpen: opening.roundListOpen,
         seating: address.round === null || opening.soundOn,
         settingsOpen: false,
-        shownCall: shownReplayCall(replay, null, { at, from: null, to: view.cursor }),
+        shownCall: shownReplayCall(replay, null, {
+            announce: false,
+            at,
+            from: null,
+            to: view.cursor,
+        }),
         soundOn: opening.soundOn,
         view,
         wheel: null,
@@ -409,14 +421,16 @@ function onKey(screen: LoadedReplayScreen, { at, command, repeat }: Timed<KeyInp
         return quiet(cleared);
     }
     const target = replayMoves(cleared.replay.navigation, cleared.view.cursor)[command];
-    return target === null ? quiet(cleared) : moveTo(cleared, target, at);
+    return target === null
+        ? quiet(cleared)
+        : moveTo(cleared, { announce: !repeat && isStep(command), at, to: target });
 }
 
 /** A step button's click: a keyboard's or an assistive technology's steps, the one ending a press is dropped. */
 function onStepClick(screen: LoadedReplayScreen, direction: StepDirection, at: number): LoadedStep {
     const cleared = withoutPressedStep(screen);
     const target = screen.pressedStep === direction ? null : stepTarget(cleared, direction);
-    return target === null ? quiet(cleared) : moveTo(cleared, target, at);
+    return target === null ? quiet(cleared) : moveTo(cleared, { announce: true, at, to: target });
 }
 
 /** A primary pointer's press of a step button: one step at once, then the hold repeating it after a delay. */
@@ -429,7 +443,7 @@ function onStepPress(
     if (first === null) {
         return quiet(cleared);
     }
-    const moved = moveTo(cleared, first, at);
+    const moved = moveTo(cleared, { announce: true, at, to: first });
     return {
         effects: moved.effects,
         screen: {
@@ -471,7 +485,7 @@ function onWheel(screen: LoadedReplayScreen, deltaPx: number, at: number): Loade
     if (step === 0) {
         return quiet({ ...screen, wheel: gesture });
     }
-    const moved = moveTo(screen, target, at);
+    const moved = moveTo(screen, { announce: false, at, to: target });
     return {
         effects: moved.effects,
         screen: { ...moved.screen, wheel: { ...gesture, halted: atPauseStop(moved.screen) } },
@@ -483,7 +497,7 @@ function autoplayTick(screen: LoadedReplayScreen, at: number): LoadedStep {
     if (step === null) {
         return quiet(paused(screen));
     }
-    const moved = withCursor(screen, step.cursor, at);
+    const moved = withCursor(screen, { announce: true, at, to: step.cursor });
     return {
         effects: moveEffects(screen, step.cursor),
         screen: step.pause ? paused(moved) : armed(moved, at),
@@ -498,7 +512,7 @@ function holdTick(screen: LoadedReplayScreen, hold: ReplayHold, at: number): Loa
     return {
         effects: moveEffects(screen, target),
         screen: {
-            ...withCursor(screen, target, at),
+            ...withCursor(screen, { announce: false, at, to: target }),
             hold: { ...hold, repeatAt: at + HOLD_REPEAT_MS },
         },
     };
@@ -531,7 +545,7 @@ function toggleRoundList(screen: LoadedReplayScreen): LoadedStep {
 
 /** A round chosen from the list: the move, then the list closed with the focus back on its toggle. */
 function selectRound(screen: LoadedReplayScreen, cursor: ReplayCursor, at: number): LoadedStep {
-    const moved = moveTo(screen, cursor, at);
+    const moved = moveTo(screen, { announce: false, at, to: cursor });
     const closed = closeRoundList(moved.screen);
     return { effects: [...moved.effects, ...closed.effects], screen: closed.screen };
 }
@@ -572,13 +586,14 @@ function stepInput(screen: LoadedReplayScreen, event: Timed<StepInput>): LoadedS
 function stepMove(screen: LoadedReplayScreen, event: Timed<MoveInput>): LoadedStep {
     switch (event.kind) {
         case "move": {
-            return moveTo(screen, event.cursor, event.at);
+            return moveTo(screen, { announce: false, at: event.at, to: event.cursor });
         }
         case "key": {
             return onKey(screen, event);
         }
         case "result_page": {
-            return moveTo(screen, { ...screen.view.cursor, page: event.page }, event.at);
+            const to = { ...screen.view.cursor, page: event.page };
+            return moveTo(screen, { announce: false, at: event.at, to });
         }
         case "select_round": {
             return selectRound(screen, event.cursor, event.at);

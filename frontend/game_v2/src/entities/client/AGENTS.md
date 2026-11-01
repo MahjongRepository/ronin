@@ -66,6 +66,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 - The board's script measurements are the table slice's: its geometry directive (`sizeBoard`) and the notices' clamp
   (`entities/table/ui/notice-clamp.ts`), which writes attributes only.
 - Live regions announce each notice and call once, never each second or redraw; never `role="status"` (atomic).
+  Every `GameBoard` keeps the calls' region; a showing's `announced` decides whether it is read (always on live, per
+  move in a replay).
 
 ## Scenarios
 

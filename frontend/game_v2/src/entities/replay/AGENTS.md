@@ -25,6 +25,10 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - A step on to the next stop (Next, autoplay, a held Next, the wheel) asks the view to play that move's sounds
   (`play_sounds`, from `moveSoundCues`) while the sound is on; a jump, a step back or a result's page plays none. The
   sound setting is the live game's (`save_sound`), never the reader's settings.
+- A move says whether the calls it shows are announced (`ShownReplayCall.announce`): a single step either way (Next or
+  Prev, a key press, a press's first step) and autoplay do; a jump (a round, an end, the round list, an address), a
+  held step's repeats (pointer or key) and the wheel show them silently. A showing carried over later moves keeps its
+  flag. This is not `moveEffects`' step-on test, which a held Next and the wheel pass.
 - `ReplayBoard` assembles the replay's `GameBoard` (panel, controls, status, menu) from `replayDisplay` and the
   loaded screen, as `PlayBoard` does the live one; it decides nothing. Its controls fill the live board's slots: the
   group (moves, options, the round list over them) the band end, the status the field; none places itself.

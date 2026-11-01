@@ -54,11 +54,13 @@ interface BoardCallout {
 
 /**
  * The calls a board shows at once, made by one move: the key that tells this showing from the next, so a new one plays
- * its animation afresh while a redraw of the same one does not.
+ * its animation afresh while a redraw of the same one does not, and whether the board reads the showing out (a
+ * replay's jump shows its calls silently).
  */
 interface BoardCallouts {
     readonly key: string;
     readonly items: readonly BoardCallout[];
+    readonly announced: boolean;
 }
 
 interface BoardPlayerDisplay {

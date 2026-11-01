@@ -251,7 +251,11 @@ function liveCallouts(state: LiveClient): BoardCallouts | null {
     if (calls === null || viewerSeat === null) {
         return null;
     }
-    return { items: boardCallouts(calls.calls, viewerSeat), key: `call-${calls.at}` };
+    return {
+        announced: true,
+        items: boardCallouts(calls.calls, viewerSeat),
+        key: `call-${calls.at}`,
+    };
 }
 
 /** What the overlay is chosen from, mapped once for the display beside it. */

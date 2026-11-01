@@ -165,6 +165,7 @@ function shownCallouts(
         return null;
     }
     return {
+        announced: shown.announce,
         items: boardCallouts(calls, perspective.bottomSeat),
         key: `call-${shown.stop}-${shown.at}`,
     };

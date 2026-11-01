@@ -235,7 +235,7 @@ function storyCallouts(call: StoryCall | null, state: BoardDisplayState): BoardC
     if (call === null) {
         return null;
     }
-    return { items: boardCallouts(storyCalls(call, state), 0), key: call };
+    return { announced: true, items: boardCallouts(storyCalls(call, state), 0), key: call };
 }
 
 const STORY_OFFERS = ["none", "five", "riichi", "bank"] as const;

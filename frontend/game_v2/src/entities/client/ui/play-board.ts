@@ -482,7 +482,6 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
     }
     return GameBoard({
         actions: DecisionControls(display, onCommand),
-        announceCalls: true,
         callouts: display.callouts,
         debug: false,
         furiten: display.furiten,

@@ -149,6 +149,7 @@ describe("GameBoard announcements", () => {
     const FACES: BoardNotice = { id: "faces", text: "Tile images did not load", tone: "warning" };
     const REFUSED: BoardNotice = { id: "refused", text: "That move was refused", tone: "warning" };
     const PON: BoardCallouts = {
+        announced: true,
         items: [{ kind: "pon", label: "Pon", position: "top" }],
         key: "call-2",
     };
@@ -160,7 +161,6 @@ describe("GameBoard announcements", () => {
     ): void {
         render(
             GameBoard({
-                announceCalls: true,
                 callouts,
                 debug: false,
                 notices,
@@ -227,6 +227,7 @@ describe("GameBoard callouts", () => {
     }
 
     const PON: BoardCallouts = {
+        announced: true,
         items: [{ kind: "pon", label: "Pon", position: "top" }],
         key: "call-2",
     };

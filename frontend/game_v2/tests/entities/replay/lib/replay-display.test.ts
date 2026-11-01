@@ -28,7 +28,12 @@ function displayAt(
         cursor,
         perspective,
         seating: false,
-        shownCall: shownReplayCall(replay, null, { at: 0, from: null, to: cursor }),
+        shownCall: shownReplayCall(replay, null, {
+            announce: true,
+            at: 0,
+            from: null,
+            to: cursor,
+        }),
     });
 }
 
@@ -67,6 +72,7 @@ describe("replayDisplay", () => {
             perspective: ALL,
             seating: true,
             shownCall: shownReplayCall(replay, null, {
+                announce: false,
                 at: 0,
                 from: null,
                 to: { page: 0, stop: result },
@@ -161,6 +167,7 @@ describe("replayDisplay callouts", () => {
         const fromKanSeat = { bottomSeat: 2, reveal: "all" } as const;
 
         expect(displayAt(replay, { page: 0, stop: kan }).callouts).toEqual({
+            announced: true,
             items: [{ kind: "kan", label: "Kan", position: "top" }],
             key: `call-${kan}-0`,
         });

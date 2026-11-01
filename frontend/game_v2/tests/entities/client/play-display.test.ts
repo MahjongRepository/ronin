@@ -794,6 +794,7 @@ describe("playDisplay callouts", () => {
         const later = stepGameClient(turn, { at: turn.now + CALLOUT_MS, kind: "tick" }).state;
 
         expect(playDisplay(turn, NO_PLAY_UI).callouts).toEqual({
+            announced: true,
             items: [{ kind: "chi", label: "Chi", position: "bottom" }],
             key: "call-5000",
         });

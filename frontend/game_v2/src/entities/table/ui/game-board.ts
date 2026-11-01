@@ -43,10 +43,11 @@ interface GameBoardProps {
     readonly platePress: PlatePress;
     /** The page's own controls (the settings: sound and the connection), in the board's top-right corner. */
     readonly menu?: TemplateResult;
-    /** The calls shown by their seats for a moment, over the table and never over the local hand; they take no input. */
+    /**
+     * The calls shown by their seats for a moment, over the table and never over the local hand; they take no input.
+     * Each new announced showing is read out once, by its seats' names.
+     */
     readonly callouts?: BoardCallouts | null;
-    /** Each new showing of calls is read out once, by its seats' names (a live board's). */
-    readonly announceCalls?: boolean;
     /** The overlay's panel waits until the win's call shown with it has been seen (a round's result); else it shows at once. */
     readonly overlayAfterCall?: boolean;
     /** The bottom seat is furiten: a played board labels its hand with the mark. */
@@ -363,7 +364,10 @@ function calloutWords(callouts: BoardCallouts, state: BoardDisplayState | null):
         .join(", ");
 }
 
-/** The calls as a polite live region of their own, each showing read once: a new showing is a new key, a redraw none. */
+/**
+ * The calls as a polite live region of their own, each announced showing read once: a new showing is a new key, a
+ * redraw none.
+ */
 function CalloutAnnouncements(
     callouts: BoardCallouts | null | undefined,
     state: BoardDisplayState | null,
@@ -374,7 +378,9 @@ function CalloutAnnouncements(
         aria-atomic="false"
         aria-relevant="additions"
     >${
-        callouts ? keyed(callouts.key, html`<p>${calloutWords(callouts, state)}</p>`) : nothing
+        callouts?.announced === true
+            ? keyed(callouts.key, html`<p>${calloutWords(callouts, state)}</p>`)
+            : nothing
     }</div>`;
 }
 
@@ -469,7 +475,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                 </div>
             </div>
             ${props.notices ? NoticeAnnouncements(props.notices) : ""}
-            ${props.announceCalls === true ? CalloutAnnouncements(props.callouts, state) : ""}
+            ${CalloutAnnouncements(props.callouts, state)}
             ${
                 props.overlay
                     ? html`<div class="board-overlay ${props.overlayAfterCall === true ? "board-overlay--after-call" : ""}">
