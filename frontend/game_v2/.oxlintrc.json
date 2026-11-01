@@ -101,6 +101,7 @@
                     "CalloutAnnouncements",
                     "PlayOverlay",
                     "ReplayControls",
+                    "ReplayBoard",
                     "RoundList",
                     "ReplayStatus",
                     "Icon",

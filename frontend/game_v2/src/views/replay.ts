@@ -3,40 +3,30 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
-import { GameMenu, type GameSound } from "@/entities/client";
+import { type GameSound } from "@/entities/client";
 import {
     CURRENT_ROUND_FOCUS_KEY,
     type LoadedReplayScreen,
     ROUND_LIST_TOGGLE_FOCUS_KEY,
-    ReplayControls,
-    type ReplayCursor,
-    type ReplayDisplay,
+    ReplayBoard,
+    type ReplayBoardHandlers,
     type ReplayFailure,
     type ReplayFocusTarget,
+    type ReplayLinks,
     type ReplayOpening,
     type ReplayPageEffect,
     type ReplayPageInput,
     type ReplayPageStep,
     type ReplayPrefsStore,
     type ReplayScreen,
-    ReplayStatus,
-    RoundList,
+    SEATING_START_FOCUS_KEY,
     type StepDirection,
     canStep,
-    lastCursor,
     replayAddressSearch,
     replayDisplay,
     replayPageDeadline,
     stepReplayPage,
 } from "@/entities/replay";
-import {
-    GameBoard,
-    type PanelAction,
-    type PlatePress,
-    type SeatPosition,
-    type TablePanelControls,
-    TablePanelDisplay,
-} from "@/entities/table";
 import {
     type LoadReplay,
     type ReplayFetch,
@@ -72,11 +62,7 @@ export interface ReplayLocation {
     readonly onPageHide: (listener: () => void) => () => void;
 }
 
-/** Where a page that cannot show its replay sends the reader. */
-export interface ReplayLinks {
-    readonly lobby: string;
-    readonly history: string;
-}
+export type { ReplayLinks } from "@/entities/replay";
 
 export interface ReplayViewDeps {
     readonly loadReplay: LoadReplay;
@@ -99,26 +85,12 @@ export interface ReplayViewDeps {
  */
 export const REPLAY_URL_WRITE_INTERVAL_MS = 500;
 
-interface ReplayHandlers {
+interface ReplayHandlers extends ReplayBoardHandlers {
     readonly root: Ref<HTMLElement>;
     readonly keydown: (event: KeyboardEvent) => void;
     readonly keyup: (event: KeyboardEvent) => void;
-    readonly move: (cursor: ReplayCursor) => void;
-    readonly showResultPage: (page: number) => void;
-    readonly viewSeat: (seat: SeatPosition) => void;
-    readonly toggleRoundList: () => void;
-    readonly closeRoundList: () => void;
-    readonly selectRound: (start: ReplayCursor) => void;
-    readonly start: () => void;
     readonly retry: () => void;
     readonly wheel: { handleEvent: (event: WheelEvent) => void; passive: false };
-    readonly stepPress: (direction: StepDirection, event: PointerEvent) => void;
-    readonly stepClick: (direction: StepDirection) => void;
-    readonly togglePlay: () => void;
-    readonly toggleHands: () => void;
-    readonly toggleSettings: () => void;
-    readonly closeSettings: () => void;
-    readonly toggleSound: () => void;
 }
 
 interface FailureText {
@@ -193,9 +165,6 @@ function isShown(element: HTMLElement): boolean {
     return typeof element.checkVisibility !== "function" || element.checkVisibility();
 }
 
-/** The focus key the seating's Start renders, so the page focuses it as the seating opens. */
-const START_FOCUS_KEY = "seating-start";
-
 /** What a loaded screen keeps but never draws: the hold, the click a press drops and the wheel's gesture. */
 const UNDRAWN = { hold: null, pressedStep: null, wheel: null } as const;
 
@@ -228,54 +197,6 @@ function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
     );
 }
 
-/** The replay's moves and options over the board's band, and the round list over the board while it is open. */
-function controlsTemplate(
-    { autoplay, hideHands, replay, roundListOpen }: LoadedReplayScreen,
-    display: ReplayDisplay,
-    handlers: ReplayHandlers,
-): TemplateResult {
-    const last = lastCursor(replay.navigation);
-    const end =
-        last === null
-            ? null
-            : {
-                  current: display.moves.last === null,
-                  cursor: last,
-                  summary:
-                      display.incomplete === null
-                          ? "The game's end and the final scores"
-                          : "Where the recording ends",
-              };
-    const roundList = roundListOpen
-        ? RoundList({
-              end,
-              incomplete: display.incomplete,
-              onClose: handlers.closeRoundList,
-              onSelect: handlers.selectRound,
-              rows: display.rounds,
-          })
-        : nothing;
-    return html`${ReplayControls({
-        moves: display.moves,
-        onMove: handlers.move,
-        onStepClick: handlers.stepClick,
-        onStepPress: handlers.stepPress,
-        onToggleHands: handlers.toggleHands,
-        onTogglePlay: handlers.togglePlay,
-        onToggleRoundList: handlers.toggleRoundList,
-        playback: { hideHands, playing: autoplay.playing },
-        roundListOpen,
-    })}${roundList}`;
-}
-
-/** The ways back from the game's end: the lobby and the game history. */
-function endActions(links: ReplayLinks): readonly PanelAction[] {
-    return [
-        { href: links.lobby, kind: "link", label: "Lobby" },
-        { href: links.history, kind: "link", label: "Game history", primary: true },
-    ];
-}
-
 function loadedTemplate(
     screen: LoadedReplayScreen,
     links: ReplayLinks,
@@ -292,43 +213,9 @@ function loadedTemplate(
         seating,
         shownCall,
     });
-    const platePress: PlatePress = { kind: "view", onView: handlers.viewSeat };
-    const { overlay } = display;
-    const controls: TablePanelControls = {
-        endActions: endActions(links),
-        onPage: handlers.showResultPage,
-        seatingActions: [
-            {
-                focusKey: START_FOCUS_KEY,
-                kind: "button",
-                label: "Start",
-                onClick: handlers.start,
-                primary: true,
-            },
-        ],
-    };
     return html`
         <div class="board-page__board">
-            ${GameBoard({
-                callouts: display.callouts,
-                debug: false,
-                menu: GameMenu({
-                    onClose: handlers.closeSettings,
-                    onToggleOpen: handlers.toggleSettings,
-                    onToggleSound: handlers.toggleSound,
-                    open: screen.settingsOpen,
-                    soundOn: screen.soundOn,
-                    status: null,
-                }),
-                overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
-                overlayAfterCall: overlay?.kind === "result" && overlay.afterCall,
-                platePress,
-                replay: {
-                    controls: controlsTemplate(screen, display, handlers),
-                    status: ReplayStatus({ display }),
-                },
-                state: display.board,
-            })}
+            ${ReplayBoard({ display, handlers, links, screen })}
         </div>
     `;
 }
@@ -642,7 +529,7 @@ class ReplayViewController {
                 return;
             }
             case "start": {
-                focusByKey(this.host, START_FOCUS_KEY, { preventScroll: true });
+                focusByKey(this.host, SEATING_START_FOCUS_KEY, { preventScroll: true });
                 return;
             }
             default: {

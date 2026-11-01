@@ -22,5 +22,7 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - A step on to the next stop (Next, autoplay, a held Next, the wheel) asks the view to play that move's sounds
   (`play_sounds`, from `moveSoundCues`) while the sound is on; a jump, a step back or a result's page plays none. The
   sound setting is the live game's (`save_sound`), never the reader's settings.
+- `ReplayBoard` assembles the replay's `GameBoard` (panel, controls, status, menu) from `replayDisplay` and the
+  loaded screen, as `PlayBoard` does the live one; it decides nothing.
 - What a page finds of the slice's UI by selector (`ROUND_LIST_SELECTOR`, `ROUND_LIST_TOGGLE_SELECTOR`,
   `STEP_BUTTON_ATTRIBUTE`) is exported beside the component that renders it; change both together.

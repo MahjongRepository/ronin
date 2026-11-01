@@ -63,4 +63,6 @@ export {
 } from "./ui/replay-controls";
 export type { ReplayControlsProps, ReplayPlayback, ReplayStatusProps } from "./ui/replay-controls";
 export { CURRENT_ROUND_FOCUS_KEY, ROUND_LIST_SELECTOR, RoundList } from "./ui/round-list";
+export { ReplayBoard, SEATING_START_FOCUS_KEY } from "./ui/replay-board";
+export type { ReplayBoardHandlers, ReplayBoardProps, ReplayLinks } from "./ui/replay-board";
 export type { RoundListEnd, RoundListProps } from "./ui/round-list";

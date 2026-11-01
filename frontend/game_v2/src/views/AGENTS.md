@@ -15,7 +15,7 @@ The route views: the live game's driver, the replay page and the storybook, each
 - A view holds no state machine: the page's screen and every transition are the replay slice's (`stepReplayPage`).
   The view stamps each input with the clock's time, draws the screen it gets back, runs the IO it asks for after
   drawing, and keeps one timer armed to `replayPageDeadline`. `replay-input.ts` maps keys, wheel and pointer to
-  inputs.
+  inputs. The board is the slice's `ReplayBoard`; the view adds only the page around it.
 - It finds the slices' parts (round list, its toggle, the board's panel and notices, step buttons) only by the
   selectors and attributes those slices export, never by their classes.
 - The address names position and viewpoint, never reading preferences. It is written with `history.replaceState` at
