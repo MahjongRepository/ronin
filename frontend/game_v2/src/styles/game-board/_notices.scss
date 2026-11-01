@@ -13,7 +13,7 @@
     position: relative;
     grid-area: field;
     align-self: start;
-    z-index: 25;
+    z-index: layer(notices);
     display: flex;
     flex-direction: column;
     align-items: flex-start;

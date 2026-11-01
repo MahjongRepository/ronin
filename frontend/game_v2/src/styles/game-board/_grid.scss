@@ -23,6 +23,7 @@ $upright-counters-gap: 6px;
 .game-board {
     container: game-board / size;
     position: relative;
+    isolation: isolate;
     width: 100%;
     height: 100%;
     background: var(--ronin-table-fill);
@@ -265,6 +266,7 @@ $upright-counters-gap: 6px;
     visibility: hidden;
 }
 
+/* No stacking context here or on `.board-table`, or the notices and a replay's band end drop under the overlay. */
 .board-layout {
     position: relative;
     width: 100%;

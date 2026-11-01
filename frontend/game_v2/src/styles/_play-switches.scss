@@ -8,7 +8,7 @@ $gap: 6px;
     position: relative;
     grid-area: switches;
     place-self: end start;
-    z-index: 3;
+    z-index: layer(controls);
     display: flex;
     align-items: flex-end;
     gap: $gap;

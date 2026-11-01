@@ -1,3 +1,5 @@
+@use "queries" as *;
+
 // Debug mode — grid area labels and component borders
 
 .game-board--debug {
@@ -19,7 +21,7 @@
             text-transform: uppercase;
             white-space: nowrap;
             pointer-events: none;
-            z-index: 1;
+            z-index: layer(table);
             line-height: 1.4;
         }
     }

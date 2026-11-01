@@ -1,4 +1,5 @@
 @use "../type";
+@use "queries" as *;
 
 .board-center {
     --score-size: max(11px, calc(var(--c) * 0.12));
@@ -56,7 +57,7 @@
     &--current::after {
         content: "";
         position: absolute;
-        z-index: -1;
+        z-index: layer(below);
         inset: -1px;
         border-bottom: max(3px, calc(var(--c) * 0.028)) solid var(--ronin-table-turn);
         border-radius: var(--corner);

@@ -46,7 +46,7 @@ $overlay-chrome: 3rem;
 
     /* The dim reaches past the board over the page's edge (`--page-bleed`), so no undimmed frame rings the board. */
     box-shadow: 0 0 0 var(--page-bleed, 0) var(--ronin-dim);
-    z-index: 20;
+    z-index: layer(overlay);
 }
 
 .game-board:where(#{$phone-board}) > .board-overlay {

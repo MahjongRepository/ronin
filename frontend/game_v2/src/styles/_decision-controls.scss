@@ -27,7 +27,7 @@ $preview-tile-share: 0.42;
     position: relative;
     grid-area: actions;
     align-self: end;
-    z-index: 3;
+    z-index: layer(controls);
     display: flex;
     justify-content: flex-end;
     min-width: 0;

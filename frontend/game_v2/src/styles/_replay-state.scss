@@ -1,8 +1,5 @@
 @use "game-board/queries" as *;
 
-$controls-z: 26;
-$round-list-z: 30;
-
 @each $name in rb, rgap, moves-w, status-left, status-right {
     @property --#{$name} {
         syntax: "<length>";
@@ -70,7 +67,7 @@ $round-list-z: 30;
 
 /* Over the panel's layer, which never covers the replay's controls. */
 .game-board--replay .board-actions {
-    z-index: $controls-z;
+    z-index: layer(band-end);
     pointer-events: none;
 }
 
@@ -344,7 +341,7 @@ $round-list-z: 30;
     position: absolute;
     right: 0;
     bottom: calc(100% + var(--rgap));
-    z-index: $round-list-z;
+    z-index: layer(open);
     pointer-events: auto;
     display: flex;
     flex-direction: column;

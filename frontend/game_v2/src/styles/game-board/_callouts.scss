@@ -12,7 +12,7 @@ $overlay-hold-ms: 1000ms;
     --callout-cap: 40px;
 
     position: absolute;
-    z-index: 5;
+    z-index: layer(callouts);
     padding: 0 0.15em;
     border-radius: 0.2em;
     background: var(--ronin-callout);

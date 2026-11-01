@@ -9,7 +9,7 @@
     position: absolute;
     top: var(--counters-top);
     left: var(--m);
-    z-index: 1;
+    z-index: layer(table);
     display: flex;
     align-items: center;
     gap: 0.6em;

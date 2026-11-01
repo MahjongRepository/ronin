@@ -8,7 +8,7 @@ $plate-seats: bottom, right, top, left;
     --cue-w: 3px;
 
     position: absolute;
-    z-index: 2;
+    z-index: layer(badges);
     display: flex;
     align-items: flex-start;
     width: auto;
@@ -170,7 +170,7 @@ $plate-seats: bottom, right, top, left;
     );
 
     position: absolute;
-    z-index: 2;
+    z-index: layer(badges);
     left: calc(-1 * var(--own-badge-shift));
     bottom: calc(100% + 2px + var(--own-meld-rise));
     display: flex;
@@ -310,11 +310,11 @@ $plate-seats: bottom, right, top, left;
     position: relative;
     grid-area: corner;
     place-self: start end;
-    z-index: 3;
+    z-index: layer(controls);
     min-width: 0;
     max-width: var(--corner-reserve);
 
     &:has(.game-menu__panel) {
-        z-index: 30;
+        z-index: layer(open);
     }
 }

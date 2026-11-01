@@ -1,4 +1,5 @@
 @use "sass:list";
+@use "sass:map";
 @use "sass:selector";
 @use "sass:string";
 
@@ -20,6 +21,30 @@ $tile-edge-share: 0.13;
 
 /* No meld face goes under this width. */
 $face-floor: 13px;
+
+/* Every layer, low to high; `.game-board` isolates the board's from the page's. */
+$layers: (
+    below: -1,
+    table: 1,
+    badges: 2,
+    controls: 3,
+    callouts: 5,
+    overlay: 20,
+    notices: 25,
+    band-end: 26,
+    open: 30,
+    sheet: 50,
+    page: 100,
+);
+
+@function layer($name) {
+    @if not map.has-key($layers, $name) {
+        @error "Unknown layer #{$name}";
+    }
+
+    @return map.get($layers, $name);
+}
+
 $phone-board: '[data-board-family="phone"]';
 $desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-desktop"])';
 $short-desktop-board: '[data-board-family="short-desktop"]';

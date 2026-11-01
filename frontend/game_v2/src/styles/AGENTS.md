@@ -99,4 +99,8 @@ they disagree.
 - The rivers' shared edge and shadow come from `.board-rivers` (`_tile.scss`), the unturned layer holding all four,
   never from a turned river frame's own filter: Firefox on macOS draws a turned element's filter unturned and clipped
   to its box.
+- **Layers come from one scale.** Every `z-index` is a `$layers` name (`game-board/_queries.scss`), never a literal.
+  `.game-board` isolates its layers from the page's. `.board-layout` and `.board-table` form no stacking context, so
+  the notices and a replay's band end stand over the overlay's dim by their layers in the board's own context; an
+  `isolation`, `transform`, `filter`, `opacity` or `z-index` on either would drop them under it.
 - Held-back tiles are recessed, never darkened; switch states differ by more than colour.

@@ -1,3 +1,4 @@
+@use "game-board/queries" as *;
 @use "type";
 
 /* The live game on an upright touch screen narrower than this shows the rotate panel instead of its table. */
@@ -95,7 +96,7 @@ $rotate-below-width: 600px;
         display: block;
         position: fixed;
         inset: 0;
-        z-index: 100;
+        z-index: layer(page);
         overflow-y: auto;
     }
 

@@ -1,3 +1,5 @@
+@use "game-board/queries" as *;
+
 /* The tile box, 3:4 from its width (60px standalone; a board sets `--tile-w`): the face artwork inset by the same
    room on every side, 8% of the width (6% of the height), and the corners a share of the box. */
 $glyph-room: 0.08;
@@ -135,7 +137,7 @@ $corner-share: 0.09;
         &::before {
             content: "";
             position: absolute;
-            z-index: -1;
+            z-index: layer(below);
             top: 0;
             bottom: 0;
             left: calc(-1 * (var(--seam) + var(--seam-corner)));

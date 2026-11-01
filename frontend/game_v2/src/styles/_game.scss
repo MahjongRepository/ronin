@@ -1,3 +1,5 @@
+@use "game-board/queries" as *;
+
 // Game client styles - "Parlor at Night" refined dark theme
 // Technical sophistication with luxury details
 
@@ -239,7 +241,7 @@ section {
     &[open] > .log-panel {
         position: fixed;
         inset: 5dvh 5vw auto;
-        z-index: 50;
+        z-index: layer(sheet);
         max-height: 85dvh;
     }
 }
