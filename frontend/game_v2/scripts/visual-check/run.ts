@@ -45,8 +45,10 @@ import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.
 
 const DEFAULT_SHOTS = resolve(APP_ROOT, "../../thoughts/screenshots/visual-check");
 const SETTLE_MS = 150;
-/** Pages a browser checks at once, each in its own context. */
-const PAGES_AT_ONCE = 6;
+/** Pages a browser checks at once, each in its own context; the engines run one after the other. */
+const PAGES_AT_ONCE = 3;
+/** The most pages a run checks without `--many`: a targeted run names a few pages at two or three viewports. */
+const MAX_PAGES = 60;
 
 const SURFACES: readonly Surface[] = [
     boardSurface,
@@ -286,29 +288,38 @@ function reportFailures(results: readonly TaskResult[]): string[] {
     });
 }
 
-/** Both engines' pages at once. */
+/** An engine's pages in its own browser, launched only when it has any. */
+async function checkEngine(
+    engine: BrowserType,
+    tasks: readonly PageTask[],
+    run: { readonly fixtures: Fixtures; readonly shots: string },
+): Promise<TaskResult[]> {
+    if (tasks.length === 0) {
+        return [];
+    }
+    const browser = await engine.launch();
+    try {
+        return await runEngine(browser, tasks, run);
+    } finally {
+        await browser.close();
+    }
+}
+
+/** Each engine's pages in turn, so only one browser loads pages at a time. */
 async function checkAll(
     fixtures: Fixtures,
     shots: string,
     selection: Selection,
 ): Promise<string[]> {
-    const [chromiumBrowser, webkitBrowser] = await Promise.all([
-        chromium.launch(),
-        webkit.launch(),
-    ]);
-    try {
-        const run = { fixtures, shots };
-        const results = await Promise.all([
-            runEngine(chromiumBrowser, tasksOf(chromium, selection), run),
-            runEngine(webkitBrowser, tasksOf(webkit, selection), run),
-        ]);
-        return [
-            ...reportFailures(results.flat()),
-            ...SURFACES.flatMap((surface) => surface.checkResults?.(results.flat()) ?? []),
-        ];
-    } finally {
-        await Promise.all([chromiumBrowser.close(), webkitBrowser.close()]);
-    }
+    const run = { fixtures, shots };
+    const results = [
+        ...(await checkEngine(chromium, tasksOf(chromium, selection), run)),
+        ...(await checkEngine(webkit, tasksOf(webkit, selection), run)),
+    ];
+    return [
+        ...reportFailures(results),
+        ...SURFACES.flatMap((surface) => surface.checkResults?.(results) ?? []),
+    ];
 }
 
 /** Remove the last run's screenshots, so the folder holds only this run's. */
@@ -342,6 +353,7 @@ function selectRun(pageFilters: readonly string[], viewportFilters: readonly str
 async function main(): Promise<number> {
     const { values } = parseArgs({
         options: {
+            many: { default: false, type: "boolean" },
             page: { default: [], multiple: true, type: "string" },
             shots: { default: DEFAULT_SHOTS, type: "string" },
             viewport: { default: [], multiple: true, type: "string" },
@@ -361,7 +373,14 @@ async function main(): Promise<number> {
         return 1;
     }
     const selection = selectRun(values.page, values.viewport);
-    if (tasksOf(chromium, selection).length + tasksOf(webkit, selection).length === 0) {
+    const pageCount = tasksOf(chromium, selection).length + tasksOf(webkit, selection).length;
+    if (pageCount > MAX_PAGES && !values.many) {
+        console.error(
+            `Visual check selected ${pageCount} pages, over ${MAX_PAGES}: name exact pages at fewer viewports, or pass --many`,
+        );
+        return 1;
+    }
+    if (pageCount === 0) {
         console.error(
             `Visual check selected nothing: pages ${PAGES.map(({ name }) => name).join(", ")}; viewports ${VIEWPORTS.map(({ name }) => name).join(", ")}`,
         );
@@ -382,8 +401,7 @@ async function main(): Promise<number> {
         );
         return 1;
     }
-    const pages = tasksOf(chromium, selection).length + tasksOf(webkit, selection).length;
-    console.info(`Visual check passed: ${pages} pages; screenshots in ${shots}`);
+    console.info(`Visual check passed: ${pageCount} pages; screenshots in ${shots}`);
     return 0;
 }
 
