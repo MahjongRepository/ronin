@@ -1753,7 +1753,7 @@ function uprightShell(room: ShellRoom): BoardShell {
         sideLane,
         topAnchor,
         topBadgeTop: countersTop,
-        topCap: width - m - cornerReserve(room),
+        topCap: width - m - cornerReserve(room) - cornerShift,
         topLane,
         topStart: m,
     });

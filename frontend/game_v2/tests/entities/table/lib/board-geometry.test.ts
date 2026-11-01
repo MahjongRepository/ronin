@@ -318,6 +318,25 @@ describe("boardGeometry", () => {
     });
 });
 
+describe("boardGeometry's strips", () => {
+    it("caps an upright top strip short of the cog's room, and of the margin alone on a board without one", () => {
+        const box = { height: 528, width: 355 };
+        function cap(corner: boolean): BoardGeometry {
+            return boardGeometry({
+                box,
+                gutter: 10,
+                safeInsets: NO_INSETS,
+                slots: { band: "play", corner },
+            });
+        }
+        const { lengths, strips } = cap(true);
+        const m = lengths["m"] ?? Number.NaN;
+
+        expect(strips?.top.cap).toBe(box.width - m - (lengths["corner-reserve"] ?? Number.NaN));
+        expect(cap(false).strips?.top.cap).toBe(box.width - m);
+    });
+});
+
 describe("boardGeometry's shell tracks", () => {
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
