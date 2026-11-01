@@ -18,45 +18,76 @@ $max-melds: 4;
     overflow: hidden;
 }
 
-/* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. */
+$river-along: calc(6 * var(--rw));
+$river-across: calc(3 * var(--rh));
+
+/* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. A river's area is
+   a normal river's turned footprint, its frame turned to the seat from the area's corner where the first row starts. */
 .board-river {
     --board-tile-w: var(--rw);
     --board-tile-h: var(--rh);
 
     position: absolute;
     display: block;
-    width: calc(6 * var(--rw));
-    height: calc(3 * var(--rh));
-    transform-origin: 0 0;
+    width: $river-along;
+    height: $river-across;
 
     &--bottom {
+        --frame-turn: 0deg;
+
         left: calc(var(--cx) - var(--hx));
         top: calc(var(--cy) + var(--h) + var(--g));
+    }
+
+    &--right,
+    &--left {
+        width: $river-across;
+        height: $river-along;
     }
 
     &--right {
         --frame-turn: -90deg;
 
         left: calc(var(--cx) + var(--hx) + var(--g));
-        top: calc(var(--cy) + var(--h));
-        transform: rotate(-90deg);
+        top: calc(var(--cy) + var(--h) - #{$river-along});
     }
 
     &--top {
         --frame-turn: 180deg;
 
-        left: calc(var(--cx) + var(--hx));
-        top: calc(var(--cy) - var(--h) - var(--g));
-        transform: rotate(180deg);
+        left: calc(var(--cx) + var(--hx) - #{$river-along});
+        top: calc(var(--cy) - var(--h) - var(--g) - #{$river-across});
     }
 
     &--left {
         --frame-turn: 90deg;
 
-        left: calc(var(--cx) - var(--hx) - var(--g));
+        left: calc(var(--cx) - var(--hx) - var(--g) - #{$river-across});
         top: calc(var(--cy) - var(--h));
-        transform: rotate(90deg);
     }
+}
+
+.board-river__frame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: $river-along;
+    height: $river-across;
+    transform-origin: 0 0;
+    transform: rotate(var(--frame-turn));
+}
+
+.board-river--right > .board-river__frame {
+    top: 100%;
+}
+
+.board-river--top > .board-river__frame {
+    left: 100%;
+    top: 100%;
+}
+
+.board-river--left > .board-river__frame {
+    left: 100%;
 }
 
 /* An opponent's strip: its area sized to its turned footprint, its frame turned to the seat from the area's corner

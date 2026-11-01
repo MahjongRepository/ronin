@@ -15,7 +15,7 @@ import {
     SEAT_POSITIONS,
     type SeatPosition,
 } from "@/entities/table/model/board-types";
-import { Discards, Hand, Meld, type MeldTile, Tile, TileBack } from "@/entities/tile";
+import { Discards, Hand, Meld, type MeldTile, type RiverOverflow, Tile, TileBack } from "@/entities/tile";
 
 import { sizeBoard } from "./board-geometry-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
@@ -89,11 +89,21 @@ function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): Templ
     </div>`;
 }
 
-/** A seat's river, in its frame turned to the seat; a side river wraps past its third row, a top or bottom one runs on. */
+/** Each seat's river past its third row: a side river wraps toward its seat's edge, a top or bottom one runs on. */
+const RIVER_OVERFLOW: Readonly<Record<SeatPosition, RiverOverflow>> = {
+    bottom: "run-on",
+    left: "wrap",
+    right: "wrap",
+    top: "run-on",
+};
+
+/**
+ * A seat's river: its area the turned footprint of a normal river at its place in the pinwheel, its frame turned to the
+ * seat from the area's corner where the first row starts.
+ */
 function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
-    const overflow = seat === "left" || seat === "right" ? "wrap" : "run-on";
     return html`<div class="board-area board-river board-river--${seat}" data-area="${seat}-discards">
-        ${player ? Discards(player.discards, overflow) : ""}
+        <div class="board-river__frame">${player ? Discards(player.discards, RIVER_OVERFLOW[seat]) : ""}</div>
     </div>`;
 }
 

@@ -71,6 +71,11 @@ they disagree.
   geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths, with each side strip's depth as
   drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the viewport's solve. The own row's melds
   scale in their container (`ownMeldStyle`'s counts).
+- **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
+  (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
+  top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal
+  river's turned footprint with its frame turned to the seat inside (a rotation, never `writing-mode`) from the area's
+  corner where the first row starts. How far a river reaches past that footprint is the geometry's (`--reach-*`).
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.
@@ -91,6 +96,7 @@ they disagree.
   phone's board) and the safe insets as registered lengths, which the directive reads in px; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`.
-- The rivers' shared edge and shadow come from `.board-rivers`, the unturned layer holding all four, never from a
-  turned river's own filter: Firefox on macOS draws a turned element's filter unturned and clipped to its box.
+- The rivers' shared edge and shadow come from `.board-rivers` (`_tile.scss`), the unturned layer holding all four,
+  never from a turned river frame's own filter: Firefox on macOS draws a turned element's filter unturned and clipped
+  to its box.
 - Held-back tiles are recessed, never darkened; switch states differ by more than colour.
