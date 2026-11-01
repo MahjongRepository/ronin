@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from game.logic.enums import GameAction, GamePhase, MeldCallType, PromptKind, RoundPhase, WindName
+from game.logic.enums import GameAction, GamePhase, KanType, MeldCallType, PromptKind, RoundPhase, WindName
 from game.logic.events import RoundStartedEvent, SeatTarget
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.rng import RNG_VERSION
 from game.logic.settings import NUM_PLAYERS, GameSettings
 from game.logic.tiles import WINDS_34
 from game.logic.types import PlayerView, RoundHistoryEntry, RoundResult
-from game.logic.wall import Wall
+from game.logic.wall import Wall, tiles_remaining
 
 _WIND_NAMES = (WindName.EAST, WindName.SOUTH, WindName.WEST, WindName.NORTH)
 
@@ -71,6 +71,9 @@ class PendingCallPrompt(BaseModel):
     ranked in: for a discard, ron callers (with any melds they may make instead) by distance from the discarder, then
     the meld-only callers by their best meld (kan > pon > chi), then seat index; for a chankan, ron callers
     counter-clockwise from the kan caller.
+
+    A chankan prompt, and only one, names the kan it offers to rob (`kan_type`): an added kan, or the closed kan
+    kokushi musou may rob.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -81,6 +84,14 @@ class PendingCallPrompt(BaseModel):
     pending_seats: frozenset[int]
     callers: tuple[Caller, ...]
     responses: tuple[CallResponse, ...] = ()
+    kan_type: KanType | None = None
+
+    @model_validator(mode="after")
+    def _check_kan_type(self) -> PendingCallPrompt:
+        if (self.kind == PromptKind.CHANKAN) != (self.kan_type is not None):
+            raise ValueError("a chankan prompt, and only a chankan prompt, names the kan it offers to rob")
+
+        return self
 
     def caller(self, seat: int) -> Caller:
         """
@@ -177,6 +188,13 @@ class MahjongGameState(BaseModel):
     wait_id: int = 0
 
 
+def round_in_wind(game_state: MahjongGameState) -> int:
+    """
+    Return the number of the round in play within its wind, from 1: each wind deals once from each seat in turn.
+    """
+    return (game_state.unique_dealers - 1) % NUM_PLAYERS + 1
+
+
 def get_player_view(game_state: MahjongGameState, seat: int) -> RoundStartedEvent:
     """
     Return the round-start view for a specific player, as the round_started event sent to that seat.
@@ -206,6 +224,7 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> RoundStartedEven
         seat=seat,
         round_wind=wind_name(round_state.round_wind),
         round_number=game_state.round_number,
+        round_in_wind=round_in_wind(game_state),
         dealer_seat=round_state.dealer_seat,
         current_player_seat=round_state.current_player_seat,
         dora_indicators=list(round_state.wall.dora_indicators),
@@ -214,6 +233,7 @@ def get_player_view(game_state: MahjongGameState, seat: int) -> RoundStartedEven
         my_tiles=my_tiles,
         players=players_view,
         dice=round_state.wall.dice,
+        tiles_remaining=tiles_remaining(round_state.wall),
     )
 
 

@@ -39,7 +39,7 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 - A snapshot or re-sent opening naming the wait of a submitted decision leaves it submitted: a wait is never answered
   twice.
 - **Silence watchdog:** `GameSocket` reports a server silent past `serverSilenceLimitMs` as a close, measured on the
-  wall clock. The limit derives from the game's own timer settings; it copies none of the backend's pacing.
+  page's steady clock. The limit derives from the game's own timer settings; it copies none of the backend's pacing.
 
 ## Calls and the live board
 
@@ -47,7 +47,15 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   a move that calls nothing or the game's end.
 - `playDisplay` maps the whole client state for the live board and never restates what may be played: every tile
   intent and button is one the intent gate takes. `PlayBoard` only renders it; its view state is `PlayUi`, whose
-  per-decision parts are keyed by wait id so a newer decision never inherits them.
+  per-decision parts are keyed by wait id so a newer decision never inherits them. `PlayUi` moves only through
+  `stepPlayUi`, which every driver calls after each step (a command, an intent once stepped, the client stepping on
+  its own, the tile sprite) and never from a draw, so a render is a function of (state, ui) alone.
+- Focus moves by the `data-focus-key` a component renders from its command or state, a control holding its own key
+  and any group's (`focusKeys`), found under the board's own root (`focusByKey`, the sheet's focus back), never by
+  reading classes or ARIA back from the DOM.
+- The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (an end, the leave
+  question, the notices' sheet, then the table's own panel from `tablePanel`) with whether it blocks the board; the
+  replay's `replayDisplay` maps its own. Components only render the panel they are given.
 - The notices' clamp (`entities/table/ui/notice-clamp.ts`) is the board's only script measurement; it writes
   attributes only.
 - Live regions announce each notice and call once, never each second or redraw; never `role="status"` (atomic).

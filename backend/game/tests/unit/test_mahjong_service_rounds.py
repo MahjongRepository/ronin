@@ -127,7 +127,7 @@ class TestMahjongGameServiceCheckAndHandleRoundEnd:
         )
         _update_round_state(runtime, phase=RoundPhase.FINISHED, result=round_result)
         events = [
-            RoundEndEvent(result=round_result),
+            RoundEndEvent(dealer_seat=0, dora_indicators=[], result=round_result, riichi_sticks=0),
         ]
 
         result = service._check_and_handle_round_end(runtime, events)

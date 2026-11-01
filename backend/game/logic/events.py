@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from game.logic.enums import CallType, GameEndCause, GameErrorCode, MeldViewType, PromptKind
+from game.logic.enums import CallType, GameEndCause, GameErrorCode, KanType, MeldViewType, PromptKind
 from game.logic.types import (
     AvailableActionItem,
     GamePlayerInfo,
@@ -93,12 +93,13 @@ class GameEvent(BaseModel):
 
 class DrawEvent(GameEvent):
     """
-    Event sent to a player when they draw a tile.
+    Event sent to a player when they draw a tile, with the live wall's tiles left after it.
     """
 
     type: Literal[EventType.DRAW] = EventType.DRAW
     seat: int
     tile_id: int
+    tiles_remaining: int
     available_actions: list[AvailableActionItem] = Field(default_factory=list)
 
 
@@ -137,11 +138,14 @@ class MeldEvent(GameEvent):
     from_seat: int | None = None
     tile_ids: list[int]
     called_tile_id: int | None = None
+    added_tile_id: int | None = None
 
 
 class CallPromptEvent(GameEvent):
     """
     Event sent to players who can respond to a call opportunity.
+
+    A chankan prompt names the kan it offers to rob (`kan_type`); a discard's prompt names none.
     """
 
     type: Literal[EventType.CALL_PROMPT] = EventType.CALL_PROMPT
@@ -149,26 +153,34 @@ class CallPromptEvent(GameEvent):
     tile_id: int = Field(serialization_alias="ti")
     from_seat: int = Field(serialization_alias="frs")
     callers: list[int | MeldCaller] = Field(serialization_alias="clr")
+    kan_type: KanType | None = Field(default=None, serialization_alias="kty")
 
 
 class RoundEndEvent(GameEvent):
     """
-    Event broadcast when a round ends.
+    Event broadcast when a round ends, with the riichi sticks its result leaves on the table and the round's dealer and
+    revealed dora indicators, so a client shows the result from the server's word rather than its own table.
     """
 
     type: Literal[EventType.ROUND_END] = EventType.ROUND_END
     target: EventTarget = _BROADCAST
     result: RoundResult
+    riichi_sticks: int
+    dealer_seat: int
+    dora_indicators: list[int]
 
 
 class RiichiDeclaredEvent(GameEvent):
     """
-    Event broadcast when a player declares riichi.
+    Event broadcast when a player's riichi is accepted, with the declarer's score after its deposit and the riichi
+    sticks on the table with it.
     """
 
     type: Literal[EventType.RIICHI_DECLARED] = EventType.RIICHI_DECLARED
     target: EventTarget = _BROADCAST
     seat: int = Field(serialization_alias="s")
+    score: WireScore = Field(serialization_alias="sc")
+    riichi_sticks: int = Field(serialization_alias="r")
 
 
 class DoraRevealedEvent(GameEvent):
@@ -199,9 +211,8 @@ class GameStartedEvent(GameEvent):
     """
     Event broadcast to all players when the game starts.
 
-    riichi_cost and riichi_stick_value are the settings a client consumes: what a riichi takes from its declarer onto
-    the table, and what each stick a winner collects pays it. The replay records every setting on its game_started
-    line instead.
+    riichi_stick_value is the setting a client consumes: what each stick a winner collects pays it. The replay records
+    every setting on its game_started line instead.
     """
 
     type: Literal[EventType.GAME_STARTED] = EventType.GAME_STARTED
@@ -211,19 +222,22 @@ class GameStartedEvent(GameEvent):
     players: list[GamePlayerInfo] = Field(serialization_alias="p")
     dealer_seat: int = Field(serialization_alias="dl")
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
-    riichi_cost: WireScore = Field(serialization_alias="rc")
     riichi_stick_value: WireScore = Field(serialization_alias="rsv")
 
 
 class RoundStartedEvent(GameEvent):
     """
     Event sent to each player when a new round starts.
+
+    round_number counts every deal of the game, repeats included; round_in_wind names the round within its wind, from 1
+    ("East 1"). tiles_remaining is the live wall after the deal.
     """
 
     type: Literal[EventType.ROUND_STARTED] = EventType.ROUND_STARTED
     seat: int = Field(serialization_alias="s")
     round_wind: WireWindField = Field(serialization_alias="w")
     round_number: int = Field(serialization_alias="n")
+    round_in_wind: int = Field(serialization_alias="rw")
     dealer_seat: int = Field(serialization_alias="dl")
     current_player_seat: int = Field(serialization_alias="cp")
     dora_indicators: list[int] = Field(serialization_alias="di")
@@ -232,6 +246,7 @@ class RoundStartedEvent(GameEvent):
     my_tiles: list[int] = Field(serialization_alias="mt")
     players: list[PlayerView] = Field(serialization_alias="p")
     dice: tuple[int, int] = Field(serialization_alias="dc")
+    tiles_remaining: int = Field(serialization_alias="tr")
 
 
 class GameEndedEvent(GameEvent):
@@ -303,6 +318,7 @@ def build_call_prompt_events(prompt: PendingCallPrompt) -> list[CallPromptEvent]
                 tile_id=prompt.tile_id,
                 from_seat=prompt.from_seat,
                 callers=callers,
+                kan_type=prompt.kan_type,
                 target=SeatTarget(seat=caller.seat),
             ),
         )

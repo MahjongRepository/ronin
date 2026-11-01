@@ -17,7 +17,7 @@ from game.logic.settings import GameSettings
 from game.messaging.encoder import decode, encode
 from game.messaging.event_payload import WAIT_ID_KEY
 from game.messaging.protocol import ConnectionProtocol
-from game.messaging.types import SessionMessageType
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.messaging.wire_enums import WireClientMessageType, WireGameAction
 from game.server.router import MessageRouter
 from game.session.manager import SessionManager
@@ -354,6 +354,7 @@ class SeatClient:
         self._sockets_opened = 0
         self._wait_id: int | None = None
         self._refusals: list[Mapping[str, Any]] = []
+        self._expected_refusals: list[SessionErrorCode] = []
 
     @property
     def game_id(self) -> str:
@@ -370,13 +371,16 @@ class SeatClient:
     def refusals(self) -> list[Mapping[str, Any]]:
         return list(self._refusals)
 
+    def expected_refusals(self) -> list[SessionErrorCode]:
+        return list(self._expected_refusals)
+
     def receive(self, socket: _ClientSocket, payload: dict[str, Any]) -> None:
         if socket is not self._socket:
             return
 
         self._record(EventKind.RECEIVED, {"payload": payload})
         if _is_refusal(payload):
-            self._refusals.append(payload)
+            self._take_refusal(payload)
 
         if WAIT_ID_KEY in payload:
             self._wait_id = payload[WAIT_ID_KEY]
@@ -462,6 +466,25 @@ class SeatClient:
     def confirm_round(self, *, at: float, label: str | None = None) -> None:
         self._act(WireGameAction.CONFIRM_ROUND, {}, at=at, label=label)
 
+    def resync(self, *, at: float, label: str | None = None, refused_with: SessionErrorCode | None = None) -> None:
+        """
+        Ask for the seat's state again on the open socket, as a client that lost step with the server's messages does.
+
+        `refused_with` names the session error the server must answer it with, which then fails nothing.
+        """
+
+        def send() -> None:
+            socket = self._require_socket()
+            message = _as_wire({"t": WireClientMessageType.RESYNC})
+            self._record(EventKind.SENT, {"message": message})
+            self._label_last(label)
+            if refused_with is not None:
+                self._expected_refusals.append(refused_with)
+
+            self.router.handle_message(socket, message)
+
+        self._game.run_at(at, send)
+
     def label(self, name: str, kind: WireEventType | SessionMessageType) -> None:
         """
         Name the last message of the kind the client received, which must carry no name yet.
@@ -478,6 +501,16 @@ class SeatClient:
             return
 
         raise ScenarioError(f"{self.name}: received no {kind!r} to label {name}")
+
+    def _take_refusal(self, payload: Mapping[str, Any]) -> None:
+        """
+        Take a refusal as the one the scenario expects next, or keep it as one that fails the scenario.
+        """
+        if self._expected_refusals and payload.get("code") == self._expected_refusals[0]:
+            self._expected_refusals.pop(0)
+            return
+
+        self._refusals.append(payload)
 
     def _identity(self, message_type: WireClientMessageType) -> dict[str, Any]:
         return {"t": message_type, "game_ticket": self.ticket}
@@ -569,8 +602,8 @@ class SeatedGame:
 
     Client messages go through the real message router, and the session's own pacing runs as in production: the default
     timer settings, the game start pause before the deal, the turn, call and round advance timers with their banks, all
-    timed by the loop's virtual clock. A refusal any client receives (a game error or a session error) fails the
-    scenario at once. Open one with `seated_game`, which stops it and closes its loop.
+    timed by the loop's virtual clock. A refusal any client receives (a game error or a session error) that its step did
+    not expect fails the scenario at once. Open one with `seated_game`, which stops it and closes its loop.
     """
 
     def __init__(self, loop: VirtualTimeLoop, game_id: str, engine: _StagedEngine, *, players: Sequence[str]) -> None:
@@ -657,7 +690,7 @@ class SeatedGame:
     def _require_no_refusal(self) -> None:
         """
         Raise ScenarioError for the engine's failed check, the cause of the server error a client got for it, else for
-        any client's refusal.
+        any client's refusal, or a refusal it expected that never came.
         """
         failure = self._engine.failure
         if failure is not None:
@@ -667,6 +700,10 @@ class SeatedGame:
             refusals = client.refusals()
             if refusals:
                 raise ScenarioError(f"{self.game_id}: {client.name} was refused: {refusals[0]}")
+
+            expected = client.expected_refusals()
+            if expected:
+                raise ScenarioError(f"{self.game_id}: {client.name} was never refused with {expected[0]}")
 
 
 @contextmanager

@@ -25,6 +25,21 @@ def _meld(
         from_seat=from_seat,
         tile_ids=tile_ids,
         called_tile_id=called_tile_id,
+        added_tile_id=None,
+    )
+
+
+def _added_kan(
+    tile_ids: list[int], caller_seat: int, from_seat: int, called_tile_id: int, added_tile_id: int
+) -> MeldData:
+    return MeldData(
+        type="meld",
+        meld_type="added_kan",
+        caller_seat=caller_seat,
+        from_seat=from_seat,
+        tile_ids=tile_ids,
+        called_tile_id=called_tile_id,
+        added_tile_id=added_tile_id,
     )
 
 
@@ -218,12 +233,12 @@ def _build_added_kan_fixtures() -> list[MeldData]:
             caller = (suit // 9) % 4
             frm = (caller + 1 + val % 2) % 4
             melds.append(
-                _meld(
-                    meld_type="added_kan",
+                _added_kan(
                     tile_ids=[_id(t34, 0), _id(t34, 1), _id(t34, 3), _id(t34, 2)],
                     caller_seat=caller,
                     from_seat=frm,
                     called_tile_id=_id(t34, 1),
+                    added_tile_id=_id(t34, val % 4 * 2 % 4),
                 ),
             )
 
@@ -231,12 +246,12 @@ def _build_added_kan_fixtures() -> list[MeldData]:
         caller = i % 4
         frm = (caller + 2) % 4
         melds.append(
-            _meld(
-                meld_type="added_kan",
+            _added_kan(
                 tile_ids=[_id(t34, 0), _id(t34, 1), _id(t34, 2), _id(t34, 3)],
                 caller_seat=caller,
                 from_seat=frm,
                 called_tile_id=_id(t34, 0),
+                added_tile_id=_id(t34, 1 + i % 3),
             ),
         )
 
@@ -250,12 +265,12 @@ def _build_added_kan_fixtures() -> list[MeldData]:
     ]:
         t34 = suit + val
         melds.append(
-            _meld(
-                meld_type="added_kan",
+            _added_kan(
                 tile_ids=[_id(t34, 0), _id(t34, 2), _id(t34, 3), _id(t34, 1)],
                 caller_seat=caller,
                 from_seat=frm,
                 called_tile_id=_id(t34, 2),
+                added_tile_id=_id(t34, 3),
             ),
         )
 

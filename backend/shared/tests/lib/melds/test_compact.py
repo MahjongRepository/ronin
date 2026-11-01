@@ -23,6 +23,7 @@ class TestRoundTrip:
             assert original["caller_seat"] == decoded["caller_seat"], f"[{i}] caller_seat"
             assert original["from_seat"] == decoded["from_seat"], f"[{i}] from_seat"
             assert original["called_tile_id"] == decoded["called_tile_id"], f"[{i}] called_tile_id"
+            assert original["added_tile_id"] == decoded["added_tile_id"], f"[{i}] added_tile_id"
 
 
 class TestChiEncoding:
@@ -138,9 +139,41 @@ class TestShouminkanEncoding:
                 "from_seat": 1,
                 "tile_ids": [0, 1, 2, 3],
                 "called_tile_id": called_copy,
+                "added_tile_id": (called_copy + 1) % 4,
             }
             results.append(encode_meld_compact(wire))
         assert len(set(results)) == 4
+
+    def test_meld_compact_codec__when_added_kan_added_copy_differs__should_keep_each_added_tile(self):
+        decoded_added = []
+        for added_copy in (0, 2, 3):
+            wire = {
+                "type": "meld",
+                "meld_type": "added_kan",
+                "caller_seat": 0,
+                "from_seat": 1,
+                "tile_ids": [0, 1, 2, 3],
+                "called_tile_id": 1,
+                "added_tile_id": added_copy,
+            }
+            decoded = decode_meld_compact(encode_meld_compact(wire))
+            assert decoded["called_tile_id"] == 1
+            decoded_added.append(decoded["added_tile_id"])
+        assert decoded_added == [0, 2, 3]
+
+    def test_encode_meld_compact__when_added_kan_added_tile_missing_or_called__should_raise(self):
+        for added_tile_id in (None, 1, 4):
+            wire = {
+                "type": "meld",
+                "meld_type": "added_kan",
+                "caller_seat": 0,
+                "from_seat": 1,
+                "tile_ids": [0, 1, 2, 3],
+                "called_tile_id": 1,
+                "added_tile_id": added_tile_id,
+            }
+            with pytest.raises(ValueError, match="added_tile_id"):
+                encode_meld_compact(wire)
 
 
 class TestDaiminkanEncoding:
@@ -210,6 +243,7 @@ class TestSeatValidation:
                 "from_seat": 0,
                 "tile_ids": tile_ids,
                 "called_tile_id": 2,
+                "added_tile_id": 3,
             }
             with pytest.raises(ValueError, match="Invalid from_seat/caller_seat"):
                 encode_game_event(wire)
@@ -224,6 +258,7 @@ class TestSeatValidation:
                     "from_seat": 4,
                     "tile_ids": [0, 4, 8],
                     "called_tile_id": 0,
+                    "added_tile_id": None,
                 },
             )
 
@@ -236,6 +271,7 @@ class TestSeatValidation:
                     "from_seat": 6,
                     "tile_ids": [0, 1, 2],
                     "called_tile_id": 2,
+                    "added_tile_id": None,
                 },
             )
 
@@ -249,6 +285,7 @@ class TestSeatValidation:
                     "from_seat": 2,
                     "tile_ids": [0, 1, 2],
                     "called_tile_id": 2,
+                    "added_tile_id": None,
                 },
             )
 
@@ -261,6 +298,7 @@ class TestSeatValidation:
                     "from_seat": 0,
                     "tile_ids": [0, 4, 8],
                     "called_tile_id": 0,
+                    "added_tile_id": None,
                 },
             )
 
@@ -273,6 +311,7 @@ class TestSeatValidation:
                     "from_seat": 1.0,
                     "tile_ids": [0, 1, 2],
                     "called_tile_id": 2,
+                    "added_tile_id": None,
                 },
             )
 
@@ -328,6 +367,7 @@ class TestNoneFieldValidation:
                 "from_seat": from_seat,
                 "tile_ids": tile_ids,
                 "called_tile_id": None,
+                "added_tile_id": 3,
             }
             with pytest.raises(ValueError, match="called_tile_id"):
                 encode_meld_compact(wire)
@@ -342,6 +382,7 @@ class TestNoneFieldValidation:
                 "from_seat": None,
                 "tile_ids": tile_ids,
                 "called_tile_id": 2,
+                "added_tile_id": 3,
             }
             with pytest.raises(ValueError, match="from_seat"):
                 encode_meld_compact(wire)

@@ -1,17 +1,19 @@
 import { assert, describe, expect, it } from "vitest";
 
 import { engineReplayText } from "#tests/fixtures/replays";
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, roundPosition } from "@/entities/replay";
 import {
+    DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
     HOLD_REPEAT_MS,
-    type LoadedScreen,
+    type LoadedReplayScreen,
     type ReplayPageEffect,
     type ReplayPageInput,
+    type ReplayPrefs,
     type ReplayScreen,
     replayPageDeadline,
+    roundPosition,
     stepReplayPage,
-} from "@/views/replay-page";
+} from "@/entities/replay";
 
 const LOADING: ReplayScreen = { kind: "loading", waiting: false };
 
@@ -24,7 +26,7 @@ function opened(
     name: string,
     search = "",
     { autoplay = false, prefs = DEFAULT_REPLAY_PREFS }: OpenOptions = {},
-): LoadedScreen {
+): LoadedReplayScreen {
     const { screen } = stepReplayPage(LOADING, {
         at: 0,
         fetched: { ok: true, text: engineReplayText(name) },
@@ -43,7 +45,7 @@ function step(
     return stepReplayPage(screen, { ...input, at });
 }
 
-function loaded(screen: ReplayScreen): LoadedScreen {
+function loaded(screen: ReplayScreen): LoadedReplayScreen {
     assert(screen.kind === "loaded");
     return screen;
 }
@@ -59,7 +61,10 @@ function where(screen: ReplayScreen): [number, number, number] {
 function script(
     start: ReplayScreen,
     inputs: readonly (readonly [ReplayPageInput, number])[],
-): { readonly screens: readonly ReplayScreen[]; readonly effects: readonly ReplayPageEffect[] } {
+): {
+    readonly screens: readonly ReplayScreen[];
+    readonly effects: readonly ReplayPageEffect[];
+} {
     const [first, ...rest] = inputs;
     if (first === undefined) {
         return { effects: [], screens: [] };
@@ -198,9 +203,14 @@ describe("stepReplayPage - moving", () => {
     });
 
     it("pages a double ron's result as a move of its own, stopping autoplay", () => {
-        const playing = step(opened("double_ron", "?round=0&step=9"), { kind: "toggle_play" });
+        const playing = step(opened("double_ron", "?round=0&step=9"), {
+            kind: "toggle_play",
+        });
 
-        const { effects, screen } = step(playing.screen, { kind: "result_page", page: 1 });
+        const { effects, screen } = step(playing.screen, {
+            kind: "result_page",
+            page: 1,
+        });
 
         expect([where(screen), loaded(screen).autoplay.playing, effects]).toEqual([
             [0, 9, 1],
@@ -225,7 +235,11 @@ describe("stepReplayPage - autoplay", () => {
     });
 
     it("does not play from the last stop", () => {
-        const last = step(opened("riichi"), { command: "last", kind: "key", repeat: false }).screen;
+        const last = step(opened("riichi"), {
+            command: "last",
+            kind: "key",
+            repeat: false,
+        }).screen;
 
         const toggled = step(last, { kind: "toggle_play" }).screen;
 
@@ -321,7 +335,11 @@ describe("stepReplayPage - hold and wheel", () => {
     });
 
     it("drops a hold when another move takes over or autoplay starts", () => {
-        const press = { direction: "next", kind: "step_press", primary: true } as const;
+        const press = {
+            direction: "next",
+            kind: "step_press",
+            primary: true,
+        } as const;
         const { screens } = script(opened("riichi", "?round=0&step=5"), [
             [press, 0],
             [{ command: "prev", kind: "key", repeat: false }, 10],

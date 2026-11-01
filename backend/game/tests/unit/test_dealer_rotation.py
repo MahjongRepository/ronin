@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.logic.enums import AbortiveDrawType
+from game.logic.enums import AbortiveDrawType, HandLimit
 from game.logic.game import _get_honba_and_rotation, process_round_end
 from game.logic.settings import GameSettings
 from game.logic.types import (
@@ -45,8 +45,9 @@ def _exhaustive_draw(*, tempai_seats: list[int], noten_seats: list[int]) -> Exha
 
 def _tsumo(winner_seat: int) -> TsumoResult:
     return TsumoResult(
+        honba_bonus=0,
         winner_seat=winner_seat,
-        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+        hand_result=HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         riichi_sticks_collected=0,
@@ -58,10 +59,11 @@ def _tsumo(winner_seat: int) -> TsumoResult:
 
 def _ron(winner_seat: int, loser_seat: int) -> RonResult:
     return RonResult(
+        honba_bonus=0,
         winner_seat=winner_seat,
         loser_seat=loser_seat,
         winning_tile=0,
-        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+        hand_result=HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         riichi_sticks_collected=0,
@@ -71,12 +73,13 @@ def _ron(winner_seat: int, loser_seat: int) -> RonResult:
 
 
 def _double_ron(winner1: int, winner2: int, loser: int) -> DoubleRonResult:
-    hr = HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000)
+    hr = HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000)
     return DoubleRonResult(
         loser_seat=loser,
         winning_tile=0,
         winners=[
             DoubleRonWinner(
+                honba_bonus=0,
                 winner_seat=winner1,
                 hand_result=hr,
                 score_changes={},
@@ -85,6 +88,7 @@ def _double_ron(winner1: int, winner2: int, loser: int) -> DoubleRonResult:
                 melds=[],
             ),
             DoubleRonWinner(
+                honba_bonus=0,
                 winner_seat=winner2,
                 hand_result=hr,
                 score_changes={},
@@ -100,6 +104,7 @@ def _double_ron(winner1: int, winner2: int, loser: int) -> DoubleRonResult:
 
 def _nagashi(*, tempai_seats: list[int], noten_seats: list[int]) -> NagashiManganResult:
     return NagashiManganResult(
+        rivers=[],
         qualifying_seats=[1],
         tempai_seats=tempai_seats,
         noten_seats=noten_seats,

@@ -2,7 +2,8 @@ import { type TemplateResult, html } from "lit-html";
 
 import { type PlayCommand } from "@/entities/client/model/play-ui";
 import { type FailureDisplay } from "@/entities/client/model/session-end";
-import { focusOnFirstRender, keepTabInside } from "@/entities/table";
+import { PANEL_CONTROL_FOCUS_KEY } from "@/entities/table";
+import { focusOnFirstRender, keepTabInside } from "@/shared/ui";
 
 const LEAVE: PlayCommand = { intent: { type: "leave" }, kind: "intent" };
 const STAY: PlayCommand = { kind: "cancel_leave" };
@@ -34,10 +35,10 @@ export function LeaveConfirm(onCommand: (command: PlayCommand) => void): Templat
         <p class="leave-confirm__title">Leave the game?</p>
         <p class="leave-confirm__detail">An AI will play your seat.</p>
         <div class="leave-confirm__actions">
-            <button type="button" class="leave-confirm__stay" ${focusOnFirstRender()} @click=${() => onCommand(STAY)}>
+            <button type="button" data-focus-key=${PANEL_CONTROL_FOCUS_KEY} class="leave-confirm__stay" ${focusOnFirstRender()} @click=${() => onCommand(STAY)}>
                 Stay
             </button>
-            <button type="button" class="secondary leave-confirm__leave" @click=${() => onCommand(LEAVE)}>Leave</button>
+            <button type="button" data-focus-key=${PANEL_CONTROL_FOCUS_KEY} class="secondary leave-confirm__leave" @click=${() => onCommand(LEAVE)}>Leave</button>
         </div>
     </div>`;
 }
@@ -53,12 +54,12 @@ export function FailurePanel(
         <div class="failure-panel__actions">
             ${
                 failure.reload
-                    ? html`<button type="button" class="secondary failure-panel__reload" @click=${() => onCommand(RELOAD)}>
+                    ? html`<button type="button" data-focus-key=${PANEL_CONTROL_FOCUS_KEY} class="secondary failure-panel__reload" @click=${() => onCommand(RELOAD)}>
                           Reload
                       </button>`
                     : ""
             }
-            <button type="button" class="failure-panel__leave" @click=${() => onCommand(LEAVE)}>Back to lobby</button>
+            <button type="button" data-focus-key=${PANEL_CONTROL_FOCUS_KEY} class="failure-panel__leave" @click=${() => onCommand(LEAVE)}>Back to lobby</button>
         </div>
     </div>`;
 }

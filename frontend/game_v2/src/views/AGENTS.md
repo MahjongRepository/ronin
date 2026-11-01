@@ -10,12 +10,14 @@ The route views: the live game's driver, the replay page and the storybook, each
 - A step, effect or render that throws ends the client as failed on the page, socket closed, error on the console;
   never leave the queue stuck. A protocol failure never throws out of the dispatcher, so a throw is a client bug.
 
-## The replay page (`replay.ts`, `replay-page.ts`, `replay-input.ts`)
+## The replay page (`replay.ts`, `replay-input.ts`)
 
-- Every page transition is one pure reducer (`replay-page.ts`): stamped input in, screen and requested IO out, which
-  the view runs after drawing. Autoplay and a held button's repeat are deadlines in the screen behind one timer
-  (`replayPageDeadline`). The reducer reads no DOM; `replay-input.ts` maps keys, wheel and pointer to inputs.
-- It moves only through the replay slice's cursor functions.
+- A view holds no state machine: the page's screen and every transition are the replay slice's (`stepReplayPage`).
+  The view stamps each input with the clock's time, draws the screen it gets back, runs the IO it asks for after
+  drawing, and keeps one timer armed to `replayPageDeadline`. `replay-input.ts` maps keys, wheel and pointer to
+  inputs.
+- It finds the slices' parts (round list, its toggle, the board's panel and notices, step buttons) only by the
+  selectors and attributes those slices export, never by their classes.
 - The address names position and viewpoint, never reading preferences. It is written with `history.replaceState` at
   most once per 500 ms (Safari's history limit), keeping the page's other parameters (`v=2`); a pending write is
   flushed on page hide and dropped on dispose.

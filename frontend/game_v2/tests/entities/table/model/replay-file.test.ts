@@ -5,7 +5,7 @@ import { type ReplayEvent, isReplayEvent, readReplayFile } from "@/entities/tabl
 import { type ParsedServerMessage, REPLAY_VERSION, parseServerMessage } from "@/shared/protocol";
 
 const VERSION_LINE = JSON.stringify({ version: REPLAY_VERSION });
-const drawLine = '{"d": 136, "t": 1}';
+const drawLine = '{"d": 136, "t": 1, "tr": 69}';
 
 describe("readReplayFile - version", () => {
     test("refuses a replay of another version", () => {
@@ -40,7 +40,7 @@ describe("readReplayFile - lines", () => {
         const read = readReplayFile(
             [VERSION_LINE, drawLine, "", "  ", "not json", "[1]"].join("\n"),
         );
-        expect(read.ok && read.lines).toEqual([{ lineNumber: 2, raw: { d: 136, t: 1 } }]);
+        expect(read.ok && read.lines).toEqual([{ lineNumber: 2, raw: { d: 136, t: 1, tr: 69 } }]);
         expect(read.ok && read.errors).toEqual([
             { detail: expect.stringContaining("JSON parse error:"), lineNumber: 5 },
             { detail: "Parse error: line is not a JSON object", lineNumber: 6 },
@@ -61,12 +61,15 @@ describe("isReplayEvent", () => {
         const replayLines: Record<ReplayEvent["type"], Record<string, unknown>> = {
             discard: { d: 0, t: 2 },
             dora_revealed: { t: 6, ti: 0 },
-            draw: { bk: 20, d: 136, t: 1, wi: 1 },
+            draw: { bk: 20, d: 136, t: 1, tr: 69, wi: 1 },
             game_end: WIRE_GAME_END,
             game_started: WIRE_GAME_STARTED,
             meld: { m: 24_384, t: 0 },
-            riichi_declared: { s: 0, t: 5 },
+            riichi_declared: { r: 1, s: 0, sc: 240, t: 5 },
             round_end: {
+                di: [40],
+                dl: 0,
+                r: 4,
                 rn: "four_riichi",
                 rt: 4,
                 sch: { "0": 0, "1": 0, "2": 0, "3": 0 },

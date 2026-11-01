@@ -7,7 +7,6 @@ import {
     type BoardPlayerDisplay,
     type NameplateAiMark,
 } from "@/entities/table/model/board-types";
-import { roundInWind } from "@/entities/table/model/helpers";
 import { type PlayerState, type TableState } from "@/entities/table/model/types";
 import { type DiscardTile, type HandTile, meldTiles, tile136toString } from "@/entities/tile";
 import { SEAT_CONTROL_REASON, seatDistance } from "@/shared/protocol";
@@ -70,15 +69,15 @@ function sidewaysDiscardIndex(discards: PlayerState["discards"]): number {
 
 /**
  * The river as it lies: a tile another seat claimed has left it for the meld that took it. Its riichi tile lies
- * sideways and, when the table's latest discard is this seat's, that tile is marked.
+ * sideways and, when the table's latest discard is this seat's (`marksLatest`), that tile is marked.
  */
 export function buildDiscardTiles(
-    player: PlayerState,
-    lastDiscardSeat: number | null,
+    discards: PlayerState["discards"],
+    marksLatest: boolean,
 ): DiscardTile[] {
-    const sideways = sidewaysDiscardIndex(player.discards);
-    const last = player.seat === lastDiscardSeat ? player.discards.length - 1 : -1;
-    return player.discards.flatMap((d, index) =>
+    const sideways = sidewaysDiscardIndex(discards);
+    const last = marksLatest ? discards.length - 1 : -1;
+    return discards.flatMap((d, index) =>
         d.claimed === true
             ? []
             : [
@@ -109,7 +108,7 @@ function mapPlayerDisplay(
     const { baseTiles, drawnTile } = buildHandTiles(player, show);
 
     return {
-        discards: buildDiscardTiles(player, state.lastDiscardSeat),
+        discards: buildDiscardTiles(player.discards, player.seat === state.lastDiscardSeat),
         drawnTile,
         hand: baseTiles,
         melds: player.melds.map(meldTiles),
@@ -214,7 +213,7 @@ function tableStateToDisplayState(
             doraIndicators: state.doraIndicators.map((id) => tile136toString(id)),
             honbaSticks: state.honbaSticks,
             riichiSticks: state.riichiSticks,
-            roundDisplay: roundName(state.roundWind, roundInWind(state)),
+            roundDisplay: roundName(state.roundWind, state.roundInWind),
             tilesRemaining: state.tilesRemaining,
         },
         nameplates: [nameplate(bottom), nameplate(right), nameplate(top), nameplate(left)],

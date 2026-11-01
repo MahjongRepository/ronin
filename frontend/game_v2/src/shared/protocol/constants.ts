@@ -138,6 +138,27 @@ export const ROUND_RESULT_TYPE = {
 
 export type RoundResultType = (typeof ROUND_RESULT_TYPE)[keyof typeof ROUND_RESULT_TYPE];
 
+/** The limit the server paid a winning hand at; a kazoe yakuman is 13 han of ordinary yaku, told apart by the server. */
+export const HAND_LIMIT = {
+    BAIMAN: "baiman",
+    HANEMAN: "haneman",
+    KAZOE_YAKUMAN: "kazoe_yakuman",
+    MANGAN: "mangan",
+    NONE: "none",
+    SANBAIMAN: "sanbaiman",
+    YAKUMAN: "yakuman",
+} as const;
+
+export type HandLimit = (typeof HAND_LIMIT)[keyof typeof HAND_LIMIT];
+
+/** How much of the pao yakuman its liable seat pays: all of it (a tsumo, or a ron it dealt in) or half. */
+export const PAO_SHARE = {
+    ALL: "all",
+    HALF: "half",
+} as const;
+
+export type PaoShare = (typeof PAO_SHARE)[keyof typeof PAO_SHARE];
+
 // --- Wind values (integer, 0-3) ---
 
 export const WIND = {

@@ -231,8 +231,13 @@ describe("tableStateToDisplayState", () => {
     });
 
     describe("center info mapping", () => {
-        test("round display counts the round within its wind from the first dealer, not the seat", () => {
-            const state = makeTableState({ dealerSeat: 1, firstDealerSeat: 2, roundWind: 1 });
+        test("round display names the server's round within its wind, not the dealer's distance", () => {
+            const state = makeTableState({
+                dealerSeat: 1,
+                firstDealerSeat: 1,
+                roundInWind: 4,
+                roundWind: 1,
+            });
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.center.roundDisplay).toBe("South 4");
         });

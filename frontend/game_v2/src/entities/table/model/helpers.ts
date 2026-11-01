@@ -1,4 +1,4 @@
-import { seatDistance, tileType } from "@/shared/protocol";
+import { tileType } from "@/shared/protocol";
 
 import { DesyncError } from "./desync-error";
 import { type MeldRecord, type PlayerState, type TableState } from "./types";
@@ -25,12 +25,16 @@ export function requirePlayer(state: TableState, seat: number): PlayerState {
     return player;
 }
 
-/** The table's riichi cost; a deposit on a table that never learned its game's cost is an impossible state. */
-export function requireRiichiCost(state: TableState): number {
-    if (state.riichiCost === null) {
-        throw new DesyncError("The table holds no riichi cost");
+/**
+ * A seat's entry in a server score map (`scores`, `scoreChanges`), which names every seat: a map lacking the seat is an
+ * impossible state.
+ */
+export function seatEntry(map: Readonly<Record<string, number>>, seat: number): number {
+    const entry = map[String(seat)];
+    if (entry === undefined) {
+        throw new DesyncError(`A score map names no entry for seat ${seat}`);
     }
-    return state.riichiCost;
+    return entry;
 }
 
 /** The game's riichi stick value; a win collecting sticks on a table that never learned it is an impossible state. */
@@ -59,15 +63,6 @@ export function takeFromHand(hand: ClosedHand, tileIds: readonly number[]): Clos
         }
     }
     return { concealedCount, tiles };
-}
-
-/**
- * The round's number within its wind, from 1. The wire's round number counts every deal of the game, repeats
- * included; the deal passes one seat on per round of the wind, so the dealer's distance from the first dealer
- * names it ("East 1" through "East 4", then "South 1").
- */
-export function roundInWind(table: Pick<TableState, "dealerSeat" | "firstDealerSeat">): number {
-    return seatDistance(table.firstDealerSeat, table.dealerSeat) + 1;
 }
 
 /** A seat's pon of a tile type, which an added kan of the type raises, or undefined. */

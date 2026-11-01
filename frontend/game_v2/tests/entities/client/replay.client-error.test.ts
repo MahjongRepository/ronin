@@ -23,7 +23,7 @@ describe("readReplayTimeline - a bug in the client", () => {
             JSON.stringify({ version: REPLAY_VERSION }),
             JSON.stringify(REPLAY_GAME_STARTED),
             JSON.stringify(REPLAY_ROUND_STARTED),
-            '{"d": 0, "t": 1}',
+            '{"d": 0, "t": 1, "tr": 69}',
             '{"d": 0, "t": 2}',
         ].join("\n");
 

@@ -8,9 +8,9 @@ import {
     PlayBoard,
     type PlayCommand,
     type PlayUi,
-    nextPlayUi,
     playDisplay,
     stepGameClient,
+    stepPlayUi,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
 
@@ -19,7 +19,6 @@ function drawPlay(host: HTMLElement, state: LiveClient, ui: PlayUi = NO_PLAY_UI)
         PlayBoard({
             display: playDisplay(state, ui),
             onCommand: () => {},
-            table: state.table,
         }),
         host,
     );
@@ -88,10 +87,9 @@ function mountLive(
                 display: playDisplay(state, ui),
                 onCommand: (command) => {
                     commands.push(command);
-                    ui = nextPlayUi(state, ui, command);
+                    ui = stepPlayUi(state, ui, command);
                     draw();
                 },
-                table: state.table,
             }),
             host,
         );
@@ -136,7 +134,6 @@ function renderSwitches(
         PlayBoard({
             display: playDisplay(state, NO_PLAY_UI),
             onCommand,
-            table: state.table,
         }),
         host,
     );
@@ -160,7 +157,6 @@ function renderLiveGameEnd(
             display: playDisplay(ended, NO_PLAY_UI),
             links: LINKS,
             onCommand: (command) => commands.push(command),
-            table: ended.table,
         }),
         host,
     );
@@ -207,7 +203,6 @@ describe("PlayBoard", () => {
                 PlayBoard({
                     display: playDisplay(roundEnd, { ...NO_PLAY_UI, confirmingLeave }),
                     onCommand: () => {},
-                    table: roundEnd.table,
                 }),
                 host,
             );
@@ -269,6 +264,30 @@ describe("PlayBoard", () => {
         host.remove();
     });
 
+    it("steps back from riichi's pick of a discard on Escape, the focus kept on the riichi toggle it turns off", () => {
+        const { commands, host } = mountLive(
+            checkpointState("own_turn_seat_1", "rinshan"),
+            NO_PLAY_UI,
+        );
+        const toggle = host.querySelector<HTMLButtonElement>(
+            ".decision-controls__action[aria-pressed]",
+        );
+        toggle?.click();
+        const picked = toggle?.getAttribute("aria-pressed");
+        toggle?.focus();
+        toggle?.dispatchEvent(
+            new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" }),
+        );
+
+        expect(commands).toEqual([{ kind: "toggle_riichi_pick" }, { kind: "step_back" }]);
+        expect([
+            picked,
+            toggle?.getAttribute("aria-pressed"),
+            document.activeElement === toggle,
+        ]).toEqual(["true", "false", true]);
+        host.remove();
+    });
+
     it("gives the focus to the result's first enabled control, past a disabled pager, when the sheet closes over it with no Show all shown", async () => {
         const won = checkpointState("double_ron_seat_1", "round end");
         const firstPage = stepGameClient(won, { at: won.now + CALLOUT_MS, kind: "tick" }).state;
@@ -293,7 +312,7 @@ describe("PlayBoard", () => {
         host.remove();
     });
 
-    it("gives the focus back to the board, never the page's body, when the sheet closes as its last notice goes", async () => {
+    it("gives the focus back to the hand, never the page's body, when the sheet closes as its last notice goes", async () => {
         const turn = checkpointState("call_prompt_seat_1", "turn");
         const failed: PlayUi = { ...NO_PLAY_UI, tileSprite: "failed" };
         const { host, show } = mountLive(turn, failed);
@@ -303,7 +322,7 @@ describe("PlayBoard", () => {
 
         expect(focusedOnOpen).toBe("notice-sheet__close");
         expect(host.querySelector(".notice-sheet")).toBeNull();
-        expect(document.activeElement).toBe(host.querySelector(".board-local button"));
+        expect(document.activeElement).toBe(host.querySelector(".board-local .hand-tile"));
         host.remove();
     });
 

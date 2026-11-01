@@ -1,94 +1,24 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
-import { describePlayerClientStatus } from "@/entities/client/model/client-status";
-import { type DecisionCountdown, pendingCountdown } from "@/entities/client/model/countdown";
-import { type PlayCommand, type PlayUi } from "@/entities/client/model/play-ui";
+import { type DecisionCountdown } from "@/entities/client/model/countdown";
 import {
-    type FailureDisplay,
-    type LeaveControls,
-    failureDisplay,
-    leaveControls,
-} from "@/entities/client/model/session-end";
-import { type LiveClient } from "@/entities/client/model/types";
-import { type SessionStatusDisplay } from "@/entities/session";
-import { assertNever } from "@/shared/lib";
+    countdownAnnouncement,
+    expiryNote,
+    moveName,
+} from "@/entities/client/model/countdown-text";
+import { type PlayDisplay } from "@/entities/client/model/play-display";
+import { type PlayCommand } from "@/entities/client/model/play-ui";
 
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
-/** The seconds left at which the countdown is announced to a screen reader, the largest first. */
-const ANNOUNCED_SECONDS = [10, 5] as const;
-
-export interface RotatePanelProps {
-    readonly status: SessionStatusDisplay;
-    readonly countdown: DecisionCountdown | null;
-    readonly leave: LeaveControls;
-    /** An end that stopped the session on the page, shown in place of the rest: why, and the way on from it. */
-    readonly failure: FailureDisplay | null;
-    readonly onCommand: (command: PlayCommand) => void;
-}
-
-export function rotatePanelProps(
-    state: LiveClient,
-    ui: PlayUi,
-    onCommand: (command: PlayCommand) => void,
-): RotatePanelProps {
-    return {
-        countdown: pendingCountdown(state),
-        failure: failureDisplay(state.session),
-        leave: leaveControls(state, ui),
-        onCommand,
-        status: describePlayerClientStatus(state),
-    };
-}
-
-export function moveName(move: DecisionCountdown["move"]): string {
-    switch (move) {
-        case "turn": {
-            return "It is your turn";
-        }
-        case "call": {
-            return "You can call the last discard";
-        }
-        case "chankan": {
-            return "You can rob the kan";
-        }
-        case "result": {
-            return "The round's result awaits your OK";
-        }
-        default: {
-            return assertNever(move);
-        }
-    }
-}
+/** What the rotate panel shows, all of it the live board's display: the status, what is owed, the way back, an end. */
+export type RotatePanelView = Pick<PlayDisplay, "failure" | "leave" | "owedCountdown" | "status">;
 
 /** What runs on while the phone is upright: play and its timer, or the round advance's timer. */
 function runningNote(move: DecisionCountdown["move"]): string {
     return move === "result"
         ? "Its timer keeps running while the phone is upright."
         : "Play continues, and your timer keeps running while the phone is upright.";
-}
-
-/** What the server does once the move's time is up. */
-export function expiryNote(move: DecisionCountdown["move"]): string {
-    return move === "result" ? "the server deals the next round" : "the server makes the move";
-}
-
-/**
- * What the polite live region says: it changes only when the countdown crosses a threshold, a turn's base time runs
- * out into its bank, or it expires, so a screen reader is not read the seconds every second.
- */
-export function countdownAnnouncement(countdown: DecisionCountdown | null): string {
-    if (countdown?.kind === "expired") {
-        return "Time is up";
-    }
-    if (countdown?.kind !== "running") {
-        return "";
-    }
-    const crossed = ANNOUNCED_SECONDS.findLast((seconds) => countdown.secondsLeft <= seconds);
-    if (crossed !== undefined) {
-        return `${crossed} seconds or less left`;
-    }
-    return countdown.turn?.inBank === true ? "Your time bank is running" : "";
 }
 
 function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
@@ -126,13 +56,10 @@ function rotateIcon(): TemplateResult {
  * game and its countdown go on. An end that stopped the session on the page shows why and the way on instead. Only
  * the status line and the countdown's thresholds are live regions.
  */
-export function RotatePanel({
-    countdown,
-    failure,
-    leave,
-    onCommand,
-    status,
-}: RotatePanelProps): TemplateResult {
+export function RotatePanel(
+    { failure, leave, owedCountdown: countdown, status }: RotatePanelView,
+    onCommand: (command: PlayCommand) => void,
+): TemplateResult {
     if (failure !== null) {
         return html`<div class="rotate-panel rotate-panel--ended">
             <span class="connection-status status-${status.tone}" role="status">${status.label}</span>

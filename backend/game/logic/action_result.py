@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from game.logic.actions import get_available_actions
 from game.logic.events import DrawEvent, GameEvent, SeatTarget, TurnEvent
+from game.logic.wall import tiles_remaining
 
 if TYPE_CHECKING:
     from game.logic.enums import GameErrorCode
@@ -36,12 +37,13 @@ class Refusal:
 
 def create_draw_event(game_state: MahjongGameState, seat: int, tile_id: int) -> DrawEvent:
     """
-    Create a draw event for a player with available actions.
+    Create a draw event for a player with available actions and the live wall left after the draw.
     """
     available_actions = get_available_actions(game_state, seat=seat)
     return DrawEvent(
         seat=seat,
         tile_id=tile_id,
+        tiles_remaining=tiles_remaining(game_state.round_state.wall),
         available_actions=available_actions,
         target=SeatTarget(seat=seat),
     )

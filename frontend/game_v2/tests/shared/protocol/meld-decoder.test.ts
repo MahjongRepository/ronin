@@ -56,10 +56,10 @@ describe("decodeMeldCompact", () => {
     });
 
     describe("added_kan (shouminkan)", () => {
-        it("decodes added_kan east wind seat 1 from seat 2", () => {
-            // Encoded value from Python: 22321
-            const result = decodeMeldCompact(22_321);
+        it("decodes added_kan east wind seat 1 from seat 2 with its added tile", () => {
+            const result = decodeMeldCompact(25_021);
             expect(result).toEqual({
+                addedTileId: 111,
                 calledTileId: 108, // east copy 0
                 callerSeat: 1,
                 fromSeat: 2,
@@ -71,8 +71,7 @@ describe("decodeMeldCompact", () => {
 
     describe("open_kan (daiminkan)", () => {
         it("decodes open_kan 9s seat 3 from seat 0", () => {
-            // Encoded value from Python: 23931
-            const result = decodeMeldCompact(23_931);
+            const result = decodeMeldCompact(27_195);
             expect(result).toEqual({
                 calledTileId: 106, // 9s copy 2
                 callerSeat: 3,
@@ -85,8 +84,7 @@ describe("decodeMeldCompact", () => {
 
     describe("closed_kan (ankan)", () => {
         it("decodes closed_kan 1s seat 0", () => {
-            // Encoded value from Python: 24360
-            const result = decodeMeldCompact(24_360);
+            const result = decodeMeldCompact(27_624);
             expect(result).toEqual({
                 calledTileId: null,
                 callerSeat: 0,
@@ -97,8 +95,7 @@ describe("decodeMeldCompact", () => {
         });
 
         it("decodes closed_kan chun seat 2", () => {
-            // Encoded value from Python: 24422
-            const result = decodeMeldCompact(24_422);
+            const result = decodeMeldCompact(27_686);
             expect(result).toEqual({
                 calledTileId: null,
                 callerSeat: 2,
@@ -108,9 +105,9 @@ describe("decodeMeldCompact", () => {
             });
         });
 
-        it("decodes max valid value (24423)", () => {
+        it("decodes max valid value (27687)", () => {
             // Ankan chun seat 3
-            const result = decodeMeldCompact(24_423);
+            const result = decodeMeldCompact(27_687);
             expect(result).toEqual({
                 calledTileId: null,
                 callerSeat: 3,
@@ -126,8 +123,8 @@ describe("decodeMeldCompact", () => {
             expect(() => decodeMeldCompact(-1)).toThrow(RangeError);
         });
 
-        it("throws on value exceeding max (24424)", () => {
-            expect(() => decodeMeldCompact(24_424)).toThrow(RangeError);
+        it("throws on value exceeding max (27688)", () => {
+            expect(() => decodeMeldCompact(27_688)).toThrow(RangeError);
         });
 
         it("throws on non-integer", () => {

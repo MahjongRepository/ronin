@@ -8,17 +8,20 @@ from mahjong.hand_calculating.hand import HandCalculator
 from mahjong.hand_calculating.hand_config import HandConfig
 from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, DaiSuushii
 
+from game.logic.enums import HandLimit, PaoShare
 from game.logic.meld_compact import frozen_meld_to_compact
 from game.logic.meld_wrapper import frozen_melds_to_melds
 from game.logic.settings import NUM_PLAYERS, GameSettings, RenhouValue, build_optional_rules
 from game.logic.state import seat_to_wind
-from game.logic.state_utils import update_player
+from game.logic.state_utils import river_of, update_player
 from game.logic.tiles import WINDS_34, hand_to_34_array
 from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
     HandResultInfo,
     NagashiManganResult,
+    NagashiRiver,
+    PaoLiability,
     RonResult,
     TenpaiHand,
     TsumoResult,
@@ -46,11 +49,33 @@ logger = structlog.get_logger()
 
 _PAO_YAKU_IDS = frozenset({Daisangen.yaku_id, DaiSuushii.yaku_id})
 
+_YAKUMAN_HAN = 13
+
+_MANGAN_BASE_POINTS = 2000
+
+_LIMIT_LEVELS: dict[str, tuple[HandLimit, int | None]] = {
+    "": (HandLimit.NONE, None),
+    "mangan": (HandLimit.MANGAN, None),
+    "kiriage mangan": (HandLimit.MANGAN, None),
+    "haneman": (HandLimit.HANEMAN, None),
+    "baiman": (HandLimit.BAIMAN, None),
+    "sanbaiman": (HandLimit.SANBAIMAN, None),
+    "yakuman": (HandLimit.YAKUMAN, 1),
+    "2x yakuman": (HandLimit.YAKUMAN, 2),
+    "3x yakuman": (HandLimit.YAKUMAN, 3),
+    "4x yakuman": (HandLimit.YAKUMAN, 4),
+    "5x yakuman": (HandLimit.YAKUMAN, 5),
+    "6x yakuman": (HandLimit.YAKUMAN, 6),
+}
+
 
 @dataclass
 class HandResult:
     """
     Result of hand value calculation.
+
+    limit is the limit the library paid the hand at, and yakuman_count how many yakuman a yakuman or kazoe yakuman limit
+    counts (None below them).
     """
 
     han: int = 0
@@ -58,13 +83,46 @@ class HandResult:
     cost_main: int = 0  # cost paid by dealer (tsumo) or loser (ron)
     cost_additional: int = 0  # cost paid by non-dealers (tsumo only)
     yaku: list[YakuInfo] = field(default_factory=list)
+    limit: HandLimit = HandLimit.NONE
+    yakuman_count: int | None = None
     error: str | None = None  # error message if calculation failed
 
     def to_info(self, points: int) -> HandResultInfo:
         """
         Build the wire hand result, worth points to its winner.
         """
-        return HandResultInfo(han=self.han, fu=self.fu, yaku=self.yaku, points=points)
+        return HandResultInfo(
+            han=self.han,
+            fu=self.fu,
+            yaku=self.yaku,
+            points=points,
+            limit=self.limit,
+            yakuman_count=self.yakuman_count,
+        )
+
+
+def hand_limit(yaku_level: str, yaku: list[YakuInfo], *, han: int, fu: int) -> tuple[HandLimit, int | None]:
+    """
+    Return the limit the scoring library's yaku_level names, with how many yakuman a yakuman level counts.
+
+    The library counts a yakuman as 13 han once per yakuman it is worth (_YAKUMAN_HAN), and labels a kazoe yakuman as a
+    yakuman once its han reach the yakuman tier, so a yakuman level without a yakuman yaku in the hand is a kazoe
+    yakuman. With kiriage on it labels only the kiriage hands below 5 han and leaves a mangan its fu reach (4 han 40 fu,
+    3 han 70 fu) unlabelled though it pays it, so a hand whose base points pass the mangan's is a mangan whatever the
+    label. An unknown label raises rather than pass as no limit.
+    """
+    level = _LIMIT_LEVELS.get(yaku_level)
+    if level is None:
+        raise ValueError(f"unknown scoring library yaku level: {yaku_level!r}")
+
+    limit, yakuman_count = level
+    if limit == HandLimit.NONE and fu * 2 ** (han + 2) > _MANGAN_BASE_POINTS:
+        return HandLimit.MANGAN, None
+
+    if limit == HandLimit.YAKUMAN and not any(y.yakuman_count > 0 for y in yaku):
+        return HandLimit.KAZOE_YAKUMAN, yakuman_count
+
+    return limit, yakuman_count
 
 
 @dataclass(frozen=True)
@@ -195,15 +253,21 @@ def _evaluate_hand(
     yaku_list: list[YakuInfo] = []
     if result.yaku:
         for y in result.yaku:
-            han = y.han_open if result.is_open_hand and y.han_open > 0 else y.han_closed
-            yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=han, is_yakuman=y.is_yakuman))
+            yaku_han = y.han_open if result.is_open_hand and y.han_open > 0 else y.han_closed
+            yakuman_count = yaku_han // _YAKUMAN_HAN if y.is_yakuman else 0
+            yaku_list.append(YakuInfo(yaku_id=y.yaku_id, han=yaku_han, yakuman_count=yakuman_count))
 
+    han = result.han or 0
+    fu = result.fu or 0
+    limit, yakuman_count = hand_limit(result.cost["yaku_level"] if result.cost else "", yaku_list, han=han, fu=fu)
     return HandResult(
-        han=result.han or 0,
-        fu=result.fu or 0,
+        han=han,
+        fu=fu,
         cost_main=result.cost["main"] if result.cost else 0,
         cost_additional=result.cost["additional"] if result.cost else 0,
         yaku=yaku_list,
+        limit=limit,
+        yakuman_count=yakuman_count,
     )
 
 
@@ -292,6 +356,30 @@ def _pao_share(payment: int, hand_result: HandResult) -> int:
     return payment * _pao_yakuman_han(hand_result) // hand_result.han
 
 
+def _pao_liability(
+    liable_seat: int | None,
+    hand_result: HandResult,
+    *,
+    loser_seat: int | None,
+    honba_bonus: int,
+) -> PaoLiability | None:
+    """
+    Describe what a winner's liable (pao) seat pays, or None without one.
+
+    It pays all of the pao yakuman on a tsumo (loser_seat None) and on a ron it dealt in itself, half of it on another
+    seat's ron, and the whole honba bonus with either.
+    """
+    if liable_seat is None:
+        return None
+
+    is_half = loser_seat is not None and loser_seat != liable_seat
+    return PaoLiability(
+        yaku_ids=[y.yaku_id for y in hand_result.yaku if y.yaku_id in _PAO_YAKU_IDS],
+        share=PaoShare.HALF if is_half else PaoShare.ALL,
+        pays_honba=honba_bonus > 0,
+    )
+
+
 def _tsumo_payer_changes(
     *,
     payments: dict[int, int],
@@ -369,7 +457,8 @@ def apply_tsumo_score(
         hand_result=hand_result,
         honba_bonus_per_loser=honba_bonus_per_loser,
     )
-    score_changes[winner_seat] = hand_points + honba_bonus_per_loser * len(payments) + riichi_bonus
+    honba_bonus = honba_bonus_per_loser * len(payments)
+    score_changes[winner_seat] = hand_points + honba_bonus + riichi_bonus
 
     new_game_state = _apply_score_changes(game_state, score_changes)
     return (
@@ -383,7 +472,9 @@ def apply_tsumo_score(
             closed_tiles=list(winner.tiles[:-1]),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
             win_tile=winner.tiles[-1],
+            honba_bonus=honba_bonus,
             pao_seat=liable_seat,
+            pao=_pao_liability(liable_seat, hand_result, loser_seat=None, honba_bonus=honba_bonus),
             ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
@@ -466,7 +557,9 @@ def apply_ron_score(
             riichi_sticks_collected=riichi_bonus // settings.riichi_stick_value,
             closed_tiles=list(winner.tiles),
             melds=[frozen_meld_to_compact(m) for m in winner.melds],
+            honba_bonus=honba_bonus,
             pao_seat=liable_seat,
+            pao=_pao_liability(liable_seat, hand_result, loser_seat=loser_seat, honba_bonus=honba_bonus),
             ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
         ),
     )
@@ -533,7 +626,9 @@ def apply_double_ron_score(
                 ),
                 closed_tiles=list(winner.tiles),
                 melds=[frozen_meld_to_compact(m) for m in winner.melds],
+                honba_bonus=honba_bonus,
                 pao_seat=liable_seat,
+                pao=_pao_liability(liable_seat, hand_result, loser_seat=loser_seat, honba_bonus=honba_bonus),
                 ura_dora_indicators=collect_ura_dora_indicators(winner, round_state, settings=settings),
             ),
         )
@@ -591,6 +686,7 @@ def apply_nagashi_mangan_score(
         new_game_state,
         NagashiManganResult(
             qualifying_seats=qualifying_seats,
+            rivers=[NagashiRiver(seat=seat, discards=river_of(round_state.players[seat])) for seat in qualifying_seats],
             tempai_seats=tempai_seats,
             noten_seats=noten_seats,
             tenpai_hands=tenpai_hands,

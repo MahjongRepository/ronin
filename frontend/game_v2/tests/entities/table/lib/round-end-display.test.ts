@@ -10,6 +10,8 @@ import {
     type WinPageDisplay,
     roundEndDisplay,
 } from "@/entities/table";
+import { type PaoLiability } from "@/shared/protocol";
+import { PAO_SHARE } from "@/shared/protocol/constants";
 
 function roundEndTables(name: string): TableState[] {
     return loadEngineReplay(name).tables.filter(
@@ -26,8 +28,8 @@ function lastRoundEndTable(name: string): TableState {
 
 function displayAt(table: TableState, page = 0): RoundEndDisplayState {
     assert(table.roundEndResult !== null);
-    const { dealerSeat, players, roundEndResult } = table;
-    return roundEndDisplay({ dealerSeat, players, result: roundEndResult }, page);
+    const { players, roundEndResult } = table;
+    return roundEndDisplay({ players, result: roundEndResult }, page);
 }
 
 function winPage(table: TableState, page = 0): WinPageDisplay {
@@ -126,41 +128,37 @@ describe("roundEndDisplay - a win", () => {
         expect(page.winningTileLabel).toBe("Tsumo");
     });
 
-    test("pao names the yakuman it covers and the share: half of it on another's ron with the honba, all when it dealt in", () => {
+    test("pao words the server's liability: the yakuman it covers, its share and the honba, whatever the hand and loser", () => {
         const table = lastRoundEndTable("pao");
         const result = table.roundEndResult;
         assert(result !== null && result.winners[0] !== undefined);
         const ended: RoundEndResult = result;
         const [winner] = result.winners;
-        const stacked = {
-            ...winner,
-            handResult: {
-                ...winner.handResult,
-                yaku: [...winner.handResult.yaku, { han: 13, isYakuman: true, yakuId: 107 }],
-            },
-        };
-        function notesWhen(loserSeat: number | null, honbaBonus: number): readonly string[] {
-            const winners = [{ ...stacked, honbaBonus }];
+        function notesWhen(loserSeat: number | null, pao: PaoLiability): readonly string[] {
+            const winners = [{ ...winner, pao }];
             return winPage({ ...table, roundEndResult: { ...ended, loserSeat, winners } }).notes;
         }
+        const daisuushiiHalf = { paysHonba: true, seat: 0, share: PAO_SHARE.HALF, yakuIds: [111] };
 
-        expect(notesWhen(null, 0)).toContain(
-            "Pao: Diana is liable for Daisangen and pays all of it",
+        expect(notesWhen(null, daisuushiiHalf)).toContain(
+            "Pao: Diana is liable for Dai Suushii and pays half of it and the honba",
         );
-        expect(notesWhen(2, 300)).toContain(
-            "Pao: Diana is liable for Daisangen and pays half of it and the honba",
+        expect(
+            notesWhen(2, { ...daisuushiiHalf, paysHonba: false, share: PAO_SHARE.ALL }),
+        ).toContain("Pao: Diana is liable for Dai Suushii and pays all of it");
+        expect(notesWhen(0, daisuushiiHalf)).toContain(
+            "Pao: Diana is liable and dealt in, so pays it all",
         );
-        expect(notesWhen(0, 0)).toContain("Pao: Diana is liable and dealt in, so pays it all");
     });
 
-    test("a yakuman yaku worth more than one names its multiple in place of han", () => {
+    test("a yakuman yaku worth more than one names the server's multiple in place of han", () => {
         const table = lastRoundEndTable("pao");
         const result = table.roundEndResult;
         assert(result !== null && result.winners[0] !== undefined);
         const [winner] = result.winners;
         const doubled = {
             ...winner,
-            handResult: { ...winner.handResult, yaku: [{ han: 26, isYakuman: true, yakuId: 111 }] },
+            handResult: { ...winner.handResult, yaku: [{ han: 13, yakuId: 111, yakumanCount: 2 }] },
         };
         const page = winPage({ ...table, roundEndResult: { ...result, winners: [doubled] } });
 
@@ -195,6 +193,31 @@ describe("roundEndDisplay - a win", () => {
             ["Honba +600"],
             ["Honba +600"],
         ]);
+    });
+});
+
+describe("roundEndDisplay - the server's facts, never the table's or arithmetic", () => {
+    test("the honba note is the server's bonus, never the winner's gain less its hand and sticks", () => {
+        const table = lastRoundEndTable("riichi");
+        const result = table.roundEndResult;
+        assert(result !== null && result.winners[0] !== undefined);
+        const winners = [{ ...result.winners[0], honbaBonus: 600 }];
+
+        expect(winPage({ ...table, roundEndResult: { ...result, winners } }).notes).toContain(
+            "Honba +600",
+        );
+    });
+
+    test("the dealer and dora are the result's, whatever the table holds", () => {
+        const table = lastRoundEndTable("ron_riichi_discard");
+        const result = table.roundEndResult;
+        assert(result !== null);
+        const stale: TableState = { ...table, dealerSeat: 2, doraIndicators: [] };
+        const page = winPage(stale);
+
+        expect(page.winnerWind).toBe("South");
+        expect(page.doraIndicators).toHaveLength(result.doraIndicators.length);
+        expect(page.doraIndicators.length).toBeGreaterThan(0);
     });
 });
 
@@ -267,8 +290,12 @@ describe("roundEndDisplay - a draw", () => {
         ]);
     });
 
-    test("a nagashi mangan shows its maker's river as the proof", () => {
-        const page = drawPage(lastRoundEndTable("nagashi"));
+    test("a nagashi mangan shows its maker's river as the server names it, whatever the table's river", () => {
+        const table = lastRoundEndTable("nagashi");
+        const page = drawPage({
+            ...table,
+            players: table.players.map((player) => ({ ...player, discards: [] })),
+        });
 
         expect(
             page.rivers.map((river) => ({

@@ -13,15 +13,20 @@ import {
 } from "@/entities/replay/model/replay-cursor";
 import {
     type BoardCallouts,
+    type BoardDisplayState,
     type BoardPerspective,
     type Call,
     type ReplayLineError,
+    type TablePanel,
     type TableState,
     boardCallouts,
     formatRoundName,
     honbaName,
+    replaySeatingPanel,
     roundName,
     roundResultSummary,
+    tablePanel,
+    tableStateToDisplayState,
 } from "@/entities/table";
 
 /** A replay that is not the whole game: a short label, and why. */
@@ -31,11 +36,16 @@ export interface ReplayIncompleteness {
 }
 
 /**
- * A replay as its page reads it: its tables with the calls each state shows (index by index), its navigation, and where
- * it broke off.
+ * A replay as its page reads it: its tables with the calls each state shows (index by index), its navigation, where
+ * it broke off, and the table its seating shows.
  */
 export interface ReplaySource {
     readonly tables: readonly TableState[];
+    /**
+     * The table as the game started, seated before its first deal, each seat at the score its first deal starts it
+     * on (the game's start names none): the seating the page opens on.
+     */
+    readonly startTable: TableState;
     readonly calls: readonly (readonly Call[])[];
     readonly navigation: NavigationIndex;
     readonly damage: ReplayLineError | null;
@@ -59,9 +69,12 @@ export interface ReplayRoundRow {
     readonly start: ReplayCursor;
 }
 
-/** What a replay page shows at a cursor beside the board: where it stands and where it can go. */
+/** What a replay page shows at a cursor: the board and the panel over it, where it stands and where it can go. */
 export interface ReplayDisplay {
-    readonly table: TableState;
+    /** The stop's board, or the table as the game started under its seating. */
+    readonly board: BoardDisplayState | null;
+    /** The panel over the board: the seating, a round's result at the cursor's page, the game's end; else null. */
+    readonly overlay: TablePanel | null;
     /** The calls the stop's own move made, by their seats from the perspective's; null for a move that made none. */
     readonly callouts: BoardCallouts | null;
     /** The round's whole name, its honba included: "East 2, 1 honba". */
@@ -145,18 +158,51 @@ function stopCallouts(
     return { items: boardCallouts(calls, perspective.bottomSeat), key: `stop-${stop}` };
 }
 
-/** What the page shows at `cursor` from `perspective`: the table, the round and step and the moves. */
-export function replayDisplay(
+/** Where the page stands: at a stop, or on the seating over the table as the game started, before any stop. */
+export interface ReplayPlace {
+    readonly cursor: ReplayCursor;
+    readonly perspective: BoardPerspective;
+    /** The seating shows, while the replay waits for its reader at its start. */
+    readonly seating: boolean;
+}
+
+/** The stop's board and panel, or the seating over the table as the game started, which shows no call. */
+function stopBoard(
     source: ReplaySource,
-    cursor: ReplayCursor,
-    perspective: BoardPerspective,
-): ReplayDisplay {
+    { cursor, perspective, seating }: ReplayPlace,
+): Pick<ReplayDisplay, "board" | "callouts" | "overlay"> {
+    if (seating) {
+        return {
+            board: tableStateToDisplayState(source.startTable, perspective),
+            callouts: null,
+            overlay: replaySeatingPanel(source.startTable),
+        };
+    }
+    const { stateIndex } = source.navigation.stops[cursor.stop];
+    const table = source.tables[stateIndex];
+    const callouts = stopCallouts(source.calls[stateIndex] ?? [], cursor.stop, perspective);
+    return {
+        board: tableStateToDisplayState(table, perspective),
+        callouts,
+        overlay: tablePanel(table, {
+            callouts,
+            firstDealSeconds: null,
+            overGameEnd: false,
+            page: cursor.page,
+            viewerSeat: null,
+        }),
+    };
+}
+
+/** What the page shows at its place: the board and its panel, the round and step and the moves. */
+export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayDisplay {
+    const { cursor } = place;
     const nav = source.navigation;
     const stop = nav.stops[cursor.stop];
     const round = cursorRound(nav, cursor);
     const position = roundPosition(nav, cursor);
     return {
-        callouts: stopCallouts(source.calls[stop.stateIndex] ?? [], cursor.stop, perspective),
+        ...stopBoard(source, place),
         endNotice: endNotice(source, cursor),
         honbaLabel: honbaName(round.honba),
         incomplete: incompleteness(source),
@@ -165,6 +211,5 @@ export function replayDisplay(
         roundTitle: roundName(round.wind, round.roundInWind),
         rounds: roundRows(nav, stop.round),
         step: { count: round.stopCount, index: position.step + 1 },
-        table: source.tables[stop.stateIndex],
     };
 }

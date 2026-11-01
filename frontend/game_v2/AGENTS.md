@@ -19,12 +19,17 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   `decisionOf`, `roundConfirmOf`, `desyncOf`.
 * **Timelines, not history.** Stepping back selects an earlier state from `buildClientTimeline`, never an inverse
   event, and a timeline executes no effect, so revisiting a prompt sends nothing.
+* **One clock.** Every time the page reads is `browserClock`'s (`shared/clock`): wall time that never runs back,
+  absorbing a wall clock set back and counting a forward jump as time that passed (a sleep pauses
+  `performance.now` on several platforms, so a forward step cannot be told from one; the server's deadlines really
+  passed). Views take it as `deps.clock`; a test gives them `steadyClockOn` a `ManualClock`.
 * **Views are controller instances, one per mount.** `index.ts` alone wires the browser's sources (socket factory,
   loader, clock, storage). A view keeps no module state, looks up no element by id, takes input only through its own
   root, and its dispose cancels every timer, socket, fetch and listener it owns; a callback after dispose is dropped.
 * **Components take faces, mappers take ids.** `Hand`, `Discards`, `Meld` take `TileFace`s; `GameBoard` renders a
-  `BoardDisplayState` and decides nothing. A new board prop is added to the mappers (`tableStateToDisplayState`,
-  `playDisplay`), never computed in a view. Every playable tile is a native button whatever its state.
+  `BoardDisplayState` and decides nothing. A new board prop or panel is added to the mappers
+  (`tableStateToDisplayState`, `tablePanel`, `playDisplay`, `replayDisplay`), never computed in a view or component.
+  Every playable tile is a native button whatever its state.
 * A new route also needs its path in the lobby's game page list (`backend/lobby/server/app.py`), which 404s others.
   The replay and storybook are lazy routes, so neither ships to a player who only plays.
 * `package.json` `sideEffects` lists every module with an import-time effect; a new one goes there or the build drops it.
@@ -35,7 +40,9 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
 Imports use `@/` for `src/`. Layers depend downward only: `views/` → `entities/` → `shared/`. Slices import each
 other through their `index.ts`, downward only: `replay` → `client` → `session`, `table` → `tile`. `.oxlintrc.json`
 enforces this with one `no-restricted-imports` override per layer and slice; a new slice needs its own override, and
-since an override replaces the rule's options, each repeats the zod and test bans. A helper two layers need goes to
+since an override replaces the rule's options, each repeats the zod and test bans. A `shared/` module's `index.ts` is
+a border too: code outside it imports `@/shared/<module>`, never its files (tests excepted, as for slices). Generic
+lit-html helpers (focus, Tab inside a modal) are `shared/ui`'s. A helper two layers need goes to
 the lowest layer allowed to hold it. `src/fixtures/` is generated data; only storybook views and tests import it.
 
 ## Conventions

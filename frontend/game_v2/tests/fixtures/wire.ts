@@ -2,7 +2,7 @@ import { EVENT_TYPE, ROUND_RESULT_TYPE } from "@/shared/protocol";
 
 export type WirePayload = Record<string, unknown>;
 
-export const WIRE_DRAW: WirePayload = { bk: 20, d: 0, t: 1, wi: 1 };
+export const WIRE_DRAW: WirePayload = { bk: 20, d: 0, t: 1, tr: 69, wi: 1 };
 
 export const WIRE_GAME_JOINED: WirePayload = { pt: 30, type: "game_joined" };
 
@@ -32,7 +32,6 @@ export const WIRE_GAME_STARTED: WirePayload = {
         { ai: 0, nm: "P2", s: 2 },
         { ai: 0, nm: "P3", s: 3 },
     ],
-    rc: 10,
     rsv: 10,
     s: 0,
     t: 8,
@@ -40,8 +39,8 @@ export const WIRE_GAME_STARTED: WirePayload = {
 };
 
 /**
- * A replay file's game start: the recorded settings (`gs`, only the riichi cost and stick value here) in place of the
- * live `rc` and `rsv`.
+ * A replay file's game start: the recorded settings (`gs`, only the riichi stick value here) in place of the live
+ * `rsv`.
  */
 export const REPLAY_GAME_STARTED: WirePayload = {
     dd: [
@@ -50,7 +49,7 @@ export const REPLAY_GAME_STARTED: WirePayload = {
     ],
     dl: 0,
     gid: "g1",
-    gs: { riichi_cost: 1000, riichi_stick_value: 1000 },
+    gs: { riichi_stick_value: 1000 },
     gt: 0,
     p: [
         { ai: 0, nm: "P0", s: 0 },
@@ -89,6 +88,7 @@ export const WIRE_GAME_RECONNECTED: WirePayload = {
     di: [0],
     dl: 0,
     f: false,
+    fd: 0,
     gid: "g1",
     h: 0,
     mt: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
@@ -101,9 +101,9 @@ export const WIRE_GAME_RECONNECTED: WirePayload = {
     ],
     pst: [0, 1, 2, 3].map(wireSeatState),
     r: 0,
-    rc: 10,
     rh: [WIRE_ROUND_RECORD],
     rsv: 10,
+    rw: 2,
     s: 0,
     tm: WIRE_TIMER,
     tr: 70,
@@ -132,8 +132,10 @@ export const WIRE_ROUND_STARTED: WirePayload = {
         { s: 3, sc: 250 },
     ],
     r: 0,
+    rw: 1,
     s: 0,
     t: 9,
+    tr: 70,
     w: 0,
 };
 
@@ -146,7 +148,9 @@ export const REPLAY_ROUND_STARTED: WirePayload = {
     n: 1,
     p: [0, 1, 2, 3].map((seat) => ({ s: seat, sc: 250, tl: dealtTiles(4 + seat * 13) })),
     r: 0,
+    rw: 1,
     t: 9,
+    tr: 70,
     w: 0,
 };
 
@@ -170,8 +174,12 @@ export function wireRoundEnd(
 ): WirePayload {
     const roundEnd: WirePayload = {
         ct: [0, 4, 8],
-        hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0, ym: false }] },
+        di: [40],
+        dl: 0,
+        hb: 0,
+        hr: { fu: 30, han: 3, lm: "none", pt: 39, yk: [{ han: 1, yi: 0, ym: 0 }] },
         ml: [],
+        r: 0,
         rc: 0,
         rt: ROUND_RESULT_TYPE.TSUMO,
         sch: { "0": 30, "1": -10, "2": -10, "3": -10 },

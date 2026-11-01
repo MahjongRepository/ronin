@@ -4,29 +4,37 @@ import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
-    REPLAY_ROUND_LIST_ID,
-    ROUND_LIST_ROW_CLASS,
+    CURRENT_ROUND_FOCUS_KEY,
+    type LoadedReplayScreen,
+    ROUND_LIST_TOGGLE_FOCUS_KEY,
     ReplayControls,
     type ReplayCursor,
     type ReplayDisplay,
+    type ReplayFailure,
+    type ReplayFocusTarget,
+    type ReplayOpening,
+    type ReplayPageEffect,
+    type ReplayPageInput,
+    type ReplayPageStep,
     type ReplayPrefsStore,
+    type ReplayScreen,
     ReplayStatus,
     RoundList,
     type StepDirection,
+    canStep,
     lastCursor,
     replayAddressSearch,
     replayDisplay,
+    replayPageDeadline,
+    stepReplayPage,
 } from "@/entities/replay";
 import {
     GameBoard,
-    GameStartDisplay,
+    type PanelAction,
     type PlatePress,
     type SeatPosition,
-    type TableState,
-    boardOverlay,
-    replaySeatingDisplay,
-    showsRoundResult,
-    tableStateToDisplayState,
+    type TablePanelControls,
+    TablePanelDisplay,
 } from "@/entities/table";
 import {
     type LoadReplay,
@@ -41,6 +49,7 @@ import {
     assertNever,
     createDeadlineTimer,
     createThrottledWriter,
+    focusByKey,
 } from "@/shared/lib";
 import {
     HOLD_EVENTS,
@@ -51,19 +60,6 @@ import {
     pressedStepButton,
     stepKeyDirection,
 } from "@/views/replay-input";
-import {
-    type LoadedScreen,
-    type ReplayFailure,
-    type ReplayFocusTarget,
-    type ReplayOpening,
-    type ReplayPageEffect,
-    type ReplayPageInput,
-    type ReplayPageStep,
-    type ReplayScreen,
-    canStep,
-    replayPageDeadline,
-    stepReplayPage,
-} from "@/views/replay-page";
 
 /** The page's address, which the view reads once and keeps on the position it shows. */
 export interface ReplayLocation {
@@ -191,9 +187,25 @@ function isShown(element: HTMLElement): boolean {
     return typeof element.checkVisibility !== "function" || element.checkVisibility();
 }
 
+/** The focus key the seating's Start renders, so the page focuses it as the seating opens. */
+const START_FOCUS_KEY = "seating-start";
+
+/** What a loaded screen keeps but never draws: the hold, the click a press drops and the wheel's gesture. */
+const UNDRAWN = { hold: null, pressedStep: null, wheel: null } as const;
+
+/** Whether two objects hold the same fields, each the same value. */
+function sameFields(first: object, second: object): boolean {
+    const other = new Map(Object.entries(second));
+    const fields = Object.entries(first);
+    return (
+        fields.length === other.size &&
+        fields.every(([name, value]) => other.has(name) && Object.is(value, other.get(name)))
+    );
+}
+
 /**
- * Whether two screens draw the same page: a replay's wheel gesture, the click a press drops, the hold and autoplay's
- * next move are kept, never drawn, so a change to them alone draws nothing.
+ * Whether two screens draw the same page: they differ in nothing but what a screen keeps and never draws (the hold,
+ * the click a press drops, the wheel's gesture and autoplay's next move), so a change to those alone draws nothing.
  */
 function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
     if (shown === next) {
@@ -203,18 +215,16 @@ function drawsAlike(shown: ReplayScreen, next: ReplayScreen): boolean {
         return false;
     }
     return (
-        shown.replay === next.replay &&
-        shown.view === next.view &&
-        shown.roundListOpen === next.roundListOpen &&
-        shown.hideHands === next.hideHands &&
-        shown.seating === next.seating &&
-        shown.autoplay.playing === next.autoplay.playing
+        sameFields(
+            { ...shown, ...UNDRAWN, autoplay: null },
+            { ...next, ...UNDRAWN, autoplay: null },
+        ) && sameFields({ ...shown.autoplay, dueAt: null }, { ...next.autoplay, dueAt: null })
     );
 }
 
 /** The replay's moves and options over the board's band, and the round list over the board while it is open. */
 function controlsTemplate(
-    { autoplay, hideHands, replay, roundListOpen }: LoadedScreen,
+    { autoplay, hideHands, replay, roundListOpen }: LoadedReplayScreen,
     display: ReplayDisplay,
     handlers: ReplayHandlers,
 ): TemplateResult {
@@ -252,58 +262,53 @@ function controlsTemplate(
     })}${roundList}`;
 }
 
-/**
- * The panel over the replay's board: the seating of the table as the game started while the replay waits there for the
- * reader, else the table's own (a round's result at its page, the game's end with the ways back).
- */
-function replayOverlay(
-    { seating, view }: LoadedScreen,
-    table: TableState,
-    { handlers, links }: { readonly links: ReplayLinks; readonly handlers: ReplayHandlers },
-): TemplateResult | undefined {
-    if (seating) {
-        return GameStartDisplay(replaySeatingDisplay(table), [
-            { kind: "button", label: "Start", onClick: handlers.start, primary: true },
-        ]);
-    }
-    return boardOverlay(table, {
-        end: {
-            actions: [
-                { href: links.lobby, kind: "link", label: "Lobby" },
-                { href: links.history, kind: "link", label: "Game history", primary: true },
-            ],
-            viewerSeat: null,
-        },
-        paging: { onPage: handlers.showResultPage, page: view.cursor.page },
-    });
+/** The ways back from the game's end: the lobby and the game history. */
+function endActions(links: ReplayLinks): readonly PanelAction[] {
+    return [
+        { href: links.lobby, kind: "link", label: "Lobby" },
+        { href: links.history, kind: "link", label: "Game history", primary: true },
+    ];
 }
 
 function loadedTemplate(
-    screen: LoadedScreen,
+    screen: LoadedReplayScreen,
     links: ReplayLinks,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { hideHands, replay, view } = screen;
+    const { hideHands, replay, seating, view } = screen;
     const perspective = {
         bottomSeat: view.bottomSeat,
         reveal: hideHands ? "bottom" : "all",
     } as const;
-    const display = replayDisplay(replay, view.cursor, perspective);
+    const display = replayDisplay(replay, { cursor: view.cursor, perspective, seating });
     const platePress: PlatePress = { kind: "view", onView: handlers.viewSeat };
-    const table = screen.seating ? replay.startTable : display.table;
+    const { overlay } = display;
+    const controls: TablePanelControls = {
+        endActions: endActions(links),
+        onPage: handlers.showResultPage,
+        seatingActions: [
+            {
+                focusKey: START_FOCUS_KEY,
+                kind: "button",
+                label: "Start",
+                onClick: handlers.start,
+                primary: true,
+            },
+        ],
+    };
     return html`
         <div class="board-page__board">
             ${GameBoard({
-                callouts: screen.seating ? undefined : display.callouts,
+                callouts: display.callouts,
                 debug: false,
-                overlay: replayOverlay(screen, table, { handlers, links }),
-                overlayIsResult: showsRoundResult(table),
+                overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
+                overlayAfterCall: overlay?.kind === "result" && overlay.afterCall,
                 platePress,
                 replay: {
                     controls: controlsTemplate(screen, display, handlers),
                     status: ReplayStatus({ display }),
                 },
-                state: tableStateToDisplayState(table, perspective),
+                state: display.board,
             })}
         </div>
     `;
@@ -321,6 +326,17 @@ function failedTemplate(
         <div class="replay-state__links">
             ${text.retry ? html`<button type="button" @click=${handlers.retry}>Try again</button>` : nothing}
             <a href=${links.history} role="button" class=${text.retry ? "secondary" : ""}>Game history</a>
+            <a href=${links.lobby} role="button" class="secondary">Lobby</a>
+        </div>
+    </div>`;
+}
+
+/** The page once even its failed screen could not be drawn: why, and the ways back, with nothing of the replay. */
+function brokenTemplate(links: ReplayLinks): TemplateResult {
+    return html`<div class="replay-state replay-state--failed replay-state--broken" role="alert">
+        <p class="replay-state__detail">The replay page ran into an error.</p>
+        <div class="replay-state__links">
+            <a href=${links.history} role="button">Game history</a>
             <a href=${links.lobby} role="button" class="secondary">Lobby</a>
         </div>
     </div>`;
@@ -394,6 +410,8 @@ class ReplayViewController {
     private abort = new AbortController();
     private screen: ReplayScreen = { kind: "loading", waiting: false };
     private disposed = false;
+    /** The failed screen could not be drawn either, so the page shows the bare notice and draws nothing more. */
+    private broken = false;
     private readonly timer: DeadlineTimer;
     /** The step button a hold follows, whose pointer events the view listens to while the screen holds it. */
     private held: HTMLElement | null = null;
@@ -478,7 +496,7 @@ class ReplayViewController {
      * rather than leaving the page on a stop it could not draw; nothing runs after dispose.
      */
     private guard(action: () => void): void {
-        if (this.disposed) {
+        if (this.disposed || this.broken) {
             return;
         }
         try {
@@ -507,10 +525,29 @@ class ReplayViewController {
         this.armDeadline();
     }
 
+    /**
+     * Say the replay cannot be shown after a throw, the error on the console; where drawing that throws too, show a
+     * bare notice with the ways back that draws nothing of the replay.
+     */
     private fail(error: unknown): void {
         console.error("The replay could not be shown:", error);
-        const at = this.deps.clock.now();
-        this.apply(stepReplayPage(this.screen, { at, kind: "show_failed" }));
+        try {
+            const at = this.deps.clock.now();
+            this.apply(stepReplayPage(this.screen, { at, kind: "show_failed" }));
+        } catch (drawError: unknown) {
+            this.showBroken(drawError);
+        }
+    }
+
+    /** Give up drawing the replay for good: the bare notice with the ways back, no timer armed and no hold followed. */
+    private showBroken(drawError: unknown): void {
+        console.error("The failed replay page could not be drawn:", drawError);
+        this.broken = true;
+        this.timer.disarm();
+        this.releaseHold();
+        this.abort.abort();
+        this.addressWriter.cancel();
+        render(brokenTemplate(this.deps.links), this.host);
     }
 
     private runEffect(effect: ReplayPageEffect): void {
@@ -559,21 +596,15 @@ class ReplayViewController {
                 return;
             }
             case "current_round": {
-                this.host
-                    .querySelector<HTMLElement>(`.${ROUND_LIST_ROW_CLASS}[aria-current="true"]`)
-                    ?.focus({ preventScroll: false });
+                focusByKey(this.host, CURRENT_ROUND_FOCUS_KEY, { preventScroll: false });
                 return;
             }
             case "round_list_toggle": {
-                this.host
-                    .querySelector<HTMLElement>(`[aria-controls="${REPLAY_ROUND_LIST_ID}"]`)
-                    ?.focus({ preventScroll: true });
+                focusByKey(this.host, ROUND_LIST_TOGGLE_FOCUS_KEY, { preventScroll: true });
                 return;
             }
             case "start": {
-                this.host
-                    .querySelector<HTMLElement>(".seating__action")
-                    ?.focus({ preventScroll: true });
+                focusByKey(this.host, START_FOCUS_KEY, { preventScroll: true });
                 return;
             }
             default: {

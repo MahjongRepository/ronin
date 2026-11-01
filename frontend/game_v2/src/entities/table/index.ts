@@ -16,7 +16,7 @@ export type {
 export { createInitialPlayerState, createInitialTableState } from "./model/initial-state";
 export { applyEvent } from "./model/apply-event";
 export { DesyncError } from "./model/desync-error";
-export { ponOfType, roundInWind } from "./model/helpers";
+export { ponOfType, seatEntry } from "./model/helpers";
 export { extractRoundEndResult, roundEndPages } from "./model/handlers/round-end";
 export type { RoundEndContext } from "./model/handlers/round-end";
 export { chankanKanDeclared, robbedKanDeclared } from "./model/handlers/kan-declared";
@@ -38,12 +38,16 @@ export { windName } from "./lib/wind-name";
 export { yakuName } from "./lib/yaku-names";
 export { GameBoard } from "./ui/game-board";
 export { BoardNotices, NoticeSheet } from "./ui/board-notices";
-export { focusOnFirstRender, keepTabInside } from "./ui/focus";
+export { BOARD_NOTICES_SELECTOR, BOARD_PANEL_SELECTOR } from "./ui/board-parts";
+export { DECISION_ACTION_FOCUS_KEY, PANEL_CONTROL_FOCUS_KEY } from "./ui/focus";
 export type { BoardNotice } from "./ui/board-notices";
+export type { Notice, NoticeTone } from "./model/notice";
 export type { GameBoardProps, LocalHandInput } from "./ui/game-board";
 export type { PlatePress } from "./ui/nameplate";
-export { boardOverlay, showsRoundResult } from "./ui/board-overlay";
-export type { GameEndView, OverlayView, ResultPaging } from "./ui/board-overlay";
+export { TablePanelDisplay } from "./ui/table-panel";
+export type { TablePanelControls } from "./ui/table-panel";
+export { replaySeatingPanel, tablePanel } from "./lib/table-panel";
+export type { TablePanel, TablePanelView } from "./lib/table-panel";
 export { SEAT_POSITIONS } from "./model/board-types";
 export type {
     BoardCallout,
@@ -76,5 +80,4 @@ export { drawName } from "./lib/draw-name";
 export type { PanelAction } from "./ui/panel-actions";
 export { GameStartDisplay } from "./ui/game-start-display";
 export type { GameStartDisplayState, GameStartSeat, GameStartView } from "./lib/game-start-display";
-export { gameStartDisplay, replaySeatingDisplay } from "./lib/game-start-display";
 export { formatRoundName, honbaName, roundName } from "./lib/round-name";

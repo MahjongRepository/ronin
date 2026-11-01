@@ -3,6 +3,7 @@ import { assert, describe, expect, it } from "vitest";
 import { clientEvent, forbiddingIo } from "#tests/fixtures/scenario";
 import {
     branchAfter,
+    expecting,
     loadSeatScenario,
     receivedPayload,
     scenarioFromTranscript,
@@ -62,6 +63,8 @@ const FINAL_ROUND = loadSeatScenario("final_round_seat_1");
 const FIRST_TURN_WIN_DEALER = loadSeatScenario("first_turn_win_seat_1");
 const FIRST_TURN_WIN_LAST_SEAT = loadSeatScenario("first_turn_win_seat_3");
 const GAME_END_RECONNECT = loadSeatScenario("game_end_reconnect_seat_1");
+const RESYNC = loadSeatScenario("resync_seat_1");
+const RESYNC_BEFORE_DEAL = loadSeatScenario("resync_before_deal_seat_1");
 const { closed } = clientEvent;
 const NINE_MAN_COPIES = [32, 33, 34, 35];
 const ALICE_VIEW = { bottomSeat: 1, reveal: "bottom" } as const;
@@ -120,6 +123,8 @@ describe("seatScenarioFromTranscript", () => {
             "kan_choice_seat_1",
             "own_turn_seat_1",
             "reconnect_seat_1",
+            "resync_before_deal_seat_1",
+            "resync_seat_1",
             "riichi_reconnect_seat_1",
             "seat_left_seat_1",
             "seat_left_seat_3",
@@ -284,12 +289,33 @@ describe("stepGameClient - generated call prompt", () => {
         expect(decisionOf(turn)).toMatchObject({
             deadline: 5000 + (5 + 30) * 1000,
             kind: "turn",
-            kuikaeTileTypes: turnPayload.kt,
             offers: [],
+            opening: { kind: "after_call", kuikaeTileTypes: turnPayload.kt },
             waitId: turnPayload.wi,
         });
         expect(turn.table.players[1].melds.map((meld) => meld.tileIds)).toEqual([[0, 4, 8]]);
         expect(turn.table.players[1].tiles).toHaveLength(11);
+    });
+
+    it("drops the turn after the chi with the socket, and the turn re-sent after the takeover keeps its kuikae, no drawn tile and its deadline", () => {
+        const run = runClean(scenario);
+        const resent = stateAt(scenario, run, "turn re-sent");
+        const resentPayload = receivedPayload(transcript, "turn re-sent");
+
+        expect(decisionOf(stateAt(scenario, run, "dropped"))).toBeNull();
+        expect(decisionOf(resent)).toMatchObject({
+            deadline: 5000 + (5 + 30) * 1000,
+            kind: "turn",
+            offers: [],
+            openedAt: 7000,
+            opening: { kind: "after_call", kuikaeTileTypes: resentPayload.kt },
+            status: { kind: "open" },
+            waitId: receivedPayload(transcript, "turn").wi,
+        });
+        expect(resent.table.players[1].melds.map((meld) => meld.tileIds)).toEqual([[0, 4, 8]]);
+        expect([resent.table.players[1].tiles.length, resent.table.players[1].drawnTileId]).toEqual(
+            [11, null],
+        );
     });
 
     it("keeps a decision open on an intent it does not take, sending nothing: a discard kuikae forbids or a pass on the turn, a discard on the prompt", () => {
@@ -326,7 +352,7 @@ describe("stepGameClient - generated call prompt", () => {
     });
 
     it("closes a prompt left open when the next seat's draw notice shows the server passed for it", () => {
-        const notice = { s: 3, t: EVENT_TYPE.DRAW_NOTICE };
+        const notice = { s: 3, t: EVENT_TYPE.DRAW_NOTICE, tr: 67 };
         const passedOver = branchAfter(scenario, "pon prompt", [
             { event: { at: 13_000, kind: "server_message", raw: notice }, label: "seat 3 drew" },
         ]);
@@ -349,7 +375,7 @@ describe("stepGameClient - generated call prompt", () => {
         expect(decisionOf(next)).toMatchObject({
             deadline: 14_000 + (5 + 28) * 1000,
             kind: "turn",
-            kuikaeTileTypes: [],
+            opening: { drawnTileId: 72, kind: "draw" },
             waitId: drawPayload.wi,
         });
         expect(next.table.players[1].drawnTileId).toBe(72);
@@ -394,9 +420,7 @@ describe("stepGameClient - generated own turn", () => {
         expect(decisionOf(stateAt(scenario, run, "first draw"))).toEqual({
             baseDeadline: 3000 + 5 * 1000,
             deadline: 3000 + (5 + 30) * 1000,
-            drawnTileId: 3,
             kind: "turn",
-            kuikaeTileTypes: [],
             offers: [
                 { kind: "riichi", tileId: 0 },
                 { kind: "riichi", tileId: 1 },
@@ -405,6 +429,7 @@ describe("stepGameClient - generated own turn", () => {
                 { kanType: KAN_TYPE.CLOSED, kind: "kan", tileId: 0 },
             ],
             openedAt: 3000,
+            opening: { drawnTileId: 3, kind: "draw" },
             status: { kind: "open" },
             waitId: receivedPayload(transcript, "first draw").wi,
         });
@@ -674,10 +699,7 @@ describe("stepGameClient - generated riichi reconnect", () => {
             [25_000, 23_000, 25_000, 25_000],
         ]);
         expect(sticksAndScores(reconnected)).toEqual([1, [25_000, 23_000, 25_000, 25_000]]);
-        expect([reconnected.table.players[1].isRiichi, reconnected.table.riichiCost]).toEqual([
-            true,
-            2000,
-        ]);
+        expect(reconnected.table.players[1].isRiichi).toBe(true);
         expect(sticksAndScores(stateAt(scenario, run, "round end"))).toEqual([
             0,
             [25_000, 29_700, 19_800, 25_000],
@@ -691,10 +713,7 @@ describe("stepGameClient - generated riichi reconnect", () => {
             [0, 1500],
         ]);
         assert(result !== null);
-        const { body } = roundEndDisplay(
-            { dealerSeat: table.dealerSeat, players: table.players, result },
-            0,
-        );
+        const { body } = roundEndDisplay({ players: table.players, result }, 0);
         expect(body.kind === "win" && body.notes).toEqual(["Riichi ×1 +1,500"]);
     });
 });
@@ -868,7 +887,10 @@ describe("stepGameClient - generated reconnect", () => {
         const turn = stateAt(scenario, run, "turn");
         const roundEnd = stateAt(scenario, run, "round end");
 
-        expect(decisionOf(turn)).toMatchObject({ kind: "turn", kuikaeTileTypes: [31] });
+        expect(decisionOf(turn)).toMatchObject({
+            kind: "turn",
+            opening: { kind: "after_call", kuikaeTileTypes: [31] },
+        });
         expect(turn.table.players[1].melds.map((meld) => meld.tileIds)).toEqual([[124, 125, HAKU]]);
         expect(decisionOf(stateAt(scenario, run, "ron prompt"))?.offers).toEqual([{ kind: "ron" }]);
         expect(decisionOf(roundEnd)).toBeNull();
@@ -953,6 +975,127 @@ describe("stepGameClient - generated reconnect", () => {
         expect(stateAt(branch, run, "matching")).toMatchObject({
             notice: { code: rateLimited, kind: "refused" },
             sync: { pending: { decision: { status: { kind: "open" } } } },
+        });
+    });
+});
+
+describe("stepGameClient - generated resync", () => {
+    const { scenario, transcript } = RESYNC;
+    const resync = { message: buildResyncMessage(), type: "send" } as const;
+
+    it("asks for the seat's state on its own socket after a frame it cannot decode, and the snapshot and draw re-sent reopen the turn timed by the server", () => {
+        const run = runClean(scenario);
+        const asked = stateAt(scenario, run, "turn resync asked");
+        const resent = stateAt(scenario, run, "draw re-sent");
+
+        expect(decisionOf(stateAt(scenario, run, "first draw"))?.status.kind).toBe("open");
+        expect([decisionOf(asked), desyncOf(asked)?.request]).toEqual([
+            null,
+            { due: 4000 + 10_000, kind: "sent" },
+        ]);
+        expect(desyncOf(stateAt(scenario, run, "turn snapshot"))).toBeNull();
+        expect(decisionOf(resent)).toMatchObject({
+            baseDeadline: 3000 + 5000,
+            deadline: 3000 + (5 + 30) * 1000,
+            offers: [{ kind: "kyuushu" }],
+            openedAt: 4000,
+            status: { kind: "open" },
+            waitId: receivedPayload(transcript, "first draw").wi,
+        });
+        expect([resent.session?.status, resent.resyncRequests]).toEqual(["playing", 1]);
+    });
+
+    it("owes the round confirm again after a resync during the round advance, on the deadline the server's elapsed time and timeout name", () => {
+        const run = runClean(scenario);
+        const waitId = receivedPayload(transcript, "round end").wi;
+        const owed = { deadline: 5000 + 10_000, kind: "owed", waitId };
+
+        expect(roundConfirmOf(stateAt(scenario, run, "round end"))).toEqual(owed);
+        expect(roundConfirmOf(stateAt(scenario, run, "advance resync asked"))).toBeNull();
+        expect(roundConfirmOf(stateAt(scenario, run, "advance snapshot"))).toEqual(owed);
+        expect(stateAt(scenario, run, "advance snapshot").table.phase).toBe("round_ended");
+        expect(roundConfirmOf(stateAt(scenario, run, "confirmed"))).toEqual({
+            ...owed,
+            kind: "sent",
+        });
+        const next = stateAt(scenario, run, "next round");
+        expect([roundConfirmOf(next), next.table.phase, next.resyncRequests]).toEqual([
+            null,
+            "in_round",
+            2,
+        ]);
+    });
+
+    it("asks again at the first deal when the server refuses its resync before dealing", () => {
+        const before = RESYNC_BEFORE_DEAL.scenario;
+        const refused = stateAt(before, runClean(before), "refused");
+        const atDeal = branchAfter(before, "refused", [
+            { event: { at: 2999, kind: "tick" } },
+            { effects: [resync], event: { at: 3000, kind: "tick" }, label: "deal due" },
+        ]);
+
+        expect(receivedPayload(RESYNC_BEFORE_DEAL.transcript, "refused").code).toBe(
+            SESSION_ERROR_CODE.GAME_NOT_STARTED,
+        );
+        expect([desyncOf(refused)?.request, nextDeadline(refused), refused.firstDealDue]).toEqual([
+            { due: 3000, kind: "at_deal" },
+            3000,
+            3000,
+        ]);
+        const atDealRun = runClean(atDeal);
+        expect(desyncOf(stateAt(atDeal, atDealRun, "deal due"))?.request).toEqual({
+            due: 3000 + 10_000,
+            kind: "sent",
+        });
+    });
+
+    function receivedAt4000(label: string): ScenarioStep {
+        const raw = receivedPayload(transcript, label);
+        return { event: { at: 4000, kind: "server_message", raw }, label };
+    }
+
+    /** The scenario with its JOIN_GAME's answer a frame that did not decode, answered by the next snapshot. */
+    function undecodedJoinAnswer(): SeatScenario {
+        const undecoded = scenario.steps.map((step): ScenarioStep =>
+            step.label === "joined"
+                ? {
+                      effects: [{ detail: "non-binary", type: "report_protocol_failure" }],
+                      event: { at: 0, detail: "non-binary", kind: "frame_undecodable" },
+                      label: "joined",
+                  }
+                : step,
+        );
+        return branchAfter(
+            expecting({ ...scenario, steps: undecoded }, "dealt", [resync]),
+            "first draw",
+            [receivedAt4000("turn snapshot"), receivedAt4000("draw re-sent")],
+        );
+    }
+
+    it("recovers from a JOIN_GAME answer it cannot decode by asking at the first deal, the snapshot admitting it", () => {
+        const branch = undecodedJoinAnswer();
+        const run = runClean(branch);
+        const joined = stateAt(branch, run, "joined");
+        const started = stateAt(branch, run, "game started");
+        const resent = stateAt(branch, run, "draw re-sent");
+
+        expect([joined.session?.status, desyncOf(joined)?.request]).toEqual([
+            "identifying",
+            { kind: "on_game_message" },
+        ]);
+        expect([started.session?.status, desyncOf(started)?.request]).toEqual([
+            "identifying",
+            { due: 3000, kind: "at_deal" },
+        ]);
+        expect(decisionOf(stateAt(branch, run, "first draw"))).toBeNull();
+        expect([resent.session?.status, desyncOf(resent), resent.resyncRequests]).toEqual([
+            "playing",
+            null,
+            1,
+        ]);
+        expect(decisionOf(resent)).toMatchObject({
+            offers: [{ kind: "kyuushu" }],
+            waitId: receivedPayload(transcript, "first draw").wi,
         });
     });
 });

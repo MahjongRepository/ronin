@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 
-from game.logic.enums import GameAction, GameErrorCode, RoundPhase, TimeoutType, WaitKind
+from game.logic.enums import GameAction, GameErrorCode, HandLimit, RoundPhase, TimeoutType, WaitKind
 from game.logic.events import (
     ErrorEvent,
     EventType,
@@ -33,8 +33,11 @@ def _make_exhaustive_draw_result() -> ExhaustiveDrawResult:
 def _make_double_ron_result() -> DoubleRonResult:
     winners = [
         DoubleRonWinner(
+            honba_bonus=0,
             winner_seat=seat,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+            hand_result=HandResultInfo(
+                limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000
+            ),
             score_changes={1: -1000, seat: 1000},
             riichi_sticks_collected=0,
             closed_tiles=[],

@@ -40,11 +40,6 @@ export interface LoadedReplay extends ReplaySource {
     readonly events: readonly StepEvent[];
     /** The first deal, where the page opens when its address names no stop the replay holds. */
     readonly opening: ReplayCursor;
-    /**
-     * The table as the game started, seated before its first deal, each seat at the score its first deal starts it
-     * on (the game's start names none): the seating the page opens on.
-     */
-    readonly startTable: TableState;
     /** The recorded first dealer's seat, the default seat at the bottom (`docs/architecture.md`, Replays). */
     readonly firstDealerSeat: number;
     readonly seatCount: number;

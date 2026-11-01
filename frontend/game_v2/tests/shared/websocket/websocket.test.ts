@@ -1,6 +1,8 @@
 import { encode } from "@msgpack/msgpack";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
+import { type Clock } from "@/shared/clock";
 import { GameSocket, type SocketHandlers } from "@/shared/websocket/websocket";
 
 class FakeWebSocket {
@@ -42,23 +44,41 @@ let socket: GameSocket | null = null;
 function connectedSocket(
     closes: [number, string][],
     handlers: Partial<SocketHandlers> = {},
+    clock: Clock = steadyClockOn(new ManualClock()),
 ): FakeWebSocket {
-    socket = new GameSocket("ws://game/ws/g1", {
-        onClose: (code, reason) => closes.push([code, reason]),
-        onError: () => {},
-        onMessage: () => {},
-        onOpen: () => {},
-        onUndecodableFrame: () => {},
-        ...handlers,
-    });
+    socket = new GameSocket(
+        "ws://game/ws/g1",
+        {
+            onClose: (code, reason) => closes.push([code, reason]),
+            onError: () => {},
+            onMessage: () => {},
+            onOpen: () => {},
+            onUndecodableFrame: () => {},
+            ...handlers,
+        },
+        clock,
+    );
     const [ws] = FakeWebSocket.created;
     ws.open();
     return ws;
 }
 
+/** A socket on a hand-moved clock, open at time 0. */
+function socketOnClock(): {
+    closes: [number, string][];
+    clock: ManualClock;
+    ws: FakeWebSocket;
+} {
+    const clock = new ManualClock();
+    const closes: [number, string][] = [];
+    const ws = connectedSocket(closes, {}, steadyClockOn(clock));
+    return { clock, closes, ws };
+}
+
+const HOUR_MS = 3_600_000;
+
 describe("GameSocket silence watchdog", () => {
     beforeEach(() => {
-        vi.useFakeTimers();
         FakeWebSocket.created = [];
         vi.stubGlobal("WebSocket", FakeWebSocket);
     });
@@ -67,44 +87,71 @@ describe("GameSocket silence watchdog", () => {
         socket?.disconnect();
         socket = null;
         vi.unstubAllGlobals();
-        vi.useRealTimers();
     });
 
     it("keeps a socket that hears from the server within the limit, reports a longer silence as a close, and never reconnects itself", () => {
-        const closes: [number, string][] = [];
-        const ws = connectedSocket(closes);
+        const { clock, closes, ws } = socketOnClock();
 
-        vi.advanceTimersByTime(60_000);
+        clock.advanceTo(60_000);
         ws.receiveFrame();
-        vi.advanceTimersByTime(85_000);
+        clock.advanceTo(145_000);
         expect([ws.closed, closes]).toEqual([false, []]);
 
-        vi.advanceTimersByTime(10_000);
+        clock.advanceTo(155_000);
         expect([ws.closed, closes]).toEqual([true, [[1006, "server_silent"]]]);
 
-        vi.advanceTimersByTime(120_000);
+        clock.advanceTo(275_000);
         expect([FakeWebSocket.created.length, closes.length]).toEqual([1, 1]);
     });
 
     it("waits out the silence limit the client sets, so a longer time control's turn is never taken for a lost connection", () => {
-        const closes: [number, string][] = [];
-        const ws = connectedSocket(closes);
+        const { clock, closes, ws } = socketOnClock();
         socket?.setSilenceLimit(150_000);
 
-        vi.advanceTimersByTime(145_000);
+        clock.advanceTo(145_000);
         expect([ws.closed, closes]).toEqual([false, []]);
 
-        vi.advanceTimersByTime(10_000);
+        clock.advanceTo(155_000);
         expect([ws.closed, closes]).toEqual([true, [[1006, "server_silent"]]]);
     });
 
-    it("reports the close on the first check after the device wakes from a long sleep", () => {
-        const closes: [number, string][] = [];
-        const ws = connectedSocket(closes);
+    it.each([
+        ["elapsed time ran through it", (clock: ManualClock) => clock.advanceTo(120_000)],
+        [
+            "elapsed time paused, as a forward wall step looks",
+            (clock: ManualClock) => clock.stepWall(120_000),
+        ],
+    ])(
+        "reports the close on the first check after the device wakes from a long sleep (%s)",
+        (_sleep, sleep) => {
+            const { clock, closes, ws } = socketOnClock();
 
-        vi.setSystemTime(Date.now() + 120_000);
-        vi.advanceTimersByTime(5000);
+            sleep(clock);
+            clock.advanceTo(clock.elapsedNow() + 5000);
+            expect([ws.closed, closes]).toEqual([true, [[1006, "server_silent"]]]);
+        },
+    );
+
+    it("reports a silence past the limit even after the wall clock stepped back an hour", () => {
+        const { clock, closes, ws } = socketOnClock();
+        clock.stepWall(-HOUR_MS);
+
+        clock.advanceTo(90_000);
+        expect([ws.closed, closes]).toEqual([false, []]);
+
+        clock.advanceTo(95_000);
         expect([ws.closed, closes]).toEqual([true, [[1006, "server_silent"]]]);
+    });
+
+    it("keeps a socket that hears from the server when the wall clock steps back an hour and is set right again", () => {
+        const { clock, closes, ws } = socketOnClock();
+        clock.stepWall(-HOUR_MS);
+        clock.advanceTo(5000);
+        ws.receiveFrame();
+
+        clock.stepWall(HOUR_MS);
+        clock.advanceTo(10_000);
+        expect([ws.closed, closes]).toEqual([false, []]);
     });
 });
 

@@ -32,6 +32,17 @@ export type PlayCommand =
     | { readonly kind: "close_notice" }
     | { readonly kind: "reload" };
 
+/**
+ * What moves the view's `ui` in one step: a page control, the client stepping on its own, or the tile sprite's load
+ * moving on.
+ */
+export type PlayUiInput =
+    | PlayCommand
+    | { readonly kind: "client_stepped" }
+    | { readonly kind: "tile_sprite"; readonly status: TileSpriteStatus };
+
+export const CLIENT_STEPPED: PlayUiInput = { kind: "client_stepped" };
+
 /** A button of the open decision: its label and the tiles that tell it from another of its kind (two chi). */
 export interface PlayAction {
     readonly label: string;
@@ -72,4 +83,32 @@ export const NO_PLAY_UI: PlayUi = {
 
 export function intentCommand(intent: LocalIntent): PlayCommand {
     return { intent, kind: "intent" };
+}
+
+/** A control that opens a step of the decision Escape steps back from: the riichi toggle or a call's choice of tiles. */
+export type StepOpener = Extract<
+    PlayCommand,
+    { kind: "toggle_riichi_pick" | "toggle_tile_choice" }
+>;
+
+/** What Escape does while a step of the decision is open: its command, and the control that opened the step. */
+export interface EscapeStep {
+    readonly command: PlayCommand;
+    readonly opener: StepOpener;
+}
+
+function stepOpenerKey(opener: StepOpener): string {
+    return opener.kind === "toggle_riichi_pick" ? "riichi-pick" : `tile-choice-${opener.offer}`;
+}
+
+/** The key a step's opener renders, by its command, so Escape focuses it back; null for any other control. */
+export function commandFocusKey(command: PlayCommand): string | null {
+    return command.kind === "toggle_riichi_pick" || command.kind === "toggle_tile_choice"
+        ? stepOpenerKey(command)
+        : null;
+}
+
+/** The key of the control that opened the step Escape steps back from. */
+export function escapeFocusKey(escape: EscapeStep): string {
+    return stepOpenerKey(escape.opener);
 }

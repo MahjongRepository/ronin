@@ -23,6 +23,7 @@ meld = MeldData(
     from_seat=0,
     tile_ids=[8, 9, 10],
     called_tile_id=8,
+    added_tile_id=None,
 )
 
 value = encode_meld_compact(meld)  # e.g. 16181
@@ -45,6 +46,7 @@ decoded = decode_game_event(event)  # back to MeldData
 | `from_seat`      | `int \| None`         | Seat of the opponent whose discard was claimed. `None` for closed kan.                      |
 | `tile_ids`       | `list[int]`           | Tile IDs in 136-format (`tile_34 * 4 + copy`).                                              |
 | `called_tile_id` | `int \| None`         | The specific tile claimed from the opponent's discard. `None` for closed kan.               |
+| `added_tile_id`  | `int \| None`         | Added kan only: the 4th tile added from hand to the pon. `None` for every other type.        |
 
 ## MeldType Values
 
@@ -92,11 +94,11 @@ value = meld_index * 4 + caller_seat
 |------------|--------|-------|--------------|
 | Chi        |      0 |  4032 |    0 -  4031 |
 | Pon        |   4032 |  1224 | 4032 -  5255 |
-| Shouminkan |   5256 |   408 | 5256 -  5663 |
-| Daiminkan  |   5664 |   408 | 5664 -  6071 |
-| Ankan      |   6072 |    34 | 6072 -  6105 |
+| Shouminkan |   5256 |  1224 | 5256 -  6479 |
+| Daiminkan  |   6480 |   408 | 6480 -  6887 |
+| Ankan      |   6888 |    34 | 6888 -  6921 |
 
-Total: 6106 meld indices x 4 seats = 24424 values (fits in 15 bits).
+Total: 6922 meld indices x 4 seats = 27688 values (fits in 15 bits).
 
 ### Per-Type Encoding Formulas
 
@@ -120,14 +122,22 @@ pon_index    = ((tile_34 * 4 + missing_copy) * 3 + called_pos) * 3 + from_offset
 meld_index   = PON_OFFSET + pon_index
 ```
 
-**Shouminkan / Daiminkan** (open kan, all 4 copies):
+**Shouminkan** (added kan): the pon it extends, whose missing copy is the added tile, so the added tile's identity
+survives the encoding:
+
+```
+pon_index    = pon formula over the 3 tiles other than the added one, missing_copy = added_tile_id % 4
+meld_index   = SHOUMINKAN_OFFSET + pon_index
+```
+
+**Daiminkan** (open kan, all 4 copies):
 
 ```
 tile_34      = 0-33
 called_copy  = 0-3  (which physical copy was the called discard)
 from_offset  = 0-2  (same as pon)
 local_index  = (tile_34 * 4 + called_copy) * 3 + from_offset
-meld_index   = <TYPE_OFFSET> + local_index
+meld_index   = DAIMINKAN_OFFSET + local_index
 ```
 
 **Ankan** (closed kan, all 4 copies from hand, no opponent):
@@ -172,6 +182,7 @@ def frozen_meld_to_compact(meld) -> int:
         from_seat=meld.from_who,
         tile_ids=list(meld.tiles),
         called_tile_id=meld.called_tile,
+        added_tile_id=meld.added_tile,
     )
     return encode_meld_compact(data)
 ```
@@ -208,6 +219,7 @@ chi = MeldData(
     from_seat=1,
     tile_ids=[0, 5, 10],
     called_tile_id=10,
+    added_tile_id=None,
 )
 value = encode_meld_compact(chi)
 assert decode_meld_compact(value) == chi
@@ -225,6 +237,7 @@ pon = MeldData(
     from_seat=2,
     tile_ids=[108, 109, 111],
     called_tile_id=111,
+    added_tile_id=None,
 )
 value = encode_meld_compact(pon)
 assert decode_meld_compact(value) == pon
@@ -241,6 +254,7 @@ open_kan = MeldData(
     from_seat=1,
     tile_ids=[124, 125, 126, 127],
     called_tile_id=125,
+    added_tile_id=None,
 )
 value = encode_meld_compact(open_kan)
 assert decode_meld_compact(value) == open_kan
@@ -257,6 +271,7 @@ closed_kan = MeldData(
     from_seat=None,
     tile_ids=[52, 53, 54, 55],
     called_tile_id=None,
+    added_tile_id=None,
 )
 value = encode_meld_compact(closed_kan)
 assert decode_meld_compact(value) == closed_kan
@@ -265,7 +280,7 @@ assert decode_meld_compact(value) == closed_kan
 ### Added Kan (shouminkan)
 
 ```python
-# Player 0 adds 4th tile to existing pon of Chun. Called from player 3.
+# Player 0 adds 4th tile (copy 2) to existing pon of Chun. Called from player 3.
 added_kan = MeldData(
     type="meld",
     meld_type="added_kan",
@@ -273,6 +288,7 @@ added_kan = MeldData(
     from_seat=3,
     tile_ids=[132, 133, 134, 135],
     called_tile_id=133,
+    added_tile_id=134,
 )
 value = encode_meld_compact(added_kan)
 assert decode_meld_compact(value) == added_kan

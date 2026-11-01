@@ -48,6 +48,9 @@ function TileFaceView(tile: HandTile): TemplateResult {
     return tile.show === "face" ? Tile(tile.face, "face") : TileBack();
 }
 
+/** The focus key every tile of the player's own hand holds. */
+export const HAND_TILE_FOCUS_KEY = "hand-tile";
+
 /**
  * One slot of the hand. A tile of the player's own is always a native button, so it takes focus, Enter and Space,
  * and a turn never moves focus out of the hand: only a selectable or declaring one acts, the others say so with `aria-disabled`
@@ -71,6 +74,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         aria-label=${`${props.tileAction ?? "Play"} ${tile.face}`}
         aria-disabled=${acts ? nothing : "true"}
         aria-pressed=${state === "selected" ? "true" : nothing}
+        data-focus-key=${HAND_TILE_FOCUS_KEY}
         @click=${press}
     >${TileFaceView(tile)}</button>`;
 }

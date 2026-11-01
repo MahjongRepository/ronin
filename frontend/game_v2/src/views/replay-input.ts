@@ -1,6 +1,12 @@
-import { STEP_BUTTON_ATTRIBUTE, type StepDirection } from "@/entities/replay";
+import {
+    ROUND_LIST_SELECTOR,
+    ROUND_LIST_TOGGLE_SELECTOR,
+    type ReplayKeyCommand,
+    STEP_BUTTON_ATTRIBUTE,
+    type StepDirection,
+} from "@/entities/replay";
+import { BOARD_NOTICES_SELECTOR, BOARD_PANEL_SELECTOR } from "@/entities/table";
 import { wheelPixels } from "@/shared/lib";
-import { type ReplayKeyCommand } from "@/views/replay-page";
 
 /** The moves a scrolling round result keeps for itself: they would scroll it. */
 const SCROLL_COMMANDS: ReadonlySet<ReplayKeyCommand> = new Set([
@@ -26,13 +32,13 @@ const KEY_COMMANDS: ReadonlyMap<string, ReplayKeyCommand> = new Map([
 ]);
 
 /** Where a key belongs to something else: a field typed into, the round list's own keys. */
-const OWN_KEYS_SELECTOR = "input, textarea, select, [contenteditable], .round-list";
-/** The panel over the board a round's result shows in, which scrolls when the result is taller than the board. */
-const OVERLAY_PANEL_SELECTOR = ".board-overlay__panel";
+const OWN_KEYS_SELECTOR = `input, textarea, select, [contenteditable], ${ROUND_LIST_SELECTOR}`;
 /** Where Space and Enter activate the focused control itself, which the page must not repeat. */
 const ACTIVATED_SELECTOR = "button, a[href], summary, [role='button']";
 /** Where a click leaves the round list open: the list itself and its toggle. */
-const ROUND_LIST_SELECTOR = ".round-list, .replay-controls__option--rounds";
+const ROUND_LIST_KEEPER_SELECTOR = `${ROUND_LIST_SELECTOR}, ${ROUND_LIST_TOGGLE_SELECTOR}`;
+/** Where the wheel is not the page's over the board: the round list and the notices' place. */
+const WHEEL_OWNER_SELECTOR = `${ROUND_LIST_SELECTOR}, ${BOARD_NOTICES_SELECTOR}`;
 
 /** A primary button's bit in a pointer event's `buttons`. */
 const PRIMARY_BUTTON = 1;
@@ -80,11 +86,11 @@ export function stepKeyDirection(event: KeyboardEvent): StepDirection | null {
 }
 
 /**
- * Whether `element` is inside the panel over the board while that panel, or a part of it between the element and the
- * panel (a round result's yaku, value or score rows), scrolls.
+ * Whether `element` is inside the panel over the board a round's result shows in while that panel, or a part of it
+ * between the element and the panel (a round result's yaku, value or score rows), scrolls.
  */
 function inScrollingPanel(element: Element): boolean {
-    const panel = element.closest(OVERLAY_PANEL_SELECTOR);
+    const panel = element.closest(BOARD_PANEL_SELECTOR);
     if (panel === null) {
         return false;
     }
@@ -144,7 +150,7 @@ export function boardWheel(
         !event.ctrlKey &&
         over !== null &&
         over.closest(".board-page__board") !== null &&
-        over.closest(".round-list, .board-notices") === null &&
+        over.closest(WHEEL_OWNER_SELECTOR) === null &&
         !inScrollingPanel(over);
     return taken
         ? { deltaPx: wheelPixels(event), direction: event.deltaY > 0 ? "next" : "prev" }
@@ -193,6 +199,6 @@ export function holdInput(event: Event, button: Element): HoldInput | null {
 
 /** Whether a click landed outside `host`'s round list and its toggle, which closes the list. */
 export function isOutsideRoundList(event: MouseEvent, host: HTMLElement): boolean {
-    const inside = elementOf(event.target)?.closest(ROUND_LIST_SELECTOR);
+    const inside = elementOf(event.target)?.closest(ROUND_LIST_KEEPER_SELECTOR);
     return !inside || !host.contains(inside);
 }

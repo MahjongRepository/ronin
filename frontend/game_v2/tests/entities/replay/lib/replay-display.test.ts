@@ -1,7 +1,13 @@
 import { assert, describe, expect, test } from "vitest";
 
 import { engineReplayText } from "#tests/fixtures/replays";
-import { type LoadedReplay, readReplay, replayDisplay } from "@/entities/replay";
+import {
+    type LoadedReplay,
+    type ReplayCursor,
+    type ReplayDisplay,
+    readReplay,
+    replayDisplay,
+} from "@/entities/replay";
 import { type BoardPerspective } from "@/entities/table";
 
 const ALL: BoardPerspective = { bottomSeat: 0, reveal: "all" };
@@ -12,6 +18,14 @@ function replayOf(text: string): LoadedReplay {
     return read.replay;
 }
 
+function displayAt(
+    replay: LoadedReplay,
+    cursor: ReplayCursor,
+    perspective: BoardPerspective = ALL,
+): ReplayDisplay {
+    return replayDisplay(replay, { cursor, perspective, seating: false });
+}
+
 function lastStop(replay: LoadedReplay): number {
     return replay.navigation.stops.length - 1;
 }
@@ -19,8 +33,8 @@ function lastStop(replay: LoadedReplay): number {
 describe("replayDisplay", () => {
     test("offers no move back at the first deal and none on at the standings", () => {
         const replay = replayOf(engineReplayText("pao"));
-        const opening = replayDisplay(replay, { page: 0, stop: 0 }, ALL);
-        const end = replayDisplay(replay, { page: 0, stop: lastStop(replay) }, ALL);
+        const opening = displayAt(replay, { page: 0, stop: 0 });
+        const end = displayAt(replay, { page: 0, stop: lastStop(replay) });
 
         expect([opening.moves.first, opening.moves.prev, opening.moves.prevRound]).toEqual([
             null,
@@ -32,11 +46,30 @@ describe("replayDisplay", () => {
             count: replay.navigation.stops.length,
             index: replay.navigation.stops.length,
         });
-        expect([end.table.phase, end.incomplete, end.endNotice]).toEqual([
-            "game_ended",
+        expect([end.overlay?.kind, end.incomplete, end.endNotice]).toEqual([
+            "game_end",
             null,
             null,
         ]);
+    });
+
+    test("shows the seating at the starting scores over the table as the game started, then the stop's own panel", () => {
+        const replay = replayOf(engineReplayText("double_ron"));
+        const result = replay.navigation.stops.findIndex((stop) => stop.pages > 1);
+        const seating = replayDisplay(replay, {
+            cursor: { page: 0, stop: result },
+            perspective: ALL,
+            seating: true,
+        });
+        const shown = displayAt(replay, { page: 1, stop: result });
+
+        assert(seating.overlay?.kind === "seating");
+        expect(seating.overlay.display.seats.map((seat) => seat.score)).toEqual(
+            Array.from({ length: 4 }, () => "25,000"),
+        );
+        expect([seating.callouts, seating.board === null]).toEqual([null, false]);
+        assert(shown.overlay?.kind === "result");
+        expect([shown.overlay.display.page, shown.overlay.afterCall]).toEqual([1, true]);
     });
 
     test("shows a riichi's deposit on its discard when a seat changes hands in the call window", () => {
@@ -45,31 +78,34 @@ describe("replayDisplay", () => {
             const move = replay.events[stop.moveEntry];
             return move.type === "discard" && move.isRiichi;
         });
-        const display = replayDisplay(replay, { page: 0, stop: riichiStop }, ALL);
-        const [, alice, charlie] = display.table.players;
+        const display = displayAt(replay, { page: 0, stop: riichiStop });
+        assert(display.board !== null);
+        const [, alice, charlie] = display.board.nameplates;
 
-        expect([display.table.riichiSticks, alice.score, alice.isRiichi]).toEqual([
+        expect([display.board.center.riichiSticks, alice.score, alice.isRiichi]).toEqual([
             1,
-            24_000,
+            "24000",
             true,
         ]);
-        expect(charlie.aiStandIn).not.toBeNull();
+        expect(charlie.aiMark?.tag).toBe("Away");
     });
 
     test("shows a deal with its first draw when a seat changes hands between them", () => {
         const [version, gameStarted, dealt, ...rest] = engineReplayText("riichi").split("\n");
         const replacement = JSON.stringify({ ai: 1, r: 0, s: 2, t: 101 });
         const replay = replayOf([version, gameStarted, dealt, replacement, ...rest].join("\n"));
-        const display = replayDisplay(replay, { page: 0, stop: 0 }, ALL);
+        const display = displayAt(replay, { page: 0, stop: 0 });
 
-        expect(display.table.players[0].tiles).toHaveLength(14);
+        const bottom = display.board?.players[0];
+
+        expect([bottom?.hand.length, bottom?.drawnTile]).toEqual([13, expect.anything()]);
         expect(display.step.index).toBe(1);
     });
 
     test("names the round and marks it in the round list", () => {
         const replay = replayOf(engineReplayText("double_ron_on_honba"));
         const [, , third] = replay.navigation.rounds;
-        const display = replayDisplay(replay, { page: 0, stop: third.firstStop + 1 }, ALL);
+        const display = displayAt(replay, { page: 0, stop: third.firstStop + 1 });
 
         expect([display.roundName, display.step.index]).toEqual(["East 2, 2 honba", 2]);
         expect(display.rounds.map((row) => row.current)).toEqual([false, false, true, false]);
@@ -78,8 +114,8 @@ describe("replayDisplay", () => {
 
     test("labels a recording that stops before the game's end on every stop, and says so at its last", () => {
         const replay = replayOf(engineReplayText("truncated_after_round"));
-        const opening = replayDisplay(replay, { page: 0, stop: 0 }, ALL);
-        const end = replayDisplay(replay, { page: 0, stop: lastStop(replay) }, ALL);
+        const opening = displayAt(replay, { page: 0, stop: 0 });
+        const end = displayAt(replay, { page: 0, stop: lastStop(replay) });
 
         expect(opening.incomplete?.label).toBe("Incomplete");
         expect(opening.endNotice).toBeNull();
@@ -89,7 +125,7 @@ describe("replayDisplay", () => {
     test("labels a replay cut short by a line it cannot read, with the line", () => {
         const lines = engineReplayText("pao").trimEnd().split("\n");
         const replay = replayOf([...lines.slice(0, 10), "{broken", ...lines.slice(10)].join("\n"));
-        const end = replayDisplay(replay, { page: 0, stop: lastStop(replay) }, ALL);
+        const end = displayAt(replay, { page: 0, stop: lastStop(replay) });
 
         expect(replay.navigation.complete).toBe(false);
         expect(end.incomplete).toEqual({
@@ -113,31 +149,31 @@ describe("replayDisplay callouts", () => {
         const kan = stopWhere(replay, "meld");
         const fromKanSeat = { bottomSeat: 2, reveal: "all" } as const;
 
-        expect(replayDisplay(replay, { page: 0, stop: kan }, ALL).callouts).toEqual({
+        expect(displayAt(replay, { page: 0, stop: kan }).callouts).toEqual({
             items: [{ kind: "kan", label: "Kan", position: "top" }],
             key: `stop-${kan}`,
         });
-        expect(replayDisplay(replay, { page: 0, stop: kan }, fromKanSeat).callouts?.items).toEqual([
+        expect(displayAt(replay, { page: 0, stop: kan }, fromKanSeat).callouts?.items).toEqual([
             { kind: "kan", label: "Kan", position: "bottom" },
         ]);
-        expect(replayDisplay(replay, { page: 0, stop: kan + 1 }, ALL).callouts).toBeNull();
+        expect(displayAt(replay, { page: 0, stop: kan + 1 }).callouts).toBeNull();
     });
 
     test("calls a riichi on its declaring discard, its accepted stick kept with it", () => {
         const replay = replayOf(engineReplayText("double_ron"));
         const riichi = stopWhere(replay, "discard");
 
-        expect(replayDisplay(replay, { page: 0, stop: riichi }, ALL).callouts?.items).toEqual([
+        expect(displayAt(replay, { page: 0, stop: riichi }).callouts?.items).toEqual([
             { kind: "riichi", label: "Riichi", position: "right" },
         ]);
-        expect(replayDisplay(replay, { page: 0, stop: riichi + 1 }, ALL).callouts).toBeNull();
+        expect(displayAt(replay, { page: 0, stop: riichi + 1 }).callouts).toBeNull();
     });
 
     test("calls a triple ron's three rons by their seats, though the round ends drawn", () => {
         const replay = replayOf(engineReplayText("triple_ron"));
         const result = stopWhere(replay, "round_end");
 
-        expect(replayDisplay(replay, { page: 0, stop: result }, ALL).callouts?.items).toEqual([
+        expect(displayAt(replay, { page: 0, stop: result }).callouts?.items).toEqual([
             { kind: "ron", label: "Ron", position: "right" },
             { kind: "ron", label: "Ron", position: "top" },
             { kind: "ron", label: "Ron", position: "left" },
@@ -150,18 +186,18 @@ describe("replayDisplay callouts", () => {
         const chankan = replayOf(engineReplayText("chankan_added"));
         const declared = stopWhere(chankan, "kan_declared");
 
-        expect(replayDisplay(doubleRon, { page: 1, stop: result }, ALL).callouts).toEqual(
-            replayDisplay(doubleRon, { page: 0, stop: result }, ALL).callouts,
+        expect(displayAt(doubleRon, { page: 1, stop: result }).callouts).toEqual(
+            displayAt(doubleRon, { page: 0, stop: result }).callouts,
         );
-        expect(replayDisplay(doubleRon, { page: 0, stop: result }, ALL).callouts?.items).toEqual([
+        expect(displayAt(doubleRon, { page: 0, stop: result }).callouts?.items).toEqual([
             { kind: "ron", label: "Ron", position: "right" },
             { kind: "ron", label: "Ron", position: "top" },
         ]);
-        expect(replayDisplay(chankan, { page: 0, stop: declared }, ALL).callouts?.items).toEqual([
+        expect(displayAt(chankan, { page: 0, stop: declared }).callouts?.items).toEqual([
             { kind: "kan", label: "Kan", position: "right" },
         ]);
-        expect(
-            replayDisplay(chankan, { page: 0, stop: declared + 1 }, ALL).callouts?.items,
-        ).toEqual([{ kind: "ron", label: "Ron", position: "top" }]);
+        expect(displayAt(chankan, { page: 0, stop: declared + 1 }).callouts?.items).toEqual([
+            { kind: "ron", label: "Ron", position: "top" },
+        ]);
     });
 });

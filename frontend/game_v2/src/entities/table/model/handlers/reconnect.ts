@@ -5,7 +5,7 @@ import {
     type PlayerState,
     type TableState,
 } from "@/entities/table/model/types";
-import { type GameReconnectedEvent, decodeMeldCompact } from "@/shared/protocol";
+import { type GameReconnectedEvent } from "@/shared/protocol";
 
 import { extractRoundEndResult, revealHands, showRobbedKan } from "./round-end";
 
@@ -47,17 +47,9 @@ function snapshotPlayer(
         concealedCount: isViewer ? 0 : seatState.tileCount,
         discards: snapshotDiscards(seatState, claimed),
         isRiichi: seatState.isRiichi,
-        melds: seatState.melds.map(decodeMeldCompact),
+        melds: seatState.melds,
         tiles: isViewer ? snapshot.myTiles : [],
     };
-}
-
-/**
- * The game's first dealer: the dealer of the first round the snapshot's history lists, or while no round has ended
- * yet, the dealer of the round in play.
- */
-function snapshotFirstDealer(snapshot: GameReconnectedEvent): number {
-    return snapshot.roundHistory[0]?.dealerSeat ?? snapshot.dealerSeat;
 }
 
 /**
@@ -73,7 +65,7 @@ export function applyGameReconnected(
     state: TableState,
     snapshot: GameReconnectedEvent,
 ): TableState {
-    const allMelds = snapshot.playerStates.flatMap((seat) => seat.melds.map(decodeMeldCompact));
+    const allMelds = snapshot.playerStates.flatMap((seat) => seat.melds);
     const claimed = claimedDiscardKeys(allMelds);
     const { roundResult } = snapshot;
     const rebuilt: TableState = {
@@ -81,7 +73,7 @@ export function applyGameReconnected(
         currentPlayerSeat: snapshot.currentPlayerSeat,
         dealerSeat: snapshot.dealerSeat,
         doraIndicators: snapshot.doraIndicators,
-        firstDealerSeat: snapshotFirstDealer(snapshot),
+        firstDealerSeat: snapshot.firstDealerSeat,
         gameEndResult: null,
         gameId: snapshot.gameId,
         honbaSticks: snapshot.honbaSticks,
@@ -90,10 +82,10 @@ export function applyGameReconnected(
         phase: roundResult === null ? "in_round" : "round_ended",
         players: snapshot.players.map((info) => snapshotPlayer(snapshot, info.seat, claimed)),
         revealedSeats: [],
-        riichiCost: snapshot.riichiCost,
         riichiStickValue: snapshot.riichiStickValue,
         riichiSticks: snapshot.riichiSticks,
         roundEndResult: roundResult === null ? null : extractRoundEndResult(roundResult, snapshot),
+        roundInWind: snapshot.roundInWind,
         roundNumber: snapshot.roundNumber,
         roundWind: snapshot.wind,
         tilesRemaining: snapshot.tilesRemaining,

@@ -2,15 +2,23 @@ import { type MeldType, seatDistance, tileType } from "@/shared/protocol";
 
 import { type TileFace, tile136toString } from "./tile-utils";
 
-/** A meld as the table records it: its tile ids, who called it from whom, and which tile was called or added. */
-export interface MeldInput {
+interface MeldInputBase {
     readonly tileIds: readonly number[];
-    readonly meldType: MeldType;
     readonly callerSeat: number;
     readonly fromSeat: number | null;
     readonly calledTileId: number | null;
-    readonly addedTileId?: number;
 }
+
+/**
+ * A meld as the table records it: its tile ids, who called it from whom, and which tile was called, and for an added
+ * kan which tile was added from hand.
+ */
+export type MeldInput =
+    | (MeldInputBase & {
+          readonly meldType: Exclude<MeldType, "added_kan">;
+          readonly addedTileId?: never;
+      })
+    | (MeldInputBase & { readonly meldType: "added_kan"; readonly addedTileId: number });
 
 /**
  * A tile of a meld as it is laid: upright, sideways (the called tile, turned toward the seat it came from), face
@@ -67,12 +75,13 @@ function closedKanTiles(input: MeldInput): MeldTile[] {
     }));
 }
 
-function addedKanTiles(input: MeldInput, addedId: number): MeldTile[] {
+function addedKanTiles(input: MeldInput & { readonly meldType: "added_kan" }): MeldTile[] {
     if (input.fromSeat === null || input.calledTileId === null) {
         throw new Error("fromSeat and calledTileId are required for added_kan");
     }
     const pos = sidewaysPosition(input.callerSeat, input.fromSeat, 3);
     const calledId = input.calledTileId;
+    const addedId = input.addedTileId;
     const otherTiles = input.tileIds.filter((id) => id !== addedId && id !== calledId);
     let otherIdx = 0;
     return Array.from({ length: 3 }, (_unused, idx): MeldTile =>
@@ -82,10 +91,7 @@ function addedKanTiles(input: MeldInput, addedId: number): MeldTile[] {
     );
 }
 
-/**
- * The tiles a meld is laid as, left to right. An added kan whose added tile is unknown (the compact meld encoding
- * a round end carries does not name it) is laid as an open kan.
- */
+/** The tiles a meld is laid as, left to right. */
 export function meldTiles(input: MeldInput): MeldTile[] {
     switch (input.meldType) {
         case "chi": {
@@ -101,9 +107,7 @@ export function meldTiles(input: MeldInput): MeldTile[] {
             return closedKanTiles(input);
         }
         case "added_kan": {
-            return input.addedTileId === undefined
-                ? openMeldTiles({ ...input, meldType: "open_kan" }, 4)
-                : addedKanTiles(input, input.addedTileId);
+            return addedKanTiles(input);
         }
     }
 }

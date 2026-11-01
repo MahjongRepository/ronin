@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
+import { CALL_TYPE, EVENT_TYPE, KAN_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 import { parseCallPrompt } from "@/shared/protocol/schemas/call-prompt";
 
 describe("parseCallPrompt", () => {
@@ -48,11 +48,12 @@ describe("parseCallPrompt", () => {
     });
 
     describe("chankan prompt (clt=2)", () => {
-        it("parses chankan prompt with tileId, fromSeat, callerSeat", () => {
+        it("parses chankan prompt with tileId, fromSeat, callerSeat and the kan it offers to rob", () => {
             const wire = {
                 clt: CALL_TYPE.CHANKAN,
                 cs: 3,
                 frs: 1,
+                kty: KAN_TYPE.CLOSED,
                 t: EVENT_TYPE.CALL_PROMPT,
                 ti: 100,
             };
@@ -62,10 +63,23 @@ describe("parseCallPrompt", () => {
                 callerSeat: 3,
                 elapsedSeconds: null,
                 fromSeat: 1,
+                kanType: KAN_TYPE.CLOSED,
                 tileId: 100,
                 type: "call_prompt",
                 waitId: null,
             });
+        });
+
+        it("refuses a chankan prompt that names no kan, or an open one, which chankan never robs", () => {
+            const wire = {
+                clt: CALL_TYPE.CHANKAN,
+                cs: 3,
+                frs: 1,
+                t: EVENT_TYPE.CALL_PROMPT,
+                ti: 100,
+            };
+            expect(() => parseCallPrompt(wire)).toThrow();
+            expect(() => parseCallPrompt({ ...wire, kty: KAN_TYPE.OPEN })).toThrow();
         });
     });
 

@@ -154,20 +154,4 @@ describe("Meld - added kan", () => {
         expect(stacked.querySelector(".meld-tile-stacked-top")).not.toBeNull();
         expect(stacked.querySelectorAll(".meld-tile-sideways")).toHaveLength(2);
     });
-
-    test("falls back to open_kan rendering when addedTileId is missing", () => {
-        // IMME decode path: added_kan without addedTileId → renders as open_kan (4 tiles)
-        const input: MeldInput = {
-            calledTileId: 2,
-            callerSeat: 0,
-            fromSeat: 1,
-            meldType: "added_kan",
-            tileIds: [0, 1, 2, 3],
-        };
-        const el = renderTo(Meld(meldTiles(input)));
-        // open_kan renders 4 tiles, not 3 stacked
-        expect(laidTiles(el)).toHaveLength(4);
-        expect(el.querySelector(".meld-tile-stacked")).toBeNull();
-        expect(el.querySelector(".meld-tile-sideways")).not.toBeNull();
-    });
 });

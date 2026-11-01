@@ -1,4 +1,3 @@
-import { roundInWind } from "@/entities/table/model/helpers";
 import {
     type GameEndResult,
     type PlayerState,
@@ -114,10 +113,7 @@ function gameEnding(table: TableState, end: GameEndResult): GameEnding {
     if (!table.inStep) {
         return { kind: end.endCause, text: texts.bare };
     }
-    const round = roundName(
-        table.roundWind,
-        roundInWind({ dealerSeat: table.dealerSeat, firstDealerSeat: table.firstDealerSeat }),
-    );
+    const round = roundName(table.roundWind, table.roundInWind);
     return { kind: end.endCause, text: texts.at(round) };
 }
 

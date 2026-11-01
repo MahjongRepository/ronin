@@ -73,10 +73,10 @@ function kanDigits(ids, calledId) {
 }
 
 /**
- * The Majiang mianzi string of a decoded meld; an added kan needs the pon it extends, whose three tiles and called
- * tile keep their places in the string.
+ * The Majiang mianzi string of a decoded meld; an added kan carries its added tile (addedTileId), so the pon it
+ * extends keeps its three tiles and called tile in their places in the string.
  */
-function mianziStr(meld, ponMeld) {
+function mianziStr(meld) {
     const ids = meld.tileIds.slice().sort((a, b) => a - b);
     const t34 = Math.floor(ids[0] / 4);
     const suit = t34 < 27 ? 'mps'[Math.floor(t34 / 9)] : 'z';
@@ -98,10 +98,10 @@ function mianziStr(meld, ponMeld) {
         return suit + d + d + d + (ids.some(isRedFive) ? '0' : d);
     }
     case wire.MELD.ADDED_KAN: {
-        const ponIds = (ponMeld ? ponMeld.tileIds : ids.slice(0, 3)).slice().sort((a, b) => a - b);
-        const addedId = ids.find(id => ponIds.indexOf(id) < 0);
+        if (! ids.includes(meld.addedTileId)) throw new Error('added kan without its added tile');
+        const ponIds = ids.filter(id => id != meld.addedTileId);
         return suit + ponDigits(ponIds, meld.calledTileId)
-             + dirMark(meld.fromSeat, meld.callerSeat) + digitOf(addedId);
+             + dirMark(meld.fromSeat, meld.callerSeat) + digitOf(meld.addedTileId);
     }
     }
     throw new Error('unknown meld type: ' + meld.meldType);

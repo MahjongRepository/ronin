@@ -14,14 +14,12 @@ import {
     type SeatTranscript,
     type TileChoiceKind,
     decisionOf,
-    describePlayerClientStatus,
-    nextPlayUi,
     parseSeatTranscript,
     playDisplay,
     scenarioCheckpoint,
     seatScenarioFromTranscript,
-    settledPlayUi,
     stepGameClient,
+    stepPlayUi,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
@@ -429,7 +427,7 @@ function storyScreen(key: DecisionStoryKey): StoryScreen {
             chooseTiles === undefined || waitId === null ? null : { kind: chooseTiles, waitId },
         tileSprite: tileSprite ?? NO_PLAY_UI.tileSprite,
     };
-    const ui = nextPlayUi(state, picked, { kind: "show_result_page", page: resultPage });
+    const ui = stepPlayUi(state, picked, { kind: "show_result_page", page: resultPage });
     return { sent: [], state, story: key, ui };
 }
 
@@ -491,8 +489,6 @@ function storybookTemplate(
                         ),
                     },
                     onCommand,
-                    status: describePlayerClientStatus(state),
-                    table: state.table,
                 })}
             </div>
             <div class="board-page__aside">
@@ -541,10 +537,10 @@ export function mountStorybookDecisions(host: HTMLElement): () => void {
                 ...screen,
                 sent: step.effects,
                 state: step.state,
-                ui: settledPlayUi(step.state, nextPlayUi(state, ui, command)),
+                ui: stepPlayUi(step.state, ui, command),
             };
         } else {
-            screen = { ...screen, ui: nextPlayUi(state, ui, command) };
+            screen = { ...screen, ui: stepPlayUi(state, ui, command) };
         }
         draw();
     }

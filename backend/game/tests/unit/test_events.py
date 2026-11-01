@@ -1,4 +1,7 @@
-from game.logic.enums import CallType, MeldCallType, PromptKind
+import pytest
+from pydantic import ValidationError
+
+from game.logic.enums import CallType, KanType, MeldCallType, PromptKind
 from game.logic.events import (
     SeatTarget,
     build_call_prompt_events,
@@ -40,17 +43,28 @@ class TestBuildCallPromptEvents:
             MeldCaller(seat=1, call_type=MeldCallType.CHI, options=(chi_shape,)),
         ]
 
-    def test_build_call_prompt_events__when_chankan_prompt__should_emit_chankan_event_per_caller(self):
+    def test_build_call_prompt_events__when_chankan_prompt__should_emit_chankan_event_per_caller_naming_the_kan(self):
         prompt = PendingCallPrompt(
             kind=PromptKind.CHANKAN,
             tile_id=10,
             from_seat=2,
             pending_seats=frozenset({0, 1}),
             callers=(Caller(seat=0, can_ron=True), Caller(seat=1, can_ron=True)),
+            kan_type=KanType.ADDED,
         )
 
         events = build_call_prompt_events(prompt)
-        assert [(e.target, e.call_type, e.callers) for e in events] == [
-            (SeatTarget(seat=0), CallType.CHANKAN, [0]),
-            (SeatTarget(seat=1), CallType.CHANKAN, [1]),
+        assert [(e.target, e.call_type, e.callers, e.kan_type) for e in events] == [
+            (SeatTarget(seat=0), CallType.CHANKAN, [0], KanType.ADDED),
+            (SeatTarget(seat=1), CallType.CHANKAN, [1], KanType.ADDED),
         ]
+
+    def test_pending_call_prompt__when_kan_type_does_not_match_the_prompt_kind__should_raise(self):
+        with pytest.raises(ValidationError, match="names the kan it offers to rob"):
+            PendingCallPrompt(
+                kind=PromptKind.CHANKAN,
+                tile_id=10,
+                from_seat=2,
+                pending_seats=frozenset({0}),
+                callers=(Caller(seat=0, can_ron=True),),
+            )

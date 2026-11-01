@@ -6,7 +6,7 @@ import pytest
 from mahjong.constants import HONOR_INDICES, TERMINAL_INDICES
 from mahjong.hand_calculating.yaku_config import YakuConfig
 
-from game.logic.enums import AbortiveDrawType, GameAction, GameEndCause, KanType, MeldViewType, WaitKind
+from game.logic.enums import AbortiveDrawType, GameAction, GameEndCause, HandLimit, KanType, MeldViewType, WaitKind
 from game.logic.events import (
     DiscardEvent,
     DoraRevealedEvent,
@@ -94,7 +94,6 @@ def _game_started_replay_line(settings: GameSettings, *, first_dealer: int = 0) 
         players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         dealer_seat=first_dealer,
         dealer_dice=((1, 1), (1, 1)),
-        riichi_cost=settings.riichi_cost,
         riichi_stick_value=settings.riichi_stick_value,
     )
     payload = {**game_event_payload(event), "sd": "a" * 192, "rv": RNG_VERSION}
@@ -135,11 +134,12 @@ def _replay_line(event: GameEvent) -> dict[str, Any]:
 
 CUSTOM_STICK_SETTINGS = GameSettings(riichi_cost=2000, honba_ron_bonus=500, honba_tsumo_bonus_per_loser=200)
 SCORES_AFTER_RIICHI = {0: 23000, 1: 25000, 2: 25000, 3: 25000}
-TWO_HAN_HAND = HandResultInfo(han=2, fu=30, yaku=[YakuInfo(yaku_id=0, han=2)], points=2000)
+TWO_HAN_HAND = HandResultInfo(limit=HandLimit.NONE, han=2, fu=30, yaku=[YakuInfo(yaku_id=0, han=2)], points=2000)
 
 
 def _ron_result(hand: HandResultInfo, *, winner_seat: int, score_changes: dict[int, int]) -> RonResult:
     return RonResult(
+        honba_bonus=0,
         winner_seat=winner_seat,
         loser_seat=2,
         winning_tile=8,
@@ -154,6 +154,7 @@ def _ron_result(hand: HandResultInfo, *, winner_seat: int, score_changes: dict[i
 
 def _tsumo_result(hand: HandResultInfo, *, winner_seat: int, score_changes: dict[int, int]) -> TsumoResult:
     return TsumoResult(
+        honba_bonus=0,
         winner_seat=winner_seat,
         hand_result=hand,
         scores=SCORES_AFTER_RIICHI,
@@ -169,8 +170,8 @@ def _single_win_replay_lines(settings: GameSettings, result: RonResult | TsumoRe
     return [
         _game_started_replay_line(settings),
         _round_started_replay_line(honba=2),
-        _replay_line(RiichiDeclaredEvent(seat=0)),
-        _replay_line(RoundEndEvent(result=result)),
+        _replay_line(RiichiDeclaredEvent(seat=0, score=25000 - settings.riichi_cost, riichi_sticks=1)),
+        _replay_line(RoundEndEvent(dealer_seat=0, dora_indicators=[], result=result, riichi_sticks=0)),
     ]
 
 
@@ -197,8 +198,8 @@ def test_tenhou_converter__when_settings_change_riichi_cost_and_honba__should_de
     assert re.findall(r'<AGARI ba="([^"]*)"[^>]* ten="([^"]*)"[^>]* sc="([^"]*)"', xml) == [agari_ba_ten_sc]
 
 
-def _hand(han: int, fu: int, points: int) -> HandResultInfo:
-    return HandResultInfo(han=han, fu=fu, yaku=[YakuInfo(yaku_id=0, han=han)], points=points)
+def _hand(han: int, fu: int, points: int, limit: HandLimit) -> HandResultInfo:
+    return HandResultInfo(limit=limit, han=han, fu=fu, yaku=[YakuInfo(yaku_id=0, han=han)], points=points)
 
 
 NO_SCORE_CHANGES = {0: 0, 1: 0, 2: 0, 3: 0}
@@ -209,31 +210,31 @@ NO_SCORE_CHANGES = {0: 0, 1: 0, 2: 0, 3: 0}
     [
         pytest.param(
             GameSettings(),
-            _ron_result(_hand(4, 40, 8000), winner_seat=1, score_changes=NO_SCORE_CHANGES),
+            _ron_result(_hand(4, 40, 8000, HandLimit.MANGAN), winner_seat=1, score_changes=NO_SCORE_CHANGES),
             "40,8000,1",
             id="fu_based_mangan",
         ),
         pytest.param(
             GameSettings(has_kiriage_mangan=False),
-            _tsumo_result(_hand(4, 30, 11700), winner_seat=0, score_changes=NO_SCORE_CHANGES),
+            _tsumo_result(_hand(4, 30, 11700, HandLimit.NONE), winner_seat=0, score_changes=NO_SCORE_CHANGES),
             "30,11700,0",
             id="dealer_tsumo_just_below_mangan",
         ),
         pytest.param(
             GameSettings(has_kiriage_mangan=True),
-            _ron_result(_hand(4, 30, 8000), winner_seat=1, score_changes=NO_SCORE_CHANGES),
+            _ron_result(_hand(4, 30, 8000, HandLimit.MANGAN), winner_seat=1, score_changes=NO_SCORE_CHANGES),
             "30,8000,1",
             id="kiriage_mangan",
         ),
         pytest.param(
             GameSettings(has_kazoe_yakuman=False),
-            _ron_result(_hand(13, 40, 24000), winner_seat=1, score_changes=NO_SCORE_CHANGES),
+            _ron_result(_hand(13, 40, 24000, HandLimit.SANBAIMAN), winner_seat=1, score_changes=NO_SCORE_CHANGES),
             "40,24000,4",
             id="thirteen_han_capped_at_sanbaiman",
         ),
     ],
 )
-def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_of_the_tier_it_paid(settings, result, agari_ten):
+def test_tenhou_converter__when_a_hand_wins__should_write_the_limit_it_was_paid_at(settings, result, agari_ten):
     xml = TenhouConverter(_single_win_replay_lines(settings, result)).convert()
     assert re.findall(r'<AGARI [^>]* ten="([^"]*)"', xml) == [agari_ten]
 
@@ -253,8 +254,9 @@ def _game_end_replay_line(final_scores: dict[int, int]) -> dict[str, Any]:
 
 def _double_ron_winner(seat: int, score_changes: dict[int, int]) -> DoubleRonWinner:
     return DoubleRonWinner(
+        honba_bonus=0,
         winner_seat=seat,
-        hand_result=HandResultInfo(han=2, fu=30, yaku=[YakuInfo(yaku_id=0, han=2)], points=2000),
+        hand_result=HandResultInfo(limit=HandLimit.NONE, han=2, fu=30, yaku=[YakuInfo(yaku_id=0, han=2)], points=2000),
         score_changes=score_changes,
         riichi_sticks_collected=0,
         closed_tiles=[],
@@ -274,7 +276,7 @@ def test_tenhou_converter__when_game_ending_double_ron__should_give_each_agari_i
         scores={0: 25000, 1: 25000, 2: 25000, 3: 24000},
         score_changes={0: 2000, 1: -5000, 2: 4000, 3: 0},
     )
-    round_end_line = _replay_line(RoundEndEvent(result=result))
+    round_end_line = _replay_line(RoundEndEvent(dealer_seat=0, dora_indicators=[], result=result, riichi_sticks=0))
     game_end_line = _game_end_replay_line({0: 27000, 1: 20000, 2: 29000, 3: 24000})
 
     xml = TenhouConverter(
@@ -307,7 +309,12 @@ THIRD_DEALER_PIN_3_PON = MeldEvent(
 SOU_DRAWS = tile_copies(0, sou="1234")
 FOURTH_DEALER_TENPAI_HAND = tile_copies(1, sou="1112345678999")
 DAISANGEN_HAND = HandResultInfo(
-    han=13, fu=30, yaku=[YakuInfo(yaku_id=YakuConfig().daisangen.yaku_id, han=13)], points=32000
+    limit=HandLimit.YAKUMAN,
+    yakuman_count=1,
+    han=13,
+    fu=30,
+    yaku=[YakuInfo(yaku_id=YakuConfig().daisangen.yaku_id, han=13, yakuman_count=1)],
+    points=32000,
 )
 
 
@@ -321,7 +328,7 @@ def _first_dealer_led_round_started_replay_line(*, dealer: int, honba: int, scor
 
 def _draw_and_tsumogiri_replay_lines(seat: int, tile: int) -> list[dict[str, Any]]:
     return [
-        _replay_line(DrawEvent(seat=seat, tile_id=tile, target=SeatTarget(seat=seat))),
+        _replay_line(DrawEvent(seat=seat, tile_id=tile, tiles_remaining=69, target=SeatTarget(seat=seat))),
         _replay_line(DiscardEvent(seat=seat, tile_id=tile, is_tsumogiri=True)),
     ]
 
@@ -333,6 +340,7 @@ def _scores_after(result: TsumoResult | RonResult | DoubleRonResult | Exhaustive
 def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_players_from_it_and_count_rounds_from_0():
     east_1_scores = dict.fromkeys(range(4), 25000)
     east_1_pon_tsumo = TsumoResult(
+        honba_bonus=0,
         winner_seat=THIRD_DEALER,
         hand_result=TWO_HAN_HAND,
         scores={**east_1_scores, FIRST_DEALER: 24000},
@@ -343,10 +351,11 @@ def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_players_
         win_tile=SOU_DRAWS[3],
     )
     east_2_dealer_mangan_ron = RonResult(
+        honba_bonus=0,
         winner_seat=SECOND_DEALER,
         loser_seat=FOURTH_DEALER,
         winning_tile=SOU_DRAWS[0],
-        hand_result=_hand(5, 30, 12000),
+        hand_result=_hand(5, 30, 12000, HandLimit.MANGAN),
         scores=_scores_after(east_1_pon_tsumo),
         score_changes={THIRD_DEALER: 0, FOURTH_DEALER: -12000, FIRST_DEALER: 0, SECOND_DEALER: 12000},
         riichi_sticks_collected=0,
@@ -363,24 +372,34 @@ def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_players_
     lines = [
         _game_started_replay_line(GameSettings(), first_dealer=FIRST_DEALER),
         _first_dealer_led_round_started_replay_line(dealer=FIRST_DEALER, honba=0, scores=east_1_scores),
-        _replay_line(DrawEvent(seat=FIRST_DEALER, tile_id=PIN_3_PON_DISCARD, target=SeatTarget(seat=FIRST_DEALER))),
+        _replay_line(
+            DrawEvent(
+                seat=FIRST_DEALER, tile_id=PIN_3_PON_DISCARD, tiles_remaining=69, target=SeatTarget(seat=FIRST_DEALER)
+            )
+        ),
         _replay_line(DiscardEvent(seat=FIRST_DEALER, tile_id=PIN_3_PON_DISCARD, is_tsumogiri=True, is_riichi=True)),
-        _replay_line(RiichiDeclaredEvent(seat=FIRST_DEALER)),
+        _replay_line(RiichiDeclaredEvent(seat=FIRST_DEALER, score=24000, riichi_sticks=1)),
         _replay_line(THIRD_DEALER_PIN_3_PON),
         _replay_line(DiscardEvent(seat=THIRD_DEALER, tile_id=THIRD_DEALER_MAN_1_DISCARD)),
         *_draw_and_tsumogiri_replay_lines(FOURTH_DEALER, SOU_DRAWS[0]),
         *_draw_and_tsumogiri_replay_lines(FIRST_DEALER, SOU_DRAWS[1]),
         *_draw_and_tsumogiri_replay_lines(SECOND_DEALER, SOU_DRAWS[2]),
-        _replay_line(DrawEvent(seat=THIRD_DEALER, tile_id=SOU_DRAWS[3], target=SeatTarget(seat=THIRD_DEALER))),
-        _replay_line(RoundEndEvent(result=east_1_pon_tsumo)),
+        _replay_line(
+            DrawEvent(seat=THIRD_DEALER, tile_id=SOU_DRAWS[3], tiles_remaining=69, target=SeatTarget(seat=THIRD_DEALER))
+        ),
+        _replay_line(RoundEndEvent(dealer_seat=0, dora_indicators=[], result=east_1_pon_tsumo, riichi_sticks=0)),
         _first_dealer_led_round_started_replay_line(
             dealer=SECOND_DEALER, honba=0, scores=east_2_dealer_mangan_ron.scores
         ),
-        _replay_line(RoundEndEvent(result=east_2_dealer_mangan_ron)),
+        _replay_line(
+            RoundEndEvent(dealer_seat=0, dora_indicators=[], result=east_2_dealer_mangan_ron, riichi_sticks=0)
+        ),
         _first_dealer_led_round_started_replay_line(
             dealer=SECOND_DEALER, honba=1, scores=east_2_dealer_noten_draw.scores
         ),
-        _replay_line(RoundEndEvent(result=east_2_dealer_noten_draw)),
+        _replay_line(
+            RoundEndEvent(dealer_seat=0, dora_indicators=[], result=east_2_dealer_noten_draw, riichi_sticks=0)
+        ),
         _game_end_replay_line(_scores_after(east_2_dealer_noten_draw)),
     ]
 
@@ -419,6 +438,7 @@ def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_players_
 def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_the_players_a_multiple_ron_names_from_it():
     east_1_scores = dict.fromkeys(range(4), 25000)
     liable_daisangen_chankan = DoubleRonWinner(
+        honba_bonus=0,
         winner_seat=FOURTH_DEALER,
         hand_result=DAISANGEN_HAND,
         score_changes={THIRD_DEALER: -16000, FOURTH_DEALER: 32000, FIRST_DEALER: -16000, SECOND_DEALER: 0},
@@ -455,11 +475,15 @@ def test_tenhou_converter__when_first_dealer_is_not_seat_0__should_seat_the_play
         *_draw_and_tsumogiri_replay_lines(FOURTH_DEALER, SOU_DRAWS[0]),
         *_draw_and_tsumogiri_replay_lines(FIRST_DEALER, SOU_DRAWS[1]),
         *_draw_and_tsumogiri_replay_lines(SECOND_DEALER, SOU_DRAWS[2]),
-        _replay_line(DrawEvent(seat=THIRD_DEALER, tile_id=PIN_3_ADDED, target=SeatTarget(seat=THIRD_DEALER))),
-        _replay_line(RoundEndEvent(result=east_1_chankan_double_ron)),
+        _replay_line(
+            DrawEvent(seat=THIRD_DEALER, tile_id=PIN_3_ADDED, tiles_remaining=69, target=SeatTarget(seat=THIRD_DEALER))
+        ),
+        _replay_line(
+            RoundEndEvent(dealer_seat=0, dora_indicators=[], result=east_1_chankan_double_ron, riichi_sticks=0)
+        ),
         _first_dealer_led_round_started_replay_line(dealer=SECOND_DEALER, honba=0, scores=east_2_triple_ron.scores),
         *_draw_and_tsumogiri_replay_lines(SECOND_DEALER, SOU_DRAWS[3]),
-        _replay_line(RoundEndEvent(result=east_2_triple_ron)),
+        _replay_line(RoundEndEvent(dealer_seat=0, dora_indicators=[], result=east_2_triple_ron, riichi_sticks=0)),
     ]
 
     xml = TenhouConverter(lines).convert()

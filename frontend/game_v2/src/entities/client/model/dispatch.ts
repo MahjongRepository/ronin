@@ -1,6 +1,7 @@
 import {
     type SessionInput,
     type SessionState,
+    endReasonOf,
     sessionDeadline,
     startSession,
     stepSession,
@@ -100,7 +101,8 @@ function reportProtocolFailure(state: ReplayClient, detail: string): ReplayPart 
 
 /** Whether the session ended other than by the game's end: it failed, or the player left. */
 function endedEarly(session: SessionState): boolean {
-    return session.status === "ended" && session.reason.kind !== "game_ended";
+    const reason = endReasonOf(session);
+    return reason !== null && reason.kind !== "game_ended";
 }
 
 /**
@@ -249,8 +251,8 @@ function withPendingAfter(state: LiveClient, message: ParsedServerMessage): Live
         return withOpenedDecision(state, opened);
     }
     const confirm = openedRoundConfirm(state, message);
-    if (confirm !== undefined) {
-        return replaceRoundConfirm(state, confirm);
+    if (confirm.kind === "replaced") {
+        return replaceRoundConfirm(state, confirm.confirm);
     }
     return withPending(state, followedPending(pendingOf(state), message));
 }

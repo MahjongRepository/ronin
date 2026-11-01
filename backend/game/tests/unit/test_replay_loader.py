@@ -54,11 +54,13 @@ DRAW_LINE = json.dumps({"t": EVENT_TYPE_INT[EventType.DRAW], "seat": 0, "tile_id
 
 
 def _compact_meld(
+    *,
     meld_type: str,
     caller_seat: int,
     from_seat: int | None,
     tile_ids: list[int],
     called_tile_id: int | None,
+    added_tile_id: int | None = None,
 ) -> str:
     meld_data = MeldData(
         type="meld",
@@ -67,6 +69,7 @@ def _compact_meld(
         from_seat=from_seat,
         tile_ids=tile_ids,
         called_tile_id=called_tile_id,
+        added_tile_id=added_tile_id,
     )
     return json.dumps({"t": EVENT_TYPE_INT[EventType.MELD], "m": encode_meld_compact(meld_data)})
 
@@ -158,7 +161,9 @@ def test_load_replay__when_closed_kan_meld__should_produce_closed_call_kan_actio
 
 
 def test_load_replay__when_added_kan_meld__should_produce_added_call_kan_action():
-    meld = _compact_meld(meld_type="added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7)
+    meld = _compact_meld(
+        meld_type="added_kan", caller_seat=0, from_seat=2, tile_ids=[4, 5, 6, 7], called_tile_id=7, added_tile_id=5
+    )
     content = _build_event_log(meld)
 
     replay = load_replay_from_string(content)
@@ -519,6 +524,7 @@ def test_load_replay__when_meld_references_unknown_seat__should_raise(monkeypatc
         from_seat=0,
         tile_ids=[0, 1, 2],
         called_tile_id=0,
+        added_tile_id=None,
     )
     monkeypatch.setattr(replay_loader_module, "decode_meld_compact", lambda _v: fake_meld_data)
 
@@ -536,6 +542,7 @@ def test_load_replay__when_meld_type_unknown__should_raise(monkeypatch: pytest.M
         from_seat=1,
         tile_ids=[0, 1, 2],
         called_tile_id=0,
+        added_tile_id=None,
     )
     monkeypatch.setattr(replay_loader_module, "decode_meld_compact", lambda _v: fake_meld_data)
 

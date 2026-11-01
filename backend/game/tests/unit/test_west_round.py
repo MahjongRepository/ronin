@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.logic.enums import GameEndCause
+from game.logic.enums import GameEndCause, HandLimit
 from game.logic.game import _get_wind_for_unique_dealers, game_end_cause, process_round_end
 from game.logic.settings import EnchousenType, GameSettings, GameType
 from game.logic.state import MahjongPlayer, MahjongRoundState
@@ -47,8 +47,9 @@ def _west_game_state(
 
 def _tsumo(winner_seat: int) -> TsumoResult:
     return TsumoResult(
+        honba_bonus=0,
         winner_seat=winner_seat,
-        hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+        hand_result=HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
         scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
         score_changes={0: 0, 1: 0, 2: 0, 3: 0},
         riichi_sticks_collected=0,

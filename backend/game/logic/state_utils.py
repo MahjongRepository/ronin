@@ -8,10 +8,12 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
     PendingCallPrompt,
+    round_in_wind,
     wind_name,
 )
 from game.logic.types import (
     AbortiveDrawResult,
+    DiscardInfo,
     DoubleRonResult,
     ExhaustiveDrawResult,
     NagashiManganResult,
@@ -24,6 +26,16 @@ if TYPE_CHECKING:
     from game.logic.types import RoundResult
 
 _PLAYER_FIELDS = set(MahjongPlayer.model_fields)
+
+
+def river_of(player: MahjongPlayer) -> list[DiscardInfo]:
+    """
+    Return a player's discards as they lie in its river, each with how it fell.
+    """
+    return [
+        DiscardInfo(tile_id=d.tile_id, is_tsumogiri=d.is_tsumogiri, is_riichi_discard=d.is_riichi_discard)
+        for d in player.discards
+    ]
 
 
 def update_player(
@@ -181,7 +193,9 @@ def finish_round(
 ) -> tuple[MahjongGameState, RoundEndEvent]:
     """
     End the round with its result: mark it finished, store the result, record it in the round history, and return the
-    round end event.
+    round end event with the riichi sticks the result leaves on the table and the round's dealer and dora indicators.
+
+    game_state already holds the result's payments, a win's collected sticks included.
 
     The only way a round finishes, so a finished round always carries its result and appears in the history exactly
     once. The caller appends the event where the round ended, keeping the event order.
@@ -189,7 +203,13 @@ def finish_round(
     new_round_state = game_state.round_state.model_copy(update={"phase": RoundPhase.FINISHED, "result": result})
     round_history = (*game_state.round_history, _round_history_entry(game_state, result))
     new_game_state = game_state.model_copy(update={"round_state": new_round_state, "round_history": round_history})
-    return new_game_state, RoundEndEvent(result=result)
+    round_end = RoundEndEvent(
+        result=result,
+        riichi_sticks=game_state.riichi_sticks,
+        dealer_seat=new_round_state.dealer_seat,
+        dora_indicators=list(new_round_state.wall.dora_indicators),
+    )
+    return new_game_state, round_end
 
 
 def _round_history_entry(game_state: MahjongGameState, result: RoundResult) -> RoundHistoryEntry:
@@ -199,6 +219,7 @@ def _round_history_entry(game_state: MahjongGameState, result: RoundResult) -> R
     round_state = game_state.round_state
     return RoundHistoryEntry(
         round_wind=wind_name(round_state.round_wind),
+        round_in_wind=round_in_wind(game_state),
         dealer_seat=round_state.dealer_seat,
         honba_sticks=game_state.honba_sticks,
         result_type=result.type,

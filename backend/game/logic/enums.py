@@ -175,6 +175,31 @@ class RoundResultType(StrEnum):
     GAME_END = "game_end"
 
 
+class HandLimit(StrEnum):
+    """
+    The limit a winning hand was paid at, as the scoring library priced it: none below mangan, kiriage mangan counted as
+    mangan, and a kazoe yakuman (13 han of ordinary yaku) told apart from a hand with a yakuman yaku.
+    """
+
+    NONE = "none"
+    MANGAN = "mangan"
+    HANEMAN = "haneman"
+    BAIMAN = "baiman"
+    SANBAIMAN = "sanbaiman"
+    YAKUMAN = "yakuman"
+    KAZOE_YAKUMAN = "kazoe_yakuman"
+
+
+class PaoShare(StrEnum):
+    """
+    How much of the pao yakuman a liable seat pays: all of it (a tsumo, or a ron it dealt in itself) or half (another
+    seat's ron).
+    """
+
+    ALL = "all"
+    HALF = "half"
+
+
 class WireWind(IntEnum):
     """
     Integer wire encoding for WindName.

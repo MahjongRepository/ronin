@@ -66,7 +66,7 @@ def _make_meld_event() -> MeldEvent:
 
 
 def _make_riichi_event(seat: int = 0) -> RiichiDeclaredEvent:
-    return RiichiDeclaredEvent(seat=seat)
+    return RiichiDeclaredEvent(seat=seat, score=24000, riichi_sticks=1)
 
 
 def _make_dora_event() -> DoraRevealedEvent:
@@ -80,7 +80,6 @@ def _make_game_started_event(game_id: str = "game1") -> GameStartedEvent:
         players=[GamePlayerInfo(seat=i, name=f"P{i}", is_ai_player=False) for i in range(4)],
         dealer_seat=0,
         dealer_dice=((1, 1), (1, 1)),
-        riichi_cost=1000,
         riichi_stick_value=1000,
     )
 
@@ -98,6 +97,9 @@ def _make_game_ended_event() -> GameEndedEvent:
 
 def _make_round_end_event() -> RoundEndEvent:
     return RoundEndEvent(
+        dealer_seat=0,
+        dora_indicators=[],
+        riichi_sticks=0,
         result=ExhaustiveDrawResult(
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
@@ -109,7 +111,7 @@ def _make_round_end_event() -> RoundEndEvent:
 
 
 def _make_draw_event(seat: int = 0, tile_id: int = 1) -> DrawEvent:
-    return DrawEvent(seat=seat, tile_id=tile_id, target=SeatTarget(seat=seat))
+    return DrawEvent(seat=seat, tile_id=tile_id, tiles_remaining=69, target=SeatTarget(seat=seat))
 
 
 def _make_call_prompt_event(seat: int = 1) -> CallPromptEvent:
@@ -136,12 +138,14 @@ def _make_round_started_event(seat: int = 0) -> RoundStartedEvent:
         seat=seat,
         round_wind=WindName.EAST,
         round_number=1,
+        round_in_wind=1,
         dealer_seat=0,
         current_player_seat=0,
         dora_indicators=[],
         honba_sticks=0,
         riichi_sticks=0,
         my_tiles=_SEAT_TILES[seat],
+        tiles_remaining=70,
         players=players,
         dice=(1, 1),
         target=SeatTarget(seat=seat),
@@ -223,6 +227,7 @@ class TestReplayCollectorFiltering:
         draw_with_actions = DrawEvent(
             seat=0,
             tile_id=42,
+            tiles_remaining=69,
             target=SeatTarget(seat=0),
             available_actions=[AvailableActionItem(action="discard", tiles=[42])],
         )
@@ -409,7 +414,7 @@ class TestReplayCollectorSeedInReplay:
         assert record["gs"]["game_type"] == "tonpusen"
         assert record["gs"]["uma"] == [30, 10, -10, -30]
         assert decode_replay_settings(record["gs"]) == settings
-        assert "rc" not in record
+        assert "rsv" not in record
 
     async def test_replay_collector__when_multiple_events_collected__should_include_seed_only_in_game_started(self):
         storage = FakeReplayStorage()

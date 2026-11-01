@@ -99,7 +99,6 @@ class ReplayCollector:
                 payload.pop("aa", None)
 
             if isinstance(event, GameStartedEvent):
-                payload.pop("rc")
                 payload.pop("rsv")
                 payload["sd"] = record.seed
                 payload["rv"] = record.rng_version

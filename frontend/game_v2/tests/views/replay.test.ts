@@ -1,8 +1,14 @@
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
-import { ManualClock } from "#tests/fixtures/clock";
+import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { engineReplayText } from "#tests/fixtures/replays";
-import { DEFAULT_REPLAY_PREFS, type ReplayPrefs, type ReplayPrefsStore } from "@/entities/replay";
+import {
+    DEFAULT_REPLAY_PREFS,
+    HOLD_DELAY_MS,
+    HOLD_REPEAT_MS,
+    type ReplayPrefs,
+    type ReplayPrefsStore,
+} from "@/entities/replay";
 import { type LoadReplay, type ReplayFetch } from "@/shared/api";
 import { REPLAY_VERSION } from "@/shared/protocol";
 import {
@@ -11,7 +17,6 @@ import {
     type ReplayLocation,
     mountReplayView,
 } from "@/views/replay";
-import { HOLD_DELAY_MS, HOLD_REPEAT_MS } from "@/views/replay-page";
 
 interface MountedReplay {
     readonly host: HTMLElement;
@@ -165,7 +170,7 @@ function mountReplay(
     const { failWrites, hidePage, location, written } = fakeLocation(search);
     const { answer, loadReplay, signals } = fakeLoader();
     const dispose = mountReplayView(host, "g1", {
-        clock,
+        clock: steadyClockOn(clock),
         links,
         loadReplay,
         location,
@@ -483,6 +488,45 @@ describe("mountReplayView - autoplay", () => {
         expect([position(host), playing(host)]).toEqual(["East 1 Step 2 of 28", true]);
     });
 
+    it("goes on at its pace after the wall clock steps back an hour", async () => {
+        const { clock, host } = await mountLoadedReplay();
+        button(host, ".replay-controls__play").click();
+        const firstDue = clock.lastTimer().at;
+        clock.stepWall(-3_600_000);
+
+        expect(
+            positionsAfter(host, [
+                () => clock.advanceTo(firstDue),
+                () => clock.advanceTo(firstDue + 20_000),
+            ]),
+        ).toEqual(["East 1 Step 2 of 28", "East 1 Step 3 of 28"]);
+    });
+
+    it.each([
+        ["elapsed time ran through it", (clock: ManualClock) => clock.advanceTo(60_000)],
+        [
+            "elapsed time paused, as a forward wall step looks",
+            (clock: ManualClock) => clock.stepWall(60_000),
+        ],
+    ])(
+        "moves one step on waking from a sleep, then goes on at its pace (%s)",
+        async (_sleep, sleep) => {
+            const { clock, host } = await mountLoadedReplay();
+            button(host, ".replay-controls__play").click();
+            const firstDue = clock.lastTimer().at;
+
+            expect(
+                positionsAfter(host, [
+                    () => {
+                        sleep(clock);
+                        clock.advanceTo(Math.max(clock.elapsedNow(), firstDue));
+                    },
+                    () => clock.advanceTo(clock.elapsedNow() + 20_000),
+                ]),
+            ).toEqual(["East 1 Step 2 of 28", "East 1 Step 3 of 28"]);
+        },
+    );
+
     it("stops when the page hides, and cancels its timer on dispose", async () => {
         const { clock, dispose, hidePage, host } = await mountLoadedReplay();
         button(host, ".replay-controls__play").click();
@@ -511,6 +555,31 @@ describe("mountReplayView - autoplay", () => {
 
         expect(textOf(host, ".replay-state__title")).toBe("This replay cannot be shown");
         expect(logged).toHaveBeenCalledOnce();
+        expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
+    });
+
+    it("shows a bare notice with the ways back when even the cannot-be-shown screen throws, its timers stopped", async () => {
+        const { links, reads } = drawnLinks();
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+        const { clock, hidePage, host } = await mountLoadedReplay("riichi", "?v=2&round=0&step=0", {
+            links,
+        });
+        button(host, ".replay-controls__play").click();
+        reads.throwing = 2;
+
+        clock.advanceTo(clock.lastTimer().at);
+        hidePage();
+
+        expect([
+            textOf(host, ".replay-state--broken"),
+            [...host.querySelectorAll(".replay-state__links a")].map((link) =>
+                link.getAttribute("href"),
+            ),
+        ]).toEqual(["The replay page ran into an error. Game history Lobby", ["/history", "/"]]);
+        expect(logged).toHaveBeenLastCalledWith(
+            "The failed replay page could not be drawn:",
+            expect.any(Error),
+        );
         expect(clock.timers.filter((timer) => !timer.cancelled)).toEqual([]);
     });
 });

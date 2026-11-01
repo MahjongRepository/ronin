@@ -10,6 +10,7 @@ from game.logic.events import (
 )
 from game.logic.tiles import NUM_TILES
 from game.logic.types import MeldCaller
+from game.logic.wall import tiles_remaining
 from game.tests.helpers.hands import tile_copies
 from game.tests.helpers.session import make_session_manager
 from game.tests.mocks import MOCK_AWAITING
@@ -112,7 +113,7 @@ class TestSessionManager:
 
 def _seen_draws(conn: MockConnection) -> list[dict[str, Any]]:
     return [
-        {"t": message["t"], "d": message["d"]} if message["t"] == WireEventType.DRAW else message
+        {"t": message["t"], "d": message["d"], "tr": message["tr"]} if message["t"] == WireEventType.DRAW else message
         for message in conn.sent_messages
         if message.get("t") in DRAW_MESSAGE_TYPES
     ]
@@ -135,6 +136,7 @@ class TestDrawDelivery:
     async def test_send_events__when_humans_and_ai_players_draw__should_send_the_drawer_its_draw_and_others_a_notice(
         self, seeded_engine
     ):
+        live_wall_after_deal = 70
         manager = make_session_manager(seeded_engine)
         conns = create_started_game(manager, player_names=["Alice", "Bob"], keep_start_messages=True)
         alice, bob = (participant_of(manager, conn) for conn in conns)
@@ -147,11 +149,14 @@ class TestDrawDelivery:
         assert drawers[0] == alice.seat
         assert set(drawers) == {0, 1, 2, 3}
         assert WireEventType.DRAW_NOTICE not in {line["t"] for line in lines}
+        assert [line["tr"] for line in replay_draws] == [
+            live_wall_after_deal - drawn for drawn in range(1, len(replay_draws) + 1)
+        ]
         for participant, conn in zip((alice, bob), conns, strict=True):
             expected = [
-                {"t": WireEventType.DRAW, "d": line["d"]}
+                {"t": WireEventType.DRAW, "d": line["d"], "tr": line["tr"]}
                 if drawer == participant.seat
-                else {"t": WireEventType.DRAW_NOTICE, "s": drawer}
+                else {"t": WireEventType.DRAW_NOTICE, "s": drawer, "tr": line["tr"]}
                 for line, drawer in zip(replay_draws, drawers, strict=True)
             ]
             assert _seen_draws(conn) == expected
@@ -178,9 +183,11 @@ class TestDrawDelivery:
             data={"tile_id": HAKU_COPIES[0], "kan_type": "closed"},
             wait_id=current_wait_id(manager),
         )
-        replacement = encode_draw(alice.seat, runtime_of(manager).state.round_state.players[alice.seat].tiles[-1])
-        assert _seen_draws(alice_conn) == [{"t": WireEventType.DRAW, "d": replacement}]
-        assert _seen_draws(bob_conn) == [{"t": WireEventType.DRAW_NOTICE, "s": alice.seat}]
+        round_state = runtime_of(manager).state.round_state
+        replacement = encode_draw(alice.seat, round_state.players[alice.seat].tiles[-1])
+        wall_left = tiles_remaining(round_state.wall)
+        assert _seen_draws(alice_conn) == [{"t": WireEventType.DRAW, "d": replacement, "tr": wall_left}]
+        assert _seen_draws(bob_conn) == [{"t": WireEventType.DRAW_NOTICE, "s": alice.seat, "tr": wall_left}]
         new_lines = _replay_lines(manager)[replay_size:]
         assert [line["d"] for line in new_lines if line["t"] == WireEventType.DRAW] == [replacement]
 

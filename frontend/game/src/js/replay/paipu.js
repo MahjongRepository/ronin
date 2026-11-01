@@ -150,12 +150,12 @@ function withReplacedSeats(round, replaced) {
 }
 
 /** The tiles a meld takes from its caller's hand: all but the called tile, an added kan's fourth tile alone. */
-function tilesFromHand(meld, pon) {
+function tilesFromHand(meld) {
     switch (meld.meldType) {
         case wire.MELD.CLOSED_KAN:
             return meld.tileIds;
         case wire.MELD.ADDED_KAN:
-            return meld.tileIds.filter((id) => !pon.tileIds.includes(id));
+            return [meld.addedTileId];
         default:
             return meld.tileIds.filter((id) => id !== meld.calledTileId);
     }
@@ -182,12 +182,13 @@ class SeatState {
         this.removeFromHand([tileId]);
     }
 
-    /** Lay a meld down; an added kan replaces the pon it extends, which it returns. */
+    /** Lay a meld down; an added kan replaces the pon it extends. */
     meld(meld) {
-        const pon = meld.meldType === wire.MELD.ADDED_KAN ? this.takePon(meld) : null;
+        if (meld.meldType === wire.MELD.ADDED_KAN) {
+            this.takePon(meld);
+        }
         this.melds.push(meld);
-        this.removeFromHand(tilesFromHand(meld, pon));
-        return pon;
+        this.removeFromHand(tilesFromHand(meld));
     }
 
     declareRiichi() {
@@ -208,7 +209,7 @@ class SeatState {
         if (index < 0) {
             throw new Error("added kan without its pon");
         }
-        return this.melds.splice(index, 1)[0];
+        this.melds.splice(index, 1);
     }
 
     removeFromHand(tileIds) {
@@ -307,11 +308,11 @@ class RoundBuilder {
 
     meld(compact) {
         const meld = immef.decodeMeldCompact(compact);
-        const pon = this.seats[meld.callerSeat].meld(meld);
+        this.seats[meld.callerSeat].meld(meld);
         this.kanSeat = mianzi.KAN_TYPES.has(meld.meldType) ? meld.callerSeat : null;
         const l = this.l(meld.callerSeat);
         const message = {
-            [mianzi.KIND_OF_MELD[meld.meldType]]: { l, m: mianzi.mianziStr(meld, pon) },
+            [mianzi.KIND_OF_MELD[meld.meldType]]: { l, m: mianzi.mianziStr(meld) },
         };
         this.addVisible(POSITION.CALL, message, [{ name: mianzi.SAY_OF_MELD[meld.meldType], l }]);
     }

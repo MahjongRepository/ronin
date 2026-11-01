@@ -1,4 +1,10 @@
-import { type EndReason, type SessionState, type TerminalCloseCode } from "@/entities/session";
+import {
+    type EndReason,
+    type SessionState,
+    type TerminalCloseCode,
+    endReasonOf,
+    leavingHandsSeatToAi,
+} from "@/entities/session";
 import { assertNever } from "@/shared/lib";
 import { CLOSE_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
@@ -24,14 +30,9 @@ export interface FailureDisplay {
 const LEAVE: PlayCommand = { intent: { type: "leave" }, kind: "intent" };
 const ASK_LEAVE: PlayCommand = { kind: "ask_leave" };
 
-/** Whether leaving now hands a seat the session holds or works for to an AI. */
-function leavingNeedsConfirm(session: SessionState): boolean {
-    return session.status !== "ended" && session.status !== "recovering";
-}
-
 /** The way back to the lobby, asking first while leaving would hand the seat to an AI. */
 export function leaveControls(state: LiveClient, ui: PlayUi): LeaveControls {
-    if (!leavingNeedsConfirm(state.session)) {
+    if (!leavingHandsSeatToAi(state.session)) {
         return { command: LEAVE, confirming: false };
     }
     return { command: ASK_LEAVE, confirming: ui.confirmingLeave };
@@ -142,5 +143,6 @@ function endFailure(reason: EndReason): FailureDisplay | null {
 
 /** What an end that stopped the session on the page tells the player; null while it runs or once it left. */
 export function failureDisplay(session: SessionState): FailureDisplay | null {
-    return session.status === "ended" ? endFailure(session.reason) : null;
+    const reason = endReasonOf(session);
+    return reason === null ? null : endFailure(reason);
 }

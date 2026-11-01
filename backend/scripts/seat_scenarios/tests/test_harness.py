@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from game.messaging.types import SessionErrorCode
 from game.tests.helpers.hands import tile_copies
 from scripts.replay_fixtures.staged_game import ScenarioError, StagedWall, tile
 from scripts.seat_scenarios.harness import seated_game
@@ -44,3 +45,16 @@ def test_seated_game__when_a_later_round_names_another_dealer__should_fail_namin
 
     with pytest.raises(ScenarioError, match="later round 0 was staged for dealer 1, not 0"):
         _play_kyuushu_into_next_round(first_round, later_rounds=(misdealt,))
+
+
+def _resync_after_the_deal_expecting_game_not_started() -> None:
+    staged = StagedWall(hands=KYUUSHU_HANDS, draws=((0, DEALER_DRAW), (1, ALICE_DRAW)))
+    with seated_game("harness-check", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.resync(at=4, refused_with=SessionErrorCode.GAME_NOT_STARTED)
+
+
+def test_seated_game__when_an_expected_refusal_never_comes__should_fail_naming_it():
+    with pytest.raises(ScenarioError, match="never refused with game_not_started"):
+        _resync_after_the_deal_expecting_game_not_started()

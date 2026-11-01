@@ -6,18 +6,14 @@ from game.logic.abortive import AbortiveDrawType
 from game.logic.action_result import ActionResult
 from game.logic.enums import (
     GameAction,
-    KanType,
     MeldCallType,
-    PromptKind,
     RoundPhase,
 )
-from game.logic.meld_wrapper import FrozenMeld
 from game.logic.settings import TRIPLE_RON_COUNT
 from game.logic.state_utils import (
     clear_pending_prompt,
     update_game_with_round,
 )
-from game.logic.tiles import tile_to_34
 from game.logic.turn import (
     _abort_round,
     draw_for_next_player,
@@ -32,7 +28,6 @@ if TYPE_CHECKING:
     from game.logic.state import (
         CallResponse,
         MahjongGameState,
-        MahjongRoundState,
         PendingCallPrompt,
     )
 
@@ -55,19 +50,14 @@ def pick_best_meld_response(meld_responses: list[CallResponse]) -> CallResponse:
     return min(meld_responses, key=lambda r: r.action == GameAction.CALL_CHI)
 
 
-def _kan_open_to_chankan(round_state: MahjongRoundState, prompt: PendingCallPrompt) -> RobbedKan:
+def _kan_open_to_chankan(prompt: PendingCallPrompt) -> RobbedKan | None:
     """
-    Return the kan a chankan prompt offers to rob: an added kan when its declarer holds a pon of the tile, else the
-    closed kan kokushi musou may rob.
+    Return the kan a chankan prompt offers to rob, as the prompt names it, or None for a discard's prompt.
     """
-    player = round_state.players[prompt.from_seat]
-    tile_34 = tile_to_34(prompt.tile_id)
-    has_pon = any(m.meld_type == FrozenMeld.PON and tile_to_34(m.tiles[0]) == tile_34 for m in player.melds)
-    return RobbedKan(
-        seat=prompt.from_seat,
-        tile_id=prompt.tile_id,
-        kan_type=KanType.ADDED if has_pon else KanType.CLOSED,
-    )
+    if prompt.kan_type is None:
+        return None
+
+    return RobbedKan(seat=prompt.from_seat, tile_id=prompt.tile_id, kan_type=prompt.kan_type)
 
 
 def _resolve_ron_responses(
@@ -82,7 +72,7 @@ def _resolve_ron_responses(
     caller_order = {c.seat: i for i, c in enumerate(prompt.callers)}
     ron_responses = sorted(ron_responses, key=lambda r: caller_order[r.seat])
 
-    robbed_kan = _kan_open_to_chankan(game_state.round_state, prompt) if prompt.kind == PromptKind.CHANKAN else None
+    robbed_kan = _kan_open_to_chankan(prompt)
 
     # triple ron - abortive draw (all three opponents declared ron)
     settings = game_state.settings
@@ -134,9 +124,10 @@ def resolve_call_prompt(game_state: MahjongGameState) -> ActionResult:
         logger.debug("call resolved: ron declared", ron_seats=[r.seat for r in ron_responses])
         return _resolve_ron_responses(game_state, prompt=prompt, ron_responses=ron_responses)
 
-    if prompt.kind == PromptKind.CHANKAN:
+    robbed_kan = _kan_open_to_chankan(prompt)
+    if robbed_kan is not None:
         logger.debug("call resolved: all passed")
-        new_game_state, events = execute_unrobbed_kan(game_state, _kan_open_to_chankan(game_state.round_state, prompt))
+        new_game_state, events = execute_unrobbed_kan(game_state, robbed_kan)
         return ActionResult(events, state=new_game_state)
 
     new_game_state, events = pass_ron_window(game_state, discarder_seat=prompt.from_seat)

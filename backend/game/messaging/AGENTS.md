@@ -8,10 +8,10 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
 * Integer codes are only ever added, never renumbered or reused: a removed one leaves its gap.
 * `event_payload.py` builds every outgoing event, for both the socket and the replay. A draw, a
   discard and a meld each pack into one integer (`../wire/compact.py`, `shared/lib/melds/README.md`).
-* Of `GameSettings` only the riichi cost (`rc`) and the riichi stick value (`rsv`), both wire scores,
-  go out live, on `game_started` and the reconnect snapshot: the settings a client consumes, kept apart
-  since a game may set them apart. The replay records every setting on its `game_started` line (`gs`)
-  instead and drops both, so a replay reader takes them from `gs`.
+* Of `GameSettings` only the riichi stick value (`rsv`), a wire score, goes out live, on `game_started`
+  and the reconnect snapshot: the one setting a client consumes, since every deposit and payment comes
+  settled. The replay records every setting on its `game_started` line (`gs`) instead and drops it, so a
+  replay reader takes it from `gs`.
 * An accepted JOIN_GAME is answered by `game_joined` to the joining connection alone, ahead of anything
   the game sends it, as an accepted RECONNECT is by the snapshot; every refused one by a session error.
   So a client is admitted by the server's answer, never by inferring it from the game's messages.
@@ -24,8 +24,9 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   first deal follows it only after the session's game start pause; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
-  place, shaped from the same engine draw (`draw_notice_payload`): the drawer's seat alone, never the
-  tile, the offers, the bank or a wait id, and a code of its own, so it never opens a decision. The
+  place, shaped from the same engine draw (`draw_notice_payload`): the drawer's seat and the live wall
+  left (`tr`), never the tile, the offers, the bank or a wait id, and a code of its own, so it never
+  opens a decision. The
   replay records the draw once and no notice; a draw re-sent on a reconnect goes to its seat alone.
   No draw or notice follows the seat's own pon or chi: a
   `turn` event to that seat names the tile types kuikae forbids it to discard instead; the draw or
@@ -38,8 +39,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   snapshot carries the furiten last sent to the seat. Past rounds are never re-sent either, so the
   snapshot carries every finished round's ledger entry for the final standings. A robbed kan sends
   no meld event: the round end that robs it names it, and so does the snapshot's round result. A
-  snapshot taken during a round advance shows the round that ended: its dealer, wind, round number
-  and honba with its tiles, the scores and riichi sticks its result left, that result (`re`) in the
+  snapshot taken during a round advance shows the round that ended: its dealer, wind, round number,
+  number within the wind and honba with its tiles, the scores and riichi sticks its result left, that result (`re`) in the
   round end's shape, and whether the seat still owes its confirmation (`oc`), with how long that
   wait's timer has run (`el`) and its whole timeout (`at`) only when the seat owes it and its timer
   is running. The round end that opens a
@@ -52,6 +53,19 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   tiles. A participant's seat changing hands goes to the others as `seat_control`, by seat and
   shaped like the replay's seat control line, ahead of the moves that follow; the snapshot marks a
   seat an AI player holds for its participant by why (`sr`), never as an AI player's (`ai`).
+* What a client shows of the table's counts comes from the server, never the client's own arithmetic:
+  the deal, each draw and its notice name the live wall left (`tr`); the deal and the snapshot name the
+  round's number within its wind (`rw`, from 1) and the snapshot the game's first dealer (`fd`); an
+  accepted riichi names its declarer's score after the deposit (`sc`) and the table's riichi sticks
+  (`r`); a round end, and the snapshot's `re`, name the sticks its result leaves (`r`); a chankan
+  prompt names the kan it offers to rob (`kty`, added or closed).
+* What a client shows of a round's result comes from the server too, never its own table or the
+  scoring rules worked backwards: a round end, and the snapshot's `re`, name the round's dealer (`dl`)
+  and revealed dora indicators (`di`); a win's hand result the limit it was paid at (`lm`, with the
+  yakuman count `yc` of a yakuman or kazoe yakuman) and each yaku's yakuman count (`ym`, 0 for an
+  ordinary yaku); each winner its honba bonus (`hb`) and, beside its liable seat (`ps`), what that
+  seat pays (`pl`: the pao yakuman, all or half, and whether the honba); a nagashi mangan each
+  qualifying seat's river (`qr`). A round history entry carries no round number within its wind.
 * Wait identity: the message that opens a wait carries the current wait id, stamped at send time, and
   the reconnect snapshot always carries it. Wait ids are one counter per game that only grows (the
   service bumps it by one per call that ends a wait, `MahjongGameService._end_call`), so across the

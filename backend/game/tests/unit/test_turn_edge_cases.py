@@ -363,8 +363,8 @@ class TestAddedKanChankan:
         assert prompt is not None
         assert prompt.kind == PromptKind.CHANKAN
         assert prompt.callers == (Caller(seat=1, can_ron=True),)
-        assert [(e.target, e.call_type) for e in result.events if isinstance(e, CallPromptEvent)] == [
-            (SeatTarget(seat=1), CallType.CHANKAN),
+        assert [(e.target, e.call_type, e.kan_type) for e in result.events if isinstance(e, CallPromptEvent)] == [
+            (SeatTarget(seat=1), CallType.CHANKAN, KanType.ADDED),
         ]
         assert not [e for e in result.events if isinstance(e, MeldEvent)]
 
@@ -519,19 +519,25 @@ class TestAbortiveDrawIntegration:
         assert round_ends[0].result.type == RoundResultType.RON
         assert round_ends[0].result.winner_seat == 1
         assert round_ends[0].result.riichi_sticks_collected == 3
+        assert round_ends[0].riichi_sticks == 0
         assert ron.state.round_state.players[0].is_riichi is False
 
-    def test_four_riichi_abort__when_ron_caller_passes_fourth_riichi_discard__should_abort(self):
+    def test_four_riichi_abort__when_ron_caller_passes_fourth_riichi_discard__should_abort_with_its_stick_deposited(
+        self,
+    ):
         discard = _fourth_riichi_discard_with_ron_caller()
+        score_before = discard.state.round_state.players[0].score
 
         passed = handle_pass(discard.state, seat=1)
         assert isinstance(passed, ActionResult)
         assert passed.state.round_state.players[0].is_riichi is True
-        assert [e for e in passed.events if isinstance(e, RiichiDeclaredEvent)] == [RiichiDeclaredEvent(seat=0)]
+        riichi = [e for e in passed.events if isinstance(e, RiichiDeclaredEvent)]
+        assert [(e.seat, e.score, e.riichi_sticks) for e in riichi] == [(0, score_before - 1000, 4)]
         round_ends = [e for e in passed.events if isinstance(e, RoundEndEvent)]
         assert len(round_ends) == 1
         assert round_ends[0].result.type == RoundResultType.ABORTIVE_DRAW
         assert round_ends[0].result.reason == AbortiveDrawType.FOUR_RIICHI
+        assert round_ends[0].riichi_sticks == 4
 
     def test_four_riichi_abort__when_nobody_can_call_fourth_riichi_discard__should_abort_at_once(self):
         unclaimed = _declare_fourth_riichi(_EIGHT_SOU)
@@ -551,3 +557,6 @@ class TestAddedKanNormalPath:
         assert result.state.round_state.pending_call_prompt is None
         assert [type(e) for e in result.events] == [MeldEvent, DrawEvent]
         assert [m.type for m in result.state.round_state.players[0].melds] == [FrozenMeld.SHOUMINKAN]
+        kan = result.state.round_state.players[0].melds[0]
+        assert kan.added_tile is not None
+        assert result.events[0].added_tile_id == kan.added_tile

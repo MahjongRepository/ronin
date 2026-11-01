@@ -12,7 +12,6 @@ const LIVE_GAME_STARTED = {
     gid: "g-abc",
     gt: 0,
     p: [0, 1, 2, 3].map((seat) => ({ ai: 0, nm: `P${seat}`, s: seat })),
-    rc: 10,
     rsv: 10,
     s: 0,
     t: EVENT_TYPE.GAME_STARTED,
@@ -28,8 +27,10 @@ const LIVE_ROUND_STARTED = {
     n: 0,
     p: [0, 1, 2, 3].map((seat) => ({ s: seat, sc: 250 })),
     r: 0,
+    rw: 1,
     s: 0,
     t: EVENT_TYPE.ROUND_STARTED,
+    tr: 70,
     w: 0,
 };
 
@@ -62,6 +63,7 @@ describe("parseServerMessage", () => {
                 di: [10],
                 dl: 0,
                 f: false,
+                fd: 0,
                 gid: "game-123",
                 h: 0,
                 mt: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -79,9 +81,9 @@ describe("parseServerMessage", () => {
                     { dsc: [], ml: [], ri: false, s: 3, sc: 250, tc: 13 },
                 ],
                 r: 0,
-                rc: 10,
                 rh: [],
                 rsv: 10,
+                rw: 1,
                 s: 0,
                 tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
                 tr: 60,
@@ -98,7 +100,7 @@ describe("parseServerMessage", () => {
     describe("game events (integer t field)", () => {
         it("parses a draw event", () => {
             // seat=0, tileId=5 -> d = 0*136 + 5 = 5
-            const raw = { bk: 20, d: 5, t: EVENT_TYPE.DRAW, wi: 3 };
+            const raw = { bk: 20, d: 5, t: EVENT_TYPE.DRAW, tr: 69, wi: 3 };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
             expect(parsed).toEqual({
@@ -107,6 +109,7 @@ describe("parseServerMessage", () => {
                 elapsedSeconds: null,
                 seat: 0,
                 tileId: 5,
+                tilesRemaining: 69,
                 type: "draw",
                 waitId: 3,
             });
@@ -148,7 +151,6 @@ describe("parseServerMessage", () => {
                     { ai: 1, nm: "Bot2", s: 2 },
                     { ai: 1, nm: "Bot3", s: 3 },
                 ],
-                rc: 10,
                 rsv: 10,
                 s: 0,
                 t: EVENT_TYPE.GAME_STARTED,
@@ -185,8 +187,12 @@ describe("parseServerMessage", () => {
         it("parses a round_end event (tsumo)", () => {
             const raw = {
                 ct: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                hr: { fu: 30, han: 3, pt: 39, yk: [{ han: 1, yi: 0, ym: false }] },
+                di: [40],
+                dl: 0,
+                hb: 0,
+                hr: { fu: 30, han: 3, lm: "none", pt: 39, yk: [{ han: 1, yi: 0, ym: 0 }] },
                 ml: [],
+                r: 0,
                 rc: 1,
                 rt: 0,
                 sch: { "0": 50, "1": -20, "2": -20, "3": -10 },
@@ -208,10 +214,15 @@ describe("parseServerMessage", () => {
         });
 
         it("parses a riichi_declared event", () => {
-            const raw = { s: 2, t: EVENT_TYPE.RIICHI_DECLARED };
+            const raw = { r: 1, s: 2, sc: 240, t: EVENT_TYPE.RIICHI_DECLARED };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
-            expect(parsed).toEqual({ seat: 2, type: "riichi_declared" });
+            expect(parsed).toEqual({
+                riichiSticks: 1,
+                score: 24_000,
+                seat: 2,
+                type: "riichi_declared",
+            });
         });
 
         it("parses a dora_revealed event", () => {
@@ -278,7 +289,7 @@ describe("parseServerMessage", () => {
             ],
             ["deal without the viewer's hand", { ...LIVE_ROUND_STARTED, mt: undefined }, "mt"],
             ["deal without its viewer seat", { ...LIVE_ROUND_STARTED, s: undefined }, "s"],
-            ["draw without its wait id", { bk: 20, d: 5, t: EVENT_TYPE.DRAW }, "wi"],
+            ["draw without its wait id", { bk: 20, d: 5, t: EVENT_TYPE.DRAW, tr: 69 }, "wi"],
             ["turn without its bank", { kt: [], t: EVENT_TYPE.TURN, wi: 5 }, "bk"],
             ["call prompt without its wait id", { clt: 0, cs: 2, frs: 1, t: 3, ti: 50 }, "wi"],
         ])("refuses a %s, which the live socket always stamps", (_name, raw, key) => {

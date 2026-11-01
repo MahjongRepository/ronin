@@ -1,10 +1,6 @@
 export {
     NUM_TILES,
-    NUM_TILE_TYPES,
     NUM_PLAYERS,
-    WIRE_SCORE_DIVISOR,
-    SEAT_TILE_SPACE,
-    NUM_DISCARD_FLAGS,
     EVENT_TYPE,
     CLIENT_MESSAGE_TYPE,
     GAME_ACTION,
@@ -13,6 +9,7 @@ export {
     CALL_TYPE,
     MELD_CALL_TYPE,
     ROUND_RESULT_TYPE,
+    HAND_LIMIT,
     WIND,
     KAN_TYPE,
     MELD_TYPE,
@@ -24,7 +21,6 @@ export {
     LOG_TYPE_SYSTEM,
     LOG_TYPE_UNKNOWN,
     REPLAY_VERSION,
-    REPLAY_LINE_TYPE,
     SEAT_CONTROL_REASON,
     GAME_END_CAUSE,
     GAME_TYPE,
@@ -32,47 +28,25 @@ export {
 } from "./constants";
 
 export type {
-    EventType,
-    ClientMessageType,
-    GameAction,
-    SessionMessageType,
-    PlayerAction,
     CallType,
-    MeldCallType,
-    RoundResultType,
-    Wind,
+    HandLimit,
     KanType,
     MeldType,
     ConnectionStatus,
     AbortiveDrawType,
-    SessionErrorCode,
     SeatControlReason,
     GameEndCause,
     GameType,
 } from "./constants";
 
-export { decodeDraw } from "./decoders/draw";
-export type { DecodedDraw } from "./decoders/draw";
-export { decodeDiscard } from "./decoders/discard";
-export type { DecodedDiscard } from "./decoders/discard";
-export { decodeMeldCompact } from "./decoders/meld";
 export { seatDistance, tileType, tileTypeCopies } from "./tiles";
-export type { DecodedMeld } from "./decoders/meld";
 
 export { parseServerMessage } from "./schemas/message";
-export type { GameEvent, ParsedServerMessage, ParseResult } from "./schemas/message";
+export type { ParsedServerMessage } from "./schemas/message";
 
-export { parseSessionMessage } from "./schemas/session";
-export { parseCallPrompt } from "./schemas/call-prompt";
-export { parseRoundEnd, parseRoundResult } from "./schemas/round-results";
+export { parseRoundEnd } from "./schemas/round-results";
 export { parseReplayLine } from "./schemas/replay";
-export type {
-    AiReplacementLine,
-    HumanReturnLine,
-    ReplayLine,
-    ReplayLineParseResult,
-    SeatControlLine,
-} from "./schemas/replay";
+export type { ReplayLine, SeatControlLine } from "./schemas/replay";
 
 export {
     buildJoinGameMessage,
@@ -101,24 +75,14 @@ export type {
     ClaimedMeldEvent,
     RiichiDeclaredEvent,
     DoraRevealedEvent,
-    ErrorEvent,
-    FuritenEvent,
     GameEndEvent,
     TimerSettings,
     TurnEvent,
-    RonPromptEvent,
     ChankanPromptEvent,
-    MeldPromptEvent,
     CallPromptEvent,
-    TsumoRoundEnd,
-    RonRoundEnd,
-    DoubleRonRoundEnd,
     ExhaustiveDrawRoundEnd,
-    AbortiveDrawRoundEnd,
     NagashiManganRoundEnd,
+    PaoLiability,
     RoundEndEvent,
-    SessionErrorMessage,
-    SeatControlMessage,
-    SessionMessage,
     GameReconnectedEvent,
 } from "./types";

@@ -6,18 +6,22 @@ import {
     type ReplayMoves,
 } from "@/entities/replay/lib/replay-display";
 import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
+import { type StepDirection } from "@/entities/replay/model/replay-page";
 
 /** The round list's element id, which its toggle controls. */
 export const REPLAY_ROUND_LIST_ID = "replay-round-list";
+
+/** The focus key the round list's toggle renders, so the page focuses it back as the list closes. */
+export const ROUND_LIST_TOGGLE_FOCUS_KEY = "round-list-toggle";
+
+/** What the round list's toggle renders, so a click on it is told from one outside the list that closes it. */
+export const ROUND_LIST_TOGGLE_SELECTOR = "[data-round-list-toggle]";
 
 /** How the replay plays and is seen: autoplay and the other hands. */
 export interface ReplayPlayback {
     readonly playing: boolean;
     readonly hideHands: boolean;
 }
-
-/** A step button pressed by a pointer, which may be held to repeat. */
-export type StepDirection = "next" | "prev";
 
 /** The attribute naming a step button's direction, by which the view takes Enter and Space on it as that step. */
 export const STEP_BUTTON_ATTRIBUTE = "data-step";
@@ -153,16 +157,19 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
         title="Rounds"
         aria-expanded=${props.roundListOpen ? "true" : "false"}
         aria-controls=${REPLAY_ROUND_LIST_ID}
+        data-focus-key=${ROUND_LIST_TOGGLE_FOCUS_KEY}
+        data-round-list-toggle
         @click=${props.onToggleRoundList}
     >${Icon(OPTION_ICONS.rounds)}</button>`;
 }
 
 /**
- * The replay's controls over the foreground band: the moves in the play switches' place (a round back, a step back,
- * autoplay, a step on, a round on, and either end where the place holds them), and the options in the decisions'
- * place (the other hands and the round list), the hands' switch over the round list's toggle in the band where the
- * band beside the own river's reach is too short for both. A move that cannot go is disabled. The seat at the bottom
- * is the board's: pressing another seat's plate or score views from it.
+ * The replay's controls over the foreground band, one group at its right: the moves (a round back, a step back,
+ * autoplay, a step on, a round on, and either end on a desktop's chrome), then the options (the other hands and the
+ * round list). Where the band shares the core's corners (a phone, a short desktop) the moves keep the play switches'
+ * place and the options the decisions', the hands' switch over the round list's toggle where the band beside the own
+ * river's reach is too short for both. A move that cannot go is disabled. The seat at the bottom is the board's:
+ * pressing another seat's plate or score views from it.
  */
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
     const { playback } = props;

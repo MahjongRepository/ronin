@@ -11,6 +11,7 @@ import {
 } from "@/entities/table/lib/round-end-display";
 import { Hand, Meld, Tile, type TileFace } from "@/entities/tile";
 
+import { PANEL_CONTROL_FOCUS_KEY } from "./focus";
 import { PlayerName } from "./player-name";
 
 export interface RoundEndDisplayProps {
@@ -91,6 +92,7 @@ function PagerControls({
     return html`<span class="round-end-result__pager">
         <button
             class=${buttonClass}
+            data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
             aria-label="Previous winner"
             ?disabled=${page === 0}
             @click=${() => onPage(page - 1)}
@@ -98,6 +100,7 @@ function PagerControls({
         ${label}
         <button
             class=${buttonClass}
+            data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
             aria-label="Next winner"
             ?disabled=${page >= pageCount - 1}
             @click=${() => onPage(page + 1)}
@@ -168,22 +171,6 @@ function ScoreGrid(rows: readonly ResultScoreRow[]): TemplateResult {
     </ol>`;
 }
 
-/**
- * Says, on a result read against a table out of step, which of its parts may be wrong (`tableRead`, what the page took
- * from the table) and which are the server's.
- */
-function UncertainNote(
-    { uncertain }: RoundEndDisplayState,
-    tableRead: string,
-): TemplateResult | typeof nothing {
-    return uncertain
-        ? html`<span class="round-end-result__uncertain" role="note"
-              >This page lost step with the server: ${tableRead} shown may be wrong. The hand and the scores are
-              the server's.</span
-          >`
-        : nothing;
-}
-
 /** A nagashi mangan's proof: each seat's river, every discard as it fell, none of them called. */
 function NagashiRivers(page: DrawPageDisplay): TemplateResult | typeof nothing {
     if (page.rivers.length === 0) {
@@ -215,7 +202,6 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
             </span>
             ${page.from === null ? nothing : html`<span class="round-end-result__from">${page.from}</span>`}
             ${PagerControls(props)}
-            ${UncertainNote(display, "the dora and dealer")}
         </div>
         ${WinHand(page)}
         ${YakuList(page)}
@@ -231,7 +217,6 @@ function DrawPage(props: RoundEndDisplayProps, page: DrawPageDisplay): TemplateR
             <span class="round-end-result__kind">Draw</span>
             <span class="round-end-result__title">${page.title}</span>
             ${page.subtitle === null ? nothing : html`<span class="round-end-result__from">${page.subtitle}</span>`}
-            ${UncertainNote(display, page.rivers.length > 0 ? "the dealer and the river" : "the dealer")}
         </div>
         ${NagashiRivers(page)}
         ${

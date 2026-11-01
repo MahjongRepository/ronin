@@ -1,7 +1,11 @@
 import { z } from "zod/mini";
 
 import { NUM_PLAYERS, SEAT_CONTROL_REASON, WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
-import { MAX_MELD_COMPACT, meldCompactCaller } from "@/shared/protocol/decoders/meld";
+import {
+    type DecodedMeld,
+    MAX_MELD_COMPACT,
+    decodeMeldCompact,
+} from "@/shared/protocol/decoders/meld";
 
 // Tile ID: integer 0-135 (136-format tile encoding)
 export const tileIdSchema = z.int().check(z.gte(0), z.lte(135));
@@ -13,12 +17,21 @@ export const seatSchema = z.int().check(z.gte(0), z.lte(3));
 
 export const waitIdSchema = z.int().check(z.gte(0));
 
-/** A meld in its compact (IMME) value, which `decodeMeldCompact` unpacks: only a value it can decode parses. */
-export const compactMeldSchema = z.int().check(z.gte(0), z.lte(MAX_MELD_COMPACT));
+/** The live wall's tiles left, as the server counts them. */
+export const tilesRemainingSchema = z.int().check(z.gte(0));
 
-/** Whether every compact meld of a seat's list was called by that seat, as the server lists a seat's own melds. */
-export function calledBy(melds: readonly number[], seat: number): boolean {
-    return melds.every((meld) => meldCompactCaller(meld) === seat);
+/** A round's number within its wind, from 1 ("East 1"). */
+export const roundInWindSchema = z.int().check(z.gte(1));
+
+/** A meld in its compact (IMME) value, decoded as it parses: only a value the decoder can unpack parses. */
+export const compactMeldSchema = z.pipe(
+    z.int().check(z.gte(0), z.lte(MAX_MELD_COMPACT)),
+    z.transform(decodeMeldCompact),
+);
+
+/** Whether every meld of a seat's list was called by that seat, as the server lists a seat's own melds. */
+export function calledBy(melds: readonly DecodedMeld[], seat: number): boolean {
+    return melds.every((meld) => meld.callerSeat === seat);
 }
 
 /** Whether a per-seat list names each of the four seats once, in seat order, as the server builds every such list. */
@@ -35,6 +48,20 @@ export const seatControlReasonSchema = z.union([
     z.literal(SEAT_CONTROL_REASON.LEFT),
     z.literal(SEAT_CONTROL_REASON.ABSENT),
 ]);
+
+/** A discard as it lies in its river (`dsc` of a snapshot's seat, of a nagashi mangan's river). */
+export const discardInfoSchema = z.pipe(
+    z.object({
+        rd: z.optional(z.boolean()),
+        tg: z.optional(z.boolean()),
+        ti: tileIdSchema,
+    }),
+    z.transform((raw) => ({
+        isRiichiDiscard: raw.rd ?? false,
+        isTsumogiri: raw.tg ?? false,
+        tileId: raw.ti,
+    })),
+);
 
 export const secondsSchema = z.number().check(z.gte(0));
 

@@ -39,14 +39,14 @@ function callAnswer(decision: CallDecision, switches: PlaySwitches): SwitchAnswe
  * never on the turn after the seat's own chi or pon, which drew none.
  */
 function turnAnswer(decision: TurnDecision, switches: PlaySwitches): SwitchAnswer | null {
-    const { drawnTileId, offers } = decision;
+    const { offers, opening } = decision;
     if (switches.auto_win && offers.some((offer) => offer.kind === "tsumo")) {
         return { bySwitch: "auto_win", intent: { offer: { kind: "tsumo" }, type: "choose" } };
     }
-    if (!switches.auto_discard || offers.length > 0 || drawnTileId === null) {
+    if (!switches.auto_discard || offers.length > 0 || opening.kind !== "draw") {
         return null;
     }
-    return { bySwitch: "auto_discard", intent: { tileId: drawnTileId, type: "discard" } };
+    return { bySwitch: "auto_discard", intent: { tileId: opening.drawnTileId, type: "discard" } };
 }
 
 /**

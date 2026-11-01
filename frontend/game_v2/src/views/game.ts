@@ -2,6 +2,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import {
+    CLIENT_STEPPED,
     type ClientEffect,
     type LiveClient,
     type LiveEvent,
@@ -12,17 +13,15 @@ import {
     type PlayUi,
     RotatePanel,
     describeClientStatus,
-    describePlayerClientStatus,
     failGameClient,
+    intentCommand,
     nextCountdownChange,
     nextDeadline,
-    nextPlayUi,
     playDisplay,
-    rotatePanelProps,
     serverSilenceLimitMs,
-    settledPlayUi,
     startGameClient,
     stepGameClient,
+    stepPlayUi,
 } from "@/entities/client";
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
@@ -218,12 +217,10 @@ function gameTemplate(props: GameViewProps): TemplateResult {
         links: { history: links.history, replay: links.replay(state.viewerSeat) },
         menuExtra: log === null ? undefined : logTemplate(log, panel, state),
         onCommand,
-        status: describePlayerClientStatus(state),
-        table: state.table,
     });
     return html`
         <div class="game">
-            <div class="game__rotate">${RotatePanel(rotatePanelProps(state, ui, onCommand))}</div>
+            <div class="game__rotate">${RotatePanel(display, onCommand)}</div>
             <div class="game__play board-page">
                 <div class="board-page__board">${board}</div>
             </div>
@@ -302,8 +299,13 @@ class GameViewController {
     /** Draw the page again as the tile sprite's load moves on; returns its unsubscribe. */
     private followTileSprite(): () => void {
         return this.deps.tileSprite.subscribe((tileSprite) => {
-            this.ui = { ...this.ui, tileSprite };
-            this.guard(() => this.draw());
+            this.guard(() => {
+                this.ui = stepPlayUi(this.state, this.ui, {
+                    kind: "tile_sprite",
+                    status: tileSprite,
+                });
+                this.draw();
+            });
         });
     }
 
@@ -323,7 +325,6 @@ class GameViewController {
      */
     private readonly command = (command: PlayCommand): void => {
         if (command.kind === "intent") {
-            this.ui = nextPlayUi(this.state, this.ui, command);
             this.dispatch({ at: this.deps.clock.now(), intent: command.intent, kind: "intent" });
             return;
         }
@@ -350,7 +351,7 @@ class GameViewController {
         if (command.kind === "ask_leave") {
             this.leaveOpener = this.focusedControl();
         }
-        this.ui = nextPlayUi(this.state, this.ui, command);
+        this.ui = stepPlayUi(this.state, this.ui, command);
         this.draw();
         if (command.kind === "cancel_leave") {
             this.leaveOpener?.focus();
@@ -403,6 +404,11 @@ class GameViewController {
         for (let next = this.queue.shift(); next !== undefined; next = this.queue.shift()) {
             const { effects, state } = stepGameClient(this.state, next);
             this.state = state;
+            this.ui = stepPlayUi(
+                state,
+                this.ui,
+                next.kind === "intent" ? intentCommand(next.intent) : CLIENT_STEPPED,
+            );
             this.runEffects(effects);
         }
     }
@@ -424,6 +430,7 @@ class GameViewController {
         });
         this.closeSocket();
         try {
+            this.ui = stepPlayUi(this.state, this.ui, CLIENT_STEPPED);
             this.show();
         } catch (drawError: unknown) {
             this.showBroken(drawError);
@@ -454,7 +461,6 @@ class GameViewController {
         if (this.disposed || this.broken) {
             return;
         }
-        this.ui = settledPlayUi(this.state, this.ui);
         const { command, log, panel, state, ui } = this;
         const props = {
             links: this.deps.links,

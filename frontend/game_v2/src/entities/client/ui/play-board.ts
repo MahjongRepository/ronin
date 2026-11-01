@@ -4,26 +4,40 @@ import { repeat } from "lit-html/directives/repeat.js";
 import { type NoticeSheetDisplay, type PlayNotice } from "@/entities/client/model/board-notices";
 import { type DecisionCountdown } from "@/entities/client/model/countdown";
 import {
+    countdownAnnouncement,
+    expiryNote,
+    moveName,
+} from "@/entities/client/model/countdown-text";
+import {
     type DecisionAction,
     type DecisionStanding,
 } from "@/entities/client/model/decision-controls";
-import { type PlayDisplay, type SwitchControl } from "@/entities/client/model/play-display";
-import { type PlayAction, type PlayCommand } from "@/entities/client/model/play-ui";
+import {
+    type PlayDisplay,
+    type PlayPanel,
+    type SwitchControl,
+} from "@/entities/client/model/play-display";
+import {
+    type EscapeStep,
+    type PlayAction,
+    type PlayCommand,
+    commandFocusKey,
+    escapeFocusKey,
+} from "@/entities/client/model/play-ui";
 import { type ResultControls } from "@/entities/client/model/result-controls";
-import { type SessionStatusDisplay } from "@/entities/session";
 import {
     type BoardNotice,
+    DECISION_ACTION_FOCUS_KEY,
     GameBoard,
     NoticeSheet,
+    PANEL_CONTROL_FOCUS_KEY,
     type PanelAction,
-    type TableState,
-    boardOverlay,
-    showsRoundResult,
+    TablePanelDisplay,
 } from "@/entities/table";
 import { Meld, Tile } from "@/entities/tile";
+import { assertNever, focusByKey, focusKeys } from "@/shared/lib";
 
 import { GameMenu } from "./game-menu";
-import { countdownAnnouncement, expiryNote, moveName } from "./rotate-panel";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
 /** Where the game's end leads the player: this game's replay and the game history. */
@@ -34,11 +48,7 @@ export interface GameEndLinks {
 
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
-    /** The table the display was mapped from, whose panel (seating, result, game end) shows over the board. */
-    readonly table: TableState;
     readonly onCommand: (command: PlayCommand) => void;
-    /** The session's status, which the board's corner shows beside the way back; none on a board with no session. */
-    readonly status?: SessionStatusDisplay;
     /** What the page adds to the corner before the status (the debug log). */
     readonly menuExtra?: TemplateResult;
     /** The game end's links; without them it offers only the game's last result and the way back. */
@@ -144,6 +154,7 @@ function ActionButton(
         aria-label=${[action.label, ...action.tiles, ...(action.chosen ? ["(sent)"] : [])].join(" ")}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
         aria-disabled=${answered ? "true" : nothing}
+        data-focus-key=${focusKeys(commandFocusKey(action.command), answered ? null : DECISION_ACTION_FOCUS_KEY) ?? nothing}
         @click=${() => {
             if (!answered) {
                 onCommand(action.command);
@@ -248,25 +259,22 @@ export function PlaySwitches(
 }
 
 /**
- * Step back on Escape; when the focus was on a decision control, it moves to the toggle that opened the step, which
- * stays (the controls are keyed), so the focus never falls out of the board.
+ * Step back on Escape; when the focus was on a decision control, it moves to the toggle that opened the step, found
+ * by the key the display names for it, so the focus never falls out of the board.
  */
 function stepBack(
     board: HTMLElement,
-    escape: PlayCommand,
+    escape: EscapeStep,
     onCommand: PlayBoardProps["onCommand"],
 ): void {
-    const focused = document.activeElement;
+    const focused = board.ownerDocument.activeElement;
     const inControls =
         focused instanceof Element &&
         board.contains(focused) &&
         focused.closest(".decision-controls") !== null;
-    const opener = board.querySelector<HTMLElement>(
-        '.decision-controls__action[aria-pressed="true"]',
-    );
-    onCommand(escape);
+    onCommand(escape.command);
     if (inControls) {
-        opener?.focus();
+        focusByKey(board, escapeFocusKey(escape));
     }
 }
 
@@ -305,6 +313,7 @@ function ResultControlsView(
             : html`<button
                   type="button"
                   class="round-end-result__confirm"
+                  data-focus-key=${PANEL_CONTROL_FOCUS_KEY}
                   aria-label=${action.label}
                   @click=${() => onCommand(action.command)}
               >
@@ -349,12 +358,6 @@ function gameEndActions(
     return actions;
 }
 
-/** The panel over the board, and whether it is a round's result, which alone waits for a win's call. */
-interface PlayPanel {
-    readonly panel: TemplateResult | undefined;
-    readonly isResult: boolean;
-}
-
 const CLOSE_NOTICE: PlayCommand = { kind: "close_notice" };
 
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
@@ -375,56 +378,38 @@ function SheetNote(countdown: NoticeSheetDisplay["countdown"]): TemplateResult {
         <span class="notice-sheet__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>`;
 }
 
-/**
- * The panel over the board, in the overlay's precedence: an end that blocks it, else the question leaving mid-game
- * asks, both shown at once, else a notice the player opened whole, else the table's own (seating, a result, the
- * game's end from the viewer's seat), which comes back as the sheet closes.
- */
-function PlayOverlay(props: PlayBoardProps): PlayPanel {
-    const { display, onCommand, table } = props;
-    if (display.failure !== null) {
-        return { isResult: false, panel: FailurePanel(display.failure, onCommand) };
-    }
-    if (display.leave.confirming) {
-        return { isResult: false, panel: LeaveConfirm(onCommand) };
-    }
-    if (display.noticeSheet !== null) {
-        const { countdown, notices, opener } = display.noticeSheet;
-        return {
-            isResult: false,
-            panel: NoticeSheet({
+/** The panel the display put over the board, drawn with its controls. */
+function OverlayPanel(panel: PlayPanel, props: PlayBoardProps): TemplateResult {
+    const { display, links, onCommand } = props;
+    switch (panel.kind) {
+        case "failure": {
+            return FailurePanel(panel.failure, onCommand);
+        }
+        case "leave": {
+            return LeaveConfirm(onCommand);
+        }
+        case "notice_sheet": {
+            const { countdown, notices, opener } = panel.sheet;
+            return NoticeSheet({
                 note: SheetNote(countdown),
                 notices: notices.map((notice) => boardNotice(notice, onCommand)),
                 onClose: () => onCommand(CLOSE_NOTICE),
                 openerId: opener,
-            }),
-        };
+            });
+        }
+        case "seating":
+        case "result":
+        case "game_end": {
+            return TablePanelDisplay(panel, {
+                endActions: gameEndActions(display, links, onCommand),
+                onPage: (page) => onCommand({ kind: "show_result_page", page }),
+                resultControls: ResultControlsView(display.result, onCommand),
+            });
+        }
+        default: {
+            return assertNever(panel);
+        }
     }
-    return {
-        isResult: showsRoundResult(table, display.resultOverGameEnd),
-        panel: tablePanel(props),
-    };
-}
-
-function tablePanel({
-    display,
-    links,
-    onCommand,
-    table,
-}: PlayBoardProps): TemplateResult | undefined {
-    return boardOverlay(table, {
-        end: {
-            actions: gameEndActions(display, links, onCommand),
-            viewerSeat: display.viewerSeat,
-        },
-        paging: {
-            controls: ResultControlsView(display.result, onCommand),
-            onPage: (page) => onCommand({ kind: "show_result_page", page }),
-            overGameEnd: display.resultOverGameEnd,
-            page: display.resultPage,
-        },
-        start: { secondsLeft: display.firstDealSeconds, viewerSeat: display.viewerSeat },
-    });
 }
 
 /** A notice as the board draws it: found by its kind, opened whole by "Show all". */
@@ -451,17 +436,15 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  * the board, the board under it is inert. Each new showing of calls is read out once.
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {
-    const { display, menuExtra, onCommand, status } = props;
-    const { escape } = display;
-    const inert =
-        display.failure !== null || display.leave.confirming || display.noticeSheet !== null;
+    const { display, menuExtra, onCommand } = props;
+    const { escape, overlay } = display;
+    const inert = overlay?.blocksBoard ?? false;
     function onTile(tileId: number): void {
         const intent = display.tileIntents.get(tileId);
         if (intent !== undefined) {
             onCommand({ intent, kind: "intent" });
         }
     }
-    const { isResult, panel } = PlayOverlay(props);
     return GameBoard({
         actions: DecisionControls(display, onCommand),
         announceCalls: true,
@@ -470,15 +453,17 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         furiten: display.furiten,
         inert,
         localHand: { onTile, tileAction: display.tileAction },
-        menu:
-            status === undefined
-                ? undefined
-                : GameMenu({ extra: menuExtra, leave: display.leave, onCommand, status }),
+        menu: GameMenu({
+            extra: menuExtra,
+            leave: display.leave,
+            onCommand,
+            status: display.status,
+        }),
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         onEscape:
             escape === null || inert ? undefined : (board) => stepBack(board, escape, onCommand),
-        overlay: panel,
-        overlayIsResult: isResult,
+        overlay: overlay === null ? undefined : OverlayPanel(overlay.panel, props),
+        overlayAfterCall: overlay?.panel.kind === "result" && overlay.panel.afterCall,
         platePress: {
             kind: "pin",
             onPin: (seat) => onCommand({ kind: "pin_nameplate", seat }),

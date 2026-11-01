@@ -206,6 +206,7 @@ class TestCallAddedKanImmutable:
         assert meld.opened is True
         assert meld.who == 0
         assert meld.from_who == 3
+        assert meld.added_tile == man_1m[3]
         # 10 original - 1 for kan + 1 dead wall draw = 10
         assert len(new_state.players[0].tiles) == 10
         assert man_1m[3] not in new_state.players[0].tiles

@@ -1,6 +1,6 @@
 import pytest
 
-from game.logic.enums import GameEndCause
+from game.logic.enums import GameEndCause, HandLimit
 from game.logic.exceptions import UnsupportedSettingsError
 from game.logic.game import (
     _get_honba_and_rotation,
@@ -75,6 +75,7 @@ class TestRenchanNagashiMangan:
         gs = create_game_state(honba_sticks=1, settings=settings)
 
         result = NagashiManganResult(
+            rivers=[],
             qualifying_seats=[1],
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
@@ -92,6 +93,7 @@ class TestRenchanNagashiMangan:
         gs = create_game_state(honba_sticks=0, settings=settings)
 
         result = NagashiManganResult(
+            rivers=[],
             qualifying_seats=[1],
             tempai_seats=[0],
             noten_seats=[1, 2, 3],
@@ -111,10 +113,13 @@ class TestRenchanDealerRonDisabled:
         gs = create_game_state(honba_sticks=0, settings=settings)
 
         result = RonResult(
+            honba_bonus=0,
             winner_seat=0,
             loser_seat=1,
             winning_tile=0,
-            hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+            hand_result=HandResultInfo(
+                limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000
+            ),
             scores={0: 25000, 1: 25000, 2: 25000, 3: 25000},
             score_changes={0: 0, 1: 0, 2: 0, 3: 0},
             riichi_sticks_collected=0,

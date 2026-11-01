@@ -1,8 +1,9 @@
-import { requireRiichiStickValue, updatePlayer } from "@/entities/table/model/helpers";
+import { requireRiichiStickValue, seatEntry, updatePlayer } from "@/entities/table/model/helpers";
 import {
     type DrawKind,
     type DrawResult,
     type HandValue,
+    type MeldRecord,
     type PlayerState,
     type RoundEndPage,
     type RoundEndResult,
@@ -14,6 +15,7 @@ import {
     DORA_YAKU_ID,
     type ExhaustiveDrawRoundEnd,
     type NagashiManganRoundEnd,
+    type PaoLiability,
     ROUND_RESULT_TYPE,
     type RoundEndEvent,
 } from "@/shared/protocol";
@@ -21,34 +23,29 @@ import {
 import { applyKanDeclared, robbedKanDeclared } from "./kan-declared";
 
 function settleScores(players: readonly PlayerState[], event: RoundEndEvent): PlayerState[] {
-    return players.map((p) => {
-        const seat = String(p.seat);
-        const scoreBeforePayment = event.scores[seat];
-        if (scoreBeforePayment === undefined) {
-            return p;
-        }
-        return { ...p, score: scoreBeforePayment + (event.scoreChanges[seat] ?? 0) };
-    });
+    return players.map((p) => ({
+        ...p,
+        score: seatEntry(event.scores, p.seat) + seatEntry(event.scoreChanges, p.seat),
+    }));
 }
 
 /**
- * The table at a round end that its result reads beyond the event: the round's dealer and dora indicators, and the
- * game's riichi stick value, which the event's collected sticks are paid at.
+ * What a round end's result reads beyond the event: the game's riichi stick value, which the event's collected sticks
+ * are paid at. Everything else of the result, the round's dealer and dora included, is the event's.
  */
 export interface RoundEndContext {
-    readonly dealerSeat: number;
-    readonly doraIndicators: readonly number[];
     readonly riichiStickValue: number | null;
 }
 
 interface WinnerSource {
     readonly winnerSeat: number;
     readonly closedTiles: readonly number[];
-    readonly melds: readonly number[];
+    readonly melds: readonly MeldRecord[];
     readonly handResult: HandValue;
     readonly scoreChanges: Readonly<Record<string, number>>;
     readonly riichiSticksCollected: number;
-    readonly paoSeat: number | null;
+    readonly honbaBonus: number;
+    readonly pao: PaoLiability | null;
     readonly uraDoraIndicators: readonly number[] | null;
 }
 
@@ -63,7 +60,6 @@ function extractWinner(
 ): WinnerResult {
     const { handResult, scoreChanges, winnerSeat } = source;
     const sticks = source.riichiSticksCollected;
-    const gain = scoreChanges[String(winnerSeat)] ?? 0;
     const riichiBonus = sticks === 0 ? 0 : sticks * requireRiichiStickValue(context);
     return {
         closedTiles: source.closedTiles,
@@ -73,10 +69,9 @@ function extractWinner(
             ura: yakuHan(handResult, DORA_YAKU_ID.URA),
         },
         handResult,
-        honbaBonus: gain - handResult.points - riichiBonus,
-        isDealer: winnerSeat === context.dealerSeat,
+        honbaBonus: source.honbaBonus,
         melds: source.melds,
-        paoSeat: source.paoSeat,
+        pao: source.pao,
         riichiBonus,
         riichiSticksCollected: sticks,
         scoreChanges,
@@ -92,6 +87,7 @@ function emptyDraw(kind: DrawKind): DrawResult {
     return {
         declarerSeat: null,
         kind,
+        nagashiRivers: [],
         nagashiSeats: NO_SEATS,
         notenSeats: NO_SEATS,
         ronSeats: NO_SEATS,
@@ -143,7 +139,18 @@ function resultDraw(event: RoundEndEvent): DrawResult | null {
             return tenpaiDraw("exhaustive", event);
         }
         case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
-            return { ...tenpaiDraw("nagashi_mangan", event), nagashiSeats: event.qualifyingSeats };
+            return {
+                ...tenpaiDraw("nagashi_mangan", event),
+                nagashiRivers: event.qualifyingRivers.map((river) => ({
+                    discards: river.discards.map((discard) => ({
+                        isRiichi: discard.isRiichiDiscard,
+                        isTsumogiri: discard.isTsumogiri,
+                        tileId: discard.tileId,
+                    })),
+                    seat: river.seat,
+                })),
+                nagashiSeats: event.qualifyingSeats,
+            };
         }
         case ROUND_RESULT_TYPE.ABORTIVE_DRAW: {
             return {
@@ -186,16 +193,16 @@ function ronDetail(event: RoundEndEvent): RonDetail {
     }
 }
 
-/** The round end's result as the table keeps it for the result panel, read with the table it ended on. */
+/** The round end's result as the table keeps it for the result panel, every fact of it the server's. */
 export function extractRoundEndResult(
     event: RoundEndEvent,
     context: RoundEndContext,
 ): RoundEndResult {
     return {
         ...ronDetail(event),
-        doraIndicators: context.doraIndicators,
+        dealerSeat: event.dealerSeat,
+        doraIndicators: event.doraIndicators,
         draw: resultDraw(event),
-        inStep: true,
         resultType: event.resultType,
         scoreChanges: event.scoreChanges,
         scoresBeforePayment: event.scores,
@@ -270,27 +277,6 @@ export function revealHands(state: TableState, event: RoundEndEvent): TableState
     return { ...state, players, revealedSeats: hands.map((hand) => hand.seat) };
 }
 
-/** The riichi sticks the round's winners take off the table; a draw leaves them for the next deal. */
-function riichiSticksCollected(event: RoundEndEvent): number {
-    switch (event.resultType) {
-        case ROUND_RESULT_TYPE.TSUMO:
-        case ROUND_RESULT_TYPE.RON: {
-            return event.riichiSticksCollected;
-        }
-        case ROUND_RESULT_TYPE.DOUBLE_RON: {
-            return event.winners.reduce((sum, winner) => sum + winner.riichiSticksCollected, 0);
-        }
-        case ROUND_RESULT_TYPE.EXHAUSTIVE_DRAW:
-        case ROUND_RESULT_TYPE.ABORTIVE_DRAW:
-        case ROUND_RESULT_TYPE.NAGASHI_MANGAN: {
-            return 0;
-        }
-        default: {
-            return assertNever(event);
-        }
-    }
-}
-
 /** The table with the kan the round end's win robbed shown as declared, unless a chankan prompt showed it already. */
 export function showRobbedKan(state: TableState, event: RoundEndEvent): TableState {
     const declared = robbedKanDeclared(event);
@@ -298,18 +284,18 @@ export function showRobbedKan(state: TableState, event: RoundEndEvent): TableSta
 }
 
 /**
- * End the round: the kan a win robbed shows as declared first, then the scores pay out and the hands the result
- * reveals show. On a table out of step with the server, the result says so (`inStep`).
+ * End the round: the kan a win robbed shows as declared first, then the scores pay out, the table keeps the riichi
+ * sticks the server says the result left, and the hands the result reveals show.
  */
 export function applyRoundEnd(state: TableState, event: RoundEndEvent): TableState {
     const declared = showRobbedKan(state, event);
-    const result = { ...extractRoundEndResult(event, state), inStep: state.inStep };
+    const result = extractRoundEndResult(event, state);
     return revealHands(
         {
             ...declared,
             phase: "round_ended",
             players: settleScores(declared.players, event),
-            riichiSticks: state.riichiSticks - riichiSticksCollected(event),
+            riichiSticks: event.riichiSticks,
             roundEndResult: result,
         },
         event,

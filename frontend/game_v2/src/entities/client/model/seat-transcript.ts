@@ -70,13 +70,17 @@ const sentIdentitySchema = z.discriminatedUnion("t", [
     z.strictObject({ game_ticket: ticketSchema, t: z.literal(CLIENT_MESSAGE_TYPE.RECONNECT) }),
 ]);
 
+/** A RESYNC exactly as the seat sent it. */
+const sentResyncSchema = z.strictObject({ t: z.literal(CLIENT_MESSAGE_TYPE.RESYNC) });
+
 type SentAction = z.output<typeof sentActionSchema>;
 type SentIdentity = z.output<typeof sentIdentitySchema>;
+type SentResync = z.output<typeof sentResyncSchema>;
 
 const atSchema = z.int().check(z.gte(0));
 const labelSchema = z.optional(z.string().check(z.minLength(1)));
 const payloadSchema = z.record(z.string(), z.unknown());
-const sentMessageSchema = z.union([sentIdentitySchema, sentActionSchema]);
+const sentMessageSchema = z.union([sentIdentitySchema, sentResyncSchema, sentActionSchema]);
 
 const transcriptEventSchema = z.discriminatedUnion("kind", [
     z.strictObject({ at: atSchema, kind: z.literal("opened"), label: labelSchema }),
@@ -142,9 +146,20 @@ export function parseSeatTranscript(raw: unknown): [Error, null] | [null, SeatTr
     return result.success ? [null, result.data] : [result.error, null];
 }
 
-function isIdentity(message: SentIdentity | SentAction): message is SentIdentity {
-    return message.t !== CLIENT_MESSAGE_TYPE.GAME_ACTION;
+type SentMessage = SentIdentity | SentResync | SentAction;
+
+function isIdentity(message: SentMessage): message is SentIdentity {
+    return (
+        message.t === CLIENT_MESSAGE_TYPE.JOIN_GAME || message.t === CLIENT_MESSAGE_TYPE.RECONNECT
+    );
 }
+
+function isResync(message: SentMessage): message is SentResync {
+    return message.t === CLIENT_MESSAGE_TYPE.RESYNC;
+}
+
+/** What a transcript's frame that did not decode says, the frame no transcript can record. */
+const UNDECODED_FRAME_DETAIL = "A frame the transcript cannot record did not decode";
 
 type ChosenAction = Exclude<
     SentAction,
@@ -199,8 +214,12 @@ function answeringIntent(action: SentAction): LocalIntent {
     }
 }
 
-/** A sent message as the client sends it: a JOIN_GAME or RECONNECT with the handoff's ticket. */
-function sentEffect(message: SentIdentity | SentAction, handoff: GameSessionData): ClientEffect {
+/**
+ * A sent message as the client sends it: a JOIN_GAME or RECONNECT with the handoff's ticket, an action or a RESYNC as
+ * recorded. A recorded RESYNC is always taken as asked after a frame that did not decode (`sentStep`): a transcript the
+ * server makes cannot show any other loss of step, and a repeated request is a hand-written branch.
+ */
+function sentEffect(message: SentMessage, handoff: GameSessionData): ClientEffect {
     const sent: ClientMessage = isIdentity(message)
         ? { ...message, game_ticket: handoff.gameTicket }
         : message;
@@ -210,12 +229,22 @@ function sentEffect(message: SentIdentity | SentAction, handoff: GameSessionData
 /**
  * A sent message as the step that makes the client send it: the intent choosing it (an answer, a round confirm), or,
  * for a message the client sends on its own (a JOIN_GAME or RECONNECT resent on its open socket), the tick at its
- * recorded time.
+ * recorded time. A RESYNC is the ask of a client that lost step with the server's messages; the one loss no transcript
+ * can record is a frame that did not decode, so it is that frame at its recorded time, reported for the console, and
+ * the RESYNC sent at once.
  */
 function sentStep(
     { at, label, message }: Extract<TranscriptEvent, { kind: "sent" }>,
     handoff: GameSessionData,
 ): ScenarioStep {
+    if (isResync(message)) {
+        const detail = UNDECODED_FRAME_DETAIL;
+        return {
+            effects: [{ detail, type: "report_protocol_failure" }, sentEffect(message, handoff)],
+            event: { at, detail, kind: "frame_undecodable" },
+            label,
+        };
+    }
     const effects = [sentEffect(message, handoff)];
     if (isIdentity(message)) {
         return { effects, event: { at, kind: "tick" }, label };
@@ -372,7 +401,8 @@ function drivenSteps(transcript: SeatTranscript, handoff: GameSessionData): Scen
  * each deadline the client holds before the transcript's next event; the effects it expects come only from the
  * transcript and the contract, never from the client under test: every message the transcript records sent, at its
  * recorded time (an answer or a round confirm as the intent choosing it, a message the client sends on its own as a
- * tick then, a JOIN_GAME or RECONNECT as the effect of the open before it), a socket reopened at its recorded open,
+ * tick then, a JOIN_GAME or RECONNECT as the effect of the open before it, a RESYNC as the effect of a frame that did
+ * not decode, reported), a socket reopened at its recorded open,
  * the handoff forgotten after a terminal close, and nothing else. An automatic send the client makes early, late or never is a
  * mismatch.
  */

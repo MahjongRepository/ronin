@@ -128,7 +128,9 @@ function kanMianzi(kan, findPon) {
     }
     const pon = findPon(kan.s, t34);
     if (! pon) throw new Error('robbed added kan without its pon');
-    return mianzi.mianziStr({ ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([kan.ti]) }, pon);
+    return mianzi.mianziStr({
+        ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([kan.ti]), addedTileId: kan.ti,
+    });
 }
 
 /**

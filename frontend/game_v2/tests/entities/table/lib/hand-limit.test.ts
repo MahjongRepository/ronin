@@ -3,6 +3,7 @@ import { assert, describe, expect, test } from "vitest";
 import { loadEngineReplay } from "#tests/fixtures/replays";
 import { type WinnerResult } from "@/entities/table";
 import { handLimitName } from "@/entities/table/lib/hand-limit";
+import { HAND_LIMIT } from "@/shared/protocol";
 
 function fixtureWinners(name: string): readonly WinnerResult[] {
     return loadEngineReplay(name).tables.flatMap((table, index, tables) =>
@@ -31,49 +32,44 @@ describe("handLimitName", () => {
     ])("%s (%s) is paid as %s", (name, _hand, limit) => {
         const winner = lastWinner(name);
 
-        expect(handLimitName(winner.handResult, winner.isDealer)).toBe(limit);
+        expect(handLimitName(winner.handResult)).toBe(limit);
     });
 
-    test("reads a dealer's limit at 6x its basic points and a hand below mangan as none", () => {
-        const winners = fixtureWinners("eager_game");
-        const dealerMangan = winners.find(
-            (winner) => winner.isDealer && winner.handResult.han === 5,
-        );
-        const below = winners.find((winner) => winner.handResult.han === 1);
-        assert(dealerMangan !== undefined && below !== undefined);
-
-        expect(dealerMangan.handResult.points).toBe(12_000);
-        expect(handLimitName(dealerMangan.handResult, true)).toBe("Mangan");
-        expect(handLimitName(below.handResult, below.isDealer)).toBeNull();
-    });
-
-    test("names a limit from the payment, not the han: kazoe capped at sanbaiman, a double yakuman", () => {
-        const kazoeCapped = {
-            fu: 30,
-            han: 13,
-            points: 24_000,
-            yaku: [{ han: 6, isYakuman: false, yakuId: 39 }],
-        };
-        const doubleYakuman = {
-            fu: 0,
-            han: 26,
-            points: 64_000,
-            yaku: [{ han: 26, isYakuman: true, yakuId: 113 }],
-        };
-
-        expect(handLimitName(kazoeCapped, false)).toBe("Sanbaiman");
-        expect(handLimitName(doubleYakuman, false)).toBe("Double Yakuman");
-    });
-
-    test("tells a yakuman from a kazoe yakuman by the server's yakuman flag, whatever the yaku's id", () => {
-        const yakuman = { fu: 0, han: 13, points: 32_000 };
+    test("names the server's limit, never one worked back from the points or han", () => {
+        const hand = { fu: 30, han: 5, yaku: [{ han: 5, yakuId: 39, yakumanCount: 0 }] };
 
         expect([
-            handLimitName({ ...yakuman, yaku: [{ han: 13, isYakuman: true, yakuId: 150 }] }, false),
-            handLimitName(
-                { ...yakuman, yaku: [{ han: 13, isYakuman: false, yakuId: 103 }] },
-                false,
-            ),
+            handLimitName({
+                ...hand,
+                limit: HAND_LIMIT.MANGAN,
+                points: 12_000,
+                yakumanCount: null,
+            }),
+            handLimitName({ ...hand, limit: HAND_LIMIT.NONE, points: 8000, yakumanCount: null }),
+            handLimitName({
+                ...hand,
+                han: 13,
+                limit: HAND_LIMIT.SANBAIMAN,
+                points: 24_000,
+                yakumanCount: null,
+            }),
+            handLimitName({
+                ...hand,
+                han: 26,
+                limit: HAND_LIMIT.YAKUMAN,
+                points: 32_000,
+                yakumanCount: 2,
+            }),
+        ]).toEqual(["Mangan", null, "Sanbaiman", "Double Yakuman"]);
+    });
+
+    test("tells a yakuman from a kazoe yakuman by the server's limit, whatever the yaku", () => {
+        const hand = { fu: 0, han: 13, points: 32_000, yakumanCount: 1 };
+        const yaku = [{ han: 13, yakuId: 103, yakumanCount: 1 }];
+
+        expect([
+            handLimitName({ ...hand, limit: HAND_LIMIT.YAKUMAN, yaku }),
+            handLimitName({ ...hand, limit: HAND_LIMIT.KAZOE_YAKUMAN, yaku }),
         ]).toEqual(["Yakuman", "Kazoe Yakuman"]);
     });
 });

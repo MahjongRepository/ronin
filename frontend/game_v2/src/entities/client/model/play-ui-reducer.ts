@@ -3,12 +3,12 @@ import { assertNever } from "@/shared/lib";
 import { boardNotices } from "./board-notices";
 import { choosingTiles, pickingRiichi } from "./decision-controls";
 import { decisionOf } from "./pending";
-import { type PlayCommand, type PlayUi, type TileChoiceKind } from "./play-ui";
+import { type PlayCommand, type PlayUi, type PlayUiInput, type TileChoiceKind } from "./play-ui";
 import { resultRound } from "./result-controls";
 import { type LiveClient, type LocalIntent } from "./types";
 
 /** The view's `ui` once the client state moved on: a sheet with no notice left closes, so it never reopens. */
-export function settledPlayUi(state: LiveClient, ui: PlayUi): PlayUi {
+function settledPlayUi(state: LiveClient, ui: PlayUi): PlayUi {
     if (ui.noticeSheet === null || boardNotices(state, ui).length > 0) {
         return ui;
     }
@@ -74,12 +74,12 @@ function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
 }
 
 /**
- * The view's `ui` after a command: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
+ * The view's `ui` after a command, before it settles: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
  * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
  * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
  * result reopens on its first; a nameplate is pinned, or none; a notice opens whole in its sheet, or the sheet closes.
  */
-export function nextPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
+function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
         case "intent":
         case "reload": {
@@ -109,6 +109,26 @@ export function nextPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand):
         }
         default: {
             return assertNever(command);
+        }
+    }
+}
+
+/**
+ * The view's `ui` after one step of the page, settled on the client state that step left (`state`): a page control
+ * (an intent once the dispatcher stepped it), the client stepping on its own (a message, a tick, a failure) or the
+ * tile sprite's load moving on. Every driver calls it after each step, so the board it draws is a function of the
+ * client state and this `ui` alone.
+ */
+export function stepPlayUi(state: LiveClient, ui: PlayUi, input: PlayUiInput): PlayUi {
+    switch (input.kind) {
+        case "client_stepped": {
+            return settledPlayUi(state, ui);
+        }
+        case "tile_sprite": {
+            return settledPlayUi(state, { ...ui, tileSprite: input.status });
+        }
+        default: {
+            return settledPlayUi(state, commandedPlayUi(state, ui, input));
         }
     }
 }

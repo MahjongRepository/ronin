@@ -23,9 +23,14 @@ import {
 
 type DeclaredKanType = "added_kan" | "closed_kan";
 
-/** The kan a chankan prompt shows its declarer declaring: the prompt names the tile and the seat, not the kan type. */
+/** The kan a chankan prompt shows its declarer declaring, as the prompt names it. */
 export function chankanKanDeclared(prompt: ChankanPromptEvent): KanDeclaredEvent {
-    return { kanType: null, seat: prompt.fromSeat, tileId: prompt.tileId, type: "kan_declared" };
+    return {
+        kanType: prompt.kanType,
+        seat: prompt.fromSeat,
+        tileId: prompt.tileId,
+        type: "kan_declared",
+    };
 }
 
 /** The kan a round end's win robbed, as declared before the win, or null for a round end that robbed none. */
@@ -57,18 +62,9 @@ export function shownKanIndex(player: PlayerState, meldType: MeldType, tileId: n
     );
 }
 
-/**
- * The kan's type: the source's, or else added when the declarer holds a pon of the tile, or an added kan of it
- * already shown, else closed.
- */
-function declaredKanType(player: PlayerState, event: KanDeclaredEvent): DeclaredKanType {
-    if (event.kanType !== null) {
-        return event.kanType === KAN_TYPE.ADDED ? "added_kan" : "closed_kan";
-    }
-    const added =
-        ponOfType(player.melds, tileType(event.tileId)) !== undefined ||
-        shownKanIndex(player, "added_kan", event.tileId) !== -1;
-    return added ? "added_kan" : "closed_kan";
+/** The meld a declared kan lays, by the type its source names. */
+function declaredKanType(event: KanDeclaredEvent): DeclaredKanType {
+    return event.kanType === KAN_TYPE.ADDED ? "added_kan" : "closed_kan";
 }
 
 /** The kan as laid, and the tiles it takes from the hand: an added kan's one tile, a closed kan's four copies. */
@@ -109,7 +105,7 @@ function declaredKan(
 /** Whether the table already shows the kan a declaration names: an earlier prompt for it showed it. */
 export function showsDeclaredKan(state: TableState, event: KanDeclaredEvent): boolean {
     const player = requirePlayer(state, event.seat);
-    return shownKanIndex(player, declaredKanType(player, event), event.tileId) !== -1;
+    return shownKanIndex(player, declaredKanType(event), event.tileId) !== -1;
 }
 
 /**
@@ -122,7 +118,7 @@ export function applyKanDeclared(state: TableState, event: KanDeclaredEvent): Ta
         return state;
     }
     const player = requirePlayer(state, event.seat);
-    const meldType = declaredKanType(player, event);
+    const meldType = declaredKanType(event);
     const { fromHand, melds } = declaredKan(player, event, meldType);
     const hand = takeFromHand(player, fromHand);
     if (hand === null) {

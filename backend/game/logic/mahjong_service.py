@@ -49,15 +49,16 @@ from game.logic.state import (
     MahjongRoundState,
     PendingCallPrompt,
     get_player_view,
+    round_in_wind,
     wind_name,
 )
+from game.logic.state_utils import river_of
 from game.logic.turn import (
     process_draw_phase,
 )
 from game.logic.types import (
     ChiActionData,
     DiscardActionData,
-    DiscardInfo,
     DoubleRonResult,
     GamePlayerInfo,
     KanActionData,
@@ -90,12 +91,14 @@ class _CallStart:
 @dataclass(frozen=True)
 class _RoundHeader:
     """
-    The header a reconnect snapshot shows its round with: the dealer, wind, round number and honba.
+    The header a reconnect snapshot shows its round with: the dealer, wind, round number, number within the wind and
+    honba.
     """
 
     dealer_seat: int
     round_wind: WindName
     round_number: int
+    round_in_wind: int
     honba_sticks: int
 
 
@@ -125,6 +128,7 @@ def _snapshot_round_header(game_state: MahjongGameState) -> _RoundHeader:
             dealer_seat=round_state.dealer_seat,
             round_wind=wind_name(round_state.round_wind),
             round_number=round_number,
+            round_in_wind=round_in_wind(game_state),
             honba_sticks=game_state.honba_sticks,
         )
 
@@ -133,6 +137,7 @@ def _snapshot_round_header(game_state: MahjongGameState) -> _RoundHeader:
         dealer_seat=ended.dealer_seat,
         round_wind=ended.round_wind,
         round_number=round_number,
+        round_in_wind=ended.round_in_wind,
         honba_sticks=ended.honba_sticks,
     )
 
@@ -225,7 +230,6 @@ class MahjongGameService(GameService):
             players=players,
             dealer_seat=game_state.round_state.dealer_seat,
             dealer_dice=game_state.dealer_dice,
-            riichi_cost=game_state.settings.riichi_cost,
             riichi_stick_value=game_state.settings.riichi_stick_value,
         )
 
@@ -714,14 +718,7 @@ class MahjongGameService(GameService):
             PlayerReconnectState(
                 seat=p.seat,
                 score=p.score,
-                discards=[
-                    DiscardInfo(
-                        tile_id=d.tile_id,
-                        is_tsumogiri=d.is_tsumogiri,
-                        is_riichi_discard=d.is_riichi_discard,
-                    )
-                    for d in p.discards
-                ],
+                discards=river_of(p),
                 melds=[frozen_meld_to_compact(m) for m in p.melds],
                 is_riichi=p.is_riichi,
                 tile_count=len(p.tiles),
@@ -735,12 +732,13 @@ class MahjongGameService(GameService):
             game_id=runtime.game_id,
             players=players_info,
             dealer_seat=header.dealer_seat,
+            first_dealer_seat=game_state.starting_dealer_seat,
             dealer_dice=game_state.dealer_dice,
-            riichi_cost=game_state.settings.riichi_cost,
             riichi_stick_value=game_state.settings.riichi_stick_value,
             seat=seat,
             round_wind=header.round_wind,
             round_number=header.round_number,
+            round_in_wind=header.round_in_wind,
             current_player_seat=round_state.current_player_seat,
             latest_discard_seat=_latest_discard_seat(round_state),
             dora_indicators=view.dora_indicators,

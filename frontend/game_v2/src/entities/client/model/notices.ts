@@ -1,4 +1,4 @@
-import { type SessionState, hasLostSeat } from "@/entities/session";
+import { type SessionState, hasEnded, hasLostSeat, holdsSeat } from "@/entities/session";
 import { type ParsedServerMessage } from "@/shared/protocol";
 
 import { refusalOf } from "./decision";
@@ -13,10 +13,10 @@ const REFUSED_NOTICE_MS = 4000;
  * second drop replaces it with its own notice.
  */
 export function keptNotice(notice: TimedNotice | null, session: SessionState): TimedNotice | null {
-    if (session.status === "ended") {
+    if (hasEnded(session)) {
         return null;
     }
-    return notice?.kind === "reconnected" && session.status !== "playing" ? null : notice;
+    return notice?.kind === "reconnected" && !holdsSeat(session) ? null : notice;
 }
 
 /**
@@ -58,7 +58,7 @@ function messageNotice(
         return lostSeat ? { kind: "reconnected", until: now + RECONNECTED_NOTICE_MS } : null;
     }
     const refusal = refusalOf(message);
-    if (session.status !== "playing" || refusal === null || refusal.waitId !== before.submitted) {
+    if (!holdsSeat(session) || refusal === null || refusal.waitId !== before.submitted) {
         return null;
     }
     return { code: refusal.code, kind: "refused", until: now + REFUSED_NOTICE_MS };

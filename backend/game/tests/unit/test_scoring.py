@@ -3,7 +3,7 @@ from mahjong.hand_calculating.yaku_list import AkaDora, Chankan, Dora, Haku, Itt
 from mahjong.hand_calculating.yaku_list.yakuman import Daisangen, DaiSuushii, Tsuuiisou
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import RoundPhase, RoundResultType
+from game.logic.enums import HandLimit, PaoShare, RoundPhase, RoundResultType
 from game.logic.events import GameEvent, RoundEndEvent
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import (
@@ -12,6 +12,7 @@ from game.logic.scoring import (
     apply_nagashi_mangan_score,
     calculate_hand_value,
     calculate_hand_value_with_tiles,
+    hand_limit,
 )
 from game.logic.settings import GameSettings
 from game.logic.state import (
@@ -23,7 +24,15 @@ from game.logic.state import (
 )
 from game.logic.tiles import EAST_34, NORTH_34, SOUTH_34, WEST_34, tile_to_34
 from game.logic.turn import process_ron_call, process_tsumo_call
-from game.logic.types import DoubleRonResult, RonCallInput, RonResult, RoundResult, TsumoResult, YakuInfo
+from game.logic.types import (
+    DoubleRonResult,
+    PaoLiability,
+    RonCallInput,
+    RonResult,
+    RoundResult,
+    TsumoResult,
+    YakuInfo,
+)
 from game.logic.win import all_tiles_from_hand_and_melds, get_waiting_tiles
 from game.tests.conftest import create_dealt_game_state, create_game_state, create_player, create_round_state
 from game.tests.helpers.hands import tile_copies
@@ -202,7 +211,8 @@ class TestTsumoScoring:
         new_state, events = process_tsumo_call(game_state, winner_seat=0)
         result = _round_result(events)
         assert isinstance(result, TsumoResult)
-        assert result.hand_result.points == 18000
+        assert (result.hand_result.points, result.hand_result.limit) == (18000, HandLimit.HANEMAN)
+        assert result.honba_bonus == 300
         assert result.score_changes == {0: 20300, 1: -6100, 2: -6100, 3: -6100}
         _assert_settled(game_state, new_state, result.score_changes)
         assert result.riichi_sticks_collected == 2
@@ -234,6 +244,7 @@ class TestTsumoScoring:
         assert isinstance(result, TsumoResult)
         assert [(y.yaku_id, y.han) for y in result.hand_result.yaku] == [(Tsumo.yaku_id, 1), (Ittsu.yaku_id, 2)]
         assert (result.hand_result.han, result.hand_result.fu, result.hand_result.points) == (3, 30, 4000)
+        assert (result.hand_result.limit, result.honba_bonus) == (HandLimit.NONE, 600)
         assert result.score_changes == {0: -2200, 1: 4600, 2: -1200, 3: -1200}
         _assert_settled(game_state, new_state, result.score_changes)
 
@@ -295,8 +306,15 @@ class TestRonScoring:
         )
         result = _round_result(events)
         assert isinstance(result, RonResult)
-        assert result.hand_result.points == 8000
+        assert (result.hand_result.points, result.hand_result.limit, result.honba_bonus) == (
+            8000,
+            HandLimit.MANGAN,
+            1000,
+        )
         assert result.score_changes == {0: 0, 1: -9000, 2: 11000, 3: 0}
+        round_end = events[0]
+        assert isinstance(round_end, RoundEndEvent)
+        assert (round_end.dealer_seat, round_end.dora_indicators) == (0, [_DORA_EAST_INDICATOR])
         _assert_settled(game_state, new_state, result.score_changes)
         assert result.riichi_sticks_collected == 2
         assert result.ura_dora_indicators == list(game_state.round_state.wall.dead_wall.ura_dora_indicators)
@@ -327,7 +345,10 @@ class TestDoubleRonScoring:
         )
         result = _round_result(events)
         assert isinstance(result, DoubleRonResult)
-        assert [(w.winner_seat, w.hand_result.points) for w in result.winners] == [(0, 7700), (2, 8000)]
+        assert [(w.winner_seat, w.hand_result.points, w.honba_bonus) for w in result.winners] == [
+            (0, 7700, 1000),
+            (2, 8000, 1000),
+        ]
         assert {w.winner_seat: w.riichi_sticks_collected for w in result.winners} == {
             seat: 2 if seat == stick_receiver else 0 for seat in (0, 2)
         }
@@ -338,6 +359,11 @@ class TestDoubleRonScoring:
         assert result.score_changes == score_changes
         assert _sum_winner_changes(result) == score_changes
         _assert_settled(game_state, new_state, score_changes)
+
+
+def test_hand_limit__when_library_level_unknown__should_raise():
+    with pytest.raises(ValueError, match="unknown scoring library yaku level"):
+        hand_limit("7x yakuman", [], han=0, fu=0)
 
 
 class TestApplyNagashiManganScore:
@@ -507,7 +533,12 @@ class TestPaoTsumoScoring:
         result = _round_result(events)
         assert isinstance(result, TsumoResult)
         assert result.pao_seat == 2
-        assert result.hand_result.points == 32000
+        assert result.pao == PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.ALL, pays_honba=True)
+        assert (result.hand_result.points, result.hand_result.limit, result.hand_result.yakuman_count) == (
+            32000,
+            HandLimit.YAKUMAN,
+            1,
+        )
         assert result.score_changes == {0: 0, 1: 33300, 2: -32300, 3: 0}
         assert result.riichi_sticks_collected == 1
 
@@ -543,6 +574,7 @@ class TestPaoRonScoring:
         result = _round_result(events)
         assert isinstance(result, RonResult)
         assert result.pao_seat == 2
+        assert result.pao == PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.HALF, pays_honba=False)
         assert result.hand_result.points == 48000
         assert result.score_changes == {0: 49000, 1: -24000, 2: -24000, 3: 0}
         assert result.riichi_sticks_collected == 1
@@ -564,6 +596,7 @@ class TestPaoRonScoring:
         result = _round_result(events)
         assert isinstance(result, RonResult)
         assert result.pao_seat == 3
+        assert result.pao == PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.ALL, pays_honba=True)
         assert result.hand_result.points == 32000
         assert result.score_changes == {0: 0, 1: 32300, 2: 0, 3: -32300}
 
@@ -605,7 +638,8 @@ class TestPaoRonScoring:
         result = _round_result(events)
         assert isinstance(result, RonResult)
         assert [y.yaku_id for y in result.hand_result.yaku] == [Daisangen.yaku_id, Tsuuiisou.yaku_id]
-        assert result.hand_result.points == 96000
+        assert result.pao == PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.HALF, pays_honba=True)
+        assert (result.hand_result.points, result.hand_result.yakuman_count) == (96000, 2)
         assert result.score_changes == {0: 96300, 1: -72000, 2: 0, 3: -24300}
 
     def test_pao__when_double_yakuman_daisuushii_ron_stacks_tsuuiisou__should_weigh_the_pao_share_by_han(self):
@@ -652,6 +686,10 @@ class TestPaoRonScoring:
         result = _round_result(events)
         assert isinstance(result, DoubleRonResult)
         assert [w.pao_seat for w in result.winners] == [2, None]
+        assert [w.pao for w in result.winners] == [
+            PaoLiability(yaku_ids=[Daisangen.yaku_id], share=PaoShare.HALF, pays_honba=True),
+            None,
+        ]
         assert [w.hand_result.points for w in result.winners] == [48000, 5200]
         assert [w.score_changes for w in result.winners] == [
             {0: 48300, 1: 0, 2: -24300, 3: -24000},

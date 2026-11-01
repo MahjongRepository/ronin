@@ -72,9 +72,11 @@ function viewWords(position: SeatPosition, pressed: boolean | null): string | nu
 }
 
 /**
- * A seat's badge, one shape on every side: its player's name, then its AI and riichi marks, quiet; whose turn it is underlines it. Its score is the centre's, on the seat's side. It is a button: pressing
- * it pins it, so the centre shows the other seats' scores as differences from its own, and pressing it again unpins
- * it, or on a replay views the table from its seat; its label reads the score, or the difference from the pinned badge.
+ * A seat's badge: its player's name, its AI and riichi marks quiet on a line under it (beside it on the own badge, whose
+ * lane is wide and short); a bar along its edge facing the centre marks whose turn it is. Its score is the centre's, on
+ * the seat's side. It is a button: pressing it pins it, so the centre shows the other seats' scores as differences from
+ * its own, and pressing it again unpins it, or on a replay views the table from its seat; its label reads the score, or
+ * the difference from the pinned badge.
  */
 function Nameplate(props: NameplateProps): TemplateResult {
     const { onToggle, plate, position, pressed } = props;
@@ -85,7 +87,6 @@ function Nameplate(props: NameplateProps): TemplateResult {
     ]
         .filter(Boolean)
         .join(" ");
-    const { aiMark } = plate;
     return html`<button
         type="button"
         class=${classes}
@@ -94,18 +95,25 @@ function Nameplate(props: NameplateProps): TemplateResult {
         aria-pressed=${pressed === null ? nothing : String(pressed)}
         @click=${onToggle}
     >
-        <span class="nameplate__pill">
-            ${PlayerName(plate.name, "nameplate__name")}
-            ${
-                aiMark === null
-                    ? nothing
-                    : html`<span class="nameplate__ai nameplate__ai--${aiMark.tag.toLowerCase()}"
-                          >${aiMark.tag}</span
-                      >`
-            }
-            ${plate.isRiichi ? html`<span class="nameplate__riichi">${RiichiStickIcon()}</span>` : nothing}
-        </span>
+        <span class="nameplate__pill">${PlayerName(plate.name, "nameplate__name")}${NameplateMarks(plate)}</span>
     </button>`;
+}
+
+/**
+ * A plate's quiet marks, AI or Away and riichi: on a line under the name, so the name keeps the plate's width, or
+ * beside it on the own plate.
+ */
+function NameplateMarks({ aiMark, isRiichi }: BoardNameplate): TemplateResult | typeof nothing {
+    if (aiMark === null && !isRiichi) {
+        return nothing;
+    }
+    return html`<span class="nameplate__marks"
+        >${
+            aiMark === null
+                ? nothing
+                : html`<span class="nameplate__ai nameplate__ai--${aiMark.tag.toLowerCase()}">${aiMark.tag}</span>`
+        }${isRiichi ? html`<span class="nameplate__riichi">${RiichiStickIcon("across")}</span>` : nothing}</span
+    >`;
 }
 
 /**

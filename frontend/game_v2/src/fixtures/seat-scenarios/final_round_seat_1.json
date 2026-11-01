@@ -6,13 +6,13 @@
     {"at": 0, "kind": "opened"},
     {"at": 0, "kind": "sent", "message": {"game_ticket": "<game ticket>", "t": 7}},
     {"at": 0, "kind": "received", "payload": {"pt": 30.0, "type": "game_joined"}},
-    {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-final-round", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "rc": 10, "rsv": 10, "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}}},
-    {"at": 3000, "kind": "received", "payload": {"cp": 0, "dc": [1, 1], "di": [113], "dl": 0, "h": 0, "mt": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "s": 1, "t": 9, "w": 0}},
-    {"at": 3000, "kind": "received", "payload": {"s": 0, "t": 13}},
+    {"at": 0, "kind": "received", "payload": {"dd": [[1, 1], [1, 1]], "dl": 0, "gid": "seat-final-round", "gt": 0, "p": [{"ai": 1, "nm": "Tsumogiri 1", "s": 0}, {"ai": 0, "nm": "Alice", "s": 1}, {"ai": 1, "nm": "Tsumogiri 2", "s": 2}, {"ai": 1, "nm": "Tsumogiri 3", "s": 3}], "rsv": 10, "s": 1, "t": 8, "tm": {"bk": 20.0, "gp": 3.0, "mb": 60.0, "md": 5.0, "ra": 10.0, "rb": 10.0, "tb": 5.0}}},
+    {"at": 3000, "kind": "received", "payload": {"cp": 0, "dc": [1, 1], "di": [113], "dl": 0, "h": 0, "mt": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "n": 0, "p": [{"s": 0, "sc": 250}, {"s": 1, "sc": 250}, {"s": 2, "sc": 250}, {"s": 3, "sc": 250}], "r": 0, "rw": 1, "s": 1, "t": 9, "tr": 70, "w": 0}},
+    {"at": 3000, "kind": "received", "payload": {"s": 0, "t": 13, "tr": 69}},
     {"at": 3000, "kind": "received", "payload": {"d": 576, "t": 2}},
     {"at": 3000, "kind": "received", "label": "ron prompt", "payload": {"clt": 0, "cs": 1, "frs": 0, "t": 3, "ti": 32, "wi": 1}},
     {"at": 5000, "kind": "sent", "label": "ron chosen", "message": {"a": 3, "t": 3, "wi": 1}},
-    {"at": 5000, "kind": "received", "label": "round end", "payload": {"ct": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "hr": {"fu": 0, "han": 13, "pt": 320, "yk": [{"han": 13, "yi": 100, "ym": true}]}, "ls": 0, "ml": [], "rc": 0, "rt": 1, "sch": {"0": -320, "1": 320, "2": 0, "3": 0}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "ws": 1, "wt": 32}},
+    {"at": 5000, "kind": "received", "label": "round end", "payload": {"ct": [0, 1, 36, 68, 72, 104, 108, 112, 116, 120, 124, 128, 132], "di": [113], "dl": 0, "hb": 0, "hr": {"fu": 0, "han": 13, "lm": "yakuman", "pt": 320, "yc": 1, "yk": [{"han": 13, "yi": 100, "ym": 1}]}, "ls": 0, "ml": [], "r": 0, "rc": 0, "rt": 1, "sch": {"0": -320, "1": 320, "2": 0, "3": 0}, "scs": {"0": 250, "1": 250, "2": 250, "3": 250}, "t": 4, "ws": 1, "wt": 32}},
     {"at": 5000, "kind": "received", "label": "game end", "payload": {"ec": "tobi", "lb": 0, "lr": 0, "nr": 1, "st": [{"fs": 67, "s": 1, "sc": 570}, {"fs": 5, "s": 2, "sc": 250}, {"fs": -15, "s": 3, "sc": 250}, {"fs": -57, "s": 0, "sc": -70}], "t": 10, "ws": 1}},
     {"at": 5000, "code": 1000, "kind": "closed", "reason": "game_ended"}
   ]

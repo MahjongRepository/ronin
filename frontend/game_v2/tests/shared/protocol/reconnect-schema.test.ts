@@ -7,6 +7,9 @@ import {
 } from "@/shared/protocol/constants";
 import { gameReconnectedSchema } from "@/shared/protocol/schemas/reconnect";
 
+/** Seat 1's added kan of 1p from seat 3: 38 called, 39 added from hand. */
+const ADDED_KAN_OF_1P = 22_457;
+
 const FINISHED_ROUND = {
     dl: 0,
     h: 0,
@@ -29,6 +32,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         di: [45, 67],
         dl: 0,
         f: true,
+        fd: 3,
         gid: "game-abc-123",
         h: 1,
         mt: [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48],
@@ -50,7 +54,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
             },
             {
                 dsc: [{ rd: true, tg: false, ti: 100 }],
-                ml: [6081],
+                ml: [ADDED_KAN_OF_1P],
                 ri: true,
                 s: 1,
                 sc: 240,
@@ -74,9 +78,9 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
             },
         ],
         r: 1,
-        rc: 20,
         rh: [FINISHED_ROUND, FINISHED_ROUND],
         rsv: 15,
+        rw: 2,
         s: 0,
         tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
         tr: 52,
@@ -100,18 +104,18 @@ describe("gameReconnectedSchema", () => {
         expect(result.currentPlayerSeat).toBe(2);
         expect(result.dealerSeat).toBe(0);
         expect(result.roundNumber).toBe(2);
-        expect(result.wind).toBe(0);
+        expect([result.wind, result.roundInWind, result.firstDealerSeat]).toEqual([0, 2, 3]);
         expect(result.waitId).toBe(9);
         expect(result.roundResult).toBeNull();
         expect(result.confirmationOwed).toBe(false);
     });
 
-    it("parses sticks, the riichi cost and stick value, tiles remaining, seat info and the seat's furiten", () => {
+    it("parses sticks, the riichi stick value, tiles remaining, seat info and the seat's furiten", () => {
         const result = parsePayload();
 
         expect(result.honbaSticks).toBe(1);
         expect(result.riichiSticks).toBe(1);
-        expect([result.riichiCost, result.riichiStickValue]).toEqual([2000, 1500]);
+        expect(result.riichiStickValue).toBe(1500);
         expect(result.tilesRemaining).toBe(52);
         expect(result.seat).toBe(0);
         expect(result.myTiles).toHaveLength(13);
@@ -127,6 +131,9 @@ describe("gameReconnectedSchema", () => {
             n: 1,
             oc: true,
             re: {
+                di: [40],
+                dl: 1,
+                r: 1,
                 rn: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
                 rt: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
                 sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
@@ -163,6 +170,7 @@ describe("gameReconnectedSchema", () => {
         expect(result.roundResult).toMatchObject({
             reason: ABORTIVE_DRAW_TYPE.FOUR_WINDS,
             resultType: ROUND_RESULT_TYPE.ABORTIVE_DRAW,
+            riichiSticks: 1,
             type: "round_end",
         });
         expect(result.roundHistory).toEqual([
@@ -242,7 +250,16 @@ describe("gameReconnectedSchema", () => {
 
         expect(state1.seat).toBe(1);
         expect(state1.isRiichi).toBe(true);
-        expect(state1.melds).toEqual([6081]);
+        expect(state1.melds).toEqual([
+            {
+                addedTileId: 39,
+                calledTileId: 38,
+                callerSeat: 1,
+                fromSeat: 3,
+                meldType: "added_kan",
+                tileIds: [36, 37, 38, 39],
+            },
+        ]);
         expect(state1.discards).toEqual([
             { isRiichiDiscard: true, isTsumogiri: false, tileId: 100 },
         ]);

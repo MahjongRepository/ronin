@@ -1,6 +1,6 @@
 import { z } from "zod/mini";
 
-import { CALL_TYPE, EVENT_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
+import { CALL_TYPE, EVENT_TYPE, KAN_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 
 import { seatSchema, secondsSchema, tileIdSchema, waitIdSchema } from "./common";
 
@@ -50,12 +50,14 @@ const ronPromptSchema = z.pipe(
 
 // --- Chankan prompt (clt=2) ---
 
+/** A chankan prompt names the kan it offers to rob: an added kan, or the closed kan kokushi musou may rob. */
 const chankanPromptSchema = z.pipe(
     z.object({
         clt: z.literal(CALL_TYPE.CHANKAN),
         cs: seatSchema,
         el: z.optional(secondsSchema),
         frs: seatSchema,
+        kty: z.union([z.literal(KAN_TYPE.ADDED), z.literal(KAN_TYPE.CLOSED)]),
         t: z.literal(EVENT_TYPE.CALL_PROMPT),
         ti: tileIdSchema,
         wi: z.optional(waitIdSchema),
@@ -65,6 +67,7 @@ const chankanPromptSchema = z.pipe(
         callerSeat: raw.cs,
         elapsedSeconds: raw.el ?? null,
         fromSeat: raw.frs,
+        kanType: raw.kty,
         tileId: raw.ti,
         type: "call_prompt" as const,
         waitId: raw.wi ?? null,

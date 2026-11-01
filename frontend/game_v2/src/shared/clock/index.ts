@@ -1,2 +1,2 @@
-export { browserClock } from "./clock";
-export type { CancelTimer, Clock } from "./clock";
+export { browserClock, createSteadyClock } from "./clock";
+export type { CancelTimer, Clock, ClockSources } from "./clock";

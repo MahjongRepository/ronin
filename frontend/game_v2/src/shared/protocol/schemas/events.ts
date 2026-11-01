@@ -4,22 +4,26 @@ import {
     EVENT_TYPE,
     GAME_END_CAUSE,
     GAME_TYPE,
+    HAND_LIMIT,
+    type HandLimit,
     NUM_PLAYERS,
     PLAYER_ACTION,
     WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol/constants";
 import { decodeDiscard } from "@/shared/protocol/decoders/discard";
 import { decodeDraw } from "@/shared/protocol/decoders/draw";
-import { decodeMeldCompact } from "@/shared/protocol/decoders/meld";
 
 import {
+    compactMeldSchema,
     coversEverySeat,
     gamePlayerInfoSchema,
     namesDistinctSeats,
+    roundInWindSchema,
     seatSchema,
     secondsSchema,
     tileIdSchema,
     tileTypeSchema,
+    tilesRemainingSchema,
     timerSettingsSchema,
     waitIdSchema,
     wireScoreSchema,
@@ -73,33 +77,54 @@ const playerViewSchema = z.pipe(
 
 // --- Yaku info (inside hand result) ---
 
+/** A yaku's yakuman count (`ym`): 0 for an ordinary yaku, else how many yakuman the server scored it as. */
 const yakuInfoSchema = z.pipe(
     z.object({
         han: z.int(),
         yi: z.int(),
-        ym: z.boolean(),
+        ym: z.int().check(z.gte(0)),
     }),
     z.transform((raw) => ({
         han: raw.han,
-        isYakuman: raw.ym,
         yakuId: raw.yi,
+        yakumanCount: raw.ym,
     })),
 );
 
 // --- Hand result info ---
 
+const YAKUMAN_LIMITS: ReadonlySet<HandLimit> = new Set([
+    HAND_LIMIT.YAKUMAN,
+    HAND_LIMIT.KAZOE_YAKUMAN,
+]);
+
+/**
+ * A win's hand value: its limit (`lm`) as the server paid it, and how many yakuman (`yc`) a yakuman or kazoe yakuman
+ * limit counts, named for those limits alone.
+ */
 export const handResultSchema = z.pipe(
-    z.object({
-        fu: z.int(),
-        han: z.int(),
-        pt: wireScoreSchema,
-        yk: z.array(yakuInfoSchema),
-    }),
+    z
+        .object({
+            fu: z.int(),
+            han: z.int(),
+            lm: z.enum(HAND_LIMIT),
+            pt: wireScoreSchema,
+            yc: z.optional(z.int().check(z.gte(1))),
+            yk: z.array(yakuInfoSchema),
+        })
+        .check(
+            z.refine((raw) => YAKUMAN_LIMITS.has(raw.lm) === (raw.yc !== undefined), {
+                message:
+                    "a hand result names its yakuman count without a yakuman limit, or a yakuman limit without it",
+            }),
+        ),
     z.transform((raw) => ({
         fu: raw.fu,
         han: raw.han,
+        limit: raw.lm,
         points: raw.pt,
         yaku: raw.yk,
+        yakumanCount: raw.yc ?? null,
     })),
 );
 
@@ -128,7 +153,6 @@ export const gameStartedSchema = z.pipe(
             gid: z.string(),
             gt: z.union([z.literal(GAME_TYPE.HANCHAN), z.literal(GAME_TYPE.TONPUSEN)]),
             p: z.array(gamePlayerInfoSchema),
-            rc: wireSettingAmountSchema,
             rsv: wireSettingAmountSchema,
             s: z.optional(seatSchema),
             t: z.literal(EVENT_TYPE.GAME_STARTED),
@@ -145,7 +169,6 @@ export const gameStartedSchema = z.pipe(
         gameId: raw.gid,
         gameType: raw.gt,
         players: raw.p,
-        riichiCost: raw.rc,
         riichiStickValue: raw.rsv,
         seat: raw.s ?? null,
         timer: raw.tm ?? null,
@@ -166,8 +189,10 @@ export const roundStartedSchema = z.pipe(
             n: z.int(),
             p: z.array(playerViewSchema),
             r: z.int(),
+            rw: roundInWindSchema,
             s: z.optional(seatSchema),
             t: z.literal(EVENT_TYPE.ROUND_STARTED),
+            tr: tilesRemainingSchema,
             w: z.int(),
         })
         .check(
@@ -183,8 +208,10 @@ export const roundStartedSchema = z.pipe(
         myTiles: raw.mt ?? null,
         players: raw.p,
         riichiSticks: raw.r,
+        roundInWind: raw.rw,
         roundNumber: raw.n,
         seat: raw.s ?? null,
+        tilesRemaining: raw.tr,
         type: "round_started" as const,
         wind: raw.w,
     })),
@@ -199,6 +226,7 @@ export const drawSchema = z.pipe(
         d: z.int(),
         el: z.optional(secondsSchema),
         t: z.literal(EVENT_TYPE.DRAW),
+        tr: tilesRemainingSchema,
         wi: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
@@ -206,19 +234,25 @@ export const drawSchema = z.pipe(
         availableActions: raw.aa ?? [],
         bankSeconds: raw.bk ?? null,
         elapsedSeconds: raw.el ?? null,
+        tilesRemaining: raw.tr,
         type: "draw" as const,
         waitId: raw.wi ?? null,
     })),
 );
 
-/** Another seat's draw, told to every seat but the drawer's: its seat alone, the tile private to the drawer. */
+/**
+ * Another seat's draw, told to every seat but the drawer's: its seat and the live wall left after it, the tile private
+ * to the drawer.
+ */
 export const drawNoticeSchema = z.pipe(
     z.object({
         s: seatSchema,
         t: z.literal(EVENT_TYPE.DRAW_NOTICE),
+        tr: tilesRemainingSchema,
     }),
     z.transform((raw) => ({
         seat: raw.s,
+        tilesRemaining: raw.tr,
         type: "draw_notice" as const,
     })),
 );
@@ -257,23 +291,28 @@ export const discardSchema = z.pipe(
 
 export const meldSchema = z.pipe(
     z.object({
-        m: z.int(),
+        m: compactMeldSchema,
         t: z.literal(EVENT_TYPE.MELD),
     }),
     z.transform((raw) => ({
-        ...decodeMeldCompact(raw.m),
+        ...raw.m,
         type: "meld" as const,
     })),
 );
 
 // --- Riichi Declared (t=5) ---
 
+/** An accepted riichi: the declarer's score after its deposit and the riichi sticks on the table with it. */
 export const riichiDeclaredSchema = z.pipe(
     z.object({
+        r: z.int().check(z.gte(1)),
         s: seatSchema,
+        sc: z.number(),
         t: z.literal(EVENT_TYPE.RIICHI_DECLARED),
     }),
     z.transform((raw) => ({
+        riichiSticks: raw.r,
+        score: raw.sc * WIRE_SCORE_DIVISOR,
         seat: raw.s,
         type: "riichi_declared" as const,
     })),

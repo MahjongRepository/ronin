@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType
 from game.logic.settings import EnchousenType, GameSettings, GameType
-from game.messaging.types import SessionMessageType
+from game.messaging.types import SessionErrorCode, SessionMessageType
 from game.tests.helpers.hands import tile_copies
 from game.wire.enums import WireEventType
 from scripts.replay_fixtures.staged_game import StagedWall, tile
@@ -23,7 +23,9 @@ OWN_TURN_RINSHAN = tile(0, honors="4")
 def call_prompt() -> tuple[SeatTranscript, ...]:
     """
     Offer Alice, the one human at the table (seat 1), a pon, an open kan and a chi two ways on the dealer's 3m; she
-    calls chi, and her turn after it opens with the tile types kuikae forbids.
+    calls chi, and her turn after it opens with the tile types kuikae forbids. Her socket dies unseen during that turn,
+    and her reconnect takes it over: the snapshot, then the turn re-sent with its kuikae types and the time its timer
+    has run.
 
     Seat 2's draw reaches her as its notice before its 7s; she passes the pon of them, and her next draw opens her next
     turn with what is left of her bank.
@@ -61,6 +63,10 @@ def call_prompt() -> tuple[SeatTranscript, ...]:
         alice.label("prompt", WireEventType.CALL_PROMPT)
         alice.chi(called_tile, (tile(0, man="1"), tile(0, man="2")), at=5, label="chi chosen")
         alice.label("turn", WireEventType.TURN)
+        alice.drop_unseen(at=6, label="dropped")
+        alice.reconnect(at=7, label="reopened")
+        alice.label("reconnected", SessionMessageType.GAME_RECONNECTED)
+        alice.label("turn re-sent", WireEventType.TURN)
         alice.discard(tile(0, honors="3"), at=12, label="discarded")
         alice.label("pon prompt", WireEventType.CALL_PROMPT)
         alice.label("seat 2 drew", WireEventType.DRAW_NOTICE)
@@ -446,16 +452,11 @@ def final_round() -> tuple[SeatTranscript, ...]:
         return game.transcripts("final_round", PLAYER)
 
 
-def game_end_reconnect() -> tuple[SeatTranscript, ...]:
+def _kyuushu_wall() -> StagedWall:
     """
-    Alice (seat 1) declares kyuushu kyuuhai on her first draw: an abortive draw that moves no points, so the dealer
-    deals again with a honba.
-
-    In that deal, which the seed deals, her socket dies unseen and her reconnect's snapshot lists the first round in its
-    history. She plays no move after it: the server's timeouts play her seat, and the AI players discard what they draw.
-    The game is East only with no extension, so it ends with East 4.
+    Deal Alice (seat 1) nine terminal and honor types, so that her first draw offers kyuushu kyuuhai alone.
     """
-    staged = StagedWall(
+    return StagedWall(
         hands=(
             tile_copies(2, man="258", pin="258", sou="258", honors="1234"),
             tile_copies(0, man="159", pin="159", sou="159", honors="1234"),
@@ -465,8 +466,64 @@ def game_end_reconnect() -> tuple[SeatTranscript, ...]:
         draws=((0, tile(0, honors="5")), (1, tile(1, honors="5"))),
     )
 
+
+def resync_before_deal() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1) loses step with the server's messages in the game start pause and asks for her seat's state again:
+
+    the server refuses, as it has not dealt yet. The scenario ends there, before the deal.
+    """
+    with seated_game("seat-resync-before-deal", _kyuushu_wall(), players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.label("game started", WireEventType.GAME_STARTED)
+        alice.resync(at=1, label="resync asked", refused_with=SessionErrorCode.GAME_NOT_STARTED)
+        alice.label("refused", SessionMessageType.ERROR)
+
+        return game.transcripts("resync_before_deal", PLAYER)
+
+
+def resync() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1) loses step with the server's messages twice and each time asks for her seat's state again on the same
+    socket, which stays bound to her seat.
+
+    At her first draw the answer is the snapshot, then the draw re-sent with the time its timer has run, and she
+    declares kyuushu kyuuhai on it. During the round advance the snapshot says she still owes her confirmation, with the
+    time its timer has run and its whole timeout; she presses OK a second after it, and the dealer deals again.
+    """
+    with seated_game("seat-resync", _kyuushu_wall(), players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        alice.label("joined", SessionMessageType.GAME_JOINED)
+        alice.label("game started", WireEventType.GAME_STARTED)
+        game.wait_until(4)
+        alice.label("dealt", WireEventType.ROUND_STARTED)
+        alice.label("first draw", WireEventType.DRAW)
+        alice.resync(at=4, label="turn resync asked")
+        alice.label("turn snapshot", SessionMessageType.GAME_RECONNECTED)
+        alice.label("draw re-sent", WireEventType.DRAW)
+        alice.kyuushu(at=5, label="kyuushu chosen")
+        alice.label("round end", WireEventType.ROUND_END)
+        alice.resync(at=6.5, label="advance resync asked")
+        alice.label("advance snapshot", SessionMessageType.GAME_RECONNECTED)
+        alice.confirm_round(at=7.5, label="confirmed")
+        alice.label("next round", WireEventType.ROUND_STARTED)
+
+        return game.transcripts("resync", PLAYER)
+
+
+def game_end_reconnect() -> tuple[SeatTranscript, ...]:
+    """
+    Alice (seat 1) declares kyuushu kyuuhai on her first draw: an abortive draw that moves no points, so the dealer
+    deals again with a honba.
+
+    In that deal, which the seed deals, her socket dies unseen and her reconnect's snapshot lists the first round in its
+    history. She plays no move after it: the server's timeouts play her seat, and the AI players discard what they draw.
+    The game is East only with no extension, so it ends with East 4.
+    """
     settings = GameSettings(game_type=GameType.TONPUSEN, enchousen=EnchousenType.NONE)
-    with seated_game("seat-game-end-reconnect", staged, players=(PLAYER,), settings=settings) as game:
+    with seated_game("seat-game-end-reconnect", _kyuushu_wall(), players=(PLAYER,), settings=settings) as game:
         alice = game.clients[PLAYER]
         alice.join(at=0)
         game.wait_until(4)
@@ -735,6 +792,8 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "double_ron": double_ron,
     "final_round": final_round,
     "game_end_reconnect": game_end_reconnect,
+    "resync_before_deal": resync_before_deal,
+    "resync": resync,
     "seat_left": seat_left,
     "first_turn_win": first_turn_win,
     "anchor": anchor,

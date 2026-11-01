@@ -56,7 +56,7 @@ def game_event_payload(event: GameEvent) -> dict[str, Any]:
 
     if isinstance(event, DrawEvent):
         d = encode_draw(event.seat, event.tile_id)
-        payload: dict[str, Any] = {"t": EVENT_TYPE_INT[EventType.DRAW], "d": d}
+        payload: dict[str, Any] = {"t": EVENT_TYPE_INT[EventType.DRAW], "d": d, "tr": event.tiles_remaining}
         if event.available_actions:
             payload["aa"] = [aa.model_dump(by_alias=True, exclude_none=True) for aa in event.available_actions]
 
@@ -74,7 +74,13 @@ def game_event_payload(event: GameEvent) -> dict[str, Any]:
         }
 
     if isinstance(event, RoundEndEvent):
-        return {"t": EVENT_TYPE_INT[event.type], **round_result_payload(event.result)}
+        fields = round_end_fields(
+            event.result,
+            riichi_sticks=event.riichi_sticks,
+            dealer_seat=event.dealer_seat,
+            dora_indicators=event.dora_indicators,
+        )
+        return {"t": EVENT_TYPE_INT[event.type], **fields}
 
     return {
         "t": EVENT_TYPE_INT[event.type],
@@ -88,12 +94,13 @@ def game_event_payload(event: GameEvent) -> dict[str, Any]:
 
 def draw_notice_payload(event: DrawEvent) -> dict[str, Any]:
     """
-    Return the public notice of a draw that every seat but the drawer's gets in its place: the drawer's seat alone.
+    Return the public notice of a draw that every seat but the drawer's gets in its place: the drawer's seat and the
+    live wall left after the draw.
 
     The draw stays private: no tile, offers, bank or wait id, and no `draw` type, so a notice never opens a decision.
     Only the socket sends it; the replay records the draw itself.
     """
-    return {"t": WireEventType.DRAW_NOTICE, "s": event.seat}
+    return {"t": WireEventType.DRAW_NOTICE, "s": event.seat, "tr": event.tiles_remaining}
 
 
 _ROUND_RESULT_TYPE_TO_WIRE: dict[str, int] = {
@@ -101,15 +108,28 @@ _ROUND_RESULT_TYPE_TO_WIRE: dict[str, int] = {
 }
 
 
-def round_result_payload(result: RoundResult) -> dict[str, Any]:
+def round_end_fields(
+    result: RoundResult,
+    *,
+    riichi_sticks: int,
+    dealer_seat: int,
+    dora_indicators: list[int],
+) -> dict[str, Any]:
     """
-    Return a round result's wire fields: its type as the integer `rt`, then the result's own fields.
+    Return a round end's wire fields: the result's type as the integer `rt`, the riichi sticks the result leaves on the
+    table (`r`), the round's dealer (`dl`) and dora indicators (`di`), then the result's own fields.
 
     The round end carries them at its top level, the reconnect snapshot under `re`.
     """
     fields = result.model_dump(by_alias=True, exclude_none=True)
     result_type = fields.pop("type")
-    return {"rt": _ROUND_RESULT_TYPE_TO_WIRE[result_type], **fields}
+    return {
+        "rt": _ROUND_RESULT_TYPE_TO_WIRE[result_type],
+        "r": riichi_sticks,
+        "dl": dealer_seat,
+        "di": dora_indicators,
+        **fields,
+    }
 
 
 def reconnection_payload(
@@ -135,7 +155,12 @@ def reconnection_payload(
         entry["rt"] = _ROUND_RESULT_TYPE_TO_WIRE[entry["rt"]]
 
     if snapshot.result is not None:
-        payload[ROUND_RESULT_KEY] = round_result_payload(snapshot.result)
+        payload[ROUND_RESULT_KEY] = round_end_fields(
+            snapshot.result,
+            riichi_sticks=snapshot.riichi_sticks,
+            dealer_seat=snapshot.dealer_seat,
+            dora_indicators=snapshot.dora_indicators,
+        )
 
     return payload
 

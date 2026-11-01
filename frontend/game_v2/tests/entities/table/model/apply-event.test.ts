@@ -19,13 +19,15 @@ import {
     makeRoundStartedEvent,
     makeTsumoRoundEnd,
 } from "#tests/fixtures/events";
-import { WIRE_GAME_RECONNECTED } from "#tests/fixtures/wire";
+import { WIRE_GAME_RECONNECTED, WIRE_ROUND_RECORD } from "#tests/fixtures/wire";
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { DesyncError } from "@/entities/table/model/desync-error";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type ReplayEvent, type TableEvent, type TableState } from "@/entities/table/model/types";
+import { meldTiles } from "@/entities/tile";
 import { GAME_END_CAUSE, ROUND_RESULT_TYPE, parseServerMessage } from "@/shared/protocol";
+import { type DecodedMeld } from "@/shared/protocol/decoders/meld";
 
 describe("applyEvent - game_started", () => {
     test("seats the event's players at score 0 before the first deal, with its game id and dealer", () => {
@@ -49,7 +51,7 @@ describe("applyEvent - round_started", () => {
         return applyEvent(createInitialTableState(), makeGameStartedEvent());
     }
 
-    test("deals the event's round: each seat's tiles and score, the sticks, dora, wind, turn and a live wall of 70", () => {
+    test("deals the event's round: each seat's tiles and score, the sticks, dora, wind and its round, turn and wall", () => {
         const event = makeRoundStartedEvent({
             currentPlayerSeat: 2,
             dealerSeat: 2,
@@ -62,7 +64,9 @@ describe("applyEvent - round_started", () => {
                 { score: 30_000, seat: 3, tiles: [4] },
             ],
             riichiSticks: 1,
+            roundInWind: 3,
             roundNumber: 3,
+            tilesRemaining: 70,
             wind: 1,
         });
         const next = applyEvent(stateAfterGameStarted(), event);
@@ -80,6 +84,7 @@ describe("applyEvent - round_started", () => {
             honbaSticks: 2,
             phase: "in_round",
             riichiSticks: 1,
+            roundInWind: 3,
             roundWind: 1,
             tilesRemaining: 70,
         });
@@ -210,14 +215,23 @@ describe("applyEvent - seat lookup", () => {
 });
 
 describe("applyEvent - draw", () => {
-    test("appends the drawn tile to the drawer's hand, marks it drawn, gives the drawer the turn and takes it from the wall", () => {
+    test("appends the drawn tile to the drawer's hand, marks it drawn, gives the drawer the turn and the server's wall", () => {
         const state = stateAfterRoundStarted();
-        const next = applyEvent(state, makeDrawEvent({ seat: 2, tileId: 60 }));
+        const next = applyEvent(state, makeDrawEvent({ seat: 2, tileId: 60, tilesRemaining: 69 }));
 
         expect(next.players[2].tiles).toEqual([...state.players[2].tiles, 60]);
         expect([next.players[2].drawnTileId, next.currentPlayerSeat, next.tilesRemaining]).toEqual([
             60, 2, 69,
         ]);
+    });
+
+    test("takes the wall the server counts, never one less than the table held", () => {
+        const afterKanReplacement = makeDrawEvent({ seat: 2, tileId: 60, tilesRemaining: 66 });
+
+        expect(applyEvent(stateAfterRoundStarted(), afterKanReplacement).tilesRemaining).toBe(66);
+        expect(
+            applyEvent(stateAfterRoundStarted(), makeDrawNoticeEvent(1, 65)).tilesRemaining,
+        ).toBe(65);
     });
 });
 
@@ -232,7 +246,10 @@ describe("applyEvent - hidden hands", () => {
     }
 
     test("a draw re-sent after a reconnect, of a tile the hand holds, only marks it drawn", () => {
-        const next = applyEvent(liveDeal(), makeDrawEvent({ seat: 0, tileId: 12 }));
+        const next = applyEvent(
+            liveDeal(),
+            makeDrawEvent({ seat: 0, tileId: 12, tilesRemaining: 70 }),
+        );
 
         expect(next.players[0].tiles).toHaveLength(13);
         expect(next.players[0].drawnTileId).toBe(12);
@@ -313,6 +330,16 @@ describe("applyEvent - riichi_declared", () => {
 
         expect(next.players.map((p) => p.isRiichi)).toEqual([false, true, false, false]);
     });
+
+    test("takes the declarer's score and the table's sticks from the server, never its own riichi cost", () => {
+        const state = { ...stateAfterRoundStarted(), riichiCost: 1000, riichiSticks: 0 };
+        const next = applyEvent(
+            state,
+            makeRiichiDeclaredEvent({ riichiSticks: 3, score: 23_000, seat: 1 }),
+        );
+
+        expect([next.players[1].score, next.riichiSticks]).toEqual([23_000, 3]);
+    });
 });
 
 describe("applyEvent - dora_revealed", () => {
@@ -380,39 +407,42 @@ describe("applyEvent - game_reconnected", () => {
         expect(next.tilesRemaining).toBe(70);
     });
 
-    test("names the round from the first dealer its history lists, else from the dealer in play", () => {
-        const history = {
-            h: 0,
-            ps: [],
-            rs: [],
-            rt: 3,
-            sch: { "0": 0, "1": 0, "2": 0, "3": 0 },
-            w: 0,
-            ws: [],
-        };
+    test("keeps an added kan's added tile, laid stacked on its called tile", () => {
+        const addedKanOf1p = 22_457;
+        const [error, snapshot] = parseServerMessage({
+            ...WIRE_GAME_RECONNECTED,
+            pst: [0, 1, 2, 3].map((seat) => ({
+                dsc: [],
+                ml: seat === 1 ? [addedKanOf1p] : [],
+                ri: false,
+                s: seat,
+                sc: 250,
+                tc: seat === 1 ? 10 : 13,
+            })),
+        });
+        assert(error === null && snapshot.type === "game_reconnected");
+        const [kan] = applyEvent(createInitialTableState(), snapshot).players[1].melds;
+
+        expect(kan).toMatchObject({ addedTileId: 39, calledTileId: 38, meldType: "added_kan" });
+        expect(meldTiles(kan).map((tile) => tile.kind)).toEqual(["upright", "stacked", "upright"]);
+    });
+
+    test("names the round and the first dealer as the snapshot does, never from its history's dealers", () => {
+        const history = { ...WIRE_ROUND_RECORD, dl: 2 };
         const [error, later] = parseServerMessage({
             ...WIRE_GAME_RECONNECTED,
             dl: 1,
+            fd: 3,
             n: 2,
-            rh: [
-                { ...history, dl: 3 },
-                { ...history, dl: 0 },
-            ],
+            rh: [history, history],
+            rw: 3,
             w: 1,
         });
-        const [firstError, first] = parseServerMessage({
-            ...WIRE_GAME_RECONNECTED,
-            dl: 2,
-            n: 0,
-            rh: [],
-        });
         assert(error === null && later.type === "game_reconnected");
-        assert(firstError === null && first.type === "game_reconnected");
 
-        const initial = createInitialTableState();
+        const table = applyEvent(createInitialTableState(), later);
 
-        expect(shownRound(applyEvent(initial, later))).toBe("South 3");
-        expect(shownRound(applyEvent(initial, first))).toBe("East 1");
+        expect([shownRound(table), table.firstDealerSeat]).toEqual(["South 3", 3]);
     });
 });
 
@@ -428,6 +458,16 @@ describe("applyEvent - game_end", () => {
 });
 
 describe("applyEvent - round_end", () => {
+    test("keeps the riichi sticks the server says the result left, never the table's count less those collected", () => {
+        const state = { ...stateAfterRoundStarted(), riichiSticks: 2 };
+        const next = applyEvent(
+            state,
+            makeTsumoRoundEnd({ riichiSticks: 1, riichiSticksCollected: 2 }),
+        );
+
+        expect(next.riichiSticks).toBe(1);
+    });
+
     test("settles each score from the event's pre-payment score and its change, ending the round", () => {
         const event = makeTsumoRoundEnd({
             scores: { "0": 25_000, "1": 24_000, "2": 25_000, "3": 25_000 },
@@ -446,13 +486,20 @@ describe("applyEvent - round_end", () => {
             fu: 30,
             han: 4,
             yaku: [
-                { han: 1, isYakuman: false, yakuId: 0 },
-                { han: 1, isYakuman: false, yakuId: 120 },
+                { han: 1, yakuId: 0, yakumanCount: 0 },
+                { han: 1, yakuId: 120, yakumanCount: 0 },
             ],
         });
+        const chi: DecodedMeld = {
+            calledTileId: 0,
+            callerSeat: 0,
+            fromSeat: 3,
+            meldType: "chi",
+            tileIds: [0, 4, 8],
+        };
         const event = makeTsumoRoundEnd({
             handResult,
-            melds: [12_345],
+            melds: [chi],
             winnerSeat: 0,
             winningTile: 52,
         });
@@ -461,7 +508,7 @@ describe("applyEvent - round_end", () => {
         expect(result?.resultType).toBe(ROUND_RESULT_TYPE.TSUMO);
         expect(result?.scoreChanges).toEqual(event.scoreChanges);
         expect(result?.winners).toMatchObject([
-            { handResult, melds: [12_345], seat: 0, winningTile: 52 },
+            { handResult, melds: [chi], seat: 0, winningTile: 52 },
         ]);
     });
 

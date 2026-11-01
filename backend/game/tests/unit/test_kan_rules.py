@@ -346,6 +346,9 @@ class TestFourKansAbortTiming:
         assert isinstance(kan_dora, DoraRevealedEvent)
         assert kan_dora.tile_id == game_state.round_state.wall.dead_wall.indicators[4].top
         _assert_four_kans_abort(replacement_discard)
+        round_end = replacement_discard.events[2]
+        assert isinstance(round_end, RoundEndEvent)
+        assert round_end.dora_indicators[-1] == kan_dora.tile_id
 
     def test_four_kans_abort__when_replacement_discard_is_ronned__should_score_the_ron(self):
         discard = _ronnable_replacement_discard()
@@ -610,8 +613,8 @@ class TestKokushiChankanOnAnkan:
         prompt = kan.state.round_state.pending_call_prompt
         assert prompt is not None
         assert (prompt.kind, prompt.callers) == (PromptKind.CHANKAN, (Caller(seat=1, can_ron=True),))
-        assert [(e.target, e.call_type) for e in kan.events if isinstance(e, CallPromptEvent)] == [
-            (SeatTarget(seat=1), CallType.CHANKAN),
+        assert [(e.target, e.call_type, e.kan_type) for e in kan.events if isinstance(e, CallPromptEvent)] == [
+            (SeatTarget(seat=1), CallType.CHANKAN, KanType.CLOSED),
         ]
         assert kan.state.round_state.players[0].melds == ()
 

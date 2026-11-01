@@ -16,16 +16,17 @@ import {
     wireSessionError,
 } from "#tests/fixtures/wire";
 import {
+    CLIENT_STEPPED,
     type LiveClient,
     NO_PLAY_UI,
+    type NoticeSheetDisplay,
     type PlayDisplay,
     decisionOf,
     nextCountdownChange,
     nextDeadline,
-    nextPlayUi,
     playDisplay,
-    settledPlayUi,
     stepGameClient,
+    stepPlayUi,
 } from "@/entities/client";
 import { CALLOUT_MS } from "@/entities/table";
 import { type HandTile, type MeldTile } from "@/entities/tile";
@@ -33,7 +34,17 @@ import { buildChiAction } from "@/shared/protocol";
 
 const KUIKAE_BLOCKED = [9, 10, 11];
 const CHOOSE_CHI = { kind: "toggle_tile_choice", offer: "chi" } as const;
-const CLOSED_KAN_OFFSET = 6072;
+const CLOSED_KAN_OFFSET = 6888;
+
+function resultPage(display: PlayDisplay): number | null {
+    const panel = display.overlay?.panel;
+    return panel?.kind === "result" ? panel.display.page : null;
+}
+
+function noticeSheet(display: PlayDisplay): NoticeSheetDisplay | null {
+    const panel = display.overlay?.panel;
+    return panel?.kind === "notice_sheet" ? panel.sheet : null;
+}
 
 /** The viewer's hand on the board as `[tileId, mark]`, the drawn tile last, an unmarked tile as "idle". */
 function handMarks(display: PlayDisplay): [number | undefined, string][] {
@@ -142,7 +153,7 @@ describe("playDisplay", () => {
     it("while riichi's discard is picked lets only riichi's tiles play, as riichi, until toggled off or a newer wait", () => {
         const state = checkpointState("own_turn_seat_1", "rinshan");
         const toggle = { kind: "toggle_riichi_pick" } as const;
-        const picking = nextPlayUi(state, NO_PLAY_UI, toggle);
+        const picking = stepPlayUi(state, NO_PLAY_UI, toggle);
         const display = playDisplay(state, picking);
         const stale = playDisplay(state, {
             ...NO_PLAY_UI,
@@ -160,10 +171,10 @@ describe("playDisplay", () => {
             true,
         ]);
         expect([
-            nextPlayUi(state, picking, toggle),
+            stepPlayUi(state, picking, toggle),
             display.escape,
-            nextPlayUi(state, picking, { kind: "step_back" }),
-        ]).toEqual([NO_PLAY_UI, { kind: "step_back" }, NO_PLAY_UI]);
+            stepPlayUi(state, picking, { kind: "step_back" }),
+        ]).toEqual([NO_PLAY_UI, { command: { kind: "step_back" }, opener: toggle }, NO_PLAY_UI]);
         expect([stale.tileAction, stale.tileIntents.get(120), stale.tileIntents.size]).toEqual([
             "Discard",
             { tileId: 120, type: "discard" },
@@ -179,22 +190,22 @@ describe("playDisplay", () => {
             ...roundEnd,
             table: { ...roundEnd.table, roundNumber: roundEnd.table.roundNumber + 1 },
         };
-        const secondPage = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
-        const pastLast = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 4 });
+        const secondPage = stepPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
+        const pastLast = stepPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 4 });
 
         expect(
-            [NO_PLAY_UI, secondPage, pastLast].map((ui) => playDisplay(roundEnd, ui).resultPage),
+            [NO_PLAY_UI, secondPage, pastLast].map((ui) => resultPage(playDisplay(roundEnd, ui))),
         ).toEqual([0, 1, 1]);
         expect(reconnected.table.roundEndResult).not.toBe(roundEnd.table.roundEndResult);
-        expect(playDisplay(reconnected, secondPage).resultPage).toBe(1);
+        expect(resultPage(playDisplay(reconnected, secondPage))).toBe(1);
         expect(
-            [nextRound, nextDeal].map((state) => playDisplay(state, secondPage).resultPage),
+            [nextRound, nextDeal].map((state) => resultPage(playDisplay(state, secondPage))),
         ).toEqual([0, 0]);
     });
 
     it("pages a double ron's owed result with Next, then confirms it on the last page, counting down", () => {
         const roundEnd = checkpointState("double_ron_seat_1", "round end");
-        const lastPage = nextPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
+        const lastPage = stepPlayUi(roundEnd, NO_PLAY_UI, { kind: "show_result_page", page: 1 });
         const first = playDisplay(roundEnd, NO_PLAY_UI).result;
         const last = playDisplay(roundEnd, lastPage).result;
 
@@ -234,15 +245,15 @@ describe("playDisplay", () => {
             kind: "intent",
         }).state;
 
-        expect([display.resultOverGameEnd, display.result?.action?.label]).toEqual([
-            true,
+        expect([display.overlay?.panel.kind, display.result?.action?.label]).toEqual([
+            "result",
             "Final scores",
         ]);
         expect(display.result?.countdown).toBeNull();
         expect([
-            playDisplay(dismissed, NO_PLAY_UI).resultOverGameEnd,
+            playDisplay(dismissed, NO_PLAY_UI).overlay?.panel.kind,
             playDisplay(dismissed, NO_PLAY_UI).result,
-        ]).toEqual([false, null]);
+        ]).toEqual(["game_end", null]);
     });
 
     it("offers the game's last result again from the game's end, reopening it on its first page", () => {
@@ -268,10 +279,10 @@ describe("playDisplay", () => {
         expect(reopened.effects).toEqual([]);
         expect(playDisplay(reopened.state, NO_PLAY_UI)).toMatchObject({
             lastResult: null,
+            overlay: { blocksBoard: false, panel: { kind: "result" } },
             result: { action: { label: "Final scores" } },
-            resultOverGameEnd: true,
         });
-        expect(nextPlayUi(reopened.state, turned, lastResult.command).resultPage).toBeNull();
+        expect(stepPlayUi(reopened.state, turned, lastResult.command).resultPage).toBeNull();
     });
 
     it("once a discard is sent marks the tile it played and offers nothing more", () => {
@@ -291,7 +302,7 @@ describe("playDisplay", () => {
 describe("playDisplay decisions", () => {
     it("takes a chi with a choice in two steps: only the server's options, laid as they will lie, Back in Pass's place", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
-        const choosing = nextPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
+        const choosing = stepPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
         const display = playDisplay(state, choosing);
         const [first] = display.actions;
         assert(first.command.kind === "intent");
@@ -335,17 +346,17 @@ describe("playDisplay decisions", () => {
 
     it("goes back from a call's choice of tiles by Back, Escape or the call pressed again, and never into a newer wait's", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
-        const choosing = nextPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
+        const choosing = stepPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
         const { actions, escape } = playDisplay(state, choosing);
         const older = { ...NO_PLAY_UI, tileChoice: { kind: "chi", waitId: 0 } } as const;
         assert(escape !== null);
 
         expect([escape, actions.at(-1)?.command]).toEqual([
-            { kind: "step_back" },
+            { command: { kind: "step_back" }, opener: CHOOSE_CHI },
             { kind: "step_back" },
         ]);
-        expect(nextPlayUi(state, choosing, escape)).toEqual(NO_PLAY_UI);
-        expect(nextPlayUi(state, choosing, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
+        expect(stepPlayUi(state, choosing, escape.command)).toEqual(NO_PLAY_UI);
+        expect(stepPlayUi(state, choosing, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
         expect(playDisplay(state, older).actions.map((action) => action.label)).toEqual([
             "Kan",
             "Pon",
@@ -357,7 +368,7 @@ describe("playDisplay decisions", () => {
 
     it("offers a closed kan of either of two types as one Kan, then each kan laid with its ends face down", () => {
         const state = checkpointState("kan_choice_seat_1", "kan offer");
-        const choosing = nextPlayUi(state, NO_PLAY_UI, {
+        const choosing = stepPlayUi(state, NO_PLAY_UI, {
             kind: "toggle_tile_choice",
             offer: "kan",
         });
@@ -419,7 +430,7 @@ describe("playDisplay decisions", () => {
             null,
             null,
         ]);
-        expect(nextPlayUi(passed, NO_PLAY_UI, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
+        expect(stepPlayUi(passed, NO_PLAY_UI, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
     });
 
     it("marks the kan a chankan offer may rob in its meld until the offer resolves", () => {
@@ -587,12 +598,12 @@ describe("playDisplay notices", () => {
     it("opens every notice whole from one's Show all, with the round confirm's seconds, under the leave question, while any notice shows", () => {
         const scenario = confirmSentScenario(50);
         scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
-        const ui = nextPlayUi(
+        const ui = stepPlayUi(
             scenario.state,
             { ...NO_PLAY_UI, tileSprite: "failed" },
             { kind: "show_notice", notice: "refused" },
         );
-        const sheet = playDisplay(scenario.state, ui).noticeSheet;
+        const sheet = noticeSheet(playDisplay(scenario.state, ui));
         const asking = { ...ui, confirmingLeave: true };
         scenario.step(clientEvent.tick(4100));
 
@@ -601,12 +612,21 @@ describe("playDisplay notices", () => {
             sheet?.notices.map((notice) => notice.kind),
             sheet?.countdown?.move,
         ]).toEqual(["refused", ["tile_sprite", "refused"], "result"]);
+        expect(
+            [ui, asking].map((shown) => {
+                const { overlay } = playDisplay(scenario.state, shown);
+                return [overlay?.panel.kind, overlay?.blocksBoard];
+            }),
+        ).toEqual([
+            ["notice_sheet", true],
+            ["leave", true],
+        ]);
         expect([
-            playDisplay(scenario.state, asking).noticeSheet,
-            settledPlayUi(scenario.state, ui) === ui,
-            playDisplay(scenario.state, ui).noticeSheet?.notices.map((notice) => notice.kind),
-            settledPlayUi(scenario.state, { ...ui, tileSprite: "ready" }).noticeSheet,
-            nextPlayUi(scenario.state, ui, { kind: "close_notice" }).noticeSheet,
+            noticeSheet(playDisplay(scenario.state, asking)),
+            stepPlayUi(scenario.state, ui, CLIENT_STEPPED) === ui,
+            noticeSheet(playDisplay(scenario.state, ui))?.notices.map((notice) => notice.kind),
+            stepPlayUi(scenario.state, ui, { kind: "tile_sprite", status: "ready" }).noticeSheet,
+            stepPlayUi(scenario.state, ui, { kind: "close_notice" }).noticeSheet,
         ]).toEqual([null, true, ["tile_sprite"], null, null]);
     });
 
@@ -623,6 +643,10 @@ describe("playDisplay notices", () => {
             reload: false,
             title: "Removed from the game",
         });
+        expect(display.overlay).toEqual({
+            blocksBoard: true,
+            panel: { failure: display.failure, kind: "failure" },
+        });
         expect(display.notices).toEqual([]);
         expect(display.leave).toEqual({
             command: { intent: { type: "leave" }, kind: "intent" },
@@ -638,6 +662,27 @@ function plates(display: PlayDisplay): string[] {
             `${plate.isRiichi ? " riichi" : ""} ${plate.score}${plate.aiMark === null ? "" : ` [${plate.aiMark.tag}]`}`,
     );
 }
+
+describe("stepPlayUi", () => {
+    it("closes the notices' sheet in the client step that takes its last notice away, with no draw between", () => {
+        const scenario = confirmSentScenario(50);
+        scenario.step(clientEvent.message(100, wireGameError("invalid_action", 5)));
+        const open = stepPlayUi(
+            scenario.state,
+            { ...NO_PLAY_UI, tileSprite: "ready" },
+            { kind: "show_notice", notice: "refused" },
+        );
+        scenario.step(clientEvent.tick(4099));
+        const kept = stepPlayUi(scenario.state, open, CLIENT_STEPPED);
+        scenario.step(clientEvent.tick(4100));
+        const closed = stepPlayUi(scenario.state, kept, CLIENT_STEPPED);
+
+        expect([kept.noticeSheet, closed.noticeSheet]).toEqual(["refused", null]);
+        expect(
+            stepPlayUi(scenario.state, closed, { kind: "tile_sprite", status: "failed" }),
+        ).toEqual({ ...closed, tileSprite: "failed" });
+    });
+});
 
 const AI_PLAYER = "[AI]";
 
@@ -695,10 +740,10 @@ describe("playDisplay nameplates", () => {
 describe("playDisplay pinned nameplate", () => {
     it("shows the nameplate a tap pins until a tap pins none", () => {
         const { state } = playingScenario();
-        const pinned = nextPlayUi(state, NO_PLAY_UI, { kind: "pin_nameplate", seat: "top" });
+        const pinned = stepPlayUi(state, NO_PLAY_UI, { kind: "pin_nameplate", seat: "top" });
 
         expect(playDisplay(state, pinned).pinnedNameplate).toBe("top");
-        expect(nextPlayUi(state, pinned, { kind: "pin_nameplate", seat: null })).toEqual(
+        expect(stepPlayUi(state, pinned, { kind: "pin_nameplate", seat: null })).toEqual(
             NO_PLAY_UI,
         );
     });
@@ -707,14 +752,14 @@ describe("playDisplay pinned nameplate", () => {
 describe("playDisplay leave", () => {
     it("asks before leaving a held seat, and the player can take the question back", () => {
         const { state } = playingScenario();
-        const asked = nextPlayUi(state, NO_PLAY_UI, { kind: "ask_leave" });
+        const asked = stepPlayUi(state, NO_PLAY_UI, { kind: "ask_leave" });
 
         expect(playDisplay(state, NO_PLAY_UI).leave).toEqual({
             command: { kind: "ask_leave" },
             confirming: false,
         });
         expect(playDisplay(state, asked).leave.confirming).toBe(true);
-        expect(nextPlayUi(state, asked, { kind: "cancel_leave" })).toEqual(NO_PLAY_UI);
+        expect(stepPlayUi(state, asked, { kind: "cancel_leave" })).toEqual(NO_PLAY_UI);
     });
 });
 

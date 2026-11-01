@@ -816,6 +816,7 @@ def call_added_kan(
         called_tile=pon_meld.called_tile,
         who=seat,
         from_who=pon_meld.from_who,
+        added_tile=tile_id,
     )
 
     # replace the pon meld with upgraded kan

@@ -1,4 +1,4 @@
-import { holdsSeat } from "@/entities/session";
+import { hasEnded, holdsSeat } from "@/entities/session";
 import { type PlayerState } from "@/entities/table";
 import { type ClientMessage } from "@/shared/protocol";
 
@@ -52,7 +52,7 @@ export function offersIntent(state: LiveClient, intent: DecisionIntent): boolean
 /** Whether the player may turn a play switch on or off now: on a live seat while a round plays. */
 function takesSwitch(state: LiveClient): boolean {
     const { session, table, viewerSeat } = state;
-    return session.status !== "ended" && viewerSeat !== null && table.phase === "in_round";
+    return !hasEnded(session) && viewerSeat !== null && table.phase === "in_round";
 }
 
 /**

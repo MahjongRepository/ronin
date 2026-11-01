@@ -6,8 +6,10 @@ from game.logic.enums import (
     AbortiveDrawType,
     AIPlayerType,
     CallType,
+    HandLimit,
     KanType,
     MeldCallType,
+    PaoShare,
     PlayerAction,
     RoundResultType,
     WindName,
@@ -125,15 +127,16 @@ class KanActionData(BaseModel):
 
 class YakuInfo(BaseModel):
     """
-    Per-yaku breakdown with han value, library yaku ID and whether the yaku is a yakuman.
+    Per-yaku breakdown with han value, library yaku ID and how many yakuman the yaku counts as.
 
-    The yakuman flag lets a client tell a yakuman hand from a kazoe yakuman (13 han of ordinary yaku) without keeping
-    its own list of the library's yakuman ids.
+    yakuman_count is 0 for an ordinary yaku, 1 for a yakuman and 2 for a double yakuman, so a client tells a yakuman
+    hand from a kazoe yakuman (13 han of ordinary yaku) and names a double yakuman without keeping its own list of the
+    library's yakuman ids or its han per yakuman.
     """
 
     yaku_id: int = Field(serialization_alias="yi")
     han: int
-    is_yakuman: bool = Field(default=False, serialization_alias="ym")
+    yakuman_count: int = Field(default=0, serialization_alias="ym")
 
 
 class HandResultInfo(BaseModel):
@@ -141,18 +144,37 @@ class HandResultInfo(BaseModel):
     Hand value information for win results.
 
     points is the hand's value without honba or riichi sticks, which pao does not change: the ron payment, or every
-    tsumo payment together.
+    tsumo payment together. limit is the limit the hand was paid at, and yakuman_count how many yakuman a yakuman or
+    kazoe yakuman limit counts (None below them).
     """
 
     han: int
     fu: int
     yaku: list[YakuInfo] = Field(serialization_alias="yk")
     points: WireScore = Field(serialization_alias="pt")
+    limit: HandLimit = Field(serialization_alias="lm")
+    yakuman_count: int | None = Field(default=None, serialization_alias="yc")
+
+
+class PaoLiability(BaseModel):
+    """
+    What the seat liable (pao) for a winner's yakuman pays: the pao yakuman of the hand it covers (yaku_ids), all or
+    half of their value (share), and whether it also pays the winner's honba bonus.
+
+    It names at least one pao yakuman, since a client rejects an empty list.
+    """
+
+    yaku_ids: list[int] = Field(min_length=1, serialization_alias="yk")
+    share: PaoShare = Field(serialization_alias="sh")
+    pays_honba: bool = Field(serialization_alias="hb")
 
 
 class TsumoResult(BaseModel):
     """
     Result of a tsumo (self-draw) win.
+
+    honba_bonus is the honba bonus the winner collected, every payer's together. pao_seat is the seat liable for the
+    winner's yakuman and pao what it pays, both None without one.
     """
 
     type: RoundResultType = RoundResultType.TSUMO
@@ -164,7 +186,9 @@ class TsumoResult(BaseModel):
     closed_tiles: list[int] = Field(serialization_alias="ct")
     melds: list[int] = Field(serialization_alias="ml")
     win_tile: int = Field(serialization_alias="wt")
+    honba_bonus: WireScore = Field(serialization_alias="hb")
     pao_seat: int | None = Field(default=None, serialization_alias="ps")
+    pao: PaoLiability | None = Field(default=None, serialization_alias="pl")
     ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
 
 
@@ -185,7 +209,9 @@ class RonResult(BaseModel):
     Result of a ron (discard) win.
 
     robbed_kan is the kan the ron robbed, for a chankan; None for a ron on a discard. head_bumped_seats are the seats
-    that also declared ron but lost it to head bump, in caller order; None when no declaration was bumped.
+    that also declared ron but lost it to head bump, in caller order; None when no declaration was bumped. honba_bonus
+    is the honba bonus the winner collected; pao_seat is the seat liable for the winner's yakuman and pao what it pays,
+    both None without one.
     """
 
     type: RoundResultType = RoundResultType.RON
@@ -198,7 +224,9 @@ class RonResult(BaseModel):
     riichi_sticks_collected: int = Field(serialization_alias="rc")
     closed_tiles: list[int] = Field(serialization_alias="ct")
     melds: list[int] = Field(serialization_alias="ml")
+    honba_bonus: WireScore = Field(serialization_alias="hb")
     pao_seat: int | None = Field(default=None, serialization_alias="ps")
+    pao: PaoLiability | None = Field(default=None, serialization_alias="pl")
     ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
     robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
     head_bumped_seats: list[int] | None = Field(default=None, serialization_alias="hbs")
@@ -209,7 +237,8 @@ class DoubleRonWinner(BaseModel):
     Per-winner data in a double ron result.
 
     score_changes is this winner's own payments alone (the loser's, a pao seat's, the winner's honba and any riichi
-    sticks), so the winners' maps sum to the result's score_changes.
+    sticks), so the winners' maps sum to the result's score_changes. honba_bonus, pao_seat and pao are this winner's, as
+    on a single ron.
     """
 
     winner_seat: int = Field(serialization_alias="ws")
@@ -218,7 +247,9 @@ class DoubleRonWinner(BaseModel):
     riichi_sticks_collected: int = Field(serialization_alias="rc")
     closed_tiles: list[int] = Field(serialization_alias="ct")
     melds: list[int] = Field(serialization_alias="ml")
+    honba_bonus: WireScore = Field(serialization_alias="hb")
     pao_seat: int | None = Field(default=None, serialization_alias="ps")
+    pao: PaoLiability | None = Field(default=None, serialization_alias="pl")
     ura_dora_indicators: list[int] | None = Field(default=None, serialization_alias="ud")
 
 
@@ -281,13 +312,36 @@ class AbortiveDrawResult(BaseModel):
     robbed_kan: RobbedKan | None = Field(default=None, serialization_alias="rk")
 
 
+class DiscardInfo(BaseModel):
+    """
+    A discard as it lies in its river: in the reconnect snapshot, and in a nagashi mangan's proof.
+    """
+
+    tile_id: int = Field(serialization_alias="ti")
+    is_tsumogiri: bool = Field(default=False, serialization_alias="tg")
+    is_riichi_discard: bool = Field(default=False, serialization_alias="rd")
+
+
+class NagashiRiver(BaseModel):
+    """
+    The river of a seat that made nagashi mangan, every discard in it as it fell: the result's proof, so a client never
+    shows it from its own table.
+    """
+
+    seat: int = Field(serialization_alias="s")
+    discards: list[DiscardInfo] = Field(serialization_alias="dsc")
+
+
 class NagashiManganResult(BaseModel):
     """
     Result of a nagashi mangan at exhaustive draw.
+
+    rivers holds each qualifying seat's river, in the order of qualifying_seats.
     """
 
     type: RoundResultType = RoundResultType.NAGASHI_MANGAN
     qualifying_seats: list[int] = Field(serialization_alias="qs")
+    rivers: list[NagashiRiver] = Field(serialization_alias="qr")
     tempai_seats: list[int] = Field(serialization_alias="ts")
     noten_seats: list[int] = Field(serialization_alias="ns")
     tenpai_hands: list[TenpaiHand] = Field(serialization_alias="th")
@@ -388,16 +442,6 @@ class PlayerView(BaseModel):
     score: WireScore = Field(serialization_alias="sc")
 
 
-class DiscardInfo(BaseModel):
-    """
-    Discard tile information for reconnection snapshot.
-    """
-
-    tile_id: int = Field(serialization_alias="ti")
-    is_tsumogiri: bool = Field(default=False, serialization_alias="tg")
-    is_riichi_discard: bool = Field(default=False, serialization_alias="rd")
-
-
 class PlayerReconnectState(BaseModel):
     """
     Per-player visible state in a reconnection snapshot.
@@ -418,6 +462,9 @@ class RoundHistoryEntry(BaseModel):
     """
     A finished round as the final standings' ledger shows it: its wind, dealer and honba, and its outcome.
 
+    round_in_wind, its number within the wind (from 1), stays off the wire: the reconnect snapshot's header reads it for
+    a round that ended.
+
     result_type is the result's type, and abortive_reason is set only on an abortive draw. riichi_seats are the seats
     whose riichi stood, so their deposit counts against the round; winner_seats is empty on a draw and holds every
     winner of a double ron; loser_seat is set on a ron; pao_seats are the seats liable for a winner's yakuman (pao), in
@@ -427,6 +474,7 @@ class RoundHistoryEntry(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     round_wind: WireWindField = Field(serialization_alias="w")
+    round_in_wind: int = Field(exclude=True)
     dealer_seat: int = Field(serialization_alias="dl")
     honba_sticks: int = Field(serialization_alias="h")
     result_type: RoundResultType = Field(serialization_alias="rt")
@@ -453,22 +501,24 @@ class ReconnectionSnapshot(BaseModel):
     its seat and is not sent again, so the snapshot restores it. round_history lists every finished round in play order,
     the current one included once it has ended, so a reconnected client's standings cover the rounds it never saw.
     result is the round's result through its round-advance wait, None while the round is in play. During that wait
-    the snapshot shows the round that ended: its dealer, wind, round number and honba with its tiles, beside the scores
-    and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed kan is the one record
-    of it for the reconnected table. latest_discard_seat is the seat whose discard is the round's latest, which lies
-    last in its river; None (absent on the wire) before the round's first discard and once a meld claimed the latest
-    one. riichi_cost and riichi_stick_value are the game's, as game_started carries them.
+    the snapshot shows the round that ended: its dealer, wind, round number, number within the wind and honba with its
+    tiles, beside the scores and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed
+    kan is the one record of it for the reconnected table. latest_discard_seat is the seat whose discard is the round's
+    latest, which lies last in its river; None (absent on the wire) before the round's first discard and once a meld
+    claimed the latest one. riichi_stick_value is the game's, and first_dealer_seat the game's first dealer, as
+    game_started carries them.
     """
 
     game_id: str = Field(serialization_alias="gid")
     players: list[GamePlayerInfo] = Field(serialization_alias="p")
     dealer_seat: int = Field(serialization_alias="dl")
+    first_dealer_seat: int = Field(serialization_alias="fd")
     dealer_dice: tuple[tuple[int, int], tuple[int, int]] = Field(serialization_alias="dd")
-    riichi_cost: WireScore = Field(serialization_alias="rc")
     riichi_stick_value: WireScore = Field(serialization_alias="rsv")
     seat: int = Field(serialization_alias="s")
     round_wind: WireWindField = Field(serialization_alias="w")
     round_number: int = Field(serialization_alias="n")
+    round_in_wind: int = Field(serialization_alias="rw")
     current_player_seat: int = Field(serialization_alias="cp")
     latest_discard_seat: int | None = Field(default=None, serialization_alias="ld")
     dora_indicators: list[int] = Field(serialization_alias="di")

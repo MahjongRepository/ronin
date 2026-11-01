@@ -14,6 +14,7 @@ import { sameIntent } from "./decision";
 import { offersIntent, takesIntent } from "./intents";
 import { decisionOf } from "./pending";
 import {
+    type EscapeStep,
     type PlayAction,
     type PlayCommand,
     type PlayUi,
@@ -27,6 +28,8 @@ import {
     type LocalIntent,
     type Offer,
 } from "./types";
+
+const STEP_BACK: PlayCommand = { kind: "step_back" };
 
 /**
  * How prominent a decision control is: a win (ron, tsumo, and kyuushu, which ends the hand too) above a call, kan or
@@ -297,7 +300,7 @@ function tileChoiceActions(
     return [
         ...choices,
         control({ command: toggle, label, pressed: true, rank: "call" }),
-        control({ command: { kind: "step_back" }, label: BACK, rank: "pass" }),
+        control({ command: STEP_BACK, label: BACK, rank: "pass" }),
     ];
 }
 
@@ -373,13 +376,21 @@ function answeredBy(candidate: DecisionAction, chosen: boolean): DecisionAction 
     return { ...candidate, chosen };
 }
 
-/** What Escape steps back from: a call's choice of tiles, else the riichi toggle; neither once answered. */
-export function escapeCommand(state: LiveClient, ui: PlayUi): PlayCommand | null {
+/**
+ * What Escape steps back from, with the toggle that opened it: a call's choice of tiles, else the riichi toggle;
+ * neither once answered.
+ */
+export function escapeStep(state: LiveClient, ui: PlayUi): EscapeStep | null {
     if (decisionOf(state)?.status.kind === "submitted") {
         return null;
     }
-    const stepping = choosingTiles(state, ui) !== null || pickingRiichi(state, ui);
-    return stepping ? { kind: "step_back" } : null;
+    const choosing = choosingTiles(state, ui);
+    if (choosing !== null) {
+        return { command: STEP_BACK, opener: { kind: "toggle_tile_choice", offer: choosing } };
+    }
+    return pickingRiichi(state, ui)
+        ? { command: STEP_BACK, opener: { kind: "toggle_riichi_pick" } }
+        : null;
 }
 
 /** Whether No calls passed the decision, which then shows nothing: its controls never appear. */

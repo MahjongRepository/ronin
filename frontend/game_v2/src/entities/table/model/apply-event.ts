@@ -16,12 +16,10 @@ import { applyKanDeclared } from "./handlers/kan-declared";
 import { applyMeld } from "./handlers/meld";
 import { applyGameReconnected } from "./handlers/reconnect";
 import { applyRoundEnd } from "./handlers/round-end";
-import { requirePlayer, requireRiichiCost, takeFromHand, updatePlayer } from "./helpers";
+import { requirePlayer, takeFromHand, updatePlayer } from "./helpers";
 import { createInitialPlayerState } from "./initial-state";
 import { type GamePhase, type PlayerState, type TableEvent, type TableState } from "./types";
 
-/** Live wall size after dealing: 136 total - 14 dead wall - 52 dealt (13 × 4 players). */
-const TILES_AFTER_DEAL = 136 - 14 - 13 * 4;
 const DEALT_HAND_SIZE = 13;
 function applyGameStarted(state: TableState, event: GameStartedEvent): TableState {
     const players = event.players.map((p) =>
@@ -40,7 +38,6 @@ function applyGameStarted(state: TableState, event: GameStartedEvent): TableStat
         gameType: event.gameType,
         phase: "pre_game",
         players,
-        riichiCost: event.riichiCost,
         riichiStickValue: event.riichiStickValue,
     };
 }
@@ -63,6 +60,15 @@ function dealtHand(
     return { concealedCount: DEALT_HAND_SIZE, tiles: [] };
 }
 
+/** A seat's score at the deal: the deal lists every seat's (`roundStartedSchema`), so a missing one is a desync. */
+function dealtScore(event: RoundStartedEvent, seat: number): number {
+    const view = event.players.find((candidate) => candidate.seat === seat);
+    if (view === undefined) {
+        throw new DesyncError(`The deal names no score for seat ${seat}`);
+    }
+    return view.score;
+}
+
 function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableState {
     const players = state.players.map((p) => ({
         ...p,
@@ -72,7 +78,7 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         drawnTileId: null,
         isRiichi: false,
         melds: [],
-        score: event.players.find((view) => view.seat === p.seat)?.score ?? p.score,
+        score: dealtScore(event, p.seat),
     }));
     return {
         ...state,
@@ -86,15 +92,16 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
         revealedSeats: [],
         riichiSticks: event.riichiSticks,
         roundEndResult: null,
+        roundInWind: event.roundInWind,
         roundNumber: event.roundNumber,
         roundWind: event.wind,
-        tilesRemaining: TILES_AFTER_DEAL,
+        tilesRemaining: event.tilesRemaining,
     };
 }
 
 /**
- * A draw puts its tile in the hand. The draw a reconnect re-sends names a tile the snapshot's hand already holds:
- * it only marks the drawn tile again, taking nothing from the wall.
+ * A draw puts its tile in the hand, and the wall stands at the server's count after it. The draw a reconnect re-sends
+ * names a tile the snapshot's hand already holds: it only marks the drawn tile again.
  */
 function applyDraw(state: TableState, event: DrawEvent): TableState {
     const player = requirePlayer(state, event.seat);
@@ -106,11 +113,14 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
             drawnTileId: event.tileId,
             tiles: resent ? player.tiles : [...player.tiles, event.tileId],
         }),
-        tilesRemaining: resent ? state.tilesRemaining : state.tilesRemaining - 1,
+        tilesRemaining: event.tilesRemaining,
     };
 }
 
-/** Another seat's draw, its tile private to that seat: a face-down tile joins its hand, from the wall, in its turn. */
+/**
+ * Another seat's draw, its tile private to that seat: a face-down tile joins its hand in its turn, and the wall stands
+ * at the server's count after it.
+ */
 function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState {
     const player = requirePlayer(state, event.seat);
     return {
@@ -120,7 +130,7 @@ function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState 
             concealedCount: player.concealedCount + 1,
             drawnConcealed: true,
         }),
-        tilesRemaining: state.tilesRemaining - 1,
+        tilesRemaining: event.tilesRemaining,
     };
 }
 
@@ -155,17 +165,15 @@ function applyDiscard(state: TableState, event: DiscardEvent): TableState {
 
 /**
  * The server declares riichi once the declaration's discard passes without a ron, and only then takes the stick: the
- * declarer's score pays it onto the table. A ronned declaration discard never reaches here, so it deposits nothing.
+ * declarer stands at the server's score after its deposit and the table at the server's stick count. A ronned
+ * declaration discard never reaches here, so it deposits nothing.
  */
 function applyRiichiDeclared(state: TableState, event: RiichiDeclaredEvent): TableState {
-    const player = requirePlayer(state, event.seat);
+    requirePlayer(state, event.seat);
     return {
         ...state,
-        players: updatePlayer(state.players, event.seat, {
-            isRiichi: true,
-            score: player.score - requireRiichiCost(state),
-        }),
-        riichiSticks: state.riichiSticks + 1,
+        players: updatePlayer(state.players, event.seat, { isRiichi: true, score: event.score }),
+        riichiSticks: event.riichiSticks,
     };
 }
 

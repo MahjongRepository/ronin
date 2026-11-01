@@ -17,7 +17,7 @@ function nameOf(players: readonly PlayerState[]): NameOf {
 
 function winnerPoints(winner: WinnerResult, name: NameOf): string {
     const honba = winner.honbaBonus > 0 ? ` (+${formatPoints(winner.honbaBonus)} honba)` : "";
-    const pao = winner.paoSeat === null ? "" : `, pao ${name(winner.paoSeat)}`;
+    const pao = winner.pao === null ? "" : `, pao ${name(winner.pao.seat)}`;
     return `${formatPoints(winner.handResult.points)}${honba}${pao}`;
 }
 

@@ -1,26 +1,36 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 
-/** A way on from a panel: a link to another page, or a control of the view's own. */
+import { focusKeys } from "@/shared/lib";
+
+import { PANEL_CONTROL_FOCUS_KEY } from "./focus";
+
+/**
+ * A way on from a panel: a link to another page, or a control of the view's own; a view that moves the focus to it
+ * names it by its focus key.
+ */
 export type PanelAction =
     | {
           readonly kind: "link";
           readonly label: string;
           readonly href: string;
           readonly primary?: boolean;
+          readonly focusKey?: string;
       }
     | {
           readonly kind: "button";
           readonly label: string;
           readonly onClick: () => void;
           readonly primary?: boolean;
+          readonly focusKey?: string;
       };
 
 function PanelActionView(action: PanelAction): TemplateResult {
     const classes = `seating__action${action.primary === true ? "" : " secondary"}`;
     if (action.kind === "link") {
-        return html`<a class=${classes} role="button" href=${action.href}>${action.label}</a>`;
+        return html`<a class=${classes} role="button" href=${action.href} data-focus-key=${action.focusKey ?? nothing}>${action.label}</a>`;
     }
-    return html`<button type="button" class=${classes} @click=${action.onClick}>${action.label}</button>`;
+    const focusKey = focusKeys(action.focusKey, PANEL_CONTROL_FOCUS_KEY) ?? nothing;
+    return html`<button type="button" class=${classes} data-focus-key=${focusKey} @click=${action.onClick}>${action.label}</button>`;
 }
 
 /** A panel's ways on, in order; the one marked primary is its primary action. */

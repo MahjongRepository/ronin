@@ -50,6 +50,7 @@ export type {
     DoubleRonRoundEnd,
     ExhaustiveDrawRoundEnd,
     NagashiManganRoundEnd,
+    PaoLiability,
     RonRoundEnd,
     RoundEndEvent,
     TsumoRoundEnd,

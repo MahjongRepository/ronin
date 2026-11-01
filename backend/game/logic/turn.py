@@ -297,7 +297,13 @@ def pass_ron_window(game_state: MahjongGameState, discarder_seat: int) -> tuple[
     discarder = new_round_state.players[discarder_seat]
     if discarder.discards[-1].is_riichi_discard and not discarder.is_riichi:
         new_game_state = declare_riichi(new_game_state, seat=discarder_seat)
-        events.append(RiichiDeclaredEvent(seat=discarder_seat))
+        events.append(
+            RiichiDeclaredEvent(
+                seat=discarder_seat,
+                score=new_game_state.round_state.players[discarder_seat].score,
+                riichi_sticks=new_game_state.riichi_sticks,
+            ),
+        )
 
     draw_type = find_passed_discard_abort(new_game_state.round_state, new_game_state.settings)
     if draw_type is not None:
@@ -652,10 +658,11 @@ def _build_chankan_prompt(
     *,
     caller_seat: int,
     tile_id: int,
+    kan_type: KanType,
     seats: list[int],
 ) -> tuple[MahjongGameState, list[GameEvent]]:
     """
-    Create the CHANKAN call prompt for the seats that can rob the kan, and its per-seat prompt events.
+    Create the CHANKAN call prompt for the seats that can rob the kan of kan_type, and its per-seat prompt events.
     """
     prompt = PendingCallPrompt(
         kind=PromptKind.CHANKAN,
@@ -663,6 +670,7 @@ def _build_chankan_prompt(
         from_seat=caller_seat,
         pending_seats=frozenset(seats),
         callers=tuple(Caller(seat=seat, can_ron=True) for seat in seats),
+        kan_type=kan_type,
     )
     new_round_state = game_state.round_state.model_copy(update={"pending_call_prompt": prompt})
     return update_game_with_round(game_state, new_round_state), list(build_call_prompt_events(prompt))
@@ -686,7 +694,9 @@ def _process_closed_kan_call(
     # kokushi musou may rob a closed kan; check before executing
     kokushi_seats = is_kokushi_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=tile_id)
     if kokushi_seats:
-        return _build_chankan_prompt(game_state, caller_seat=caller_seat, tile_id=tile_id, seats=kokushi_seats)
+        return _build_chankan_prompt(
+            game_state, caller_seat=caller_seat, tile_id=tile_id, kan_type=KanType.CLOSED, seats=kokushi_seats
+        )
 
     return _execute_closed_kan(game_state, caller_seat=caller_seat, tile_id=tile_id)
 
@@ -730,7 +740,9 @@ def _process_added_kan_call(
     # check for chankan first (using current state before kan is executed)
     chankan_seats = is_chankan_possible(round_state, caller_seat=caller_seat, kan_tile=resolved_tile_id)
     if chankan_seats:
-        return _build_chankan_prompt(game_state, caller_seat=caller_seat, tile_id=resolved_tile_id, seats=chankan_seats)
+        return _build_chankan_prompt(
+            game_state, caller_seat=caller_seat, tile_id=resolved_tile_id, kan_type=KanType.ADDED, seats=chankan_seats
+        )
 
     return _execute_added_kan(game_state, caller_seat=caller_seat, tile_id=resolved_tile_id)
 
@@ -753,6 +765,7 @@ def _execute_added_kan(
         tile_ids=list(meld.tiles),
         called_tile_id=meld.called_tile,
         from_seat=meld.from_who,
+        added_tile_id=meld.added_tile,
     )
     return _complete_kan(game_state, new_round_state, caller_seat=caller_seat, meld_event=meld_event)
 

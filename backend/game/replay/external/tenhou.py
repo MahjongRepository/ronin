@@ -10,7 +10,7 @@ from mahjong.hand_calculating.yaku_config import YAKU_ID_TO_TENHOU_ID, YakuConfi
 from mahjong.hand_calculating.yaku_list import Renhou
 from mahjong.hand_calculating.yaku_list.yakuman import RenhouYakuman
 
-from game.logic.enums import AbortiveDrawType, KanType
+from game.logic.enums import AbortiveDrawType, HandLimit, KanType
 from game.logic.settings import NUM_PLAYERS, WIRE_SCORE_DIVISOR, GameSettings, GameType
 from game.wire.compact import decode_discard, decode_draw, encode_discard, encode_draw
 from game.wire.enums import WireEventType, WireRoundResultType
@@ -33,9 +33,15 @@ ABORTIVE_REASON_TO_TENHOU = {
     AbortiveDrawType.TRIPLE_RON: "ron3",
 }
 
-_LIMIT_BY_BASE_POINTS = ((8000, 5), (6000, 4), (4000, 3), (3000, 2), (2000, 1))
-_NON_DEALER_BASE_POINTS_SHARES = 4
-_DEALER_BASE_POINTS_SHARES = 6
+TENHOU_LIMIT = {
+    HandLimit.NONE: 0,
+    HandLimit.MANGAN: 1,
+    HandLimit.HANEMAN: 2,
+    HandLimit.BAIMAN: 3,
+    HandLimit.SANBAIMAN: 4,
+    HandLimit.YAKUMAN: 5,
+    HandLimit.KAZOE_YAKUMAN: 5,
+}
 
 YAKUMAN_YAKU_IDS = frozenset(
     yaku.yaku_id for yaku in vars(YakuConfig()).values() if isinstance(yaku, Yaku) and yaku.is_yakuman
@@ -182,8 +188,7 @@ def encode_meld(meld_event: dict[str, Any]) -> str:
         case "added_kan":
             tile = called_tile if called_tile is not None else min(tiles)
             source: int = meld_event.get("from_seat", who)
-            added = meld_event.get("_added_tile")
-            return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=added)
+            return _encode_pon(tiles, tile, who, source, is_shouminkan=True, added_tile=meld_event["added_tile_id"])
         case "closed_kan":
             tile = called_tile if called_tile is not None else min(tiles)
             return _encode_kan(tiles=tiles, called_tile=tile, who=who, from_who=who)
@@ -252,27 +257,14 @@ def _double_ron_score_steps(result: dict[str, Any]) -> list[tuple[dict[str, int]
     return steps
 
 
-def _compute_limit(points: int, *, is_dealer: bool) -> int:
+def _format_ten(hand: dict[str, Any]) -> str:
     """
-    Compute the tenhou limit field from the hand's value in full points: the payment tier its base points reach.
-
-    0 = below mangan, 1 = mangan, 2 = haneman, 3 = baiman, 4 = sanbaiman, 5 = yakuman. Reading the tier from what the
-    engine paid follows its settings (kiriage mangan, kazoe yakuman off) and the fu-based mangans, which a han count
-    alone misses. A hand below mangan rounds up to at most 1975 base points, so it never reaches the mangan tier.
-    """
-    shares = _DEALER_BASE_POINTS_SHARES if is_dealer else _NON_DEALER_BASE_POINTS_SHARES
-    base_points = points // shares
-    return next((limit for tier, limit in _LIMIT_BY_BASE_POINTS if base_points >= tier), 0)
-
-
-def _format_ten(hand: dict[str, Any], *, is_dealer: bool) -> str:
-    """
-    Format the AGARI ten attribute: fu, the hand's value in full points and its limit.
+    Format the AGARI ten attribute: fu, the hand's value in full points and the limit the engine paid it at.
 
     Tenhou writes the bare hand value: honba and riichi sticks appear only in ba and sc.
     """
     points = hand["pt"] * WIRE_SCORE_DIVISOR
-    return f"{hand['fu']},{points},{_compute_limit(points, is_dealer=is_dealer)}"
+    return f"{hand['fu']},{points},{TENHOU_LIMIT[HandLimit(hand['lm'])]}"
 
 
 def _tenhou_go_type(settings: GameSettings) -> int:
@@ -583,7 +575,7 @@ class TenhouConverter:
     def _handle_riichi_declared(self, event: dict[str, Any]) -> None:
         seat = event["s"]
         self._round_riichi_count += 1
-        self.scores[seat] -= self.settings.riichi_cost // WIRE_SCORE_DIVISOR
+        self.scores[seat] = event["sc"]
         scores_string = ",".join(str(score) for score in self.scores)
         self.tags.append(f'<REACH who="{seat}" ten="{scores_string}" step="2"/>')
 
@@ -601,9 +593,12 @@ class TenhouConverter:
         seat_melds = self._seat_melds.setdefault(who, [])
 
         if meld_data["meld_type"] == "added_kan":
+            added_tile = meld_data["added_tile_id"]
+            if added_tile is None:
+                raise ValueError(f"added kan by seat {who} on tile {tile_34} carries no added tile")
+
             pon = self._recorded_pon(who, tile_34)
-            added_tile = next(t for t in meld_data["tile_ids"] if t not in pon["tile_ids"])
-            meld_str = encode_meld({**meld_data, "_added_tile": added_tile})
+            meld_str = encode_meld(dict(meld_data))
             seat_melds[seat_melds.index(encode_meld(dict(pon)))] = meld_str
             self.hands[who].remove(added_tile)
         else:
@@ -665,7 +660,7 @@ class TenhouConverter:
                 **pon,
                 "meld_type": "added_kan",
                 "tile_ids": [*pon["tile_ids"], tile],
-                "_added_tile": tile,
+                "added_tile_id": tile,
             }
         else:
             kan = {
@@ -690,7 +685,7 @@ class TenhouConverter:
         winner = result["ws"]
         from_who = result["ls"] if result["rt"] == WireRoundResultType.RON else winner
         hand = result["hr"]
-        ten_string = _format_ten(hand, is_dealer=winner == self.dealer)
+        ten_string = _format_ten(hand)
 
         yaku_attr = _format_yaku_attr(hand["yk"])
         sc_string = _format_sc(result["scs"], result["sch"])
@@ -737,7 +732,7 @@ class TenhouConverter:
             riichi_sticks = self._total_riichi_sticks if i == 0 else 0
             sc_string = _format_sc(scores, changes)
             hand = w["hr"]
-            ten_string = _format_ten(hand, is_dealer=winner == self.dealer)
+            ten_string = _format_ten(hand)
             yaku_attr = _format_yaku_attr(hand["yk"])
 
             hai_string = _format_winning_hand(w["ct"], winning_tile)

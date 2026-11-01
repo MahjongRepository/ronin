@@ -79,11 +79,11 @@ function notFoundThen(next: Promise<ReplayFetch>): LoadReplay {
 }
 
 /** A clock whose timers never fire: autoplay's story stays on the stop it opened on. */
-const STILL_CLOCK: Clock = { now: () => Date.now(), setTimer: () => () => {} };
+const STILL_CLOCK: Clock = { now: browserClock.now, setTimer: () => () => {} };
 
 /** A clock whose timers fire at once, so a story's retries are spent before it is looked at. */
 const HURRIED_CLOCK: Clock = {
-    now: () => Date.now(),
+    now: browserClock.now,
     setTimer: (_delayMs, callback) => {
         const handle = setTimeout(callback, 0);
         return () => clearTimeout(handle);

@@ -43,31 +43,45 @@ function reconnectRoundConfirm(
 }
 
 /**
+ * What a message makes of the round confirm: kept as the message leaves it, or replaced, in place of whatever the seat
+ * owed, by the confirm the message opens, or by none.
+ */
+export type OpenedRoundConfirm =
+    | { readonly kind: "kept" }
+    | { readonly kind: "replaced"; readonly confirm: RoundConfirm | null };
+
+const KEPT: OpenedRoundConfirm = { kind: "kept" };
+const OWES_NONE: OpenedRoundConfirm = { confirm: null, kind: "replaced" };
+
+/**
  * The round confirm a message opens, from the table it left, in place of whatever the seat owed: a round end's wait, a
- * reconnect's snapshot of a round advance. Null for a round end with no wait, a snapshot of no round advance and the
- * game's end, which owe none; undefined for any other message.
+ * reconnect's snapshot of a round advance. None for a round end with no wait, a snapshot of no round advance and the
+ * game's end, which owe none; any other message keeps the confirm.
  */
 export function openedRoundConfirm(
     state: LiveClient,
     message: ParsedServerMessage,
-): RoundConfirm | null | undefined {
+): OpenedRoundConfirm {
     switch (message.type) {
         case "round_end": {
             const { roundAdvance } = message;
             if (roundAdvance === null) {
-                return null;
+                return OWES_NONE;
             }
             const deadline = roundAdvanceDeadline(state.now, roundAdvance.seconds, 0);
-            return { deadline, kind: "owed", waitId: roundAdvance.waitId };
+            return {
+                confirm: { deadline, kind: "owed", waitId: roundAdvance.waitId },
+                kind: "replaced",
+            };
         }
         case "game_reconnected": {
-            return reconnectRoundConfirm(state, message);
+            return { confirm: reconnectRoundConfirm(state, message), kind: "replaced" };
         }
         case "game_end": {
-            return null;
+            return OWES_NONE;
         }
         default: {
-            return undefined;
+            return KEPT;
         }
     }
 }

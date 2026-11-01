@@ -30,6 +30,7 @@ class FrozenMeld(BaseModel):
     called_tile: int | None = None
     who: int = 0
     from_who: int | None = None
+    added_tile: int | None = None
 
     # Meld type constants (matching mahjong.meld.Meld)
     CHI: ClassVar[MeldType] = "chi"

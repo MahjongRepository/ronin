@@ -328,9 +328,7 @@ class TestRoundEndAwaiting:
 
 
 class TestMahjongGameServiceRiichiSettingsOnTheWire:
-    def test_start_game__when_riichi_cost_and_stick_value_not_default__should_send_each_on_game_started_and_snapshot(
-        self,
-    ):
+    def test_start_game__when_riichi_cost_and_stick_value_not_default__should_send_only_the_stick_value(self):
         service = MahjongGameService()
         settings = GameSettings(riichi_cost=2000, riichi_stick_value=1500)
         start = service.start_game("game1", ["Alice"], seed="a" * 192, settings=settings)
@@ -339,8 +337,8 @@ class TestMahjongGameServiceRiichiSettingsOnTheWire:
         started_payload = game_event_payload(game_started)
         snapshot_payload = reconnection_payload(snapshot, stand_ins={})
 
-        assert (started_payload["rc"], started_payload["rsv"]) == (20, 15)
-        assert (snapshot_payload["rc"], snapshot_payload["rsv"]) == (20, 15)
+        assert (started_payload.get("rc"), started_payload["rsv"]) == (None, 15)
+        assert (snapshot_payload.get("rc"), snapshot_payload["rsv"]) == (None, 15)
 
 
 class TestMahjongGameServiceInvalidStart:
@@ -393,6 +391,7 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert len(snapshot.players) == 4
         assert snapshot.dora_indicators == list(game_state.round_state.wall.dora_indicators)
         assert snapshot.tiles_remaining == len(game_state.round_state.wall.live_tiles)
+        assert (snapshot.round_in_wind, snapshot.first_dealer_seat) == (1, game_state.round_state.dealer_seat)
         for ps in snapshot.player_states:
             game_player = game_state.round_state.players[ps.seat]
             assert ps.score == game_player.score
@@ -469,8 +468,10 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         )
 
         snapshot = service.build_reconnection_snapshot(runtime, alice.seat)
-        payload = snapshot.model_dump(by_alias=True, exclude_none=True)
-        assert (payload["dl"], payload["w"], payload["n"], payload["h"]) == (first_dealer, 0, 0, 0)
+        payload = reconnection_payload(snapshot, stand_ins={})
+        assert (payload["dl"], payload["w"], payload["n"], payload["rw"], payload["h"]) == (first_dealer, 0, 0, 1, 0)
+        assert (payload["r"], payload["re"]["r"]) == (0, 0)
+        assert (payload["re"]["dl"], payload["re"]["di"]) == (first_dealer, payload["di"])
         assert isinstance(snapshot.result, ExhaustiveDrawResult)
         assert snapshot.result.tempai_seats == [tenpai_seat]
         assert {ps["s"]: ps["sc"] for ps in payload["pst"]} == {

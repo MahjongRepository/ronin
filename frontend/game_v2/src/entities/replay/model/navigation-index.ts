@@ -1,4 +1,4 @@
-import { type RoundEndResult, type TableState, roundEndPages, roundInWind } from "@/entities/table";
+import { type RoundEndResult, type TableState, roundEndPages } from "@/entities/table";
 
 import { type ActionStep, type StepEvent, buildActionSteps } from "./action-steps";
 
@@ -55,7 +55,7 @@ function roundOf(
         honba: deal.honbaSticks,
         result: endTable.roundEndResult,
         resultStop: stops.result,
-        roundInWind: roundInWind(deal),
+        roundInWind: deal.roundInWind,
         stopCount: stops.count,
         wind: deal.roundWind,
     };

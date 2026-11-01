@@ -11,31 +11,19 @@ import {
     calledBy,
     compactMeldSchema,
     coversEverySeat,
+    discardInfoSchema,
     gamePlayerInfoSchema,
+    roundInWindSchema,
     seatSchema,
     secondsSchema,
     tileIdSchema,
+    tilesRemainingSchema,
     timerSettingsSchema,
     waitIdSchema,
     wireScoreMapSchema,
     wireSettingAmountSchema,
 } from "./common";
 import { parseRoundResult } from "./round-results";
-
-// --- Discard info (inside player state `dsc` array) ---
-
-const discardInfoSchema = z.pipe(
-    z.object({
-        rd: z.optional(z.boolean()),
-        tg: z.optional(z.boolean()),
-        ti: tileIdSchema,
-    }),
-    z.transform((raw) => ({
-        isRiichiDiscard: raw.rd ?? false,
-        isTsumogiri: raw.tg ?? false,
-        tileId: raw.ti,
-    })),
-);
 
 // --- Player reconnect state (inside `pst` array) ---
 
@@ -162,6 +150,7 @@ export const gameReconnectedSchema = z.pipe(
             dl: seatSchema,
             el: z.optional(secondsSchema),
             f: z.boolean(),
+            fd: seatSchema,
             gid: z.string(),
             h: z.int(),
             ld: z.optional(seatSchema),
@@ -171,13 +160,13 @@ export const gameReconnectedSchema = z.pipe(
             p: z.array(gamePlayerInfoSchema),
             pst: z.array(playerReconnectStateSchema),
             r: z.int(),
-            rc: wireSettingAmountSchema,
             re: z.optional(z.record(z.string(), z.unknown())),
             rh: z.array(roundHistoryEntrySchema),
             rsv: wireSettingAmountSchema,
+            rw: roundInWindSchema,
             s: seatSchema,
             tm: timerSettingsSchema,
-            tr: z.int(),
+            tr: tilesRemainingSchema,
             type: z.literal(SESSION_MESSAGE_TYPE.GAME_RECONNECTED),
             w: z.int(),
             wi: waitIdSchema,
@@ -199,6 +188,7 @@ export const gameReconnectedSchema = z.pipe(
         dealerDice: raw.dd,
         dealerSeat: raw.dl,
         doraIndicators: raw.di,
+        firstDealerSeat: raw.fd,
         gameId: raw.gid,
         honbaSticks: raw.h,
         isFuriten: raw.f,
@@ -206,10 +196,10 @@ export const gameReconnectedSchema = z.pipe(
         myTiles: raw.mt,
         playerStates: raw.pst,
         players: raw.p,
-        riichiCost: raw.rc,
         riichiStickValue: raw.rsv,
         riichiSticks: raw.r,
         roundHistory: raw.rh,
+        roundInWind: raw.rw,
         roundNumber: raw.n,
         roundResult: raw.re ? parseRoundResult(raw.re) : null,
         seat: raw.s,

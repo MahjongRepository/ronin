@@ -1,9 +1,12 @@
+import { type SessionStatusDisplay } from "@/entities/session";
 import {
     type BoardCallouts,
     type BoardDisplayState,
     type BoardPlayerDisplay,
     type SeatPosition,
+    type TablePanel,
     boardCallouts,
+    tablePanel,
     tableStateToDisplayState,
 } from "@/entities/table";
 import { type HandTile } from "@/entities/tile";
@@ -15,14 +18,20 @@ import {
     boardNotices,
     noticeSheet,
 } from "./board-notices";
-import { type DecisionCountdown, decisionCountdown, firstDealCountdown } from "./countdown";
+import { describePlayerClientStatus } from "./client-status";
+import {
+    type DecisionCountdown,
+    decisionCountdown,
+    firstDealCountdown,
+    pendingCountdown,
+} from "./countdown";
 import {
     type DecisionAction,
     type DecisionStanding,
     type TilePlay,
     decisionActions,
     decisionStanding,
-    escapeCommand,
+    escapeStep,
     intentsOf,
     pickingRiichi,
     tilePlays,
@@ -30,7 +39,13 @@ import {
 import { takesIntent } from "./intents";
 import { decisionOf } from "./pending";
 import { PLAY_SWITCHES } from "./play-switches";
-import { type PlayAction, type PlayCommand, type PlayUi, intentCommand } from "./play-ui";
+import {
+    type EscapeStep,
+    type PlayAction,
+    type PlayCommand,
+    type PlayUi,
+    intentCommand,
+} from "./play-ui";
 import {
     type ResultControls,
     lastResultAction,
@@ -56,6 +71,23 @@ export interface SwitchControl {
 }
 
 /**
+ * What shows over the live board, in the overlay's precedence: an end that blocks the board, else the question leaving
+ * mid-game asks, else a notice the player opened whole, else the table's own panel (seating, a result, the game's end
+ * from the viewer's seat), which comes back as the sheet closes.
+ */
+export type PlayPanel =
+    | { readonly kind: "failure"; readonly failure: FailureDisplay }
+    | { readonly kind: "leave" }
+    | { readonly kind: "notice_sheet"; readonly sheet: NoticeSheetDisplay }
+    | TablePanel;
+
+/** The panel over the live board, and whether it blocks the board: everything under it then takes no input. */
+export interface PlayOverlay {
+    readonly panel: PlayPanel;
+    readonly blocksBoard: boolean;
+}
+
+/**
  * The live board as the viewer plays it: the table from its seat, its own hand's tiles marked by the open decision
  * (with the intent tapping each selectable one sends), the decision's buttons, its countdown and the seat's furiten.
  */
@@ -63,40 +95,39 @@ export interface PlayDisplay {
     readonly board: BoardDisplayState | null;
     /** The calls the board shows by their seats, from the viewer's seat; null with none. */
     readonly callouts: BoardCallouts | null;
-    /** The whole seconds left of the game start pause, which the seating before the first deal counts down. */
-    readonly firstDealSeconds: number | null;
     readonly tileAction: string;
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
     /** The open decision's controls, ranked; an answered one keeps them, showing which sent the answer. */
     readonly actions: readonly DecisionAction[];
     /** Where the viewer's decision stands; null with none. */
     readonly decisionStanding: DecisionStanding | null;
-    /** What Escape does: step back from a call's choice of tiles or the riichi toggle; null with neither on. */
-    readonly escape: PlayCommand | null;
+    /**
+     * What Escape does: step back from a call's choice of tiles or the riichi toggle, focusing the toggle back; null
+     * with neither on.
+     */
+    readonly escape: EscapeStep | null;
     readonly countdown: DecisionCountdown | null;
+    /** The countdown of whatever the seat owes, a decision or a round confirm; null while it owes nothing. */
+    readonly owedCountdown: DecisionCountdown | null;
     /** The seat is furiten, shown only while a round plays, never under its result or the game's end. */
     readonly furiten: boolean;
     /** The play switches, while the player may turn them (a live seat in a round); else none. */
     readonly switches: readonly SwitchControl[];
-    /** The page of the round's result the panel shows, clamped to its pages; 0 with no result. */
-    readonly resultPage: number;
     /** The nameplate pinned for the others' score differences, or null. */
     readonly pinnedNameplate: SeatPosition | null;
     /** The result panel's controls while the viewer has a round result to confirm or waits on one; else null. */
     readonly result: ResultControls | null;
-    /** Whether the game's last result still shows over the game's end, until the player dismisses it. */
-    readonly resultOverGameEnd: boolean;
     /** The game end's way back to the game's last result once the player dismissed it; else null. */
     readonly lastResult: PlayAction | null;
-    /** The viewer's seat, which the game's end marks; null before the seat is known. */
-    readonly viewerSeat: number | null;
     /** The notices over the table, in `NoticeKind`'s order; none while a failure blocks the board. */
     readonly notices: readonly PlayNotice[];
-    /** The notice opened whole in its sheet over the board, while it shows; else null. */
-    readonly noticeSheet: NoticeSheetDisplay | null;
-    /** The end that blocks the board with its reason and a way back, or null. */
+    /** The end that stopped the session with its reason and a way back, or null; it tops the overlay. */
     readonly failure: FailureDisplay | null;
     readonly leave: LeaveControls;
+    /** What shows over the board, or null while nothing does. */
+    readonly overlay: PlayOverlay | null;
+    /** The session's status, which the board's corner and the rotate panel show. */
+    readonly status: SessionStatusDisplay;
 }
 
 const DISCARD_ACTION = "Discard";
@@ -213,6 +244,41 @@ function liveCallouts(state: LiveClient): BoardCallouts | null {
     return { items: boardCallouts(calls.calls, viewerSeat), key: `call-${calls.at}` };
 }
 
+/** What the overlay is chosen from, mapped once for the display beside it. */
+interface OverlaySource {
+    readonly callouts: BoardCallouts | null;
+    readonly failure: FailureDisplay | null;
+    readonly leave: LeaveControls;
+    readonly notices: readonly PlayNotice[];
+    readonly resultPage: number;
+}
+
+/** The panel over the live board in the overlay's precedence; null while nothing shows over it. */
+function playOverlay(
+    state: LiveClient,
+    ui: PlayUi,
+    { callouts, failure, leave, notices, resultPage }: OverlaySource,
+): PlayOverlay | null {
+    if (failure !== null) {
+        return { blocksBoard: true, panel: { failure, kind: "failure" } };
+    }
+    if (leave.confirming) {
+        return { blocksBoard: true, panel: { kind: "leave" } };
+    }
+    const sheet = noticeSheet(state, ui, notices);
+    if (sheet !== null) {
+        return { blocksBoard: true, panel: { kind: "notice_sheet", sheet } };
+    }
+    const panel = tablePanel(state.table, {
+        callouts,
+        firstDealSeconds: firstDealCountdown(state),
+        overGameEnd: state.showsLastResult,
+        page: resultPage,
+        viewerSeat: state.viewerSeat,
+    });
+    return panel === null ? null : { blocksBoard: false, panel };
+}
+
 /**
  * The live board a client state shows its viewer, with the view's `ui` beside it: the table from the viewer's seat
  * with only its own hand face up, and the open decision as the hand's playable tiles and the buttons around them.
@@ -228,27 +294,27 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const resultPage = shownResultPage(table, ui);
     const failure = failureDisplay(state.session);
     const notices = boardNotices(state, ui);
+    const callouts = liveCallouts(state);
+    const leave = leaveControls(state, ui);
     return {
         actions: decisionActions(state, ui),
         board: viewerBoard(state, plays),
-        callouts: liveCallouts(state),
+        callouts,
         countdown: decisionCountdown(state),
         decisionStanding: decisionStanding(state),
-        escape: escapeCommand(state, ui),
+        escape: escapeStep(state, ui),
         failure,
-        firstDealSeconds: firstDealCountdown(state),
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
         lastResult: lastResultAction(state),
-        leave: leaveControls(state, ui),
-        noticeSheet: noticeSheet(state, ui, notices),
+        leave,
         notices,
+        overlay: playOverlay(state, ui, { callouts, failure, leave, notices, resultPage }),
+        owedCountdown: pendingCountdown(state),
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
-        resultOverGameEnd: state.showsLastResult,
-        resultPage,
+        status: describePlayerClientStatus(state),
         switches: switchControls(state),
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
         tileIntents: intentsOf(plays),
-        viewerSeat,
     };
 }

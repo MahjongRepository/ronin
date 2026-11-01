@@ -1,6 +1,6 @@
 # Replay entity
 
-Moving through a recorded game: navigation, stops, cursor, address, autoplay, reader settings, controls.
+Moving through a recorded game: navigation, stops, cursor, address, autoplay, reader settings, the page's screen, controls.
 
 - Every stop is a client timeline state; none is a table patched outside the dispatcher. Controls, round list,
   address and autoplay all move through the cursor functions over `buildNavigationIndex`.
@@ -14,3 +14,8 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   in the address.
 - Continuous moves (autoplay, held button, wheel) pause on every result page and at the last stop (`isPauseStop`).
 - A replay that stops short of the game's end, or was cut at a damaged line, says so on every stop.
+- The replay page's screen (loading, failed, loaded) moves only through `stepReplayPage`: stamped input in, screen and
+  requested IO (address write, settings save, focus) out. It reads no DOM or clock and arms no timer; autoplay and a
+  held button's repeat are deadlines in the screen (`replayPageDeadline`) that come back as ticks.
+- What a page finds of the slice's UI by selector (`ROUND_LIST_SELECTOR`, `ROUND_LIST_TOGGLE_SELECTOR`,
+  `STEP_BUTTON_ATTRIBUTE`) is exported beside the component that renders it; change both together.

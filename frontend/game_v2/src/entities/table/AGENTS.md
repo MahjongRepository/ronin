@@ -14,14 +14,18 @@ The game table model and board UI. `entities/client` steps it; views read the ta
   meets an impossible state throws `DesyncError`, never returns the state unchanged: the live client recovers from
   that error alone.
 - **Scores come from the server.** A round end's wire `scores` are pre-payment and post-deposit; settle each player at
-  that score plus `scoreChanges`, never from the prior state, so a deposit is never deducted twice. Riichi cost
-  (`riichiCost`) and a collected stick's value (`riichiStickValue`) are separate game settings. A snapshot's scores
+  that score plus `scoreChanges`, never from the prior state, so a deposit is never deducted twice. A collected
+  stick's value (`riichiStickValue`) is the one game setting the table keeps. A snapshot's scores
   already hold every deposit and a game end's standings the leftover sticks paid; take both as they are. The game's
   end takes the server's placement and uma/oka, never recomputed; leftover sticks are the server's `lr`, never the
   table's count. A table out of step (`inStep`) names no last round in how the game ended.
-- A limit's name (`handLimitName`) comes from the points paid, never from han; yakuman vs kazoe from the server's
-  per-yaku flag, never the id.
-- A round's name is its number within its wind (`roundInWind`), from the dealer's distance to the first dealer.
+- **A result is the server's alone.** Its dealer, dora indicators and nagashi rivers come from the round end, never
+  the table, so a result shown out of step is still right. The limit's name (`handLimitName`), a yaku's yakuman
+  count, each winner's honba bonus and what a liable (pao) seat pays are the server's; the client words them and
+  never works them back from points, han or yaku ids. A score map missing a seat is a desync.
+- The live wall's count, a riichi's deposit (the declarer's score and the table's sticks), the sticks a round end
+  leaves, a round's number within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never
+  counted or inferred by the client.
 - The latest discard is the server's on reconnect (`ld`); the client never infers it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.

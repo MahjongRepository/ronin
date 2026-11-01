@@ -3,7 +3,10 @@ import pytest
 from game.logic.enums import (
     CallType,
     GameEndCause,
+    HandLimit,
+    KanType,
     MeldViewType,
+    PaoShare,
     WaitKind,
     WireCallType,
     WireMeldCallType,
@@ -26,8 +29,10 @@ from game.logic.types import (
     DoubleRonResult,
     DoubleRonWinner,
     HandResultInfo,
+    PaoLiability,
     PlayerStanding,
     TsumoResult,
+    YakuInfo,
 )
 from game.messaging.event_payload import (
     EVENT_TYPE_INT,
@@ -81,11 +86,12 @@ class TestGameEventPayload:
         assert payload["t"] == EVENT_TYPE_INT[EventType.GAME_END]
         assert (payload["lb"], payload["lr"], payload["nr"], payload["ec"]) == (0, 2, 8, "extension_limit")
 
-    def test_game_event_payload__when_draw__should_pack_into_integer(self):
-        event = DrawEvent(seat=1, tile_id=42, target=SeatTarget(seat=1))
+    def test_game_event_payload__when_draw__should_pack_into_integer_beside_the_live_wall_left(self):
+        event = DrawEvent(seat=1, tile_id=42, tiles_remaining=69, target=SeatTarget(seat=1))
         payload = game_event_payload(event)
         assert payload["t"] == EVENT_TYPE_INT[EventType.DRAW]
-        assert set(payload.keys()) == {"t", "d"}
+        assert set(payload.keys()) == {"t", "d", "tr"}
+        assert payload["tr"] == 69
 
         seat, tile_id = decode_draw(payload["d"])
         assert seat == 1
@@ -95,6 +101,7 @@ class TestGameEventPayload:
         event = DrawEvent(
             seat=0,
             tile_id=10,
+            tiles_remaining=69,
             target=SeatTarget(seat=0),
             available_actions=[AvailableActionItem(action="discard", tiles=[10])],
         )
@@ -107,12 +114,26 @@ class TestGameEventPayload:
         event = DrawEvent(
             seat=0,
             tile_id=10,
+            tiles_remaining=69,
             target=SeatTarget(seat=0),
             available_actions=[AvailableActionItem(action="tsumo")],
         )
         payload = game_event_payload(event)
         assert payload["aa"][0] == {"a": WirePlayerAction.TSUMO}
         assert "tl" not in payload["aa"][0]
+
+    def test_game_event_payload__when_chankan_prompt__should_name_the_kan_it_offers_to_rob(self):
+        chankan = CallPromptEvent(
+            call_type=CallType.CHANKAN,
+            tile_id=8,
+            from_seat=0,
+            callers=[1],
+            kan_type=KanType.CLOSED,
+            target=SeatTarget(seat=1),
+        )
+
+        assert game_event_payload(chankan)["kty"] == "closed"
+        assert "kty" not in game_event_payload(_prompt_to(1))
 
     def test_game_event_payload__when_turn_event__should_carry_only_type_and_kuikae_types(self):
         event = TurnEvent(kuikae_tiles=[4, 7], target=SeatTarget(seat=0))
@@ -181,6 +202,7 @@ class TestMeldEventPayload:
             tile_ids=[4, 5, 6, 7],
             called_tile_id=5,
             from_seat=2,
+            added_tile_id=6,
         )
         payload = game_event_payload(event)
         assert payload["t"] == EVENT_TYPE_MELD
@@ -192,10 +214,11 @@ class TestMeldEventPayload:
         assert decoded["caller_seat"] == 0
         assert decoded["tile_ids"] == [4, 5, 6, 7]
         assert decoded["called_tile_id"] == 5
+        assert decoded["added_tile_id"] == 6
         assert decoded["from_seat"] == 2
 
 
-_HAND_RESULT = HandResultInfo(han=1, fu=30, yaku=[], points=1000)
+_HAND_RESULT = HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=[], points=1000)
 _SCORES = {0: 25000, 1: 25000, 2: 25000, 3: 25000}
 
 
@@ -211,7 +234,11 @@ def _prompt_to(seat: int) -> CallPromptEvent:
 
 def _round_end() -> RoundEndEvent:
     return RoundEndEvent(
+        dealer_seat=0,
+        dora_indicators=[],
+        riichi_sticks=0,
         result=TsumoResult(
+            honba_bonus=0,
             winner_seat=0,
             hand_result=_HAND_RESULT,
             scores=_SCORES,
@@ -220,7 +247,7 @@ def _round_end() -> RoundEndEvent:
             closed_tiles=[],
             melds=[],
             win_tile=1,
-        )
+        ),
     )
 
 
@@ -228,8 +255,8 @@ class TestStampWaitId:
     @pytest.mark.parametrize(
         ("kind", "event", "stamped"),
         [
-            (WaitKind.TURN, DrawEvent(seat=1, tile_id=8, target=SeatTarget(seat=1)), True),
-            (WaitKind.TURN, DrawEvent(seat=2, tile_id=8, target=SeatTarget(seat=2)), False),
+            (WaitKind.TURN, DrawEvent(seat=1, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=1)), True),
+            (WaitKind.TURN, DrawEvent(seat=2, tile_id=8, tiles_remaining=69, target=SeatTarget(seat=2)), False),
             (WaitKind.TURN, TurnEvent(kuikae_tiles=[], target=SeatTarget(seat=1)), True),
             (WaitKind.TURN, _meld(MeldViewType.PON, caller_seat=1), False),
             (WaitKind.TURN, _meld(MeldViewType.CLOSED_KAN, caller_seat=1), False),
@@ -260,7 +287,11 @@ class TestStampWaitId:
 class TestRoundEndPayload:
     def test_round_end_payload__when_tsumo_fields_none__should_omit_them(self):
         event = RoundEndEvent(
+            dealer_seat=0,
+            dora_indicators=[],
+            riichi_sticks=0,
             result=TsumoResult(
+                honba_bonus=0,
                 winner_seat=0,
                 hand_result=_HAND_RESULT,
                 scores=_SCORES,
@@ -273,17 +304,29 @@ class TestRoundEndPayload:
         )
         payload = game_event_payload(event)
         assert "result" not in payload
-        assert payload["rt"] == WireRoundResultType.TSUMO
+        assert (payload["rt"], payload["r"]) == (WireRoundResultType.TSUMO, 0)
         assert "ps" not in payload
         assert "ud" not in payload
         assert payload["ws"] == 0
         assert payload["wt"] == 1
 
     def test_round_end_payload__when_tsumo_fields_present__should_keep_them(self):
+        yakuman_hand = HandResultInfo(
+            han=13,
+            fu=30,
+            yaku=[YakuInfo(yaku_id=103, han=13, yakuman_count=1)],
+            points=32000,
+            limit=HandLimit.YAKUMAN,
+            yakuman_count=1,
+        )
         event = RoundEndEvent(
+            dealer_seat=3,
+            dora_indicators=[5, 9],
+            riichi_sticks=0,
             result=TsumoResult(
+                honba_bonus=600,
                 winner_seat=0,
-                hand_result=_HAND_RESULT,
+                hand_result=yakuman_hand,
                 scores=_SCORES,
                 score_changes=_SCORES,
                 riichi_sticks_collected=0,
@@ -291,21 +334,34 @@ class TestRoundEndPayload:
                 melds=[],
                 win_tile=1,
                 pao_seat=2,
+                pao=PaoLiability(yaku_ids=[103], share=PaoShare.ALL, pays_honba=True),
                 ura_dora_indicators=[10],
             ),
         )
         payload = game_event_payload(event)
-        assert payload["ps"] == 2
-        assert payload["ud"] == [10]
-        assert payload["hr"]["pt"] == 10
+        assert (payload["dl"], payload["di"]) == (3, [5, 9])
+        assert (payload["ps"], payload["pl"]) == (2, {"yk": [103], "sh": "all", "hb": True})
+        assert (payload["hb"], payload["ud"]) == (6, [10])
+        assert payload["hr"] == {
+            "han": 13,
+            "fu": 30,
+            "yk": [{"yi": 103, "han": 13, "ym": 1}],
+            "pt": 320,
+            "lm": "yakuman",
+            "yc": 1,
+        }
 
     def test_round_end_payload__when_double_ron_winner_fields_none__should_omit_them(self):
         event = RoundEndEvent(
+            dealer_seat=0,
+            dora_indicators=[],
+            riichi_sticks=0,
             result=DoubleRonResult(
                 loser_seat=1,
                 winning_tile=10,
                 winners=[
                     DoubleRonWinner(
+                        honba_bonus=0,
                         winner_seat=0,
                         hand_result=_HAND_RESULT,
                         score_changes=_SCORES,
@@ -314,6 +370,7 @@ class TestRoundEndPayload:
                         melds=[],
                     ),
                     DoubleRonWinner(
+                        honba_bonus=0,
                         winner_seat=2,
                         hand_result=_HAND_RESULT,
                         score_changes=_SCORES,

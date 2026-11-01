@@ -3,7 +3,8 @@
 One machine owns finding the handoff, joining, playing, reconnecting and the end.
 
 - Each state is a variant carrying only its own facts. Other slices ask the session (`holdsSeat`, `takesMessages`,
-  `canRequestResync`, `awaitsSnapshot`), never read its status, identity or retry fields.
+  `canRequestResync`, `awaitsSnapshot`, `connectionTrouble`, `endReasonOf`, `hasEnded`, `leavingHandsSeatToAi`), never
+  read its status, identity or retry fields; a new need is a new query here, its words stay the asker's.
 - Only the server's answer admits an identifying session (`game_joined` for JOIN_GAME, the snapshot for RECONNECT),
   never other game traffic. An unexpected answer to the identity message ends the session as refused, so it never
   stays identifying.

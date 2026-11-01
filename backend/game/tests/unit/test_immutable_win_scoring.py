@@ -1,6 +1,5 @@
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import RoundResultType
 from game.logic.round import (
     process_exhaustive_draw,
 )
@@ -10,6 +9,7 @@ from game.logic.state import (
     MahjongPlayer,
     MahjongRoundState,
 )
+from game.logic.types import DiscardInfo, NagashiManganResult, NagashiRiver
 from game.tests.helpers.wall import make_wall
 
 
@@ -70,5 +70,8 @@ class TestProcessExhaustiveDrawNagashiTriggered:
         new_round = new_game.round_state
         # Nagashi mangan gives mangan payment (non-dealer: 2000/4000)
         # Player 0 is non-dealer: gets 2000 from each non-dealer + 4000 from dealer = 8000
-        assert result.type == RoundResultType.NAGASHI_MANGAN
+        assert isinstance(result, NagashiManganResult)
+        assert result.rivers == [
+            NagashiRiver(seat=0, discards=[DiscardInfo(tile_id=d.tile_id) for d in nagashi_discards]),
+        ]
         assert new_round.players[0].score == 25000 + 8000

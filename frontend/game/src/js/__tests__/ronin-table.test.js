@@ -432,7 +432,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(drawNotice(1));
         expect([model.shan.paishu, model.shoupai[1]._zimo]).toEqual([68, "_"]);
         table.receive(discard(1, 101));
-        table.receive({ t: 0, m: 23878 });
+        table.receive({ t: 0, m: 27142 });
         table.receive(drawNotice(2));
         table.receive(discard(2, 124));
         table.receive(drawNotice(3));
@@ -440,7 +440,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(draw(0, 117, { wi: 2 }));
         table.receive(discard(0, 117));
         table.receive(drawNotice(1));
-        table.receive({ t: 0, m: 24409 });
+        table.receive({ t: 0, m: 27673 });
 
         expect(model.shoupai[2]._fulou).toEqual(["s8888-"]);
         expect(model.shoupai[1]._fulou).toEqual(["z4444"]);
@@ -494,7 +494,7 @@ describe("the ronin table (Translate and Reply)", () => {
         vi.advanceTimersByTime(7000);
         table.decide({ gang: table.player.offer.gang[0] });
         vi.advanceTimersByTime(5000);
-        table.receive({ t: 0, m: 22348 });
+        table.receive({ t: 0, m: 25048 });
         table.receive(draw(0, 128, { wi: 4 }));
 
         expect(table.player.countdowns.at(-1)).toEqual([5, 28]);
@@ -576,7 +576,7 @@ describe("the ronin table (Translate and Reply)", () => {
         table.decide({});
         expect(table.sent.at(-1)).toEqual({ t: 3, a: 8, wi: 2 });
 
-        table.receive({ t: 0, m: 24405 });
+        table.receive({ t: 0, m: 27669 });
         expect(declarer._fulou).toEqual(["z3333"]);
         expect(declarer._bingpai._).toBe(10);
         expect(say.mock.calls).toEqual([["gang", 1]]);
@@ -1697,7 +1697,7 @@ describe("the ronin table (Translate and Reply)", () => {
                         s: 1,
                         sc: 250,
                         dsc: [{ ti: 1 }, { ti: 125 }],
-                        ml: [21801, 24405],
+                        ml: [23445, 27669],
                         ri: false,
                         tc: 7,
                     },
@@ -1730,6 +1730,33 @@ describe("the ronin table (Translate and Reply)", () => {
         table.receive(discard(2, 102));
         expect(model.shoupai[2]._bingpai._).toBe(7);
         expect(model.shan.paishu).toBe(58);
+    });
+
+    it("draws an added kan with a red five added over its pon from its compact meld, after a reconnect and in a draw's revealed hand", () => {
+        const table = startTable();
+        table.translate.reconnect(
+            snapshot({
+                cp: 0,
+                tr: 66,
+                pst: [
+                    { s: 0, sc: 250, dsc: [], ml: [], ri: false, tc: 13 },
+                    { s: 1, sc: 250, dsc: [], ml: [21601], ri: false, tc: 10 },
+                    { s: 2, sc: 250, dsc: [{ ti: 17 }], ml: [], ri: false, tc: 13 },
+                    { s: 3, sc: 250, dsc: [], ml: [], ri: false, tc: 13 },
+                ],
+            }),
+        );
+        expect(table.player.model.shoupai[1]._fulou).toEqual(["m555+0"]);
+
+        table.receive({
+            t: 4,
+            rt: 3,
+            ts: [1],
+            th: [{ s: 1, ct: [36, 40, 44, 48, 52, 56, 60, 64, 68, 72], ml: [21601] }],
+            sch: { 0: -10, 1: 30, 2: -10, 3: -10 },
+            wi: 9,
+        });
+        expect(shownOf(table, "pingju")[0].data.shoupai[1].split(",").slice(1)).toEqual(["m555+0"]);
     });
 
     it("applies a pon of the pending discard after a reconnect during its call wait, marking the discarder's river", () => {

@@ -1,3 +1,4 @@
+import { type MeldInput } from "@/entities/tile";
 import {
     type AbortiveDrawType,
     type DiscardEvent,
@@ -9,9 +10,10 @@ import {
     type GameReconnectedEvent,
     type GameStartedEvent,
     type GameType,
+    type HandLimit,
     type KanType,
     type MeldEvent,
-    type MeldType,
+    type PaoLiability,
     type RiichiDeclaredEvent,
     type RoundEndEvent,
     type RoundStartedEvent,
@@ -26,15 +28,8 @@ export interface DiscardRecord {
     readonly claimed?: boolean;
 }
 
-export interface MeldRecord {
-    readonly calledTileId: number | null;
-    readonly callerSeat: number;
-    readonly fromSeat: number | null;
-    readonly meldType: MeldType;
-    readonly tileIds: readonly number[];
-    /** For added_kan only: the tile added from hand to upgrade the pon. */
-    readonly addedTileId?: number;
-}
+/** A meld on the table; an added kan always names the tile added from hand to raise its pon. */
+export type MeldRecord = MeldInput;
 
 /**
  * A seat as this view knows it. Its closed hand is `tiles`, the tile ids the source showed it, plus
@@ -61,11 +56,11 @@ export interface PlayerState {
     readonly isRiichi: boolean;
 }
 
-/** A yaku of a winning hand: its id, its han, and whether the server scored it as a yakuman. */
+/** A yaku of a winning hand: its id, its han, and how many yakuman the server scored it as (0 for an ordinary yaku). */
 export interface YakuResult {
     readonly yakuId: number;
     readonly han: number;
-    readonly isYakuman: boolean;
+    readonly yakumanCount: number;
 }
 
 /** A winning hand's value as the server scored it. */
@@ -76,14 +71,17 @@ export interface HandValue {
     readonly points: number;
     /** Every yaku with its han, the dora, red-five and ura dora entries among them, in the server's order. */
     readonly yaku: readonly YakuResult[];
+    /** The limit the server paid the hand at. */
+    readonly limit: HandLimit;
+    /** How many yakuman a yakuman or kazoe yakuman limit counts; null below them. */
+    readonly yakumanCount: number | null;
 }
 
 /** One winner's page of a round's result: its hand, its value and its own payments. */
 export interface WinnerResult {
     readonly seat: number;
-    readonly isDealer: boolean;
     readonly closedTiles: readonly number[];
-    readonly melds: readonly number[];
+    readonly melds: readonly MeldRecord[];
     readonly winningTile: number;
     readonly handResult: HandValue;
     /** The han of each kind of dora, out of `handResult.yaku`. */
@@ -95,13 +93,13 @@ export interface WinnerResult {
      * payment only: the table settles from the aggregate, once.
      */
     readonly scoreChanges: Readonly<Record<string, number>>;
-    /** The honba bonus this winner collected, in points: its own gain beyond its hand value and riichi sticks. */
+    /** The honba bonus this winner collected, in points, as the server paid it. */
     readonly honbaBonus: number;
     readonly riichiSticksCollected: number;
     /** What the riichi sticks this winner collected paid it, in points, at the game's stick value. */
     readonly riichiBonus: number;
-    /** The seat liable for this winner's pao yakuman, or null. */
-    readonly paoSeat: number | null;
+    /** The seat liable for this winner's pao yakuman and what it pays, as the server settled it; null without one. */
+    readonly pao: PaoLiability | null;
 }
 
 export type DrawKind = "exhaustive" | "nagashi_mangan" | AbortiveDrawType;
@@ -109,7 +107,7 @@ export type DrawKind = "exhaustive" | "nagashi_mangan" | AbortiveDrawType;
 export interface TenpaiHandResult {
     readonly seat: number;
     readonly closedTiles: readonly number[];
-    readonly melds: readonly number[];
+    readonly melds: readonly MeldRecord[];
 }
 
 /** A drawn round's result: its kind and the seats it names. Seat lists are empty where the kind names none. */
@@ -120,6 +118,11 @@ export interface DrawResult {
     readonly tenpaiHands: readonly TenpaiHandResult[];
     /** The seats whose discards made a nagashi mangan. */
     readonly nagashiSeats: readonly number[];
+    /** Each nagashi mangan seat's river as the server names it, the proof the result shows, in `nagashiSeats` order. */
+    readonly nagashiRivers: readonly {
+        readonly seat: number;
+        readonly discards: readonly DiscardRecord[];
+    }[];
     /** The seat that declared kyuushu kyuuhai, or null. */
     readonly declarerSeat: number | null;
     /** The seats that declared the triple ron, in caller order. */
@@ -140,13 +143,10 @@ export interface RoundEndResult {
     readonly scoreChanges: Readonly<Record<string, number>>;
     /** The wire's `scores`: after riichi deposits, before this round's payments. */
     readonly scoresBeforePayment: Readonly<Record<string, number>>;
+    /** The round's dealer and its revealed dora indicators, as the round end names them. */
+    readonly dealerSeat: number;
     readonly doraIndicators: readonly number[];
     readonly draw: DrawResult | null;
-    /**
-     * Whether the table the result was read against was in step with the server: false for the game's last round end
-     * a live client took out of step, whose dora indicators and dealer came from a table that may be stale.
-     */
-    readonly inStep: boolean;
 }
 
 /** One page of a round's result: a winner's, or the draw's. A double ron has a page per winner. */
@@ -179,19 +179,16 @@ export interface TableState {
     /** The game's length (east-only or hanchan) from its start; null when the table began at a reconnect's snapshot. */
     readonly gameType: GameType | null;
     readonly players: readonly PlayerState[];
-    /** The game's first dealer (East 1's), from which a round's number within its wind counts. */
+    /** The game's first dealer (East 1's), from its start or a reconnect's snapshot. */
     readonly firstDealerSeat: number;
     readonly dealerSeat: number;
     readonly roundWind: number;
+    /** The round's number within its wind, from 1 ("East 1"), as the server names it. */
+    readonly roundInWind: number;
     /** The server's deal number: every deal of the game counted from 0, a hand's pending result keeping its hand's. */
     readonly roundNumber: number;
     readonly honbaSticks: number;
     readonly riichiSticks: number;
-    /**
-     * What a riichi takes from its declarer onto the table, the game's `riichi_cost` from its start or a reconnect's
-     * snapshot; null before either.
-     */
-    readonly riichiCost: number | null;
     /**
      * What each riichi stick a winner collects pays it, the game's `riichi_stick_value` from its start or a reconnect's
      * snapshot; null before either. It is not the riichi cost: the game's settings may set them apart.
@@ -235,16 +232,14 @@ export type ReplayEvent =
 
 /**
  * A closed or added kan its declarer declared on its own turn and that a ron may rob (chankan), shown before the
- * chankan resolves. No message carries it as such: a chankan prompt names its tile and declarer, a robbed kan's round
- * end names it, its type too; a kan nobody robs completes as the server's meld event. `kanType` is null when the
- * source names none (a prompt): the kan is then added when the declarer holds a pon of the tile, else closed, as the
- * server decides.
+ * chankan resolves. No message carries it as such: a chankan prompt and a robbed kan's round end each name its tile,
+ * declarer and type; a kan nobody robs completes as the server's meld event.
  */
 export interface KanDeclaredEvent {
     readonly type: "kan_declared";
     readonly seat: number;
     readonly tileId: number;
-    readonly kanType: Extract<KanType, "added" | "closed"> | null;
+    readonly kanType: Extract<KanType, "added" | "closed">;
 }
 
 /**

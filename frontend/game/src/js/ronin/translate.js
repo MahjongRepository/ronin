@@ -373,7 +373,7 @@ class Translate {
         const ponMeld = meld.meldType == wire.MELD.ADDED_KAN
             ? s.findPon(meld.callerSeat, Math.floor(meld.tileIds[0] / 4))
             : null;
-        const str = mianzi.mianziStr(meld, ponMeld);
+        const str = mianzi.mianziStr(meld);
         meld.str = str;
 
         const declared = s.declaredKan != null && meld.callerSeat == s.declaredKan.s

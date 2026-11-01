@@ -32,7 +32,7 @@ import {
     startGameClient,
     stepGameClient,
 } from "@/entities/client";
-import { boardOverlay } from "@/entities/table";
+import { TablePanelDisplay, tablePanel } from "@/entities/table";
 import { gameEndDisplay } from "@/entities/table/lib/game-end-display";
 import {
     CLIENT_MESSAGE_TYPE,
@@ -85,6 +85,7 @@ function unmatchedKanDraw(state: LiveClient): WirePayload {
         bk: 30,
         d: seat * NUM_TILES + drawnTile,
         t: EVENT_TYPE.DRAW,
+        tr: 69,
         wi: TURN_WAIT_ID + 1,
     };
 }
@@ -98,6 +99,7 @@ function ponlessAddedKanDraw(state: LiveClient): WirePayload {
         bk: 30,
         d: seat * NUM_TILES + drawnTile,
         t: EVENT_TYPE.DRAW,
+        tr: 69,
         wi: TURN_WAIT_ID + 1,
     };
 }
@@ -240,7 +242,7 @@ function undecodable(at: number): LiveEvent {
 }
 
 function drawNotice(at: number): LiveEvent {
-    return message(at, { s: 2, t: EVENT_TYPE.DRAW_NOTICE });
+    return message(at, { s: 2, t: EVENT_TYPE.DRAW_NOTICE, tr: 68 });
 }
 
 /** The first draw's socket dropped and reopened, the RECONNECT sent and its snapshot frame undecodable. */
@@ -286,7 +288,9 @@ describe("stepGameClient - desync", () => {
     it("drops a delta while out of step, leaving the table it lost step on", () => {
         const desynced = run(onTurn(), [message(AT, { t: 999 })]).state;
 
-        const dropped = run(desynced, [message(AT + 50, { s: 2, t: EVENT_TYPE.DRAW_NOTICE })]);
+        const dropped = run(desynced, [
+            message(AT + 50, { s: 2, t: EVENT_TYPE.DRAW_NOTICE, tr: 68 }),
+        ]);
         expect(dropped.effects).toEqual([]);
         expect(dropped.state.table).toBe(desynced.table);
         expect(desyncOf(dropped.state)).toBe(desyncOf(desynced));
@@ -438,17 +442,26 @@ describe("stepGameClient - desync around the game's start and end", () => {
     const finalRoundEnd = receivedPayload(finalRound, "round end");
     const gameEnd = receivedPayload(finalRound, "game end");
 
-    /** The note the last result's panel, shown over the game's end, gives when its details may be wrong, or null. */
-    function resultNote(state: LiveClient): string | null {
+    /** The dealer's name the last result's panel, shown over the game's end, gives its winner's wind by. */
+    function resultWinnerWind(state: LiveClient): string | null {
         const host = document.createElement("div");
-        render(boardOverlay(state.table, { paging: { overGameEnd: true, page: 0 } }), host);
+        const panel = tablePanel(state.table, {
+            callouts: null,
+            firstDealSeconds: null,
+            overGameEnd: true,
+            page: 0,
+            viewerSeat: state.viewerSeat,
+        });
+        assert(panel !== null);
+        render(TablePanelDisplay(panel), host);
         expect(host.querySelector(".round-end-result")).not.toBeNull();
-        return host.querySelector(".round-end-result__uncertain")?.getAttribute("role") ?? null;
+        return host.querySelector(".round-end-result__wind")?.textContent ?? null;
     }
 
-    it("ends on the server's last result and final scores out of step, the table and result marked uncertain", () => {
+    it("ends on the server's last result and final scores out of step, the result read from the server alone", () => {
         const inStep = checkpointState(FINAL, "game end");
-        expect([inStep.table.inStep, resultNote(inStep)]).toEqual([true, null]);
+        const wind = resultWinnerWind(inStep);
+        expect([inStep.table.inStep, wind === null]).toEqual([true, false]);
         const desynced = run(checkpointState(FINAL, "ron chosen"), [
             message(5000, { t: 999 }),
         ]).state;
@@ -462,7 +475,8 @@ describe("stepGameClient - desync around the game's start and end", () => {
             "game_ended",
             true,
         ]);
-        expect([ended.state.table.inStep, resultNote(ended.state)]).toEqual([false, "note"]);
+        const stale = { ...ended.state, table: { ...ended.state.table, dealerSeat: 3 } };
+        expect([ended.state.table.inStep, resultWinnerWind(stale)]).toEqual([false, wind]);
     });
 
     it("never shows an earlier hand's result as the last one when the page lost step after it", () => {
@@ -503,23 +517,6 @@ describe("stepGameClient - desync around the game's start and end", () => {
         expect(ended.state.table.inStep).toBe(false);
         expect(gameEnd.lr).toBe(0);
         expect(gameEndDisplay(ended.state.table, ended.state.viewerSeat)?.leftover).toBeNull();
-    });
-
-    it("asks again when the first deal is due once the server says the game has not dealt yet", () => {
-        const started = checkpointState(SCENARIO, "game started");
-        const desynced = run(started, [message(100, { t: 999 })]);
-        expect(sends(desynced.effects)).toEqual([RESYNC]);
-        const firstDealDue = started.firstDealDue ?? 0;
-
-        const refused = run(desynced.state, [
-            message(120, wireSessionError(SESSION_ERROR_CODE.GAME_NOT_STARTED)),
-        ]);
-        expect([refused.effects, desyncOf(refused.state)?.request]).toEqual([
-            [],
-            { due: firstDealDue, kind: "at_deal" },
-        ]);
-        const dealDue = run(refused.state, [tick(firstDealDue)]);
-        expect(sends(dealDue.effects)).toEqual([RESYNC]);
     });
 });
 

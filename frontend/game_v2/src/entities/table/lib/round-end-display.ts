@@ -4,8 +4,10 @@ import { handLimitName, isYakumanHand, yakumanName } from "@/entities/table/lib/
 import { windName } from "@/entities/table/lib/wind-name";
 import { yakuName } from "@/entities/table/lib/yaku-names";
 import { roundEndPages } from "@/entities/table/model/handlers/round-end";
+import { seatEntry } from "@/entities/table/model/helpers";
 import {
     type DrawResult,
+    type MeldRecord,
     type PlayerState,
     type RoundEndPage,
     type RoundEndResult,
@@ -20,13 +22,9 @@ import {
     meldTiles,
     tile136toString,
 } from "@/entities/tile";
-import { ROUND_RESULT_TYPE, decodeMeldCompact, seatDistance } from "@/shared/protocol";
+import { DORA_YAKU_ID, ROUND_RESULT_TYPE, seatDistance } from "@/shared/protocol";
 
-const DORA_YAKU_IDS = new Set([120, 121, 122]);
-/** The han the server counts a yakuman yaku as, once per yakuman it is worth. */
-const YAKUMAN_HAN = 13;
-/** Daisangen and Dai Suushii, the yakuman a seat can be liable (pao) for. */
-const PAO_YAKU_IDS = new Set([103, 111]);
+const DORA_YAKU_IDS = new Set<number>(Object.values(DORA_YAKU_ID));
 
 /** A hand a result reveals, as faces: its closed tiles sorted, then each meld laid out. */
 export interface ResultHandDisplay {
@@ -90,7 +88,7 @@ export interface DrawPageDisplay {
     readonly title: string;
     readonly subtitle: string | null;
     readonly tenpaiHands: readonly { readonly name: string; readonly hand: ResultHandDisplay }[];
-    /** A nagashi mangan's proof: each seat that made it, with its river as the table holds it. */
+    /** A nagashi mangan's proof: each seat that made it, with its river as the server names it. */
     readonly rivers: readonly NagashiRiverDisplay[];
 }
 
@@ -100,11 +98,10 @@ export interface NagashiRiverDisplay {
     readonly tiles: readonly DiscardTile[];
 }
 
-/** A round's result with the table it ended on that the panel reads: the players' names and the round's dealer. */
+/** A round's result with the table it ended on that the panel reads: the players' names. */
 export interface RoundEndTable {
     readonly result: RoundEndResult;
     readonly players: readonly PlayerState[];
-    readonly dealerSeat: number;
 }
 
 /** One page of a round's result as the panel shows it, with where it stands among the result's pages. */
@@ -114,11 +111,6 @@ export interface RoundEndDisplayState {
     readonly pageCount: number;
     readonly body: WinPageDisplay | DrawPageDisplay;
     readonly scores: readonly ResultScoreRow[];
-    /**
-     * The result was read against a table out of step with the server, so what it took from the table (the dealer, a
-     * win's dora, a nagashi river) may be wrong.
-     */
-    readonly uncertain: boolean;
 }
 
 interface SeatNames {
@@ -160,9 +152,12 @@ function handTile(tileId: number): HandTile {
     return { face: tile136toString(tileId), show: "face", tileId };
 }
 
-function resultHand(closedTiles: readonly number[], melds: readonly number[]): ResultHandDisplay {
+function resultHand(
+    closedTiles: readonly number[],
+    melds: readonly MeldRecord[],
+): ResultHandDisplay {
     return {
-        melds: melds.map((meld) => meldTiles(decodeMeldCompact(meld))),
+        melds: melds.map(meldTiles),
         tiles: closedTiles.toSorted((first, second) => first - second).map(handTile),
     };
 }
@@ -172,15 +167,14 @@ function yakuLines(winner: WinnerResult): ResultYakuLine[] {
         .filter((entry) => !DORA_YAKU_IDS.has(entry.yakuId))
         .map((entry) => {
             const name = yakuName(entry.yakuId);
-            if (!entry.isYakuman) {
+            if (entry.yakumanCount === 0) {
                 return { han: entry.han, isDora: false, name, yakuman: null };
             }
-            const multiple = Math.round(entry.han / YAKUMAN_HAN);
             return {
                 han: null,
                 isDora: false,
                 name,
-                yakuman: multiple > 1 ? yakumanName(multiple) : null,
+                yakuman: entry.yakumanCount > 1 ? yakumanName(entry.yakumanCount) : null,
             };
         });
     const dora = [
@@ -224,25 +218,21 @@ function headBumpNote(result: RoundEndResult, names: SeatNames): string | null {
 }
 
 /**
- * What a seat liable (pao) for a winner's Daisangen or Dai Suushii pays (`docs/game-rules.md`, Liability): all of that
- * yakuman on a tsumo, half of it on another seat's ron, the honba bonus with either, and everything when it dealt in
- * itself. Any other yakuman in the hand is settled normally, so the note names the one it covers.
+ * What the seat liable (pao) for a winner's yakuman pays, worded from the server's liability: the yakuman it covers, all
+ * or half of them, and whether the honba too; a liable seat that dealt in pays it all as the discarder.
  */
 function paoNote(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string | null {
-    if (winner.paoSeat === null) {
+    const { pao } = winner;
+    if (pao === null) {
         return null;
     }
-    const liable = names.name(winner.paoSeat);
-    if (result.loserSeat === winner.paoSeat) {
+    const liable = names.name(pao.seat);
+    if (result.loserSeat === pao.seat) {
         return `Pao: ${liable} is liable and dealt in, so pays it all`;
     }
-    const covered = winner.handResult.yaku
-        .filter((entry) => PAO_YAKU_IDS.has(entry.yakuId))
-        .map((entry) => yakuName(entry.yakuId))
-        .join(" and ");
-    const share = result.loserSeat === null ? "all" : "half";
-    const honba = winner.honbaBonus > 0 ? " and the honba" : "";
-    return `Pao: ${liable} is liable for ${covered} and pays ${share} of it${honba}`;
+    const covered = pao.yakuIds.map(yakuName).join(" and ");
+    const honba = pao.paysHonba ? " and the honba" : "";
+    return `Pao: ${liable} is liable for ${covered} and pays ${pao.share} of it${honba}`;
 }
 
 function winNotes(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string[] {
@@ -271,7 +261,7 @@ function winPage(result: RoundEndResult, winner: WinnerResult, names: SeatNames)
         hanFu: hanFuLabel(winner),
         hand: resultHand(winner.closedTiles, winner.melds),
         kind: "win",
-        limit: handLimitName(winner.handResult, winner.isDealer),
+        limit: handLimitName(winner.handResult),
         notes: winNotes(result, winner, names),
         points: winner.handResult.points,
         title: winTitle(result),
@@ -313,25 +303,16 @@ function tenpaiHand(
 }
 
 function nagashiRiver(
-    seat: number,
-    players: readonly PlayerState[],
+    river: DrawResult["nagashiRivers"][number],
     names: SeatNames,
 ): NagashiRiverDisplay {
-    const player = players.find((candidate) => candidate.seat === seat);
-    return {
-        name: names.name(seat),
-        tiles: player === undefined ? [] : buildDiscardTiles(player, null),
-    };
+    return { name: names.name(river.seat), tiles: buildDiscardTiles(river.discards, false) };
 }
 
-function drawPage(
-    draw: DrawResult,
-    players: readonly PlayerState[],
-    names: SeatNames,
-): DrawPageDisplay {
+function drawPage(draw: DrawResult, names: SeatNames): DrawPageDisplay {
     return {
         kind: "draw",
-        rivers: draw.nagashiSeats.map((seat) => nagashiRiver(seat, players, names)),
+        rivers: draw.nagashiRivers.map((river) => nagashiRiver(river, names)),
         subtitle: drawSubtitle(draw, names),
         tenpaiHands: draw.tenpaiHands.map((hand) => tenpaiHand(hand, names)),
         title: drawName(draw.kind),
@@ -339,7 +320,7 @@ function drawPage(
 }
 
 function winTag(winner: WinnerResult | undefined, seat: number): string | null {
-    return winner !== undefined && winner.paoSeat === seat ? "Pao" : null;
+    return winner !== undefined && winner.pao?.seat === seat ? "Pao" : null;
 }
 
 function drawTag(draw: DrawResult, seat: number): string | null {
@@ -364,12 +345,15 @@ function scoreRows(
     const settled = result.winners.slice(0, index + 1);
     const changeMaps =
         settled.length === 0 ? [result.scoreChanges] : settled.map((winner) => winner.scoreChanges);
+    const pageChanges = changeMaps[changeMaps.length - 1];
+    if (pageChanges === undefined) {
+        throw new Error(`A round result has no payments for page ${index}`);
+    }
     return players.map(({ seat }) => {
-        const changes = changeMaps.map((changeMap) => changeMap[String(seat)] ?? 0);
-        const before = result.scoresBeforePayment[String(seat)] ?? 0;
+        const before = seatEntry(result.scoresBeforePayment, seat);
         return {
-            after: changes.reduce((sum, change) => sum + change, before),
-            delta: changes.at(-1) ?? 0,
+            after: changeMaps.reduce((sum, changeMap) => sum + seatEntry(changeMap, seat), before),
+            delta: seatEntry(pageChanges, seat),
             name: names.name(seat),
             seat,
             tag:
@@ -387,18 +371,17 @@ function scoreRows(
  * (`roundEndPages`); a page out of range shows the nearest.
  */
 export function roundEndDisplay(table: RoundEndTable, page: number): RoundEndDisplayState {
-    const { dealerSeat, players, result } = table;
-    const names = seatNames(players, dealerSeat);
+    const { players, result } = table;
+    const names = seatNames(players, result.dealerSeat);
     const shown = roundEndPageAt(result, page);
     const body =
         shown.page.kind === "draw"
-            ? drawPage(shown.page.draw, players, names)
+            ? drawPage(shown.page.draw, names)
             : winPage(result, shown.page.winner, names);
     return {
         body,
         page: shown.index,
         pageCount: shown.count,
         scores: scoreRows(table, names, shown.index),
-        uncertain: !result.inStep,
     };
 }

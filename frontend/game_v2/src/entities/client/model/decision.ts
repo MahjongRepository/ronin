@@ -179,16 +179,20 @@ function openTurn(
     waitId: number,
     context: DecisionContext,
 ): TurnDecision {
-    const offers =
+    const opened: Pick<TurnDecision, "offers" | "opening"> =
         event.type === "draw"
-            ? event.availableActions.flatMap((action) => actionOffers(action, context))
-            : [];
+            ? {
+                  offers: event.availableActions.flatMap((action) => actionOffers(action, context)),
+                  opening: { drawnTileId: event.tileId, kind: "draw" },
+              }
+            : {
+                  offers: [],
+                  opening: { kind: "after_call", kuikaeTileTypes: event.kuikaeTileTypes },
+              };
     return {
         ...turnDeadlines(context.timer, context.at, event),
-        drawnTileId: event.type === "draw" ? event.tileId : null,
+        ...opened,
         kind: "turn",
-        kuikaeTileTypes: event.type === "turn" ? event.kuikaeTileTypes : [],
-        offers,
         openedAt: context.at,
         status: OPEN,
         waitId,
@@ -390,8 +394,10 @@ function offerMessage(offer: Offer, waitId: number): ClientMessage {
  * Whether the turn takes a discard of `tileId`, the one rule the client applies itself: any tile in hand but the
  * types kuikae blocks, and in riichi only the drawn tile.
  */
-function takesDiscard(decision: TurnDecision, player: PlayerState, tileId: number): boolean {
-    if (!player.tiles.includes(tileId) || decision.kuikaeTileTypes.includes(tileType(tileId))) {
+function takesDiscard({ opening }: TurnDecision, player: PlayerState, tileId: number): boolean {
+    const kuikae =
+        opening.kind === "after_call" && opening.kuikaeTileTypes.includes(tileType(tileId));
+    if (!player.tiles.includes(tileId) || kuikae) {
         return false;
     }
     return !player.isRiichi || tileId === player.drawnTileId;

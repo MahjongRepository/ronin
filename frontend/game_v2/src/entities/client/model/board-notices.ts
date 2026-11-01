@@ -1,6 +1,7 @@
-import { type SessionState, hasLostSeat } from "@/entities/session";
-import { type BoardNotice } from "@/entities/table";
+import { type ConnectionTrouble, connectionTrouble } from "@/entities/session";
+import { type Notice } from "@/entities/table";
 import { type TileSpriteStatus } from "@/entities/tile";
+import { assertNever } from "@/shared/lib";
 import { GAME_ERROR_CODE, SESSION_ERROR_CODE } from "@/shared/protocol";
 
 import { type DecisionCountdown, pendingCountdown } from "./countdown";
@@ -10,7 +11,7 @@ import { failureDisplay } from "./session-end";
 import { type LiveClient, type TimedNotice } from "./types";
 
 /** A notice over the table, with what it tells and the one control it may offer. */
-export interface PlayNotice extends Omit<BoardNotice, "action" | "id" | "onShowAll"> {
+export interface PlayNotice extends Notice {
     readonly kind: NoticeKind;
     readonly action?: { readonly label: string; readonly command: PlayCommand };
 }
@@ -31,20 +32,28 @@ export interface NoticeSheetDisplay {
  * same across the retries, so the live region reads them once. A page that only resumes its seat (a reload) shows
  * none.
  */
-function connectionNotice(session: SessionState): PlayNotice | null {
-    if (session.status === "ended" || session.status === "playing") {
-        return null;
+function connectionNotice(trouble: ConnectionTrouble | null): PlayNotice | null {
+    switch (trouble) {
+        case null: {
+            return null;
+        }
+        case "finding_game": {
+            return { kind: "connection", text: "Finding your game…", tone: "info" };
+        }
+        case "seat_lost": {
+            return { kind: "connection", text: "Connection lost. Reconnecting…", tone: "warning" };
+        }
+        case "unreachable": {
+            return {
+                kind: "connection",
+                text: "Cannot reach the game. Retrying…",
+                tone: "warning",
+            };
+        }
+        default: {
+            return assertNever(trouble);
+        }
     }
-    if (session.status === "recovering") {
-        return { kind: "connection", text: "Finding your game…", tone: "info" };
-    }
-    if (hasLostSeat(session)) {
-        return { kind: "connection", text: "Connection lost. Reconnecting…", tone: "warning" };
-    }
-    if (session.attempts.transport > 0) {
-        return { kind: "connection", text: "Cannot reach the game. Retrying…", tone: "warning" };
-    }
-    return null;
 }
 
 function refusalText(code: string): string {
@@ -102,7 +111,7 @@ export function boardNotices(state: LiveClient, ui: PlayUi): PlayNotice[] {
         return [];
     }
     return [
-        connectionNotice(state.session),
+        connectionNotice(connectionTrouble(state.session)),
         unreadNotice(desyncOf(state)?.unreadMessages ?? 0),
         tileSpriteNotice(ui.tileSprite),
         timedNotice(state.notice),

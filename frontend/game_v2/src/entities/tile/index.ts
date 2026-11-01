@@ -1,7 +1,7 @@
 export { Tile, TileBack, injectTileSprite } from "./ui/tile";
 export type { TileSprite, TileSpriteDeps, TileSpriteStatus } from "./lib/sprite-loader";
 export { loadTileSprite } from "./lib/sprite-loader";
-export { Hand } from "./ui/hand";
+export { HAND_TILE_FOCUS_KEY, Hand } from "./ui/hand";
 export type { HandProps, HandTile, PlayableState } from "./ui/hand";
 export { Meld } from "./ui/meld";
 export { meldTiles } from "./lib/meld-tiles";

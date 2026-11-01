@@ -25,6 +25,12 @@ export interface RoundListProps {
 
 export const ROUND_LIST_ROW_CLASS = "round-list__row";
 
+/** The focus key the current round's row renders, so the page focuses it as the list opens. */
+export const CURRENT_ROUND_FOCUS_KEY = "current-round";
+
+/** What the round list renders, so a page leaves its keys and wheel to it and knows a click inside it. */
+export const ROUND_LIST_SELECTOR = "[data-round-list]";
+
 /** The focus target `key` moves to among the rows, from the focused one; null for a key the list does not take. */
 function rowAfterKey(rows: readonly HTMLElement[], from: number, key: string): HTMLElement | null {
     switch (key) {
@@ -109,6 +115,7 @@ function EndRow(
 export function RoundList(props: RoundListProps): TemplateResult {
     return html`<section
         class="round-list"
+        data-round-list
         id=${REPLAY_ROUND_LIST_ID}
         aria-label="Rounds"
         @keydown=${(event: KeyboardEvent) => onListKeydown(event, props.onClose)}
@@ -133,6 +140,7 @@ export function RoundList(props: RoundListProps): TemplateResult {
                         type="button"
                         class=${ROUND_LIST_ROW_CLASS}
                         aria-current=${row.current ? "true" : nothing}
+                        data-focus-key=${row.current ? CURRENT_ROUND_FOCUS_KEY : nothing}
                         @click=${() => props.onSelect(row.start)}
                     >
                         <span class="round-list__name">${row.name}</span>

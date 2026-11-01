@@ -39,8 +39,15 @@ export {
     pendingCountdown,
     roundConfirmCountdown,
 } from "./model/countdown";
-export type { NoticeKind, PlayAction, PlayCommand, PlayUi, TileChoiceKind } from "./model/play-ui";
-export { NO_PLAY_UI } from "./model/play-ui";
+export type {
+    NoticeKind,
+    PlayAction,
+    PlayCommand,
+    PlayUi,
+    PlayUiInput,
+    TileChoiceKind,
+} from "./model/play-ui";
+export { CLIENT_STEPPED, NO_PLAY_UI, intentCommand } from "./model/play-ui";
 export type { ActionRank, DecisionAction, DecisionStanding } from "./model/decision-controls";
 export type { ResultControls } from "./model/result-controls";
 export type { NoticeSheetDisplay, PlayNotice } from "./model/board-notices";
@@ -48,12 +55,12 @@ export type { LeaveControls } from "./model/session-end";
 export { failureDisplay } from "./model/session-end";
 export type { PlayDisplay, SwitchControl } from "./model/play-display";
 export { playDisplay } from "./model/play-display";
-export { nextPlayUi, settledPlayUi } from "./model/play-ui-reducer";
+export { stepPlayUi } from "./model/play-ui-reducer";
 export type { DecisionView, GameEndLinks, PlayBoardProps } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
-export type { RotatePanelProps } from "./ui/rotate-panel";
-export { RotatePanel, rotatePanelProps } from "./ui/rotate-panel";
-export { describeClientStatus, describePlayerClientStatus } from "./model/client-status";
+export type { RotatePanelView } from "./ui/rotate-panel";
+export { RotatePanel } from "./ui/rotate-panel";
+export { describeClientStatus } from "./model/client-status";
 export type { ClientTimeline, TimelineEntry } from "./model/timeline";
 export { buildClientTimeline, timelineStates } from "./model/timeline";
 export type { ReplayTimelineRead } from "./model/replay";

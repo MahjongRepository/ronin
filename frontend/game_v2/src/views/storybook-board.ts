@@ -22,12 +22,13 @@ import {
     RoundEndDisplay,
     SEAT_POSITIONS,
     type SeatPosition,
+    TablePanelDisplay,
     type TableState,
     boardCallouts,
-    boardOverlay,
     createInitialPlayerState,
     createInitialTableState,
     roundEndDisplay,
+    tablePanel,
     tableStateToDisplayState,
 } from "@/entities/table";
 import {
@@ -776,14 +777,15 @@ function feedKan(seat: number, feed: KanFeed, first: number): MeldInput {
         };
     }
     const [meldType, offset] = feed;
-    return {
-        ...(meldType === "added_kan" ? { addedTileId: first + 3 } : {}),
+    const base = {
         calledTileId: first + 1,
         callerSeat: seat,
         fromSeat: (seat + offset) % 4,
-        meldType,
         tileIds,
     };
+    return meldType === "added_kan"
+        ? { ...base, addedTileId: first + 3, meldType }
+        : { ...base, meldType };
 }
 
 /** The ids between one kan's first tile and the next's: a kind of tile apart, so each kan shows its own face. */
@@ -948,7 +950,6 @@ const END_TABLE: TableState = {
     },
     phase: "game_ended",
     players: END_PLAYERS,
-    riichiCost: 1000,
 };
 
 /** The same game under rules that award the leftover stick to nobody: the winner's score never took it. */
@@ -990,12 +991,17 @@ function buildOverlay(
             onPage: handlers.showPage,
         });
     }
-    if (overlay === "game_end") {
-        return boardOverlay(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
-            end: { actions: gameEndActions(), viewerSeat: 0 },
-        });
+    if (overlay !== "game_end") {
+        return undefined;
     }
-    return undefined;
+    const panel = tablePanel(story.leftoverLost ? END_TABLE_STICK_LOST : END_TABLE, {
+        callouts: null,
+        firstDealSeconds: null,
+        overGameEnd: false,
+        page: 0,
+        viewerSeat: 0,
+    });
+    return panel === null ? undefined : TablePanelDisplay(panel, { endActions: gameEndActions() });
 }
 
 interface BoardStoryHandlers {

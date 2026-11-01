@@ -218,7 +218,6 @@ describe("GameBoard callouts", () => {
                 callouts,
                 debug: false,
                 overlay: html`<p>Result</p>`,
-                overlayIsResult: true,
                 platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
                 state: null,
             }),
@@ -227,21 +226,10 @@ describe("GameBoard callouts", () => {
         return host;
     }
 
-    const RON: BoardCallouts = {
-        items: [{ kind: "ron", label: "Ron", position: "right" }],
-        key: "call-1",
-    };
     const PON: BoardCallouts = {
         items: [{ kind: "pon", label: "Pon", position: "top" }],
         key: "call-2",
     };
-
-    it("holds a result's panel back while a win's call shows, never for another call", () => {
-        const held = ".board-overlay--after-call";
-
-        expect(renderCallouts(RON).querySelector(held)).not.toBeNull();
-        expect(renderCallouts(PON).querySelector(held)).toBeNull();
-    });
 
     it("draws a new showing afresh, so its animation replays, and keeps the element through a redraw", () => {
         const host = renderCallouts(PON);

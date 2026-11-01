@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import {
+    makeAddedKanEvent,
+    makeChankanPromptEvent,
     makeClosedKanEvent,
     makeDiscardEvent,
     makeDrawEvent,
@@ -8,7 +10,7 @@ import {
     makeMeldEvent,
     makeRoundStartedEvent,
 } from "#tests/fixtures/events";
-import { DesyncError } from "@/entities/table";
+import { DesyncError, chankanKanDeclared } from "@/entities/table";
 import { applyEvent } from "@/entities/table/model/apply-event";
 import { createInitialTableState } from "@/entities/table/model/initial-state";
 import { type KanDeclaredEvent, type TableState } from "@/entities/table/model/types";
@@ -155,11 +157,11 @@ describe("applyEvent - meld - closed_kan", () => {
 });
 
 describe("applyEvent - meld - added_kan", () => {
-    const ADDED_KAN_OF_1P = makeMeldEvent({
+    const ADDED_KAN_OF_1P = makeAddedKanEvent({
+        addedTileId: 39,
         calledTileId: 38,
         callerSeat: 0,
         fromSeat: 1,
-        meldType: "added_kan",
         tileIds: [36, 37, 38, 39],
     });
 
@@ -182,6 +184,26 @@ describe("applyEvent - kan_declared", () => {
     function declared(kanType: KanDeclaredEvent["kanType"], tileId: number): KanDeclaredEvent {
         return { kanType, seat: 0, tileId, type: "kan_declared" };
     }
+
+    test("lays the kan a chankan prompt names: a closed kan of the four copies, an added kan on its pon", () => {
+        const closed = chankanKanDeclared(
+            makeChankanPromptEvent({ kanType: KAN_TYPE.CLOSED, tileId: 3 }),
+        );
+        const added = chankanKanDeclared(
+            makeChankanPromptEvent({ kanType: KAN_TYPE.ADDED, tileId: 39 }),
+        );
+
+        const closedTable = applyEvent(drawTile(stateWithDiscard(1, 120), 0, 3), closed);
+        const addedTable = applyEvent(drawTile(stateWithChiAndPon(), 0, 39), added);
+
+        expect(closedTable.players[0].melds).toMatchObject([
+            { meldType: "closed_kan", tileIds: [0, 1, 2, 3] },
+        ]);
+        expect(addedTable.players[0].melds).toMatchObject([
+            { meldType: "chi" },
+            { addedTileId: 39, meldType: "added_kan", tileIds: [36, 37, 38, 39] },
+        ]);
+    });
 
     test("refuses an added kan with no pon to raise, or a closed kan of tiles the hand does not hold, as a desync", () => {
         const state = stateAfterRoundStarted();

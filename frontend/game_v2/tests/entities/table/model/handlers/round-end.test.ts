@@ -7,7 +7,7 @@ import {
     extractRoundEndResult,
     roundEndPages,
 } from "@/entities/table";
-import { ROUND_RESULT_TYPE, type RoundEndEvent } from "@/shared/protocol";
+import { HAND_LIMIT, ROUND_RESULT_TYPE, type RoundEndEvent } from "@/shared/protocol";
 
 interface RoundEnd {
     readonly event: RoundEndEvent;
@@ -50,9 +50,8 @@ describe("extractRoundEndResult", () => {
                 doraHan: { aka: 1, dora: 0, ura: 1 },
                 handResult: event.handResult,
                 honbaBonus: 0,
-                isDealer: false,
                 melds: [],
-                paoSeat: null,
+                pao: null,
                 riichiBonus: 2000,
                 riichiSticksCollected: 2,
                 scoreChanges: event.scoreChanges,
@@ -64,12 +63,10 @@ describe("extractRoundEndResult", () => {
         expect(result.winners[0].handResult.points).toBe(8000);
     });
 
-    test("riichi tsumo on honba at a 1,500 stick value: the sticks pay 3,000 and the rest beyond the hand is the honba", () => {
+    test("riichi tsumo at a 1,500 stick value: the sticks pay 3,000 and the honba bonus is the server's, never the gain less the hand and sticks", () => {
         const { before, event } = lastRoundEnd("riichi");
         assert(event.resultType === ROUND_RESULT_TYPE.TSUMO);
-        const winner = String(event.winnerSeat);
-        const gain = (event.scoreChanges[winner] ?? 0) + 2 * 500 + 300;
-        const onHonba = { ...event, scoreChanges: { ...event.scoreChanges, [winner]: gain } };
+        const onHonba = { ...event, honbaBonus: 300 };
 
         const { winners } = extractRoundEndResult(onHonba, { ...before, riichiStickValue: 1500 });
         expect(winners.map((entry) => [entry.honbaBonus, entry.riichiBonus])).toEqual([
@@ -124,11 +121,17 @@ describe("extractRoundEndResult", () => {
         ]);
     });
 
-    test("pao: names the seat liable for the yakuman and keeps the winner's melds", () => {
+    test("pao: names the seat liable for the yakuman with what it pays and keeps the winner's melds", () => {
         const { event, result } = lastRoundEnd("pao");
         assert(event.resultType === ROUND_RESULT_TYPE.TSUMO);
 
-        expect(result.winners).toMatchObject([{ melds: event.melds, paoSeat: 0, seat: 1 }]);
+        expect(result.winners).toMatchObject([
+            {
+                melds: event.melds,
+                pao: { paysHonba: false, seat: 0, share: "all", yakuIds: [103] },
+                seat: 1,
+            },
+        ]);
         expect(result.winners[0].melds).toHaveLength(3);
     });
 
@@ -139,10 +142,17 @@ describe("extractRoundEndResult", () => {
         expect(result.winners.map((winner) => winner.seat)).toEqual([1]);
     });
 
-    test("kazoe: marks the dealer's win", () => {
+    test("kazoe: the round's dealer and the hand's limit are the server's", () => {
         const { result } = lastRoundEnd("kazoe");
 
-        expect(result.winners.map((winner) => [winner.seat, winner.isDealer])).toEqual([[0, true]]);
+        expect(result.dealerSeat).toBe(0);
+        expect(
+            result.winners.map((winner) => [
+                winner.seat,
+                winner.handResult.limit,
+                winner.handResult.yakumanCount,
+            ]),
+        ).toEqual([[0, HAND_LIMIT.KAZOE_YAKUMAN, 1]]);
     });
 
     test("exhaustive draw: one page naming tenpai and noten seats with the tenpai hands", () => {
@@ -154,6 +164,7 @@ describe("extractRoundEndResult", () => {
         expect(result.draw).toEqual({
             declarerSeat: null,
             kind: "exhaustive",
+            nagashiRivers: [],
             nagashiSeats: [],
             notenSeats: [0, 3],
             ronSeats: [],

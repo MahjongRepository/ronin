@@ -92,6 +92,7 @@ class TestChankanRiechiFuritenOnPass:
             from_seat=0,
             pending_seats=frozenset({1, 2}),
             callers=(Caller(seat=1, can_ron=True), Caller(seat=2, can_ron=True)),
+            kan_type=KanType.ADDED,
         )
         round_state = round_state.model_copy(update={"pending_call_prompt": prompt})
         game_state = game_state.model_copy(update={"round_state": round_state})

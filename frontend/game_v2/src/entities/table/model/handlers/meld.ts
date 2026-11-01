@@ -11,15 +11,18 @@ import { type ClaimedMeldEvent, type MeldEvent, tileType } from "@/shared/protoc
 
 import { shownKanIndex } from "./kan-declared";
 
-function buildMeldRecord(event: MeldEvent, addedTileId?: number): MeldRecord {
-    const record: MeldRecord = {
+type AddedKanEvent = Extract<MeldEvent, { meldType: "added_kan" }>;
+
+function buildMeldRecord(event: MeldEvent): MeldRecord {
+    const base = {
         calledTileId: event.calledTileId,
         callerSeat: event.callerSeat,
         fromSeat: event.fromSeat,
-        meldType: event.meldType,
         tileIds: [...event.tileIds],
     };
-    return addedTileId === undefined ? record : { ...record, addedTileId };
+    return event.meldType === "added_kan"
+        ? { ...base, addedTileId: event.addedTileId, meldType: event.meldType }
+        : { ...base, meldType: event.meldType };
 }
 
 /** The caller's melds once the meld lands, and the tiles it takes from the caller's hand. */
@@ -109,32 +112,19 @@ function applyClosedKan(state: TableState, event: MeldEvent): TableState {
     return meldFromHand(state, event, { fromHand: event.tileIds, melds });
 }
 
-/** Find the existing pon matching the event's tile type and derive which tile was added from hand. */
-function findPonAndAddedTile(
-    caller: PlayerState,
-    event: MeldEvent,
-): { ponMeld: MeldRecord; addedTileId: number } | null {
-    const ponMeld = ponOfType(caller.melds, tileType(event.tileIds[0]));
-    if (!ponMeld) {
-        return null;
-    }
-    const ponTileSet = new Set(ponMeld.tileIds);
-    const addedTileId = event.tileIds.find((id) => !ponTileSet.has(id));
-    if (addedTileId === undefined) {
-        return null;
-    }
-    return { addedTileId, ponMeld };
-}
-
-function applyAddedKan(state: TableState, event: MeldEvent): TableState {
+/** Raise the caller's pon of the kan's type with the tile the server names as added from hand. */
+function applyAddedKan(state: TableState, event: AddedKanEvent): TableState {
     const caller = findCaller(state, event);
-    const match = findPonAndAddedTile(caller, event);
-    if (!match) {
-        throw new DesyncError(`No matching pon found for added_kan at seat ${event.callerSeat}`);
+    const { addedTileId } = event;
+    const ponMeld = ponOfType(caller.melds, tileType(addedTileId));
+    if (!ponMeld || ponMeld.tileIds.includes(addedTileId)) {
+        throw new DesyncError(
+            `No pon that tile ${addedTileId} raises to an added_kan at seat ${event.callerSeat}`,
+        );
     }
-    const kan = buildMeldRecord(event, match.addedTileId);
-    const melds = caller.melds.map((m) => (m === match.ponMeld ? kan : m));
-    return meldFromHand(state, event, { fromHand: [match.addedTileId], melds });
+    const kan = buildMeldRecord(event);
+    const melds = caller.melds.map((m) => (m === ponMeld ? kan : m));
+    return meldFromHand(state, event, { fromHand: [addedTileId], melds });
 }
 
 /**
@@ -143,8 +133,7 @@ function applyAddedKan(state: TableState, event: MeldEvent): TableState {
  */
 function completeShownKan(state: TableState, event: MeldEvent, shownIndex: number): TableState {
     const caller = findCaller(state, event);
-    const shown = caller.melds[shownIndex];
-    const kan = buildMeldRecord(event, shown.addedTileId);
+    const kan = buildMeldRecord(event);
     return {
         ...state,
         players: updatePlayer(state.players, event.callerSeat, {

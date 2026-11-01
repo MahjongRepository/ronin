@@ -33,13 +33,13 @@ import {
     type ReplayLine,
     type RoundEndEvent,
     SEAT_CONTROL_REASON,
-    WIRE_SCORE_DIVISOR,
 } from "@/shared/protocol";
+import { WIRE_SCORE_DIVISOR } from "@/shared/protocol/constants";
 
 const VERSION_LINE = JSON.stringify({ version: REPLAY_VERSION });
 const SEAT_0_TABLE = [JSON.stringify(REPLAY_GAME_STARTED), JSON.stringify(REPLAY_ROUND_STARTED)];
 const REPLAY_VIEW: BoardPerspective = { bottomSeat: 0, reveal: "all" };
-const drawLine = '{"d": 0, "t": 1}';
+const drawLine = '{"d": 0, "t": 1, "tr": 69}';
 const discardLine = '{"d": 0, "t": 2}';
 
 function readLines(...lines: string[]): {
@@ -557,7 +557,6 @@ function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | 
         case "game_started": {
             return {
                 ...raw,
-                rc: line.riichiCost / WIRE_SCORE_DIVISOR,
                 rsv: line.riichiStickValue / WIRE_SCORE_DIVISOR,
                 s: seat,
                 tm: PROJECTED_TIMER,
@@ -574,7 +573,7 @@ function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | 
         case "draw": {
             return line.seat === seat
                 ? { ...raw, bk: PROJECTED_TIMER.bk, wi: 1 }
-                : { s: line.seat, t: EVENT_TYPE.DRAW_NOTICE };
+                : { s: line.seat, t: EVENT_TYPE.DRAW_NOTICE, tr: line.tilesRemaining };
         }
         case "ai_replacement":
         case "human_return": {

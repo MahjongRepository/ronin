@@ -32,6 +32,8 @@
                     "PlayerName",
                     "GameStartDisplay",
                     "GameEndDisplay",
+                    "TablePanelDisplay",
+                    "OverlayPanel",
                     "PanelActions",
                     "Melds",
                     "WinHand",
@@ -55,6 +57,7 @@
                     "DiffLabels",
                     "EmptyCenterArea",
                     "Nameplate",
+                    "NameplateMarks",
                     "Nameplates",
                     "Strip",
                     "CenterSeat",
@@ -165,6 +168,10 @@
                             {
                                 "group": ["@/entities/*/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -203,6 +210,10 @@
                             {
                                 "group": ["@/entities/*/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -287,6 +298,60 @@
                             {
                                 "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
                                 "message": "Shared code imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["src/shared/protocol/**"],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "zod",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v4/classic",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            },
+                            {
+                                "name": "zod/v3",
+                                "message": "Import zod/mini: classic Zod does not tree-shake and would ship whole in the entry."
+                            }
+                        ],
+                        "patterns": [
+                            {
+                                "regex": "^#tests(/|$)|(^|/)tests(/|$)|^@/(.*/)?\\.\\.(/|$)",
+                                "message": "Application code never imports the tests or reaches outside src through the alias."
+                            },
+                            {
+                                "group": ["@/fixtures/**"],
+                                "message": "Generated fixtures ship only in the storybook's chunk: import them from a storybook view."
+                            },
+                            {
+                                "group": ["@/entities", "@/entities/**"],
+                                "message": "Shared code imports no entity: layers depend downward only."
+                            },
+                            {
+                                "regex": "^(@/+(\\./)*|(\\./)*(\\.\\./)+)(index|router|views)(\\.[a-z]+)?(/.*)?$",
+                                "message": "Shared code imports no view and not the app's entry or router: layers depend downward only."
+                            },
+                            {
+                                "group": ["@/shared/*/**", "!@/shared/protocol/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -346,6 +411,10 @@
                             {
                                 "group": ["@/entities/*/**", "!@/entities/tile/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -403,6 +472,10 @@
                             {
                                 "group": ["@/entities/*/**", "!@/entities/table/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -462,6 +535,10 @@
                             {
                                 "group": ["@/entities/*/**", "!@/entities/session/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -512,6 +589,10 @@
                             {
                                 "group": ["@/entities/*/**", "!@/entities/client/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }
@@ -562,6 +643,10 @@
                             {
                                 "group": ["@/entities/*/**", "!@/entities/replay/**"],
                                 "message": "Import another slice through its public entry, @/entities/<slice>, never its internals."
+                            },
+                            {
+                                "group": ["@/shared/*/**"],
+                                "message": "Import a shared module through its public entry, @/shared/<module>, never its internals."
                             }
                         ]
                     }

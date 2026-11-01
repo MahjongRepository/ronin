@@ -1,19 +1,19 @@
 import { type TemplateResult, html, nothing } from "lit-html";
 import { repeat } from "lit-html/directives/repeat.js";
 
-import { focusBackOnClose, focusOnFirstRender, keepTabInside } from "./focus";
+import { type Notice } from "@/entities/table/model/notice";
+import { HAND_TILE_FOCUS_KEY } from "@/entities/tile";
+import { focusKeys } from "@/shared/lib";
+import { focusOnFirstRender, keepTabInside } from "@/shared/ui";
+
+import { DECISION_ACTION_FOCUS_KEY, PANEL_CONTROL_FOCUS_KEY, focusBackOnClose } from "./focus";
 import { clampNotices } from "./notice-clamp";
 
-export type BoardNoticeTone = "info" | "success" | "warning" | "error";
-
 /**
- * A line of news over the table: a connection's state, a refused move, a message the client could not read, tile
- * faces that did not load; with a button when it offers a way out. One the board may open whole (`onShowAll`, with
- * the `id` its "Show all" is found by again) clamps to whole lines where its place is too short for it.
+ * A notice as the board draws it (`Notice`), with a button when it offers a way out. One the board may open whole
+ * (`onShowAll`, with the `id` its "Show all" is found by again) clamps to whole lines where its place is too short for it.
  */
-export interface BoardNotice {
-    readonly text: string;
-    readonly tone: BoardNoticeTone;
+export interface BoardNotice extends Notice {
     readonly action?: { readonly label: string; readonly onClick: () => void };
     readonly id?: string;
     readonly onShowAll?: () => void;
@@ -27,6 +27,14 @@ function noticeAction(notice: BoardNotice): TemplateResult | typeof nothing {
     return html`<button type="button" class="board-notice__action" @click=${action.onClick}>${action.label}</button>`;
 }
 
+/** The focus key every "Show all" holds. */
+const SHOW_ALL_FOCUS_KEY = "show-all";
+
+/** The focus key of the "Show all" of the notice `id` names. */
+function showAllKey(id: string | undefined): string | null {
+    return id === undefined ? null : `${SHOW_ALL_FOCUS_KEY}:${id}`;
+}
+
 /**
  * "Show all", shown only while the notice is clamped; the whole notice is its tap target. Its name, which the clamp
  * writes, is the notice's words (`data-label`) and how many notices left out after it it opens too.
@@ -36,7 +44,13 @@ function ShowAll(notice: BoardNotice): TemplateResult | typeof nothing {
     if (onShowAll === undefined) {
         return nothing;
     }
-    return html`<button type="button" class="board-notice__more" data-label=${notice.text} @click=${onShowAll}>
+    return html`<button
+        type="button"
+        class="board-notice__more"
+        data-label=${notice.text}
+        data-focus-key=${focusKeys(showAllKey(notice.id), SHOW_ALL_FOCUS_KEY) ?? nothing}
+        @click=${onShowAll}
+    >
         Show all
     </button>`;
 }
@@ -55,7 +69,7 @@ export function BoardNotices(
     notices: readonly BoardNotice[],
     after: TemplateResult | typeof nothing = nothing,
 ): TemplateResult {
-    return html`<div class="board-notices" ${clampNotices()}>
+    return html`<div class="board-notices" data-board-notices ${clampNotices()}>
         <div class="board-notices__list">${repeat(
             notices,
             noticeKey,
@@ -88,15 +102,16 @@ export function NoticeAnnouncements(notices: readonly BoardNotice[]): TemplateRe
 
 /**
  * Where the focus goes once the sheet closes: the "Show all" that opened it while a player can reach it, else another,
- * else the panel the sheet gave way to, the decision's controls or the hand, else the board itself.
+ * else the panel the sheet gave way to, the decision's open controls or the hand's tiles, else the board itself: each by
+ * the focus key its controls hold.
  */
 function focusTargets(openerId: string): readonly string[] {
     return [
-        `.board-notice[data-notice="${openerId}"] .board-notice__more`,
-        ".board-notice__more",
-        ".board-overlay__panel button",
-        ".decision-controls__action:not([aria-disabled])",
-        ".board-local button",
+        `${SHOW_ALL_FOCUS_KEY}:${openerId}`,
+        SHOW_ALL_FOCUS_KEY,
+        PANEL_CONTROL_FOCUS_KEY,
+        DECISION_ACTION_FOCUS_KEY,
+        HAND_TILE_FOCUS_KEY,
     ];
 }
 

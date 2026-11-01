@@ -35,17 +35,32 @@ export type {
     ReplaySource,
 } from "./lib/replay-display";
 export { replayDisplay, replayMoves } from "./lib/replay-display";
+export type {
+    LoadedReplayScreen,
+    ReplayFailure,
+    ReplayFocusTarget,
+    ReplayKeyCommand,
+    ReplayOpening,
+    ReplayPageEffect,
+    ReplayPageInput,
+    ReplayPageStep,
+    ReplayScreen,
+    StepDirection,
+} from "./model/replay-page";
 export {
-    REPLAY_ROUND_LIST_ID,
+    HOLD_DELAY_MS,
+    HOLD_REPEAT_MS,
+    canStep,
+    replayPageDeadline,
+    stepReplayPage,
+} from "./model/replay-page";
+export {
+    ROUND_LIST_TOGGLE_FOCUS_KEY,
+    ROUND_LIST_TOGGLE_SELECTOR,
     ReplayControls,
     ReplayStatus,
     STEP_BUTTON_ATTRIBUTE,
 } from "./ui/replay-controls";
-export type {
-    ReplayControlsProps,
-    ReplayPlayback,
-    ReplayStatusProps,
-    StepDirection,
-} from "./ui/replay-controls";
-export { ROUND_LIST_ROW_CLASS, RoundList } from "./ui/round-list";
+export type { ReplayControlsProps, ReplayPlayback, ReplayStatusProps } from "./ui/replay-controls";
+export { CURRENT_ROUND_FOCUS_KEY, ROUND_LIST_SELECTOR, RoundList } from "./ui/round-list";
 export type { RoundListEnd, RoundListProps } from "./ui/round-list";

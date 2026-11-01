@@ -52,8 +52,8 @@ function forTurn(availableActions, shadow) {
             for (const t34 of item.tl || []) {
                 const pon = shadow.findPon(shadow.mySeat, t34);
                 const addedId = hand.find(id => Math.floor(id / 4) == t34);
-                const kan = { ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([addedId]) };
-                addCall(offer, 'gang', mianzi.mianziStr(kan, pon),
+                const kan = { ...pon, meldType: wire.MELD.ADDED_KAN, tileIds: pon.tileIds.concat([addedId]), addedTileId: addedId };
+                addCall(offer, 'gang', mianzi.mianziStr(kan),
                         { a: wire.A.CALL_KAN, ti: addedId, kan_type: wire.KAN.ADDED });
             }
             break;

@@ -31,7 +31,7 @@ const humanReturnSchema = z.pipe(
     })),
 );
 
-const replaySettingsSchema = z.object({ riichi_cost: z.int(), riichi_stick_value: z.int() });
+const replaySettingsSchema = z.object({ riichi_stick_value: z.int() });
 
 export type AiReplacementLine = z.output<typeof aiReplacementSchema>;
 export type HumanReturnLine = z.output<typeof humanReturnSchema>;
@@ -58,16 +58,12 @@ function parseSeatControl(raw: Record<string, unknown>): SeatControlLine {
 }
 
 /**
- * The replay's game start as the live one: its riichi cost (`rc`) and stick value (`rsv`) from the settings it records
- * (`gs`), which every replay file carries in place of the live fields.
+ * The replay's game start as the live one: its riichi stick value (`rsv`) from the settings it records (`gs`), which
+ * every replay file carries in place of the live field.
  */
 function withRecordedRiichiSettings(raw: Record<string, unknown>): Record<string, unknown> {
     const settings = replaySettingsSchema.parse(raw.gs);
-    return {
-        ...raw,
-        rc: settings.riichi_cost / WIRE_SCORE_DIVISOR,
-        rsv: settings.riichi_stick_value / WIRE_SCORE_DIVISOR,
-    };
+    return { ...raw, rsv: settings.riichi_stick_value / WIRE_SCORE_DIVISOR };
 }
 
 /** A recorded message as the replay needs it: a deal records every seat's hand, since a replay shows them all. */

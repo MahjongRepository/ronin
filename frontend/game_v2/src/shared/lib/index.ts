@@ -1,6 +1,7 @@
 export { assertNever } from "./assert-never";
 export { createDeadlineTimer } from "./deadline-timer";
 export type { DeadlineTimer } from "./deadline-timer";
+export { focusByKey, focusKeys, keyedControls } from "./focus-key";
 export { LOAD_RETRY_DELAYS_MS, startRetryingLoad } from "./retrying-load";
 export type { LoadStatus, RetryingLoad, RetryingLoadDeps } from "./retrying-load";
 export { localStore } from "./local-store";

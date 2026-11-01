@@ -1,5 +1,6 @@
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import HandLimit
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
@@ -53,7 +54,8 @@ class TestDoubleYakumanSetting:
         assert result.cost_main == 16000
         assert result.cost_additional == 8000
         assert result.yaku
-        assert all(yaku.is_yakuman for yaku in result.yaku)
+        assert [yaku.yakuman_count for yaku in result.yaku] == [1]
+        assert (result.limit, result.yakuman_count) == (HandLimit.YAKUMAN, 1)
 
     def test_daisuushii_setting__when_double_disabled__should_score_single_yakuman(self):
         # pair is 1m (not honor), so tsuuiisou does NOT apply — only daisuushii
@@ -178,6 +180,8 @@ class TestYakumanStacking:
         assert result.han == 39
         # triple yakuman non-dealer ron: base 24000 * 4 = 96000
         assert result.cost_main == 96000
+        assert sorted(yaku.yakuman_count for yaku in result.yaku) == [1, 2]
+        assert (result.limit, result.yakuman_count) == (HandLimit.YAKUMAN, 3)
 
 
 class TestKazoeYakuman:
@@ -210,7 +214,8 @@ class TestKazoeYakuman:
         # payment is yakuman-level: non-dealer tsumo = dealer pays 16000, non-dealer pays 8000
         assert result.cost_main == 16000
         assert result.cost_additional == 8000
-        assert not any(yaku.is_yakuman for yaku in result.yaku)
+        assert not any(yaku.yakuman_count for yaku in result.yaku)
+        assert (result.limit, result.yakuman_count) == (HandLimit.KAZOE_YAKUMAN, 1)
 
     def test_kazoe_yakuman__when_disabled__should_cap_at_sanbaiman(self):
         tiles = TilesConverter.string_to_136_array(man="2233445556677")
@@ -238,6 +243,7 @@ class TestKazoeYakuman:
         # sanbaiman non-dealer tsumo: dealer pays 12000, non-dealer pays 6000
         assert result.cost_main == 12000
         assert result.cost_additional == 6000
+        assert (result.limit, result.yakuman_count) == (HandLimit.SANBAIMAN, None)
 
     def test_kazoe_yakuman__when_dora_lifts_han_to_13__should_score_yakuman(self):
         # chinitsu (6) + pinfu (1) + iipeiko (1) + tanyao (1) + riichi (1) + tsumo (1) = 11 han

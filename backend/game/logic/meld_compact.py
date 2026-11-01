@@ -44,6 +44,7 @@ def frozen_meld_to_meld_data(meld: FrozenMeld) -> MeldData:
         from_seat=meld.from_who,
         tile_ids=list(meld.tiles),
         called_tile_id=meld.called_tile,
+        added_tile_id=meld.added_tile,
     )
 
 
@@ -65,6 +66,7 @@ def meld_event_to_meld_data(event: MeldEvent) -> MeldData:
         from_seat=event.from_seat,
         tile_ids=list(event.tile_ids),
         called_tile_id=event.called_tile_id,
+        added_tile_id=event.added_tile_id,
     )
 
 

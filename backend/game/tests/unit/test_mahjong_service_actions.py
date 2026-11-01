@@ -91,6 +91,9 @@ class TestProcessActionResultRoundEnd:
 
         scores = {i: runtime.state.round_state.players[i].score for i in range(4)}
         round_end = RoundEndEvent(
+            dealer_seat=0,
+            dora_indicators=[],
+            riichi_sticks=0,
             result=ExhaustiveDrawResult(
                 type=RoundResultType.EXHAUSTIVE_DRAW,
                 tempai_seats=[],
@@ -124,6 +127,7 @@ class TestMahjongGameServiceChankanPrompt:
             from_seat=0,
             pending_seats=frozenset({player.seat}),
             callers=(Caller(seat=player.seat, can_ron=True),),
+            kan_type=KanType.ADDED,
         )
         _update_round_state(runtime, pending_call_prompt=prompt)
         chankan_prompt = CallPromptEvent(

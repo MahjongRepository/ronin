@@ -1,3 +1,4 @@
+from game.logic.enums import HandLimit
 from game.logic.game import _goshashonyu_round, calculate_final_scores, finalize_game
 from game.logic.settings import GameSettings, LeftoverRiichiBets
 from game.logic.state_utils import get_winner_seats
@@ -21,16 +22,18 @@ class TestGetWinnerSeatsDoubleRon:
             winning_tile=42,
             winners=[
                 DoubleRonWinner(
+                    honba_bonus=0,
                     winner_seat=0,
-                    hand_result=HandResultInfo(han=1, fu=30, yaku=_yaku(0), points=1000),
+                    hand_result=HandResultInfo(limit=HandLimit.NONE, han=1, fu=30, yaku=_yaku(0), points=1000),
                     score_changes={0: 0, 1: 0, 2: 0, 3: 0},
                     riichi_sticks_collected=0,
                     closed_tiles=[],
                     melds=[],
                 ),
                 DoubleRonWinner(
+                    honba_bonus=0,
                     winner_seat=3,
-                    hand_result=HandResultInfo(han=2, fu=30, yaku=_yaku(0), points=2000),
+                    hand_result=HandResultInfo(limit=HandLimit.NONE, han=2, fu=30, yaku=_yaku(0), points=2000),
                     score_changes={0: 0, 1: 0, 2: 0, 3: 0},
                     riichi_sticks_collected=0,
                     closed_tiles=[],

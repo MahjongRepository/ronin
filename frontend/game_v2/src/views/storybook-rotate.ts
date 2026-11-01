@@ -4,7 +4,7 @@ import {
     type DecisionCountdown,
     type LeaveControls,
     RotatePanel,
-    type RotatePanelProps,
+    type RotatePanelView,
     failureDisplay,
 } from "@/entities/client";
 import { type SessionState, describePlayerSessionStatus } from "@/entities/session";
@@ -58,17 +58,16 @@ function storyProps(
     session: SessionState,
     countdown: DecisionCountdown | null,
     leave: LeaveControls = ASKS_TO_LEAVE,
-): RotatePanelProps {
+): RotatePanelView {
     return {
-        countdown,
         failure: failureDisplay(session),
         leave,
-        onCommand: () => {},
+        owedCountdown: countdown,
         status: describePlayerSessionStatus(session),
     };
 }
 
-const STORY_PROPS: Readonly<Record<RotateStory, RotatePanelProps>> = {
+const STORY_PROPS: Readonly<Record<RotateStory, RotatePanelView>> = {
     countdown: storyProps(PLAYING, {
         kind: "running",
         move: "turn",
@@ -111,7 +110,7 @@ function rotateStorybookTemplate(
 ): TemplateResult {
     return html`
         <div class="rotate-storybook">
-            ${RotatePanel(STORY_PROPS[current])}
+            ${RotatePanel(STORY_PROPS[current], () => {})}
             <nav class="rotate-storybook__stories">
                 <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
                 ${ROTATE_STORIES.map(

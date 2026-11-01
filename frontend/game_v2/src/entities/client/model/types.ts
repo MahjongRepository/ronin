@@ -64,6 +64,14 @@ interface DecisionBase {
     readonly status: DecisionStatus;
 }
 
+/**
+ * How a turn opened: by the seat's draw, with the tile it drew; or by the `turn` event after the seat's own pon or
+ * chi, which draws none and offers nothing, with the tile types kuikae forbids discarding.
+ */
+export type TurnOpening =
+    | { readonly kind: "draw"; readonly drawnTileId: number }
+    | { readonly kind: "after_call"; readonly kuikaeTileTypes: readonly number[] };
+
 /** The seat's own turn, opened by its draw, or by the `turn` event after its own pon or chi. */
 export interface TurnDecision extends DecisionBase {
     readonly kind: "turn";
@@ -72,10 +80,7 @@ export interface TurnDecision extends DecisionBase {
      * from the opening, less what a re-sent wait says has run. Null when the turn has no deadline.
      */
     readonly baseDeadline: number | null;
-    /** The tile types kuikae forbids discarding on the turn after the seat's own pon or chi. */
-    readonly kuikaeTileTypes: readonly number[];
-    /** The tile the turn's draw drew; null on the turn after the seat's own pon or chi, which draws none. */
-    readonly drawnTileId: number | null;
+    readonly opening: TurnOpening;
 }
 
 /** A call prompt on another seat's discard, or on a kan it may rob. */

@@ -108,6 +108,7 @@ class TestFrozenMeldRoundTrip:
             called_tile=0,
             who=1,
             from_who=3,
+            added_tile=2,
         )
         compact = frozen_meld_to_compact(meld)
         decoded = decode_meld_compact(compact)
@@ -116,6 +117,7 @@ class TestFrozenMeldRoundTrip:
         assert decoded["from_seat"] == 3
         assert sorted(decoded["tile_ids"]) == [0, 1, 2, 3]
         assert decoded["called_tile_id"] == 0
+        assert decoded["added_tile_id"] == 2
 
     def test_frozen_meld_compact__when_chankan__should_encode_as_added_kan(self):
         # Chankan uses same wire type as shouminkan (added_kan)
@@ -126,6 +128,7 @@ class TestFrozenMeldRoundTrip:
             called_tile=1,
             who=2,
             from_who=0,
+            added_tile=3,
         )
         compact = frozen_meld_to_compact(meld)
         decoded = decode_meld_compact(compact)
@@ -218,6 +221,7 @@ class TestMeldEventRoundTrip:
             from_seat=2,
             tile_ids=[0, 1, 2, 3],
             called_tile_id=0,
+            added_tile_id=1,
         )
         compact = meld_event_to_compact(event)
         decoded = decode_meld_compact(compact)

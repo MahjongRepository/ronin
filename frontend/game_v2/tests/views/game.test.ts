@@ -1,6 +1,6 @@
 import { type MockInstance, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { ManualClock } from "#tests/fixtures/clock";
+import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
 import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
 import {
@@ -110,7 +110,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     };
     const host = document.createElement("div");
     const dispose = mountGameView(host, GAME_ID, {
-        clock,
+        clock: steadyClockOn(clock),
         connect: overrides.connect ?? connect,
         debug: overrides.debug ?? false,
         handoff: overrides.handoff === undefined ? HANDOFF : overrides.handoff,
@@ -488,6 +488,30 @@ describe("mountGameView failure boundary", () => {
     });
 });
 
+describe("mountGameView after a sleep", () => {
+    it.each([
+        ["elapsed time ran through it", (clock: ManualClock) => clock.advanceTo(60_000)],
+        [
+            "elapsed time paused, as a forward wall step looks",
+            (clock: ManualClock) => clock.stepWall(60_000),
+        ],
+    ])(
+        "shows the open prompt expired on the first tick after the device wakes from a sleep past its time (%s)",
+        (_sleep, sleep) => {
+            const { clock, connections, host } = mountWithFakes();
+            openCallPrompt(connections[0]);
+
+            sleep(clock);
+            clock.advanceTo(clock.elapsedNow() + 1000);
+
+            expect(
+                host.querySelector(".game__rotate .rotate-panel__decision--expired"),
+            ).not.toBeNull();
+            expect(connections[0].sent).toEqual([JOIN]);
+        },
+    );
+});
+
 describe("mountGameView connection", () => {
     it("sets the socket's silence limit past the longest wait the server names: the pending game's once joined, then the game's timer settings", () => {
         const { connections } = mountWithFakes();
@@ -500,6 +524,20 @@ describe("mountGameView connection", () => {
         socket.handlers.onMessage({ ...WIRE_GAME_STARTED, s: 0, tm: timer });
 
         expect([identifying, joined, socket.silenceLimitMs]).toEqual([90_000, 325_000, 215_000]);
+    });
+
+    it("stamps a close on running time after the wall clock stepped back an hour, so its retry comes due on time", () => {
+        const { clock, connections } = mountWithFakes();
+        connections[0].handlers.onOpen();
+        seeGameStart(connections[0]);
+
+        clock.stepWall(-3_600_000);
+        clock.advanceTo(500);
+        connections[0].handlers.onClose(1006, "");
+        clock.advanceTo(1499);
+        expect(connections).toHaveLength(1);
+        clock.advanceTo(1500);
+        expect(connections).toHaveLength(2);
     });
 
     it("gives up on a socket that never opens after 10 s and opens another on the retry", () => {
@@ -884,5 +922,65 @@ describe("mountGameView board", () => {
             ["Kan 3m", "Pon 3m", "Chi", "Pass"],
         ]);
         expect(connections[0].sent).toEqual([JOIN, buildChiAction(8, [4, 12], PROMPT_WAIT_ID)]);
+    });
+});
+
+/** The panel's button over the live board whose words are `words`. */
+function panelButton(host: HTMLElement, words: string): HTMLElement | undefined {
+    return [...host.querySelectorAll<HTMLElement>(".game__play .board-overlay__panel button")].find(
+        (button) => button.textContent?.trim() === words,
+    );
+}
+
+/** Join, receive the double ron scenario's messages through its round end, then the game's end. */
+function endGameOnDoubleRon(socket: FakeConnection): void {
+    socket.handlers.onOpen();
+    const { transcript } = loadSeatScenario("double_ron_seat_1");
+    for (const payload of receivedThrough(transcript, "round end")) {
+        socket.handlers.onMessage(payload);
+    }
+    socket.handlers.onMessage(WIRE_GAME_END);
+}
+
+/** Let the first socket time out unopened, then open the one its retry asks for, the game not joined yet. */
+function reopenAfterConnectTimeout(clock: ManualClock, connections: FakeConnection[]): void {
+    clock.advanceTo(10_000);
+    clock.advanceTo(11_000);
+    connections[1].handlers.onOpen();
+}
+
+function resultPageLabel(host: HTMLElement): string | null | undefined {
+    return host.querySelector(".game__play .round-end-result__page")?.textContent;
+}
+
+describe("mountGameView view state", () => {
+    it("reopens the game's last result on its first page from Last hand, though the player left it on its second", () => {
+        const { connections, host } = mountWithFakes();
+        endGameOnDoubleRon(connections[0]);
+
+        press(host, '[aria-label="Next winner"]');
+        const turned = resultPageLabel(host);
+        panelButton(host, "Final scores")?.click();
+        panelButton(host, "Last hand")?.click();
+
+        expect([turned, resultPageLabel(host)]).toEqual(["2 / 2", "1 / 2"]);
+    });
+
+    it("closes the notices' sheet when a message takes its last notice away, so a later notice never reopens it", () => {
+        const { clock, connections, host, tileSprite } = mountWithFakes();
+        reopenAfterConnectTimeout(clock, connections);
+        press(host, ".board-notice__more");
+        const opened = host.querySelector(".game__play .notice-sheet") !== null;
+
+        connections[1].handlers.onMessage(WIRE_GAME_JOINED);
+        const closed = host.querySelector(".game__play .notice-sheet");
+        tileSprite.moveTo("failed");
+
+        expect([opened, closed, host.querySelector(".game__play .notice-sheet")]).toEqual([
+            true,
+            null,
+            null,
+        ]);
+        expect(spriteNotice(host)).toMatch(/^Tile images did not load/);
     });
 });

@@ -1,12 +1,22 @@
 import { type MeldType } from "@/shared/protocol/constants";
 import { tileTypeCopies } from "@/shared/protocol/tiles";
 
-/** A meld built on another seat's tile: a call (chi, pon, open kan) or an added kan on a called pon. */
-interface ClaimedMeld {
+/** A call on another seat's discard: chi, pon or open kan. */
+interface CalledMeld {
     calledTileId: number;
     callerSeat: number;
     fromSeat: number;
-    meldType: Exclude<MeldType, "closed_kan">;
+    meldType: Exclude<MeldType, "added_kan" | "closed_kan">;
+    tileIds: number[];
+}
+
+/** A called pon raised to a kan by the fourth tile from the caller's hand, which the compact value names. */
+interface AddedKanMeld {
+    addedTileId: number;
+    calledTileId: number;
+    callerSeat: number;
+    fromSeat: number;
+    meldType: "added_kan";
     tileIds: number[];
 }
 
@@ -19,7 +29,7 @@ interface ClosedKanMeld {
     tileIds: number[];
 }
 
-export type DecodedMeld = ClaimedMeld | ClosedKanMeld;
+export type DecodedMeld = AddedKanMeld | CalledMeld | ClosedKanMeld;
 
 // IMME offset ranges
 const CHI_OFFSET = 0;
@@ -27,19 +37,13 @@ const CHI_COUNT = 4032; // 21 * 64 * 3
 const PON_OFFSET = CHI_OFFSET + CHI_COUNT; // 4032
 const PON_COUNT = 1224; // 34 * 4 * 3 * 3
 const SHOUMINKAN_OFFSET = PON_OFFSET + PON_COUNT; // 5256
-const SHOUMINKAN_COUNT = 408; // 34 * 4 * 3
-const DAIMINKAN_OFFSET = SHOUMINKAN_OFFSET + SHOUMINKAN_COUNT; // 5664
+const SHOUMINKAN_COUNT = 1224;
+const DAIMINKAN_OFFSET = SHOUMINKAN_OFFSET + SHOUMINKAN_COUNT;
 const DAIMINKAN_COUNT = 408; // 34 * 4 * 3
-const ANKAN_OFFSET = DAIMINKAN_OFFSET + DAIMINKAN_COUNT; // 6072
+const ANKAN_OFFSET = DAIMINKAN_OFFSET + DAIMINKAN_COUNT;
 const ANKAN_COUNT = 34;
 
-// Total: 6106 meld indices x 4 seats = 24424 values (fits in 15 bits)
-export const MAX_MELD_COMPACT = (ANKAN_OFFSET + ANKAN_COUNT) * 4 - 1; // 24423
-
-/** The seat that called a compact meld: its value modulo the four seats. */
-export function meldCompactCaller(value: number): number {
-    return value % 4;
-}
+export const MAX_MELD_COMPACT = (ANKAN_OFFSET + ANKAN_COUNT) * 4 - 1;
 
 const CHI_SEQS_PER_SUIT = 7;
 const MISSING_COPIES = 4;
@@ -107,11 +111,22 @@ function decodePon(ponIndex: number, callerSeat: number): DecodedMeld {
     };
 }
 
-function decodeOpenKan(
-    localIndex: number,
-    callerSeat: number,
-    meldType: "added_kan" | "open_kan",
-): DecodedMeld {
+/** An added kan: the pon it raises, encoded as a pon is, whose missing copy is the tile added from hand. */
+function decodeAddedKan(ponIndex: number, callerSeat: number): DecodedMeld {
+    const { calledPos, fromOffset, missingCopy, tile34 } = extractPonFields(ponIndex);
+    const tileIds = tileTypeCopies(tile34);
+
+    return {
+        addedTileId: tileIds[missingCopy],
+        calledTileId: copiesExcluding(tile34, missingCopy)[calledPos],
+        callerSeat,
+        fromSeat: (callerSeat + fromOffset + 1) % 4,
+        meldType: "added_kan",
+        tileIds,
+    };
+}
+
+function decodeOpenKan(localIndex: number, callerSeat: number): DecodedMeld {
     const fromOffset = localIndex % FROM_OFFSETS;
     const remainder = Math.trunc(localIndex / FROM_OFFSETS);
     const calledCopy = remainder % CALLED_COPIES;
@@ -121,7 +136,7 @@ function decodeOpenKan(
         calledTileId: tile34 * 4 + calledCopy,
         callerSeat,
         fromSeat: (callerSeat + fromOffset + 1) % 4,
-        meldType,
+        meldType: "open_kan",
         tileIds: tileTypeCopies(tile34),
     };
 }
@@ -142,8 +157,8 @@ type MeldDecoder = (localIndex: number, callerSeat: number) => DecodedMeld;
 const MELD_RANGES: [number, number, MeldDecoder][] = [
     [CHI_OFFSET, CHI_COUNT, decodeChi],
     [PON_OFFSET, PON_COUNT, decodePon],
-    [SHOUMINKAN_OFFSET, SHOUMINKAN_COUNT, (li, cs) => decodeOpenKan(li, cs, "added_kan")],
-    [DAIMINKAN_OFFSET, DAIMINKAN_COUNT, (li, cs) => decodeOpenKan(li, cs, "open_kan")],
+    [SHOUMINKAN_OFFSET, SHOUMINKAN_COUNT, decodeAddedKan],
+    [DAIMINKAN_OFFSET, DAIMINKAN_COUNT, decodeOpenKan],
     [ANKAN_OFFSET, ANKAN_COUNT, decodeAnkan],
 ];
 
@@ -152,7 +167,7 @@ export function decodeMeldCompact(value: number): DecodedMeld {
         throw new RangeError(`IMME value must be 0-${MAX_MELD_COMPACT}, got ${value}`);
     }
 
-    const callerSeat = meldCompactCaller(value);
+    const callerSeat = value % 4;
     const meldIndex = Math.trunc(value / 4);
 
     for (const [offset, count, decoder] of MELD_RANGES) {

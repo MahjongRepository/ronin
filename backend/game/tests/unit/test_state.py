@@ -1,6 +1,6 @@
 from mahjong.tile import TilesConverter
 
-from game.logic.enums import AbortiveDrawType, RoundResultType, WindName
+from game.logic.enums import AbortiveDrawType, HandLimit, RoundResultType, WindName
 from game.logic.mahjong_service import MahjongGameService
 from game.logic.state import (
     MahjongGameState,
@@ -93,6 +93,18 @@ class TestGetPlayerView:
         # round_wind=0 (int) should be converted to WindName.EAST
         assert view.round_wind == WindName.EAST
 
+    def test_get_player_view__when_south_second_dealer_deals__should_name_round_two_with_the_live_wall_left(self):
+        game_state = self._create_test_game_state()
+        south_2 = game_state.model_copy(
+            update={
+                "unique_dealers": 6,
+                "round_state": game_state.round_state.model_copy(update={"round_wind": 1, "dealer_seat": 1}),
+            }
+        )
+
+        view = get_player_view(south_2, seat=0)
+        assert (view.round_wind, view.round_in_wind, view.tiles_remaining) == (WindName.SOUTH, 2, 38)
+
     def test_get_player_view__when_different_seats__should_show_each_seats_own_tiles(self):
         game_state = self._create_test_game_state()
 
@@ -110,8 +122,11 @@ class TestFinishRound:
         game_state = MahjongGameService().start_game("game1", ["Alice"], seed="a" * 192).runtime.state
         winners = [
             DoubleRonWinner(
+                honba_bonus=0,
                 winner_seat=seat,
-                hand_result=HandResultInfo(han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000),
+                hand_result=HandResultInfo(
+                    limit=HandLimit.NONE, han=1, fu=30, yaku=[YakuInfo(yaku_id=0, han=1)], points=1000
+                ),
                 score_changes={2: -1000, seat: 1000},
                 riichi_sticks_collected=0,
                 closed_tiles=[],

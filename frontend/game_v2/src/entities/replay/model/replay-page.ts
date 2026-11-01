@@ -1,23 +1,28 @@
+import { type ReplayMoves, replayMoves } from "@/entities/replay/lib/replay-display";
+import {
+    type LoadedReplay,
+    type ReplayUnshowable,
+    readReplay,
+} from "@/entities/replay/model/read-replay";
+import {
+    type ReplayView,
+    parseReplayAddress,
+    resolveReplayAddress,
+} from "@/entities/replay/model/replay-address";
 import {
     type AutoplayState,
-    type LoadedReplay,
-    type ReplayCursor,
-    type ReplayMoves,
-    type ReplayPrefs,
-    type ReplayUnshowable,
-    type ReplayView,
-    type StepDirection,
     autoplayDelayMs,
     autoplayStep,
     isPauseStop,
-    parseReplayAddress,
-    readReplay,
-    replayMoves,
-    resolveReplayAddress,
-} from "@/entities/replay";
+} from "@/entities/replay/model/replay-autoplay";
+import { type ReplayCursor } from "@/entities/replay/model/replay-cursor";
+import { type ReplayPrefs } from "@/entities/replay/model/replay-prefs";
 import { SEAT_POSITIONS, type SeatPosition } from "@/entities/table";
 import { type ReplayFetch } from "@/shared/api";
 import { type WheelGesture, assertNever, wheelStep } from "@/shared/lib";
+
+/** The way a step button steps, which a pointer may hold to repeat. */
+export type StepDirection = "next" | "prev";
 
 /** A held step button steps from its press, again after this delay, then every `HOLD_REPEAT_MS`. */
 export const HOLD_DELAY_MS = 350;
@@ -44,7 +49,7 @@ export interface ReplayHold {
     readonly repeatAt: number | null;
 }
 
-export interface LoadedScreen {
+export interface LoadedReplayScreen {
     readonly kind: "loaded";
     readonly replay: LoadedReplay;
     readonly view: ReplayView;
@@ -63,7 +68,7 @@ export interface LoadedScreen {
 export type ReplayScreen =
     | { readonly kind: "loading"; readonly waiting: boolean }
     | { readonly kind: "failed"; readonly failure: ReplayFailure }
-    | LoadedScreen;
+    | LoadedReplayScreen;
 
 /** The switches among the key commands, which act once per press however long the key is held. */
 type ReplayToggle = "play" | "view" | "hands";
@@ -159,7 +164,7 @@ export interface ReplayPageStep {
 }
 
 interface LoadedStep extends ReplayPageStep {
-    readonly screen: LoadedScreen;
+    readonly screen: LoadedReplayScreen;
 }
 
 const WRITE_ADDRESS: ReplayPageEffect = { kind: "write_address" };
@@ -179,7 +184,7 @@ function isToggle(command: ReplayKeyCommand): command is ReplayToggle {
 }
 
 /** Where one step toward `direction` goes from the cursor shown; null where it cannot go on. */
-function stepTarget(screen: LoadedScreen, direction: StepDirection): ReplayCursor | null {
+function stepTarget(screen: LoadedReplayScreen, direction: StepDirection): ReplayCursor | null {
     return replayMoves(screen.replay.navigation, screen.view.cursor)[direction];
 }
 
@@ -189,7 +194,7 @@ export function canStep(screen: ReplayScreen, direction: StepDirection): boolean
 }
 
 /** Whether the cursor shown is where a continuous move pauses: a result's page or the last stop. */
-function atPauseStop(screen: LoadedScreen): boolean {
+function atPauseStop(screen: LoadedReplayScreen): boolean {
     return isPauseStop(screen.replay.navigation, screen.view.cursor);
 }
 
@@ -207,40 +212,40 @@ export function replayPageDeadline(screen: ReplayScreen): number | null {
     return dues.length === 0 ? null : Math.min(...dues);
 }
 
-function withCursor(screen: LoadedScreen, cursor: ReplayCursor): LoadedScreen {
+function withCursor(screen: LoadedReplayScreen, cursor: ReplayCursor): LoadedReplayScreen {
     return { ...screen, view: { ...screen.view, cursor } };
 }
 
-function withoutPressedStep(screen: LoadedScreen): LoadedScreen {
+function withoutPressedStep(screen: LoadedReplayScreen): LoadedReplayScreen {
     return screen.pressedStep === null ? screen : { ...screen, pressedStep: null };
 }
 
 /** Autoplay playing, its next move armed from `at` at the pace of the stop shown, the seating closed. */
-function armed(screen: LoadedScreen, at: number): LoadedScreen {
+function armed(screen: LoadedReplayScreen, at: number): LoadedReplayScreen {
     const { autoplay, replay, view } = screen;
     const dueAt = at + autoplayDelayMs(replay, view.cursor);
     return { ...screen, autoplay: { ...autoplay, dueAt, playing: true }, seating: false };
 }
 
-function paused(screen: LoadedScreen): LoadedScreen {
+function paused(screen: LoadedReplayScreen): LoadedReplayScreen {
     return screen.autoplay.playing
         ? { ...screen, autoplay: { ...screen.autoplay, dueAt: null, playing: false } }
         : screen;
 }
 
-function unheld(screen: LoadedScreen): LoadedScreen {
+function unheld(screen: LoadedReplayScreen): LoadedReplayScreen {
     return screen.hold === null ? screen : { ...screen, hold: null };
 }
 
 /** A move the reader asked for, which stops autoplay and a held step button and closes the seating. */
-function moveTo(screen: LoadedScreen, cursor: ReplayCursor): LoadedStep {
+function moveTo(screen: LoadedReplayScreen, cursor: ReplayCursor): LoadedStep {
     return {
         effects: [WRITE_ADDRESS],
         screen: { ...withCursor(paused(unheld(screen)), cursor), seating: false },
     };
 }
 
-function savingPrefs(screen: LoadedScreen): LoadedStep {
+function savingPrefs(screen: LoadedReplayScreen): LoadedStep {
     const prefs = { hideHands: screen.hideHands };
     return { effects: [{ kind: "save_prefs", prefs }], screen };
 }
@@ -256,7 +261,7 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         cursor: replay.opening,
         seatCount: replay.seatCount,
     });
-    const screen: LoadedScreen = {
+    const screen: LoadedReplayScreen = {
         autoplay: { dueAt: null, playing: false },
         hideHands: opening.prefs.hideHands,
         hold: null,
@@ -293,7 +298,7 @@ function onFetched(fetched: ReplayFetch, opening: ReplayOpening, at: number): Re
 }
 
 /** Autoplay's switch: it plays only where a next step exists, and playing ends a hold. */
-function togglePlay(screen: LoadedScreen, at: number): LoadedStep {
+function togglePlay(screen: LoadedReplayScreen, at: number): LoadedStep {
     if (screen.autoplay.playing || stepTarget(screen, "next") === null) {
         return quiet(paused(screen));
     }
@@ -304,7 +309,7 @@ function togglePlay(screen: LoadedScreen, at: number): LoadedStep {
  * The seat `turns` seats on from the bottom's taken to the bottom, where the cursor and the result's page stay; the
  * bottom's own (no turn) changes nothing.
  */
-function switchView(screen: LoadedScreen, turns: number): LoadedStep {
+function switchView(screen: LoadedReplayScreen, turns: number): LoadedStep {
     if (turns % screen.replay.seatCount === 0) {
         return quiet(screen);
     }
@@ -315,11 +320,11 @@ function switchView(screen: LoadedScreen, turns: number): LoadedStep {
     };
 }
 
-function toggleHands(screen: LoadedScreen): LoadedStep {
+function toggleHands(screen: LoadedReplayScreen): LoadedStep {
     return savingPrefs({ ...screen, hideHands: !screen.hideHands });
 }
 
-function runToggle(screen: LoadedScreen, toggle: ReplayToggle, at: number): LoadedStep {
+function runToggle(screen: LoadedReplayScreen, toggle: ReplayToggle, at: number): LoadedStep {
     switch (toggle) {
         case "play": {
             return togglePlay(screen, at);
@@ -337,7 +342,7 @@ function runToggle(screen: LoadedScreen, toggle: ReplayToggle, at: number): Load
 }
 
 /** A key the page takes: a switch acts once per press; a held move's repeats pause where a result shows. */
-function onKey(screen: LoadedScreen, { at, command, repeat }: Timed<KeyInput>): LoadedStep {
+function onKey(screen: LoadedReplayScreen, { at, command, repeat }: Timed<KeyInput>): LoadedStep {
     const cleared = withoutPressedStep(screen);
     if (command === null) {
         return quiet(cleared);
@@ -353,7 +358,7 @@ function onKey(screen: LoadedScreen, { at, command, repeat }: Timed<KeyInput>): 
 }
 
 /** A step button's click: a keyboard's or an assistive technology's steps, the one ending a press is dropped. */
-function onStepClick(screen: LoadedScreen, direction: StepDirection): LoadedStep {
+function onStepClick(screen: LoadedReplayScreen, direction: StepDirection): LoadedStep {
     const cleared = withoutPressedStep(screen);
     const target = screen.pressedStep === direction ? null : stepTarget(cleared, direction);
     return target === null ? quiet(cleared) : moveTo(cleared, target);
@@ -361,7 +366,7 @@ function onStepClick(screen: LoadedScreen, direction: StepDirection): LoadedStep
 
 /** A primary pointer's press of a step button: one step at once, then the hold repeating it after a delay. */
 function onStepPress(
-    screen: LoadedScreen,
+    screen: LoadedReplayScreen,
     { at, direction, primary }: Timed<PressInput>,
 ): LoadedStep {
     const cleared = withoutPressedStep(screen);
@@ -381,7 +386,7 @@ function onStepPress(
 }
 
 /** The hold following its pointer: the repeat waits while it is off the button and goes on when it is back. */
-function onHoldPointer(screen: LoadedScreen, over: boolean, at: number): LoadedStep {
+function onHoldPointer(screen: LoadedReplayScreen, over: boolean, at: number): LoadedStep {
     const { hold } = screen;
     if (hold === null || (hold.repeatAt !== null) === over) {
         return quiet(screen);
@@ -390,7 +395,7 @@ function onHoldPointer(screen: LoadedScreen, over: boolean, at: number): LoadedS
 }
 
 /** The hold's press ended, or was cancelled, after which no click follows it. */
-function onHoldEnd(screen: LoadedScreen, cancelled: boolean): LoadedStep {
+function onHoldEnd(screen: LoadedReplayScreen, cancelled: boolean): LoadedStep {
     if (screen.hold === null) {
         return quiet(screen);
     }
@@ -401,7 +406,7 @@ function onHoldEnd(screen: LoadedScreen, cancelled: boolean): LoadedStep {
  * A wheel turned toward a step that goes somewhere: a gesture steps once it has run far enough, then on a beat, and
  * once it reaches a result or the end it steps no more until it rests or turns back.
  */
-function onWheel(screen: LoadedScreen, deltaPx: number, at: number): LoadedStep {
+function onWheel(screen: LoadedReplayScreen, deltaPx: number, at: number): LoadedStep {
     const target = stepTarget(screen, deltaPx > 0 ? "next" : "prev");
     if (target === null) {
         return quiet(screen);
@@ -417,7 +422,7 @@ function onWheel(screen: LoadedScreen, deltaPx: number, at: number): LoadedStep 
     };
 }
 
-function autoplayTick(screen: LoadedScreen, at: number): LoadedStep {
+function autoplayTick(screen: LoadedReplayScreen, at: number): LoadedStep {
     const step = autoplayStep(screen.replay.navigation, screen.view.cursor);
     if (step === null) {
         return quiet(paused(screen));
@@ -426,7 +431,7 @@ function autoplayTick(screen: LoadedScreen, at: number): LoadedStep {
     return { effects: [WRITE_ADDRESS], screen: step.pause ? paused(moved) : armed(moved, at) };
 }
 
-function holdTick(screen: LoadedScreen, hold: ReplayHold, at: number): LoadedStep {
+function holdTick(screen: LoadedReplayScreen, hold: ReplayHold, at: number): LoadedStep {
     const target = atPauseStop(screen) ? null : stepTarget(screen, hold.direction);
     if (target === null) {
         return quiet(unheld(screen));
@@ -438,7 +443,7 @@ function holdTick(screen: LoadedScreen, hold: ReplayHold, at: number): LoadedSte
 }
 
 /** A tick moves autoplay or repeats a held button once its time has come; one before both does nothing. */
-function onTick(screen: LoadedScreen, at: number): LoadedStep {
+function onTick(screen: LoadedReplayScreen, at: number): LoadedStep {
     const { autoplay, hold } = screen;
     if (autoplay.dueAt !== null && autoplay.dueAt <= at) {
         return autoplayTick(screen, at);
@@ -449,13 +454,13 @@ function onTick(screen: LoadedScreen, at: number): LoadedStep {
     return quiet(screen);
 }
 
-function closeRoundList(screen: LoadedScreen): LoadedStep {
+function closeRoundList(screen: LoadedReplayScreen): LoadedStep {
     const closed = screen.roundListOpen ? { ...screen, roundListOpen: false } : screen;
     return { effects: [focusOn("round_list_toggle")], screen: closed };
 }
 
 /** The round list opened with the focus on the current round's row, or closed with it back on the toggle. */
-function toggleRoundList(screen: LoadedScreen): LoadedStep {
+function toggleRoundList(screen: LoadedReplayScreen): LoadedStep {
     if (screen.roundListOpen) {
         return closeRoundList(screen);
     }
@@ -463,20 +468,20 @@ function toggleRoundList(screen: LoadedScreen): LoadedStep {
 }
 
 /** A round chosen from the list: the move, then the list closed with the focus back on its toggle. */
-function selectRound(screen: LoadedScreen, cursor: ReplayCursor): LoadedStep {
+function selectRound(screen: LoadedReplayScreen, cursor: ReplayCursor): LoadedStep {
     const moved = moveTo(screen, cursor);
     const closed = closeRoundList(moved.screen);
     return { effects: [...moved.effects, ...closed.effects], screen: closed.screen };
 }
 
 /** The seating's start: the board shown, the focus on the root, where the keys step on from it. */
-function start(screen: LoadedScreen): LoadedStep {
+function start(screen: LoadedReplayScreen): LoadedStep {
     return screen.seating
         ? { effects: [focusOn("root")], screen: { ...screen, seating: false } }
         : quiet(screen);
 }
 
-function stepInput(screen: LoadedScreen, event: Timed<StepInput>): LoadedStep {
+function stepInput(screen: LoadedReplayScreen, event: Timed<StepInput>): LoadedStep {
     switch (event.kind) {
         case "step_click": {
             return onStepClick(screen, event.direction);
@@ -502,7 +507,7 @@ function stepInput(screen: LoadedScreen, event: Timed<StepInput>): LoadedStep {
     }
 }
 
-function stepMove(screen: LoadedScreen, event: Timed<MoveInput>): LoadedStep {
+function stepMove(screen: LoadedReplayScreen, event: Timed<MoveInput>): LoadedStep {
     switch (event.kind) {
         case "move": {
             return moveTo(screen, event.cursor);
@@ -522,7 +527,7 @@ function stepMove(screen: LoadedScreen, event: Timed<MoveInput>): LoadedStep {
     }
 }
 
-function stepRoundList(screen: LoadedScreen, event: Timed<RoundListInput>): LoadedStep {
+function stepRoundList(screen: LoadedReplayScreen, event: Timed<RoundListInput>): LoadedStep {
     switch (event.kind) {
         case "toggle_round_list": {
             return toggleRoundList(screen);
@@ -539,7 +544,7 @@ function stepRoundList(screen: LoadedScreen, event: Timed<RoundListInput>): Load
     }
 }
 
-function stepOption(screen: LoadedScreen, event: Timed<OptionInput>): LoadedStep {
+function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): LoadedStep {
     switch (event.kind) {
         case "start": {
             return start(screen);
@@ -562,7 +567,7 @@ function stepOption(screen: LoadedScreen, event: Timed<OptionInput>): LoadedStep
     }
 }
 
-function stepLoaded(screen: LoadedScreen, event: Timed<LoadedInput>): LoadedStep {
+function stepLoaded(screen: LoadedReplayScreen, event: Timed<LoadedInput>): LoadedStep {
     switch (event.kind) {
         case "step_click":
         case "step_press":

@@ -21,6 +21,8 @@ class MeldData(TypedDict):
         called_tile_id: The specific tile claimed from the opponent's discard.
             ``None`` for closed kan. For added kan this is the original pon's
             called tile, not the added 4th tile.
+        added_tile_id: For added kan, the 4th tile added from hand to the pon;
+            ``None`` for every other meld type.
     """
 
     type: Literal["meld"]
@@ -29,6 +31,7 @@ class MeldData(TypedDict):
     from_seat: int | None
     tile_ids: list[int]
     called_tile_id: int | None
+    added_tile_id: int | None
 
 
 # ---------------------------------------------------------------------------
@@ -40,10 +43,10 @@ CHI_COUNT = 4032  # 21 * 64 * 3
 PON_OFFSET = CHI_OFFSET + CHI_COUNT  # 4032
 PON_COUNT = 1224  # 34 * 4 * 3 * 3
 SHOUMINKAN_OFFSET = PON_OFFSET + PON_COUNT  # 5256
-SHOUMINKAN_COUNT = 408  # 34 * 4 * 3
-DAIMINKAN_OFFSET = SHOUMINKAN_OFFSET + SHOUMINKAN_COUNT  # 5664
+SHOUMINKAN_COUNT = 1224
+DAIMINKAN_OFFSET = SHOUMINKAN_OFFSET + SHOUMINKAN_COUNT
 DAIMINKAN_COUNT = 408  # 34 * 4 * 3
-ANKAN_OFFSET = DAIMINKAN_OFFSET + DAIMINKAN_COUNT  # 6072
+ANKAN_OFFSET = DAIMINKAN_OFFSET + DAIMINKAN_COUNT
 ANKAN_COUNT = 34
 
 EVENT_TYPE_MELD = 0
@@ -241,6 +244,7 @@ def _decode_chi(meld_index: int, caller_seat: int) -> MeldData:
         from_seat=(caller_seat + 3) % 4,
         tile_ids=tile_ids,
         called_tile_id=tile_ids[called_pos],
+        added_tile_id=None,
     )
 
 
@@ -249,28 +253,32 @@ def _decode_chi(meld_index: int, caller_seat: int) -> MeldData:
 
 def _encode_pon(meld: MeldData) -> int:
     tile_ids = sorted(meld["tile_ids"])
+    used_copies = {tid % 4 for tid in tile_ids}
+    missing_copy = ({0, 1, 2, 3} - used_copies).pop()
+    meld_index = PON_OFFSET + _pon_index(meld, tile_ids, missing_copy)
+    return meld_index * 4 + meld["caller_seat"]
+
+
+def _pon_index(meld: MeldData, pon_tile_ids: list[int], missing_copy: int) -> int:
+    """
+    Index a pon of the sorted pon_tile_ids, its missing_copy the copy it lacks, within its type's range.
+    """
     caller_seat = meld["caller_seat"]
     called_tile_id = meld["called_tile_id"]
     from_seat = meld["from_seat"]
     if called_tile_id is None:
-        msg = "Pon meld requires called_tile_id"
+        msg = f"{meld['meld_type']} meld requires called_tile_id"
         raise ValueError(msg)
 
     if from_seat is None:
-        msg = "Pon meld requires from_seat"
+        msg = f"{meld['meld_type']} meld requires from_seat"
         raise ValueError(msg)
 
-    tile_34 = tile_ids[0] // 4
-    used_copies = {tid % 4 for tid in tile_ids}
-    missing_copy = ({0, 1, 2, 3} - used_copies).pop()
-    called_pos = tile_ids.index(called_tile_id)
+    tile_34 = pon_tile_ids[0] // 4
+    called_pos = pon_tile_ids.index(called_tile_id)
     from_offset = _validate_from_offset(from_seat, caller_seat)
 
-    pon_index = (
-        (tile_34 * _MISSING_COPIES + missing_copy) * _CALLED_POSITIONS + called_pos
-    ) * _FROM_OFFSETS + from_offset
-    meld_index = PON_OFFSET + pon_index
-    return meld_index * 4 + caller_seat
+    return ((tile_34 * _MISSING_COPIES + missing_copy) * _CALLED_POSITIONS + called_pos) * _FROM_OFFSETS + from_offset
 
 
 def _decode_pon(pon_index: int, caller_seat: int) -> MeldData:
@@ -289,13 +297,41 @@ def _decode_pon(pon_index: int, caller_seat: int) -> MeldData:
         from_seat=(caller_seat + from_offset + 1) % 4,
         tile_ids=tile_ids,
         called_tile_id=tile_ids[called_pos],
+        added_tile_id=None,
     )
 
 
-# --- Shouminkan / Daiminkan (open kan) ---
+def _encode_shouminkan(meld: MeldData) -> int:
+    added_tile_id = meld["added_tile_id"]
+    if added_tile_id is None:
+        msg = "added_kan meld requires added_tile_id"
+        raise ValueError(msg)
+
+    if added_tile_id not in meld["tile_ids"] or added_tile_id == meld["called_tile_id"]:
+        msg = f"added_tile_id {added_tile_id} must be one of the kan's tiles other than its called tile"
+        raise ValueError(msg)
+
+    pon_tile_ids = sorted(tid for tid in meld["tile_ids"] if tid != added_tile_id)
+    meld_index = SHOUMINKAN_OFFSET + _pon_index(meld, pon_tile_ids, added_tile_id % 4)
+    return meld_index * 4 + meld["caller_seat"]
 
 
-def _encode_open_kan(meld: MeldData, type_offset: int) -> int:
+def _decode_shouminkan(local_index: int, caller_seat: int) -> MeldData:
+    pon = _decode_pon(local_index, caller_seat)
+    tile_34 = pon["tile_ids"][0] // 4
+    (added_tile_id,) = {tile_34 * 4 + c for c in range(4)} - set(pon["tile_ids"])
+    return MeldData(
+        type="meld",
+        meld_type="added_kan",
+        caller_seat=caller_seat,
+        from_seat=pon["from_seat"],
+        tile_ids=sorted([*pon["tile_ids"], added_tile_id]),
+        called_tile_id=pon["called_tile_id"],
+        added_tile_id=added_tile_id,
+    )
+
+
+def _encode_daiminkan(meld: MeldData) -> int:
     caller_seat = meld["caller_seat"]
     called_tile_id = meld["called_tile_id"]
     from_seat = meld["from_seat"]
@@ -312,11 +348,11 @@ def _encode_open_kan(meld: MeldData, type_offset: int) -> int:
     from_offset = _validate_from_offset(from_seat, caller_seat)
 
     local_index = (tile_34 * _CALLED_COPIES + called_copy) * _FROM_OFFSETS + from_offset
-    meld_index = type_offset + local_index
+    meld_index = DAIMINKAN_OFFSET + local_index
     return meld_index * 4 + caller_seat
 
 
-def _decode_open_kan(local_index: int, caller_seat: int, meld_type: MeldType) -> MeldData:
+def _decode_daiminkan(local_index: int, caller_seat: int) -> MeldData:
     from_offset = local_index % _FROM_OFFSETS
     remainder = local_index // _FROM_OFFSETS
     called_copy = remainder % _CALLED_COPIES
@@ -324,28 +360,13 @@ def _decode_open_kan(local_index: int, caller_seat: int, meld_type: MeldType) ->
 
     return MeldData(
         type="meld",
-        meld_type=meld_type,
+        meld_type="open_kan",
         caller_seat=caller_seat,
         from_seat=(caller_seat + from_offset + 1) % 4,
         tile_ids=[tile_34 * 4 + c for c in range(4)],
         called_tile_id=tile_34 * 4 + called_copy,
+        added_tile_id=None,
     )
-
-
-def _encode_shouminkan(meld: MeldData) -> int:
-    return _encode_open_kan(meld, SHOUMINKAN_OFFSET)
-
-
-def _decode_shouminkan(local_index: int, caller_seat: int) -> MeldData:
-    return _decode_open_kan(local_index=local_index, caller_seat=caller_seat, meld_type="added_kan")
-
-
-def _encode_daiminkan(meld: MeldData) -> int:
-    return _encode_open_kan(meld, DAIMINKAN_OFFSET)
-
-
-def _decode_daiminkan(local_index: int, caller_seat: int) -> MeldData:
-    return _decode_open_kan(local_index=local_index, caller_seat=caller_seat, meld_type="open_kan")
 
 
 # --- Ankan (closed kan) ---
@@ -367,6 +388,7 @@ def _decode_ankan(local_index: int, caller_seat: int) -> MeldData:
         from_seat=None,
         tile_ids=[tile_34 * 4 + c for c in range(4)],
         called_tile_id=None,
+        added_tile_id=None,
     )
 
 

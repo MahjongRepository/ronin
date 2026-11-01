@@ -379,6 +379,7 @@ describe("stepGameClient - play switches", () => {
                     bk: 30,
                     d: seat * NUM_TILES + drawnTile,
                     t: EVENT_TYPE.DRAW,
+                    tr: 69,
                     wi: 999,
                 },
             });

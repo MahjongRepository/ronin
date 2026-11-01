@@ -2,7 +2,7 @@ import { render } from "lit-html";
 import { assert, describe, expect, test, vi } from "vitest";
 
 import { loadEngineReplay } from "#tests/fixtures/replays";
-import { type TableState, boardOverlay } from "@/entities/table";
+import { TablePanelDisplay, type TableState, tablePanel } from "@/entities/table";
 
 function lastRoundEndTable(name: string): TableState {
     const table = loadEngineReplay(name).tables.findLast(
@@ -13,10 +13,16 @@ function lastRoundEndTable(name: string): TableState {
 }
 
 function renderResult(table: TableState, page = 0, onPage?: (page: number) => void): HTMLElement {
-    const template = boardOverlay(table, { paging: { onPage, page } });
-    assert(template !== undefined);
+    const panel = tablePanel(table, {
+        callouts: null,
+        firstDealSeconds: null,
+        overGameEnd: false,
+        page,
+        viewerSeat: null,
+    });
+    assert(panel !== null);
     const el = document.createElement("div");
-    render(template, el);
+    render(TablePanelDisplay(panel, { onPage }), el);
     return el;
 }
 
@@ -67,14 +73,9 @@ describe("RoundEndDisplay", () => {
         expect(single.querySelector(".round-end-result__pager")).toBeNull();
     });
 
-    test("a draw: each tenpai hand under its player's name, each seat's tag beside its payment, and out of step only the dealer doubted", () => {
+    test("a draw: each tenpai hand under its player's name, each seat's tag beside its payment", () => {
         const table = lastRoundEndTable("exhaustive_tenpai");
         const el = renderResult(table);
-        assert(table.roundEndResult !== null);
-        const outOfStep = renderResult({
-            ...table,
-            roundEndResult: { ...table.roundEndResult, inStep: false },
-        });
 
         expect(texts(el, ".round-end-result__tenpai-hand .round-end-result__label")).toEqual([
             "Alice",
@@ -86,26 +87,23 @@ describe("RoundEndDisplay", () => {
             "West Charlie Tenpai +1,500 26,500",
             "North Bob Noten −1,500 23,500",
         ]);
-        expect(el.querySelector(".round-end-result__uncertain")).toBeNull();
-        expect(texts(outOfStep, ".round-end-result__uncertain")).toEqual([
-            "This page lost step with the server: the dealer shown may be wrong. The hand and the scores are the server's.",
-        ]);
     });
 
     test("a nagashi mangan: its maker's river under their name, the riichi discard sideways as in the river", () => {
         const table = lastRoundEndTable("nagashi");
-        const declaredOn9p = table.players.map((player) =>
-            player.seat === 1
-                ? {
-                      ...player,
-                      discards: player.discards.map((discard) => ({
-                          ...discard,
-                          isRiichi: discard.tileId === 68,
-                      })),
-                  }
-                : player,
-        );
-        const el = renderResult({ ...table, players: declaredOn9p });
+        const result = table.roundEndResult;
+        assert(result !== null && result.draw !== null);
+        const declaredOn9p = {
+            ...result.draw,
+            nagashiRivers: result.draw.nagashiRivers.map((river) => ({
+                ...river,
+                discards: river.discards.map((discard) => ({
+                    ...discard,
+                    isRiichi: discard.tileId === 68,
+                })),
+            })),
+        };
+        const el = renderResult({ ...table, roundEndResult: { ...result, draw: declaredOn9p } });
         const sideways = [
             ...el.querySelectorAll(".round-end-result__river-tiles .discard-tile-riichi svg"),
         ].map((face) => face.getAttribute("aria-label"));

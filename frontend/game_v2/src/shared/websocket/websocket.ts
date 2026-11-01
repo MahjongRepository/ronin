@@ -60,8 +60,9 @@ function decodeFrame(data: unknown): DecodedFrame {
 /**
  * The game server socket as an IO adapter: it decodes MessagePack frames and reports open, message, close and
  * error to its handlers, and decides nothing. A server silent longer than the limit the client sets (any legitimate
- * wait, by its policy) is reported as a close, measured on the clock's wall time so the first check after a device
- * wake sees the whole gap.
+ * wait, by its policy) is reported as a close, measured on the steady clock, so the first check after a device wake
+ * sees the whole gap and a wall clock set back hides no silence; a wall stepped forward (unless undoing a recent back
+ * step) looks like a sleep, so a healthy socket is then reported silent and reconnected.
  */
 export class GameSocket implements GameConnection {
     private readonly ws: WebSocket;

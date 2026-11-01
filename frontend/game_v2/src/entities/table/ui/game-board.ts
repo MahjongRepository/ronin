@@ -45,15 +45,16 @@ interface GameBoardProps {
     readonly callouts?: BoardCallouts | null;
     /** Each new showing of calls is read out once, by its seats' names (a live board's). */
     readonly announceCalls?: boolean;
-    /** The overlay's panel is a round's result, which waits until a win's call has been seen; any other shows at once. */
-    readonly overlayIsResult?: boolean;
+    /** The overlay's panel waits until the win's call shown with it has been seen (a round's result); else it shows at once. */
+    readonly overlayAfterCall?: boolean;
     /** The bottom seat is furiten: its mark shows in the slot by the hand that a played board keeps for it. */
     readonly furiten?: boolean;
     /** The play switches, in their slot on the foreground band's side away from the decisions. */
     readonly switches?: TemplateResult;
     /**
-     * A replay's controls, over the foreground band in the switches' and the decisions' places (a board that shows
-     * them plays no hand), and what it shows in the notices' place under any notice (its position).
+     * A replay's controls, over the foreground band in the decisions' place, and in the switches' where the band shares
+     * the core's corners (a board that shows them plays no hand), and what it shows in the notices' place under any
+     * notice (its position).
      */
     readonly replay?: { readonly controls: TemplateResult; readonly status: TemplateResult };
     /**
@@ -465,11 +466,6 @@ function FuritenSlot(furiten: boolean): TemplateResult {
     >`;
 }
 
-/** Whether the calls shown are a win's (ron, tsumo), whose result panel waits until they have been seen. */
-function callsAWin(callouts: BoardCallouts | null | undefined): boolean {
-    return callouts?.items.some((item) => item.kind === "ron" || item.kind === "tsumo") ?? false;
-}
-
 function EmptyCenterArea(): TemplateResult {
     return html`
         <div class="board-area board-center" data-area="center"></div>
@@ -544,8 +540,8 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             ${props.announceCalls === true ? CalloutAnnouncements(props.callouts, state) : ""}
             ${
                 props.overlay
-                    ? html`<div class="board-overlay ${props.overlayIsResult === true && callsAWin(props.callouts) ? "board-overlay--after-call" : ""}">
-                      <div class="board-overlay__panel">${props.overlay}</div>
+                    ? html`<div class="board-overlay ${props.overlayAfterCall === true ? "board-overlay--after-call" : ""}">
+                      <div class="board-overlay__panel" data-board-panel>${props.overlay}</div>
                   </div>`
                     : ""
             }

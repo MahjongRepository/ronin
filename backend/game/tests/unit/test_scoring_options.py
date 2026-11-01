@@ -1,5 +1,7 @@
+import pytest
 from mahjong.tile import TilesConverter
 
+from game.logic.enums import HandLimit
 from game.logic.meld_wrapper import FrozenMeld
 from game.logic.scoring import ScoringContext, calculate_hand_value
 from game.logic.settings import GameSettings
@@ -255,6 +257,20 @@ class TestKiriageMangan:
         assert result.fu == 30
         # Kiriage: 4/30 -> mangan (8000 for non-dealer ron)
         assert result.cost_main == 8000
+        assert result.limit == HandLimit.MANGAN
+
+    @pytest.mark.parametrize("has_kiriage_mangan", [True, False])
+    def test_calculate_hand_value__when_4_han_40_fu__should_report_mangan_limit(self, has_kiriage_mangan):
+        final_tiles = tuple(TilesConverter.string_to_136_array(man="123567789", honors="22555"))
+        win_tile = final_tiles[8]
+        round_state = _make_round_state(dora_indicators=TilesConverter.string_to_136_array(pin="9"))
+        round_state = update_player(round_state, 1, tiles=final_tiles)
+        settings = GameSettings(has_kiriage_mangan=has_kiriage_mangan, has_akadora=False, has_uradora=False)
+        ctx = ScoringContext(player=round_state.players[1], round_state=round_state, settings=settings, is_tsumo=False)
+
+        result = calculate_hand_value(ctx, win_tile)
+        assert (result.han, result.fu, result.cost_main) == (4, 40, 8000)
+        assert result.limit == HandLimit.MANGAN
 
     def test_calculate_hand_value__when_kiriage_disabled_and_4_han_30_fu__should_score_7700(self):
         tiles = TilesConverter.string_to_136_array(man="223344", pin="567", sou="234")
