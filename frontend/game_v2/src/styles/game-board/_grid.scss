@@ -19,10 +19,9 @@ $lengths:
     decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start, right-base,
     right-centred, height-room;
 
-/* Upright, the counters stand this far under the top strip and the left strip this far under them. */
+/* Upright, the counters stand this far under the top strip and the left strip this far under them (mirrors
+   `board-geometry.ts`'s `UPRIGHT_COUNTERS_GAP`). */
 $upright-counters-gap: 6px;
-$upright-counters-h: 52px;
-$upright-centre-min: 100px;
 
 @each $name in $lengths {
     @property --#{$name} {
@@ -125,12 +124,10 @@ $upright-centre-min: 100px;
         (var(--height-room) - var(--spare) * var(--m)) / var(--rows-at-margin),
         var(--height-room) / var(--rows-at-edge)
     );
-    --rw-by-centre: 9999px;
     --rw: round(
         down,
         min(
             var(--rw-by-own),
-            var(--rw-by-centre),
             var(--rw-by-height),
             var(--rw-by-band),
             var(--rw-by-cap),
@@ -160,8 +157,6 @@ $upright-centre-min: 100px;
     );
     --hx: calc(var(--w) / 2);
     --core-top-slot: calc(var(--m) + var(--rh) + var(--sep));
-    --core-top-free: calc((var(--core-room-h) - var(--rh) - var(--core)) / 2);
-    --core-top-band: calc(var(--hand-top) - var(--band-reserve) - var(--core));
     --cx: calc(100cqw / 2);
     --cy: calc(var(--core-top) + var(--core) / 2);
 
@@ -449,16 +444,13 @@ $upright-centre-min: 100px;
         --side-step: min(var(--stepped-top), var(--side-step-room) * 100000);
     }
 
-    /* Upright, the core stands below the counters, and above two rows of decisions and the notices' place over them,
-       which the left field is too narrow to hold; the own row centres its hand in the width its own tile leaves. */
+    /* Upright, the own row centres its hand in the width its own tile leaves. */
     @include upright-board {
-        --own-inline: 96px;
         --own-start: calc((100cqw - var(--full-hand-w)) / 2);
         --own-hand-right: calc(var(--own-start) + var(--full-hand-w));
         --row-bottom: var(--band-bottom);
         --left-room-end: var(--band-top);
         --left-line2-end: min(var(--foreground-top), var(--hand-top) - var(--own-rise) - 4px);
-        --m: 4px;
         --counters-top: calc(var(--m) + var(--strip-depth) + #{$upright-counters-gap});
         --top-room-left: var(--m);
         --top-badge-top: var(--counters-top);
@@ -481,43 +473,6 @@ $upright-centre-min: 100px;
             var(--side-card-w),
             var(--cx) - var(--hx) - var(--river-clear) - var(--left-badge-x)
         );
-        --under-strip: calc(var(--m) + #{$upright-counters-gap + $upright-counters-h});
-        --core-floor: calc(var(--under-strip) + var(--strip-depth));
-        --notices-bottom: calc(var(--hand-top) - var(--own-rise) - 2 * var(--control-h) - 16px);
-        --band-reserve: calc(
-            var(--hand-top) - var(--notices-bottom) + #{$upright-notice-room} + 6px
-        );
-        --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--under-strip));
-
-        /* `--core-room-band` solved for the tile, as the desktop's band is. */
-        --upright-notices: calc(2 * var(--control-h) + 24px + #{$upright-notice-room});
-        --upright-fixed: calc(var(--own-badge-h) + var(--upright-notices) + var(--under-strip));
-        --upright-tiles: calc(
-            #{$core-tiles} + var(--spare) * (2 + var(--own-row) + var(--band-tile-share))
-        );
-        --upright-edge-tiles: calc(var(--upright-tiles) + var(--spare) * var(--own-edge));
-        --rw-by-band: min(
-            var(--spare) * (100cqh - var(--m) - var(--upright-fixed)) / var(--upright-tiles),
-            var(--spare) * (100cqh - var(--upright-fixed)) / var(--upright-edge-tiles)
-        );
-        --core: min(
-            var(--core-room-h) - var(--rh),
-            var(--core-room-band) - var(--strip-depth),
-            var(--core-cap),
-            var(--core-room-w) - #{$side-reach-tiles} * var(--rw)
-        );
-        --core-top: max(
-            var(--core-floor),
-            min(var(--core-top-slot) + var(--core-top-free), var(--core-top-band))
-        );
-        --control-h: 40px;
-
-        /* A narrow upright board's centre keeps the room its text needs, as a phone's share gives it. */
-        --rw-by-centre: calc(
-            (var(--core-room-w) - #{$upright-centre-min}) / (#{$core-tiles} + #{$side-reach-tiles})
-        );
-        --band-gap: 8px;
-        --own-cap: 10cqh;
         --top-strip-x: max(
             var(--top-room-left) + var(--full-reach),
             var(--cx) + var(--full-reach) / 2
@@ -570,6 +525,41 @@ $upright-centre-min: 100px;
     --band-gap: var(--geo-band-gap);
     --own-badge-h: var(--geo-own-badge-h);
     --switch-gap: var(--geo-switch-gap);
+    --own-inline: var(--geo-own-inline);
+}
+
+.game-board:where([data-board-family="upright"]) > :is(.board-layout, .board-overlay) {
+    --rw: var(--geo-rw);
+    --rh: var(--geo-rh);
+    --ow: var(--geo-ow);
+    --oh: var(--geo-oh);
+    --own-fit: var(--geo-own-fit);
+    --g: var(--geo-g);
+    --core: var(--geo-core);
+    --c: var(--geo-c);
+    --h: var(--geo-h);
+    --w: var(--geo-w);
+    --hx: var(--geo-hx);
+    --cx: var(--geo-cx);
+    --cy: var(--geo-cy);
+    --core-top: var(--geo-core-top);
+    --core-floor: var(--geo-core-floor);
+    --hand-bottom: var(--geo-hand-bottom);
+    --hand-top: var(--geo-hand-top);
+    --core-room-h: var(--geo-core-room-h);
+    --core-room-w: var(--geo-core-room-w);
+    --core-room-band: var(--geo-core-room-band);
+    --band-reserve: var(--geo-band-reserve);
+    --notices-bottom: var(--geo-notices-bottom);
+    --own-meld-tile: var(--geo-own-meld-tile);
+    --own-meld-rise: var(--geo-own-meld-rise);
+    --own-rise: var(--geo-own-rise);
+    --m: var(--geo-m);
+    --sep: var(--geo-sep);
+    --core-gap: var(--geo-core-gap);
+    --control-h: var(--geo-control-h);
+    --band-gap: var(--geo-band-gap);
+    --own-badge-h: var(--geo-own-badge-h);
     --own-inline: var(--geo-own-inline);
 }
 

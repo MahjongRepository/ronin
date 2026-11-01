@@ -40,9 +40,6 @@ $tile-edge-share: 0.13;
 
 /* No meld face goes under this width. */
 $face-floor: 13px;
-
-/* An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding. */
-$upright-notice-room: 44px;
 $overlay-unit-min: 0.25px;
 $overlay-unit-max: 0.8px;
 $overlay-hand-units: 1000;

@@ -19,8 +19,10 @@ import {
     SHORT_DESKTOP_HEIGHT,
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,
+    STACKED_DEPTH,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
+    UPRIGHT_CHROME,
 } from "./board-constants";
 
 type BoardFamily = "phone" | "desktop" | "short-desktop" | "upright";
@@ -83,6 +85,23 @@ const HEIGHT_TILES = CORE_TILES + DESKTOP_SPARE * TILE_ASPECT;
 const WIDTH_TILES = CORE_TILES + DESKTOP_SPARE * SIDE_REACH_TILES;
 const ROWS_AT_MARGIN = HEIGHT_TILES + DESKTOP_SPARE * OWN_ROW;
 const ROWS_AT_EDGE = HEIGHT_TILES + DESKTOP_SPARE * (OWN_ROW + OWN_EDGE);
+
+/** Upright, the counters' place under the top strip: its gap above and its height (px). */
+const UPRIGHT_COUNTERS_GAP = 6;
+const UPRIGHT_COUNTERS_H = 52;
+
+/** An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding (px). */
+const UPRIGHT_NOTICE_ROOM = 44;
+
+/** Upright, the decisions' two rows keep these px between them and the own badge, and the notices this far off the core. */
+const UPRIGHT_DECISIONS_GAPS = 16;
+const UPRIGHT_NOTICE_GAP = 6;
+
+/** A narrow upright board's centre keeps the room its text needs (px). */
+const UPRIGHT_CENTRE_MIN = 100;
+
+/** An upright core's height past the centre and what stands under it per river tile: a top strip's depth and the own row. */
+const UPRIGHT_TILES = CORE_TILES + DESKTOP_SPARE * (STACKED_DEPTH + OWN_ROW + BAND_TILE_SHARE);
 
 function classifyFamily({ width, height }: BoardBox): BoardFamily {
     if (width < height) {
@@ -298,8 +317,120 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
 }
 
 /**
+ * An upright board's root sizes and what its root solve reads (`_grid.scss`), in px: its core under the counters and
+ * above the decisions' two rows and the notices' place, its centre never under `UPRIGHT_CENTRE_MIN`.
+ */
+function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
+    const { width, height } = box;
+    const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
+    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep } = tier;
+    const ownFit = Math.min(
+        DESKTOP_OWN_CAP_HEIGHT * height,
+        (width - 2 * m - ownInline) / FULL_HAND,
+    );
+    const coreCap = DESKTOP_CORE_CAP * height;
+    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
+    const underStrip = m + UPRIGHT_COUNTERS_GAP + UPRIGHT_COUNTERS_H;
+    const fixed =
+        ownBadgeH +
+        2 * controlH +
+        UPRIGHT_DECISIONS_GAPS +
+        OWN_BADGE_LANE +
+        UPRIGHT_NOTICE_GAP +
+        UPRIGHT_NOTICE_ROOM +
+        underStrip;
+    const edgeTiles = UPRIGHT_TILES + DESKTOP_SPARE * OWN_EDGE;
+    const rw = Math.floor(
+        Math.min(
+            sharedRiverTile({ coreCap, coreRoomW, height, ownFit, rowRiseFixed: 0, tier }),
+            (DESKTOP_SPARE * (height - m - fixed)) / UPRIGHT_TILES,
+            (DESKTOP_SPARE * (height - fixed)) / edgeTiles,
+            (coreRoomW - UPRIGHT_CENTRE_MIN) / (CORE_TILES + SIDE_REACH_TILES),
+        ),
+    );
+    const rh = rw * TILE_ASPECT;
+    const ow = Math.floor(rw * TILE_ASPECT);
+    const oh = ow * TILE_ASPECT;
+
+    const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
+    const handTop = height - handBottom - oh;
+    const coreRoomH = height - m - handBottom - oh - coreGap - sep;
+    const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
+    const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
+    const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
+    const noticesBottom = handTop - ownRise - 2 * controlH - UPRIGHT_DECISIONS_GAPS;
+    const bandReserve = handTop - noticesBottom + UPRIGHT_NOTICE_ROOM + UPRIGHT_NOTICE_GAP;
+    const coreRoomBand = handTop - bandReserve - underStrip;
+    const stripDepth = STACKED_DEPTH * rw;
+
+    const core = Math.min(
+        coreRoomH - rh,
+        coreRoomBand - stripDepth,
+        coreCap,
+        coreRoomW - SIDE_REACH_TILES * rw,
+    );
+    const centre = core - CORE_TILES * rw;
+    const centreWidth = Math.max(
+        centre,
+        Math.min(centre * CENTRE_ASPECT, coreRoomW - (SIDE_REACH_TILES + CORE_TILES) * rw),
+    );
+    const coreFloor = underStrip + stripDepth;
+    const coreTopSlot = m + rh + sep;
+    const coreTopFree = (coreRoomH - rh - core) / 2;
+    const coreTop = Math.max(
+        coreFloor,
+        Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core),
+    );
+
+    return Object.fromEntries([
+        ["band-gap", bandGap],
+        ["band-reserve", bandReserve],
+        ["c", centre],
+        ["control-h", controlH],
+        ["core", core],
+        ["core-floor", coreFloor],
+        ["core-gap", coreGap],
+        ["core-room-band", coreRoomBand],
+        ["core-room-h", coreRoomH],
+        ["core-room-w", coreRoomW],
+        ["core-top", coreTop],
+        ["cx", width / 2],
+        ["cy", coreTop + core / 2],
+        ["g", Math.round(RIVER_GAP_SHARE * rw)],
+        ["h", centre / 2],
+        ["hand-bottom", handBottom],
+        ["hand-top", handTop],
+        ["hx", centreWidth / 2],
+        ["m", m],
+        ["notices-bottom", noticesBottom],
+        ["oh", oh],
+        ["ow", ow],
+        ["own-badge-h", ownBadgeH],
+        ["own-fit", ownFit],
+        ["own-inline", ownInline],
+        ["own-meld-rise", ownMeldRise],
+        ["own-meld-tile", ownMeldTile],
+        ["own-rise", ownRise],
+        ["rh", rh],
+        ["rw", rw],
+        ["sep", sep],
+        ["w", centreWidth],
+    ]);
+}
+
+function familyLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {
+    if (family === "upright") {
+        return uprightLengths(box, chrome);
+    }
+    if (family === "desktop" || family === "short-desktop") {
+        return desktopLengths(box, chrome, family);
+    }
+    return {};
+}
+
+/**
  * The board's geometry from its box: its family and chrome tier, classified as the stylesheet's container queries do,
- * and its sizes in px for the families sized here (the desktop and short desktop's); an empty or non-finite box has no sizes.
+ * and its sizes in px for the families sized here (all but the phone's); an empty or non-finite box has no sizes.
  */
 function boardGeometry(box: BoardBox): BoardGeometry {
     const family = classifyFamily(box);
@@ -309,8 +440,7 @@ function boardGeometry(box: BoardBox): BoardGeometry {
         Number.isFinite(box.height) &&
         box.width > 0 &&
         box.height > 0;
-    const desktop = family === "desktop" || family === "short-desktop";
-    const lengths = sized && desktop ? desktopLengths(box, chrome, family) : {};
+    const lengths = sized ? familyLengths(box, chrome, family) : {};
     return Object.freeze({
         box: Object.freeze({ height: box.height, width: box.width }),
         chrome,

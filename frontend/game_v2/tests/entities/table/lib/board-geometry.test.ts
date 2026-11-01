@@ -5,6 +5,7 @@ import { boardGeometry } from "@/entities/table/lib/board-geometry";
 /** The sizes pinned, in the order each case lists them. */
 const SIZES = ["rw", "ow", "core", "c", "w", "core-top"] as const;
 const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
+const UPRIGHT_SIZES = ["rw", "core", "core-top"] as const;
 
 describe("boardGeometry", () => {
     it.each([
@@ -44,6 +45,21 @@ describe("boardGeometry", () => {
         for (const [index, name] of SHORT_DESKTOP_SIZES.entries()) {
             expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
         }
+    });
+
+    it.each([
+        [355, 528, [11, 205.666, 103.934]],
+        [780, 781, [30, 393.8, 122]],
+    ])("sizes a %ix%i upright board as its stylesheet did", (width, height, expected) => {
+        const { lengths } = boardGeometry({ height, width });
+
+        for (const [index, name] of UPRIGHT_SIZES.entries()) {
+            expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+        }
+    });
+
+    it("keeps a narrow upright board's centre at least 100px across", () => {
+        expect(boardGeometry({ height: 600, width: 240 }).lengths["c"]).toBeGreaterThanOrEqual(100);
     });
 
     it("gives an empty box no sizes", () => {

@@ -105,6 +105,9 @@ const DESKTOP_OWN_CAP_WIDTH = 0.05;
 const DESKTOP_OWN_CAP_HEIGHT = 0.1;
 const DESKTOP_CORE_CAP = 0.66;
 
+/** An upright board's chrome over the desktop tier's: a phone's margin, band gap and control, and room before its own hand. */
+const UPRIGHT_CHROME = { bandGap: 8, controlH: 40, m: 4, ownInline: 96 } as const;
+
 export {
     CENTRE_ASPECT,
     CORE_TILES,
@@ -128,6 +131,7 @@ export {
     STACKED_DEPTH,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
+    UPRIGHT_CHROME,
     UPRIGHT_DEPTH,
 };
 export type { ChromeTier, DesktopChrome };
