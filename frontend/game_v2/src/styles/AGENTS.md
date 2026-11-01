@@ -13,10 +13,11 @@ they disagree.
   composition until task 10. The directive writes the sizes as `--geo-<name>` on `.game-board`; the bridge rules
   after every family block (`_grid.scss`) map them onto the lengths' own names on `.board-layout` and
   `.board-overlay`, gated on `data-board-family` inside `:where()` so they keep (0,2,0) and the lazy replay's
-  overrides still win. No CSS solve remains, so a board without `data-board-family` (not yet measured) hides its
-  layers. A literal both sides need stays in SCSS beside a note naming its TS mirror. Until task 10 for a phone and
-  task 16 for a narrow desktop, the notices on a small-chrome landscape board and a phone's decisions column still
-  read the side strip's drawn depth, the deepest strip leaving them too narrow.
+  overrides still win. There are two, one for the desktop, short desktop and phone and one for upright, each
+  mapping only the names its families emit. No CSS solve remains, so a board without `data-board-family` (not yet
+  measured) hides its layers. A literal both sides need stays in SCSS beside a note naming its TS mirror. Until task
+  10 for a phone and task 16 for a narrow desktop, the notices on a small-chrome landscape board and a phone's
+  decisions column still read the side strip's drawn depth, the deepest strip leaving them too narrow.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
   text size follows `--c`.

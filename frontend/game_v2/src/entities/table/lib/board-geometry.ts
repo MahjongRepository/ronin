@@ -102,17 +102,26 @@ const PHONE_WIDTH_TILES = CORE_TILES + PHONE_SPARE * SIDE_REACH_TILES;
 const UPRIGHT_COUNTERS_GAP = 6;
 const UPRIGHT_COUNTERS_H = 52;
 
-/** An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding (px). */
+/**
+ * An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding
+ * (px).
+ */
 const UPRIGHT_NOTICE_ROOM = 44;
 
-/** Upright, the decisions' two rows keep these px between them and the own badge, and the notices this far off the core. */
+/**
+ * Upright, the decisions' two rows keep these px between them and the own badge, and the notices this far off the
+ * core.
+ */
 const UPRIGHT_DECISIONS_GAPS = 16;
 const UPRIGHT_NOTICE_GAP = 6;
 
 /** A narrow upright board's centre keeps the room its text needs (px). */
 const UPRIGHT_CENTRE_MIN = 100;
 
-/** An upright core's height past the centre and what stands under it per river tile: a top strip's depth and the own row. */
+/**
+ * An upright core's height past the centre and what stands under it per river tile: a top strip's depth and the own
+ * row.
+ */
 const UPRIGHT_TILES = CORE_TILES + DESKTOP_SPARE * (STACKED_DEPTH + OWN_ROW + BAND_TILE_SHARE);
 
 function classifyFamily({ width, height }: BoardBox): BoardFamily {
@@ -138,7 +147,7 @@ function classifyChrome({ width, height }: BoardBox): ChromeTier {
     return "regular";
 }
 
-/** What the desktop's river tile is solved from: the board's height, its chrome and the rooms already known. */
+/** What a desktop's or an upright board's river tile is solved from: its height, its chrome and the rooms known. */
 interface DesktopRooms {
     readonly height: number;
     readonly tier: DesktopChrome;
@@ -148,7 +157,7 @@ interface DesktopRooms {
     readonly rowRiseFixed: number;
 }
 
-/** The largest river tile each room both desktops share holds, the smallest binding. */
+/** The largest river tile each room the desktops and the upright board share holds, the smallest binding. */
 function sharedRiverTile({ coreCap, coreRoomW, height, ownFit, tier }: DesktopRooms): number {
     const { coreGap, m, sep } = tier;
     const heightRoom = DESKTOP_SPARE * (height - m - coreGap - sep);

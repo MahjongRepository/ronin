@@ -40,7 +40,8 @@ $upright-counters-gap: 6px;
     /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`; the full reach's, the switches'
        place's and the left hand's literals mirror `board-geometry.ts`'s. */
 
-    /* The viewport class: a desktop's chrome; a phone and an upright board override. */
+    /* The viewport class: a desktop's chrome; a phone's and an upright board's sizing chrome is `PHONE_CHROME`'s and
+       `UPRIGHT_CHROME`'s. */
     --switch-gap: var(--band-gap);
     --row-bottom: var(--band-bottom);
     --plate-reach: var(--switches-right);
