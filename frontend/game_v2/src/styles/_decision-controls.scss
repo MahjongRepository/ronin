@@ -513,21 +513,22 @@ $pair-gap: 4px;
     white-space: nowrap;
 }
 
-/* The furiten mark's slot by the hand: a neutral dot over the word, never a button's shape. */
+/* The furiten mark: a small neutral label beside the own badge, on its baseline, a dot and the word, never a button's
+   shape. */
 .board-furiten {
-    display: flex;
+    display: inline-flex;
     flex: none;
-    flex-direction: column;
+    align-self: center;
     align-items: center;
-    justify-content: center;
-    gap: 0.3em;
-    order: 1;
-    width: var(--furiten-slot);
-    height: var(--oh);
-    font-size: max(11px, calc(var(--furiten-slot) * 0.22));
+    gap: 0.4em;
+    padding: 0.25em 0.55em;
+    font-size: 12px;
     font-weight: 650;
     line-height: 1;
-    color: var(--ronin-text);
+    white-space: nowrap;
+    color: var(--ronin-badge-ink);
+    background: var(--ronin-badge);
+    border-radius: 4px;
 }
 
 .board-furiten__dot {

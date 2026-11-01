@@ -68,9 +68,8 @@ The derived proportions are the three reference viewports' values under the sizi
 |               |  [L river]  [centre]  [R river]      |             |
 |               |          [ bottom river ]            |             |
 |  switches     |                   decisions   timer  |             |
-|              [own badge]                                          |
+|              [own badge] [furiten]                                |
 |              [ OWN HAND ...................... ] [melds]          |
-|   furiten mark                                                     |
 +-------------------------------------------------------------------+
 ```
 
@@ -329,8 +328,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   current board's "Your turn" and "Your call" labels and the line under the hand are decoration and
   go. Selectable tiles, the latest discard and the decision controls keep their own states, which
   are information, not decoration.
-- **Furiten.** A neutral status mark (a dot and the word) in a slot by the hand reserved so the
-  hand never moves, not a button-shaped object and no prohibition sign, shown while the supplied
+- **Furiten.** A small neutral status label (a dot and the word) beside the own badge, above the
+  hand's left end, taking no room in the row so the hand never moves, not a button-shaped object and no prohibition sign, shown while the supplied
   state says the seat is furiten of any kind and cleared when it says so no longer; it gives no
   reason the state did not supply and never implies tsumo is unavailable.
 - **Play switches.** Three toggles with one fixed place in the foreground, on the hand's side away

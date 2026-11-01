@@ -47,7 +47,7 @@ interface GameBoardProps {
     readonly announceCalls?: boolean;
     /** The overlay's panel waits until the win's call shown with it has been seen (a round's result); else it shows at once. */
     readonly overlayAfterCall?: boolean;
-    /** The bottom seat is furiten: its mark shows in the slot by the hand that a played board keeps for it. */
+    /** The bottom seat is furiten: a played board labels its hand with the mark. */
     readonly furiten?: boolean;
     /** The play switches, in their slot on the foreground band's side away from the decisions. */
     readonly switches?: TemplateResult;
@@ -381,15 +381,16 @@ function CalloutAnnouncements(
     }</div>`;
 }
 
-/** The furiten mark's slot by the hand, kept on a played board so the hand never moves: a dot and the word. */
-function FuritenSlot(furiten: boolean): TemplateResult {
-    return html`<span class="board-furiten" title=${furiten ? "Furiten: you cannot win on a discard" : nothing}
-        >${
-            furiten
-                ? html`<span class="board-furiten__dot" aria-hidden="true"></span
-                      ><span class="board-furiten__word">Furiten</span>`
-                : ""
-        }</span
+/** The own badge over the hand's left end, and the furiten mark beside it while the seat is furiten. */
+function OwnHead(plate: TemplateResult, furiten: boolean): TemplateResult {
+    return html`<div class="board-own-head">${plate}${furiten ? FuritenMark() : ""}</div>`;
+}
+
+/** The furiten mark, a small label beside the own badge: a dot and the word. */
+function FuritenMark(): TemplateResult {
+    return html`<span class="board-furiten" title="Furiten: you cannot win on a discard"
+        ><span class="board-furiten__dot" aria-hidden="true"></span
+        ><span class="board-furiten__word">Furiten</span></span
     >`;
 }
 
@@ -404,7 +405,7 @@ function EmptyCenterArea(): TemplateResult {
  * rivers in their pinwheel, the other seats' strips and badges in their zones toward the edges, the pooled counters in
  * the top-left corner and the page's own controls (`menu`) in the top-right, and over the foreground band the bottom
  * seat's badge, hand and melds with the decision's controls and the play switches, when given, by the hand; a board
- * the viewer plays (`localHand`) also keeps the furiten mark's slot beside the hand. A pinned badge unpins on a click anywhere else on
+ * the viewer plays (`localHand`) also marks its badge furiten while it is. A pinned badge unpins on a click anywhere else on
  * the board or on Escape (a replay's badges pin nothing: pressing one, or another seat's score, views from its seat); with none pinned, Escape steps back from a decision's step. Calls show over their seats' rivers for a
  * moment, clear of the latest discard, and a win's call shows before the panel over the board does.
  */
@@ -462,7 +463,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 <div class="board-local" style=${styleMap(ownMeldStyle(bottom))}>
-                    ${plates?.bottom ?? ""}${props.localHand ? FuritenSlot(props.furiten ?? false) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
+                    ${plates ? OwnHead(plates.bottom, props.localHand !== undefined && props.furiten === true) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
                 </div>
             </div>
             ${props.notices ? NoticeAnnouncements(props.notices) : ""}

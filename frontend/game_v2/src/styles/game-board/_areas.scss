@@ -287,7 +287,7 @@ $strip-lengths:
     --line2-base: calc(var(--line2-end) - var(--left-start) - var(--line2-len));
 }
 
-/* The own row: furiten's slot (`.board-furiten`), then the hand from a full hand's fixed start, its melds at the row's
+/* The own row: the hand from a full hand's fixed start, its melds at the row's
    right end by the board's edge (a call moves nothing), at 1.2 river tiles but never past the hand's, scaled to fit. */
 .board-local {
     --board-tile-w: var(--ow);

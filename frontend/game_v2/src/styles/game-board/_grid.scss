@@ -43,7 +43,6 @@ $upright-centre-min: 100px;
 .game-board > :is(.board-layout, .board-overlay) {
     /* The viewport class: a desktop's margins, gaps, chrome and centre share; a phone and an upright board override. */
     --m: 18px;
-    --furiten-slot: 0px;
     --switch-gap: var(--band-gap);
 
     /* Room the own row keeps beside its hand: a narrow desktop's before it, so its hand ends further right and the
@@ -84,12 +83,9 @@ $upright-centre-min: 100px;
     --action-min-w: 96px;
     --win-min-w: 150px;
 
-    /* The largest own tile a full hand's row holds beside its furiten slot. Off a phone the own tile is the river tile
+    /* The largest own tile a full hand's row holds. Off a phone the own tile is the river tile
        scaled to read as large as a side seat's turned tile; a phone's is this, its river tile a share of it. */
-    --own-fit: min(
-        var(--own-cap),
-        (100cqw - 2 * var(--m) - var(--own-inline) - var(--furiten-slot)) / #{$full-hand}
-    );
+    --own-fit: min(var(--own-cap), (100cqw - 2 * var(--m) - var(--own-inline)) / #{$full-hand});
     --own-scale: calc(4 / 3);
     --ow: round(down, var(--rw) * var(--own-scale), 1px);
     --oh: calc(var(--ow) * 4 / 3);
@@ -325,15 +321,10 @@ $upright-centre-min: 100px;
         var(--top-strip-x) - var(--cx) - var(--hx) - var(--river-clear)
     );
 
-    /* The own row: a full hand's place, centred with its furiten slot, whatever the hand holds. */
+    /* The own row: a full hand's place, centred whatever the hand holds. */
     --full-hand-w: calc(#{$full-hand} * var(--ow));
-    --own-start: max(
-        var(--m),
-        (100cqw - var(--own-inline) - var(--furiten-slot) - var(--full-hand-w)) / 2
-    );
-    --own-hand-right: calc(
-        var(--own-start) + var(--own-inline) + var(--furiten-slot) + var(--full-hand-w)
-    );
+    --own-start: max(var(--m), (100cqw - var(--own-inline) - var(--full-hand-w)) / 2);
+    --own-hand-right: calc(var(--own-start) + var(--own-inline) + var(--full-hand-w));
 
     /* The play switches' slot, on the band's side away from the decisions, which never reach into it. */
     --switches-left: max(var(--m), var(--switches-clear));
@@ -341,7 +332,7 @@ $upright-centre-min: 100px;
 
     /* The own badge's lane from the hand's left end, short of the bottom river where its row meets it and the switches'
        end; where that end leaves less than an ordinary name (an ultrawide's hand), its own lane, the decisions' after. */
-    --own-lead: calc(var(--own-start) + var(--own-inline) + var(--furiten-slot));
+    --own-lead: calc(var(--own-start) + var(--own-inline));
     --own-lane-free: clamp(
         0px,
         (var(--side-lane-min) - var(--plate-reach) + var(--own-lead)) * 1000,
@@ -583,16 +574,4 @@ $upright-centre-min: 100px;
     width: 100%;
     height: 100%;
     font-size: var(--text);
-}
-
-.game-board--play > :is(.board-layout, .board-overlay) {
-    --furiten-slot: 64px;
-
-    @include phone-board {
-        --furiten-slot: 44px;
-    }
-
-    @include upright-board {
-        --furiten-slot: 0px;
-    }
 }
