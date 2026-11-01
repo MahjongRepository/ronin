@@ -77,7 +77,7 @@ The derived proportions are the three reference viewports' values under the sizi
 The diagram is illustrative: it shows the three rings and the zones, not exact placements.
 
 Four seat zones, top, left, right and bottom, are made perceptible on the surface. Decision: four
-faint lines from the centre panel's corners, the upper two to the play area's top corners, the lower
+faint seams pressed into the felt (a groove over a lip) from the centre panel's corners, the upper two to the play area's top corners, the lower
 two to its sides at the top of the foreground band, so the whole foreground is the viewer's own; the
 side fields carry a faint tint. They establish perceived ownership; they are not clipping
 boundaries, and a long river may cross one. A seat's tiles and the score data facing it are oriented
@@ -99,8 +99,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 ## Elements
 
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
-  play area. Decision: a dark, subdued teal family, with the zone device and nothing else; ivory
-  faces separate from it by value.
+  play area. Decision: a petrol felt in the dark teal family, lit over the core and falling off
+  toward the edges, with a fine static grain as its only texture (felt at full size, gone in a
+  thumbnail: no weave, motif or wear) and the zone device; nothing else is drawn on it. Ivory faces
+  separate from it by value, the ochre backs by hue. The grain is one small repeating image under
+  the gradient: no runtime noise, filter or blend mode, so a low-end phone paints it once.
 - **Centre.** Decision, following Tenhou's panel: one panel wider than tall, each seat's wind and
   score on the side facing it, turned to that seat and close to its edge, and in the middle the
   round name large (East 1, South 4, a West round when the game runs on) over one line of the wall
@@ -469,7 +472,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   screen); an incomplete one shows no result for its unfinished round.
 - **Material and type.** Ivory tile faces with room around the glyph and a soft bevel lit from the
   screen's top, a small consistent two-tone edge and shadow; a red five reads as red at every scale, in a river, a meld, a revealed hand and a result;
-  backs in one quiet colour. Decision: the face artwork (the committed SVG set) stays; the room
+  backs in one colour, the canonical yellow-orange: an ochre plastic, darker and less luminous than
+  the accent so a strip of backs never reads as a control, its darker shade the back's layer under
+  every tile's ivory body. Decision: the face artwork (the committed SVG set) stays; the room
   around the glyph comes from the tile box, not from new drawings, and a glyph that is still
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: one face,
   Inter, self-hosted as a Latin subset, with its tabular digits wherever numbers align; no

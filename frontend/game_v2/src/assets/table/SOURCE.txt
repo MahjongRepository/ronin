@@ -1,0 +1,8 @@
+felt-grain.webp: the table's felt grain, generated noise (no third-party source), 128x128, white or black per pixel,
+its alpha up to 7% in 12 steps. Regenerate with ImageMagick 6:
+
+  convert -size 128x128 xc:gray50 -attenuate 1.2 +noise Gaussian -colorspace Gray -blur 0x0.35 n.png
+  convert n.png -threshold 50% col.png
+  convert n.png -fx 'q=min(abs(u-0.5)*0.22,0.09); round(q/0.09*12)/12*0.09' a.png
+  convert col.png a.png -alpha off -compose CopyOpacity -composite -strip grain.png
+  convert grain.png -define webp:lossless=true -define webp:method=6 felt-grain.webp

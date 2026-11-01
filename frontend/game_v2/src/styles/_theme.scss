@@ -12,7 +12,7 @@
 }
 
 [data-theme="dark"] {
-    --pico-background-color: #172a2d;
+    --pico-background-color: #183735;
     --pico-card-background-color: #0f1c1f;
     --pico-card-sectioning-background-color: #142427;
     --pico-color: #e8efeb;
@@ -63,30 +63,32 @@
     --ronin-panel-shadow: 0 6px 18px rgb(0 0 0 / 35%);
     --ronin-dim: rgb(8 15 17 / 62%);
 
-    /* The table's surface: its gradient, the zone lines and field tints, the neutral latest mark and Tenhou's green turn
-       bar. */
-    --ronin-table-fill: radial-gradient(ellipse at 50% 45%, #23393d 0%, #1c3033 55%, #172a2d 100%);
-    --ronin-table-edge: #172a2d;
-    --ronin-table-zone-line: rgb(214 236 230 / 17%);
-    --ronin-table-field-side: rgb(214 236 230 / 3.5%);
-    --ronin-table-field-end: rgb(0 0 0 / 6%);
+    /* The table's surface: a petrol felt with its grain (assets/table/SOURCE.txt), the zone seams and field tints, the
+       neutral latest mark and Tenhou's green turn bar. */
+    --ronin-table-fill: radial-gradient(ellipse at 50% 43%, #2c514b 0%, #234640 52%, #183735 100%);
+    --ronin-table-grain: url("@/assets/table/felt-grain.webp");
+    --ronin-table-edge: #183735;
+    --ronin-table-zone-groove: rgb(4 23 21 / 34%);
+    --ronin-table-zone-lip: rgb(207 228 211 / 12%);
+    --ronin-table-field-side: rgb(207 228 211 / 3%);
+    --ronin-table-field-end: rgb(4 23 21 / 7%);
     --ronin-table-latest: #f4f7f5;
     --ronin-table-latest-inner: #26332f;
     --ronin-table-turn: #4cc27a;
 
     /* Tiles: an ivory face with a rim, lit from the screen's top; an edge toward the screen's bottom, the ivory body over
-       the back's layer; a shadow down and to the right; backs one quiet teal. */
+       the back's layer; a shadow down and to the right; backs an ochre plastic, darker than the accent. */
     --ronin-tile-face: #f7f3e7;
     --ronin-tile-rim: #d9d0b9;
     --ronin-tile-top: #e4dbc4;
     --ronin-tile-shine: rgb(255 255 255 / 85%);
     --ronin-tile-shade: rgb(110 90 40 / 18%);
     --ronin-tile-edge: #d2c7aa;
-    --ronin-tile-back-edge: #3b6a61;
+    --ronin-tile-back-edge: #aa691f;
     --ronin-tile-shadow: rgb(0 0 0 / 38%);
     --ronin-tile-red: #d71e1e;
-    --ronin-back: #4a7a71;
-    --ronin-back-rim: #5d8f85;
+    --ronin-back: #d99a32;
+    --ronin-back-rim: #edb75a;
     --ronin-held-rim: #4a5652;
 
     /* Badges, the pooled counters and the page corner, notices. */

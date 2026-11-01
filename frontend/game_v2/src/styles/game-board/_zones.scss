@@ -31,7 +31,9 @@
         content: "";
         position: absolute;
         inset: 0;
-        background: var(--ronin-table-fill);
+        background:
+            var(--ronin-table-grain) 0 0 / 128px 128px repeat,
+            var(--ronin-table-fill);
     }
 }
 
@@ -70,7 +72,8 @@
     }
 }
 
-/* A line from (`--x1`, `--y1`) to (`--x2`, `--y2`): as long as the distance, turned by its angle. */
+/* A seam from (`--x1`, `--y1`) to (`--x2`, `--y2`): as long as the distance, turned by its angle, a groove pressed
+   into the felt over the lip that catches the light. */
 .board-zones__line {
     --dx: calc(var(--x2) - var(--x1));
     --dy: calc(var(--y2) - var(--y1));
@@ -79,14 +82,14 @@
     left: var(--x1);
     top: var(--y1);
     width: hypot(var(--dx), var(--dy));
-    height: 1.5px;
-    background: var(--ronin-table-zone-line);
+    height: 2px;
+    background: linear-gradient(
+        to bottom,
+        var(--ronin-table-zone-groove) 0 50%,
+        var(--ronin-table-zone-lip) 50%
+    );
     transform-origin: 0 50%;
     rotate: atan2(var(--dy), var(--dx));
-
-    @include desktop-board {
-        height: 2px;
-    }
 
     &--top-left {
         --x1: var(--zone-tl-x);
