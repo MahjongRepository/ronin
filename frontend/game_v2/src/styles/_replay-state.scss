@@ -130,10 +130,10 @@ $place-gap: 6px;
     }
 }
 
-/* Upright, the group's row and the status's place above it end short of the right strip as drawn. */
+/* Upright, the group's row and the status's place above it end short of the right strip's deepest reach. */
 .game-board--replay .board-table {
     @include upright-board {
-        --opt-right: calc(var(--m) + max(var(--strip-depth), var(--right-depth)) + 8px);
+        --opt-right: calc(var(--m) + var(--strip-reserve) + 8px);
     }
 }
 
@@ -142,7 +142,7 @@ $place-gap: 6px;
 .board-replay {
     --shown-opts-w: var(--opts-w);
     --opts-fit: 1px;
-    --pair-clear: max(0px, var(--m) + var(--right-depth) + #{$place-gap} - var(--opt-right));
+    --pair-clear: max(0px, var(--m) + var(--strip-reserve) + #{$place-gap} - var(--opt-right));
     --pair-shift: clamp(
         0px,
         var(--pair-clear),
@@ -193,7 +193,7 @@ $place-gap: 6px;
     }
 }
 
-/* The options in one row, or the hands' switch over the round list's toggle, clear of the right strip as drawn, the
+/* The options in one row, or the hands' switch over the round list's toggle, clear of the right strip's deepest reach, the
    toggle in the band; upright, over the moves where the group does not share the own badge's row. */
 .replay-controls__options {
     right: calc(var(--opt-right) + min(var(--pair-shift), (1px - var(--opts-fit)) * 100000));

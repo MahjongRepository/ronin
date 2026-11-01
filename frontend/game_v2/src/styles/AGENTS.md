@@ -11,7 +11,8 @@ they disagree.
   are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the replay's) can use them.
 - **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) a family not yet moved keeps its CSS
   solve beside the TS one, the bridge gated on the measured family, and the code may lag the spec's phone
-  composition until task 10.
+  composition until task 10. Until then, on a phone the places beside a side strip (the notices, the decisions'
+  column) still read its drawn depth, the deepest strip leaving them too narrow.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
   text size follows `--c`.

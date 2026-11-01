@@ -13,13 +13,11 @@
     initial-value: 0;
 }
 
-/* The place starts past the left strip as drawn, its second line of melds included where it has one; upright, it
-   spans the board between the bottom river's reach and the decisions' rows, short of the right strip as drawn. */
+/* The place starts past the left strip's deepest reach; upright, it spans the board between the bottom river's reach
+   and the decisions' rows, short of the right strip's deepest reach. */
 .board-notices {
-    @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
-
     --notice-gap: 16px;
-    --notice-left: calc(var(--m) + max(var(--strip-depth), var(--left-depth)) + var(--notice-gap));
+    --notice-left: calc(var(--m) + var(--strip-reserve) + var(--notice-gap));
     --notice-top: max(
         var(--side-badge-top) + var(--badge-h) + var(--notice-gap),
         var(--reach-top-row3) + var(--notice-gap)
@@ -36,17 +34,19 @@
     max-height: calc(min(var(--band-top), var(--switches-top)) - 24px - var(--notice-top));
     overflow-y: auto;
 
-    /* A board with a phone's chrome has a narrow left field: the place keeps a phone's margins and starts past the
-       strip as drawn rather than its deepest, so a notice keeps a few words a line. */
+    /* A board with a phone's chrome has a narrow left field: the place keeps a phone's margins. */
     @include small-chrome {
         --notice-gap: 8px;
-        --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
 
         width: calc(var(--reach-left) - 8px - var(--notice-left));
     }
 
+    /* Temporary phone exception until task 10: past the deepest strip the place is too narrow. */
     @include phone-board {
+        @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
+
         --notice-gap: 6px;
+        --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
 
         width: calc(var(--reach-left) - 8px - var(--notice-left));
         max-height: calc(min(var(--band-top), var(--switches-top)) - 8px - var(--notice-top));
@@ -55,7 +55,7 @@
     @include upright-board {
         --notice-gap: 6px;
         --notice-top: calc(var(--cy) + var(--h) + var(--g) + 3 * var(--rh) + var(--notice-gap));
-        --notice-right: max(var(--strip-depth), var(--right-depth));
+        --notice-right: var(--strip-reserve);
 
         width: calc(100cqw - var(--notice-left) - var(--m) - var(--notice-right) - 8px);
         max-height: calc(var(--notices-bottom) - var(--notice-top));

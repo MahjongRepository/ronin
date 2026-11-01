@@ -40,8 +40,7 @@ $strip-lengths:
     inset: 0;
 }
 
-/* The right strip's depth as drawn, which every place beside it (the decisions, the replay's options, upright notices)
-   stays clear of. */
+/* The visual check reads this too. */
 .board-table {
     @include right-strip-depth;
 }

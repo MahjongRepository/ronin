@@ -28,7 +28,7 @@ $corner-min-w: 180px;
     );
     --upper-clear: max(
         0px,
-        var(--m) + var(--right-depth) + #{$decision-gap} - var(--actions-right)
+        var(--m) + var(--strip-reserve) + #{$decision-gap} - var(--actions-right)
     );
 
     container: decisions / inline-size;
@@ -62,7 +62,7 @@ $corner-min-w: 180px;
 
     @include upright-board {
         left: var(--m);
-        right: calc(var(--m) + max(var(--strip-depth), var(--right-depth)) + 8px);
+        right: calc(var(--m) + var(--strip-reserve) + 8px);
         bottom: calc(100cqh - var(--hand-top) + var(--own-rise) + 4px);
     }
 }
@@ -175,6 +175,7 @@ $corner-min-w: 180px;
         padding-right: var(--upper-clear);
     }
 
+    /* Temporary phone exception until task 10: the deepest strip leaves no room for a pair. */
     @include phone-board {
         flex-flow: column nowrap;
         align-items: flex-end;

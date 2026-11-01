@@ -4,7 +4,7 @@
 /* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
    length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
 $lengths:
-    own-fit, ow, oh, strip-depth, core-room-band, counters-top, top-room-left, hand-top,
+    own-fit, ow, oh, strip-depth, strip-reserve, core-room-band, counters-top, top-room-left, hand-top,
     core-room-h, core-room-w, rw, rh, g, core, c, h, w, hx, core-top, cx, cy, bw, bh,
     foreground-top, row-rise-fixed, band-lift, band-height, band-top, band-bottom, corner-bottom,
     reach-left, reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top,
@@ -286,6 +286,9 @@ $upright-centre-min: 100px;
     --reach-top-left: calc(var(--cx) + var(--hx) - 11 * var(--rw) - var(--rh));
     --reach-bottom-right: calc(var(--cx) - var(--hx) + 11 * var(--rw) + var(--rh));
     --strip-depth: calc(2 * var(--rw));
+
+    /* A side strip's deepest reach: two stacked lines 4px apart, the second's tiles never under the face floor. */
+    --strip-reserve: calc(2 * var(--rw) + 4px + 2 * max(var(--rw), #{$face-floor}));
     --left-badge-x: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
 
     /* The top badge stands under its hand, past a river tile's edge, so a meld that reaches over it keeps a gap. */
