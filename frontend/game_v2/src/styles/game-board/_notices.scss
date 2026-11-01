@@ -101,7 +101,7 @@
             right: calc(var(--m) + var(--band-shift));
             top: var(--notice-top);
             align-items: stretch;
-            width: calc(#{$notices-beside-panel} - var(--m));
+            width: calc(var(--notices-beside-panel) - var(--m));
             max-height: calc(var(--hand-top) - 4px - var(--notice-top));
         }
 

@@ -63,7 +63,10 @@ const LARGE_CHROME_HEIGHT = 1200;
 
 type ChromeTier = "small" | "regular" | "large";
 
-/** The px a desktop's sizing reads of its chrome: margins, gaps, the band's control, the own badge and the switches. */
+/**
+ * The px a desktop's sizing reads of its chrome: margins, gaps, the band's control, the own badge, the switches, the
+ * corner and the replay's controls.
+ */
 interface DesktopChrome {
     readonly m: number;
     readonly sep: number;
@@ -76,17 +79,23 @@ interface DesktopChrome {
     readonly switchH: number;
     readonly movesH: number;
     readonly sideStart: number;
+    readonly cornerH: number;
+    readonly replayGap: number;
+    readonly sideLaneMin: number;
 }
 
 const REGULAR_CHROME: DesktopChrome = {
     bandGap: 18,
     controlH: 60,
     coreGap: 40,
+    cornerH: 48,
     m: 18,
     movesH: 52,
     ownBadgeH: 40,
     ownInline: 0,
+    replayGap: 6,
     sep: 40,
+    sideLaneMin: 125,
     sideStart: 72,
     switchGap: 18,
     switchH: 44,
@@ -95,20 +104,35 @@ const REGULAR_CHROME: DesktopChrome = {
 const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
     large: {
         ...REGULAR_CHROME,
+        cornerH: 64,
         movesH: 60,
         ownBadgeH: 52,
+        replayGap: 8,
+        sideLaneMin: 170,
         sideStart: 100,
         switchH: 52,
     },
     regular: REGULAR_CHROME,
     small: {
         ...REGULAR_CHROME,
+        cornerH: 40,
         movesH: 40,
         ownInline: 96,
+        replayGap: 4,
+        sideLaneMin: 90,
         sideStart: 52,
         switchGap: 4,
     },
 };
+
+/** The page's cog: its side at this share of the river tile within its floor and cap, and the room kept past it. */
+const MENU_RIVER_SHARE = 56 / 60;
+const MENU_MIN = 40;
+const MENU_MAX = 56;
+const MENU_GAP = 6;
+
+/** Over a panel, a phone's or an upright board's notices stand in a column this wide under the right strip (px). */
+const NOTICES_BESIDE_PANEL = 84;
 
 /** The desktop's centre share of the core, and its own tile's and core's caps in shares of the board. */
 const DESKTOP_CENTRE_SHARE = 0.33;
@@ -172,6 +196,11 @@ export {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
+    MENU_GAP,
+    MENU_MAX,
+    MENU_MIN,
+    MENU_RIVER_SHARE,
+    NOTICES_BESIDE_PANEL,
     OWN_BY_RIVER_MAX,
     OWN_MELD_SCALE,
     PAGE_GUTTER,

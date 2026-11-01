@@ -55,7 +55,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   reading classes or ARIA back from the DOM.
 - The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (an end, the leave
   question, the notices' sheet, then the table's own panel from `tablePanel`) with whether it blocks the board; the
-  replay's `replayDisplay` maps its own. Components only render the panel they are given.
+  replay's `replayDisplay` maps its own. Components only render the panel they are given; where it stands is
+  GameBoard's (the free box `boardGeometry` reserves), never a page's.
 - The settings menu's own transitions (the cog's toggle, a close, the sound switch) are `stepSettingsMenu`, which live's
   `stepPlayUi` and the replay's `stepReplayPage` share; each closes the menu on its own other input.
 - Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states (a new showing

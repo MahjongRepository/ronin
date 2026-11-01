@@ -5,8 +5,7 @@ $round-list-z: 30;
 $place-gap: 6px;
 
 @each $name in rb, rgap, opt-right, opt-left, opts-w, moves-w, group-w, slot-w, group-left, one-row,
-    opts-rise, shown-opts-w, opts-fit, pair-clear, pair-shift, upper-extra, list-rise,
-    band-reserve-top, replay-bottom, panel-left
+    opts-rise, shown-opts-w, opts-fit, pair-clear, pair-shift, upper-extra, list-rise, replay-bottom
 {
     @property --#{$name} {
         syntax: "<length>";
@@ -346,98 +345,26 @@ $place-gap: 6px;
     }
 }
 
-/* A panel over the replay leaves the band to its controls, and on a wide desktop the left field to its status; the
-   narrow seating leaves the same field on the right, so it stands centred. */
-.game-board--replay > .board-overlay {
-    --band-reserve-top: var(--foreground-top);
-
-    padding-bottom: calc(100cqh - var(--band-reserve-top));
-
-    @include small-chrome {
-        --band-reserve-top: calc(
-            min(var(--replay-bottom), var(--switches-bottom)) - var(--rb) - var(--rgap)
-        );
-    }
-
-    @include upright-board {
-        --band-reserve-top: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap));
-    }
-
-    @include board-where("#{$small-chrome}#{$landscape-board}") {
-        @include overlay-unit($corner-clear);
-    }
-
-    /* A phone's seating, narrow enough, stands past the moves, whose row rises over the own badge's lane. */
-    @include phone-board {
-        &:has(.seating) {
-            --band-reserve-top: calc(var(--replay-bottom) - var(--rb) - var(--rgap));
-
-            padding-left: calc(var(--switches-left) + var(--slot-w));
-        }
-    }
-
-    @include board-where($desktop-chrome) {
-        --panel-left: max(var(--reach-left), var(--switches-left) + var(--slot-w));
-
-        @include overlay-unit(var(--panel-left));
-
-        padding-left: var(--panel-left);
-
-        &:has(.seating) {
-            padding-right: var(--panel-left);
-        }
-
-        /* Any other panel stands centred on the board, moved right or up only as far as keeps the field and the band
-           clear. */
-        &:not(:has(.seating)) {
-            display: grid;
-            grid-template-rows: minmax(0, 1fr) auto minmax(
-                    max(0px, 100cqh - var(--band-reserve-top) - 0.5rem),
-                    1fr
-                );
-            grid-template-columns: minmax(max(0px, var(--panel-left) - 0.5rem), 1fr) auto minmax(
-                    0,
-                    1fr
-                );
-            padding: 0.5rem;
-
-            /* An auto track leaves a percentage nothing to resolve against, so the panel's room is the board's less the
-               field and the band. */
-            > .board-overlay__panel {
-                --panel-room: calc(100cqw - 0.5rem - max(0.5rem, var(--panel-left)));
-
-                grid-area: 2 / 2;
-                max-width: min(900px, var(--panel-room));
-                max-height: calc(var(--band-reserve-top) - 0.5rem);
-            }
-
-            > .board-overlay__panel:has(> .round-end-result) {
-                width: min(
-                    var(--panel-room),
-                    #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome}
-                );
-            }
-        }
-    }
-}
-
-.game-board--replay:where(#{$narrow-desktop-board}) > .board-overlay:has(.seating) {
-    padding-inline: $corner-clear;
-}
-
 /* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
    stands centred on the block, past its edges and its text scaled to it. */
 .game-board--replay:where(#{$desktop-board}, #{$upright-board}) {
     > .board-overlay:has(.seating) {
-        padding-bottom: max(100cqh - var(--band-reserve-top), 100cqh - 2 * var(--cy));
+        --panel-bottom: max(var(--geo-overlay-bottom), 100cqh - 2 * var(--cy));
+
+        grid-template-rows: var(--panel-top) minmax(0, 1fr) var(--panel-bottom);
     }
 
     /* The start, shorter than the end, stands on the block's centre even where the band leaves less room below it. */
     > .board-overlay:has(.seating:not(.seating--end)) {
-        padding-top: max(0px, 2 * var(--cy) - var(--band-reserve-top));
+        --panel-top: max(
+            var(--geo-overlay-top),
+            2 * var(--cy) + var(--geo-overlay-bottom) - 100cqh
+        );
+        --panel-bottom: max(var(--geo-overlay-bottom), 100cqh - 2 * var(--cy) + var(--panel-top));
     }
 
     > .board-overlay > .board-overlay__panel:has(> .seating) {
+        align-self: center;
         display: flex;
         flex-direction: column;
         justify-content: center;

@@ -7,13 +7,14 @@ import {
     type BoardGeometry,
     type BoardInput,
     type BoardLengths,
+    type BoardSlots,
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
 
 const NO_PAGE = { gutter: 0, safeInsets: { bottom: 0, left: 0, right: 0, top: 0 } };
 
 /** The page's raw safe-area insets and applied gutter around the board, or null without a page. */
-function pageEdges(board: HTMLElement): Omit<BoardInput, "box"> | null {
+function pageEdges(board: HTMLElement): Pick<BoardInput, "gutter" | "safeInsets"> | null {
     const page = board.closest(".board-page");
     if (page === null) {
         return null;
@@ -35,14 +36,16 @@ function pageEdges(board: HTMLElement): Omit<BoardInput, "box"> | null {
 }
 
 /**
- * Size the board from its own box (`boardGeometry`): its family and chrome as `data-board-family` / `data-board-chrome`
- * and its sizes as `--geo-<name>` on the board, measured once its first render is in the document and again as its box
- * changes, until it leaves. An empty box (a hidden board) changes nothing and the board stays watched.
+ * Size the board from its own box and the slots its page fills (`boardGeometry`): its family and chrome as
+ * `data-board-family` / `data-board-chrome` and its sizes as `--geo-<name>` on the board, measured once its first
+ * render is in the document and again as its box or its slots change, until it leaves. An empty box (a hidden board)
+ * changes nothing and the board stays watched.
  */
 class SizeBoard extends AsyncDirective {
     private board: HTMLElement | null = null;
     private observer: ResizeObserver | null = null;
     private frame: number | null = null;
+    private slots: BoardSlots | null = null;
     private readonly written = new Map<string, string>();
 
     constructor(partInfo: PartInfo) {
@@ -52,16 +55,20 @@ class SizeBoard extends AsyncDirective {
         }
     }
 
-    render(): typeof nothing {
+    render(_slots: BoardSlots): typeof nothing {
         return nothing;
     }
 
-    override update(part: ElementPart): typeof nothing {
+    override update(part: ElementPart, [slots]: [BoardSlots]): typeof nothing {
         if (part.element instanceof HTMLElement) {
             this.board = part.element;
         }
+        const moved = this.slots?.corner !== slots.corner || this.slots.band !== slots.band;
+        this.slots = slots;
         if (this.observer === null) {
             queueMicrotask(() => this.observe());
+        } else if (moved) {
+            queueMicrotask(() => this.resize());
         }
         return nothing;
     }
@@ -74,6 +81,13 @@ class SizeBoard extends AsyncDirective {
 
     protected override reconnected(): void {
         this.observe();
+    }
+
+    private resize(): void {
+        const { board } = this;
+        if (this.observer !== null && board !== null) {
+            this.size(board, board.getBoundingClientRect(), false);
+        }
     }
 
     private observe(): void {
@@ -94,12 +108,13 @@ class SizeBoard extends AsyncDirective {
 
     /** A gutter change resizes the observed board, so one found while the observer delivers waits for the next frame. */
     private size(board: HTMLElement, { width, height }: BoardBox, delivering: boolean): void {
-        if (width <= 0 || height <= 0) {
+        const { slots } = this;
+        if (width <= 0 || height <= 0 || slots === null) {
             return;
         }
         this.cancelFrame();
         const edges = pageEdges(board);
-        const geometry = boardGeometry({ box: { height, width }, ...(edges ?? NO_PAGE) });
+        const geometry = boardGeometry({ box: { height, width }, slots, ...(edges ?? NO_PAGE) });
         if (delivering && edges !== null && geometry.gutter !== edges.gutter) {
             this.frame = requestAnimationFrame(() => {
                 this.frame = null;

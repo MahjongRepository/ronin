@@ -9,6 +9,7 @@ import {
     type BoardBox,
     type BoardEdges,
     type BoardGeometry,
+    type BoardSlots,
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
 
@@ -19,6 +20,7 @@ const UPRIGHT_SIZES = ["rw", "core", "core-top"] as const;
 const PHONE_SIZES = ["rw", "ow"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
+const LIVE_SLOTS: BoardSlots = { band: "play", corner: true };
 
 /** A window's board under the gutter its page applies: each edge pads the larger of its safe inset and the gutter. */
 function windowGeometry(
@@ -33,7 +35,7 @@ function windowGeometry(
         height: height - pad(insets.top) - pad(insets.bottom),
         width: width - pad(insets.left) - pad(insets.right),
     };
-    return boardGeometry({ box, gutter: applied, safeInsets: insets });
+    return boardGeometry({ box, gutter: applied, safeInsets: insets, slots: LIVE_SLOTS });
 }
 
 describe("boardGeometry", () => {
@@ -203,6 +205,12 @@ describe("boardGeometry", () => {
         expect(windowGeometry({ height: 620, width: 260 }).lengths["c"]).toBeGreaterThanOrEqual(
             100,
         );
+    });
+
+    it("keeps the same free box with and without a notice", () => {
+        const { lengths } = windowGeometry({ height: 900, width: 1440 });
+
+        expect(lengths["overlay-left"]).toBeGreaterThanOrEqual(lengths["reach-left"] ?? Infinity);
     });
 
     it("gives an empty box no sizes", () => {

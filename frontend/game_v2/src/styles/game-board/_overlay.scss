@@ -1,12 +1,17 @@
 @use "grid" as *;
 
-/* The overlay sizes its tiles from the board's box like the board does; a wide panel lays the round end out in
-   two columns under the hand so it fits without scrolling. */
+/* The panel stands centred on the board as far as its free box (`boardGeometry`'s) allows, and sizes its tiles from
+   that box; a wide panel lays the round end out in two columns under the hand so it fits without scrolling. */
 
 $tenpai-scale: 0.5;
 $indicator-scale: 0.6;
 $scroller-room: 4px;
 $two-column-result: 30rem;
+$overlay-unit-min: 0.25px;
+$overlay-unit-max: 0.8px;
+$overlay-hand-units: 1000;
+$overlay-height-units: 640;
+$overlay-chrome: 3rem;
 
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
@@ -16,33 +21,49 @@ $two-column-result: 30rem;
 }
 
 .board-overlay {
-    @include overlay-unit;
-
+    --panel-top: var(--geo-overlay-top);
+    --panel-right: var(--geo-overlay-right);
+    --panel-bottom: var(--geo-overlay-bottom);
+    --panel-left: var(--geo-overlay-left);
+    --panel-room: calc(100cqw - var(--panel-left) - var(--panel-right));
+    --board-unit: clamp(
+        #{$overlay-unit-min},
+        min(
+            (var(--panel-room) - #{$overlay-chrome}) / #{$overlay-hand-units},
+            100cqh / #{$overlay-height-units}
+        ),
+        #{$overlay-unit-max}
+    );
     --board-tile-w: calc(#{$tile-w} * var(--board-unit));
     --board-tile-h: calc(#{$tile-h} * var(--board-unit));
 
     position: absolute;
     inset: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: grid;
+    grid-template-rows: minmax(var(--panel-top), 1fr) auto minmax(var(--panel-bottom), 1fr);
+    grid-template-columns: minmax(var(--panel-left), 1fr) auto minmax(var(--panel-right), 1fr);
     background: var(--ronin-dim);
 
     /* The dim reaches past the board over the page's edge (`--page-bleed`), so no undimmed frame rings the board. */
     box-shadow: 0 0 0 var(--page-bleed, 0) var(--ronin-dim);
     z-index: 20;
-    padding: 0.5rem;
 }
 
+.game-board:where(#{$phone-board}) > .board-overlay {
+    grid-template-rows: var(--panel-top) auto minmax(var(--panel-bottom), 1fr);
+}
+
+/* An auto track leaves a percentage nothing to resolve against, so the panel's room is its free box's. */
 .board-overlay__panel {
+    grid-area: 2 / 2;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
     border-radius: 0.75rem;
     box-shadow: var(--ronin-panel-shadow);
     color: var(--ronin-text);
     padding: 0.6rem 0.75rem;
-    max-width: min(100%, 900px);
-    max-height: 100%;
+    max-width: min(var(--panel-room), 900px);
+    max-height: calc(100cqh - var(--panel-top) - var(--panel-bottom));
     overflow-y: auto;
 
     @container (width >= 640px) and (height >= 480px) {
@@ -56,7 +77,7 @@ $two-column-result: 30rem;
     container: result-foot / inline-size;
     display: flex;
     flex-direction: column;
-    width: min(100%, #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
+    width: min(var(--panel-room), #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome});
 }
 
 .board-overlay__panel > .round-end-result {
@@ -91,62 +112,6 @@ $two-column-result: 30rem;
         bottom: 0;
         background: var(--ronin-surface);
     }
-}
-
-.game-board:where(#{$phone-board}) > .board-overlay {
-    align-items: flex-start;
-    padding-left: 0;
-}
-
-/* A board with the page's corner, live or a replay's, keeps it clear of the panel: the panel leaves the corner's
-   reserve free on the corner's side, or upright stands under the corner's height. */
-.game-board:has(.board-menu):where(#{$landscape-board}) > .board-overlay {
-    padding-right: #{$corner-clear};
-}
-
-.game-board:has(.board-menu):where(#{$upright-board}) > .board-overlay {
-    padding-top: calc(var(--corner-bottom) + 0.5rem);
-}
-
-/* The live board's panel keeps the corner's reserve free on both sides, its tiles sized to the width between. */
-.game-board--play:has(.board-menu):where(#{$landscape-board}) > .board-overlay {
-    @include overlay-unit(calc(2 * #{$corner-clear}));
-
-    padding-left: #{$corner-clear};
-}
-
-/* A narrow desktop has height to spare but no width: the live panel takes the width between the side strips under
-   the corner's height instead, and starts past the left river's reach while notices show, leaving them their field. */
-.game-board--play:has(.board-menu):where(#{$narrow-desktop-board}) > .board-overlay {
-    @include overlay-unit(calc(2 * (var(--m) + var(--strip-depth))));
-
-    padding-top: calc(var(--corner-bottom) + 0.5rem);
-    padding-inline: calc(var(--m) + var(--strip-depth) + 0.5rem);
-}
-
-.game-board--play:has(.board-menu):has(.board-notice):where(#{$narrow-desktop-board})
-    > .board-overlay {
-    @include overlay-unit(calc(var(--reach-left) + var(--m) + var(--strip-depth)));
-
-    padding-left: var(--reach-left);
-}
-
-/* A phone's live panel also leaves the notices' column beside it free (`_notices.scss`). */
-.game-board--play:has(.board-menu):where(#{$phone-board}) > .board-overlay {
-    --panel-right: max(
-        #{$corner-clear},
-        #{$notices-beside-panel} + 0.25rem + var(--corner-shift) + var(--band-shift)
-    );
-
-    @include overlay-unit(var(--panel-right));
-
-    padding-inline: 0 var(--panel-right);
-}
-
-/* An upright live panel stands above the foreground while notices show, leaving them the reserve under the right
-   strip's end. */
-.game-board--play:has(.board-menu):has(.board-notice):where(#{$upright-board}) > .board-overlay {
-    padding-bottom: calc(100cqh - var(--foreground-top));
 }
 
 /* One or two tenpai hands take the win hand's size, one under the other; three or four shrink to sit two abreast. */
@@ -303,10 +268,6 @@ $two-column-result: 30rem;
 }
 
 @container (height < 360px) {
-    .board-overlay {
-        padding: 0.25rem;
-    }
-
     .board-overlay .round-end-result__points {
         font-size: 1.5rem;
     }
@@ -314,12 +275,4 @@ $two-column-result: 30rem;
     .board-overlay .round-end-result__limit {
         font-size: 0.9rem;
     }
-}
-
-/* A wide desktop's panel over a board with notices leaves their place in the left field free, starting past the left
-   river's reach, so a notice stays readable beside it. */
-.game-board:has(.board-notice):where(#{$desktop-chrome}) > .board-overlay {
-    @include overlay-unit(calc(var(--reach-left) + #{$corner-clear}));
-
-    padding-left: var(--reach-left);
 }

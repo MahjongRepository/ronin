@@ -14,6 +14,11 @@ import {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
+    MENU_GAP,
+    MENU_MAX,
+    MENU_MIN,
+    MENU_RIVER_SHARE,
+    NOTICES_BESIDE_PANEL,
     OWN_BY_RIVER_MAX,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
@@ -50,11 +55,18 @@ interface BoardEdges {
     readonly left: number;
 }
 
-/** The board's box as measured, the page's raw safe-area insets and the gutter the page applies (px). */
+/** The slots the board's page fills: the page's corner, and whose controls hold the band (live play's or a replay's). */
+interface BoardSlots {
+    readonly corner: boolean;
+    readonly band: "play" | "replay";
+}
+
+/** The board's box as measured, the page's raw safe-area insets and the gutter the page applies (px), and its slots. */
 interface BoardInput {
     readonly box: BoardBox;
     readonly safeInsets: BoardEdges;
     readonly gutter: number;
+    readonly slots: BoardSlots;
 }
 
 /** The board's sizes in px, by the stylesheet's length names (`rw` for `--rw`). */
@@ -162,6 +174,20 @@ const UPRIGHT_NOTICE_ROOM = 44;
  */
 const UPRIGHT_DECISIONS_GAPS = 16;
 const UPRIGHT_NOTICE_GAP = 6;
+
+/** A panel keeps this far off the board's edges where nothing else is reserved there (px). */
+const PANEL_GAP = 8;
+
+/** A phone's live panel keeps this far off the notices' column beside it (px). */
+const NOTICES_PANEL_GAP = 4;
+
+/**
+ * Upright, the replay's group stands this far off the right strip's deepest reach, and its row this far over the own
+ * melds where it shares the own badge's row, else over the badge (px).
+ */
+const GROUP_STRIP_GAP = 8;
+const GROUP_MELD_GAP = 2;
+const GROUP_BADGE_GAP = 4;
 
 /** A narrow upright board's centre keeps the room its text needs (px). */
 const UPRIGHT_CENTRE_MIN = 100;
@@ -309,7 +335,7 @@ function riverLengths({
     return [
         ["latest-discard-gap", LATEST_DISCARD_GAP],
         ["reach-bottom-right", cx - hx + runOnReach],
-        ["reach-left", cx - hx - gap - sideReach],
+        ["reach-left", leftReach(cx, centreWidth, rw)],
         ["reach-right", cx + hx + gap + sideReach],
         ["reach-top-left", cx + hx - runOnReach],
         ["reach-top-row3", cy - centre / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
@@ -317,8 +343,109 @@ function riverLengths({
     ];
 }
 
+/** Where the left river's reach ends, toward the board's left edge. */
+function leftReach(cx: number, centreWidth: number, rw: number): number {
+    return cx - centreWidth / 2 - riverGap(rw) - (SIDE_REACH_TILES / 2) * rw - LATEST_DISCARD_GAP;
+}
+
+/** The page's cog's side, from the river tile within its floor and cap. */
+function menuSize(rw: number): number {
+    return Math.min(MENU_MAX, Math.max(MENU_MIN, MENU_RIVER_SHARE * rw));
+}
+
+/** The cog's side and the room the corner keeps beside it. */
+function cornerLengths(rw: number): [string, number][] {
+    return [
+        ["corner-reserve", menuSize(rw) + MENU_GAP],
+        ["menu-size", menuSize(rw)],
+    ];
+}
+
+/** The corner's side a panel leaves free: the cog's margin, its reserve and the corner's step in; else a gap. */
+function cornerClear(
+    slots: BoardSlots,
+    { cornerShift, m, rw }: Readonly<Record<"cornerShift" | "m" | "rw", number>>,
+): number {
+    return slots.corner ? m + menuSize(rw) + MENU_GAP + cornerShift : PANEL_GAP;
+}
+
+/** The panel's free box, as the overlay's insets from the board's edges. */
+function panelLengths({ bottom, left, right, top }: BoardEdges): [string, number][] {
+    return [
+        ["overlay-bottom", bottom],
+        ["overlay-left", left],
+        ["overlay-right", right],
+        ["overlay-top", top],
+    ];
+}
+
+/** Where a replay's moves' row starts over the switches' place. */
+function movesRowTop(switchesBottom: number, movesH: number, replayGap: number): number {
+    return switchesBottom - movesH - replayGap;
+}
+
+/** What a desktop's panel is placed from, in px. */
+interface DesktopPanelRoom {
+    readonly chrome: ChromeTier;
+    readonly foregroundTop: number;
+    readonly height: number;
+    readonly reachLeft: number;
+    readonly rw: number;
+    readonly short: boolean;
+    readonly slots: BoardSlots;
+    readonly switchesBottom: number;
+    readonly switchesLeft: number;
+    readonly tier: DesktopChrome;
+}
+
+/**
+ * A desktop's panel's free box. At a desktop's chrome it starts past the left river's reach (the notices' field) and
+ * keeps the corner's side free on both sides; a replay's stands above the band too, and past its moves where they hold
+ * the switches' place. On a narrow desktop a live panel stands under the corner between the side strips, past the left
+ * river's reach; a replay's above its moves' row.
+ */
+function desktopPanel(room: DesktopPanelRoom): BoardEdges {
+    const { chrome, height, rw, slots, tier } = room;
+    const { m, movesH, replayGap } = tier;
+    const clear = cornerClear(slots, { cornerShift: 0, m, rw });
+    const replay = slots.band === "replay";
+    if (chrome !== "small") {
+        const movesEnd =
+            replay && room.short ? room.switchesLeft + REPLAY_MOVES * (movesH + replayGap) : 0;
+        return {
+            bottom: replay ? height - room.foregroundTop : PANEL_GAP,
+            left: Math.max(room.reachLeft, clear, movesEnd),
+            right: clear,
+            top: PANEL_GAP,
+        };
+    }
+    if (replay) {
+        return {
+            bottom: height - movesRowTop(room.switchesBottom, movesH, replayGap),
+            left: PANEL_GAP,
+            right: clear,
+            top: PANEL_GAP,
+        };
+    }
+    const besideStrip = m + STACKED_DEPTH * rw + PANEL_GAP;
+    return {
+        bottom: PANEL_GAP,
+        left: Math.max(room.reachLeft, besideStrip),
+        right: besideStrip,
+        top: slots.corner ? m + tier.cornerH + PANEL_GAP : PANEL_GAP,
+    };
+}
+
+/** What a family's sizes are solved for: the board's settled box, its family and chrome, and its page's slots. */
+interface BoardFrame {
+    readonly box: BoardBox;
+    readonly chrome: ChromeTier;
+    readonly family: BoardFamily;
+    readonly slots: BoardSlots;
+}
+
 /** The desktop and short desktop's root sizes and the lengths the stylesheet reads with them, in px. */
-function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {
+function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLengths {
     const { width, height } = box;
     const short = family === "short-desktop";
     const tier = DESKTOP_CHROME[chrome];
@@ -365,12 +492,9 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
         : Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core);
     const cy = coreTop + core / 2;
     const bandTop = handTop - bandGap - controlH - rowRise - bandLift;
+    const switchesX = switchesLeft(tier, { bandTop, cy, rw, switchesTop });
     const centreBySwitches = short
-        ? 2 *
-          (width / 2 -
-              switchesLeft(tier, { bandTop, cy, rw, switchesTop }) -
-              switchesPlaceWidth(tier) -
-              SWITCHES_RIVER_GAP)
+        ? 2 * (width / 2 - switchesX - switchesPlaceWidth(tier) - SWITCHES_RIVER_GAP)
         : Infinity;
     const centreWidth = Math.max(
         centre,
@@ -380,8 +504,22 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
             centreBySwitches,
         ),
     );
+    const panel = desktopPanel({
+        chrome,
+        foregroundTop: bandTop - bandGap,
+        height,
+        reachLeft: leftReach(width / 2, centreWidth, rw),
+        rw,
+        short,
+        slots,
+        switchesBottom,
+        switchesLeft: switchesX,
+        tier,
+    });
 
     return Object.fromEntries([
+        ...cornerLengths(rw),
+        ...panelLengths(panel),
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],
         ["band-lift", bandLift],
@@ -421,11 +559,61 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
     ]);
 }
 
+/** What an upright board's replay group's row is placed from, in px. */
+interface UprightGroupRoom {
+    readonly chrome: ChromeTier;
+    readonly handTop: number;
+    readonly ow: number;
+    readonly ownMeldRise: number;
+    readonly ownRise: number;
+    readonly rw: number;
+    readonly tier: DesktopChrome;
+    readonly width: number;
+}
+
+/**
+ * Where an upright replay's group's row ends: in the own badge's row over the melds where the group leaves the badge an
+ * ordinary name beside the centred hand, else over the badge.
+ */
+function uprightGroupBottom(room: UprightGroupRoom): number {
+    const { handTop, tier } = room;
+    const { bandGap, m, movesH, replayGap, sideLaneMin } = tier;
+    const moves = room.chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES;
+    const groupW = (moves + 2) * movesH + (moves + 1) * replayGap;
+    const groupLeft = room.width - m - stripReserve(room.rw) - GROUP_STRIP_GAP - groupW;
+    const ownStart = (room.width - FULL_HAND * room.ow) / 2;
+    const oneRow = groupLeft - bandGap - ownStart - sideLaneMin >= 0;
+    return oneRow
+        ? handTop - room.ownMeldRise - GROUP_MELD_GAP
+        : handTop - room.ownRise - GROUP_BADGE_GAP;
+}
+
+/**
+ * An upright board's panel's free box: under the corner, and above the foreground band, which a live board's notices
+ * take over a panel, or above a replay's group and status rows.
+ */
+function uprightPanel(
+    room: UprightGroupRoom & { readonly slots: BoardSlots },
+    height: number,
+): BoardEdges {
+    const { controlH, bandGap, cornerH, m, movesH, replayGap } = room.tier;
+    const above =
+        room.slots.band === "replay"
+            ? uprightGroupBottom(room) - 2 * (movesH + replayGap)
+            : room.handTop - 2 * bandGap - controlH;
+    return {
+        bottom: height - above,
+        left: PANEL_GAP,
+        right: PANEL_GAP,
+        top: room.slots.corner ? m + cornerH + PANEL_GAP : PANEL_GAP,
+    };
+}
+
 /**
  * An upright board's root sizes and the lengths the stylesheet reads with them, in px: its core under the counters and
  * above the decisions' two rows and the notices' place, its centre never under `UPRIGHT_CENTRE_MIN`.
  */
-function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
+function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
     const { width, height } = box;
     const tier = { ...DESKTOP_CHROME[chrome], ...UPRIGHT_CHROME };
     const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep } = tier;
@@ -494,8 +682,15 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
         Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core),
     );
     const cy = coreTop + core / 2;
+    const panel = uprightPanel(
+        { chrome, handTop, ow, ownMeldRise, ownRise, rw, slots, tier, width },
+        height,
+    );
 
     return Object.fromEntries([
+        ...cornerLengths(rw),
+        ...panelLengths(panel),
+        ["notices-beside-panel", NOTICES_BESIDE_PANEL],
         ["band-gap", bandGap],
         ["band-reserve", bandReserve],
         ["c", centre],
@@ -608,8 +803,35 @@ function phoneRightHand({
     return fromTop <= ownRowTop ? { bandCrossed: true, cornerIn: true, origin: fromTop } : null;
 }
 
+/**
+ * A phone's panel's free box: at the top, short of the corner; a live panel also short of the notices' column beside
+ * it, a replay's above its moves' row.
+ */
+function phonePanel(
+    slots: BoardSlots,
+    height: number,
+    lengths: Readonly<
+        Record<"cornerShift" | "bandShift" | "movesH" | "rw" | "switchesBottom", number>
+    >,
+): BoardEdges {
+    const { m, replayGap } = PHONE_CHROME;
+    const clear = cornerClear(slots, { cornerShift: lengths.cornerShift, m, rw: lengths.rw });
+    const beside =
+        NOTICES_BESIDE_PANEL + NOTICES_PANEL_GAP + lengths.cornerShift + lengths.bandShift;
+    const replay = slots.band === "replay";
+    return {
+        bottom: replay
+            ? height - movesRowTop(lengths.switchesBottom, lengths.movesH, replayGap)
+            : PANEL_GAP,
+        left: 0,
+        right: replay ? clear : Math.max(clear, beside),
+        top: PANEL_GAP,
+    };
+}
+
 /** A phone's lengths at a river and own tile, in px, or `null` where its places do not fit them. */
-function phoneLayout({ width, height }: BoardBox, rw: number, ow: number): BoardLengths | null {
+function phoneLayout({ box, slots }: BoardFrame, rw: number, ow: number): BoardLengths | null {
+    const { height, width } = box;
     const { bandGap, coreGap, m, sep, sideStart, switchGap } = PHONE_CHROME;
     const chrome = phoneChrome(rw);
     const { "control-h": controlH, "corner-h": cornerH, "own-badge-h": ownBadgeH } = chrome;
@@ -678,13 +900,25 @@ function phoneLayout({ width, height }: BoardBox, rw: number, ow: number): Board
         return null;
     }
     const stepIn = rh + STEP_IN_GAP;
+    const cornerShift = right.cornerIn ? stepIn : 0;
+    const bandShift = right.bandCrossed ? stepIn : 0;
+    const panel = phonePanel(slots, height, {
+        bandShift,
+        cornerShift,
+        movesH: chrome["moves-h"],
+        rw,
+        switchesBottom,
+    });
 
     return Object.fromEntries([
         ...Object.entries(chrome),
+        ...cornerLengths(rw),
+        ...panelLengths(panel),
+        ["notices-beside-panel", NOTICES_BESIDE_PANEL],
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],
         ["band-lift", 0],
-        ["band-shift", right.bandCrossed ? stepIn : 0],
+        ["band-shift", bandShift],
         ["c", centre],
         ["core", 2 * (LATEST_DISCARD_GAP + rows) + centre],
         ["core-gap", coreGap],
@@ -692,7 +926,7 @@ function phoneLayout({ width, height }: BoardBox, rw: number, ow: number): Board
         ["core-room-w", width - 2 * m - CORE_ROOM_SIDES],
         ["core-top", coreTop],
         ["corner-in", right.cornerIn ? 1 : 0],
-        ["corner-shift", right.cornerIn ? stepIn : 0],
+        ["corner-shift", cornerShift],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
@@ -725,7 +959,8 @@ function phoneLayout({ width, height }: BoardBox, rw: number, ow: number): Board
  * the largest own tile that fits with it, at most `OWN_BY_RIVER_MAX` river tiles but never under `PHONE_OWN_FLOOR`,
  * which wins where both cannot hold.
  */
-function phoneLengths(box: BoardBox): BoardLengths {
+function phoneLengths(frame: BoardFrame): BoardLengths {
+    const { box } = frame;
     const ownFit = Math.floor((box.width - 2 * PHONE_CHROME.m) / FULL_HAND);
     for (let rw = Math.floor(box.height / PHONE_MAX_RIVER_SHARE); rw > 1; rw -= 1) {
         const largest = Math.max(
@@ -733,7 +968,7 @@ function phoneLengths(box: BoardBox): BoardLengths {
             Math.min(Math.floor(OWN_BY_RIVER_MAX * rw), ownFit),
         );
         for (let ow = largest; ow >= PHONE_OWN_FLOOR; ow -= 1) {
-            const layout = phoneLayout(box, rw, ow);
+            const layout = phoneLayout(frame, rw, ow);
             if (layout !== null) {
                 return layout;
             }
@@ -742,14 +977,14 @@ function phoneLengths(box: BoardBox): BoardLengths {
     return {};
 }
 
-function familyLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {
-    if (family === "phone") {
-        return phoneLengths(box);
+function familyLengths(frame: BoardFrame): BoardLengths {
+    if (frame.family === "phone") {
+        return phoneLengths(frame);
     }
-    if (family === "upright") {
-        return uprightLengths(box, chrome);
+    if (frame.family === "upright") {
+        return uprightLengths(frame);
     }
-    return desktopLengths(box, chrome, family);
+    return desktopLengths(frame);
 }
 
 /** What a gutter adds to an edge beyond its safe inset. */
@@ -785,7 +1020,9 @@ function boardGeometry(input: BoardInput): BoardGeometry {
         Number.isFinite(settled.height) &&
         settled.width > 0 &&
         settled.height > 0;
-    const lengths = sized ? familyLengths(settled, chrome, family) : {};
+    const lengths = sized
+        ? familyLengths({ box: settled, chrome, family, slots: input.slots })
+        : {};
     return Object.freeze({
         box: Object.freeze(settled),
         chrome,
@@ -796,4 +1033,12 @@ function boardGeometry(input: BoardInput): BoardGeometry {
 }
 
 export { boardGeometry };
-export type { BoardBox, BoardEdges, BoardFamily, BoardGeometry, BoardInput, BoardLengths };
+export type {
+    BoardBox,
+    BoardEdges,
+    BoardFamily,
+    BoardGeometry,
+    BoardInput,
+    BoardLengths,
+    BoardSlots,
+};

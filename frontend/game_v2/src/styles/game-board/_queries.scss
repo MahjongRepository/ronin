@@ -6,15 +6,6 @@ $tile-w: 60;
 $tile-h: 80;
 $wide-board: "4 / 3";
 
-/* A short or upright board's notices over a panel: their column under the right strip's end. */
-$notices-beside-panel: 5rem;
-
-/* The page's corner keeps this much room past its cog. */
-$corner-gap: 6px;
-
-/* The corner's side the panel leaves free: the cog's margin, its reserve and the corner's step in. */
-$corner-clear: calc(var(--m) + var(--corner-reserve) + var(--corner-shift));
-
 /* `$full-hand`, `$own-meld-scale`, `$tile-edge-share` and `$face-floor` mirror `board-constants.ts`. */
 
 /* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
@@ -29,32 +20,12 @@ $tile-edge-share: 0.13;
 
 /* No meld face goes under this width. */
 $face-floor: 13px;
-$overlay-unit-min: 0.25px;
-$overlay-unit-max: 0.8px;
-$overlay-hand-units: 1000;
-$overlay-height-units: 640;
-$overlay-chrome: 3rem;
-
-/* The overlay's tile unit, from the board's width less what a panel leaves free beside it, and the board's height:
-   the live overlay's and the replay's alike. */
-@mixin overlay-unit($beside: 0px) {
-    --board-unit: clamp(
-        #{$overlay-unit-min},
-        min(
-            (100cqw - #{$overlay-chrome} - #{$beside}) / #{$overlay-hand-units},
-            100cqh / #{$overlay-height-units}
-        ),
-        #{$overlay-unit-max}
-    );
-}
-
 $phone-board: '[data-board-family="phone"]';
 $desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-desktop"])';
 $short-desktop-board: '[data-board-family="short-desktop"]';
 $shared-corners-board: ':is([data-board-family="phone"], [data-board-family="short-desktop"])';
 $upright-board: '[data-board-family="upright"]';
 $narrow-desktop-board: '[data-board-family="desktop"][data-board-chrome="small"]';
-$landscape-board: ":is(#{$phone-board}, #{$desktop-board})";
 $small-chrome: '[data-board-chrome="small"]';
 $large-chrome: '[data-board-chrome="large"]';
 $desktop-chrome: ':is([data-board-chrome="regular"], [data-board-chrome="large"])';

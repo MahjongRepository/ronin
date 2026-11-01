@@ -235,10 +235,6 @@ $upright-counters-gap: 6px;
     --board-table-unit: calc(var(--rw) / #{$tile-w});
     --board-local-tile-w: var(--ow);
 
-    /* The page's corner: its cog's side, and the room it keeps beside the cog, which the panels read too. */
-    --menu-size: clamp(40px, calc(56 * var(--board-table-unit)), 56px);
-    --corner-reserve: calc(var(--menu-size) + #{$corner-gap});
-
     @include small-chrome {
         --switch-gap: 4px;
         --row-bottom: var(--switches-bottom);
@@ -402,6 +398,8 @@ $upright-counters-gap: 6px;
     --reach-bottom-right: var(--geo-reach-bottom-right);
     --latest-discard-gap: var(--geo-latest-discard-gap);
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
+    --menu-size: var(--geo-menu-size);
+    --corner-reserve: var(--geo-corner-reserve);
 }
 
 /* A phone's chrome and its right hand's place are `boardGeometry`'s too. */
@@ -419,6 +417,7 @@ $upright-counters-gap: 6px;
     --corner-in: var(--geo-corner-in);
     --corner-shift: var(--geo-corner-shift);
     --band-shift: var(--geo-band-shift);
+    --notices-beside-panel: var(--geo-notices-beside-panel);
 }
 
 .game-board:where([data-board-family="upright"]) > :is(.board-layout, .board-overlay) {
@@ -461,6 +460,9 @@ $upright-counters-gap: 6px;
     --reach-bottom-right: var(--geo-reach-bottom-right);
     --latest-discard-gap: var(--geo-latest-discard-gap);
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
+    --menu-size: var(--geo-menu-size);
+    --corner-reserve: var(--geo-corner-reserve);
+    --notices-beside-panel: var(--geo-notices-beside-panel);
 }
 
 .game-board:not([data-board-family]) > :is(.board-layout, .board-overlay) {

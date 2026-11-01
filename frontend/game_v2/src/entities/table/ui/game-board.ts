@@ -441,7 +441,12 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     }
 
     return html`
-        <div class="${boardClass}" ${sizeBoard()} @click=${unpinOnClickElsewhere} @keydown=${onKey}>
+        <div
+            class="${boardClass}"
+            ${sizeBoard({ band: props.replay ? "replay" : "play", corner: props.menu !== undefined })}
+            @click=${unpinOnClickElsewhere}
+            @keydown=${onKey}
+        >
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
                 <div class="board-table" style=${styleMap({ ...sideStripStyle("left", seatPlayer(state, "left")), ...sideStripStyle("right", seatPlayer(state, "right")) })}>

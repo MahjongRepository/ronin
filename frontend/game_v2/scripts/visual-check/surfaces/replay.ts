@@ -675,57 +675,61 @@ function checkLiveGeometry(results: readonly TaskResult[]): string[] {
     });
 }
 
-/** The overlay's tile unit (`overlay-unit` in `_queries.scss`): its clamp in px, its hand and height in units, its chrome in rem. */
+/** The overlay's tile unit (`.board-overlay`'s): its clamp in px, its hand and height in units, its chrome in rem. */
 const OVERLAY_UNIT = { chromeRem: 3, handUnits: 1000, heightUnits: 640, max: 0.8, min: 0.25 };
 const UNIT_EPSILON = 0.001;
 
 /**
- * A seating panel over a replay's board at the desktop's chrome takes the replay's own field and unit, never the live
- * board's: it starts at `--panel-left` and its tile unit leaves that field beside it.
+ * A seating panel over a replay's board at the desktop's chrome stands in the board's free box (`--geo-overlay-*`),
+ * centred on the board, and its tile unit leaves the free box's sides beside it.
  */
 async function checkSeatingField(page: Page, report: PageReport): Promise<void> {
     const field = await page.evaluate(() => {
         const board = document.querySelector(".game-board");
         const overlay = board?.querySelector(":scope > .board-overlay:has(.seating)") ?? null;
-        if (board === null || overlay === null) {
+        const panel = overlay?.querySelector(":scope > .board-overlay__panel") ?? null;
+        if (board === null || overlay === null || panel === null) {
             return null;
         }
-        const style = getComputedStyle(overlay);
+        const boardStyle = getComputedStyle(board);
+        const boardBox = board.getBoundingClientRect();
+        const panelBox = panel.getBoundingClientRect();
         return {
             height: board.clientHeight,
-            paddingLeft: Number.parseFloat(style.paddingLeft),
-            paddingRight: Number.parseFloat(style.paddingRight),
-            panelLeft: Number.parseFloat(style.getPropertyValue("--panel-left")),
+            left: Number.parseFloat(boardStyle.getPropertyValue("--geo-overlay-left")),
+            panelLeft: panelBox.left - boardBox.left,
+            panelRight: panelBox.right - boardBox.left,
             rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
-            unit: Number.parseFloat(style.getPropertyValue("--board-unit")),
+            right: Number.parseFloat(boardStyle.getPropertyValue("--geo-overlay-right")),
+            unit: Number.parseFloat(getComputedStyle(overlay).getPropertyValue("--board-unit")),
             width: board.clientWidth,
         };
     });
     if (field === null) {
         return;
     }
-    const { height, paddingLeft, paddingRight, panelLeft, rem, unit, width } = field;
+    const { height, left, panelLeft, panelRight, rem, right, unit, width } = field;
     report.expect(
-        Math.abs(paddingLeft - panelLeft) <= EPSILON,
-        `the replay's seating starts at ${paddingLeft}px, not its field's end --panel-left ${panelLeft}px`,
+        panelLeft >= left - EPSILON && panelRight <= width - right + EPSILON,
+        `the replay's seating spans ${panelLeft}-${panelRight}px, outside its free box ${left}-${width - right}px`,
     );
     report.expect(
-        Math.abs(paddingRight - panelLeft) <= EPSILON,
-        `the replay's seating leaves ${paddingRight}px on its right, not the field's --panel-left ${panelLeft}px`,
+        Math.abs(panelLeft + panelRight - width) <= 2 * EPSILON,
+        `the replay's seating spans ${panelLeft}-${panelRight}px, not centred on the ${width}px board`,
     );
     const expected = Math.min(
         OVERLAY_UNIT.max,
         Math.max(
             OVERLAY_UNIT.min,
             Math.min(
-                (width - OVERLAY_UNIT.chromeRem * rem - panelLeft) / OVERLAY_UNIT.handUnits,
+                (width - OVERLAY_UNIT.chromeRem * rem - left - right) / OVERLAY_UNIT.handUnits,
                 height / OVERLAY_UNIT.heightUnits,
             ),
         ),
     );
     report.expect(
         Math.abs(unit - expected) <= UNIT_EPSILON,
-        `the replay's seating takes a tile unit of ${unit}px, not the replay's ${expected.toFixed(4)}px`,
+        `the replay's seating takes a tile unit of ${unit}px, not its free box's ${expected.toFixed(4)}px`,
     );
 }
 
