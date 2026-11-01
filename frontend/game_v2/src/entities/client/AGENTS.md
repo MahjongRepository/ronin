@@ -56,6 +56,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 - The panel over the board is `PlayDisplay.overlay`, chosen by the mapper in one precedence (an end, the leave
   question, the notices' sheet, then the table's own panel from `tablePanel`) with whether it blocks the board; the
   replay's `replayDisplay` maps its own. Components only render the panel they are given.
+- The settings menu's own transitions (the cog's toggle, a close, the sound switch) are `stepSettingsMenu`, which live's
+  `stepPlayUi` and the replay's `stepReplayPage` share; each closes the menu on its own other input.
 - Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states (a new showing
   of calls, one more discard, a new second of a long decision's last five), so scenarios and timelines stay silent
   and a snapshot plays nothing. Only the live driver plays them, while `PlayUi.soundOn`. A move's part

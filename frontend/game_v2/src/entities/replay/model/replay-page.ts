@@ -1,4 +1,9 @@
-import { type SoundCue, moveSoundCues } from "@/entities/client";
+import {
+    type SettingsMenuCommand,
+    type SoundCue,
+    moveSoundCues,
+    stepSettingsMenu,
+} from "@/entities/client";
 import { type ReplayMoves, replayMoves } from "@/entities/replay/lib/replay-display";
 import {
     type LoadedReplay,
@@ -602,16 +607,41 @@ function stepRoundList(screen: LoadedReplayScreen, event: Timed<RoundListInput>)
 }
 
 /** The settings menu opened or closed, or its sound switch turned, which the view keeps in this browser. */
-function stepSettings(
-    screen: LoadedReplayScreen,
-    kind: "toggle_settings" | "close_settings" | "toggle_sound",
-): LoadedStep {
-    if (kind === "toggle_sound") {
-        const soundOn = !screen.soundOn;
-        return { effects: [{ kind: "save_sound", soundOn }], screen: { ...screen, soundOn } };
+function stepSettings(screen: LoadedReplayScreen, command: SettingsMenuCommand): LoadedStep {
+    const { menu, saveSound } = stepSettingsMenu(
+        { open: screen.settingsOpen, soundOn: screen.soundOn },
+        command,
+    );
+    if (saveSound) {
+        return {
+            effects: [{ kind: "save_sound", soundOn: menu.soundOn }],
+            screen: { ...screen, soundOn: menu.soundOn },
+        };
     }
-    const settingsOpen = kind === "toggle_settings" && !screen.settingsOpen;
-    return quiet(settingsOpen === screen.settingsOpen ? screen : { ...screen, settingsOpen });
+    return quiet(
+        menu.open === screen.settingsOpen ? screen : { ...screen, settingsOpen: menu.open },
+    );
+}
+
+/** Inputs that leave the settings menu as it is: its own, the deadline's, the page hiding and a click anywhere. */
+const KEEPS_SETTINGS: ReadonlySet<LoadedInput["kind"]> = new Set([
+    "toggle_settings",
+    "close_settings",
+    "toggle_sound",
+    "tick",
+    "page_hide",
+    "dismiss_round_list",
+]);
+
+/** Whether the input is the reader's own, a key the page takes included, which closes the settings menu. */
+function closesSettings(event: LoadedInput): boolean {
+    return event.kind === "key" ? event.command !== null : !KEEPS_SETTINGS.has(event.kind);
+}
+
+function settingsClosed(step: LoadedStep): LoadedStep {
+    return step.screen.settingsOpen
+        ? { ...step, screen: { ...step.screen, settingsOpen: false } }
+        : step;
 }
 
 function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): LoadedStep {
@@ -637,7 +667,13 @@ function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): Load
     }
 }
 
+/** One input of a loaded replay; the reader's own input closes the settings menu, as live's page controls do. */
 function stepLoaded(screen: LoadedReplayScreen, event: Timed<LoadedInput>): LoadedStep {
+    const stepped = stepLoadedInput(screen, event);
+    return closesSettings(event) ? settingsClosed(stepped) : stepped;
+}
+
+function stepLoadedInput(screen: LoadedReplayScreen, event: Timed<LoadedInput>): LoadedStep {
     switch (event.kind) {
         case "step_click":
         case "step_press":

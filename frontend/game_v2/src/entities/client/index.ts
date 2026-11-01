@@ -56,6 +56,8 @@ export { failureDisplay } from "./model/session-end";
 export type { PlayDisplay, SwitchControl } from "./model/play-display";
 export { playDisplay } from "./model/play-display";
 export { stepPlayUi } from "./model/play-ui-reducer";
+export type { SettingsMenuCommand } from "./model/settings-menu";
+export { stepSettingsMenu } from "./model/settings-menu";
 export type { GameSound, SoundCue, SoundSetting } from "./model/sounds";
 export {
     DEFAULT_SOUND_SETTING,

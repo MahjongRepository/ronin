@@ -483,3 +483,20 @@ describe("stepReplayPage - round list", () => {
         expect(step(start, { kind: "dismiss_round_list" }).screen).toBe(start);
     });
 });
+
+describe("stepReplayPage - settings", () => {
+    it("closes the settings menu when the reader moves", () => {
+        const open = step(opened("riichi", "?round=0&step=10"), { kind: "toggle_settings" }).screen;
+        const inputs: readonly ReplayPageInput[] = [
+            { command: "next", kind: "key", repeat: false },
+            { kind: "toggle_round_list" },
+            { kind: "toggle_sound" },
+        ];
+
+        expect(inputs.map((input) => loaded(step(open, input).screen).settingsOpen)).toEqual([
+            false,
+            false,
+            true,
+        ]);
+    });
+});

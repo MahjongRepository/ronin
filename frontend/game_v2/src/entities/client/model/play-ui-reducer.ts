@@ -5,6 +5,7 @@ import { choosingTiles, pickingRiichi } from "./decision-controls";
 import { decisionOf } from "./pending";
 import { type PlayCommand, type PlayUi, type PlayUiInput, type TileChoiceKind } from "./play-ui";
 import { resultRound } from "./result-controls";
+import { stepSettingsMenu } from "./settings-menu";
 import { type LiveClient, type LocalIntent } from "./types";
 
 /** The view's `ui` once the client state moved on: a sheet with no notice left closes, so it never reopens. */
@@ -86,11 +87,12 @@ function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
             const noticeSheet = command.kind === "show_notice" ? command.notice : null;
             return { ...ui, noticeSheet, settingsOpen: false };
         }
-        case "toggle_sound": {
-            return { ...ui, soundOn: !ui.soundOn };
-        }
         default: {
-            return { ...ui, settingsOpen: command.kind === "toggle_settings" && !ui.settingsOpen };
+            const { menu } = stepSettingsMenu(
+                { open: ui.settingsOpen, soundOn: ui.soundOn },
+                command.kind,
+            );
+            return { ...ui, settingsOpen: menu.open, soundOn: menu.soundOn };
         }
     }
 }

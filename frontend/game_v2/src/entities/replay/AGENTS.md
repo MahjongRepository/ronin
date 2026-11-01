@@ -19,6 +19,9 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
 - The replay page's screen (loading, failed, loaded) moves only through `stepReplayPage`: stamped input in, screen and
   requested IO (address write, settings save, focus) out. It reads no DOM or clock and arms no timer; autoplay and a
   held button's repeat are deadlines in the screen (`replayPageDeadline`) that come back as ticks.
+- The reader's own input (a move, a key the page takes, Start, autoplay, the hands, the round list's toggle and close,
+  a seat to view from, the wheel, a step button's press) closes the settings menu; its own commands, ticks, the page
+  hiding and a click outside the round list leave it as it is.
 - A step on to the next stop (Next, autoplay, a held Next, the wheel) asks the view to play that move's sounds
   (`play_sounds`, from `moveSoundCues`) while the sound is on; a jump, a step back or a result's page plays none. The
   sound setting is the live game's (`save_sound`), never the reader's settings.
