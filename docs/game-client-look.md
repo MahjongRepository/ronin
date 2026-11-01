@@ -62,13 +62,14 @@ The derived proportions are the three reference viewports' values under the sizi
 ```
 +-------------------------------------------------------------------+
 | dora, sticks  |                                      | menu, status|
-|               |     top strip (backs)  [top badge]   |             |
-| [left badge]  |                                      | [right badge]|
+|               |     top strip (backs)                |             |
+| [left badge]  |               [top badge]            | [right badge]|
 | left strip    |          [ top river ]               | right strip |
 |               |  [L river]  [centre]  [R river]      |             |
 |               |          [ bottom river ]            |             |
 |  switches     |                   decisions   timer  |             |
-|   [own badge] [ OWN HAND ...................... ] [melds]          |
+|              [own badge]                                          |
+|              [ OWN HAND ...................... ] [melds]          |
 |   furiten mark                                                     |
 +-------------------------------------------------------------------+
 ```
@@ -169,29 +170,65 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   at its owner's edge, ivory toward its owner and the back's colour toward the centre, so a live
   hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
   kept whole, so a reveal shows the faces in the same place. A side strip that cannot hold four melds on its
-  line runs its oldest on a second line inside it, from the foreground band toward its badge; the
-  top strip and the own melds scale down instead; no meld face goes under the 13x17 face floor.
+  line runs its oldest on a second line inside it, from the foreground band (the left strip's from
+  above the play switches) toward its badge; the left strip's first line also ends above the switches
+  unless they step in past its depth; the top strip and the own melds scale down instead; no meld
+  face goes under the 13x17 face floor.
   Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
   viewport, never read from the tiles held, and nothing else stands in it. The left hand runs down
-  from below the counters, and the play switches step in past its depth where it would meet them.
+  from below the counters, and the play switches step in past its depth where it would meet them (on
+  a phone past its strip's deepest first line, which then runs on beside them).
   The right hand runs up from the band's top below the page's corner; where its full reach would
   then enter the band (a short desktop, the 667x375 floor), it runs up to the top margin instead and
   the corner steps in past its depth; where even that enters the band (the notch phone's shorter
-  safe area), it runs from below the corner across the band, whose row then ends before it. A
-  board without the page's corner (a replay's) keeps no room for it. The top
-  hand stands centred, short of a badge's width before the page's corner and right of the counters.
-- **Badges.** One fixed shape for every seat: name and marks for an AI player, a human seat
-  an AI stands in for (the human identity kept, the mark cleared when they return), riichi (quiet)
-  and disconnected. Each has a fixed place in its zone outside the rivers, the same in every state
-  at a given viewport and viewpoint; a badge's place never depends on how many tiles the seat holds.
+  safe area), it runs from below the corner across the band, whose row then ends before it.
+  Upright, its full reach ends just under its badge, unless it would then start below the band's
+  top. A board without the page's corner (a replay's) keeps no room for it. The top
+  hand stands centred, moved right as far as its badge's lane under it needs, short of the page's
+  corner and right of the counters; its melds stay above that badge where they reach its lane (a
+  limit that counts the hand without its drawn tile, so a draw never moves it), within the room the whole hand leaves.
+  Upright, a dense top strip (its melds at the face floor) starts further right instead, short of the page's corner,
+  its badge staying where it is.
+- **Badges.** One fixed shape for every opponent: the name on its first line and its quiet marks on a
+  second, an AI player, a human seat an AI stands in for (the human identity kept, the mark cleared
+  when they return), riichi as a small stick lying across, and disconnected; one height in every
+  state and the name's line fixed, whether marks show or not; the own badge alone keeps one line, its marks after the
+  name, its lane being wide and short. Each has a fixed place in its zone outside the rivers, the same
+  in every state at a given viewport and viewpoint; a badge's place never depends on how many tiles
+  the seat holds. Decision: in landscape the side badges are their strips' headers, mirrored at one
+  height (a phone's right one lower) beside each strip's reserved depth, a card's width at most and clear of the top river's
+  longest third row by a river tile, so neither reads as that river's label: at the strips'
+  start, and on a desktop whose band stands below the core a step lower, 8px under the top badge's
+  pill, so the opponents' names never read as one row; where the strips' start leaves less than an
+  ordinary name's lane beside that third row, below it by a river tile instead. A short
+  desktop takes that step only where the decisions' tallest column (five offers over the band's
+  control and the timer) leaves room under the right one, else keeps them at the strips' start. A phone keeps the left badge there,
+  the room under it the left strip's second line's, and steps the right one, which stands beside
+  the top badge, 6px under that badge's pill, the decisions' column starting under it. The top badge mirrors the own one through the centre, under the top
+  hand's first tile toward the table, a river tile's edge and 6px below the hand's line so a meld
+  over it keeps a gap, ending where the hand ends, its lane from half a river tile past the top
+  river's end at least an ordinary name wide where the page's corner allows; the right badge stays
+  right of the top hand's end. The own badge heads its hand, above the hand's first tile and any added kan's rise, under the play
+  switches, which stand that much higher (a narrow desktop's band row with them); where the switches' end leaves it
+  less than an ordinary name's lane (an ultrawide desktop's hand starts near or past it), its lane is its own, short of
+  the bottom river, and the decisions' row starts past it. An upright board
+  keeps that template as far as its geometry allows: the own badge above its hand's left end, under
+  the decisions' rows, the hand centred in the width its tile leaves; the top badge under the top
+  hand's end, level with the counters. Its top zone spans the whole width over the core, so a side
+  badge there reads as the top seat's: the right badge stands in its own zone beside the core
+  instead, over its river, its hand running up to it, short of the centre's column by half a river
+  tile. The left badge stands beside its hand's first tile, toward the table, under the counters, as
+  in landscape: a card wide where it stands over the core, else short of the top river's longest
+  third row (a near-square board's core rises beside it) but an ordinary name wide at least, which
+  only a third row past six tiles and a riichi tile reaches (a rare overlap, accepted).
   A long name is shortened in the middle so its end, which tells AI players apart, stays. Decision:
   the badge carries no wind or score; the centre holds every seat's score, and hovering or tapping a badge
   shows the other seats' scores in the centre as differences from it, labelled as that seat's
   differences (kept from the current board). The badge is therefore a control: its tap area meets
   the control floor whatever the drawn badge's size, a key activates it like a tap, a tap pins the
-  differences, and tapping it again, tapping elsewhere or Escape returns the totals. The name
-  shows on every board, upright ones included, shortened rather than dropped. Decision: on a phone a side
-  badge stands below the top river's capacity reach, so a long third row never meets it.
+  differences, and tapping it again, tapping elsewhere or Escape returns the totals; a pinned badge
+  shows a faint 1px inset ring on a slightly lighter plate, quieter than the turn bar, and a focused one the accent's outline. The name
+  shows on every board, upright ones included, shortened rather than dropped.
 - **Pooled counters.** The five dora indicator slots (each indicator as a face once the event
   that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles) with
   the honba and riichi-stick counts as icon and number, in one corner. Decision, not a
@@ -234,9 +271,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
   stale selection survives. Decision: on a desktop the controls and the timer after them stand in
   one row ending at the hand's right end, its drawn tile included; on a short desktop, whose core
-  shares the band's corners, the row starts past the bottom river's capacity reach and the
-  higher-ranked controls stand above the band's control and the timer (the band's control too where
-  the row cannot hold it beside the timer), clear of the right strip as drawn. On a phone the lowest-ranked
+  shares the band's corners, the row starts past the bottom river's capacity reach, ending past the
+  hand's end where that leaves less than a wide control (short of the right strip's reserved
+  depth), and the higher-ranked controls stand
+  above the band's control and the timer (the band's control too where the row cannot hold it
+  beside the timer), clear of the right strip as drawn. On a phone the lowest-ranked
   controls, pass last, take the foreground row beside the timer and never reach past the own river's
   capacity edge (a sideways riichi tile counted); the rest rise in rank order, right-aligned,
   between the right river's capacity edge and the right strip as drawn, pairing up before they would
@@ -264,7 +303,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   own: it shows for the viewer's open decision and round confirm only; the server sends no other
   seat's time, and none is drawn.
 - **Turn cue.** One primary cue for the seat in turn, a neutral bar along its side of the centre,
-  and one quiet reinforcement on its badge, neither in the accent; no further turn decoration: the
+  and one quiet reinforcement on its badge, a bar along the badge's edge facing the centre, neither
+  in the accent; no further turn decoration: the
   current board's "Your turn" and "Your call" labels and the line under the hand are decoration and
   go. Selectable tiles, the latest discard and the decision controls keep their own states, which
   are information, not decoration.
@@ -382,11 +422,17 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   moves, play, the hide-hands switch and the round list, readable at the
   floor viewport. Decision: no narration and no visible position line; the board itself shows each
   move and its centre the round, and the position (round, step) is read out to assistive technology only. Decision: the controls take the foreground band outside the own
-  river's capacity reach, the moves in the switches' place and the options in the decisions' place,
-  those that do not fit beside the reach on a phone in a row above before the right strip; the
-  status (an incomplete recording's note) takes the notices' place, under any notice. Decision: the moves are a round
+  river's capacity reach as one group in the decisions' place, at the band's right and ending at the
+  hand's end, the moves before the options; the own badge heads its hand alone at the band's left,
+  nothing over it (the switches' place stays empty). Where the band shares the core's corners (a
+  phone, a short desktop) the group does not fit beside the rivers' reach: the moves keep the
+  switches' place and the options the decisions', those that do not fit beside the reach on a phone in
+  a row above before the right strip. Upright, the group stands in the own badge's row, short of the
+  right strip as drawn, where it leaves that badge an ordinary name's lane (the right strip's deepest
+  counted), else right-aligned in rows over it, the options over the moves. The status (an incomplete
+  recording's note) takes the notices' place, under any notice. Decision: the moves are a round
   back, a step back, play (in the accent, the player's own action), a step on and a round on, with
-  either end too where the switches' place holds seven (a desktop's chrome; elsewhere the round list's
+  either end too on a desktop's chrome (elsewhere the round list's
   first row and its foot, Last step, always in view, reach them by touch); the options are hide hands and
   the round list, the switch over the round list's toggle where the band holds fewer than two, the
   toggle in the band. Decision: autoplay has one pace, no speed control. Decision: the viewpoint has no
@@ -394,7 +440,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   so a replay's badge pins no differences (hovering still shows them). A panel over a replay's board never covers the controls, so the replay
   always moves on. Decision, a panel-only exception: on a board smaller than a desktop's chrome a panel
   takes all but the moves' row, the options hide but the round list's toggle, and an incomplete
-  recording's "Ends here" stands between them, compact, and the panel's
+  recording's "Ends here" stands between them, compact (before the group where they share a row;
+  upright, in the row over the group's), and the panel's
   tiles keep their size, its content scrolling with its pager and action in reach. The options return
   as the panel closes. Loading, not found, incomplete
   and damaged replays each say so, as does a replay that cannot be drawn at a later stop (the failure
@@ -433,21 +480,27 @@ phone (0.33 on a desktop), starting from 0.65 of the own tile; the core's side i
 eight river tiles and two gaps of 0.3 of a river tile. On a desktop the core stands above the
 foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
-corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach.
+corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach. A
+phone's core also ends its left river's capacity above the play switches, which stand over the own
+badge's lane, so the core stands at its top slot, the river tile 17px at the floor where the lane
+costs it two; a short desktop's core ends that reach above them too, centred in its room only as
+far as that allows. That place is as tall as the play switches or the replay's moves (which stand
+there where the band shares the core's corners), whichever is taller, so a replay's board is the
+live game's.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
 apart.
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.74 / 0.74 / 0.63 |
-| Centre side / core height | 0.3 | 0.41 / 0.40 / 0.34 |
-| River tile width / own hand tile width | 0.65 | 0.53 / 0.53 / 0.61 |
+| Core height / play area height | 0.6 | 0.66 / 0.65 / 0.63 |
+| Centre side / core height | 0.3 | 0.41 / 0.39 / 0.34 |
+| River tile width / own hand tile width | 0.65 | 0.47 / 0.47 / 0.61 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | 0.65 | 0.53 / 0.53 / 0.61 |
+| Opponent hand tile width / own hand tile width | 0.65 | 0.47 / 0.47 / 0.61 |
 | Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.050 |
 | Own hand tile height / play area height | 0.15 | 0.13 / 0.13 / 0.11 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.32 / 0.32 / 0.30 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.32 / 0.32 / 0.30 (0.3, rounded) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.
@@ -455,15 +508,15 @@ only where it protects the approved layout from a regression a player would noti
 The opponent's hand at the river tile follows Tenhou (every opponent hand and meld at exactly the
 river tile, its own hand 1.44 of it on a desktop) and Mahjong Soul (the same, once its camera's depth
 is taken out). A phone keeps its river tile, which the height binds; on a desktop the river grows
-toward 0.65 of the own tile until the band or the core's cap binds: 1366x657 gives 0.47, 1920x1080
+toward 0.65 of the own tile until the band or the core's cap binds: 1366x657 gives 0.46, 1920x1080
 0.56. A decision control's tiles stay inside the room the band keeps for its row, so a large board's
 controls never reach the bottom river.
 
 The starting points did not fit together at the 667x375 floor. The rule resolves it by a mix: the
-core grows to about three quarters of the height, since the foreground band shares the core's
-lower corners where the pinwheel leaves them empty; the river tile shrinks; and the centre's share
-grows rather than its text shrinking, so the round, the wall count and four winds with their
-scores stay readable at the floor.
+core grows to about two thirds of the height, since the foreground band shares the core's lower
+corners where the pinwheel leaves them empty, less the own badge's lane under the switches; the
+river tile shrinks; and the centre's share grows, its text following the centre down to an 11px
+score, so the round, the wall count and four winds with their scores stay readable at the floor.
 
 ## States
 

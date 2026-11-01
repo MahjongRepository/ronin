@@ -13,6 +13,7 @@ import {
     intersects,
     longSide,
     near,
+    sameBox,
 } from "../boxes.ts";
 import { ACTION, boardCase, decisionCase, documentCase } from "../cases.ts";
 import {
@@ -35,6 +36,7 @@ import {
     SHORT_DESKTOP,
     SHORT_UPRIGHT,
     SQUARE_UPRIGHT,
+    ULTRAWIDE,
     UPRIGHT_PHONE,
     WIDER_PHONES,
     WORST_CASES,
@@ -111,7 +113,7 @@ const PAGES: readonly PageCase[] = [
             ACTION,
             ".board-strip .meld",
         ]),
-        at: [...WORST_CASES, SHORT_UPRIGHT, SQUARE_UPRIGHT],
+        at: [...WORST_CASES, ULTRAWIDE, SHORT_UPRIGHT, SQUARE_UPRIGHT],
         longNames: true,
     },
     {
@@ -177,7 +179,46 @@ const PAGES: readonly PageCase[] = [
     },
 ];
 
-function checkBoardContent(board: BoardMeasure, report: PageReport): void {
+/** The top river's discards an ordinary hand reaches; past them only a dense story's river runs on. */
+const ORDINARY_TOP_DISCARDS = 21;
+const TOP_DISCARDS_PAST_ORDINARY = "top-discards-past-ordinary";
+/** The spec's accepted rare overlap: an upright left badge, an ordinary name wide at least, over a long third row. */
+const ACCEPTED_OVERLAP = ["nameplate--left", TOP_DISCARDS_PAST_ORDINARY].toSorted().join(" x ");
+
+/** The top river's tiles past an ordinary hand's discards, in discard order, as the board measure boxes them. */
+function measureTopDiscardsPastOrdinary(page: Page): Promise<Box[]> {
+    return page.evaluate(
+        (ordinary) =>
+            [...document.querySelectorAll(".game-board .board-river--top .tile")]
+                .slice(ordinary)
+                .map((tile) => {
+                    const rect = tile.getBoundingClientRect();
+                    return {
+                        height: rect.height,
+                        left: rect.left + window.scrollX,
+                        top: rect.top + window.scrollY,
+                        width: rect.width,
+                    };
+                }),
+        ORDINARY_TOP_DISCARDS,
+    );
+}
+
+/** The areas that overlap, but for an upright left badge over the top river's discards past an ordinary hand's. */
+function findAreaOverlaps(board: BoardMeasure, pastOrdinary: readonly Box[]): string[] {
+    const grouped = board.grouped.map((entry) =>
+        entry.group === "top-discards" && pastOrdinary.some((tile) => sameBox(tile, entry.box))
+            ? { ...entry, group: TOP_DISCARDS_PAST_ORDINARY }
+            : entry,
+    );
+    return findOverlaps(grouped).filter((pair) => pair !== ACCEPTED_OVERLAP);
+}
+
+function checkBoardContent(
+    board: BoardMeasure,
+    pastOrdinary: readonly Box[],
+    report: PageReport,
+): void {
     const { boardClient: client, boardScroll: scroll } = board;
     report.expect(
         scroll.width <= client.width + EPSILON && scroll.height <= client.height + EPSILON,
@@ -191,7 +232,7 @@ function checkBoardContent(board: BoardMeasure, report: PageReport): void {
     report.expect(outside.length === 0, `${outside.length} tile(s) outside the board`);
     const strayPlates = board.nameplates.filter((plate) => !contains(board.board, plate));
     report.expect(strayPlates.length === 0, `${strayPlates.length} nameplate(s) outside the board`);
-    const overlaps = findOverlaps(board.grouped);
+    const overlaps = findAreaOverlaps(board, pastOrdinary);
     report.expect(overlaps.length === 0, `areas overlap: ${overlaps.join(", ")}`);
     report.expect(
         board.clippedWords.length === 0,
@@ -348,8 +389,8 @@ interface DerivedProportions {
  * review; the opponent's hand at the river tile holds everywhere (`checkHandScale`).
  */
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
-    [FLOOR, { riverGap: 0.32, riverToOwn: 0.53 }],
-    [NOTCH_PHONE, { riverGap: 0.32, riverToOwn: 0.53 }],
+    [FLOOR, { riverGap: 0.29, riverToOwn: 0.47 }],
+    [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.47 }],
     [MID_DESKTOP, { riverGap: 0.3, riverToOwn: 0.61 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
@@ -509,13 +550,12 @@ function measureTurnCues(page: Page): Promise<TurnCues> {
             if (pill === null || !shown(pill)) {
                 return false;
             }
-            const shadow = getComputedStyle(pill).boxShadow;
-            const offsets = /(?<x>-?[\d.]+)px (?<y>-?[\d.]+)px/u.exec(shadow)?.groups;
+            const cue = getComputedStyle(pill, "::after");
             return (
-                shadow.includes("inset") &&
-                offsets !== undefined &&
-                Number(offsets.y) !== 0 &&
-                opaque(/rgba?\([^)]*\)/u.exec(shadow)?.[0] ?? "")
+                cue.visibility === "visible" &&
+                Number.parseFloat(cue.width) > 0 &&
+                Number.parseFloat(cue.height) > 0 &&
+                opaque(cue.backgroundColor)
             );
         });
         return {
@@ -589,14 +629,14 @@ function checkStripsApart(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-/** Each badge's fixed point: the side of its box toward its seat's edge, and its top (the own badge's foot). */
+/** Each badge's fixed point: its box's side its place is set from, and its top (the own badge's foot). */
 function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [number, number]>> {
     return Object.fromEntries(
         board.badges.map(({ box, group }) => {
             const right = box.left + box.width;
             const bottom = box.top + box.height;
             const point: readonly [number, number] =
-                group === "right"
+                group === "right" || group === "top"
                     ? [right, box.top]
                     : [box.left, group === "bottom" ? bottom : box.top];
             return [group, point];
@@ -923,7 +963,11 @@ async function checkBoard({
     screen,
     viewport,
 }: BoardRun): Promise<void> {
-    checkBoardContent(board, report);
+    checkBoardContent(
+        board,
+        viewport.portrait ? await measureTopDiscardsPastOrdinary(page) : [],
+        report,
+    );
     await checkDiffLabel(page, report);
     report.expect(
         board.aside === null || board.zones === null || !intersects(board.zones, board.aside.box),

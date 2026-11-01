@@ -6,7 +6,7 @@ $gap: 6px;
 .play-switches {
     position: absolute;
     left: var(--switches-left);
-    bottom: calc(100cqh - var(--band-bottom));
+    bottom: calc(100cqh - var(--switches-bottom));
     z-index: 3;
     display: flex;
     align-items: flex-end;

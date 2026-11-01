@@ -2,40 +2,48 @@
 @use "type";
 
 $gap: 6px;
-$desktop-gap: 12px;
 $row: 40px;
-$win-rise: 4px;
 $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
+$corner-min-w: 180px;
 
-@property --upper-clear {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
+@each $name in upper-clear, actions-left, actions-right {
+    @property --#{$name} {
+        syntax: "<length>";
+        inherits: true;
+        initial-value: 0;
+    }
 }
 
-/* The decisions' place: a desktop's band row past the switches' slot to the hand's right end; a phone's column beside
-   the right river's reach and the right strip as drawn, down to the band, whose row starts past the own river's reach. */
+/* The decisions' place: a desktop's band row past the switches' slot and the own badge's lane to the hand's right end (a
+   short desktop's past the rivers' reach, a wide control at least); a phone's column beside the right river and strip. */
 .board-actions {
+    --actions-left: max(var(--switches-right) + var(--band-gap), var(--own-badge-end));
+    --actions-right: calc(100cqw - var(--own-hand-right));
     --upper-clear: max(
         0px,
-        var(--m) + var(--right-depth) + #{$desktop-gap} - (100cqw - var(--own-hand-right))
+        var(--m) + var(--right-depth) + #{$decision-gap} - var(--actions-right)
     );
 
     container: decisions / inline-size;
     position: absolute;
-    left: calc(var(--switches-right) + var(--band-gap));
-    right: calc(100cqw - var(--own-hand-right));
-    bottom: calc(100cqh - var(--band-bottom));
+    left: var(--actions-left);
+    right: var(--actions-right);
+    bottom: calc(100cqh - var(--row-bottom));
     z-index: 3;
     display: flex;
     justify-content: flex-end;
     min-width: 0;
 
     @include short-desktop-board {
-        left: max(
+        --actions-left: max(
             var(--switches-right) + var(--band-gap),
+            var(--own-badge-end),
             max(var(--reach-bottom-right), var(--reach-right)) + #{$gap}
+        );
+        --actions-right: max(
+            var(--m) + var(--strip-depth) + #{$decision-gap},
+            min(100cqw - var(--own-hand-right), 100cqw - var(--actions-left) - #{$corner-min-w})
         );
     }
 
@@ -43,7 +51,7 @@ $preview-tile-share: 0.42;
         container: decisions / size;
         left: calc(var(--reach-right) + #{$gap});
         right: var(--m);
-        top: calc(var(--side-badge-top) + var(--badge-h) + #{$gap});
+        top: calc(var(--right-badge-top) + var(--badge-h) + #{$gap});
     }
 
     @include upright-board {
@@ -71,7 +79,7 @@ $preview-tile-share: 0.42;
     flex-flow: row-reverse wrap-reverse;
     align-items: flex-end;
     justify-content: flex-start;
-    gap: var(--decision-gap, #{$desktop-gap});
+    gap: var(--decision-gap, #{$decision-gap});
     min-width: 0;
 
     @include phone-board {
@@ -115,7 +123,7 @@ $preview-tile-share: 0.42;
     flex-wrap: wrap-reverse;
     align-items: flex-end;
     justify-content: flex-end;
-    gap: var(--decision-gap, #{$desktop-gap});
+    gap: var(--decision-gap, #{$decision-gap});
 
     &:empty {
         display: none;

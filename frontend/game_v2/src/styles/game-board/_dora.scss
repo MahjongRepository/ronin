@@ -1,8 +1,8 @@
 @use "grid" as *;
 @use "../type";
 
-/* The pooled counters in the top-left corner: the five dora indicator slots, then the honba and riichi-stick counts as
-   icon and number, shown once here and nowhere on the centre. A phone folds the counts under the indicators. */
+/* The pooled counters in the top-left corner: dora indicator slots, then honba and riichi-stick counts (folded under
+   on a phone), `--counters-h` tall, which an upright board's left badge stands under. */
 .board-dora {
     --board-tile-w: var(--dora-w);
     --board-tile-h: calc(var(--dora-w) * 4 / 3);
@@ -15,6 +15,7 @@
     align-items: center;
     gap: 0.6em;
     width: var(--counters-w);
+    height: var(--counters-h);
     padding: 8px 14px 8px 8px;
     font-size: 19px;
     background: var(--ronin-chip);
@@ -24,6 +25,7 @@
     @include small-chrome {
         flex-direction: column;
         align-items: flex-start;
+        justify-content: center;
         gap: 3px;
         padding: 4px 6px 4px 4px;
         border-radius: 8px;

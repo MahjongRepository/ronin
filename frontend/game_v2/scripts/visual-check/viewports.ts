@@ -54,6 +54,12 @@ export const SHORT_LAPTOP = "laptop-720";
 /** The shortest regular desktop (1440x770), just over the short desktop's 760px: the band's corners its own. */
 export const SHORTEST_REGULAR_DESKTOP = "laptop-770";
 
+/**
+ * An ultrawide window (2560x1080), where the own hand starts past the play switches: the own badge keeps a lane of its
+ * own and the decisions' row starts past it.
+ */
+export const ULTRAWIDE = "window-2560";
+
 /** Laptop windows on either side of the short desktop's 760px. */
 const LAPTOP_VIEWPORTS: readonly Viewport[] = (
     [
@@ -92,8 +98,8 @@ export const SMALL_WINDOWS: readonly string[] = SMALL_WINDOW_VIEWPORTS.map(({ na
 export const [SMALLEST_WINDOW] = SMALL_WINDOWS;
 
 /**
- * Wider phones at the floor's height, where the own badge's slot is whole again beside the 36px own tile and the right
- * hand's placement must still keep the band whole.
+ * Wider phones at the floor's height, where the 36px own tile leaves room beside the full hand and the right hand's
+ * placement must still keep the band whole.
  */
 const WIDER_PHONE_VIEWPORTS: readonly Viewport[] = [680, 700].map((width) => ({
     context: {
@@ -150,6 +156,15 @@ export const VIEWPORTS: readonly Viewport[] = [
     },
     ...LAPTOP_VIEWPORTS,
     ...SMALL_WINDOW_VIEWPORTS,
+    {
+        context: { viewport: { height: 1080, width: 2560 } },
+        desktop: true,
+        engine: chromium,
+        name: ULTRAWIDE,
+        portrait: false,
+        rotates: false,
+        supported: true,
+    },
     {
         context: { viewport: { height: 510, width: 1024 } },
         desktop: false,

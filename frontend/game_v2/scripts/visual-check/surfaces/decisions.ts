@@ -34,6 +34,7 @@ import {
     SHORT_DESKTOP,
     SHORT_TABLET,
     SHORT_UPRIGHT,
+    ULTRAWIDE,
     UPRIGHT_PHONE,
     VIEWPORTS,
     WORST_CASES,
@@ -152,7 +153,7 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...decisionCase("anchor_call", [ACTION, ".decision-controls__countdown"]),
-        at: [...WORST_CASES, NOTCH_PHONE, SHORT_DESKTOP, NARROW_DESKTOP],
+        at: [...WORST_CASES, NOTCH_PHONE, SHORT_DESKTOP, NARROW_DESKTOP, ULTRAWIDE],
         contrast: true,
     },
     {

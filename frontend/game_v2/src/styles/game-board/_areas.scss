@@ -5,8 +5,9 @@ $max-melds: 4;
 $face-floor: 13px;
 $selected: 1000;
 $strip-lengths:
-    hand-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start, line2-total, line2-len,
-    line2-base, line1-x, line2-x, meld-over, meld-x, meld-tile, meld-rise, top-x;
+    hand-len, held-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start, line2-total,
+    line2-len, line2-base, line2-end, line1-x, line2-x, meld-over, meld-x, meld-tile, meld-rise,
+    top-x;
 
 @for $k from 0 through $max-melds - 1 {
     @each $part in head, end, over, room2, line2-tile, line2-at, pick-tile, pick-at {
@@ -118,7 +119,8 @@ $strip-lengths:
         top: var(--m);
         transform: rotate(180deg);
 
-        /* Upright, the strip starts as far right as its melds at the face floor need, short of the page's corner. */
+        /* Upright, a dense strip starts as far right as its melds at the face floor need, short of the page's corner;
+           its badge stays at `--top-strip-x`, so there the hand's right end may stand past it. */
         @include upright-board {
             --top-need: calc(var(--hand-len) + var(--meld-n) * var(--meld-gap));
             --top-x: min(
@@ -152,11 +154,23 @@ $strip-lengths:
     left: var(--hand-len);
 }
 
-/* The top strip keeps one line: its melds scale down to stay above the top river and the side badges, and right of the
-   counters. */
+/* The top strip keeps one line: its melds scale to stay above the top river, the top badge where they reach its lane,
+   the side badges where the left badge's lane reaches under them (a ring's width counted), right of the counters. */
 .board-strip--top .board-melds {
     --top-room: calc(var(--top-x) - var(--top-room-left));
-    --top-floor: min(var(--core-top) - 8px, var(--side-badge-top) - 6px);
+    --lane-under: clamp(
+        0px,
+        (var(--left-badge-x) + var(--side-lane) + 8px - var(--top-room-left)) * 1000,
+        1px
+    );
+    --held-len: calc((var(--hand-n) - var(--drawn)) * var(--bw));
+    --over-top-badge: clamp(0px, (var(--top-lane) - var(--held-len) - var(--meld-gap)) * 1000, 1px);
+    --top-badge-floor: calc(var(--top-badge-top) - 6px - #{$tile-edge-share} * var(--rw));
+    --top-floor: min(
+        var(--core-top) - 8px,
+        var(--side-badge-top) - 6px + (1px - var(--lane-under)) * 100000,
+        var(--top-badge-floor) + (1px - var(--over-top-badge)) * 100000
+    );
     --top-depth-tile: calc((var(--top-floor) - var(--m)) / var(--meld-deep));
     --top-free: calc(var(--top-room) - var(--hand-len) - var(--meld-n) * var(--meld-gap));
     --top-fit-tile: calc(var(--top-free) / max(var(--meld-units), 1));
@@ -178,7 +192,8 @@ $strip-lengths:
 
 .board-strip--right,
 .board-strip--left {
-    --room2: calc(var(--foreground-top) - var(--side-badge-top) - var(--badge-h) - 6px);
+    --line2-end: var(--foreground-top);
+    --room2: calc(var(--line2-end) - var(--badge-top) - var(--badge-h) - 2px);
     --line1-depth: max(var(--bh), var(--meld-deep) * var(--rw));
 
     @for $k from 0 through $max-melds - 1 {
@@ -236,6 +251,7 @@ $strip-lengths:
 }
 
 .board-strip--right {
+    --badge-top: var(--right-badge-top);
     --shallow: clamp(0, (1.5 - var(--meld-deep)) * 1000, 1);
     --room-top: max(
         var(--m) - 8px,
@@ -246,34 +262,28 @@ $strip-lengths:
 }
 
 .board-strip--left {
-    --room: calc(var(--band-top) - 8px - var(--side-start));
-    --line2-base: calc(var(--foreground-top) - var(--side-start) - var(--line2-len));
+    --badge-top: var(--side-badge-top);
+    --room: calc(var(--left-room-end) - 8px - var(--side-start));
+    --line2-end: var(--left-line2-end);
+    --line2-base: calc(var(--line2-end) - var(--side-start) - var(--line2-len));
 }
 
-/* The own row: the badge's slot and furiten's (`.board-furiten`), then the hand from a full hand's fixed start, its
-   melds after the tiles it holds at 1.2 river tiles, scaled down to end before the board's edge. */
+/* The own row: furiten's slot (`.board-furiten`), then the hand from a full hand's fixed start, its melds after the
+   tiles it holds at 1.2 river tiles, scaled down to end before the board's edge; its badge above the hand's left end. */
 .board-local {
     --board-tile-w: var(--ow);
     --board-tile-h: var(--oh);
 
     position: absolute;
-    left: var(--own-start);
+    left: calc(var(--own-start) + var(--own-inline));
     right: var(--m);
     top: var(--hand-top);
     display: flex;
     align-items: flex-end;
     height: var(--oh);
 
-    > .nameplate {
-        flex: none;
-        width: var(--badge-slot);
-
-        /* Upright, the row is too narrow for four open kans at the face floor beside a full slot: the badge's slot
-           gives up what they need, down to a phone's least. */
-        @include upright-board {
-            flex: 0 1 auto;
-            min-width: 64px;
-        }
+    @include upright-board {
+        left: var(--own-start);
     }
 
     > .board-area--bottom-hand {

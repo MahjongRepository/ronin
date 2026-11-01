@@ -1,7 +1,18 @@
 @use "../type";
+@use "grid" as *;
 
+/* A phone's centre, smaller under the lane its own badge takes, scales its text down to a floor still read at a glance. */
 .board-center {
     --score-size: max(12.5px, calc(var(--c) * 0.115));
+    --round-size: max(14px, calc(var(--c) * 0.135));
+    --wall-size: max(11.5px, calc(var(--c) * 0.1));
+
+    @include phone-board {
+        --score-size: max(11px, calc(var(--c) * 0.115));
+        --round-size: max(12px, calc(var(--c) * 0.135));
+        --wall-size: max(10.5px, calc(var(--c) * 0.1));
+    }
+
     --row-h: calc(var(--score-size) * 1.3);
     --row-depth: calc(var(--row-edge) + var(--row-h) + 1px);
 
@@ -135,7 +146,7 @@
 }
 
 .board-center__round {
-    font-size: max(14px, calc(var(--c) * 0.135));
+    font-size: var(--round-size);
     font-weight: 650;
     letter-spacing: -0.01em;
     color: var(--ronin-text);
@@ -150,7 +161,7 @@
     display: flex;
     align-items: baseline;
     gap: 0.3em;
-    font-size: max(11.5px, calc(var(--c) * 0.1));
+    font-size: var(--wall-size);
     font-weight: 650;
 }
 

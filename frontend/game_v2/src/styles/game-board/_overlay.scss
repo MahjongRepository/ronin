@@ -72,7 +72,7 @@ $scroller-room: 4px;
     }
 
     > .round-end-result__foot {
-        min-height: 2lh;
+        min-height: calc(2lh + 1px);
     }
 
     /* A scroller clips sideways too: the yaku's and the value's room keeps the indicator tiles' rims and shadows. */

@@ -17,6 +17,8 @@ $river-gap-share: 0.3;
 $core-tiles: 8.6;
 $river-by-own: 0.65;
 $side-reach-tiles: 10.6667;
+$decision-gap: 12px;
+$win-rise: 4px;
 
 /* How far a tile's edge reaches below its box, in shares of its width: `_tile.scss`'s body and back shares together. */
 $tile-edge-share: 0.13;
@@ -58,6 +60,13 @@ $overlay-chrome: 3rem;
 @mixin short-desktop-board {
     @container game-board (height >= #{$short-height}) and (height < #{$short-desktop-height}) and
         (width >= #{$small-chrome-width}) and (aspect-ratio >= 1) {
+        @content;
+    }
+}
+
+/* A phone and a short desktop, whose foreground band shares the core's lower corners. */
+@mixin shared-corners-board {
+    @container game-board (aspect-ratio >= 1) and ((height < #{$short-height}) or ((height < #{$short-desktop-height}) and (width >= #{$small-chrome-width}))) {
         @content;
     }
 }

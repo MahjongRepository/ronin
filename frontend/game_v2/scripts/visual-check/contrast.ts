@@ -79,15 +79,15 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ".board-center__riichi:not(.board-center__riichi--none)",
     },
     {
-        hide: [["", "box-shadow: none !important"]],
-        name: "badge's turn underline",
+        hide: [["::after", HIDDEN]],
+        name: "badge's turn bar",
         reach: 0,
         selector: ".nameplate--current .nameplate__pill",
     },
     {
-        hide: [["", NO_OUTLINE]],
+        hide: [["", "box-shadow: none !important"]],
         name: "pinned badge's ring",
-        reach: 4,
+        reach: 0,
         selector: ".nameplate[aria-pressed='true'] .nameplate__pill",
     },
     {
