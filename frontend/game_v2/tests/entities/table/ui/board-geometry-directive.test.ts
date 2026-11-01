@@ -1,6 +1,13 @@
 import { type RootPart, type TemplateResult, html, render } from "lit-html";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
+import { type BoardDisplayState } from "@/entities/table/model/board-types";
+import {
+    createInitialPlayerState,
+    createInitialTableState,
+} from "@/entities/table/model/initial-state";
+import { type MeldTile } from "@/entities/tile";
 import { GameBoard } from "@/entities/table/ui/game-board";
 
 class FakeObserver implements ResizeObserver {
@@ -45,19 +52,44 @@ const frames = new Map<number, FrameRequestCallback>();
 let lastFrame = 0;
 let host = document.createElement("div");
 
-function board(overlay?: TemplateResult): TemplateResult {
+const PON: readonly MeldTile[] = [
+    { face: "1m", kind: "sideways" },
+    { face: "1m", kind: "upright" },
+    { face: "1m", kind: "upright" },
+];
+
+function rightMelds(count: number): BoardDisplayState {
+    const players = [0, 1, 2, 3].map((seat) =>
+        createInitialPlayerState({ isAiPlayer: false, name: `P${seat}`, score: 25_000, seat }),
+    );
+    const state = tableStateToDisplayState(
+        { ...createInitialTableState(), players },
+        { bottomSeat: 0, reveal: "bottom" },
+    );
+    if (state === null) {
+        throw new Error("no board state");
+    }
+    const [bottom, right, top, left] = state.players;
+    return {
+        ...state,
+        players: [bottom, { ...right, melds: Array.from({ length: count }, () => PON) }, top, left],
+    };
+}
+
+function board(overlay?: TemplateResult, state: BoardDisplayState | null = null): TemplateResult {
     return GameBoard({
         debug: false,
         overlay,
         platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
-        state: null,
+        state,
     });
 }
 
 async function renderBoard(
     overlay?: TemplateResult,
+    state: BoardDisplayState | null = null,
 ): Promise<{ element: HTMLElement; part: RootPart }> {
-    const part = render(board(overlay), host);
+    const part = render(board(overlay, state), host);
     const element = host.querySelector<HTMLElement>(".game-board");
     if (element === null) {
         throw new Error("no board rendered");
@@ -175,6 +207,20 @@ describe("sizeBoard", () => {
         expect(host.querySelector(".game-board")).toBe(element);
         expect(element.dataset.boardFamily).toBe("desktop");
         expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
+    });
+
+    it("lays a strip's melds out again when what it holds changes, without a resize", async () => {
+        box = { height: 880, width: 1420 };
+        const { element } = await renderBoard(undefined, rightMelds(1));
+        function along(index: number): string {
+            return element.style.getPropertyValue(`--right-meld-${index}-along`);
+        }
+        const first = along(0);
+
+        await renderBoard(undefined, rightMelds(2));
+
+        expect([first, along(1)].every((length) => length.endsWith("px"))).toBe(true);
+        expect(along(0)).not.toBe(first);
     });
 
     it("stops observing a removed board, even through a re-render, and measures it again once it is back", async () => {

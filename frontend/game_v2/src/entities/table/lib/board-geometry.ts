@@ -1365,6 +1365,7 @@ const SIDE_BADGE_CORE_GAP = 6;
 interface StripPlaces {
     readonly badgeH: number;
     readonly cornerH: number;
+    readonly cornerShift: number;
     readonly foregroundTop: number;
     readonly origin: number;
     readonly rightBadgeTop: number;
@@ -1396,7 +1397,7 @@ function opponentStrips(
     const leftBadgeX = sideBadgeX(tier, rw);
     const laneUnder = leftBadgeX + places.sideLane + TOP_START_GAP - places.topStart > 0;
     const leftLine = places.leftRoomEnd - STRIP_ROOM_GAP - places.leftStart;
-    const rightTop = at("corner-shift") > 0 ? m - STRIP_ROOM_GAP : cornerBottom;
+    const rightTop = places.cornerShift > 0 ? m - STRIP_ROOM_GAP : cornerBottom;
     return {
         areas: {
             "strip-left": {
@@ -1497,21 +1498,23 @@ function riverClear(rw: number): number {
     return Math.max(RIVER_CLEAR_MIN, rw / 2);
 }
 
+/** The room the page's corner keeps beside the cog, none on a board without one. */
+function cornerReserve({ at, frame }: ShellRoom): number {
+    return frame.slots.corner ? at("corner-reserve") : 0;
+}
+
 /**
  * Off an upright board, the top hand's full reach stands centred, moved right as far as its badge's lane under its
  * start needs, short of the page's corner, and right of the counters; the lane runs from past the top river to there.
  */
-function landscapeTop({
-    at,
-    frame,
-    tier,
-}: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
+function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
+    const { at, frame, tier } = room;
     const m = at("m");
     const reach = fullReach(at("rw"));
     const clear = riverClear(at("rw"));
     const start = m + tier.countersW + TOP_START_GAP;
     const badgeRight =
-        frame.box.width - m - at("corner-reserve") - at("corner-shift") - tier.badgeGap;
+        frame.box.width - m - cornerReserve(room) - at("corner-shift") - tier.badgeGap;
     const pastRiver = at("cx") + at("hx") + clear;
     const centred = Math.max(at("cx") + reach / 2, pastRiver + tier.sideLaneMin);
     const anchor = Math.max(start + reach, Math.min(centred, badgeRight));
@@ -1604,6 +1607,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
         ...top,
         badgeH,
         cornerH,
+        cornerShift: at("corner-shift"),
         foregroundTop,
         leftLineEnd: Math.min(foregroundTop, switchesTop - SECOND_LINE_END_GAP),
         leftRoomEnd: left.leftRoomEnd,
@@ -1738,6 +1742,7 @@ function uprightShell(room: ShellRoom): BoardShell {
     const strips = opponentStrips(room, {
         badgeH: tier.badgeH,
         cornerH: tier.cornerH,
+        cornerShift,
         foregroundTop,
         leftLineEnd: Math.min(foregroundTop, handTop - at("own-rise") - SECOND_LINE_END_GAP),
         leftRoomEnd: bandTop,
@@ -1748,7 +1753,7 @@ function uprightShell(room: ShellRoom): BoardShell {
         sideLane,
         topAnchor,
         topBadgeTop: countersTop,
-        topCap: width - m - at("corner-reserve"),
+        topCap: width - m - cornerReserve(room),
         topLane,
         topStart: m,
     });
