@@ -230,7 +230,10 @@ interface ContrastTargets {
     readonly glyphs: readonly ContrastTarget[];
     /** The marks in batches whose boxes never meet, so each batch hides at once and no mark lends another its pixels. */
     readonly marks: readonly (readonly ContrastTarget[])[];
-    /** Targets the check cannot read honestly: a face whose symbol names no ink, anything under a recolouring filter. */
+    /**
+     * Targets the check cannot read honestly: a face whose symbol names no ink, anything under a recolouring filter. A
+     * face whose symbol is empty (the blank haku) is drawn blank by design and not collected.
+     */
     readonly unreadable: readonly string[];
 }
 
@@ -477,6 +480,9 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                     const use = tile.querySelector("use");
                     const href = use?.getAttribute("href") ?? "";
                     const symbol = document.querySelector(href);
+                    if (symbol !== null && symbol.childElementCount === 0) {
+                        return [];
+                    }
                     const instance = use === null ? null : opacityOf(use, null);
                     const inks =
                         symbol === null || instance === null ? [] : inksOf(symbol, instance);

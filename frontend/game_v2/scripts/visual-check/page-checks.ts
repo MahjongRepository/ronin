@@ -56,9 +56,11 @@ interface TileFaces {
     readonly drawn: boolean;
 }
 
+const BLANK_FACE = "#tile-5z";
+
 /**
  * Fail a page whose tile sprite never loaded, or whose faces name a symbol the sprite lacks or holds empty: either
- * leaves the faces blank, which a layout check alone passes.
+ * leaves the faces blank, which a layout check alone passes. Haku alone is blank by design.
  */
 export async function checkTileFaces(page: Page, report: PageReport): Promise<void> {
     const loaded = await page
@@ -68,15 +70,16 @@ export async function checkTileFaces(page: Page, report: PageReport): Promise<vo
         .then(() => true)
         .catch(() => false);
     report.expect(loaded, "the tile sprite did not load");
-    const faces = await page.evaluate((): TileFaces => {
+    const faces = await page.evaluate((blank): TileFaces => {
         const uses = [...document.querySelectorAll(".tile svg use")].filter(
             (use) => use instanceof SVGUseElement,
         );
         const unresolved = uses
             .map((use) => use.getAttribute("href") ?? "")
-            .filter(
-                (href) => (document.querySelector(`symbol${href}`)?.childElementCount ?? 0) === 0,
-            );
+            .filter((href) => {
+                const symbol = document.querySelector(`symbol${href}`);
+                return symbol === null || (symbol.childElementCount === 0 && href !== blank);
+            });
         const shown = uses.filter((use) => use.closest("svg")?.checkVisibility() === true);
         const drawn =
             shown.length === 0 ||
@@ -85,7 +88,7 @@ export async function checkTileFaces(page: Page, report: PageReport): Promise<vo
                 return bounds.width > 0 && bounds.height > 0;
             });
         return { count: uses.length, drawn, unresolved: [...new Set(unresolved)] };
-    });
+    }, BLANK_FACE);
     if (faces.count === 0) {
         return;
     }
