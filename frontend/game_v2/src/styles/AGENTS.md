@@ -30,8 +30,8 @@ they disagree.
   changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from that box's width and the
   board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds 32px, an upright one's
   at 11px.
-- **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule after the
-  family blocks (`_grid.scss`) maps those the styles read onto the lengths' own names on `.board-layout` and
+- **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule
+  (`_grid.scss`) maps those the styles read onto the lengths' own names on `.board-layout` and
   `.board-overlay`, inside `:where()` so it keeps (0,2,0); a name a family does not emit stays unset on its board,
   where nothing reads it. No CSS solve remains, so a board without `data-board-family` (not yet measured) hides its
   layers. A fact both sides need is TS's, emitted as a length (the chrome px, the river's footprint, the face floor,
@@ -74,7 +74,8 @@ they disagree.
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal
   river's turned footprint with its frame turned to the seat inside (a rotation, never `writing-mode`) from the area's
-  corner where the first row starts. How far a river reaches past that footprint is the geometry's (`--reach-*`).
+  corner where the first row starts. How far a river reaches past that footprint is the geometry's: it sizes the slots
+  and badges clear of it, and the styles read only the bottom river's run-on reach (`--reach-bottom-right`).
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.

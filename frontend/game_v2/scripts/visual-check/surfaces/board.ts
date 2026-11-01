@@ -351,7 +351,7 @@ function checkHandReach(board: BoardMeasure, report: PageReport): void {
     );
     report.expect(
         unread.length === 0,
-        `a side hand's full reach could not be read (--full-reach, --bh): ${unread.map((reach) => reach.group).join(", ")}`,
+        `a side hand's full reach could not be read (--geo-full-reach, --bh): ${unread.map((reach) => reach.group).join(", ")}`,
     );
     const crowded = board.handReach.filter((reach) =>
         controls.some((control) => intersects(reach.box, control)),

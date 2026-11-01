@@ -20,6 +20,10 @@ const SIZES = ["rw", "ow", "c", "w", "core-top"] as const;
 const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
 const UPRIGHT_SIZES = ["rw", "c", "core-top"] as const;
 
+/** The band's row past its control, and an upright board's room for one notice and its gap off the core (px). */
+const BAND_ROW_EXTRA = 20;
+const UPRIGHT_NOTICE_ROOM = 44 + 6;
+
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play", corner: true };
 const REPLAY_SLOTS: BoardSlots = { band: "replay", corner: true };
@@ -111,10 +115,20 @@ describe("boardGeometry", () => {
                     length("g") +
                     3 * length("rh") +
                     LATEST_DISCARD_GAP;
-                const [aboveBand, bandTop] =
-                    family === "short-desktop"
-                        ? [length("cy") + length("h"), length("band-bottom") - length("control-h")]
-                        : [coreBottom, length("foreground-top")];
+                const [aboveBand, bandTop] = {
+                    desktop: [
+                        coreBottom,
+                        length("band-bottom") -
+                            length("control-h") -
+                            length("row-rise") -
+                            BAND_ROW_EXTRA,
+                    ],
+                    "short-desktop": [
+                        length("cy") + length("h"),
+                        length("band-bottom") - length("control-h"),
+                    ],
+                    upright: [coreBottom, length("notices-bottom") - UPRIGHT_NOTICE_ROOM],
+                }[family] ?? [Number.NaN, Number.NaN];
                 expect(aboveBand).toBeLessThanOrEqual(bandTop + 0.001);
             }
         },
