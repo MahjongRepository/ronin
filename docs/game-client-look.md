@@ -320,7 +320,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   seat's time, and none is drawn.
 - **Turn cue.** One primary cue for the seat in turn, Tenhou's green bar along its side of the
   centre's edge, and one quiet reinforcement on its badge, a bar in the same green along the badge's
-  edge facing the centre, neither in the accent; no further turn decoration: the
+  bottom edge on every seat, neither in the accent; no further turn decoration: the
   current board's "Your turn" and "Your call" labels and the line under the hand are decoration and
   go. Selectable tiles, the latest discard and the decision controls keep their own states, which
   are information, not decoration.

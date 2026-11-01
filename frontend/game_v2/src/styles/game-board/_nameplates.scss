@@ -56,8 +56,12 @@ $plate-seats: bottom, right, top, left;
     background: var(--ronin-badge);
     border-radius: 6px;
 
+    /* Whose turn it is: a bar along the pill's bottom edge, the same on every seat. */
     &::after {
         position: absolute;
+        inset-inline: 0;
+        bottom: 0;
+        height: var(--cue-w);
         content: "";
         background: var(--ronin-table-turn);
         visibility: hidden;
@@ -78,35 +82,6 @@ $plate-seats: bottom, right, top, left;
 .nameplate:not(.nameplate--bottom) .nameplate__pill:not(:has(.nameplate__marks)) {
     grid-template-rows: 1.2em;
     height: calc(var(--pill-h) - 1.15em);
-}
-
-/* Whose turn it is: a bar along the plate's edge facing the centre, as the centre's own bar lies on that seat's side. */
-.nameplate--bottom .nameplate__pill::after,
-.nameplate--top .nameplate__pill::after {
-    inset-inline: 0;
-    height: var(--cue-w);
-}
-
-.nameplate--bottom .nameplate__pill::after {
-    top: 0;
-}
-
-.nameplate--top .nameplate__pill::after {
-    bottom: 0;
-}
-
-.nameplate--left .nameplate__pill::after,
-.nameplate--right .nameplate__pill::after {
-    inset-block: 0;
-    width: var(--cue-w);
-}
-
-.nameplate--left .nameplate__pill::after {
-    right: 0;
-}
-
-.nameplate--right .nameplate__pill::after {
-    left: 0;
 }
 
 /* The top badge mirrors the own one through the centre: under its hand's start, toward the table, right of the top

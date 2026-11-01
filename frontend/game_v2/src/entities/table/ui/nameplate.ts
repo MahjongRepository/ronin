@@ -73,7 +73,7 @@ function viewWords(position: SeatPosition, pressed: boolean | null): string | nu
 
 /**
  * A seat's badge: its player's name, its AI and riichi marks quiet on a line under it (beside it on the own badge, whose
- * lane is wide and short); a bar along its edge facing the centre marks whose turn it is. Its score is the centre's, on
+ * lane is wide and short); a bar along its bottom edge marks whose turn it is. Its score is the centre's, on
  * the seat's side. It is a button: pressing it pins it, so the centre shows the other seats' scores as differences from
  * its own, and pressing it again unpins it, or on a replay views the table from its seat; its label reads the score, or
  * the difference from the pinned badge.
