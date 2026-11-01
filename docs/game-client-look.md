@@ -200,8 +200,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   The right hand's reach is centred where it fits between the page's corner and the band's top, else
   it runs up from the band's top; where its full reach would
   then enter the band (a short desktop, the 667x375 floor), it runs up to the top margin instead and
-  the corner steps in past its depth; where even that enters the band (the notch phone's shorter
-  safe area), it runs from below the corner across the band, whose row then ends before it; on a
+  the corner steps in past its depth; where even that enters the band, it runs from below the
+  corner across the band, whose row then ends before it; on a
   phone, where that would reach the own row, it runs from the top margin across the band instead, the
   corner and the band's row both stepping in past it, ending above the own row.
   Upright, its reach is centred where it stays under the top badge's pill with its badge over it, else
@@ -538,18 +538,21 @@ padded box. An upright board stays upright. Deliberately, a board 520 to 539 px 
 gutter can be a phone (always so when the safe area has no top or bottom inset, since the gutter
 adds only what exceeds the safe inset), and a phone always has the small chrome.
 On a phone both tiles are solved together from the box: the river tile the largest that fits, then
-the own hand tile the largest that fits with it, at most 1.7 of the river tile (Tenhou) but never
-under 36x48, the floor winning where both cannot hold (a river tile under about 21px); the band's
-controls float in the gap above the hand, and the phone's chrome scales from the river tile (the
-small chrome's px up to a 24px river tile, growing with it past that, the controls never under
-40x40). It gives river and own tiles of 17 and 36px at 667x375 and at the notch phone's 750x369,
-18 and 36px at 844x390, and 23 and 39px at 932x430 (0.59 of the own tile; the 26 to 28px river
-there was a target, not reached), whatever the state shows. Among the layouts tried, larger tiles on
+the own hand tile the largest that fits with it, at most 1.7 of the river tile (Tenhou) and at
+least the off-phone 4/3 of it, a larger river tile waiting for an own tile that keeps that share, but
+never under 36x48, the floor winning where both cannot hold (a river tile under about 21px); the
+band's controls float in the gap above the hand, and the phone's chrome scales from the river tile
+(the small chrome's px up to a 24px river tile, growing with it past that, never under 40x40),
+except the decision controls, which keep their 40px rows. It gives river and own tiles of 17 and
+36px at 667x375, 16 and 36px at the notch phone's 750x369, 18 and 36px at 844x390, and 23 and 39px
+at 932x430 (0.59 of the own tile; the 26 to 28px river there was a target, not reached), and on a
+desktop window short enough to be a phone 30 and 51px at 1195x539 and 27 and 45px at 1100x489,
+whatever the state shows. Among the layouts tried, larger tiles on
 the smaller phones would need the own badge to leave the hand's first tile, a look decision not
 taken. Off a phone the own hand tile is 4/3 of the river tile, at most min(0.05 of
 the width, 0.1 of the height) and what a full hand's row holds. The river tile is the largest that
 keeps the centre's side at least 0.33 of the core on a desktop, solved for the own row it sizes; a
-phone's centre keeps that share and at least 94px, its text's room, and fills the height left above
+phone's centre keeps that share of the core without its latest-discard gaps, and at least 94px, its text's room, and fills the height left above
 the own hand as far as the side fields allow: the notices' place 7.5 of its ems wide beside the left
 strip's deepest reach, the decisions' column two controls wide beside the right one's, and the left
 badge an ordinary name's lane beside the top river's longest third row. The core's side is
@@ -574,16 +577,16 @@ apart.
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.73 / 0.74 / 0.63 |
-| Centre side / core height | 0.3 | 0.42 / 0.42 / 0.34 |
+| Core height / play area height | 0.6 | 0.73 / 0.75 / 0.63 |
+| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.34 |
 | Centre width / centre side | 1.4 (Tenhou about 1.5) | 1.0 / 1.4 / 1.4 |
-| River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.47 / 0.75 |
+| River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.47 / 0.75 |
+| Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
 | Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.030 |
 | Own hand tile height / play area height | 0.15 | 0.128 / 0.130 / 0.065 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
+| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.31 / 0.30 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.31 / 0.30 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.
@@ -594,7 +597,7 @@ is taken out). Decision off a phone: every other hand and river reads at one siz
 at 4/3 of it, since a side seat's tile, turned, shows its long side across the screen and an own hand
 at the same size reads smaller beside it. A phone keeps a larger own tile, which touch needs, solved
 together with its river tile from the box, the own tile up to 1.7 of the river tile (Tenhou) above
-its 36x48 floor: 2.1 at the floor and the notch phone, where the floor wins, 1.7 at 932x430. A decision control's tiles stay inside
+its 36x48 floor: 2.1 at the floor and 2.25 at the notch phone, where the floor wins, 1.7 at 932x430. A decision control's tiles stay inside
 the room the band keeps for its row, so a large board's controls never reach the bottom river.
 
 The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint

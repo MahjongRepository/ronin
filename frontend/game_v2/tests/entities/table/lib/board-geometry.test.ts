@@ -17,7 +17,6 @@ import {
 const SIZES = ["rw", "ow", "core", "c", "w", "core-top"] as const;
 const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
 const UPRIGHT_SIZES = ["rw", "core", "core-top"] as const;
-const PHONE_SIZES = ["rw", "ow"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play", corner: true };
@@ -145,23 +144,33 @@ describe("boardGeometry", () => {
     });
 
     it.each([
-        [667, 375, [17, 36]],
-        [750, 369, [17, 36]],
-        [932, 430, [23, 39]],
+        { above: true, height: 375, pinned: { "band-shift": 0, ow: 36, rw: 17 }, width: 667 },
+        { above: true, height: 369, pinned: { ow: 36, rw: 16 }, width: 750 },
+        { above: true, height: 480, pinned: { ow: 40, rw: 24 }, width: 850 },
+        {
+            above: false,
+            height: 430,
+            pinned: { "band-shift": 36.667, "corner-in": 1, ow: 39, "right-origin": 342, rw: 23 },
+            width: 932,
+        },
+        { above: false, height: 500, pinned: { "control-h": 43.333, ow: 44, rw: 26 }, width: 1024 },
     ])(
-        "sizes a %ix%i window's phone board's river and own tiles jointly, the top river's gap inside its core",
-        (width, height, expected) => {
+        "sizes a $width x $height window's phone board's tiles jointly, a full left river over the switches ending above them ($above)",
+        ({ above, height, pinned, width }) => {
             const { lengths } = windowGeometry({ height, width });
             function length(name: string): number {
                 return lengths[name] ?? Number.NaN;
             }
+            const leftRiverEnd =
+                length("cy") - length("h") + 5 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
 
-            for (const [index, name] of PHONE_SIZES.entries()) {
-                expect(length(name), name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+            for (const [name, value] of Object.entries(pinned)) {
+                expect(length(name), name).toBeCloseTo(value, 2);
             }
             expect(
                 length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
+            expect(leftRiverEnd <= length("switches-bottom") - length("control-h")).toBe(above);
         },
     );
 
