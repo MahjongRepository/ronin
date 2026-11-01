@@ -670,6 +670,7 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         OWN_BADGE_LANE +
         UPRIGHT_NOTICE_GAP +
         UPRIGHT_NOTICE_ROOM +
+        LATEST_DISCARD_GAP +
         underStrip;
     const edgeTiles = UPRIGHT_TILES + DESKTOP_SPARE * OWN_EDGE;
     const rw = Math.floor(
@@ -698,7 +699,8 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
     const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
     const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
     const noticesBottom = handTop - ownRise - 2 * controlH - UPRIGHT_DECISIONS_GAPS;
-    const bandReserve = handTop - noticesBottom + UPRIGHT_NOTICE_ROOM + UPRIGHT_NOTICE_GAP;
+    const bandReserve =
+        handTop - noticesBottom + UPRIGHT_NOTICE_ROOM + UPRIGHT_NOTICE_GAP + LATEST_DISCARD_GAP;
     const coreRoomBand = handTop - bandReserve - underStrip;
     const stripDepth = STACKED_DEPTH * rw;
 

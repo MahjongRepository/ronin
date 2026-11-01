@@ -133,8 +133,8 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [375, 548, [11, 205.666, 103.934]],
-        [800, 801, [30, 393.8, 122]],
+        [375, 548, [11, 205.666, 96.933]],
+        [800, 801, [30, 386.8, 122]],
     ])("sizes a %ix%i window's upright board as its stylesheet did", (width, height, expected) => {
         const { lengths } = windowGeometry({ height, width });
 
