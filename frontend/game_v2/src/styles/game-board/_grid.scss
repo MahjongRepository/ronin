@@ -398,6 +398,8 @@ $upright-counters-gap: 6px;
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
     --menu-size: var(--geo-menu-size);
     --corner-reserve: var(--geo-corner-reserve);
+    --corner-in: var(--geo-corner-in);
+    --corner-shift: var(--geo-corner-shift);
 }
 
 /* A phone's chrome and its right hand's place are `boardGeometry`'s too. */
@@ -412,8 +414,6 @@ $upright-counters-gap: 6px;
     --switch-h: var(--geo-switch-h);
     --moves-h: var(--geo-moves-h);
     --right-origin: var(--geo-right-origin);
-    --corner-in: var(--geo-corner-in);
-    --corner-shift: var(--geo-corner-shift);
     --band-shift: var(--geo-band-shift);
     --notices-beside-panel: var(--geo-notices-beside-panel);
 }

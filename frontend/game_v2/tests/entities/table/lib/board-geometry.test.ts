@@ -216,10 +216,18 @@ describe("boardGeometry", () => {
         );
     });
 
-    it("keeps the same free box with and without a notice", () => {
+    it("keeps the notices' field and the cog free of the panel", () => {
         const { lengths } = windowGeometry({ height: 900, width: 1440 });
+        const stepped = windowGeometry({ height: 620, width: 1170 }).lengths;
+        function length(name: string): number {
+            return stepped[name] ?? Number.NaN;
+        }
 
         expect(lengths["overlay-left"]).toBeGreaterThanOrEqual(lengths["reach-left"] ?? Infinity);
+        expect(length("corner-shift")).toBeGreaterThan(0);
+        expect(length("overlay-right")).toBeGreaterThanOrEqual(
+            length("m") + length("corner-shift") + length("menu-size"),
+        );
     });
 
     it("gives an empty box no sizes", () => {

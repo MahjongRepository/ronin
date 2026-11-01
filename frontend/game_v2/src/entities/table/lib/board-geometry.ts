@@ -385,9 +385,24 @@ function movesRowTop(switchesBottom: number, movesH: number, replayGap: number):
     return switchesBottom - movesH - replayGap;
 }
 
+/**
+ * How far a desktop's corner steps in: an opponent's tile and a gap where the right hand's full reach fits above the
+ * band only from the top margin, not under the corner.
+ */
+function desktopCornerShift(
+    tier: DesktopChrome,
+    { bandTop, rw }: Readonly<Record<"bandTop" | "rw", number>>,
+): number {
+    const reach = fullReach(rw);
+    const underCorner = tier.m + tier.cornerH + CORNER_GAP + reach <= bandTop;
+    const fromTop = tier.m + reach <= bandTop;
+    return !underCorner && fromTop ? rw * TILE_ASPECT + STEP_IN_GAP : 0;
+}
+
 /** What a desktop's panel is placed from, in px. */
 interface DesktopPanelRoom {
     readonly chrome: ChromeTier;
+    readonly cornerShift: number;
     readonly foregroundTop: number;
     readonly height: number;
     readonly reachLeft: number;
@@ -406,9 +421,9 @@ interface DesktopPanelRoom {
  * river's reach; a replay's above its moves' row.
  */
 function desktopPanel(room: DesktopPanelRoom): BoardEdges {
-    const { chrome, height, rw, slots, tier } = room;
+    const { chrome, cornerShift, height, rw, slots, tier } = room;
     const { m, movesH, replayGap } = tier;
-    const clear = cornerClear(slots, { cornerShift: 0, m, rw });
+    const clear = cornerClear(slots, { cornerShift, m, rw });
     const replay = slots.band === "replay";
     if (chrome !== "small") {
         const movesEnd =
@@ -494,6 +509,7 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     const cy = coreTop + core / 2;
     const bandTop = handTop - bandGap - controlH - rowRise - bandLift;
     const switchesX = switchesLeft(tier, { bandTop, cy, rw, switchesTop });
+    const cornerShift = desktopCornerShift(tier, { bandTop, rw });
     const centreBySwitches = short
         ? 2 * (width / 2 - switchesX - switchesPlaceWidth(tier) - SWITCHES_RIVER_GAP)
         : Infinity;
@@ -507,6 +523,7 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     );
     const panel = desktopPanel({
         chrome,
+        cornerShift,
         foregroundTop: bandTop - bandGap,
         height,
         reachLeft: leftReach(width / 2, centreWidth, rw),
@@ -534,6 +551,8 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
         ["core-room-h", coreRoomH],
         ["core-room-w", coreRoomW],
         ["core-top", coreTop],
+        ["corner-in", cornerShift > 0 ? 1 : 0],
+        ["corner-shift", cornerShift],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],

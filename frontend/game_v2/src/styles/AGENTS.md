@@ -15,8 +15,9 @@ they disagree.
   board itself.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (the corner,
   live play's or a replay's band) and the family's places; the overlay centres the panel on the board within its
-  `--geo-overlay-*` insets, live and replay alike. The notices' field is reserved whether a notice shows or not, so no
-  notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from that box's width and the
+  `--geo-overlay-*` insets, live and replay alike, clear of the cog wherever the corner steps in (the geometry decides
+  that step on every landscape board). The notices' field is reserved whether a notice shows or not, so no notice
+  changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from that box's width and the
   board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds 32px, an upright one's
   at 11px.
 - **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) the directive writes the sizes as
