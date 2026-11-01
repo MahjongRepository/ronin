@@ -41,7 +41,6 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* Two lines whether marks show or not, so a mark appearing never moves the name. */
 .nameplate__pill {
     position: relative;
     display: inline-grid;
@@ -51,7 +50,7 @@ $plate-seats: bottom, right, top, left;
     row-gap: 0.15em;
     max-width: 100%;
     height: var(--pill-h);
-    padding: 0 0.55em;
+    padding: 0 calc(0.55em + 2px);
     overflow: hidden;
     white-space: nowrap;
     background: var(--ronin-badge);
@@ -72,6 +71,13 @@ $plate-seats: bottom, right, top, left;
         background: var(--ronin-border-subtle);
         box-shadow: inset 0 0 0 1px var(--ronin-badge-muted);
     }
+}
+
+/* Two lines when marks show, the name's alone without them: the pill grows down into the badge's reserved height, so a
+   mark appearing never moves the name or anything around the badge. */
+.nameplate:not(.nameplate--bottom) .nameplate__pill:not(:has(.nameplate__marks)) {
+    grid-template-rows: 1.2em;
+    height: calc(var(--pill-h) - 1.15em);
 }
 
 /* Whose turn it is: a bar along the plate's edge facing the centre, as the centre's own bar lies on that seat's side. */

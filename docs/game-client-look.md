@@ -191,8 +191,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   its badge staying where it is.
 - **Badges.** One fixed shape for every opponent: the name on its first line and its quiet marks on a
   second, an AI player, a human seat an AI stands in for (the human identity kept, the mark cleared
-  when they return), riichi as a small stick lying across, and disconnected; one height in every
-  state and the name's line fixed, whether marks show or not; the own badge alone keeps one line, its marks after the
+  when they return), riichi as a small stick lying across, and disconnected; the name's line fixed whether marks show or
+  not, the pill one line tall without marks and growing down for their line into the badge's reserved height, so
+  nothing around it moves; the own badge alone keeps one line, its marks after the
   name, its lane being wide and short. Each has a fixed place in its zone outside the rivers, the same
   in every state at a given viewport and viewpoint; a badge's place never depends on how many tiles
   the seat holds. Decision: in landscape the side badges are their strips' headers, mirrored at one
