@@ -14,6 +14,7 @@ import {
     roundPosition,
     stepReplayPage,
 } from "@/entities/replay";
+import { CALLOUT_MS } from "@/entities/table";
 
 const LOADING: ReplayScreen = { kind: "loading", waiting: false };
 
@@ -217,6 +218,25 @@ describe("stepReplayPage - moving", () => {
             false,
             [WRITE_ADDRESS],
         ]);
+    });
+
+    it("keeps a call showing as the reader moves on until its time is up, never back before it", () => {
+        const start = opened("kans");
+        const { events, navigation } = start.replay;
+        const kan = navigation.stops.findIndex((stop) => events[stop.moveEntry].type === "meld");
+        const next = { command: "next", kind: "key", repeat: false } as const;
+        const onKan = step(start, { cursor: { page: 0, stop: kan }, kind: "move" }).screen;
+        const movedOn = step(onKan, next, 1000).screen;
+        const late = step(onKan, next, CALLOUT_MS).screen;
+        const back = step(
+            movedOn,
+            { cursor: { page: 0, stop: kan - 1 }, kind: "move" },
+            1000,
+        ).screen;
+
+        expect(
+            [onKan, movedOn, late, back].map((screen) => loaded(screen).shownCall?.stop ?? null),
+        ).toEqual([kan, kan, null, null]);
     });
 });
 

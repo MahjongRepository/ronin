@@ -8,6 +8,7 @@ import {
     readReplay,
     replayDisplay,
 } from "@/entities/replay";
+import { shownReplayCall } from "@/entities/replay/model/replay-calls";
 import { type BoardPerspective } from "@/entities/table";
 
 const ALL: BoardPerspective = { bottomSeat: 0, reveal: "all" };
@@ -23,7 +24,12 @@ function displayAt(
     cursor: ReplayCursor,
     perspective: BoardPerspective = ALL,
 ): ReplayDisplay {
-    return replayDisplay(replay, { cursor, perspective, seating: false });
+    return replayDisplay(replay, {
+        cursor,
+        perspective,
+        seating: false,
+        shownCall: shownReplayCall(replay, null, { at: 0, from: null, to: cursor }),
+    });
 }
 
 function lastStop(replay: LoadedReplay): number {
@@ -60,6 +66,11 @@ describe("replayDisplay", () => {
             cursor: { page: 0, stop: result },
             perspective: ALL,
             seating: true,
+            shownCall: shownReplayCall(replay, null, {
+                at: 0,
+                from: null,
+                to: { page: 0, stop: result },
+            }),
         });
         const shown = displayAt(replay, { page: 1, stop: result });
 
@@ -144,14 +155,14 @@ describe("replayDisplay callouts", () => {
         });
     }
 
-    test("shows the calls a stop's own move made by their seats, and none on the next move's stop", () => {
+    test("shows the calls a stop's own move made by their seats, and none arriving afresh on the next move's stop", () => {
         const replay = replayOf(engineReplayText("kans"));
         const kan = stopWhere(replay, "meld");
         const fromKanSeat = { bottomSeat: 2, reveal: "all" } as const;
 
         expect(displayAt(replay, { page: 0, stop: kan }).callouts).toEqual({
             items: [{ kind: "kan", label: "Kan", position: "top" }],
-            key: `stop-${kan}`,
+            key: `call-${kan}-0`,
         });
         expect(displayAt(replay, { page: 0, stop: kan }, fromKanSeat).callouts?.items).toEqual([
             { kind: "kan", label: "Kan", position: "bottom" },

@@ -1,4 +1,5 @@
 import { type NavigationIndex } from "@/entities/replay/model/navigation-index";
+import { type ShownReplayCall } from "@/entities/replay/model/replay-calls";
 import {
     type ReplayCursor,
     cursorRound,
@@ -146,16 +147,27 @@ function roundRows(nav: NavigationIndex, current: number): ReplayRoundRow[] {
     });
 }
 
-/** The calls a stop shows, keyed by the stop, so arriving on it plays them afresh and turning its pages does not. */
-function stopCallouts(
-    calls: readonly Call[],
-    stop: number,
+/**
+ * The calls shown, keyed by their stop and the time they were shown from, so arriving on their stop plays them afresh
+ * while turning its pages or moving on past it does not.
+ */
+function shownCallouts(
+    source: ReplaySource,
+    shown: ShownReplayCall | null,
     perspective: BoardPerspective,
 ): BoardCallouts | null {
+    if (shown === null) {
+        return null;
+    }
+    const { stateIndex } = source.navigation.stops[shown.stop];
+    const calls: readonly Call[] = source.calls[stateIndex] ?? [];
     if (calls.length === 0) {
         return null;
     }
-    return { items: boardCallouts(calls, perspective.bottomSeat), key: `stop-${stop}` };
+    return {
+        items: boardCallouts(calls, perspective.bottomSeat),
+        key: `call-${shown.stop}-${shown.at}`,
+    };
 }
 
 /** Where the page stands: at a stop, or on the seating over the table as the game started, before any stop. */
@@ -164,12 +176,13 @@ export interface ReplayPlace {
     readonly perspective: BoardPerspective;
     /** The seating shows, while the replay waits for its reader at its start. */
     readonly seating: boolean;
+    readonly shownCall: ShownReplayCall | null;
 }
 
 /** The stop's board and panel, or the seating over the table as the game started, which shows no call. */
 function stopBoard(
     source: ReplaySource,
-    { cursor, perspective, seating }: ReplayPlace,
+    { cursor, perspective, seating, shownCall }: ReplayPlace,
 ): Pick<ReplayDisplay, "board" | "callouts" | "overlay"> {
     if (seating) {
         return {
@@ -180,7 +193,7 @@ function stopBoard(
     }
     const { stateIndex } = source.navigation.stops[cursor.stop];
     const table = source.tables[stateIndex];
-    const callouts = stopCallouts(source.calls[stateIndex] ?? [], cursor.stop, perspective);
+    const callouts = shownCallouts(source, shownCall, perspective);
     return {
         board: tableStateToDisplayState(table, perspective),
         callouts,

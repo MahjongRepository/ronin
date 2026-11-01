@@ -552,19 +552,19 @@ describe("playDisplay notices", () => {
     });
 
     it("shows a refused move or a rate-limited one of the sent request until it expires, but never a stale one", () => {
-        const scenario = confirmSentScenario(2000);
+        const scenario = confirmSentScenario(4000);
 
-        scenario.step(clientEvent.message(2100, wireGameError("stale_action", 5)));
+        scenario.step(clientEvent.message(4100, wireGameError("stale_action", 5)));
         expect(noticeTexts(scenario.state)).toEqual([]);
-        scenario.step(clientEvent.message(2200, wireGameError("invalid_action", 5)));
+        scenario.step(clientEvent.message(4200, wireGameError("invalid_action", 5)));
         expect([noticeTexts(scenario.state), nextDeadline(scenario.state)]).toEqual([
             ["That move was refused"],
-            6200,
+            8200,
         ]);
-        scenario.step(clientEvent.confirm(2250));
-        scenario.step(clientEvent.message(2300, wireSessionError("rate_limited", 5)));
+        scenario.step(clientEvent.confirm(4250));
+        scenario.step(clientEvent.message(4300, wireSessionError("rate_limited", 5)));
         expect(noticeTexts(scenario.state)).toEqual(["Too fast. Try that again"]);
-        scenario.step(clientEvent.tick(6300));
+        scenario.step(clientEvent.tick(8300));
         expect([noticeTexts(scenario.state), nextDeadline(scenario.state)]).toEqual([[], null]);
     });
 
@@ -842,14 +842,18 @@ describe("playDisplay callouts", () => {
         function callsAt(label: string): LiveClient["calls"] {
             return checkpointState("chankan_passed_seat_3", label).calls;
         }
-        const kan = { at: 8000, calls: [{ kanTileType: 14, kind: "kan", seat: 1 }], until: 9500 };
+        const kan = {
+            at: 8000,
+            calls: [{ kanTileType: 14, kind: "kan", seat: 1 }],
+            until: 8000 + CALLOUT_MS,
+        };
 
         expect(calloutsAt("chankan_passed_seat_3", "chankan prompt")?.items).toEqual([
             { kind: "kan", label: "Kan", position: "top" },
         ]);
         expect(callsAt("chankan prompt")).toEqual(kan);
         expect(callsAt("prompt re-sent")).toEqual(kan);
-        expect(callsAt("kan")).toBeNull();
+        expect(callsAt("kan")).toEqual(kan);
     });
 
     it("calls each of two kans one seat declares in quick succession", () => {

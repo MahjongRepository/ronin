@@ -321,80 +321,20 @@ function CenterInfo(
     `;
 }
 
-const RIVER_ROW = 6;
-
 /**
- * Where a call's chip may lie in its caller's river, in the river's frame (along its rows in river tiles, away from the
- * centre in river rows), first choice first: a top or bottom river's chip lies along one row, a side river's, upright,
- * across every row over two columns.
+ * Where a call's chip lies over its caller's river, in the river's frame (along its rows in river tiles, away from the
+ * centre in river rows): a top or bottom river's chip centred along its rows; a side river's, upright and wider than
+ * the river, from its outer edge inward, clear of the decisions beside it.
  */
-const CALLOUT_SPOTS: Readonly<Record<SeatPosition, readonly (readonly [number, number])[]>> = {
-    bottom: [
-        [3, 1.5],
-        [3, 0.5],
-        [3, 2.5],
-    ],
-    left: [
-        [3, 2],
-        [1, 2],
-        [5, 2],
-    ],
-    right: [
-        [3, 2],
-        [1, 2],
-        [5, 2],
-    ],
-    top: [
-        [3, 2.5],
-        [3, 1.5],
-        [3, 0.5],
-    ],
+const CALLOUT_SPOTS: Readonly<Record<SeatPosition, readonly [number, number]>> = {
+    bottom: [3, 1.5],
+    left: [3, 4],
+    right: [3, 4],
+    top: [3, 2.5],
 };
 
-/** The latest discard's place in a river, its column along its row and its row, or null when it lies elsewhere. */
-function latestSlot(
-    seat: SeatPosition,
-    player: BoardPlayerDisplay | null,
-): { col: number; row: number } | null {
-    const index = player?.discards.findIndex((tile) => tile.last === true) ?? -1;
-    if (index === -1) {
-        return null;
-    }
-    const lastRow = seat === "left" || seat === "right" ? 3 : 2;
-    const row = Math.min(lastRow, Math.floor(index / RIVER_ROW));
-    return { col: index - row * RIVER_ROW, row };
-}
-
-/**
- * The first spot for a call's chip over its caller's river that leaves the latest discard, the action source, in view:
- * a top or bottom chip off the latest discard's row, a side chip off its column pair.
- */
-function calloutSpot(
-    seat: SeatPosition,
-    player: BoardPlayerDisplay | null,
-): readonly [number, number] {
-    const spots = CALLOUT_SPOTS[seat];
-    const latest = latestSlot(seat, player);
-    const side = seat === "left" || seat === "right";
-    const clear = spots.find(([along, across]) => {
-        if (latest === null) {
-            return true;
-        }
-        return side
-            ? latest.col < along - 1 || latest.col >= along + 1
-            : latest.row !== Math.floor(across);
-    });
-    return clear ?? spots[0];
-}
-
-function Callout(
-    { kind, label, position }: BoardCallout,
-    players: BoardDisplayState["players"] | null,
-): TemplateResult {
-    const [along, across] = calloutSpot(
-        position,
-        players?.[SEAT_POSITIONS.indexOf(position)] ?? null,
-    );
+function Callout({ kind, label, position }: BoardCallout): TemplateResult {
+    const [along, across] = CALLOUT_SPOTS[position];
     return html`<div
         class="board-callout board-callout--${position} board-callout--${kind}"
         style="--spot-along: ${along}; --spot-across: ${across}"
@@ -404,15 +344,14 @@ function Callout(
 }
 
 /**
- * The calls by their seats, each over its caller's river clear of the latest discard; a new showing (a new key) is
- * drawn afresh, so its animation plays from the start, over the time a live call shows.
+ * The calls by their seats, each over its caller's river; a new showing (a new key) is drawn afresh, so its animation
+ * plays from the start, over the time a call shows.
  */
-function Callouts(callouts: BoardCallouts, state: BoardDisplayState | null): TemplateResult {
-    const players = state?.players ?? null;
+function Callouts(callouts: BoardCallouts): TemplateResult {
     return html`${keyed(
         callouts.key,
         html`<div class="board-callouts" style="--callout-ms: ${CALLOUT_MS}ms" aria-hidden="true">${callouts.items.map(
-            (item) => Callout(item, players),
+            (item) => Callout(item),
         )}</div>`,
     )}`;
 }
@@ -520,7 +459,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${props.switches ?? ""}
                     ${props.replay ? html`<div class="board-replay">${props.replay.controls}</div>` : ""}
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
-                    ${props.callouts ? Callouts(props.callouts, state) : ""}
+                    ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 <div class="board-local" style=${styleMap(ownMeldStyle(bottom))}>
                     ${plates?.bottom ?? ""}${props.localHand ? FuritenSlot(props.furiten ?? false) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}

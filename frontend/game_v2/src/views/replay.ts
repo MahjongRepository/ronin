@@ -275,12 +275,17 @@ function loadedTemplate(
     links: ReplayLinks,
     handlers: ReplayHandlers,
 ): TemplateResult {
-    const { hideHands, replay, seating, view } = screen;
+    const { hideHands, replay, seating, shownCall, view } = screen;
     const perspective = {
         bottomSeat: view.bottomSeat,
         reveal: hideHands ? "bottom" : "all",
     } as const;
-    const display = replayDisplay(replay, { cursor: view.cursor, perspective, seating });
+    const display = replayDisplay(replay, {
+        cursor: view.cursor,
+        perspective,
+        seating,
+        shownCall,
+    });
     const platePress: PlatePress = { kind: "view", onView: handlers.viewSeat };
     const { overlay } = display;
     const controls: TablePanelControls = {

@@ -33,7 +33,7 @@ import {
     stepGameClient,
     timelineStates,
 } from "@/entities/client";
-import { roundEndDisplay, tableStateToDisplayState } from "@/entities/table";
+import { CALLOUT_MS, roundEndDisplay, tableStateToDisplayState } from "@/entities/table";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
     CALL_TYPE,
@@ -835,13 +835,13 @@ describe("stepGameClient - generated round advance", () => {
     it("keeps the last win's call through the game's end and the socket's close, until its own time ends it", () => {
         const { scenario } = FINAL_ROUND;
         const run = runClean(scenario);
-        const ron = { at: 5000, calls: [{ kind: "ron", seat: 1 }], until: 6500 };
+        const ron = { at: 5000, calls: [{ kind: "ron", seat: 1 }], until: 5000 + CALLOUT_MS };
         const afterClose = lastState(run);
 
         expect(stateAt(scenario, run, "round end").calls).toEqual(ron);
         expect(stateAt(scenario, run, "game end").calls).toEqual(ron);
-        expect([afterClose.calls, nextDeadline(afterClose)]).toEqual([ron, 6500]);
-        expect(stepGameClient(afterClose, { at: 6500, kind: "tick" }).state.calls).toBeNull();
+        expect([afterClose.calls, nextDeadline(afterClose)]).toEqual([ron, ron.until]);
+        expect(stepGameClient(afterClose, { at: ron.until, kind: "tick" }).state.calls).toBeNull();
     });
 
     it("drops the last win's call when the session fails instead", () => {

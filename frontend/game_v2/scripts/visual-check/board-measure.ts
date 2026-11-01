@@ -50,7 +50,6 @@ export interface BoardMeasure {
     /** The calls shown by their seats. */
     readonly callouts: readonly Box[];
     /** What an open offer refers to: the latest discard, a kan a chankan offer may rob. */
-    readonly actionSources: readonly Box[];
     /** The decision timer's slot. */
     readonly timer: Box | null;
     /** The decision's first toggle (riichi, a call's first step), pressed or not. */
@@ -267,9 +266,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             px: Number.parseFloat(getComputedStyle(element).fontSize),
         }));
         return {
-            actionSources: [...board.querySelectorAll(".discard-tile--last, .meld--source")].map(
-                box,
-            ),
             actions,
             aside:
                 aside === null

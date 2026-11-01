@@ -646,8 +646,8 @@ function badgeAnchors(board: BoardMeasure): Readonly<Record<string, readonly [nu
 }
 
 /**
- * A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps, over a
- * decision control or the timer, or over what an open offer refers to (the latest discard, a kan a chankan may rob).
+ * A call shown by its seat stays on the board and never lies over the local hand's tiles, which take the taps, or over a
+ * decision control or the timer; it may cover what an open offer refers to, for the moment it shows.
  */
 function checkCallouts(board: BoardMeasure, report: PageReport): void {
     const outside = board.callouts.filter((callout) => !contains(board.board, callout));
@@ -669,13 +669,6 @@ function checkCallouts(board: BoardMeasure, report: PageReport): void {
     report.expect(
         overControl.length === 0,
         `call(s) over a decision control or the timer: ${overControl.map(describeBox).join(", ")}`,
-    );
-    const overSource = board.callouts.filter((callout) =>
-        board.actionSources.some((source) => intersects(callout, source)),
-    );
-    report.expect(
-        overSource.length === 0,
-        `call(s) over the latest discard or an offered kan: ${overSource.map(describeBox).join(", ")}`,
     );
 }
 

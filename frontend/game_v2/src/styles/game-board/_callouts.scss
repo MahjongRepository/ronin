@@ -6,20 +6,18 @@ $overlay-hold-ms: 1000ms;
     display: contents;
 }
 
-/* A call's word on a chip over its caller's river, upright, at the board's spot clear of the latest discard
+/* A call's word on a borderless chip over its caller's river, upright, three river rows' worth of type at its spot
    (`--spot-along` river tiles along its rows, `--spot-across` rows from the centre, in the river's frame). */
 .board-callout {
     --callout-cap: 40px;
-    --chip-border: 2px;
 
     position: absolute;
     z-index: 5;
-    padding: 0 0.35em;
-    border: var(--chip-border) solid var(--ronin-callout-rim);
-    border-radius: 0.3em;
+    padding: 0 0.15em;
+    border-radius: 0.2em;
     background: var(--ronin-callout);
     box-shadow: var(--ronin-panel-shadow);
-    font-size: min(var(--callout-cap), var(--rh) - 2 * var(--chip-border));
+    font-size: calc(3 * min(var(--callout-cap), var(--rh) - 4px));
     font-weight: 700;
     line-height: 1;
     white-space: nowrap;
@@ -46,19 +44,22 @@ $overlay-hold-ms: 1000ms;
         top: calc(var(--cy) - var(--h) - var(--g) - var(--spot-across) * var(--rh));
     }
 
+    /* A side chip stands from its river's outer edge inward. */
     &--right {
         left: calc(var(--cx) + var(--hx) + var(--g) + var(--spot-across) * var(--rh));
         top: calc(var(--cy) + var(--h) - var(--spot-along) * var(--rw));
+        translate: -100% -50%;
     }
 
     &--left {
         left: calc(var(--cx) - var(--hx) - var(--g) - var(--spot-across) * var(--rh));
         top: calc(var(--cy) - var(--h) + var(--spot-along) * var(--rw));
+        translate: 0 -50%;
     }
 
     &--ron,
     &--tsumo {
-        border-color: var(--ronin-callout-win-rim);
+        color: var(--ronin-callout-win-rim);
     }
 }
 

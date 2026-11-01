@@ -362,11 +362,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Settings.** Not built: a settings sheet exists only while it has an entry, and it has none. The
   play switches are not settings: they last one hand and stay on the board.
 - **Callouts.** Decision: a call, a riichi, a kan, a kyuushu kyuuhai declaration and a win show as
-  one word on a chip over the caller's own river, upright, for a moment, large enough to read from
-  across the board, a win's marked apart, covering no decision control, no face of the own hand and
-  no action source; a double or triple ron shows every claimant's at once. Its life is the current
-  board's: a fixed moment in live play or until a newer call at the same seat replaces it, and in a
-  replay until the next stop. Candidate: a move may be animated briefly (a discard travels from hand
+  one word on a borderless chip over the caller's own river, upright, three river rows' worth of type,
+  a win's word in its own colour, covering no decision control and no face of the own hand; it may
+  cover an action source for its moment (decision: size over a clear source). A double or triple ron
+  shows every claimant's at once. It shows for three seconds and fades out last: in live play until
+  then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
+  on through its round, gone on stepping back past it or into another round. Candidate: a move may be animated briefly (a discard travels from hand
   to river); reduced motion turns it off.
 - **Page corner.** The way back and the connection status, in one corner, small.
 - **Notices.** Reconnecting, a lost seat, a refused move, a message the client could not read, tile

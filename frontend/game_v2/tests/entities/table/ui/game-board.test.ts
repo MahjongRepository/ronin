@@ -1,5 +1,5 @@
 import { html, render } from "lit-html";
-import { assert, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { tableStateToDisplayState } from "@/entities/table/lib/board-mapper";
 import { type BoardCallouts, type SeatPosition } from "@/entities/table/model/board-types";
@@ -9,7 +9,6 @@ import {
 } from "@/entities/table/model/initial-state";
 import { type BoardNotice } from "@/entities/table/ui/board-notices";
 import { GameBoard } from "@/entities/table/ui/game-board";
-import { type DiscardTile } from "@/entities/tile";
 
 function renderBoard(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement {
     const players = [0, 1, 2, 3].map((seat) => ({
@@ -243,64 +242,5 @@ describe("GameBoard callouts", () => {
         expect(first?.classList.contains("board-callout--top")).toBe(true);
         expect(redrawn).toBe(first);
         expect(host.querySelector(".board-callout")).not.toBe(first);
-    });
-
-    it("lays each call's chip over its caller's river clear of the latest discard", () => {
-        const table = {
-            ...createInitialTableState(),
-            players: [0, 1, 2, 3].map((seat) =>
-                createInitialPlayerState({
-                    isAiPlayer: false,
-                    name: `P${seat}`,
-                    score: 25_000,
-                    seat,
-                }),
-            ),
-        };
-        const board = tableStateToDisplayState(table, { bottomSeat: 0, reveal: "bottom" });
-        assert(board !== null);
-        function river(length: number): DiscardTile[] {
-            return Array.from({ length }, (_unused, index) => ({
-                face: "1m",
-                last: index === length - 1,
-            }));
-        }
-        const [bottom, right, top, left] = board.players;
-        const state = {
-            ...board,
-            players: [
-                { ...bottom, discards: river(9) },
-                { ...right, discards: river(3) },
-                top,
-                left,
-            ] as const,
-        };
-        const host = document.createElement("div");
-        render(
-            GameBoard({
-                callouts: {
-                    items: [
-                        { kind: "pon", label: "Pon", position: "bottom" },
-                        { kind: "chi", label: "Chi", position: "right" },
-                        { kind: "kan", label: "Kan", position: "top" },
-                    ],
-                    key: "call-4",
-                },
-                debug: false,
-                platePress: { kind: "pin", onPin: vi.fn(), pinned: null },
-                state,
-            }),
-            host,
-        );
-
-        expect(
-            [...host.querySelectorAll<HTMLElement>(".board-callout")].map((chip) =>
-                chip.getAttribute("style"),
-            ),
-        ).toEqual([
-            "--spot-along: 3; --spot-across: 0.5",
-            "--spot-along: 1; --spot-across: 2",
-            "--spot-along: 3; --spot-across: 2.5",
-        ]);
     });
 });
