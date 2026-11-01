@@ -6,8 +6,15 @@
     gap: 0;
 }
 
+@property --page-gutter {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
+/* The 10px gutter mirrors `board-constants.ts`'s `PAGE_GUTTER`. */
 .board-page {
-    --page-gutter: 0px;
+    --page-gutter: 10px;
     --page-edge-top: max(var(--ronin-safe-top), var(--page-gutter));
     --page-edge-right: max(var(--ronin-safe-right), var(--page-gutter));
     --page-edge-bottom: max(var(--ronin-safe-bottom), var(--page-gutter));
@@ -19,8 +26,8 @@
         var(--page-edge-left)
     );
 
-    @media (height >= #{$short-height}) {
-        --page-gutter: 10px;
+    &:has(> .board-page__board > .game-board#{$phone-board}) {
+        --page-gutter: 0px;
     }
 
     /* A storybook's switches beside the board stay undimmed. */

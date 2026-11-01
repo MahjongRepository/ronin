@@ -92,7 +92,7 @@ $place-gap: 6px;
 
     /* A desktop's chrome over its band keeps the own badge's lane short of the group in its row, the group standing past
        the hand's end where the hand leaves the badge less than an ordinary name. */
-    @container game-board (width >= #{$small-chrome-width}) and (height >= #{$short-desktop-height}) and (aspect-ratio >= 1) {
+    @include board-where('[data-board-family="desktop"]#{$desktop-chrome}') {
         --opt-right: max(
             var(--m),
             min(
@@ -363,7 +363,7 @@ $place-gap: 6px;
         --band-reserve-top: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap));
     }
 
-    @container game-board ((width < #{$small-chrome-width}) or (height < #{$short-height})) and (aspect-ratio >= 1) {
+    @include board-where("#{$small-chrome}#{$landscape-board}") {
         @include overlay-unit($corner-clear);
     }
 
@@ -376,7 +376,7 @@ $place-gap: 6px;
         }
     }
 
-    @container game-board (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
+    @include board-where($desktop-chrome) {
         --panel-left: max(var(--reach-left), var(--switches-left) + var(--slot-w));
 
         @include overlay-unit(var(--panel-left));
@@ -421,25 +421,23 @@ $place-gap: 6px;
     }
 }
 
-@container game-board (width < #{$small-chrome-width}) and (height >= #{$short-height}) and (aspect-ratio >= 1) {
-    .game-board--replay > .board-overlay:has(.seating) {
-        padding-inline: $corner-clear;
-    }
+.game-board--replay:where(#{$narrow-desktop-board}) > .board-overlay:has(.seating) {
+    padding-inline: $corner-clear;
 }
 
 /* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
    stands centred on the block, past its edges and its text scaled to it. */
-@container game-board (height >= #{$short-height}) or (aspect-ratio < 1) {
-    .game-board--replay > .board-overlay:has(.seating) {
+.game-board--replay:where(#{$desktop-board}, #{$upright-board}) {
+    > .board-overlay:has(.seating) {
         padding-bottom: max(100cqh - var(--band-reserve-top), 100cqh - 2 * var(--cy));
     }
 
     /* The start, shorter than the end, stands on the block's centre even where the band leaves less room below it. */
-    .game-board--replay > .board-overlay:has(.seating:not(.seating--end)) {
+    > .board-overlay:has(.seating:not(.seating--end)) {
         padding-top: max(0px, 2 * var(--cy) - var(--band-reserve-top));
     }
 
-    .game-board--replay > .board-overlay > .board-overlay__panel:has(> .seating) {
+    > .board-overlay > .board-overlay__panel:has(> .seating) {
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -447,70 +445,66 @@ $place-gap: 6px;
         min-height: calc(var(--c) + 3rem);
     }
 
-    .game-board--replay .seating {
+    .seating {
         --seating-font: clamp(1rem, calc(var(--c) * 0.1), 1.6rem);
     }
 }
 
 /* On a smaller board a panel takes all but the moves' row: the options hide but the round list's toggle (its last row
    is the end), and the end's mark stands between the moves and the toggle, or before the group where they share it. */
-@include small-chrome {
-    .game-board--replay:has(> .board-overlay) {
-        .board-replay {
-            --shown-opts-w: var(--rb);
+.game-board--replay:has(> .board-overlay):where(#{$small-chrome}) {
+    .board-replay {
+        --shown-opts-w: var(--rb);
+    }
+
+    .replay-controls__options {
+        right: var(--opt-right);
+        width: auto;
+
+        > :not(.replay-controls__option--rounds) {
+            display: none;
         }
+    }
 
-        .replay-controls__options {
-            right: var(--opt-right);
-            width: auto;
+    .board-notices {
+        --band-middle-end: calc(
+            var(--opt-right) + var(--rb) + 3 * var(--rgap) + var(--moves-w) - var(--slot-w)
+        );
 
-            > :not(.replay-controls__option--rounds) {
-                display: none;
-            }
-        }
+        top: auto;
+        bottom: calc(100cqh - var(--replay-bottom));
+        left: calc(var(--switches-left) + var(--slot-w));
+        align-items: flex-start;
+        width: calc(100cqw - var(--band-middle-end) - var(--slot-w) - var(--switches-left));
+        max-height: calc(var(--rb) + var(--rgap));
+    }
 
-        .board-notices {
-            --band-middle-end: calc(
-                var(--opt-right) + var(--rb) + 3 * var(--rgap) + var(--moves-w) - var(--slot-w)
-            );
+    .replay-status {
+        gap: 0;
+        line-height: 1.2;
+    }
 
-            top: auto;
-            bottom: calc(100cqh - var(--replay-bottom));
-            left: calc(var(--switches-left) + var(--slot-w));
-            align-items: flex-start;
-            width: calc(100cqw - var(--band-middle-end) - var(--slot-w) - var(--switches-left));
-            max-height: calc(var(--rb) + var(--rgap));
-        }
+    .replay-status__incomplete {
+        padding-block: 0;
+    }
 
-        .replay-status {
-            gap: 0;
-            line-height: 1.2;
-        }
+    .replay-status__incomplete-detail {
+        @include visually-hidden;
+    }
 
-        .replay-status__incomplete {
-            padding-block: 0;
-        }
-
-        .replay-status__incomplete-detail {
-            @include visually-hidden;
-        }
-
-        .replay-status__incomplete-end {
-            display: inline;
-        }
+    .replay-status__incomplete-end {
+        display: inline;
     }
 }
 
 /* Upright, the status stands in the row over the group's, before the round list's toggle where that row is the
    options'. */
-@include upright-board {
-    .game-board--replay:has(> .board-overlay) .board-notices {
-        --band-middle-end: calc(var(--opt-right) + var(--opts-rise));
+.game-board--replay:has(> .board-overlay):where(#{$upright-board}) .board-notices {
+    --band-middle-end: calc(var(--opt-right) + var(--opts-rise));
 
-        bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap));
-        left: var(--m);
-        width: calc(100cqw - var(--band-middle-end) - 2 * var(--m));
-    }
+    bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap));
+    left: var(--m);
+    width: calc(100cqw - var(--band-middle-end) - 2 * var(--m));
 }
 
 .round-list {

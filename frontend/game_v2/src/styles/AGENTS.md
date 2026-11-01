@@ -7,8 +7,12 @@ they disagree.
   derives from its box (container query units), never the viewport. A page that gives it a box decides its size.
 - **Sizes come from `boardGeometry` (TS).** The sizes, the geometry family, the chrome tier and every reserved
   footprint come from it, through its directive on `.game-board`; the styles place from them. Family and chrome
-  branches read the emitted family and chrome, never a CSS query of the board's box. Breakpoints and viewport mixins
-  are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the replay's) can use them.
+  branches read the emitted `data-board-family` / `data-board-chrome`, never a CSS query of the board's box (nor
+  `@container style()`, which Safari 16.4 lacks); container queries remain only for content-responsive rules. The
+  family and chrome mixins are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the
+  replay's) can use them: a nested rule's selector takes the attribute inside `:where()` on its board compound, or
+  behind a `:where(.game-board)` where it names none, keeping its specificity and place; a top-level block names the
+  board itself.
 - **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) the code may lag the spec's phone
   composition until task 10. The directive writes the sizes as `--geo-<name>` on `.game-board`; the bridge rules
   after every family block (`_grid.scss`) map them onto the lengths' own names on `.board-layout` and
@@ -43,7 +47,9 @@ they disagree.
 - **The gutter follows the family, decided once.** The board's box without the gutter, less on each edge what a
   10px gutter adds beyond the safe inset, is classified once: a phone takes no gutter and the unguttered box, any
   other family the 10px gutter on that box. Classifying the guttered board instead would flip the family at the
-  threshold (desktop gutter, phone box, no gutter, desktop box).
+  threshold (desktop gutter, phone box, no gutter, desktop box). `.board-page` holds the gutter (10px, 0 around a
+  phone's board) and the safe insets as registered lengths, which the directive reads in px; a family change it finds
+  while the observer delivers waits a frame, since the gutter it moves resizes the observed board.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`.
 - The rivers' shared edge and shadow come from `.board-rivers`, the unturned layer holding all four, never from a
   turned river's own filter: Firefox on macOS draws a turned element's filter unturned and clipped to its box.

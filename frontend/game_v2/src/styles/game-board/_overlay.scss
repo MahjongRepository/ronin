@@ -93,73 +93,60 @@ $two-column-result: 30rem;
     }
 }
 
-@container (height < #{$short-height}) and (aspect-ratio >= 1) {
-    .game-board > .board-overlay {
-        align-items: flex-start;
-        padding-left: 0;
-    }
+.game-board:where(#{$phone-board}) > .board-overlay {
+    align-items: flex-start;
+    padding-left: 0;
 }
 
 /* A board with the page's corner, live or a replay's, keeps it clear of the panel: the panel leaves the corner's
    reserve free on the corner's side, or upright stands under the corner's height. */
-@container (aspect-ratio >= 1) {
-    .game-board:has(.board-menu) > .board-overlay {
-        padding-right: #{$corner-clear};
-    }
+.game-board:has(.board-menu):where(#{$landscape-board}) > .board-overlay {
+    padding-right: #{$corner-clear};
 }
 
-@container (aspect-ratio < 1) {
-    .game-board:has(.board-menu) > .board-overlay {
-        padding-top: calc(var(--corner-bottom) + 0.5rem);
-    }
+.game-board:has(.board-menu):where(#{$upright-board}) > .board-overlay {
+    padding-top: calc(var(--corner-bottom) + 0.5rem);
 }
 
 /* The live board's panel keeps the corner's reserve free on both sides, its tiles sized to the width between. */
-@container (aspect-ratio >= 1) {
-    .game-board--play:has(.board-menu) > .board-overlay {
-        @include overlay-unit(calc(2 * #{$corner-clear}));
+.game-board--play:has(.board-menu):where(#{$landscape-board}) > .board-overlay {
+    @include overlay-unit(calc(2 * #{$corner-clear}));
 
-        padding-left: #{$corner-clear};
-    }
+    padding-left: #{$corner-clear};
 }
 
 /* A narrow desktop has height to spare but no width: the live panel takes the width between the side strips under
    the corner's height instead, and starts past the left river's reach while notices show, leaving them their field. */
-@container (width < #{$small-chrome-width}) and (height >= #{$short-height}) and (aspect-ratio >= 1) {
-    .game-board--play:has(.board-menu) > .board-overlay {
-        @include overlay-unit(calc(2 * (var(--m) + var(--strip-depth))));
+.game-board--play:has(.board-menu):where(#{$narrow-desktop-board}) > .board-overlay {
+    @include overlay-unit(calc(2 * (var(--m) + var(--strip-depth))));
 
-        padding-top: calc(var(--corner-bottom) + 0.5rem);
-        padding-inline: calc(var(--m) + var(--strip-depth) + 0.5rem);
-    }
+    padding-top: calc(var(--corner-bottom) + 0.5rem);
+    padding-inline: calc(var(--m) + var(--strip-depth) + 0.5rem);
+}
 
-    .game-board--play:has(.board-menu):has(.board-notice) > .board-overlay {
-        @include overlay-unit(calc(var(--reach-left) + var(--m) + var(--strip-depth)));
+.game-board--play:has(.board-menu):has(.board-notice):where(#{$narrow-desktop-board})
+    > .board-overlay {
+    @include overlay-unit(calc(var(--reach-left) + var(--m) + var(--strip-depth)));
 
-        padding-left: var(--reach-left);
-    }
+    padding-left: var(--reach-left);
 }
 
 /* A phone's live panel also leaves the notices' column beside it free (`_notices.scss`). */
-@container (height < #{$short-height}) and (aspect-ratio >= 1) {
-    .game-board--play:has(.board-menu) > .board-overlay {
-        --panel-right: max(
-            #{$corner-clear},
-            #{$notices-beside-panel} + 0.25rem + var(--corner-shift) + var(--band-shift)
-        );
+.game-board--play:has(.board-menu):where(#{$phone-board}) > .board-overlay {
+    --panel-right: max(
+        #{$corner-clear},
+        #{$notices-beside-panel} + 0.25rem + var(--corner-shift) + var(--band-shift)
+    );
 
-        @include overlay-unit(var(--panel-right));
+    @include overlay-unit(var(--panel-right));
 
-        padding-inline: 0 var(--panel-right);
-    }
+    padding-inline: 0 var(--panel-right);
 }
 
 /* An upright live panel stands above the foreground while notices show, leaving them the reserve under the right
    strip's end. */
-@container (aspect-ratio < 1) {
-    .game-board--play:has(.board-menu):has(.board-notice) > .board-overlay {
-        padding-bottom: calc(100cqh - var(--foreground-top));
-    }
+.game-board--play:has(.board-menu):has(.board-notice):where(#{$upright-board}) > .board-overlay {
+    padding-bottom: calc(100cqh - var(--foreground-top));
 }
 
 /* One or two tenpai hands take the win hand's size, one under the other; three or four shrink to sit two abreast. */
@@ -331,10 +318,8 @@ $two-column-result: 30rem;
 
 /* A wide desktop's panel over a board with notices leaves their place in the left field free, starting past the left
    river's reach, so a notice stays readable beside it. */
-@container (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
-    .game-board:has(.board-notice) > .board-overlay {
-        @include overlay-unit(calc(var(--reach-left) + #{$corner-clear}));
+.game-board:has(.board-notice):where(#{$desktop-chrome}) > .board-overlay {
+    @include overlay-unit(calc(var(--reach-left) + #{$corner-clear}));
 
-        padding-left: var(--reach-left);
-    }
+    padding-left: var(--reach-left);
 }

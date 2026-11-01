@@ -46,9 +46,6 @@ const DESKTOP_TEXT_LINES: Readonly<Partial<Record<StatusPart, number>>> = {
     incomplete: 4,
 };
 
-/** A board with the desktop's chrome: at least this wide and high (smaller chrome holds five moves, not seven). */
-const DESKTOP_CHROME = { height: 520, width: 1100 };
-
 /** The moves every board shows, either end too where its chrome is the desktop's, and the options. */
 const CORE_MOVES = [
     ".replay-controls__move--prevRound",
@@ -431,8 +428,7 @@ interface ReplayState {
 }
 
 function replayState(board: BoardMeasure): ReplayState {
-    const desktopChrome =
-        board.board.width >= DESKTOP_CHROME.width && board.board.height >= DESKTOP_CHROME.height;
+    const desktopChrome = board.chrome === "regular" || board.chrome === "large";
     return { compact: !desktopChrome && board.overlay !== null, desktopChrome };
 }
 

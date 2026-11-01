@@ -14,6 +14,7 @@ import {
     LARGE_CHROME_WIDTH,
     LEFT_REACH_TILES,
     OWN_MELD_SCALE,
+    PAGE_GUTTER,
     PHONE_CENTRE_SHARE,
     PHONE_CHROME,
     PHONE_HEIGHT,
@@ -36,12 +37,27 @@ interface BoardBox {
     readonly height: number;
 }
 
+interface BoardEdges {
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+    readonly left: number;
+}
+
+/** The board's box as measured, the page's raw safe-area insets and the gutter the page applies (px). */
+interface BoardInput {
+    readonly box: BoardBox;
+    readonly safeInsets: BoardEdges;
+    readonly gutter: number;
+}
+
 /** The board's sizes in px, by the stylesheet's length names (`rw` for `--rw`). */
 type BoardLengths = Readonly<Record<string, number>>;
 
 interface BoardGeometry {
     readonly family: BoardFamily;
     readonly chrome: ChromeTier;
+    readonly gutter: number;
     readonly box: BoardBox;
     readonly lengths: BoardLengths;
 }
@@ -527,26 +543,48 @@ function familyLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): 
     return desktopLengths(box, chrome, family);
 }
 
+/** What a gutter adds to an edge beyond its safe inset. */
+function gutterExcess(inset: number, gutter: number): number {
+    return Math.max(inset, gutter) - inset;
+}
+
+/** The board's box with each edge's excess under the applied gutter taken back and its excess under `to` taken off. */
+function reguttered({ box, gutter, safeInsets }: BoardInput, to: number): BoardBox {
+    function change(inset: number): number {
+        return gutterExcess(inset, gutter) - gutterExcess(inset, to);
+    }
+    const { bottom, left, right, top } = safeInsets;
+    return {
+        height: box.height + change(top) + change(bottom),
+        width: box.width + change(left) + change(right),
+    };
+}
+
 /**
- * The board's geometry from its box: its family and chrome tier, classified as the stylesheet's container queries do,
- * and its sizes in px; an empty or non-finite box has no sizes.
+ * The board's geometry: the candidate box (its allocation without a gutter, less a gutter's excess) classified once,
+ * a phone taking no gutter and the allocation, any other family the gutter and the candidate box, and its sizes in px
+ * for that box; an empty or non-finite box has no sizes.
  */
-function boardGeometry(box: BoardBox): BoardGeometry {
-    const family = classifyFamily(box);
-    const chrome = classifyChrome(box);
+function boardGeometry(input: BoardInput): BoardGeometry {
+    const candidate = reguttered(input, PAGE_GUTTER);
+    const family = classifyFamily(candidate);
+    const chrome = classifyChrome(candidate);
+    const phone = family === "phone";
+    const settled = phone ? reguttered(input, 0) : candidate;
     const sized =
-        Number.isFinite(box.width) &&
-        Number.isFinite(box.height) &&
-        box.width > 0 &&
-        box.height > 0;
-    const lengths = sized ? familyLengths(box, chrome, family) : {};
+        Number.isFinite(settled.width) &&
+        Number.isFinite(settled.height) &&
+        settled.width > 0 &&
+        settled.height > 0;
+    const lengths = sized ? familyLengths(settled, chrome, family) : {};
     return Object.freeze({
-        box: Object.freeze({ height: box.height, width: box.width }),
+        box: Object.freeze(settled),
         chrome,
         family,
+        gutter: phone ? 0 : PAGE_GUTTER,
         lengths: Object.freeze(lengths),
     });
 }
 
 export { boardGeometry };
-export type { BoardBox, BoardFamily, BoardGeometry, BoardLengths };
+export type { BoardBox, BoardEdges, BoardFamily, BoardGeometry, BoardInput, BoardLengths };

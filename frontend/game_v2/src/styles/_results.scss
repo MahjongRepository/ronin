@@ -188,7 +188,7 @@
 }
 
 /* A phone's board has a short panel area: the rows tighten so the seats, the results and the ways on fit it whole. */
-@include queries.phone-board {
+:where(.game-board):where(#{queries.$phone-board}) {
     .seating {
         gap: s(0.3);
     }

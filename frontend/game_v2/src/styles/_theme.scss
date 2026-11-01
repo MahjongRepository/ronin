@@ -43,6 +43,15 @@
     --pico-del-color: #ff9c8f;
 }
 
+/* Registered so the board's geometry reads them resolved, in px. */
+@each $edge in top, right, bottom, left {
+    @property --ronin-safe-#{$edge} {
+        syntax: "<length>";
+        inherits: true;
+        initial-value: 0;
+    }
+}
+
 :root {
     --ronin-text: var(--pico-color);
     --ronin-text-secondary: #a8bab4;

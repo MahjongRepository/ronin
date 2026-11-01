@@ -15,6 +15,7 @@ export interface SwitchMeasure {
 
 export interface BoardMeasure {
     readonly board: Box;
+    readonly chrome: string | null;
     readonly boardScroll: Size;
     readonly boardClient: Size;
     readonly aside: {
@@ -275,6 +276,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             callouts: [...board.querySelectorAll(".board-callout")].map(box),
             center: centerElement === null ? null : box(centerElement),
             centerTexts,
+            chrome: board.getAttribute("data-board-chrome"),
             clippedWords,
             cutNames,
             decisionCorner: corner === null ? null : { box: box(corner), buttons: decisionActions },

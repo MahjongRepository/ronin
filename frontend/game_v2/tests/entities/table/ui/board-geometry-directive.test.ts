@@ -41,6 +41,8 @@ class FakeObserver implements ResizeObserver {
 }
 
 let box = { height: 0, width: 0 };
+const frames = new Map<number, FrameRequestCallback>();
+let lastFrame = 0;
 let host = document.createElement("div");
 
 function board(overlay?: TemplateResult): TemplateResult {
@@ -65,6 +67,14 @@ async function renderBoard(
     return { element, part };
 }
 
+function nextFrame(): void {
+    const due = [...frames.values()];
+    frames.clear();
+    for (const frame of due) {
+        frame(0);
+    }
+}
+
 function latestObserver(): FakeObserver {
     const observer = FakeObserver.all.at(-1);
     if (observer === undefined) {
@@ -76,6 +86,13 @@ function latestObserver(): FakeObserver {
 beforeEach(() => {
     FakeObserver.all.length = 0;
     vi.stubGlobal("ResizeObserver", FakeObserver);
+    frames.clear();
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => {
+        lastFrame += 1;
+        frames.set(lastFrame, frame);
+        return lastFrame;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
     host = document.createElement("div");
     document.body.append(host);
 });
@@ -88,7 +105,7 @@ afterEach(() => {
 
 describe("sizeBoard", () => {
     it("writes the board's family, chrome and sizes once its first render is in the document", async () => {
-        box = { height: 880, width: 1420 };
+        box = { height: 900, width: 1440 };
 
         const { element } = await renderBoard();
 
@@ -104,20 +121,28 @@ describe("sizeBoard", () => {
         observer.resize(0, 0);
 
         expect(element.dataset.boardFamily).toBeUndefined();
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("");
-        expect(observer.disconnected).toBe(false);
+        expect([element.style.getPropertyValue("--geo-rw"), observer.disconnected]).toEqual([
+            "",
+            false,
+        ]);
 
-        observer.resize(1420, 880);
+        observer.resize(1440, 900);
+        nextFrame();
 
         expect(element.dataset.boardFamily).toBe("desktop");
         expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
     });
 
-    it("rewrites the family and drops sizes it no longer has when the box crosses families", async () => {
-        box = { height: 880, width: 1420 };
+    it("rewrites the family in the next frame and drops sizes it no longer has when the box crosses families", async () => {
+        box = { height: 900, width: 1440 };
         const { element } = await renderBoard();
 
         latestObserver().resize(667, 375);
+
+        expect(element.dataset).toMatchObject({ boardChrome: "regular", boardFamily: "desktop" });
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
+
+        nextFrame();
 
         expect(element.dataset).toMatchObject({ boardChrome: "small", boardFamily: "phone" });
         expect(element.style.getPropertyValue("--geo-rw")).toBe("17px");
@@ -125,7 +150,7 @@ describe("sizeBoard", () => {
     });
 
     it("keeps the written sizes through a re-render that adds the overlay", async () => {
-        box = { height: 880, width: 1420 };
+        box = { height: 900, width: 1440 };
         const { element } = await renderBoard();
 
         await renderBoard(html`<p>Panel</p>`);
@@ -137,12 +162,12 @@ describe("sizeBoard", () => {
     });
 
     it("stops observing a removed board, even through a re-render, and measures it again once it is back", async () => {
-        box = { height: 880, width: 1420 };
+        box = { height: 900, width: 1440 };
         const { element, part } = await renderBoard();
         const first = latestObserver();
 
         part.setConnected(false);
-        box = { height: 780, width: 1420 };
+        box = { height: 800, width: 1440 };
         await renderBoard();
 
         expect(FakeObserver.all).toEqual([first]);

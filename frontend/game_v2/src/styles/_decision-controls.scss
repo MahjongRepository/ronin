@@ -212,7 +212,7 @@ $pair-gap: 4px;
 
 /* Four or more controls in a narrow row shed their tile previews (the action source shows the tile) and their spare
    width, down to the tap floor. */
-@include desktop-board {
+:where(.game-board):where(#{$desktop-board}) {
     @container decisions (width < 800px) {
         .decision-controls:is([data-upper="4"], [data-upper="5"], [data-upper="6"]) {
             .decision-controls__tiles {

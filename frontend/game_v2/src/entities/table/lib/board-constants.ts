@@ -43,6 +43,9 @@ const PHONE_HEIGHT = 520;
 /** A landscape board at least `SMALL_CHROME_WIDTH` wide and under this height is a short desktop's (px). */
 const SHORT_DESKTOP_HEIGHT = 760;
 
+/** The page's gutter around every board but a phone's (px). */
+const PAGE_GUTTER = 10;
+
 /** Chrome is small on a board narrower than this or a phone's height (px). */
 const SMALL_CHROME_WIDTH = 1100;
 
@@ -139,6 +142,7 @@ export {
     LARGE_CHROME_WIDTH,
     LEFT_REACH_TILES,
     OWN_MELD_SCALE,
+    PAGE_GUTTER,
     PHONE_CENTRE_SHARE,
     PHONE_CHROME,
     PHONE_HEIGHT,

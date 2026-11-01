@@ -42,7 +42,7 @@
 
         /* Temporary landscape exception (phone until task 10, narrow desktop until task 16): past the deepest strip the
            place is too narrow. */
-        @container game-board (aspect-ratio >= 1) {
+        @include board-where($landscape-board) {
             @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
 
             --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
@@ -87,13 +87,12 @@
 
 /* Over a panel, a short or upright board's notices move to the reserve under the right strip's end; a narrow
    desktop's panel leaves them their own field. */
-@container game-board (height < #{$short-height}) or (aspect-ratio < 1) {
-    .game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"])))
+.game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"]))) {
+    @include board-where("#{$phone-board}, #{$upright-board}") {
         .board-notices__list {
-        align-items: stretch;
-    }
+            align-items: stretch;
+        }
 
-    .game-board:has(> .board-overlay):where(:not(:has(> .board-overlay [aria-modal="true"]))) {
         .board-notices {
             --notice-top: calc(
                 max(var(--foreground-top), var(--right-origin) - var(--band-shift) * 1000) + 4px

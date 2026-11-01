@@ -1,12 +1,9 @@
+@use "sass:list";
+@use "sass:selector";
+@use "sass:string";
+
 $tile-w: 60;
 $tile-h: 80;
-
-/* The family and chrome thresholds mirror `board-constants.ts`. */
-$short-height: 520px;
-$short-desktop-height: 760px;
-$small-chrome-width: 1100px;
-$large-chrome-width: 2000px;
-$large-chrome-height: 1200px;
 $wide-board: "4 / 3";
 
 /* A short or upright board's notices over a panel: their column under the right strip's end. */
@@ -51,35 +48,83 @@ $overlay-chrome: 3rem;
     );
 }
 
+$phone-board: '[data-board-family="phone"]';
+$desktop-board: ':is([data-board-family="desktop"], [data-board-family="short-desktop"])';
+$short-desktop-board: '[data-board-family="short-desktop"]';
+$shared-corners-board: ':is([data-board-family="phone"], [data-board-family="short-desktop"])';
+$upright-board: '[data-board-family="upright"]';
+$narrow-desktop-board: '[data-board-family="desktop"][data-board-chrome="small"]';
+$landscape-board: ":is(#{$phone-board}, #{$desktop-board})";
+$small-chrome: '[data-board-chrome="small"]';
+$large-chrome: '[data-board-chrome="large"]';
+$desktop-chrome: ':is([data-board-chrome="regular"], [data-board-chrome="large"])';
+
+@function board-scoped($parent, $condition) {
+    $scoped: ();
+
+    @each $complex in selector.parse($parent) {
+        $at: null;
+
+        @for $i from 1 through list.length($complex) {
+            $compound: "#{list.nth($complex, $i)}";
+            $board: string.index($compound, ".game-board") == 1 or
+                string.index($compound, ":where(.game-board)") == 1;
+
+            @if not $at and $board {
+                $at: $i;
+            }
+        }
+
+        @if $at {
+            $complex: list.set-nth(
+                $complex,
+                $at,
+                "#{list.nth($complex, $at)}:where(#{$condition})"
+            );
+        } @else {
+            $complex: list.join(":where(.game-board):where(#{$condition})", $complex, space);
+        }
+
+        $scoped: list.append($scoped, $complex, comma);
+    }
+
+    @return $scoped;
+}
+
+@mixin board-where($condition) {
+    @at-root #{board-scoped(&, $condition)} {
+        @content;
+    }
+}
+
 @mixin phone-board {
-    @container game-board (height < #{$short-height}) and (aspect-ratio >= 1) {
+    @include board-where($phone-board) {
         @content;
     }
 }
 
 @mixin desktop-board {
-    @container game-board (height >= #{$short-height}) and (aspect-ratio >= 1) {
+    @include board-where($desktop-board) {
         @content;
     }
 }
 
 /* A short desktop (a laptop's window) shares the band's lower corners with the core, as a phone does. */
 @mixin short-desktop-board {
-    @container game-board (height >= #{$short-height}) and (height < #{$short-desktop-height}) and
-        (width >= #{$small-chrome-width}) and (aspect-ratio >= 1) {
+    @include board-where($short-desktop-board) {
         @content;
     }
 }
 
 /* A phone and a short desktop, whose foreground band shares the core's lower corners. */
 @mixin shared-corners-board {
-    @container game-board (aspect-ratio >= 1) and ((height < #{$short-height}) or ((height < #{$short-desktop-height}) and (width >= #{$small-chrome-width}))) {
+    @include board-where($shared-corners-board) {
         @content;
     }
 }
 
 @mixin upright-board {
-    @container game-board (aspect-ratio < 1) {
+    @include board-where($upright-board) {
         @content;
     }
 }
@@ -87,14 +132,14 @@ $overlay-chrome: 3rem;
 /* The perimeter's chrome (badges, counters, the page's corner, callouts) at a phone's size: on a phone, upright, and on
    a desktop board too narrow for the desktop's (a tablet's or a small window's), whose geometry stays the desktop's. */
 @mixin small-chrome {
-    @container game-board (width < #{$small-chrome-width}) or (height < #{$short-height}) {
+    @include board-where($small-chrome) {
         @content;
     }
 }
 
 /* The chrome a step larger on a large board, where the own tile passes 100px. */
 @mixin large-chrome {
-    @container game-board (width >= #{$large-chrome-width}) and (height >= #{$large-chrome-height}) {
+    @include board-where($large-chrome) {
         @content;
     }
 }
