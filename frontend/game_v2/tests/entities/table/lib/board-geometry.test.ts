@@ -6,6 +6,7 @@ import { boardGeometry } from "@/entities/table/lib/board-geometry";
 const SIZES = ["rw", "ow", "core", "c", "w", "core-top"] as const;
 const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
 const UPRIGHT_SIZES = ["rw", "core", "core-top"] as const;
+const PHONE_SIZES = ["rw", "ow"] as const;
 
 describe("boardGeometry", () => {
     it.each([
@@ -55,6 +56,18 @@ describe("boardGeometry", () => {
         const { lengths } = boardGeometry({ height, width });
 
         for (const [index, name] of UPRIGHT_SIZES.entries()) {
+            expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+        }
+    });
+
+    it.each([
+        [667, 375, [17, 36]],
+        [750, 369, [17, 36]],
+        [1024, 510, [23, 36]],
+    ])("sizes a %ix%i phone board as its stylesheet did", (width, height, expected) => {
+        const { lengths } = boardGeometry({ height, width });
+
+        for (const [index, name] of PHONE_SIZES.entries()) {
             expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
         }
     });

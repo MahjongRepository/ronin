@@ -105,6 +105,23 @@ const DESKTOP_OWN_CAP_WIDTH = 0.05;
 const DESKTOP_OWN_CAP_HEIGHT = 0.1;
 const DESKTOP_CORE_CAP = 0.66;
 
+/** A phone's centre share of the core, its own tile's cap (px) and its river tile to its own tile. */
+const PHONE_CENTRE_SHARE = 0.39;
+const PHONE_OWN_CAP = 36;
+const RIVER_BY_OWN = 0.65;
+
+/** A phone's chrome over the small tier's: its margins, gaps and band's control, its switches as tall as it. */
+const PHONE_CHROME: DesktopChrome = {
+    ...DESKTOP_CHROME.small,
+    bandGap: 8,
+    controlH: 40,
+    coreGap: 6,
+    m: 4,
+    ownInline: 0,
+    sep: 10,
+    switchH: 40,
+};
+
 /** An upright board's chrome over the desktop tier's: a phone's margin, band gap and control, and room before its own hand. */
 const UPRIGHT_CHROME = { bandGap: 8, controlH: 40, m: 4, ownInline: 96 } as const;
 
@@ -122,7 +139,11 @@ export {
     LARGE_CHROME_WIDTH,
     LEFT_REACH_TILES,
     OWN_MELD_SCALE,
+    PHONE_CENTRE_SHARE,
+    PHONE_CHROME,
     PHONE_HEIGHT,
+    PHONE_OWN_CAP,
+    RIVER_BY_OWN,
     RIVER_GAP_SHARE,
     SHORT_DESKTOP_HEIGHT,
     SIDE_REACH_TILES,

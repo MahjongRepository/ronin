@@ -14,7 +14,11 @@ import {
     LARGE_CHROME_WIDTH,
     LEFT_REACH_TILES,
     OWN_MELD_SCALE,
+    PHONE_CENTRE_SHARE,
+    PHONE_CHROME,
     PHONE_HEIGHT,
+    PHONE_OWN_CAP,
+    RIVER_BY_OWN,
     RIVER_GAP_SHARE,
     SHORT_DESKTOP_HEIGHT,
     SIDE_REACH_TILES,
@@ -86,6 +90,14 @@ const WIDTH_TILES = CORE_TILES + DESKTOP_SPARE * SIDE_REACH_TILES;
 const ROWS_AT_MARGIN = HEIGHT_TILES + DESKTOP_SPARE * OWN_ROW;
 const ROWS_AT_EDGE = HEIGHT_TILES + DESKTOP_SPARE * (OWN_ROW + OWN_EDGE);
 
+/** The left river's reach under the core's top slot, in river tiles: the slot's tile, the river, its sideways tile. */
+const SLOT_LEFT_REACH = 2 * TILE_ASPECT + LEFT_REACH_TILES;
+
+/** A phone's core share past the centre, and what its rooms' height and width hold per river tile. */
+const PHONE_SPARE = 1 - PHONE_CENTRE_SHARE;
+const PHONE_HEIGHT_TILES = CORE_TILES + PHONE_SPARE * TILE_ASPECT;
+const PHONE_WIDTH_TILES = CORE_TILES + PHONE_SPARE * SIDE_REACH_TILES;
+
 /** Upright, the counters' place under the top strip: its gap above and its height (px). */
 const UPRIGHT_COUNTERS_GAP = 6;
 const UPRIGHT_COUNTERS_H = 52;
@@ -136,7 +148,7 @@ interface DesktopRooms {
     readonly rowRiseFixed: number;
 }
 
-/** The largest river tile each room both desktops share holds (`_grid.scss`'s `--rw-by-*`), the smallest binding. */
+/** The largest river tile each room both desktops share holds, the smallest binding. */
 function sharedRiverTile({ coreCap, coreRoomW, height, ownFit, tier }: DesktopRooms): number {
     const { coreGap, m, sep } = tier;
     const heightRoom = DESKTOP_SPARE * (height - m - coreGap - sep);
@@ -169,7 +181,7 @@ function switchesRiverTile({ height, tier }: DesktopRooms): number {
     const { m, ownBadgeH, sep, switchGap } = tier;
     const fixed =
         ownBadgeH + OWN_BADGE_LANE + SWITCHES_CLEARANCE + switchGap + switchesPlace(tier) + sep;
-    const tiles = 2 * TILE_ASPECT + LEFT_REACH_TILES + OWN_ROW + BAND_TILE_SHARE;
+    const tiles = SLOT_LEFT_REACH + OWN_ROW + BAND_TILE_SHARE;
     return Math.min((height - 2 * m - fixed) / tiles, (height - m - fixed) / (tiles + OWN_EDGE));
 }
 
@@ -216,7 +228,7 @@ function switchesLeft(
     return leftMeets ? m + rw * TILE_ASPECT + STEP_IN_GAP : m;
 }
 
-/** The desktop and short desktop's root sizes and what their root solve reads (`_grid.scss`), in px. */
+/** The desktop and short desktop's root sizes and the lengths the stylesheet reads with them, in px. */
 function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {
     const { width, height } = box;
     const short = family === "short-desktop";
@@ -320,7 +332,7 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
 }
 
 /**
- * An upright board's root sizes and what its root solve reads (`_grid.scss`), in px: its core under the counters and
+ * An upright board's root sizes and the lengths the stylesheet reads with them, in px: its core under the counters and
  * above the decisions' two rows and the notices' place, its centre never under `UPRIGHT_CENTRE_MIN`.
  */
 function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
@@ -421,19 +433,94 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
     ]);
 }
 
+/**
+ * A phone's root sizes and the lengths the stylesheet reads with them, in px: its own tile the largest a full hand
+ * holds, its river tile a share of it, its core at its top slot and its left river's reach ending above the switches.
+ */
+function phoneLengths({ width, height }: BoardBox): BoardLengths {
+    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep, switchGap } = PHONE_CHROME;
+    const ow = Math.min(PHONE_OWN_CAP, (width - 2 * m - ownInline) / FULL_HAND);
+    const oh = ow * TILE_ASPECT;
+    const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
+    const handTop = height - handBottom - oh;
+    const coreRoomH = height - m - handBottom - oh - coreGap - sep;
+    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
+    const riverByOwn = RIVER_BY_OWN * ow;
+    const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * riverByOwn, ow));
+    const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
+    const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
+    const bandBottom = handTop - bandGap;
+    const switchesBottom = Math.min(bandBottom, handTop - ownRise - switchGap);
+    const switchesTop = switchesBottom - switchesPlace(PHONE_CHROME);
+    const riverBySwitches = (switchesTop - SWITCHES_CLEARANCE - m - sep) / SLOT_LEFT_REACH;
+    const coreCap = (CORE_TILES * riverBySwitches) / PHONE_SPARE;
+    const rw = Math.floor(
+        Math.min(
+            riverByOwn,
+            (PHONE_SPARE * coreRoomH) / PHONE_HEIGHT_TILES,
+            riverBySwitches,
+            (PHONE_SPARE * coreRoomW) / PHONE_WIDTH_TILES,
+        ),
+    );
+    const rh = rw * TILE_ASPECT;
+    const core = Math.min(coreRoomH - rh, coreCap, coreRoomW - SIDE_REACH_TILES * rw);
+    const centre = core - CORE_TILES * rw;
+    const centreWidth = Math.max(
+        centre,
+        Math.min(centre * CENTRE_ASPECT, coreRoomW - (SIDE_REACH_TILES + CORE_TILES) * rw),
+    );
+    const coreTop = m + rh + sep;
+
+    return Object.fromEntries([
+        ["band-bottom", bandBottom],
+        ["band-gap", bandGap],
+        ["band-lift", 0],
+        ["c", centre],
+        ["control-h", controlH],
+        ["core", core],
+        ["core-gap", coreGap],
+        ["core-room-h", coreRoomH],
+        ["core-room-w", coreRoomW],
+        ["core-top", coreTop],
+        ["cx", width / 2],
+        ["cy", coreTop + core / 2],
+        ["g", Math.round(RIVER_GAP_SHARE * rw)],
+        ["h", centre / 2],
+        ["hand-bottom", handBottom],
+        ["hand-top", handTop],
+        ["hx", centreWidth / 2],
+        ["m", m],
+        ["oh", oh],
+        ["ow", ow],
+        ["own-badge-h", ownBadgeH],
+        ["own-fit", ow],
+        ["own-inline", ownInline],
+        ["own-meld-rise", ownMeldRise],
+        ["own-meld-tile", ownMeldTile],
+        ["own-rise", ownRise],
+        ["rh", rh],
+        ["row-rise", 0],
+        ["rw", rw],
+        ["sep", sep],
+        ["switch-gap", switchGap],
+        ["switches-bottom", switchesBottom],
+        ["w", centreWidth],
+    ]);
+}
+
 function familyLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {
+    if (family === "phone") {
+        return phoneLengths(box);
+    }
     if (family === "upright") {
         return uprightLengths(box, chrome);
     }
-    if (family === "desktop" || family === "short-desktop") {
-        return desktopLengths(box, chrome, family);
-    }
-    return {};
+    return desktopLengths(box, chrome, family);
 }
 
 /**
  * The board's geometry from its box: its family and chrome tier, classified as the stylesheet's container queries do,
- * and its sizes in px for the families sized here (all but the phone's); an empty or non-finite box has no sizes.
+ * and its sizes in px; an empty or non-finite box has no sizes.
  */
 function boardGeometry(box: BoardBox): BoardGeometry {
     const family = classifyFamily(box);

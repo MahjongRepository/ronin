@@ -120,7 +120,8 @@ describe("sizeBoard", () => {
         latestObserver().resize(667, 375);
 
         expect(element.dataset).toMatchObject({ boardChrome: "small", boardFamily: "phone" });
-        expect(element.style.getPropertyValue("--geo-rw")).toBe("");
+        expect(element.style.getPropertyValue("--geo-rw")).toBe("17px");
+        expect(element.style.getPropertyValue("--geo-band-reserve")).toBe("");
     });
 
     it("keeps the written sizes through a re-render that adds the overlay", async () => {
