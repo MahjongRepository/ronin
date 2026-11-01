@@ -53,8 +53,10 @@ The derived proportions are the three reference viewports' values under the sizi
 - **Table conventions are followed, not reinvented.** Rivers, melds, the sideways tiles, the
   separated drawn tile and the riichi stick look the way riichi players already read them.
 - **The live game is landscape only.** Its play area is the safe area of the landscape viewport,
-  kept at least 10px off each screen edge past a phone's height so no tile meets a border, at whatever aspect ratio it has; nothing is letterboxed. An upright phone sees the rotate panel
-  instead of play, which says that play and its timers go on. A replay or a storybook page may be
+  kept at least 10px off each screen edge on every board that is not a phone's so no tile meets a
+  border, at whatever aspect ratio it has; nothing is letterboxed. Whether the board is a phone's is
+  decided once, from the box the page would give it with that 10px gutter (the safe area kept), so
+  the gutter never changes it. An upright phone sees the rotate panel instead of play, which says that play and its timers go on. A replay or a storybook page may be
   read upright and scrolls instead.
 
 ## Composition (decisions)
@@ -296,10 +298,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   hand's end where that leaves less than a wide control (short of the right strip's reserved
   depth), and the higher-ranked controls stand
   above the band's control and the timer (the band's control too where the row cannot hold it
-  beside the timer), clear of the right strip as drawn. On a phone the lowest-ranked
-  controls, pass last, take the foreground row beside the timer and never reach past the own river's
-  capacity edge (a sideways riichi tile counted); the rest rise in rank order, right-aligned,
-  between the right river's capacity edge and the right strip as drawn, pairing up before they would
+  beside the timer), clear of the right strip's deepest reach. On a phone the lowest-ranked
+  controls, pass last, and the timer float in the gap between the bottom river and the hand instead
+  of owning a foreground row, and never reach past the own river's capacity edge (a sideways riichi
+  tile counted), their exact arrangement measured in task 10; the rest rise in rank order, right-aligned,
+  between the right river's capacity edge and the right strip's deepest reach, pairing up before they would
   reach the side badge; at the first step a pair may shed its tile previews to fit, since the action
   source shows the tile, while the second step's groups always keep their tiles. Every control keeps
   visible space around its label and its choice tiles, the longest label at the floor viewport
@@ -410,8 +413,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   it says that play goes on, with the seconds left while a decision or the round confirm is open, as
   the rotate panel does. It ranks under an end and the leave question and over the table's panel, which
   comes back as it closes; it stays open while any notice remains, and wherever it closes the focus
-  stays on the board. Each notice is announced once, never its clamp; each showing of calls on the
-  live board is announced once too. An ongoing condition (reconnecting, a seat lost, faces that did not load, a
+  stays on the board. Each notice is announced once, never its clamp; each showing of calls is
+  announced once too, on the live board and in a replay, and a replay announces nothing while it
+  jumps (a round, an end, the round list, an address), while Next is held (pointer or key repeat)
+  or on the wheel. An ongoing condition (reconnecting, a seat lost, faces that did not load, a
   message the client could not read) stays until it recovers, is rebuilt or ends; an acknowledgement
   (the seat back, a refused move) leaves on its own after a moment. Nothing dismisses a failure that
   goes on. A connection replaced by another tab is an end, with its reason, its corner status in the
@@ -425,11 +430,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits; a replay opens on it
   with a Start in the countdown's place, and off a phone's short board the replay's seating (start and end) covers
   the table's centre block, its text scaled to the block.
-  Decision (placements drawn in step 4.1): on a desktop a panel stands centred, the page corner's width kept free
-  on both sides, and past the left river's reach while notices show; on a narrow desktop (narrower than
-  `$small-chrome-width`) it stands under the corner's height, between the side strips, and past the left river's reach
-  while notices show; on a phone it stands at the top, left of the corner; on an upright board, under the corner's
-  height. A desktop's panel fits its content whole.
+  Decision (placements drawn in step 4.1): the notices' field is reserved whether or not a notice shows, so a
+  panel's box and its tile size never change as a notice comes or goes. On a desktop a panel stands centred, the
+  page corner's width kept free on both sides, starting past the left river's reach; on a narrow desktop (narrower
+  than `$small-chrome-width`) it stands under the corner's height, between the side strips, past the left river's
+  reach; on a phone it stands at the top, left of the corner, its notices beside it; on an upright board, under the
+  corner's height and above the notices' place. A desktop's panel fits its content whole.
 - **Round result.** Decision (the established clients order it differently; Tenhou's viewer puts
   the total first): the winner and how (ron, and from whom; tsumo; a head bump names who lost the
   ron); the winning hand with the winning tile set apart and its melds in their shape; the yaku,
@@ -462,14 +468,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   viewpoint seat, which need not be the reader's; plus controls with the
   moves, play, the hide-hands switch and the round list, readable at the
   floor viewport. Decision: no narration and no visible position line; the board itself shows each
-  move and its centre the round, and the position (round, step) is read out to assistive technology only. Decision: the controls take the foreground band outside the own
+  move and its centre the round, and the position (round, step) is read out to assistive technology only. Its calls are read out as the live board's are, silent while the reader scrubs (see Notices). Decision: the controls take the foreground band outside the own
   river's capacity reach as one group in the decisions' place, at the band's right and ending at the
   hand's end, the moves before the options; the own badge heads its hand alone at the band's left,
   nothing over it (the switches' place stays empty). Where the band shares the core's corners (a
   phone, a short desktop) the group does not fit beside the rivers' reach: the moves keep the
-  switches' place and the options the decisions', those that do not fit beside the reach on a phone in
-  a row above before the right strip. Upright, the group stands in the own badge's row, short of the
-  right strip as drawn, where it leaves that badge an ordinary name's lane (the right strip's deepest
+  switches' place and the options the decisions', on a phone filling the live slots of its
+  composition (measured in task 10). Upright, the group stands in the own badge's row, short of the
+  right strip's deepest reach, where it leaves that badge an ordinary name's lane (the right strip's deepest
   counted), else right-aligned in rows over it, the options over the moves. The status (an incomplete
   recording's note) takes the notices' place, under any notice. Decision: the moves are a round
   back, a step back, play (in the accent, the player's own action), a step on and a round on, with
@@ -515,10 +521,18 @@ Relationships first. The sizes come from one sizing rule; the derived column rec
 gives at the three reference viewports and is not a range for other screens: 1280x800, 1920x1080 and
 other phone heights follow the rule and are checked by the gate, not by this table.
 
-The sizing rule. A landscape play area under 520 px high is a phone, anything taller a desktop; a
-desktop under 760 px high and at least 1100 px wide (a laptop's browser window) is a short desktop.
-The own hand tile is fixed at 36x48 on a phone, and the river tile starts there from 0.65 of it. Off a
-phone the own hand tile is 4/3 of the river tile, at most min(0.05 of the width, 0.1 of the height) and
+The sizing rule. The board's sizes, its family, its chrome tier and every footprint it reserves
+come from one function of the board's box (`boardGeometry`); the styles place from them. A
+landscape board is a phone when the box it would have with the 10px gutter is under 520 px high,
+and then it takes no gutter; anything else is a desktop, with the gutter, and a desktop under 760 px
+high and at least 1100 px wide (a laptop's browser window) is a short desktop; the short desktop and
+the chrome tiers (small under 1100 px wide or 520 px high, large from 2000x1200) are read from the
+padded box. An upright board stays upright. Deliberately, a board 520 to 539 px tall without its
+gutter is a phone, and a phone always has the small chrome.
+On a phone both tiles are solved together from the box, as the largest that fit, the own hand tile
+at least 36x48 and at most about 1.7 of the river tile (Tenhou); the band's controls float in the
+gap above the hand, and the phone's chrome scales from the river tile; the sizes it gives are
+measured in task 10. Off a phone the own hand tile is 4/3 of the river tile, at most min(0.05 of the width, 0.1 of the height) and
 what a full hand's row holds. The river tile is the largest that keeps the centre's side at least 0.39 of the
 core on a phone (0.33 on a desktop), solved for the own row it sizes off a phone; the core's side is
 the centre plus eight river tiles and two gaps of 0.3 of a river tile. The centre's width is 1.4 of
@@ -528,10 +542,8 @@ else as much as it holds, never under its side. On a desktop the core stands abo
 foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
 corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach. A
-phone's core also ends its left river's capacity above the play switches, which stand over the own
-badge's lane, so the core stands at its top slot, the river tile 17px at the floor where the lane
-costs it two; a short desktop's core ends that reach above them too, centred in its room only as
-far as that allows. That place is as tall as the play switches or the replay's moves (which stand
+short desktop's core ends its left river's capacity above the play switches, which stand over the
+own badge's lane, centred in its room only as far as that allows. That place is as tall as the play switches or the replay's moves (which stand
 there where the band shares the core's corners), whichever is taller, so a replay's board is the
 live game's.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile
@@ -539,16 +551,16 @@ apart.
 
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
-| Core height / play area height | 0.6 | 0.66 / 0.65 / 0.63 |
-| Centre side / core height | 0.3 | 0.41 / 0.39 / 0.34 |
-| Centre width / centre side | 1.4 (Tenhou about 1.5) | 1.4 / 1.4 / 1.4 |
-| River tile width / own hand tile width | 0.65 (0.75 off a phone) | 0.47 / 0.47 / 0.75 |
+| Core height / play area height | 0.6 | measured in task 10 / measured in task 10 / 0.63 |
+| Centre side / core height | 0.3 | measured in task 10 / measured in task 10 / 0.34 |
+| Centre width / centre side | 1.4 (Tenhou about 1.5) | measured in task 10 / measured in task 10 / 1.4 |
+| River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | measured in task 10 / measured in task 10 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | 0.65 (0.75 off a phone) | 0.47 / 0.47 / 0.75 |
-| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.030 |
-| Own hand tile height / play area height | 0.15 | 0.13 / 0.13 / 0.065 |
-| Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
-| Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
+| Opponent hand tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | measured in task 10 / measured in task 10 / 0.75 |
+| Own hand tile width / play area width | 0.05 | measured in task 10 / measured in task 10 / 0.030 |
+| Own hand tile height / play area height | 0.15 | measured in task 10 / measured in task 10 / 0.065 |
+| Gap between a river and the centre, in river tiles | 0.3 | measured in task 10 / measured in task 10 / 0.30 (0.3, rounded) |
+| Gap between neighbouring rivers, in river tiles | 0.3 | measured in task 10 / measured in task 10 / 0.30 (0.3, rounded) |
 
 A starting point is never a gate threshold. A derived value may become one, with a tolerance,
 only where it protects the approved layout from a regression a player would notice.
@@ -557,14 +569,18 @@ The opponent's hand at the river tile follows Tenhou (every opponent hand and me
 river tile, its own hand 1.44 of it on a desktop) and Mahjong Soul (the same, once its camera's depth
 is taken out). Decision off a phone: every other hand and river reads at one size, and the own hand
 at 4/3 of it, since a side seat's tile, turned, shows its long side across the screen and an own hand
-at the same size reads smaller beside it. A phone keeps the larger own tile, which touch needs, and its river tile, which the height binds. A decision control's tiles stay inside the room the band keeps for its row, so a large board's
-controls never reach the bottom river.
+at the same size reads smaller beside it. A phone keeps a larger own tile, which touch needs, solved
+together with its river tile from the box, the own tile up to about 1.7 of the river tile
+(Tenhou); the sizes this gives are measured in task 10. A decision control's tiles stay inside
+the room the band keeps for its row, so a large board's controls never reach the bottom river.
 
-The starting points did not fit together at the 667x375 floor. The rule resolves it by a mix: the
-core grows to about two thirds of the height, since the foreground band shares the core's lower
-corners where the pinwheel leaves them empty, less the own badge's lane under the switches; the
-river tile shrinks; and the centre's share grows, its text following the centre down to an 11px
-score, so the round, the wall count and four winds with their scores stay readable at the floor.
+The starting points do not fit together at the 667x375 floor. The rule resolves it by the joint
+solve: the core takes the height the foreground band leaves it by sharing the core's lower corners,
+where the pinwheel leaves them empty, with the band's controls floating in the gap above the hand;
+the two tiles are the largest pair the box holds above the own tile's 36x48 floor; and the centre's
+share grows, its text following the centre down, so the round, the wall count and four winds with
+their scores stay readable at the floor. The core's share, the tiles and the centre's score size
+this gives are measured in task 10.
 
 ## States
 
