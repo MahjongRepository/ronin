@@ -125,9 +125,9 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
     },
     {
         hide: [["", NO_OUTLINE]],
-        name: "declaring or selected tile's outline",
+        name: "selected tile's outline",
         reach: 4,
-        selector: ":is(.hand-tile--declaring, .hand-tile--selected) .tile",
+        selector: ".hand-tile--selected .tile",
     },
     {
         hide: [["::before", HIDDEN]],
