@@ -13,9 +13,9 @@ export interface WheelGesture {
 /** The distance before the first step: one mouse notch at once, a trackpad's first ticks not yet. */
 const FIRST_STEP_PX = 30;
 /** The distance for each step after the first. */
-const NEXT_STEP_PX = 100;
-/** The least time between two steps of one gesture. */
-const STEP_INTERVAL_MS = 150;
+const NEXT_STEP_PX = 50;
+/** The least time between two steps of one gesture, about a held key's repeat. */
+const STEP_INTERVAL_MS = 30;
 /** A pause in the wheel this long ends its gesture. */
 const REST_MS = 200;
 
