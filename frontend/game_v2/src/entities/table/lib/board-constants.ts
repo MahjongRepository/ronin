@@ -64,8 +64,9 @@ const LARGE_CHROME_HEIGHT = 1200;
 type ChromeTier = "small" | "regular" | "large";
 
 /**
- * The px a desktop's sizing reads of its chrome: margins, gaps, the band's control, the own badge, the switches, the
- * corner and the replay's controls.
+ * The px a desktop's sizing and places read of its chrome: margins, gaps, the band's control, the own badge, the
+ * switches, the corner, the replay's controls, the opponents' badges and the decisions' least widths; the stylesheet's
+ * chrome blocks mirror the badges' and the decisions'.
  */
 interface DesktopChrome {
     readonly m: number;
@@ -82,9 +83,19 @@ interface DesktopChrome {
     readonly cornerH: number;
     readonly replayGap: number;
     readonly sideLaneMin: number;
+    readonly badgeH: number;
+    readonly pillH: number;
+    readonly badgeGap: number;
+    readonly sideCardW: number;
+    readonly winMinW: number;
+    readonly actionMinW: number;
+    readonly timerW: number;
 }
 
 const REGULAR_CHROME: DesktopChrome = {
+    actionMinW: 96,
+    badgeGap: 16,
+    badgeH: 54,
     bandGap: 18,
     controlH: 60,
     coreGap: 40,
@@ -93,35 +104,51 @@ const REGULAR_CHROME: DesktopChrome = {
     movesH: 52,
     ownBadgeH: 40,
     ownInline: 0,
+    pillH: 50,
     replayGap: 6,
     sep: 40,
+    sideCardW: 200,
     sideLaneMin: 125,
     sideStart: 72,
     switchGap: 18,
     switchH: 44,
+    timerW: 120,
+    winMinW: 150,
 };
 
 const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
     large: {
         ...REGULAR_CHROME,
+        badgeGap: 20,
+        badgeH: 72,
         cornerH: 64,
         movesH: 60,
         ownBadgeH: 52,
+        pillH: 70,
         replayGap: 8,
+        sideCardW: 270,
         sideLaneMin: 170,
         sideStart: 100,
         switchH: 52,
+        timerW: 150,
     },
     regular: REGULAR_CHROME,
     small: {
         ...REGULAR_CHROME,
+        actionMinW: 64,
+        badgeGap: 8,
+        badgeH: 40,
         cornerH: 40,
         movesH: 40,
         ownInline: 96,
+        pillH: 38,
         replayGap: 4,
+        sideCardW: 130,
         sideLaneMin: 90,
         sideStart: 52,
         switchGap: 4,
+        timerW: 76,
+        winMinW: 96,
     },
 };
 

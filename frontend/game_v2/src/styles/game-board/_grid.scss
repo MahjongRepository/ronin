@@ -4,16 +4,12 @@
 /* Lengths CSS computes, registered so each computes once to pixels (an unregistered chain grows with every use). */
 $lengths:
     strip-depth, strip-reserve, counters-top, top-room-left, bw, bh, foreground-top, band-height,
-    band-top, band-bottom, corner-bottom, side-badge-top, left-badge-x, river-clear, lane-at-start,
-    lane-below, start-narrow, side-lane, full-hand-w, own-start, own-hand-right, switches-left,
-    switches-right, dg, bgap, full-reach, step-in, right-from-band, right-under-corner,
-    right-from-top, right-fits, right-top-fits, corner-in, right-pull, right-origin, corner-shift,
-    band-shift, switches-top, left-reach-end, left-meets, switches-clear, top-badge-right, top-lane,
-    band-crossed, switches-bottom, row-rise, top-strip-x, top-badge-top, side-step, right-badge-top,
-    left-room-end, left-line2-end, switches-place, switches-place-w, own-lead, own-lane-free,
-    own-lane-beside-river, own-river-lane, own-lane, own-badge-end, side-clear, decisions-top,
-    side-step-room, counters-h, side-start, plate-reach, left-start, right-base, right-centred,
-    top-rows-left, bottom-river-end;
+    band-top, band-bottom, corner-bottom, side-badge-top, left-badge-x, river-clear, side-lane,
+    own-start, switches-left, switches-right, dg, bgap, full-reach, step-in, right-from-band,
+    right-under-corner, right-from-top, corner-in, right-pull, right-origin, corner-shift,
+    band-shift, switches-top, top-badge-right, top-lane, switches-bottom, row-rise, top-strip-x,
+    top-badge-top, right-badge-top, left-room-end, left-line2-end, own-lead, own-lane, side-clear,
+    counters-h, side-start, left-start, right-base, right-centred;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them (mirrors
    `board-geometry.ts`'s `UPRIGHT_COUNTERS_GAP`). */
@@ -36,14 +32,11 @@ $upright-counters-gap: 6px;
 }
 
 .game-board > :is(.board-layout, .board-overlay) {
-    /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`; the full reach's, the switches'
-       place's and the left hand's literals mirror `board-geometry.ts`'s. */
+    /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`; the full reach's and the left
+       hand's literals mirror `board-geometry.ts`'s. */
 
     /* The viewport class: a desktop's chrome; a phone's and an upright board's sizing chrome is `PHONE_CHROME`'s and
        `UPRIGHT_CHROME`'s. */
-    --switch-gap: var(--band-gap);
-    --row-bottom: var(--band-bottom);
-    --plate-reach: var(--switches-right);
     --side-start: calc(var(--m) + 72px);
     --badge-h: 54px;
     --pill-h: 50px;
@@ -59,9 +52,6 @@ $upright-counters-gap: 6px;
     --top-room-left: calc(var(--m) + var(--counters-w) + 8px);
     --text: 17px;
     --switch-h: 44px;
-
-    /* The play switches' strip: three square chips and the names' button, 6px apart (4px on a phone). */
-    --switches-w: calc(4 * var(--switch-h) + 18px);
     --moves-h: 52px;
     --side-card-w: 200px;
     --side-lane-min: 125px;
@@ -82,15 +72,6 @@ $upright-counters-gap: 6px;
     --foreground-top: calc(var(--hand-top) - var(--band-height));
     --band-top: calc(var(--foreground-top) + var(--band-gap));
     --band-bottom: calc(var(--hand-top) - var(--band-gap) - var(--band-lift));
-
-    /* The play switches, left of the bottom river's reach, stand over the own badge's lane above the hand's left end. */
-    --switches-bottom: min(
-        var(--band-bottom),
-        var(--hand-top) - var(--own-rise) - var(--switch-gap)
-    );
-
-    /* The band row: a narrow desktop's rises with the switches over the badge's lane, whose row would wrap beside it. */
-    --row-rise: calc(var(--band-bottom) - var(--row-bottom));
     --corner-bottom: calc(var(--m) + var(--corner-h));
     --step-in: calc(var(--bh) + 6px);
 
@@ -102,12 +83,6 @@ $upright-counters-gap: 6px;
         var(--corner-bottom) + 4px + var(--full-reach)
     );
     --right-from-top: max(var(--right-from-band), var(--m) + var(--full-reach));
-
-    /* 1px where a hand from that origin stays out of the band row's height (its box starts at the band's top). */
-    --right-fits: clamp(0px, (var(--band-top) + 0.5px - var(--right-under-corner)) * 1000, 1px);
-    --right-top-fits: clamp(0px, (var(--band-top) + 0.5px - var(--right-from-top)) * 1000, 1px);
-    --corner-in: min(1px - var(--right-fits), var(--right-top-fits));
-    --corner-shift: min(var(--step-in), var(--corner-in) * 100000);
     --right-pull: min(var(--right-under-corner) - var(--right-from-top), var(--corner-in) * 100000);
     --right-base: calc(var(--right-under-corner) - var(--right-pull));
 
@@ -117,28 +92,8 @@ $upright-counters-gap: 6px;
         var(--cy) + var(--full-reach) / 2
     );
     --right-origin: min(var(--right-base), var(--right-centred));
-    --band-crossed: clamp(0px, (var(--right-origin) - var(--band-top) - 0.5px) * 1000, 1px);
-    --band-shift: min(var(--step-in), var(--band-crossed) * 100000);
 
-    /* The left hand runs down from below the counters; the switches' place, as tall as the play switches or the replay's
-       moves (so both boards size alike), steps in past its depth where it meets them, the left strip's melds above. */
-    --switches-place: max(var(--switch-h), var(--moves-h));
-
-    /* The switches' place is as wide as the play switches or the replay's seven moves there, so a replay's board is the
-       live game's. */
-    --switches-place-w: max(var(--switches-w), 7 * var(--moves-h) + 36px);
-    --switches-top: calc(var(--switches-bottom) - var(--switches-place));
-    --left-room-end: min(var(--band-top), var(--switches-top));
-
-    /* The left hand's full reach stands centred on the core as far as it stays under the counters and above its room's
-       end, so centring never steps the switches in. */
-    --left-start: max(
-        var(--side-start),
-        min(var(--cy) - var(--full-reach) / 2, var(--left-room-end) - 8px - var(--full-reach))
-    );
-    --left-reach-end: calc(var(--left-start) + var(--full-reach) + 4px);
-    --left-meets: clamp(0px, (var(--left-reach-end) - var(--switches-top)) * 1000, 1px);
-    --switches-clear: calc(var(--m) + var(--step-in) - (1px - var(--left-meets)) * 100000);
+    /* The left strip's melds stand above the switches' place. */
     --left-line2-end: min(var(--foreground-top), var(--switches-top) - 4px);
 
     /* The top hand's full reach stands centred, moved right as far as its badge's lane under its start needs, short of
@@ -161,34 +116,8 @@ $upright-counters-gap: 6px;
     /* A side strip's deepest reach: two stacked lines 4px apart, the second's tiles never under the face floor. */
     --strip-reserve: calc(2 * var(--rw) + 4px + 2 * max(var(--rw), #{$face-floor}));
     --left-badge-x: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
-
-    /* The top badge stands under its hand, past a river tile's edge, so a meld that reaches over it keeps a gap. */
-    --top-badge-top: calc(var(--m) + var(--rh) + #{$tile-edge-share} * var(--rw) + 6px);
-
-    /* The side badges stand at the strips' start a step below the top badge's pill, short of the top river's longest
-       third row by a river tile; where that leaves no room for an ordinary name, below that row by as much. */
-    --side-step: calc(var(--top-badge-top) + var(--pill-h) + 8px);
     --river-clear: max(10px, var(--rw) / 2);
     --side-clear: max(16px, var(--rw));
-    --lane-at-start: calc(var(--reach-top-left) - var(--side-clear) - var(--left-badge-x));
-    --top-rows-left: calc(
-        var(--cx) + var(--hx) - 5 * var(--rw) - var(--rh) - var(--latest-discard-gap)
-    );
-    --lane-below: calc(var(--top-rows-left) - var(--side-clear) - var(--left-badge-x));
-    --start-narrow: clamp(0px, (var(--side-lane-min) - var(--lane-at-start)) * 1000, 1px);
-    --side-badge-top: max(
-        var(--side-start),
-        var(--side-step),
-        min(
-            var(--reach-top-row3) + var(--side-clear),
-            var(--side-start) + var(--start-narrow) * 100000
-        )
-    );
-    --right-badge-top: var(--side-badge-top);
-    --side-lane: min(
-        var(--side-card-w),
-        max(var(--lane-at-start), min(var(--lane-below), var(--start-narrow) * 100000))
-    );
 
     /* The top badge's lane, under its hand's start: from half a river tile past the top river to the hand's end. */
     --top-lane: min(
@@ -196,49 +125,14 @@ $upright-counters-gap: 6px;
         var(--top-strip-x) - var(--cx) - var(--hx) - var(--river-clear)
     );
 
-    /* The own row: a full hand's place, centred whatever the hand holds. */
-    --full-hand-w: calc(#{$full-hand} * var(--ow));
-    --own-start: max(var(--m), (100cqw - var(--own-inline) - var(--full-hand-w)) / 2);
-    --own-hand-right: calc(var(--own-start) + var(--own-inline) + var(--full-hand-w));
-
-    /* The play switches' slot, on the band's side away from the decisions, which never reach into it. */
-    --switches-left: max(var(--m), var(--switches-clear));
-    --switches-right: calc(var(--switches-left) + var(--switches-w));
-
-    /* The own badge's lane from the hand's left end, short of the bottom river where its row meets it and the switches'
-       end; where that end leaves less than an ordinary name (an ultrawide's hand), its own lane, the decisions' after. */
+    /* The own badge's lane starts at the hand's left end. */
     --own-lead: calc(var(--own-start) + var(--own-inline));
-    --own-lane-free: clamp(
-        0px,
-        (var(--side-lane-min) - var(--plate-reach) + var(--own-lead)) * 1000,
-        1px
-    );
-    --bottom-river-end: calc(
-        var(--cy) + var(--h) + var(--g) + 3 * var(--rh) + var(--latest-discard-gap)
-    );
-    --own-lane-beside-river: clamp(
-        0px,
-        (var(--bottom-river-end) - var(--hand-top) + var(--own-rise)) * 1000,
-        1px
-    );
-    --own-river-lane: calc(var(--cx) - var(--hx) - var(--river-clear) - var(--own-lead));
-    --own-lane: min(
-        var(--full-hand-w) / 2,
-        var(--own-river-lane) + (1px - var(--own-lane-beside-river)) * 100000,
-        var(--plate-reach) - var(--own-lead) + var(--own-lane-free) * 100000
-    );
-    --own-badge-end: calc(
-        var(--own-lead) + var(--own-lane) + var(--band-gap) - (1px - var(--own-lane-free)) * 100000
-    );
 
     /* What the stylesheets of the board's other parts count in: a river tile's sixtieth, and the own tile. */
     --board-table-unit: calc(var(--rw) / #{$tile-w});
     --board-local-tile-w: var(--ow);
 
     @include small-chrome {
-        --switch-gap: 4px;
-        --row-bottom: var(--switches-bottom);
-        --plate-reach: 99999px;
         --side-start: calc(var(--m) + 52px);
         --badge-h: 40px;
         --pill-h: 38px;
@@ -276,41 +170,16 @@ $upright-counters-gap: 6px;
         --timer-w: 150px;
     }
 
-    /* A phone's side badges keep the strips' start, its right one stepping under the top badge beside it: the room under
-       them is the left strip's second line's. A phone's switches step in. */
-    @include phone-board {
-        --side-step: 0px;
-        --right-badge-top: max(var(--side-badge-top), var(--top-badge-top) + var(--pill-h) + 6px);
-        --switches-clear: calc(
-            var(--m) + var(--strip-depth) + 6px - (1px - var(--left-meets)) * 100000
-        );
-        --left-room-end: min(var(--band-top), var(--switches-top) + var(--left-meets) * 100000);
-        --left-start: var(--side-start);
-        --row-bottom: var(--band-bottom);
-        --switches-w: calc(4 * var(--switch-h) + 12px);
-    }
-
-    @include short-desktop-board {
-        /* A short desktop's side badges step down where the decisions' tallest column (five offers over the band's
-           control and the timer: six rows, a win's rise) leaves room under the right one. */
-        --decisions-top: calc(
-            var(--row-bottom) - 6 * var(--control-h) - 5 * #{$decision-gap} - #{$win-rise}
-        );
-        --stepped-top: calc(var(--top-badge-top) + var(--pill-h) + 8px);
-        --side-step-room: clamp(
-            0px,
-            (var(--decisions-top) - 6px - var(--badge-h) - var(--stepped-top)) * 1000,
-            1px
-        );
-        --side-step: min(var(--stepped-top), var(--side-step-room) * 100000);
-    }
-
-    /* Upright, the own row centres its hand in the width its own tile leaves. */
     @include upright-board {
-        --own-start: calc((100cqw - var(--full-hand-w)) / 2);
-        --own-hand-right: calc(var(--own-start) + var(--full-hand-w));
-        --row-bottom: var(--band-bottom);
+        --row-rise: 0px;
         --left-room-end: var(--band-top);
+
+        /* The left hand's full reach stands centred on the core as far as it stays under the counters and above the
+           band. */
+        --left-start: max(
+            var(--side-start),
+            min(var(--cy) - var(--full-reach) / 2, var(--left-room-end) - 8px - var(--full-reach))
+        );
         --left-line2-end: min(var(--foreground-top), var(--hand-top) - var(--own-rise) - 4px);
         --counters-top: calc(var(--m) + var(--strip-depth) + #{$upright-counters-gap});
         --top-room-left: var(--m);
@@ -342,8 +211,6 @@ $upright-counters-gap: 6px;
             var(--side-card-w),
             var(--top-strip-x) - var(--m) - var(--counters-w) - var(--badge-gap)
         );
-        --switches-left: var(--m);
-        --switches-w: 0px;
         --timer-w: 60px;
     }
 }
@@ -400,6 +267,20 @@ $upright-counters-gap: 6px;
     --corner-reserve: var(--geo-corner-reserve);
     --corner-in: var(--geo-corner-in);
     --corner-shift: var(--geo-corner-shift);
+    --top-badge-top: var(--geo-top-badge-top);
+    --side-badge-top: var(--geo-side-badge-top);
+    --right-badge-top: var(--geo-right-badge-top);
+    --side-lane: var(--geo-side-lane);
+    --own-start: var(--geo-own-start);
+    --own-lane: var(--geo-own-lane);
+    --left-start: var(--geo-left-start);
+    --left-room-end: var(--geo-left-room-end);
+    --switches-left: var(--geo-switches-left);
+    --switches-right: var(--geo-switches-right);
+    --switches-top: var(--geo-switches-top);
+    --actions-left: var(--geo-actions-left);
+    --actions-right: var(--geo-actions-right);
+    --actions-bottom: var(--geo-actions-bottom);
 }
 
 /* A phone's chrome and its right hand's place are `boardGeometry`'s too. */
@@ -415,7 +296,6 @@ $upright-counters-gap: 6px;
     --moves-h: var(--geo-moves-h);
     --right-origin: var(--geo-right-origin);
     --band-shift: var(--geo-band-shift);
-    --notices-beside-panel: var(--geo-notices-beside-panel);
 }
 
 .game-board:where([data-board-family="upright"]) > :is(.board-layout, .board-overlay) {
@@ -445,6 +325,10 @@ $upright-counters-gap: 6px;
     --own-meld-rise: var(--geo-own-meld-rise);
     --own-rise: var(--geo-own-rise);
     --own-lane: var(--geo-own-lane);
+    --own-start: var(--geo-own-start);
+    --actions-left: var(--geo-actions-left);
+    --actions-right: var(--geo-actions-right);
+    --actions-bottom: var(--geo-actions-bottom);
     --m: var(--geo-m);
     --sep: var(--geo-sep);
     --core-gap: var(--geo-core-gap);
@@ -461,7 +345,8 @@ $upright-counters-gap: 6px;
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
     --menu-size: var(--geo-menu-size);
     --corner-reserve: var(--geo-corner-reserve);
-    --notices-beside-panel: var(--geo-notices-beside-panel);
+    --corner-in: var(--geo-corner-in);
+    --corner-shift: var(--geo-corner-shift);
 }
 
 .game-board:not([data-board-family]) > :is(.board-layout, .board-overlay) {
@@ -473,4 +358,13 @@ $upright-counters-gap: 6px;
     width: 100%;
     height: 100%;
     font-size: var(--text);
+}
+
+/* The shell: GameBoard's slots stand in their areas on a grid of the geometry's tracks (each area's edges are named
+   lines); the core's pinwheel, the strips and the badges stand absolutely over it. */
+.board-layout,
+.board-table {
+    display: grid;
+    grid-template-rows: var(--geo-shell-rows);
+    grid-template-columns: var(--geo-shell-columns);
 }

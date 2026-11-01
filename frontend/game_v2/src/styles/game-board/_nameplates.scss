@@ -307,9 +307,9 @@ $plate-seats: bottom, right, top, left;
 
 /* The page's corner: the settings cog, small, at the play area's top right; above every panel while its menu is open. */
 .board-menu {
-    position: absolute;
-    top: var(--m);
-    right: calc(var(--m) + var(--corner-shift));
+    position: relative;
+    grid-area: corner;
+    place-self: start end;
     z-index: 3;
     min-width: 0;
     max-width: var(--corner-reserve);

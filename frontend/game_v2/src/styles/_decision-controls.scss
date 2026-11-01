@@ -5,63 +5,28 @@ $gap: 6px;
 $row: 40px;
 $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
-$corner-min-w: 180px;
 
-@each $name in upper-clear, actions-left, actions-right, actions-bottom {
-    @property --#{$name} {
-        syntax: "<length>";
-        inherits: true;
-        initial-value: 0;
-    }
+@property --upper-clear {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
 }
 
-/* A desktop's band row past the switches and the own badge's lane, to the hand's right end or as far past it as a full
-   row of offers needs; a phone's column beside the right river and strip. */
+/* A short desktop's rows of decisions stand clear of the right strip's deepest reach. */
 .board-table {
-    --actions-left: max(var(--switches-right) + var(--band-gap), var(--own-badge-end));
-    --actions-need: calc(
-        var(--win-min-w) + 4 * var(--action-min-w) + var(--timer-w) + 5 * #{$decision-gap}
-    );
-    --actions-right: max(
-        var(--m),
-        min(100cqw - var(--own-hand-right), 100cqw - var(--actions-left) - var(--actions-need))
-    );
-    --actions-bottom: var(--row-bottom);
     --upper-clear: max(
         0px,
         var(--m) + var(--strip-reserve) + #{$decision-gap} - var(--actions-right)
     );
-
-    @include short-desktop-board {
-        --actions-left: max(
-            var(--switches-right) + var(--band-gap),
-            var(--own-badge-end),
-            max(var(--reach-bottom-right), var(--reach-right)) + #{$gap}
-        );
-        --actions-right: max(
-            var(--m) + var(--strip-depth) + #{$decision-gap},
-            min(100cqw - var(--own-hand-right), 100cqw - var(--actions-left) - #{$corner-min-w})
-        );
-    }
-
-    @include phone-board {
-        --actions-left: calc(var(--reach-right) + #{$gap});
-        --actions-right: var(--m);
-    }
-
-    @include upright-board {
-        --actions-left: var(--m);
-        --actions-right: calc(var(--m) + var(--strip-reserve) + 8px);
-        --actions-bottom: var(--geo-actions-bottom);
-    }
 }
 
+/* The band end's slot: a desktop's band row past the switches and the own badge's lane, its controls at its bottom; a
+   phone's column beside the right river and strip, under the right badge. */
 .board-actions {
     container: decisions / inline-size;
-    position: absolute;
-    left: var(--actions-left);
-    right: var(--actions-right);
-    bottom: calc(100cqh - var(--actions-bottom));
+    position: relative;
+    grid-area: actions;
+    align-self: end;
     z-index: 3;
     display: flex;
     justify-content: flex-end;
@@ -69,7 +34,7 @@ $corner-min-w: 180px;
 
     @include phone-board {
         container: decisions / size;
-        top: calc(var(--right-badge-top) + var(--badge-h) + #{$gap});
+        align-self: stretch;
     }
 }
 

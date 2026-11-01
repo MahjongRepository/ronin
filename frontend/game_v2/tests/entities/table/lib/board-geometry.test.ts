@@ -10,6 +10,7 @@ import {
     type BoardEdges,
     type BoardGeometry,
     type BoardSlots,
+    type BoardTracks,
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
 
@@ -35,6 +36,39 @@ function windowGeometry(
         width: width - pad(insets.left) - pad(insets.right),
     };
     return boardGeometry({ box, gutter: applied, safeInsets: insets, slots: LIVE_SLOTS });
+}
+
+/** Each named line of a grid template at its offset from the grid's start (px). */
+function trackLines(template: string): Map<string, number> {
+    const lines = new Map<string, number>();
+    let offset = 0;
+    for (const { groups } of template.matchAll(/\[(?<names>[^\]]*)\]|(?<size>[\d.e+-]+)px/gu)) {
+        for (const name of groups?.names?.split(" ") ?? []) {
+            lines.set(name, offset);
+        }
+        offset += Number(groups?.size ?? 0);
+    }
+    return lines;
+}
+
+/** Each slot's area on the shell's tracks: its start and end lines across, then down, to a tenth of a pixel. */
+function slotAreas({ columns, rows }: BoardTracks): Record<string, number[]> {
+    const across = trackLines(columns);
+    const down = trackLines(rows);
+    const slots = [...across.keys()]
+        .filter((name) => name.endsWith("-start"))
+        .map((name) => name.slice(0, -6));
+    return Object.fromEntries(
+        slots.map((slot) => [
+            slot,
+            [
+                across.get(`${slot}-start`),
+                down.get(`${slot}-start`),
+                across.get(`${slot}-end`),
+                down.get(`${slot}-end`),
+            ].map((line) => Math.round((line ?? Number.NaN) * 10) / 10),
+        ]),
+    );
 }
 
 describe("boardGeometry", () => {
@@ -104,25 +138,28 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1440, 900, [42, 56, 549.2, 188, 263.2, 114]],
-        [1440, 800, [36, 48, 471.6, 162, 226.8, 106]],
-        [2560, 1440, [73, 97, 937.2, 309.4, 433.16, 191.603]],
-        [800, 600, [22, 29, 295.867, 106.667, 149.334, 87.3327]],
-    ])("sizes a %ix%i window's desktop board as its stylesheet did", (width, height, expected) => {
-        const { lengths } = windowGeometry({ height, width });
+        [1440, 900, [42, 56, 549.2, 173.2, 242.48, 114]],
+        [1440, 800, [36, 48, 471.6, 147.6, 206.64, 106]],
+        [2560, 1440, [73, 97, 937.2, 295.2, 413.28, 191.6]],
+        [800, 600, [22, 29, 295.867, 91.867, 128.613, 87.333]],
+    ])(
+        "sizes a %ix%i window's desktop board, its core holding the latest discards' gaps",
+        (width, height, expected) => {
+            const { lengths } = windowGeometry({ height, width });
 
-        for (const [index, name] of SIZES.entries()) {
-            expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
-        }
-    });
+            for (const [index, name] of SIZES.entries()) {
+                expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+            }
+        },
+    );
 
     it.each([
-        [1366, 657, [30, 227.388, 101.623]],
-        [1280, 720, [35, 225.4, 109.833]],
-        [1440, 770, [38, 235.48, 119.5]],
-        [1170, 620, [28, 211.333, 96.0002]],
+        [1366, 657, [30, 207.788, 101.623]],
+        [1280, 720, [35, 204.4, 109.833]],
+        [1440, 770, [38, 217, 119.5]],
+        [1170, 620, [28, 198.8, 96]],
     ])(
-        "sizes a %ix%i window's short desktop board as its stylesheet did",
+        "sizes a %ix%i window's short desktop board, its core holding the latest discards' gaps",
         (width, height, expected) => {
             const { lengths } = windowGeometry({ height, width });
 
@@ -135,13 +172,16 @@ describe("boardGeometry", () => {
     it.each([
         [375, 548, [11, 205.666, 96.933]],
         [800, 801, [30, 386.8, 122]],
-    ])("sizes a %ix%i window's upright board as its stylesheet did", (width, height, expected) => {
-        const { lengths } = windowGeometry({ height, width });
+    ])(
+        "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
+        (width, height, expected) => {
+            const { lengths } = windowGeometry({ height, width });
 
-        for (const [index, name] of UPRIGHT_SIZES.entries()) {
-            expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
-        }
-    });
+            for (const [index, name] of UPRIGHT_SIZES.entries()) {
+                expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+            }
+        },
+    );
 
     it.each([
         { above: true, height: 375, pinned: { "band-shift": 0, ow: 36, rw: 17 }, width: 667 },
@@ -177,9 +217,10 @@ describe("boardGeometry", () => {
     it.each([
         [667, 375],
         [1440, 900],
+        [1366, 657],
         [390, 844],
     ])(
-        "counts the latest discard's gap in a %ix%i window's river reaches, none at the top river's near edge",
+        "counts the latest discard's gap in a %ix%i window's river reaches, the core holding the top river's",
         (width, height) => {
             const { lengths } = windowGeometry({ height, width });
             function length(name: string): number {
@@ -201,17 +242,20 @@ describe("boardGeometry", () => {
                 expect(length(name), name).toBeCloseTo(reach, 3);
             }
             expect(
-                length("cy") +
-                    length("h") -
-                    5 * length("rw") -
-                    length("rh") -
-                    RIGHT_LATEST_DISCARD_GAP,
-            ).toBeGreaterThanOrEqual(length("core-top"));
+                Math.min(
+                    length("cy") +
+                        length("h") -
+                        5 * length("rw") -
+                        length("rh") -
+                        RIGHT_LATEST_DISCARD_GAP,
+                    length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
+                ),
+            ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
         },
     );
 
     it("keeps a narrow upright board's centre at least 100px across", () => {
-        expect(windowGeometry({ height: 620, width: 260 }).lengths["c"]).toBeGreaterThanOrEqual(
+        expect(windowGeometry({ height: 620, width: 260 }).lengths["w"]).toBeGreaterThanOrEqual(
             100,
         );
     });
@@ -232,5 +276,18 @@ describe("boardGeometry", () => {
 
     it("gives an empty box no sizes", () => {
         expect(windowGeometry({ height: 0, width: 0 }).lengths).toEqual({});
+    });
+});
+
+describe("boardGeometry's shell tracks", () => {
+    it("lays a landscape phone's slots where its board measured them", () => {
+        expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
+            actions: [499, 124.9, 663, 314.3],
+            corner: [0, 4, 634.3, 375],
+            field: [82, 102, 166, 228.3],
+            "field-beside": [583, 272.3, 663, 318.3],
+            hand: [70.7, 322.3, 663, 370.3],
+            switches: [44, 0, 667, 276.3],
+        });
     });
 });

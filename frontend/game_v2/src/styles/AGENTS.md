@@ -13,6 +13,15 @@ they disagree.
   replay's) can use them: a nested rule's selector takes the attribute inside `:where()` on its board compound, or
   behind a `:where(.game-board)` where it names none, keeping its specificity and place; a top-level block names the
   board itself.
+- **The shell is a grid from the geometry's tracks; the pinwheel is local.** `boardGeometry` places GameBoard's slots
+  (the corner, the switches at the band's start, the band end, the notices' field and its column beside a panel, the
+  own row) as areas and emits the grid's templates (`--geo-shell-columns` / `--geo-shell-rows`, each area's edges a
+  named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
+  contents stand in it. A slot's place is never a CSS formula: what its contents read (`--actions-*`,
+  `--switches-*`, the field's height, which the notices' clamp reads as `max-height`) comes from the geometry too.
+  The core's pinwheel (centre, rivers), the strips, the badges and the counters stand absolutely over the grid, and so
+  do the replay's moves in the switches' place (from the band end, by the geometry's lengths) and its status over a
+  smaller board's panel.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (the corner,
   live play's or a replay's band) and the family's places; the overlay centres the panel on the board within its
   `--geo-overlay-*` insets, live and replay alike, clear of the cog wherever the corner steps in (the geometry decides
@@ -27,12 +36,13 @@ they disagree.
   one for the phone's chrome and right hand alone, and one for upright; a name a rule maps that one of its families
   does not emit stays unset on that family's board, where nothing reads it. No CSS solve remains, so a board without
   `data-board-family` (not yet measured) hides its layers. A literal both sides need is a TS constant emitted as a
-  `--geo-*` length (the latest discard's gaps); one still in SCSS stays beside a note naming its TS mirror. Until
-  task 16 a narrow desktop's notices still read the side strip's drawn depth, the deepest strip leaving them too
-  narrow.
+  `--geo-*` length (the latest discard's gaps); one still in SCSS stays beside a note naming its TS mirror (the
+  chrome blocks' badge and decision px mirror `DESKTOP_CHROME`). A narrow desktop's notices still start past the left
+  strip's drawn depth (a margin on the field's slot): the deepest strip leaves them too narrow, a choice still open.
 - **The replay fills live's slots.** GameBoard's band end (`.board-actions`, the decisions' place) holds live's
   decisions or a replay's group, its field (`.board-notices`) the notices and a replay's status; the band end's lengths
-  (`--actions-*`, `--actions-need` the one a filler sets) stand on `.board-table`, so what stands beside it reads them.
+  (`--actions-*`, its room for a live row or a replay's group from the band the page fills) are the geometry's, so
+  what stands beside it reads them.
   `_replay-state.scss` places no slot: it keeps the seating-on-the-centre-block rule, the controls' looks and their
   arrangement inside the band end (the moves before the options, upright the options over them, the moves in the
   switches' place where the band shares the core's corners) and the spec's panel-only exception. Upright, the band

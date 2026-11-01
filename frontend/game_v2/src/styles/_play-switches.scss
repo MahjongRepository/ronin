@@ -5,9 +5,9 @@ $gap: 6px;
 /* The play switches' slot: the band's row on its side away from the decisions, which never reach into it. A strip of
    square chips, a letter each, and the button showing their names over them, Mahjong Soul's. */
 .play-switches {
-    position: absolute;
-    left: var(--switches-left);
-    bottom: calc(100cqh - var(--switches-bottom));
+    position: relative;
+    grid-area: switches;
+    place-self: end start;
     z-index: 3;
     display: flex;
     align-items: flex-end;

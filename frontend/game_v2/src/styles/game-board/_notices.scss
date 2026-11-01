@@ -13,55 +13,24 @@
     initial-value: 0;
 }
 
-/* The place starts past the left strip's deepest reach; upright, it spans the board between the bottom river's reach
-   and the decisions' rows, short of the right strip's deepest reach. */
+/* The field's slot (`boardGeometry`'s); its height is a length, which the notices' clamp reads as the place's
+   `max-height`. */
 .board-notices {
-    --notice-gap: 16px;
-    --notice-left: calc(var(--m) + var(--strip-reserve) + var(--notice-gap));
-    --notice-top: max(
-        var(--side-badge-top) + var(--badge-h) + var(--notice-gap),
-        var(--reach-top-row3) + var(--notice-gap)
-    );
-
-    position: absolute;
-    left: var(--notice-left);
-    top: var(--notice-top);
+    position: relative;
+    grid-area: field;
+    align-self: start;
     z-index: 25;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    width: calc(var(--reach-left) - 8px - var(--notice-left));
-    max-height: calc(min(var(--band-top), var(--switches-top)) - 24px - var(--notice-top));
+    max-height: var(--geo-field-height);
     overflow-y: auto;
 
-    /* A board with a phone's chrome has a narrow left field: the place keeps a phone's margins. */
-    @include small-chrome {
-        --notice-gap: 8px;
+    /* Temporary narrow desktop exception: past the deepest strip the place is too narrow. */
+    @include board-where($narrow-desktop-board) {
+        @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
 
-        width: calc(var(--reach-left) - 8px - var(--notice-left));
-
-        /* Temporary narrow desktop exception until task 16: past the deepest strip the place is too narrow. */
-        @include board-where($narrow-desktop-board) {
-            @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
-
-            --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
-        }
-    }
-
-    @include phone-board {
-        --notice-gap: 6px;
-
-        width: calc(var(--reach-left) - 8px - var(--notice-left));
-        max-height: calc(min(var(--band-top), var(--switches-top)) - 8px - var(--notice-top));
-    }
-
-    @include upright-board {
-        --notice-gap: 6px;
-        --notice-top: calc(var(--bottom-river-end) + var(--notice-gap));
-        --notice-right: var(--strip-reserve);
-
-        width: calc(100cqw - var(--notice-left) - var(--m) - var(--notice-right) - 8px);
-        max-height: calc(var(--notices-bottom) - var(--notice-top));
+        margin-left: calc(var(--left-depth) - var(--strip-reserve));
     }
 }
 
@@ -93,16 +62,9 @@
         }
 
         .board-notices {
-            --notice-top: calc(
-                max(var(--foreground-top), var(--right-origin) - var(--band-shift) * 1000) + 4px
-            );
-
-            left: auto;
-            right: calc(var(--m) + var(--band-shift));
-            top: var(--notice-top);
+            grid-area: field-beside;
             align-items: stretch;
-            width: calc(var(--notices-beside-panel) - var(--m));
-            max-height: calc(var(--hand-top) - 4px - var(--notice-top));
+            max-height: var(--geo-field-beside-height);
         }
 
         .board-notice {

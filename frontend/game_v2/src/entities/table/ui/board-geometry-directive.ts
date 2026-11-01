@@ -6,7 +6,6 @@ import {
     type BoardBox,
     type BoardGeometry,
     type BoardInput,
-    type BoardLengths,
     type BoardSlots,
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
@@ -132,20 +131,26 @@ class SizeBoard extends AsyncDirective {
         }
     }
 
-    private write(board: HTMLElement, { chrome, family, lengths }: BoardGeometry): void {
+    private write(board: HTMLElement, { chrome, family, lengths, tracks }: BoardGeometry): void {
         if (board.dataset.boardFamily !== family) {
             board.dataset.boardFamily = family;
         }
         if (board.dataset.boardChrome !== chrome) {
             board.dataset.boardChrome = chrome;
         }
-        this.writeLengths(board, lengths);
+        this.writeValues(
+            board,
+            new Map([
+                ...Object.entries(lengths).map(
+                    ([name, length]) => [`--geo-${name}`, `${length}px`] as const,
+                ),
+                ["--geo-shell-columns", tracks.columns],
+                ["--geo-shell-rows", tracks.rows],
+            ]),
+        );
     }
 
-    private writeLengths(board: HTMLElement, lengths: BoardLengths): void {
-        const values = new Map(
-            Object.entries(lengths).map(([name, length]) => [`--geo-${name}`, `${length}px`]),
-        );
+    private writeValues(board: HTMLElement, values: ReadonlyMap<string, string>): void {
         for (const name of this.written.keys()) {
             if (!values.has(name)) {
                 board.style.removeProperty(name);

@@ -66,7 +66,6 @@ $round-list-z: 30;
 .game-board--replay .board-table {
     --rb: var(--moves-h);
     --rgap: var(--geo-replay-gap);
-    --actions-need: var(--geo-replay-group-w);
 }
 
 /* Over the panel's layer, which never covers the replay's controls. */
@@ -283,7 +282,10 @@ $round-list-z: 30;
         --status-left: var(--switches-left);
         --status-right: calc(var(--actions-right) + var(--moves-w) + var(--rb) + 3 * var(--rgap));
 
+        position: absolute;
+        grid-area: auto;
         top: auto;
+        margin-left: 0;
         bottom: calc(100cqh - var(--actions-bottom));
         left: var(--status-left);
         align-items: flex-start;

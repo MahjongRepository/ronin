@@ -551,16 +551,17 @@ whatever the state shows. Among the layouts tried, larger tiles on
 the smaller phones would need the own badge to leave the hand's first tile, a look decision not
 taken. Off a phone the own hand tile is 4/3 of the river tile, at most min(0.05 of
 the width, 0.1 of the height) and what a full hand's row holds. The river tile is the largest that
-keeps the centre's side at least 0.33 of the core on a desktop, solved for the own row it sizes; a
+keeps the centre's side, with the top and bottom rivers' latest-discard gaps, at least 0.33 of the
+core on a desktop, solved for the own row it sizes; a
 phone's centre keeps that share of the core without its latest-discard gaps, and at least 94px, its text's room, and fills the height left above
 the own hand as far as the side fields allow: the notices' place 7.5 of its ems wide beside the left
 strip's deepest reach, the decisions' column two controls wide beside the right one's, and the left
 badge an ordinary name's lane beside the top river's longest third row. The core's side is
-the centre plus eight river tiles and two gaps of 0.3 of a river tile. The centre's width is 1.4 of
+the centre plus eight river tiles, two gaps of 0.3 of a river tile and the top and bottom rivers'
+latest-discard gaps, so no river's latest discard stands past it. The centre's width is 1.4 of
 its side where the width beside the core holds it with the river tile unchanged (on a short desktop
 also where the bottom river, from the centre's left corner, stays 8px clear of the play switches),
-else as much as it holds, never under its side; a phone's core also holds the top and bottom
-rivers' latest-discard gaps. On a desktop the core stands above the
+else as much as it holds, never under its side. On a desktop the core stands above the
 foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
 corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach. A
@@ -578,7 +579,7 @@ apart.
 | Relationship | Starting point | Derived (667x375 / 750x369 notch safe area / 1440x900) |
 |---|---|---|
 | Core height / play area height | 0.6 | 0.73 / 0.75 / 0.63 |
-| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.34 |
+| Centre side / core height | 0.3 | 0.42 / 0.45 / 0.32 |
 | Centre width / centre side | 1.4 (Tenhou about 1.5) | 1.0 / 1.4 / 1.4 |
 | River tile width / own hand tile width | at least 1/1.7 on a phone (own up to 1.7x river), 0.75 off it | 0.47 / 0.44 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
