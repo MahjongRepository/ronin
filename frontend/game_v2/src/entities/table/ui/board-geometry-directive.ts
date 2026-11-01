@@ -51,7 +51,7 @@ class SizeBoard extends AsyncDirective {
     private observe(): void {
         const { board } = this;
         const watching = this.observer !== null || typeof ResizeObserver === "undefined";
-        if (board?.isConnected !== true || watching) {
+        if (!this.isConnected || board?.isConnected !== true || watching) {
             return;
         }
         this.observer = new ResizeObserver((entries) => {

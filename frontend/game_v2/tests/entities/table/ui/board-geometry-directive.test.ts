@@ -130,22 +130,30 @@ describe("sizeBoard", () => {
         await renderBoard(html`<p>Panel</p>`);
 
         expect(host.querySelector(".board-overlay")).not.toBeNull();
+        expect(host.querySelector(".game-board")).toBe(element);
         expect(element.dataset.boardFamily).toBe("desktop");
         expect(element.style.getPropertyValue("--geo-rw")).toBe("42px");
     });
 
-    it("stops observing a removed board and measures it again once it is back", async () => {
+    it("stops observing a removed board, even through a re-render, and measures it again once it is back", async () => {
         box = { height: 880, width: 1420 };
         const { element, part } = await renderBoard();
         const first = latestObserver();
 
         part.setConnected(false);
         box = { height: 780, width: 1420 };
+        await renderBoard();
+
+        expect(FakeObserver.all).toEqual([first]);
+
         part.setConnected(true);
 
-        expect(first.disconnected).toBe(true);
-        expect(latestObserver()).not.toBe(first);
-        expect(latestObserver().observed).toEqual([element]);
+        expect(
+            FakeObserver.all.map(({ disconnected, observed }) => ({ disconnected, observed })),
+        ).toEqual([
+            { disconnected: true, observed: [element] },
+            { disconnected: false, observed: [element] },
+        ]);
         expect(element.style.getPropertyValue("--geo-rw")).toBe("36px");
     });
 });
