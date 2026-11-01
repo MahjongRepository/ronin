@@ -134,7 +134,9 @@ $plate-seats: bottom, right, top, left;
 }
 
 .nameplate--right {
-    --right-river-top: calc(var(--cy) + var(--h) - 5 * var(--rw) - var(--rh));
+    --right-river-top: calc(
+        var(--cy) + var(--h) - 5 * var(--rw) - var(--rh) - var(--right-latest-discard-gap)
+    );
     --beside-right-river: clamp(
         0px,
         (var(--right-badge-top) + var(--badge-h) - var(--right-river-top)) * 1000,

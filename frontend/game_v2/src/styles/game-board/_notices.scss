@@ -57,7 +57,7 @@
 
     @include upright-board {
         --notice-gap: 6px;
-        --notice-top: calc(var(--cy) + var(--h) + var(--g) + 3 * var(--rh) + var(--notice-gap));
+        --notice-top: calc(var(--bottom-river-end) + var(--notice-gap));
         --notice-right: var(--strip-reserve);
 
         width: calc(100cqw - var(--notice-left) - var(--m) - var(--notice-right) - 8px);

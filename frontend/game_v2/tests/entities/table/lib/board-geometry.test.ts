@@ -166,6 +166,7 @@ describe("boardGeometry", () => {
     it.each([
         [667, 375],
         [1440, 900],
+        [390, 844],
     ])(
         "counts the latest discard's gap in a %ix%i window's river reaches, none at the top river's near edge",
         (width, height) => {

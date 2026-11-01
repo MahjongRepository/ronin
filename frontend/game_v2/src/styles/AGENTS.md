@@ -19,9 +19,10 @@ they disagree.
   (0,2,0) and the lazy replay's overrides still win. There are three: one for the desktop, short desktop and phone,
   one for the phone's chrome and right hand alone, and one for upright; a name a rule maps that one of its families
   does not emit stays unset on that family's board, where nothing reads it. No CSS solve remains, so a board without
-  `data-board-family` (not yet measured) hides its layers. A literal both sides need stays in SCSS beside a note
-  naming its TS mirror. Until task 16 a narrow desktop's notices still read the side strip's drawn depth, the deepest
-  strip leaving them too narrow.
+  `data-board-family` (not yet measured) hides its layers. A literal both sides need is a TS constant emitted as a
+  `--geo-*` length (the latest discard's gaps); one still in SCSS stays beside a note naming its TS mirror. Until
+  task 16 a narrow desktop's notices still read the side strip's drawn depth, the deepest strip leaving them too
+  narrow.
 - **A phone's composition is its own.** `boardGeometry` solves its river tile as the largest that fits and its own
   tile on its own scale from the box (at most 1.7 river tiles, never under 36px); its band's controls float in the
   gap above the hand, its chrome follows the river tile with the control floor, and its right hand's place (the

@@ -342,7 +342,7 @@ $place-gap: 6px;
         bottom: calc(100cqh - var(--place-bottom));
         left: var(--m);
         width: calc(100cqw - var(--opt-right) - var(--m));
-        max-height: calc(var(--place-bottom) - var(--cy) - var(--h) - var(--g) - 3 * var(--rh));
+        max-height: calc(var(--place-bottom) - var(--bottom-river-end));
     }
 }
 
