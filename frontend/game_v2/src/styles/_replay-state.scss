@@ -239,6 +239,17 @@ $round-list-z: 30;
     }
 }
 
+/* A phone's seating stands past the moves, down to the status's row. */
+.game-board--replay:where(#{$phone-board}) > .board-overlay:has(.seating) {
+    --panel-left: max(
+        var(--geo-overlay-left),
+        var(--switches-left) + 5 * var(--geo-moves-h) + 5 * var(--geo-replay-gap)
+    );
+    --panel-bottom: calc(
+        100cqh - var(--geo-band-bottom) + var(--geo-moves-h) + var(--geo-replay-gap)
+    );
+}
+
 /* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
    stands as near the block's centre as its free box allows, past its edges and its text scaled to it. */
 .game-board--replay:where(#{$desktop-board}, #{$upright-board}) {
