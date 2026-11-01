@@ -175,17 +175,21 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   unless they step in past its depth; the top strip and the own melds scale down instead; no meld
   face goes under the 13x17 face floor.
   Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
-  viewport, never read from the tiles held, and nothing else stands in it. The left hand runs down
-  from below the counters, and the play switches step in past its depth where it would meet them (on
-  a phone past its strip's deepest first line, which then runs on beside them).
-  The right hand runs up from the band's top below the page's corner; where its full reach would
+  viewport, never read from the tiles held, and nothing else stands in it. Decision: each hand's full
+  reach stands centred on its side (the side hands on the core's height) as far as its limits below
+  allow, so a hand holding fewer tiles fills its reach from its start. Off a phone, the left hand's
+  reach is centred where it fits between the counters and the switches (or the band); else, and on a
+  phone, it runs down from below the counters, and the play switches step in past its depth where it
+  would meet them (on a phone past its strip's deepest first line, which then runs on beside them).
+  The right hand's reach is centred where it fits between the page's corner and the band's top, else
+  it runs up from the band's top; where its full reach would
   then enter the band (a short desktop, the 667x375 floor), it runs up to the top margin instead and
   the corner steps in past its depth; where even that enters the band (the notch phone's shorter
   safe area), it runs from below the corner across the band, whose row then ends before it.
-  Upright, its full reach ends just under its badge, unless it would then start below the band's
-  top. A board without the page's corner (a replay's) keeps no room for it. The top
-  hand stands centred, moved right as far as its badge's lane under it needs, short of the page's
-  corner and right of the counters; its melds stay above that badge where they reach its lane (a
+  Upright, its reach is centred where it stays under the top badge's pill with its badge over it, else
+  it ends before the band's top. A board without the page's corner (a replay's) keeps no room for it.
+  The top hand's full reach stands centred, moved right as far as its badge's lane under it needs,
+  short of the page's corner and right of the counters; its melds stay above that badge where they reach its lane (a
   limit that counts the hand without its drawn tile, so a draw never moves it), within the room the whole hand leaves.
   Upright, a dense top strip (its melds at the face floor) starts further right instead, short of the page's corner,
   its badge staying where it is.
@@ -216,9 +220,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   keeps that template as far as its geometry allows: the own badge above its hand's left end, under
   the decisions' rows, the hand centred in the width its tile leaves; the top badge under the top
   hand's end, level with the counters. Its top zone spans the whole width over the core, so a side
-  badge there reads as the top seat's: the right badge stands in its own zone beside the core
-  instead, over its river, its hand running up to it, short of the centre's column by half a river
-  tile. The left badge stands beside its hand's first tile, toward the table, under the counters, as
+  badge there reads as the top seat's: the right badge stands in its own zone instead, right over its
+  hand's reach, under the top badge's pill, short of the centre's column by half a river tile. The left badge stands beside its hand's first tile, toward the table, under the counters, as
   in landscape: a card wide where it stands over the core, else short of the top river's longest
   third row (a near-square board's core rises beside it) but an ordinary name wide at least, which
   only a third row past six tiles and a riichi tile reaches (a rare overlap, accepted).
@@ -236,8 +239,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   convention: a real table keeps the honba counters by the dealer and the sticks by the centre,
   and the established clients differ; here they are shown once, with the dora, and the centre
   does not repeat them.
-- **Own hand.** The play area's largest tiles, sorted, the drawn tile set apart by a gap at the
-  right, the melds beyond it smaller; after a pon or chi there is no drawn tile and nothing is set
+- **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
+  right; the melds stand at the row's right end by the board's edge, as on a table, so a call moves
+  neither the hand nor the melds already laid, never larger than its tiles. Decision: its tiles are
+  the play area's largest: on a phone for touch; off a phone (a desktop, an upright board) 4/3 of the
+  tile every other hand and river shares, as large across as a side seat's tile turned sideways; after a pon or chi there is no drawn tile and nothing is set
   apart. Every face stays readable in every state: a riichi hand is marked, never dimmed into
   darkness, and after riichi only the drawn tile looks discardable, while an offered tsumo or
   closed kan stays available. Tile states are told apart at a glance: selectable, selected, held
@@ -475,10 +481,11 @@ other phone heights follow the rule and are checked by the gate, not by this tab
 
 The sizing rule. A landscape play area under 520 px high is a phone, anything taller a desktop; a
 desktop under 760 px high and at least 1100 px wide (a laptop's browser window) is a short desktop.
-The own hand tile is fixed at 36x48 on a phone and min(0.05 of the width, 0.1 of the height) wide on
-a desktop. The river tile is the largest that keeps the centre's side at least 0.39 of the core on a
-phone (0.33 on a desktop), starting from 0.65 of the own tile; the core's side is the centre plus
-eight river tiles and two gaps of 0.3 of a river tile. On a desktop the core stands above the
+The own hand tile is fixed at 36x48 on a phone, and the river tile starts there from 0.65 of it. Off a
+phone the own hand tile is 4/3 of the river tile, at most min(0.05 of the width, 0.1 of the height) and
+what a full hand's row holds. The river tile is the largest that keeps the centre's side at least 0.39 of the
+core on a phone (0.33 on a desktop), solved for the own row it sizes off a phone; the core's side is
+the centre plus eight river tiles and two gaps of 0.3 of a river tile. On a desktop the core stands above the
 foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
 corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach. A
@@ -495,11 +502,11 @@ apart.
 |---|---|---|
 | Core height / play area height | 0.6 | 0.66 / 0.65 / 0.63 |
 | Centre side / core height | 0.3 | 0.41 / 0.39 / 0.34 |
-| River tile width / own hand tile width | 0.65 | 0.47 / 0.47 / 0.61 |
+| River tile width / own hand tile width | 0.65 (0.75 off a phone) | 0.47 / 0.47 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
-| Opponent hand tile width / own hand tile width | 0.65 | 0.47 / 0.47 / 0.61 |
-| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.050 |
-| Own hand tile height / play area height | 0.15 | 0.13 / 0.13 / 0.11 |
+| Opponent hand tile width / own hand tile width | 0.65 (0.75 off a phone) | 0.47 / 0.47 / 0.75 |
+| Own hand tile width / play area width | 0.05 | 0.054 / 0.048 / 0.030 |
+| Own hand tile height / play area height | 0.15 | 0.13 / 0.13 / 0.065 |
 | Gap between a river and the centre, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
 | Gap between neighbouring rivers, in river tiles | 0.3 | 0.29 / 0.29 / 0.30 (0.3, rounded) |
 
@@ -508,9 +515,9 @@ only where it protects the approved layout from a regression a player would noti
 
 The opponent's hand at the river tile follows Tenhou (every opponent hand and meld at exactly the
 river tile, its own hand 1.44 of it on a desktop) and Mahjong Soul (the same, once its camera's depth
-is taken out). A phone keeps its river tile, which the height binds; on a desktop the river grows
-toward 0.65 of the own tile until the band or the core's cap binds: 1366x657 gives 0.46, 1920x1080
-0.56. A decision control's tiles stay inside the room the band keeps for its row, so a large board's
+is taken out). Decision off a phone: every other hand and river reads at one size, and the own hand
+at 4/3 of it, since a side seat's tile, turned, shows its long side across the screen and an own hand
+at the same size reads smaller beside it. A phone keeps the larger own tile, which touch needs, and its river tile, which the height binds. A decision control's tiles stay inside the room the band keeps for its row, so a large board's
 controls never reach the bottom river.
 
 The starting points did not fit together at the 667x375 floor. The rule resolves it by a mix: the

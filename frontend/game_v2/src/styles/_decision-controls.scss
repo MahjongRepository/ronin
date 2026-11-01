@@ -15,11 +15,17 @@ $corner-min-w: 180px;
     }
 }
 
-/* The decisions' place: a desktop's band row past the switches' slot and the own badge's lane to the hand's right end (a
-   short desktop's past the rivers' reach, a wide control at least); a phone's column beside the right river and strip. */
+/* A desktop's band row past the switches and the own badge's lane, to the hand's right end or as far past it as a full
+   row of offers needs; a phone's column beside the right river and strip. */
 .board-actions {
     --actions-left: max(var(--switches-right) + var(--band-gap), var(--own-badge-end));
-    --actions-right: calc(100cqw - var(--own-hand-right));
+    --actions-need: calc(
+        var(--win-min-w) + 4 * var(--action-min-w) + var(--timer-w) + 5 * #{$decision-gap}
+    );
+    --actions-right: max(
+        var(--m),
+        min(100cqw - var(--own-hand-right), 100cqw - var(--actions-left) - var(--actions-need))
+    );
     --upper-clear: max(
         0px,
         var(--m) + var(--right-depth) + #{$decision-gap} - var(--actions-right)

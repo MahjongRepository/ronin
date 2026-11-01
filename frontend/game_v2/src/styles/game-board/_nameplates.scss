@@ -184,11 +184,25 @@ $plate-seats: bottom, right, top, left;
 /* The own badge heads its hand above its left end, under the play switches (`--own-lane`), the one badge on one line:
    its lane is wide and short. */
 .nameplate--bottom {
-    left: var(--furiten-slot);
+    /* A lane short of an ordinary name starts further left, under the switches, clear of the left strip. */
+    --own-badge-x: var(--own-lead);
+    --own-badge-shift: clamp(
+        0px,
+        var(--side-lane-min) - var(--own-lane),
+        var(--own-badge-x) - var(--m) - var(--strip-depth) - var(--badge-gap)
+    );
+
+    left: calc(var(--furiten-slot) - var(--own-badge-shift));
     bottom: calc(100% + 2px + var(--own-meld-rise));
     align-items: flex-end;
     min-height: var(--own-badge-h);
-    max-width: var(--own-lane);
+    max-width: calc(var(--own-lane) + var(--own-badge-shift));
+
+    @include upright-board {
+        --own-badge-x: var(--own-start);
+
+        left: calc(var(--own-start) - var(--m) - var(--own-badge-shift));
+    }
 
     .nameplate__pill {
         --pill-h: var(--own-pill-h);

@@ -4,22 +4,25 @@
 /* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
    length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
 $lengths:
-    ow, oh, strip-depth, core-room-band, counters-top, top-room-left, hand-top, core-room-h,
-    core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, strip-len, foreground-top,
-    band-top, band-bottom, corner-bottom, reach-left, reach-right, reach-top-row3, reach-top-left,
-    reach-bottom-right, side-badge-top, left-badge-x, river-clear, lane-at-start, lane-below,
-    start-narrow, side-lane, full-hand-w, own-start, own-hand-right, hand-bottom, switches-left,
-    switches-right, dg, full-reach, step-in, right-from-band, right-under-corner, right-from-top,
-    right-fits, right-top-fits, corner-in, right-pull, right-origin, corner-shift, band-shift,
-    switches-top, left-reach-end, left-meets, switches-clear, top-badge-right, top-lane,
-    band-crossed, core-floor, notices-bottom, own-rise, switches-bottom, row-rise, own-meld-rise,
-    top-strip-x, top-badge-top, side-step, right-badge-top, core-top-room, left-room-end,
-    left-line2-end, switches-place, own-lead, own-lane-free, own-lane, own-badge-end, side-clear,
-    decisions-top, side-step-room, counters-h, side-start, plate-reach;
+    own-fit, ow, oh, strip-depth, core-room-band, counters-top, top-room-left, hand-top,
+    core-room-h, core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, foreground-top,
+    row-rise-fixed, band-lift, band-height, band-top, band-bottom, corner-bottom, reach-left,
+    reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top, left-badge-x,
+    river-clear, lane-at-start, lane-below, start-narrow, side-lane, full-hand-w, own-start,
+    own-hand-right, hand-bottom, switches-left, switches-right, dg, full-reach, step-in,
+    right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
+    right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
+    switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom, own-rise,
+    switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top, side-step,
+    right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place, own-lead,
+    own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end, side-clear,
+    decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start, right-base,
+    right-centred, band-fixed, height-room, band-room;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them. */
 $upright-counters-gap: 6px;
 $upright-counters-h: 52px;
+$upright-centre-min: 100px;
 
 @each $name in $lengths {
     @property --#{$name} {
@@ -81,11 +84,14 @@ $upright-counters-h: 52px;
     --action-min-w: 96px;
     --win-min-w: 150px;
 
-    /* The own tile, capped by what a full hand's row holds beside its furiten slot. */
-    --ow: min(
+    /* The largest own tile a full hand's row holds beside its furiten slot. Off a phone the own tile is the river tile
+       scaled to read as large as a side seat's turned tile; a phone's is this, its river tile a share of it. */
+    --own-fit: min(
         var(--own-cap),
         (100cqw - 2 * var(--m) - var(--own-inline) - var(--furiten-slot)) / #{$full-hand}
     );
+    --own-scale: calc(4 / 3);
+    --ow: round(down, var(--rw) * var(--own-scale), 1px);
     --oh: calc(var(--ow) * 4 / 3);
 
     /* The own row stands the margin off the board's bottom, or its tiles' edge where that runs deeper, so the edge
@@ -96,25 +102,52 @@ $upright-counters-h: 52px;
         100cqh - var(--m) - var(--hand-bottom) - var(--oh) - var(--core-gap) - var(--sep)
     );
     --core-room-w: calc(100cqw - 2 * var(--m) - 24px);
-    --band-reserve: calc(var(--band-gap) + var(--control-h) + 20px + var(--row-rise));
+    --band-reserve: calc(
+        var(--band-gap) + var(--control-h) + 20px + var(--row-rise) + var(--band-lift)
+    );
+
+    /* The own row's height and edge in river tiles, and the band's rise over it (the meld rise) and a fixed part. */
+    --own-row: calc(4 / 3 * var(--own-scale));
+    --own-edge: calc(#{$tile-edge-share} * var(--own-scale));
+    --band-tile-share: max(0, 2 * min(#{$own-meld-scale}, var(--own-scale)) - var(--own-row));
+    --row-rise-fixed: 0px;
     --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--m) - var(--sep));
 
-    /* The river tile: the largest that keeps the centre at its share of the core, from 0.65 of the own tile, in each
-       room the core has (a room's tiles count the core's 8.6 and what else stands in that room per river tile). */
+    /* The river tile: the largest that keeps the centre at its share of the core in each room the core has (a room's
+       tiles count the core's 8.6 and what else stands in that room per river tile). */
     --spare: calc(1 - var(--centre-share));
     --height-tiles: calc(#{$core-tiles} + var(--spare) * 4 / 3);
     --width-tiles: calc(#{$core-tiles} + var(--spare) * #{$side-reach-tiles});
-    --rw-by-height: calc(var(--spare) * var(--core-room-h) / var(--height-tiles));
-    --rw-by-band: calc(var(--spare) * var(--core-room-band) / var(--height-tiles));
     --rw-by-cap: calc(var(--spare) * var(--core-cap) / #{$core-tiles});
     --rw-by-width: calc(var(--spare) * var(--core-room-w) / var(--width-tiles));
-    --rw-by-own: calc(#{$river-by-own} * var(--ow));
+    --rw-by-own: calc(var(--own-fit) / var(--own-scale));
+
+    /* The own row's height follows the river tile, so the rooms below are solved for the tile: once with the own row
+       the margin off the bottom, once its edge's depth (`--hand-bottom`), the smaller binding. */
+    --rows-at-margin: calc(var(--height-tiles) + var(--spare) * var(--own-row));
+    --rows-at-edge: calc(var(--height-tiles) + var(--spare) * (var(--own-row) + var(--own-edge)));
+    --height-room: calc(var(--spare) * (100cqh - var(--m) - var(--core-gap) - var(--sep)));
+    --rw-by-height: min(
+        (var(--height-room) - var(--spare) * var(--m)) / var(--rows-at-margin),
+        var(--height-room) / var(--rows-at-edge)
+    );
+    --band-fixed: calc(
+        var(--sep) + var(--band-gap) + var(--control-h) + 20px + var(--row-rise-fixed)
+    );
+    --band-room: calc(var(--spare) * (100cqh - var(--m) - var(--band-fixed)));
+    --band-rise: calc(var(--spare) * var(--band-tile-share));
+    --rw-by-band: min(
+        (var(--band-room) - var(--spare) * var(--m)) / (var(--rows-at-margin) + var(--band-rise)),
+        var(--band-room) / (var(--rows-at-edge) + var(--band-rise))
+    );
     --rw-by-switches: 9999px;
+    --rw-by-centre: 9999px;
     --rw: round(
         down,
         min(
             var(--rw-by-own),
             var(--rw-by-switches),
+            var(--rw-by-centre),
             var(--rw-by-height),
             var(--rw-by-band),
             var(--rw-by-cap),
@@ -145,16 +178,20 @@ $upright-counters-h: 52px;
     --bh: var(--rh);
     --dg: round(calc(0.15 * var(--rw)), 1px);
     --full-reach: calc(14 * var(--bw) + var(--dg));
-    --strip-len: calc(13 * var(--bw));
-    --foreground-top: calc(
-        var(--hand-top) - 2 * var(--band-gap) - var(--control-h) - var(--row-rise)
+    --band-height: calc(
+        2 * var(--band-gap) + var(--control-h) + var(--row-rise) + var(--band-lift)
     );
+    --foreground-top: calc(var(--hand-top) - var(--band-height));
     --band-top: calc(var(--foreground-top) + var(--band-gap));
-    --band-bottom: calc(var(--hand-top) - var(--band-gap));
+    --band-bottom: calc(var(--hand-top) - var(--band-gap) - var(--band-lift));
 
-    /* How far the own row stands above the hand: an added kan's two stacked meld tiles, bounded by the river tile's
-       own-tile cap so the core's reserve never reads the river tile, and its badge's lane over them. */
-    --own-meld-rise: max(0px, 2 * #{$own-meld-scale} * var(--rw-by-own) - var(--oh));
+    /* How far the own row stands above the hand: an added kan's two stacked meld tiles (`.board-local .board-melds`),
+       and its badge's lane over them. */
+    --own-meld-tile: max(#{$face-floor}, min(#{$own-meld-scale} * var(--rw), var(--ow)));
+    --own-meld-rise: max(0px, 2 * var(--own-meld-tile) - var(--oh));
+
+    /* Off a phone the band stands over an added kan's stacked tile, which a tile as tall as the hand's raises past it. */
+    --band-lift: var(--own-meld-rise);
     --own-rise: calc(var(--own-meld-rise) + var(--own-badge-h) + 2px);
 
     /* The play switches, left of the bottom river's reach, stand over the own badge's lane above the hand's left end. */
@@ -183,7 +220,14 @@ $upright-counters-h: 52px;
     --corner-in: min(1px - var(--right-fits), var(--right-top-fits));
     --corner-shift: min(var(--step-in), var(--corner-in) * 100000);
     --right-pull: min(var(--right-under-corner) - var(--right-from-top), var(--corner-in) * 100000);
-    --right-origin: calc(var(--right-under-corner) - var(--right-pull));
+    --right-base: calc(var(--right-under-corner) - var(--right-pull));
+
+    /* Where the hand's full reach fits under the corner, it stands centred on the core as far as that origin allows. */
+    --right-centred: max(
+        var(--corner-bottom) + 4px + var(--full-reach),
+        var(--cy) + var(--full-reach) / 2
+    );
+    --right-origin: min(var(--right-base), var(--right-centred));
     --band-crossed: clamp(0px, (var(--right-origin) - var(--band-top) - 0.5px) * 1000, 1px);
     --band-shift: min(var(--step-in), var(--band-crossed) * 100000);
 
@@ -191,14 +235,21 @@ $upright-counters-h: 52px;
        moves (so both boards size alike), steps in past its depth where it meets them, the left strip's melds above. */
     --switches-place: max(var(--switch-h), var(--moves-h));
     --switches-top: calc(var(--switches-bottom) - var(--switches-place));
-    --left-reach-end: calc(var(--side-start) + var(--full-reach) + 4px);
+    --left-room-end: min(var(--band-top), var(--switches-top));
+
+    /* The left hand's full reach stands centred on the core as far as it stays under the counters and above its room's
+       end, so centring never steps the switches in. */
+    --left-start: max(
+        var(--side-start),
+        min(var(--cy) - var(--full-reach) / 2, var(--left-room-end) - 8px - var(--full-reach))
+    );
+    --left-reach-end: calc(var(--left-start) + var(--full-reach) + 4px);
     --left-meets: clamp(0px, (var(--left-reach-end) - var(--switches-top)) * 1000, 1px);
     --switches-clear: calc(var(--m) + var(--step-in) - (1px - var(--left-meets)) * 100000);
-    --left-room-end: min(var(--band-top), var(--switches-top));
     --left-line2-end: min(var(--foreground-top), var(--switches-top) - 4px);
 
-    /* The top hand stands centred, moved right as far as its badge's lane under its start needs, short of the page's
-       corner, and right of the counters. */
+    /* The top hand's full reach stands centred, moved right as far as its badge's lane under its start needs, short of
+       the page's corner, and right of the counters. */
     --top-badge-right: calc(
         100cqw - var(--m) - var(--corner-reserve) - var(--corner-shift) - var(--badge-gap)
     );
@@ -206,7 +257,7 @@ $upright-counters-h: 52px;
         var(--top-room-left) + var(--full-reach),
         min(
             max(
-                var(--cx) + var(--strip-len) / 2,
+                var(--cx) + var(--full-reach) / 2,
                 var(--cx) + var(--h) + var(--river-clear) + var(--side-lane-min)
             ),
             var(--top-badge-right)
@@ -270,17 +321,23 @@ $upright-counters-h: 52px;
     --switches-left: max(var(--m), var(--switches-clear));
     --switches-right: calc(var(--switches-left) + var(--switches-w));
 
-    /* The own badge's lane from the hand's left end, short of the bottom river and the switches' end; where that end
-       leaves less than an ordinary name (an ultrawide's hand), its own lane, which the decisions' row starts after. */
+    /* The own badge's lane from the hand's left end, short of the bottom river where its row meets it and the switches'
+       end; where that end leaves less than an ordinary name (an ultrawide's hand), its own lane, the decisions' after. */
     --own-lead: calc(var(--own-start) + var(--own-inline) + var(--furiten-slot));
     --own-lane-free: clamp(
         0px,
         (var(--side-lane-min) - var(--plate-reach) + var(--own-lead)) * 1000,
         1px
     );
+    --own-lane-beside-river: clamp(
+        0px,
+        (var(--cy) + var(--h) + var(--g) + 3 * var(--rh) - var(--hand-top) + var(--own-rise)) * 1000,
+        1px
+    );
+    --own-river-lane: calc(var(--cx) - var(--h) - var(--river-clear) - var(--own-lead));
     --own-lane: min(
         var(--full-hand-w) / 2,
-        var(--cx) - var(--h) - var(--river-clear) - var(--own-lead),
+        var(--own-river-lane) + (1px - var(--own-lane-beside-river)) * 100000,
         var(--plate-reach) - var(--own-lead) + var(--own-lane-free) * 100000
     );
     --own-badge-end: calc(
@@ -295,6 +352,7 @@ $upright-counters-h: 52px;
         --own-inline: 96px;
         --switch-gap: 4px;
         --row-bottom: var(--switches-bottom);
+        --row-rise-fixed: calc(var(--own-badge-h) + 2px + var(--switch-gap) - var(--band-gap));
         --plate-reach: 99999px;
         --side-start: calc(var(--m) + 52px);
         --badge-h: 40px;
@@ -345,6 +403,15 @@ $upright-counters-h: 52px;
             var(--m) + var(--strip-depth) + 6px - (1px - var(--left-meets)) * 100000
         );
         --left-room-end: min(var(--band-top), var(--switches-top) + var(--left-meets) * 100000);
+        --left-start: var(--side-start);
+        --band-lift: 0px;
+
+        /* A phone's own tile is its own, the river tile a share of it, so a hand stays tappable. */
+        --ow: var(--own-fit);
+        --rw-by-own: calc(#{$river-by-own} * var(--ow));
+        --own-meld-tile: max(#{$face-floor}, min(#{$own-meld-scale} * var(--rw-by-own), var(--ow)));
+        --rw-by-height: calc(var(--spare) * var(--core-room-h) / var(--height-tiles));
+        --rw-by-band: 9999px;
 
         /* A phone's core ends its left river's reach above the lifted switches: the core under its top slot (whose
            river tile is the core's share) and that reach's share of it, solved for the core, so nothing reads back. */
@@ -386,9 +453,17 @@ $upright-counters-h: 52px;
             1px
         );
         --side-step: min(var(--stepped-top), var(--side-step-room) * 100000);
-        --rw-by-switches: calc(
-            (var(--switches-top) - 4px - var(--m) - var(--sep)) / (2 * 4 / 3 + 9.3)
+
+        /* `--switches-top` solved for the tile: the own row, its meld rise and badge, the switches' place above. */
+        --switches-fixed: calc(
+            var(--own-badge-h) + 6px + var(--switch-gap) + var(--switches-place) + var(--sep)
         );
+        --switches-tiles: calc(2 * 4 / 3 + 9.3 + var(--own-row) + var(--band-tile-share));
+        --rw-by-switches: min(
+            (100cqh - 2 * var(--m) - var(--switches-fixed)) / var(--switches-tiles),
+            (100cqh - var(--m) - var(--switches-fixed)) / (var(--switches-tiles) + var(--own-edge))
+        );
+        --rw-by-band: 9999px;
         --core-room-band: 9999px;
         --core-top-room: calc(
             var(--switches-top) - 4px - var(--core-top-slot) - 9.3 * var(--rw) - var(--rh)
@@ -406,7 +481,7 @@ $upright-counters-h: 52px;
         --own-hand-right: calc(var(--own-start) + var(--full-hand-w));
         --row-bottom: var(--band-bottom);
         --left-room-end: var(--band-top);
-        --left-line2-end: var(--foreground-top);
+        --left-line2-end: min(var(--foreground-top), var(--hand-top) - var(--own-rise) - 4px);
         --m: 4px;
         --counters-top: calc(var(--m) + var(--strip-depth) + #{$upright-counters-gap});
         --top-room-left: var(--m);
@@ -415,14 +490,17 @@ $upright-counters-h: 52px;
         /* The left hand runs down from under the counters, its badge beside its first tile toward the table; the right
            badge stands in its zone beside the core, never over it, over its river, its hand running up to it. */
         --side-start: calc(var(--counters-top) + var(--counters-h) + #{$upright-counters-gap});
-        --side-badge-top: var(--side-start);
-        --right-badge-top: calc(
-            var(--cy) + var(--h) - 5 * var(--rw) - var(--rh) - 4px - var(--badge-h)
+        --band-lift: 0px;
+        --side-badge-top: max(
+            var(--side-start),
+            min(var(--left-start), var(--core-top) - var(--badge-h) - 6px)
         );
+        --right-lowest-top: calc(var(--top-badge-top) + var(--pill-h) + 6px + var(--badge-h) + 4px);
         --right-origin: min(
             var(--right-from-band),
-            var(--right-badge-top) + var(--badge-h) + 4px + var(--full-reach)
+            max(var(--cy) + var(--full-reach) / 2, var(--right-lowest-top) + var(--full-reach))
         );
+        --right-badge-top: calc(var(--right-origin) - var(--full-reach) - 4px - var(--badge-h));
         --side-lane: min(
             var(--side-card-w),
             var(--cx) - var(--h) - var(--river-clear) - var(--left-badge-x)
@@ -434,8 +512,17 @@ $upright-counters-h: 52px;
             var(--hand-top) - var(--notices-bottom) + #{$upright-notice-room} + 6px
         );
         --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--under-strip));
-        --rw-by-band: calc(
-            var(--spare) * var(--core-room-band) / (#{$core-tiles} + 2 * var(--spare))
+
+        /* `--core-room-band` solved for the tile, as the desktop's band is. */
+        --upright-notices: calc(2 * var(--control-h) + 24px + #{$upright-notice-room});
+        --upright-fixed: calc(var(--own-badge-h) + var(--upright-notices) + var(--under-strip));
+        --upright-tiles: calc(
+            #{$core-tiles} + var(--spare) * (2 + var(--own-row) + var(--band-tile-share))
+        );
+        --upright-edge-tiles: calc(var(--upright-tiles) + var(--spare) * var(--own-edge));
+        --rw-by-band: min(
+            var(--spare) * (100cqh - var(--m) - var(--upright-fixed)) / var(--upright-tiles),
+            var(--spare) * (100cqh - var(--upright-fixed)) / var(--upright-edge-tiles)
         );
         --core: min(
             var(--core-room-h) - var(--rh),
@@ -448,11 +535,16 @@ $upright-counters-h: 52px;
             min(var(--core-top-slot) + var(--core-top-free), var(--core-top-band))
         );
         --control-h: 40px;
+
+        /* A narrow upright board's centre keeps the room its text needs, as a phone's share gives it. */
+        --rw-by-centre: calc(
+            (var(--core-room-w) - #{$upright-centre-min}) / (#{$core-tiles} + #{$side-reach-tiles})
+        );
         --band-gap: 8px;
         --own-cap: 10cqh;
         --top-strip-x: max(
             var(--top-room-left) + var(--full-reach),
-            var(--cx) + var(--strip-len) / 2
+            var(--cx) + var(--full-reach) / 2
         );
         --top-lane: min(
             var(--side-card-w),

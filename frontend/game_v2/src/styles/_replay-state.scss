@@ -90,8 +90,16 @@ $place-gap: 6px;
         --rgap: 8px;
     }
 
-    /* A desktop's chrome over its band keeps the own badge's lane short of the group in its row. */
+    /* A desktop's chrome over its band keeps the own badge's lane short of the group in its row, the group standing past
+       the hand's end where the hand leaves the badge less than an ordinary name. */
     @container game-board (width >= #{$small-chrome-width}) and (height >= #{$short-desktop-height}) and (aspect-ratio >= 1) {
+        --opt-right: max(
+            var(--m),
+            min(
+                100cqw - var(--own-hand-right),
+                100cqw - var(--own-lead) - var(--side-lane-min) - var(--band-gap) - var(--group-w)
+            )
+        );
         --plate-reach: calc(100cqw - var(--opt-right) - var(--group-w) - var(--band-gap));
     }
 

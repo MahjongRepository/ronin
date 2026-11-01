@@ -299,7 +299,7 @@ function checkPlacement(
 
 /**
  * The local hand stays on the screen, at least the viewport's floor where it has one (a phone's tap target), and its
- * tiles are the board's largest: larger than any river, other seat's hand or meld, or dora tile. Its sizes are the
+ * tiles are never smaller than any river, other seat's hand or meld, or dora tile. Its sizes are the
  * tiles' slots, the tap targets, so a held-back face's recess inside its slot does not count, but a smaller slot does.
  */
 function checkLocalHand(
@@ -330,8 +330,8 @@ function checkLocalHand(
     );
     const largestOther = Math.max(0, ...board.otherTiles.map(longSide));
     report.expect(
-        smallestOwn > largestOther + EPSILON,
-        `a local hand tile (${smallestOwn.toFixed(1)}px) is no larger than another tile on the board (${largestOther.toFixed(1)}px)`,
+        smallestOwn >= largestOther - EPSILON,
+        `a local hand tile (${smallestOwn.toFixed(1)}px) is smaller than another tile on the board (${largestOther.toFixed(1)}px)`,
     );
 }
 
@@ -391,7 +391,7 @@ interface DerivedProportions {
 const DERIVED: ReadonlyMap<string, DerivedProportions> = new Map([
     [FLOOR, { riverGap: 0.29, riverToOwn: 0.47 }],
     [NOTCH_PHONE, { riverGap: 0.29, riverToOwn: 0.47 }],
-    [MID_DESKTOP, { riverGap: 0.3, riverToOwn: 0.61 }],
+    [MID_DESKTOP, { riverGap: 0.3, riverToOwn: 0.75 }],
 ]);
 const DERIVED_TOLERANCE = 0.02;
 

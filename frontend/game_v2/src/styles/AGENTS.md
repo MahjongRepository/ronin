@@ -16,7 +16,9 @@ they disagree.
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
 - The notices never cover a tile, a plate, the centre, a decision control or a panel. A panel never covers the
   page's corner or the replay's controls.
-- The own hand's tiles are always the board's largest; no meld face goes under 13px wide; scaled text keeps a 10px
+- The own hand's tiles are the board's largest: a phone's for touch; off a phone 4/3 of the river tile (`--own-scale`),
+  as large as a side seat's tile turned across the screen, every other hand and river at the river tile. No meld face
+  goes under 13px wide; scaled text keeps a 10px
   floor (a safety limit, not a design size).
 - A round result taller than its panel scrolls its yaku, value and score rows in place, keeping its head and the
   viewer's controls whole.

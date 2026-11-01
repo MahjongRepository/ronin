@@ -2,7 +2,6 @@
 @use "grid" as *;
 
 $max-melds: 4;
-$face-floor: 13px;
 $selected: 1000;
 $strip-lengths:
     hand-len, held-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start, line2-total,
@@ -145,7 +144,7 @@ $strip-lengths:
         --frame-turn: 90deg;
 
         left: var(--m);
-        top: var(--side-start);
+        top: var(--left-start);
         transform: rotate(90deg);
     }
 }
@@ -263,13 +262,13 @@ $strip-lengths:
 
 .board-strip--left {
     --badge-top: var(--side-badge-top);
-    --room: calc(var(--left-room-end) - 8px - var(--side-start));
+    --room: calc(var(--left-room-end) - 8px - var(--left-start));
     --line2-end: var(--left-line2-end);
-    --line2-base: calc(var(--line2-end) - var(--side-start) - var(--line2-len));
+    --line2-base: calc(var(--line2-end) - var(--left-start) - var(--line2-len));
 }
 
-/* The own row: furiten's slot (`.board-furiten`), then the hand from a full hand's fixed start, its melds after the
-   tiles it holds at 1.2 river tiles, scaled down to end before the board's edge; its badge above the hand's left end. */
+/* The own row: furiten's slot (`.board-furiten`), then the hand from a full hand's fixed start, its melds at the row's
+   right end by the board's edge (a call moves nothing), at 1.2 river tiles but never past the hand's, scaled to fit. */
 .board-local {
     --board-tile-w: var(--ow);
     --board-tile-h: var(--oh);
@@ -282,8 +281,15 @@ $strip-lengths:
     align-items: flex-end;
     height: var(--oh);
 
+    /* Upright, the hand's lead before it gives way to melds at the face floor, so the row never leaves the board. */
     @include upright-board {
-        left: var(--own-start);
+        left: var(--m);
+
+        &::before {
+            content: "";
+            flex: 0 1 calc(var(--own-start) - var(--m));
+            order: 0;
+        }
     }
 
     > .board-area--bottom-hand {
@@ -298,6 +304,7 @@ $strip-lengths:
 .board-local .board-melds {
     container: own-melds / inline-size;
     flex: 1 1 0;
+    justify-content: flex-end;
     min-width: 0;
     gap: calc(var(--g) + 2px);
 
@@ -316,6 +323,7 @@ $strip-lengths:
             #{$face-floor},
             min(
                 #{$own-meld-scale} * var(--rw),
+                var(--ow),
                 (100cqi - (var(--meld-n) - 1) * (var(--g) + 2px) - 2px) / max(var(--meld-units), 1)
             )
         );
