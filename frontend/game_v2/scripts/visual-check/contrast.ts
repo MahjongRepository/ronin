@@ -129,12 +129,6 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         reach: 4,
         selector: ".hand-tile--selected .tile",
     },
-    {
-        hide: [["::before", HIDDEN]],
-        name: "connection dot",
-        reach: 0,
-        selector: ".game-menu__status",
-    },
 ];
 
 /** The paints the tile artwork authors as highlights (white sheen on a pinzu, a souzu), never inks a glyph is read by. */

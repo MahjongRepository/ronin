@@ -2,6 +2,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { engineReplayText } from "#tests/fixtures/replays";
+import { type GameSound, type SoundCue, type SoundSetting } from "@/entities/client";
 import {
     DEFAULT_REPLAY_PREFS,
     HOLD_DELAY_MS,
@@ -33,6 +34,8 @@ interface MountedReplay {
     readonly savedPrefs: ReplayPrefs[];
     /** Answer the load waiting now. */
     readonly answer: (fetched: ReplayFetch) => Promise<void>;
+    /** Every sound played, in order, and the sound setting as this browser would keep it. */
+    readonly sound: { readonly played: SoundCue[]; setting: SoundSetting };
 }
 
 const mounts: MountedReplay[] = [];
@@ -157,24 +160,48 @@ function fakePrefsStore(prefs: ReplayPrefs): {
     };
 }
 
+/** The game's sounds, on or off, recording every cue played and every setting kept. */
+function fakeSound(soundOn: boolean): {
+    readonly sound: MountedReplay["sound"];
+    readonly deps: GameSound;
+} {
+    const sound: MountedReplay["sound"] = { played: [], setting: { sound_on: soundOn } };
+    const deps: GameSound = {
+        play: (cue) => sound.played.push(cue),
+        setting: {
+            load: () => sound.setting,
+            save: (setting) => {
+                sound.setting = setting;
+            },
+        },
+    };
+    return { deps, sound };
+}
+
+interface MountOptions {
+    readonly links?: ReplayLinks;
+    readonly prefs?: ReplayPrefs;
+    readonly soundOn?: boolean;
+}
+
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
 function mountReplay(
     search = "?v=2",
-    links: ReplayLinks = LINKS,
-    prefs = DEFAULT_REPLAY_PREFS,
+    { links = LINKS, prefs = DEFAULT_REPLAY_PREFS, soundOn = false }: MountOptions = {},
 ): MountedReplay {
-    const host = document.createElement("div");
-    document.body.append(host);
+    const host = document.body.appendChild(document.createElement("div"));
     const clock = new ManualClock();
     const { failPrefsLoad, savedPrefs, store } = fakePrefsStore(prefs);
     const { failWrites, hidePage, location, written } = fakeLocation(search);
     const { answer, loadReplay, signals } = fakeLoader();
+    const { deps, sound } = fakeSound(soundOn);
     const dispose = mountReplayView(host, "g1", {
         clock: steadyClockOn(clock),
         links,
         loadReplay,
         location,
         prefs: store,
+        sound: deps,
     });
     const mounted: MountedReplay = {
         answer,
@@ -186,23 +213,19 @@ function mountReplay(
         host,
         savedPrefs,
         signals,
+        sound,
         written,
     };
     mounts.push(mounted);
     return mounted;
 }
 
-interface MountOptions {
-    readonly links?: ReplayLinks;
-    readonly prefs?: ReplayPrefs;
-}
-
 async function mountLoadedReplay(
     name = "riichi",
     search = "?v=2",
-    { links = LINKS, prefs = DEFAULT_REPLAY_PREFS }: MountOptions = {},
+    options: MountOptions = {},
 ): Promise<MountedReplay> {
-    const mounted = mountReplay(search, links, prefs);
+    const mounted = mountReplay(search, options);
     await mounted.answer({ ok: true, text: engineReplayText(name) });
     return mounted;
 }
@@ -711,6 +734,31 @@ describe("mountReplayView - view", () => {
         expect(host.querySelectorAll(".board-strip .tile-back").length).toBeGreaterThan(0);
         expect(savedPrefs).toEqual([{ hideHands: true }]);
     });
+    it("holds a deep link on the seating while the sound is on, the wheel moving nothing, then plays a step on's sounds until the reader turns them off from the cog", async () => {
+        const { host, sound } = await mountLoadedReplay("riichi", "?round=0&step=10", {
+            soundOn: true,
+        });
+        const held = [
+            wheel(element(host, ".game-board"), 100),
+            position(host),
+            document.activeElement === button(host, ".seating__action"),
+        ];
+
+        button(host, ".seating__action").click();
+        button(host, ".replay-controls__move--next").click();
+        button(host, ".game-menu__toggle").click();
+        const statusRows = host.querySelectorAll(".game-menu__status-row").length;
+        button(host, ".game-menu__sound").click();
+        button(host, ".replay-controls__move--next").click();
+
+        expect(held).toEqual([false, "East 1 Step 11 of 28", true]);
+        expect([sound.played, sound.setting, statusRows]).toEqual([
+            ["discard", "riichi"],
+            { sound_on: false },
+            0,
+        ]);
+    });
+
     it("shows the hands a round's result reveals face up while the other hands hide", async () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10", {
             prefs: { hideHands: true },
@@ -759,7 +807,7 @@ describe("mountReplayView - seating and game end", () => {
         ]);
     });
 
-    it("closes the seating on the first step, and never opens it where the address names a position", async () => {
+    it("closes the seating on the first step, and with the sound off never opens it where the address names a position", async () => {
         const { host } = await mountLoadedReplay("riichi", "?v=2");
         pressKey(rootOf(host), "ArrowRight");
         const deepLinked = await mountLoadedReplay("riichi", "?v=2&round=0&step=0");

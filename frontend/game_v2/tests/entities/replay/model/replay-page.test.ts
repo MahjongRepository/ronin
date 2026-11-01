@@ -21,18 +21,19 @@ const LOADING: ReplayScreen = { kind: "loading", waiting: false };
 interface OpenOptions {
     readonly autoplay?: boolean;
     readonly prefs?: ReplayPrefs;
+    readonly soundOn?: boolean;
 }
 
 function opened(
     name: string,
     search = "",
-    { autoplay = false, prefs = DEFAULT_REPLAY_PREFS }: OpenOptions = {},
+    { autoplay = false, prefs = DEFAULT_REPLAY_PREFS, soundOn = false }: OpenOptions = {},
 ): LoadedReplayScreen {
     const { screen } = stepReplayPage(LOADING, {
         at: 0,
         fetched: { ok: true, text: engineReplayText(name) },
         kind: "fetched",
-        opening: { autoplay, prefs, roundListOpen: false, search },
+        opening: { autoplay, prefs, roundListOpen: false, search, soundOn },
     });
     assert(screen.kind === "loaded");
     return screen;
@@ -101,6 +102,7 @@ describe("stepReplayPage - loading", () => {
                             prefs: DEFAULT_REPLAY_PREFS,
                             roundListOpen: false,
                             search: "",
+                            soundOn: false,
                         },
                     }).screen,
             ),
@@ -120,6 +122,7 @@ describe("stepReplayPage - loading", () => {
                 prefs: DEFAULT_REPLAY_PREFS,
                 roundListOpen: false,
                 search: "",
+                soundOn: false,
             },
         };
 
@@ -147,6 +150,7 @@ describe("stepReplayPage - loading", () => {
                 prefs: { hideHands: true },
                 roundListOpen: false,
                 search: "",
+                soundOn: false,
             },
         });
 
@@ -328,6 +332,42 @@ describe("stepReplayPage - view", () => {
     });
 });
 
+/** The sounds a step asks the view to play. */
+function soundsOf(effects: readonly ReplayPageEffect[]): readonly string[] {
+    return effects.flatMap((effect) => (effect.kind === "play_sounds" ? effect.cues : []));
+}
+
+describe("stepReplayPage - sound", () => {
+    it("plays a step on's sounds, a riichi's with its discard's click, and none for a step back, a jump or with the sound off", () => {
+        function atStep(soundOn: boolean): LoadedReplayScreen {
+            return opened("riichi", "?round=0&step=10", { soundOn });
+        }
+        const next = { command: "next", kind: "key", repeat: false } as const;
+        const stepped = step(atStep(true), next);
+        const back = step(stepped.screen, { command: "prev", kind: "key", repeat: false });
+        const jumpTo = { page: 0, stop: atStep(true).view.cursor.stop + 2 };
+        const jumped = step(atStep(true), { cursor: jumpTo, kind: "move" });
+
+        expect([atStep(true).seating, atStep(false).seating]).toEqual([true, false]);
+        expect(
+            [stepped, back, jumped, step(atStep(false), next)].map(({ effects }) =>
+                soundsOf(effects),
+            ),
+        ).toEqual([["discard", "riichi"], [], [], []]);
+    });
+
+    it("turns the sound off and on, asking the view to keep each turn", () => {
+        const off = step(opened("riichi", "", { soundOn: true }), { kind: "toggle_sound" });
+        const on = step(off.screen, { kind: "toggle_sound" });
+
+        expect([loaded(off.screen).soundOn, off.effects, on.effects]).toEqual([
+            false,
+            [{ kind: "save_sound", soundOn: false }],
+            [{ kind: "save_sound", soundOn: true }],
+        ]);
+    });
+});
+
 describe("stepReplayPage - hold and wheel", () => {
     it("repeats a held step button after a delay and on a beat, ending at a round's result", () => {
         const pressed = step(opened("double_ron_on_honba", "?round=0&step=136"), {
@@ -398,6 +438,7 @@ describe("stepReplayPage - hold and wheel", () => {
         ["a held pointer with no hold", { kind: "hold_pointer", over: false }],
         ["a hold's end with no hold", { cancelled: false, kind: "hold_end" }],
         ["a wheel back from the first stop", { deltaPx: -100, kind: "wheel" }],
+        ["a wheel on the seating, which no wheel leaves", { deltaPx: 100, kind: "wheel" }],
     ] as const)("leaves the screen as it was on %s", (_name, input) => {
         const start = opened("riichi");
 

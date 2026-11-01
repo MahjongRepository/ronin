@@ -4,6 +4,7 @@ import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 import {
     CLIENT_STEPPED,
     type ClientEffect,
+    type GameSound,
     type LiveClient,
     type LiveEvent,
     NO_PLAY_UI,
@@ -19,6 +20,7 @@ import {
     nextDeadline,
     playDisplay,
     serverSilenceLimitMs,
+    soundCues,
     startGameClient,
     stepGameClient,
     stepPlayUi,
@@ -53,6 +55,7 @@ export interface GameViewDeps {
     /** The tile sprite's load, which the board's notice reports while the faces are missing. */
     readonly tileSprite: TileSprite;
     readonly links: GameLinks;
+    readonly sound: GameSound;
 }
 
 /** Where the game's end leads: the game history, and this game's replay from a seat. */
@@ -254,10 +257,10 @@ function nextWake(state: LiveClient): number | null {
 
 /**
  * The live driver of the game client's dispatcher for one mount: it stamps every socket, timer and button event
- * with the clock's time, steps the dispatcher, executes the effects it returns in order and renders the state.
- * Events raised while effects run are queued behind the current one. After each step it arms one timer to the
- * state's next deadline or countdown change, which comes back as a tick; a timer that was replaced, a socket that
- * was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step, an effect or a
+ * with the clock's time, steps the dispatcher, plays the sounds each step makes, executes the effects it returns in
+ * order and renders the state. Events raised while effects run are queued behind the current one. After each step it
+ * arms one timer to the state's next deadline or countdown change, which comes back as a tick; a timer that was
+ * replaced, a socket that was closed, or anything after `dispose` is dropped, so nothing restarts a disposed session. A step, an effect or a
  * render (a redraw of the view's own included) that throws ends the client as failed, shown on the page, instead of
  * leaving it stuck: a protocol failure never throws here, since the dispatcher recovers from it itself, so what does
  * is a bug in the client. It keeps the socket's silence limit on the client's policy (`serverSilenceLimitMs`).
@@ -289,7 +292,11 @@ class GameViewController {
         this.deps = deps;
         this.log = deps.debug ? [] : null;
         this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
-        this.ui = { ...NO_PLAY_UI, tileSprite: deps.tileSprite.status() };
+        this.ui = {
+            ...NO_PLAY_UI,
+            soundOn: deps.sound.setting.load().sound_on,
+            tileSprite: deps.tileSprite.status(),
+        };
         this.stopTileSprite = this.followTileSprite();
         const { effects, state } = startGameClient(gameId, deps.handoff, deps.clock.now());
         this.state = state;
@@ -320,8 +327,9 @@ class GameViewController {
     }
 
     /**
-     * A page control: an intent goes to the dispatcher, a reload to the page; picking riichi's discard, a result page
-     * or asking to leave only changes the view's `ui`. Staying returns the focus to the control that asked.
+     * A page control: an intent goes to the dispatcher, a reload to the page; picking riichi's discard, a result page,
+     * the settings menu or asking to leave only changes the view's `ui`, and the sound switch also keeps its setting
+     * in this browser. Staying returns the focus to the control that asked.
      */
     private readonly command = (command: PlayCommand): void => {
         if (command.kind === "intent") {
@@ -352,6 +360,9 @@ class GameViewController {
             this.leaveOpener = this.focusedControl();
         }
         this.ui = stepPlayUi(this.state, this.ui, command);
+        if (command.kind === "toggle_sound") {
+            this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
+        }
         this.draw();
         if (command.kind === "cancel_leave") {
             this.leaveOpener?.focus();
@@ -402,14 +413,26 @@ class GameViewController {
 
     private drainQueue(): void {
         for (let next = this.queue.shift(); next !== undefined; next = this.queue.shift()) {
-            const { effects, state } = stepGameClient(this.state, next);
+            const before = this.state;
+            const { effects, state } = stepGameClient(before, next);
             this.state = state;
             this.ui = stepPlayUi(
                 state,
                 this.ui,
                 next.kind === "intent" ? intentCommand(next.intent) : CLIENT_STEPPED,
             );
+            this.playSounds(before, state);
             this.runEffects(effects);
+        }
+    }
+
+    /** Play the sounds a step made, while the player keeps the sound on. */
+    private playSounds(before: LiveClient, after: LiveClient): void {
+        if (!this.ui.soundOn) {
+            return;
+        }
+        for (const cue of soundCues(before, after)) {
+            this.deps.sound.play(cue);
         }
     }
 

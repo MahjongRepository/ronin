@@ -57,6 +57,44 @@ function steppedDecision(
         : steppedBack(state, ui);
 }
 
+type PageControlCommand = Extract<
+    PlayCommand,
+    {
+        kind:
+            | "ask_leave"
+            | "cancel_leave"
+            | "show_notice"
+            | "close_notice"
+            | "toggle_settings"
+            | "close_settings"
+            | "toggle_sound";
+    }
+>;
+
+/**
+ * The page's own controls: the leave question asked or taken back, a notice opened whole in its sheet or the sheet
+ * closed, either of which closes the settings menu; the settings menu opened or closed; the sound turned on or off.
+ */
+function pageControlsUi(ui: PlayUi, command: PageControlCommand): PlayUi {
+    switch (command.kind) {
+        case "ask_leave":
+        case "cancel_leave": {
+            return { ...ui, confirmingLeave: command.kind === "ask_leave", settingsOpen: false };
+        }
+        case "show_notice":
+        case "close_notice": {
+            const noticeSheet = command.kind === "show_notice" ? command.notice : null;
+            return { ...ui, noticeSheet, settingsOpen: false };
+        }
+        case "toggle_sound": {
+            return { ...ui, soundOn: !ui.soundOn };
+        }
+        default: {
+            return { ...ui, settingsOpen: command.kind === "toggle_settings" && !ui.settingsOpen };
+        }
+    }
+}
+
 /** One step back: out of a call's choice of tiles, else the riichi pick off. */
 function steppedBack(state: LiveClient, ui: PlayUi): PlayUi {
     if (answeredDecision(state)) {
@@ -77,7 +115,9 @@ function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
  * The view's `ui` after a command, before it settles: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
  * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
  * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
- * result reopens on its first; a nameplate is pinned, or none; the play switches' names show or hide; a notice opens whole in its sheet, or the sheet closes.
+ * result reopens on its first; a nameplate is pinned, or none; the play switches' names show or hide; a notice opens whole in its sheet, or the sheet closes;
+ * the settings menu opens or closes, and closes as the leave question or a notice's sheet opens; the sound turns on
+ * or off.
  */
 function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
@@ -86,12 +126,13 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
             return command.kind === "intent" ? uiAfterIntent(ui, command.intent) : ui;
         }
         case "ask_leave":
-        case "cancel_leave": {
-            return { ...ui, confirmingLeave: command.kind === "ask_leave" };
-        }
+        case "cancel_leave":
         case "show_notice":
-        case "close_notice": {
-            return { ...ui, noticeSheet: command.kind === "show_notice" ? command.notice : null };
+        case "close_notice":
+        case "toggle_settings":
+        case "close_settings":
+        case "toggle_sound": {
+            return pageControlsUi(ui, command);
         }
         case "toggle_riichi_pick":
         case "toggle_tile_choice":

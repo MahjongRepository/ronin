@@ -11,7 +11,7 @@ import {
     intersects,
     sameBox,
 } from "../boxes.ts";
-import { ACTION, BOARD_VISIBLE, decisionCase, expectAnnounced } from "../cases.ts";
+import { ACTION, BOARD_VISIBLE, decisionCase } from "../cases.ts";
 import {
     type BoardRun,
     GAME_ID,
@@ -217,9 +217,8 @@ const PAGES: readonly PageCase[] = [
             ".failure-panel__leave",
             ".failure-panel__title",
             ".failure-panel__detail",
-            ".game-menu__status.status-disconnected",
+            ".game-menu__alert.status-disconnected",
         ]),
-        prepare: (page) => expectAnnounced(page, { ".game-menu__status-word": "Replaced" }),
     },
     gameCase("prompt", ".game__play .decision-controls__action"),
     { ...gameCase("turn", ".game__play .board-local .hand-tile--selectable"), at: LIVE_AT },

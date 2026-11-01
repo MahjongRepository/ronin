@@ -81,8 +81,7 @@ export interface BoardMeasure {
     };
     readonly center: Box | null;
     readonly opponentFaces: readonly Box[];
-    readonly leave: Box | null;
-    /** The page's corner on the board: the session's status and the way back, which no panel over the board covers. */
+    /** The page's corner on the board: the settings cog, which no panel over the board covers. */
     readonly menu: readonly Box[];
 }
 
@@ -184,7 +183,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             ".board-actions .decision-controls__action[aria-pressed]",
         );
         const wholeWords = [
-            ".game-menu__status-word",
             ".nameplate .player-name__tail",
             ".nameplate__ai",
             ".nameplate__riichi",
@@ -195,7 +193,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 if (shown.width === 0) {
                     return false;
                 }
-                const clips = [".nameplate__name", ".nameplate, .game-menu__status"].flatMap(
+                const clips = [".nameplate__name", ".nameplate"].flatMap(
                     (selector) => word.parentElement?.closest(selector) ?? [],
                 );
                 if (clips.some((clip) => clip.getBoundingClientRect().width <= 1)) {
@@ -248,8 +246,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         const localTileElements = [
             ...board.querySelectorAll(".board-local .board-area--bottom-hand .tile"),
         ];
-        const leave = board.querySelector(".game-menu__leave");
-        const menu = [...board.querySelectorAll(".game-menu__status, .game-menu__leave")].map(box);
+        const menu = [...board.querySelectorAll(".game-menu__toggle")].map(box);
         const centerTexts = [...board.querySelectorAll(centerTextSelectors)].map(
             (element, index) => ({
                 box: box(element),
@@ -288,7 +285,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                 (tile) =>
                     !tile.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
             ).length,
-            leave: leave === null ? null : box(leave),
             localTileSizes: localTileElements.map((tile) => {
                 const slot = tile.closest(".hand-tile");
                 return slot === null ? { height: Number.NaN, width: Number.NaN } : box(slot);

@@ -61,7 +61,7 @@ The derived proportions are the three reference viewports' values under the sizi
 
 ```
 +-------------------------------------------------------------------+
-| dora          |                                      | menu, status|
+| dora          |                                      |   settings  |
 |               |     top strip (backs)                |             |
 | [left badge]  |               [top badge]            | [right badge]|
 | left strip    |          [ top river ]               | right strip |
@@ -200,7 +200,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the corner steps in past its depth; where even that enters the band (the notch phone's shorter
   safe area), it runs from below the corner across the band, whose row then ends before it.
   Upright, its reach is centred where it stays under the top badge's pill with its badge over it, else
-  it ends before the band's top. A board without the page's corner (a replay's) keeps no room for it.
+  it ends before the band's top. A board without the page's corner keeps no room for it.
   The top hand's full reach stands centred, moved right as far as its badge's lane under it needs,
   short of the page's corner and right of the counters; its melds stay above that badge where they reach its lane (a
   limit that counts the melds at river scale, or the hand without its drawn tile, so a draw never moves it), within the
@@ -377,7 +377,21 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Candidate: a move may be animated briefly (a discard travels from hand
   to river); reduced motion turns it off.
-- **Page corner.** The way back and the connection status, in one corner, small.
+- **Page corner.** A settings cog, small, in one corner. Decision: its menu holds the sound switch, then the
+  connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
+  the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
+  shows without opening the menu. A replay has the same corner and cog, its menu the sound switch alone. The live
+  board has no way back of its own; the upright phone's rotate panel keeps
+  one, which asks the leave question, and an end's panel offers the lobby.
+- **Sound.** The live game plays the v1 client's sounds: a discard's click, each call's voice as its callout first
+  shows, the gong with a yakuman win's voice, and a beep for each of the last five seconds of a decision that runs
+  longer than five. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
+  next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser
+  plays no sound before a click, tap or key on the page, and a wheel is none, so with the sound on a replay always
+  opens on its seating, a linked position included, and the wheel never leaves it: Start (or a key or a control) is
+  that click, and goes on to the linked position, as the v1 client's start screen did. The switch is
+  on by default and kept in the browser under the v1 client's setting, so the live game, the replay and the v1 client
+  share it.
 - **Notices.** Reconnecting, a lost seat, a refused move, a message the client could not read, tile
   faces that did not load: decision, their one place is the left zone's open field under the left
   badge, beside the left strip and outside every river's capacity, which a panel leaves free, so an
@@ -489,7 +503,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 
 ## Out of scope
 
-Decided earlier and not reopened by this document: sound; languages other than English (the ja
+Decided earlier and not reopened by this document: languages other than English (the ja
 and ru catalogs); player avatars, titles and other identity decoration beyond the badge; a
 tenpai mark (the hand's waits and their remaining counts, live or in a replay); and hints that
 judge the hand for the player: what each discard would wait on, which discard reaches tenpai,

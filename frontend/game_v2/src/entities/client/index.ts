@@ -56,8 +56,18 @@ export { failureDisplay } from "./model/session-end";
 export type { PlayDisplay, SwitchControl } from "./model/play-display";
 export { playDisplay } from "./model/play-display";
 export { stepPlayUi } from "./model/play-ui-reducer";
+export type { GameSound, SoundCue, SoundSetting } from "./model/sounds";
+export {
+    DEFAULT_SOUND_SETTING,
+    SOUND_SETTING_KEY,
+    moveSoundCues,
+    readSoundSetting,
+    soundCues,
+} from "./model/sounds";
 export type { DecisionView, GameEndLinks, PlayBoardProps } from "./ui/play-board";
 export { DecisionControls, PlayBoard } from "./ui/play-board";
+export type { GameMenuProps } from "./ui/game-menu";
+export { GameMenu } from "./ui/game-menu";
 export type { RotatePanelView } from "./ui/rotate-panel";
 export { RotatePanel } from "./ui/rotate-panel";
 export { describeClientStatus } from "./model/client-status";

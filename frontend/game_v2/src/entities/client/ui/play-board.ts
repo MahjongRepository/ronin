@@ -49,7 +49,7 @@ export interface GameEndLinks {
 export interface PlayBoardProps {
     readonly display: PlayDisplay;
     readonly onCommand: (command: PlayCommand) => void;
-    /** What the page adds to the corner before the status (the debug log). */
+    /** What the page adds to the corner before the settings (the debug log). */
     readonly menuExtra?: TemplateResult;
     /** The game end's links; without them it offers only the game's last result and the way back. */
     readonly links?: GameEndLinks;
@@ -391,6 +391,9 @@ function gameEndActions(
 }
 
 const CLOSE_NOTICE: PlayCommand = { kind: "close_notice" };
+const TOGGLE_SETTINGS: PlayCommand = { kind: "toggle_settings" };
+const CLOSE_SETTINGS: PlayCommand = { kind: "close_settings" };
+const TOGGLE_SOUND: PlayCommand = { kind: "toggle_sound" };
 
 /** What goes on beneath a notice's sheet: play, and the decision or round confirm the player owes with its seconds. */
 function owedMove(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | typeof nothing {
@@ -487,8 +490,11 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         localHand: { onTile, tileAction: display.tileAction },
         menu: GameMenu({
             extra: menuExtra,
-            leave: display.leave,
-            onCommand,
+            onClose: () => onCommand(CLOSE_SETTINGS),
+            onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
+            onToggleSound: () => onCommand(TOGGLE_SOUND),
+            open: display.settingsOpen,
+            soundOn: display.soundOn,
             status: display.status,
         }),
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),

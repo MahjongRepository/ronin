@@ -119,13 +119,15 @@ section {
 .game-menu {
     --menu-size: clamp(40px, calc(56 * var(--board-table-unit)), 56px);
 
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.35rem;
     min-width: 0;
 }
 
-.game-menu__leave {
+.game-menu__toggle {
+    position: relative;
     display: inline-flex;
     flex: none;
     justify-content: center;
@@ -135,13 +137,35 @@ section {
     margin: 0;
     padding: 0;
 
-    svg {
-        width: 60%;
-        height: 60%;
+    > svg {
+        width: 55%;
+        height: 55%;
     }
 }
 
-.game-menu__leave-label,
+/* The cog's mark while the status has a word to say: its tone's dot at the cog's corner. */
+.game-menu__alert {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid var(--ronin-surface);
+
+    &.status-connecting {
+        background: var(--ronin-warning);
+    }
+
+    &.status-disconnected {
+        background: var(--ronin-text-secondary);
+    }
+
+    &.status-error {
+        background: var(--ronin-danger);
+    }
+}
+
 .game-menu__status-label {
     position: absolute;
     width: 1px;
@@ -151,15 +175,57 @@ section {
     white-space: nowrap;
 }
 
-.game-menu__status {
-    min-width: 0;
-    padding: 0.4rem;
-    font-size: 0.65rem;
-    letter-spacing: 0;
+/* Fixed over the whole page, under the panel: a tap outside the menu closes it and does nothing else. */
+.game-menu__backdrop {
+    position: fixed;
+    inset: 0;
 }
 
-.game-menu__status-word {
+.game-menu__panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 13rem;
+    padding: 0.4rem;
+    background: var(--ronin-surface);
+    border: 1px solid var(--ronin-badge-rim);
+    border-radius: 0.5rem;
+}
+
+.game-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 40px;
+    margin: 0;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.game-menu__icon {
     flex: none;
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.game-menu__item-name {
+    flex: 1;
+}
+
+.game-menu__item-value {
+    color: var(--ronin-text-secondary);
+}
+
+.game-menu__status {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+    letter-spacing: 0;
 }
 
 /* The debug log (`?debug`): a summary in the board's corner that opens the log as a sheet over the board. */

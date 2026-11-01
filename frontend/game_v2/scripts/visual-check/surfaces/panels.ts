@@ -164,65 +164,53 @@ function rotateCase(
     };
 }
 
-const LEAVE_QUESTION = ".game__play .leave-confirm";
+const SETTINGS = ".game__play .game-menu__panel";
+const SETTINGS_TOGGLE = ".game__play .game-menu__toggle";
 
-async function openLeaveQuestion(page: Page): Promise<void> {
-    await page.locator(".game__play .game-menu__leave").click();
-    await page.waitForSelector(LEAVE_QUESTION, { timeout: SELECTOR_TIMEOUT_MS });
-}
-
-/** Whether the focus stays in the leave question over `presses` presses of Tab. */
-async function tabStaysInLeaveQuestion(page: Page, presses: number): Promise<boolean> {
-    for (let press = 0; press < presses; press += 1) {
-        await page.keyboard.press("Tab");
-        const inside = await page.evaluate(
-            (question) => document.activeElement?.closest(question) !== null,
-            LEAVE_QUESTION,
-        );
-        if (!inside) {
-            return false;
-        }
-    }
-    return true;
+async function openSettings(page: Page): Promise<void> {
+    await page.locator(SETTINGS_TOGGLE).click();
+    await page.waitForSelector(SETTINGS, { timeout: SELECTOR_TIMEOUT_MS });
 }
 
 /**
- * The live game's leave question, asked from the page's corner: it opens modal with Stay focused, the board inert and
- * Tab kept inside it, and Escape stays, closing it and giving the focus back to the corner's control that asked. The
- * board is checked before it opens, and the page is shot with it opened again.
+ * The live game's settings, opened from the cog in the page's corner: the menu shows whole in the viewport, and
+ * Escape closes it, giving the focus back to the cog. The board is checked before it opens, and the page is shot with
+ * it opened again.
  */
-async function checkLeaveQuestion(
+async function checkSettings(
     { page, report }: PageRun,
     checkShownBoard: () => Promise<string>,
 ): Promise<string> {
     const summary = await checkShownBoard();
-    await openLeaveQuestion(page);
-    const opened = await page.evaluate(() => ({
-        inert: document.querySelector(".game__play .board-layout")?.hasAttribute("inert") === true,
-        stayFocused: document.activeElement?.matches(".game__play .leave-confirm__stay") === true,
-    }));
-    report.expect(opened.stayFocused, "the leave question opened without Stay focused");
-    report.expect(opened.inert, "the board under the leave question is not inert");
-    report.expect(
-        await tabStaysInLeaveQuestion(page, 3),
-        "Tab moved the focus out of the leave question",
-    );
-    await page.locator(".game__play .leave-confirm__stay").focus();
+    await openSettings(page);
+    const inView = await page.evaluate((panel) => {
+        const shown = document.querySelector(panel)?.getBoundingClientRect();
+        return (
+            shown !== undefined &&
+            shown.left >= 0 &&
+            shown.top >= 0 &&
+            shown.right <= window.innerWidth &&
+            shown.bottom <= window.innerHeight
+        );
+    }, SETTINGS);
+    report.expect(inView, "the settings menu leaves the viewport");
+    await page.locator(".game__play .game-menu__sound").focus();
     await page.keyboard.press("Escape");
     const closed = await page
-        .waitForFunction((question) => document.querySelector(question) === null, LEAVE_QUESTION, {
+        .waitForFunction((panel) => document.querySelector(panel) === null, SETTINGS, {
             timeout: SELECTOR_TIMEOUT_MS,
         })
         .then(() => true)
         .catch(() => false);
-    report.expect(closed, "Escape did not close the leave question");
+    report.expect(closed, "Escape did not close the settings menu");
     report.expect(
         await page.evaluate(
-            () => document.activeElement?.matches(".game__play .game-menu__leave") === true,
+            (toggle) => document.activeElement?.matches(toggle) === true,
+            SETTINGS_TOGGLE,
         ),
-        "staying did not give the focus back to the control that asked",
+        "closing the settings did not give the focus back to the cog",
     );
-    await openLeaveQuestion(page);
+    await openSettings(page);
     return summary;
 }
 
@@ -237,12 +225,12 @@ async function checkLeaveQuestion(
 const PAGES: readonly PageCase[] = [
     {
         at: [FLOOR, MID_DESKTOP],
-        check: checkLeaveQuestion,
+        check: checkSettings,
         checkpoint: "turn",
         kind: "own",
-        name: "game-leave-question",
+        name: "game-settings",
         path: `/play/${GAME_ID}`,
-        required: { visible: [".game__play .game-menu__leave", ".game__play .hand-tile"] },
+        required: { visible: [SETTINGS_TOGGLE, ".game__play .hand-tile"] },
     },
     resultCase("yakuman", "", [".round-end-result__limit"]),
     resultCase("triple_ron", "", [".round-end-result__from"]),

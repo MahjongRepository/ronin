@@ -44,10 +44,7 @@ const MIN_NOTICE_MEASURE = 7.5;
  * notices the stack holds (a refused move, faces that did not load) are left out.
  */
 const PAGES: readonly PageCase[] = [
-    decisionCase("connection_lost", [
-        ".board-notice--warning",
-        ".game-menu__status:not(.status-connected)",
-    ]),
+    decisionCase("connection_lost", [".board-notice--warning", ".game-menu__alert"]),
     {
         ...decisionCase("notices_stacked", [".board-notice--warning", ".hand-tile--selectable"]),
         at: [FLOOR, MID_DESKTOP, SHORTEST_REGULAR_DESKTOP, NARROW_DESKTOP],

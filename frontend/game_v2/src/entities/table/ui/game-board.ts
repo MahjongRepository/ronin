@@ -39,7 +39,7 @@ interface GameBoardProps {
     readonly inert?: boolean;
     /** What pressing a plate does: pin it to show the others' score differences, or view the table from its seat. */
     readonly platePress: PlatePress;
-    /** The page's own controls (the way back, the connection), in the board's top-right corner. */
+    /** The page's own controls (the settings: sound and the connection), in the board's top-right corner. */
     readonly menu?: TemplateResult;
     /** The calls shown by their seats for a moment, over the table and never over the local hand; they take no input. */
     readonly callouts?: BoardCallouts | null;

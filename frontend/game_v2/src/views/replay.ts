@@ -3,6 +3,7 @@ import { type TemplateResult, html, nothing, render } from "lit-html";
 import "@/styles/replay-page.scss";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
+import { GameMenu, type GameSound } from "@/entities/client";
 import {
     CURRENT_ROUND_FOCUS_KEY,
     type LoadedReplayScreen,
@@ -84,6 +85,8 @@ export interface ReplayViewDeps {
     readonly links: ReplayLinks;
     /** The reader's own settings: whether the other hands hide. */
     readonly prefs: ReplayPrefsStore;
+    /** The game's sounds, which a step on plays while the setting the live game shares keeps them on. */
+    readonly sound: GameSound;
     /** Open on the round list, as a storybook state shows it; closed when omitted. */
     readonly roundListOpen?: boolean;
     /** Open with autoplay running, as a storybook state shows it; paused when omitted. */
@@ -113,6 +116,9 @@ interface ReplayHandlers {
     readonly stepClick: (direction: StepDirection) => void;
     readonly togglePlay: () => void;
     readonly toggleHands: () => void;
+    readonly toggleSettings: () => void;
+    readonly closeSettings: () => void;
+    readonly toggleSound: () => void;
 }
 
 interface FailureText {
@@ -306,6 +312,14 @@ function loadedTemplate(
             ${GameBoard({
                 callouts: display.callouts,
                 debug: false,
+                menu: GameMenu({
+                    onClose: handlers.closeSettings,
+                    onToggleOpen: handlers.toggleSettings,
+                    onToggleSound: handlers.toggleSound,
+                    open: screen.settingsOpen,
+                    soundOn: screen.soundOn,
+                    status: null,
+                }),
                 overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
                 overlayAfterCall: overlay?.kind === "result" && overlay.afterCall,
                 platePress,
@@ -399,7 +413,7 @@ function replayTemplate(
  * The replay viewer for one mount: it loads the replay through the injected `loadReplay` (asking again while the
  * server has not stored it yet), steps the page's reducer (`stepReplayPage`) with every input stamped with the
  * clock's time, renders the screen it returns into its host and runs the effects it asks for: the address kept on the
- * position shown, the reader's settings saved and the focus moved. It keeps one timer armed to the screen's deadline
+ * position shown, a step's sounds played, the reader's settings saved and the focus moved. It keeps one timer armed to the screen's deadline
  * (autoplay's next move, a held button's next repeat), which comes back as a tick. Its input is its own: the keys
  * reach it only while focus is inside its focusable root, which it focuses on mount unless something else holds
  * focus, and an outside click closes only its own round list. A throw in a step or a render says the replay cannot be
@@ -423,6 +437,7 @@ class ReplayViewController {
 
     private readonly handlers: ReplayHandlers = {
         closeRoundList: () => this.dispatch({ kind: "close_round_list" }),
+        closeSettings: () => this.dispatch({ kind: "close_settings" }),
         keydown: (event) => this.onKeydown(event),
         keyup: (event) => this.onKeyup(event),
         move: (cursor) => this.dispatch({ cursor, kind: "move" }),
@@ -436,6 +451,8 @@ class ReplayViewController {
         toggleHands: () => this.dispatch({ kind: "toggle_hands" }),
         togglePlay: () => this.dispatch({ kind: "toggle_play" }),
         toggleRoundList: () => this.dispatch({ kind: "toggle_round_list" }),
+        toggleSettings: () => this.dispatch({ kind: "toggle_settings" }),
+        toggleSound: () => this.dispatch({ kind: "toggle_sound" }),
         viewSeat: (seat) => this.dispatch({ kind: "view_seat", seat }),
         wheel: { handleEvent: (event) => this.onWheel(event), passive: false },
     };
@@ -561,8 +578,13 @@ class ReplayViewController {
                 this.writeAddress();
                 return;
             }
-            case "save_prefs": {
-                this.deps.prefs.save(effect.prefs);
+            case "play_sounds": {
+                effect.cues.forEach(this.deps.sound.play);
+                return;
+            }
+            case "save_prefs":
+            case "save_sound": {
+                this.saveSetting(effect);
                 return;
             }
             case "focus": {
@@ -572,6 +594,17 @@ class ReplayViewController {
             default: {
                 assertNever(effect);
             }
+        }
+    }
+
+    /** Keep the reader's settings, or the sound's, which the live game shares. */
+    private saveSetting(
+        effect: Extract<ReplayPageEffect, { kind: "save_prefs" | "save_sound" }>,
+    ): void {
+        if (effect.kind === "save_prefs") {
+            this.deps.prefs.save(effect.prefs);
+        } else {
+            this.deps.sound.setting.save({ sound_on: effect.soundOn });
         }
     }
 
@@ -712,6 +745,7 @@ class ReplayViewController {
             prefs: this.deps.prefs.load(),
             roundListOpen: this.deps.roundListOpen ?? false,
             search: this.deps.location.search,
+            soundOn: this.deps.sound.setting.load().sound_on,
         };
         return stepReplayPage(this.screen, {
             at: this.deps.clock.now(),

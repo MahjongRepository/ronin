@@ -130,8 +130,12 @@ export interface PlayDisplay {
     readonly leave: LeaveControls;
     /** What shows over the board, or null while nothing does. */
     readonly overlay: PlayOverlay | null;
-    /** The session's status, which the board's corner and the rotate panel show. */
+    /** The session's status, which the board's settings menu and the rotate panel show. */
     readonly status: SessionStatusDisplay;
+    /** The settings menu in the board's corner is open; never under a panel that blocks the board. */
+    readonly settingsOpen: boolean;
+    /** The game plays its sounds, as the settings menu's switch shows. */
+    readonly soundOn: boolean;
 }
 
 const DISCARD_ACTION = "Discard";
@@ -297,11 +301,15 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     const picking = pickingRiichi(state, ui);
     const plays =
         viewer === undefined ? new Map<number, TilePlay>() : tilePlays(state, viewer, picking);
-    const resultPage = shownResultPage(table, ui);
-    const failure = failureDisplay(state.session);
-    const notices = boardNotices(state, ui);
-    const callouts = liveCallouts(state);
-    const leave = leaveControls(state, ui);
+    const source: OverlaySource = {
+        callouts: liveCallouts(state),
+        failure: failureDisplay(state.session),
+        leave: leaveControls(state, ui),
+        notices: boardNotices(state, ui),
+        resultPage: shownResultPage(table, ui),
+    };
+    const { callouts, failure, leave, notices, resultPage } = source;
+    const overlay = playOverlay(state, ui, source);
     return {
         actions: decisionActions(state, ui),
         board: viewerBoard(state, plays),
@@ -314,10 +322,12 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         lastResult: lastResultAction(state),
         leave,
         notices,
-        overlay: playOverlay(state, ui, { callouts, failure, leave, notices, resultPage }),
+        overlay,
         owedCountdown: pendingCountdown(state),
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
+        settingsOpen: ui.settingsOpen && overlay?.blocksBoard !== true,
+        soundOn: ui.soundOn,
         status: describePlayerClientStatus(state),
         switchNames: ui.switchNames,
         switches: switchControls(state),

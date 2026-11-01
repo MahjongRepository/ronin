@@ -17,7 +17,8 @@ export type NoticeKind = "connection" | "unread" | "tile_sprite" | "reconnected"
  * What a control of the page does: send the client an intent, turn picking riichi's discard on or off, open or close
  * a call's choice of tiles, step back from either (Back, Escape), turn the round result's panel to a page, pin a
  * nameplate (or none) for the others' score differences, show or hide the play switches' names, ask to leave mid-game
- * or take that back, open a notice whole in its sheet or close it, or reload the page after a failure.
+ * or take that back, open a notice whole in its sheet or close it, open or close the settings menu, turn the sound on
+ * or off, or reload the page after a failure.
  */
 export type PlayCommand =
     | { readonly kind: "intent"; readonly intent: LocalIntent }
@@ -31,6 +32,9 @@ export type PlayCommand =
     | { readonly kind: "cancel_leave" }
     | { readonly kind: "show_notice"; readonly notice: NoticeKind }
     | { readonly kind: "close_notice" }
+    | { readonly kind: "toggle_settings" }
+    | { readonly kind: "close_settings" }
+    | { readonly kind: "toggle_sound" }
     | { readonly kind: "reload" };
 
 /**
@@ -59,7 +63,8 @@ export interface PlayAction {
  * the round it names, so a newer result opens on its first page while a reconnect's copy of the same one keeps it;
  * the nameplate pinned for the others' score differences, which stays pinned until the player unpins it, since the
  * viewer's seat stays at the bottom; that the player opened the play switches' names beside their letters, which stay
- * open until the player closes them; that the player asked to leave mid-game and has yet to confirm it; and where the
+ * open until the player closes them; that the player asked to leave mid-game and has yet to confirm it; that the
+ * settings menu is open; whether the game plays its sounds, a setting the page keeps in this browser; and where the
  * tile sprite's load stands, which the page's IO owns.
  */
 export interface PlayUi {
@@ -71,6 +76,8 @@ export interface PlayUi {
     readonly confirmingLeave: boolean;
     /** The notice the player opened whole in its sheet, while it shows. */
     readonly noticeSheet: NoticeKind | null;
+    readonly settingsOpen: boolean;
+    readonly soundOn: boolean;
     readonly tileSprite: TileSpriteStatus;
 }
 
@@ -80,6 +87,8 @@ export const NO_PLAY_UI: PlayUi = {
     pinnedNameplate: null,
     resultPage: null,
     riichiPickWaitId: null,
+    settingsOpen: false,
+    soundOn: true,
     switchNames: false,
     tileChoice: null,
     tileSprite: "loading",

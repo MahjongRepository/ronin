@@ -470,20 +470,18 @@ function checkOpponentFaces(board: BoardMeasure, report: PageReport): void {
     );
 }
 
-/** The page's way back sits on the board and the screen, large enough to tap. */
-function checkLeave(board: BoardMeasure, screen: Box, report: PageReport): void {
-    const { leave } = board;
-    if (leave === null) {
-        return;
+/** The settings cog sits on the board and the screen, large enough to tap. */
+function checkSettingsCog(board: BoardMeasure, screen: Box, report: PageReport): void {
+    for (const cog of board.menu) {
+        report.expect(
+            contains(board.board, cog) && contains(screen, cog),
+            `the settings cog ${describeBox(cog)} is off the board or screen`,
+        );
+        report.expect(
+            cog.width >= MIN_ACTION_SIZE - EPSILON && cog.height >= MIN_ACTION_SIZE - EPSILON,
+            `the settings cog is under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${describeBox(cog)}`,
+        );
     }
-    report.expect(
-        contains(board.board, leave) && contains(screen, leave),
-        `the leave button ${describeBox(leave)} is off the board or screen`,
-    );
-    report.expect(
-        leave.width >= MIN_ACTION_SIZE - EPSILON && leave.height >= MIN_ACTION_SIZE - EPSILON,
-        `the leave button is under ${MIN_ACTION_SIZE}x${MIN_ACTION_SIZE}: ${describeBox(leave)}`,
-    );
 }
 
 /** Every badge is a control: its tap area, the plate's button, meets the control floor whatever its pill's size. */
@@ -987,7 +985,7 @@ async function checkBoard({
     checkRiverGaps(board, report);
     checkStripsApart(board, report);
     BADGE_ANCHORS.keep(report, badgeAnchors(board));
-    checkLeave(board, screen, report);
+    checkSettingsCog(board, screen, report);
     checkOpponentFaces(board, report);
     checkHandReach(board, report);
     checkHandScale(board, report);

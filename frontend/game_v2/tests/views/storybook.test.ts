@@ -178,12 +178,12 @@ describe("mountStorybookDecisions", () => {
         }
     });
 
-    test("the page's corner says what ended the session: removed, replaced by another tab, or the game's end", () => {
-        const words = ["kicked", "replaced", "game_end"].map(
-            (story) => mountStory(story).querySelector(".game-menu__status-word")?.textContent,
+    test("the page's settings cog says what ended the session: removed, replaced by another tab, or the game's end", () => {
+        const labels = ["kicked", "replaced", "game_end"].map((story) =>
+            mountStory(story).querySelector(".game-menu__toggle")?.getAttribute("aria-label"),
         );
 
-        expect(words).toEqual(["Removed", "Replaced", "Ended"]);
+        expect(labels).toEqual(["Settings, Removed", "Settings, Replaced", "Settings, Ended"]);
     });
 
     test("reopens the kuikae turn on the move_refused story's scripted refusal: its notice, and a discard sends again", () => {

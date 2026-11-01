@@ -11,6 +11,7 @@ import {
     wireRoundEnd,
     wireSessionError,
 } from "#tests/fixtures/wire";
+import { type SoundCue, type SoundSetting } from "@/entities/client";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
 import {
@@ -75,6 +76,13 @@ interface FakeOverrides {
     readonly clearHandoff?: () => void;
     readonly handoff?: GameViewDeps["handoff"];
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
+    readonly soundSetting?: SoundSetting;
+}
+
+/** The game's sounds as a test hears them: each cue played, and the setting as this browser would keep it. */
+interface FakeSound {
+    readonly played: SoundCue[];
+    setting: SoundSetting;
 }
 
 /** A socket factory that keeps every connection it opens. */
@@ -93,6 +101,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
     connections: FakeConnection[];
     host: HTMLElement;
     sink: GameViewDeps["sink"];
+    sound: FakeSound;
     tileSprite: FakeTileSprite;
     throwOnDraws: (count: number) => void;
     dispose: () => void;
@@ -108,6 +117,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         reload: vi.fn(),
         storeHandoff: vi.fn(),
     };
+    const sound: FakeSound = { played: [], setting: overrides.soundSetting ?? { sound_on: true } };
     const host = document.createElement("div");
     const dispose = mountGameView(host, GAME_ID, {
         clock: steadyClockOn(clock),
@@ -128,13 +138,22 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
             overrides.recoverHandoff ??
             (() => Promise.reject(new Error("the tab holds a handoff"))),
         sink,
+        sound: {
+            play: (cue) => sound.played.push(cue),
+            setting: {
+                load: () => sound.setting,
+                save: (setting) => {
+                    sound.setting = setting;
+                },
+            },
+        },
         tileSprite,
     });
     /** Make the next `count` draws throw, as a bug the view meets mid-draw would: every draw asks for the replay link. */
     function throwOnDraws(count: number): void {
         draws.throwing = count;
     }
-    return { clock, connections, dispose, host, sink, throwOnDraws, tileSprite };
+    return { clock, connections, dispose, host, sink, sound, throwOnDraws, tileSprite };
 }
 
 /** The server's answer to the join, then the game's start. */
@@ -337,11 +356,10 @@ describe("mountGameView", () => {
         connections[0].handlers.onOpen();
 
         connections[0].handlers.onMessage(wireSessionError("reconnect_no_session"));
-        expect(
-            ["label", "word"].map(
-                (part) => host.querySelector(`.game-menu__status-${part}`)?.textContent,
-            ),
-        ).toEqual(["Something went wrong", "Error"]);
+        expect([
+            host.querySelector(".game-menu__status-label")?.textContent,
+            host.querySelector(".game-menu__toggle")?.getAttribute("aria-label"),
+        ]).toEqual(["Something went wrong", "Settings, Error"]);
 
         press(host, ".failure-panel__reload");
         host.querySelector<HTMLElement>(".game__rotate .failure-panel__leave")?.click();
@@ -436,13 +454,13 @@ describe("mountGameView failure boundary", () => {
         openCallPrompt(connections[0]);
         throwOnDraws(1);
 
-        press(host, ".game-menu__leave");
+        press(host, ".game-menu__toggle");
 
         expect([statusLabel(host), connections[0].disconnected]).toEqual([
             "Something went wrong",
             true,
         ]);
-        expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
+        expect(host.querySelector(".game__play .game-menu__panel")).toBeNull();
     });
 
     it("shows a bare notice with a reload, and nothing of the board, when even the failed state cannot be drawn", () => {
@@ -708,23 +726,29 @@ describe("mountGameView handoff recovery", () => {
 });
 
 /** Mount into the document, where focus works, at the call prompt; the test's end disposes it and takes it out. */
-function mountInDocumentAtCallPrompt(): {
+function mountInDocumentAtCallPrompt(overrides: FakeOverrides = {}): {
     connections: FakeConnection[];
     host: HTMLElement;
     lobby: HTMLElement;
+    sound: FakeSound;
 } {
-    const { connections, dispose, host } = mountWithFakes();
+    const { connections, dispose, host, sound } = mountWithFakes(overrides);
     document.body.append(host);
     onTestFinished(() => {
         dispose();
         host.remove();
     });
     openCallPrompt(connections[0]);
-    const lobby = host.querySelector<HTMLElement>(".game__play .game-menu__leave");
+    return { connections, host, lobby: rotateLeave(host), sound };
+}
+
+/** The rotate panel's way back, the page's one way to leave mid-game. */
+function rotateLeave(host: HTMLElement): HTMLElement {
+    const lobby = host.querySelector<HTMLElement>(".game__rotate .rotate-panel__leave");
     if (lobby === null) {
         throw new Error("no Lobby button");
     }
-    return { connections, host, lobby };
+    return lobby;
 }
 
 /** Whether the board and the page's controls in its corner are inert under the leave question. */
@@ -739,10 +763,11 @@ describe("mountGameView leaving", () => {
         const { connections, host, sink } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        press(host, ".game-menu__leave");
+        rotateLeave(host).click();
         expect(host.querySelector(".game__play .leave-confirm__detail")?.textContent).toBe(
             "An AI will play your seat.",
         );
+        expect(rotateLeave(host).hidden).toBe(true);
         press(host, ".leave-confirm__stay");
 
         expect(host.querySelector(".game__play .leave-confirm")).toBeNull();
@@ -755,23 +780,11 @@ describe("mountGameView leaving", () => {
         const { connections, host, sink } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        press(host, ".game-menu__leave");
+        rotateLeave(host).click();
         press(host, ".leave-confirm__leave");
 
         expect(connections[0].disconnected).toBe(true);
         expect(sink.leaveToLobby).toHaveBeenCalledOnce();
-    });
-
-    it("asks on the rotate panel too, in place of its way back", () => {
-        const { connections, host } = mountWithFakes();
-        openCallPrompt(connections[0]);
-
-        host.querySelector<HTMLElement>(".game__rotate .rotate-panel__leave")?.click();
-
-        expect(host.querySelector(".game__rotate .leave-confirm")).not.toBeNull();
-        expect(host.querySelector<HTMLElement>(".game__rotate .rotate-panel__leave")?.hidden).toBe(
-            true,
-        );
     });
 
     it("keeps the question modal: Stay takes the focus, the page under it is inert, and Escape stays and refocuses Lobby", async () => {
@@ -814,6 +827,57 @@ describe("mountGameView leaving", () => {
             "leave-confirm__stay",
             "secondary leave-confirm__leave",
         ]);
+    });
+});
+
+/** The settings menu's sound switch: whether it is on, and what it reads. */
+function soundSwitch(host: HTMLElement): (string | null | undefined)[] {
+    const button = host.querySelector(".game__play .game-menu__sound");
+    return [button?.getAttribute("aria-checked"), button?.textContent?.trim()];
+}
+
+/** Receive the call prompt scenario's messages after its prompt, through its turn after the chi. */
+function receiveThroughTurn(socket: FakeConnection): void {
+    const { transcript } = loadSeatScenario("call_prompt_seat_1");
+    const toPrompt = receivedThrough(transcript, "prompt").length;
+    for (const payload of receivedThrough(transcript, "turn").slice(toPrompt)) {
+        socket.handlers.onMessage(payload);
+    }
+}
+
+describe("mountGameView settings", () => {
+    it("opens the sound switch and the status from the cog, keeps the switch in this browser, and closes on Escape, focusing the cog", () => {
+        const { host, sound } = mountInDocumentAtCallPrompt({ soundSetting: { sound_on: false } });
+
+        press(host, ".game-menu__toggle");
+        const stored = soundSwitch(host);
+        press(host, ".game-menu__sound");
+        const switched = soundSwitch(host);
+        const status = host.querySelector(".game__play .game-menu__status")?.textContent;
+        pressKey(host, ".game-menu__sound", "Escape");
+
+        expect([stored, switched, sound.setting, status]).toEqual([
+            ["false", "SoundOff"],
+            ["true", "SoundOn"],
+            { sound_on: true },
+            "Connected",
+        ]);
+        expect(host.querySelector(".game__play .game-menu__panel")).toBeNull();
+        expect(document.activeElement?.classList.contains("game-menu__toggle")).toBe(true);
+    });
+
+    it("plays the sounds of each step while the sound is on, and none once the player turns it off", () => {
+        const { connections, host, sound } = mountWithFakes();
+        openCallPrompt(connections[0]);
+        const heard = [...new Set(sound.played)];
+
+        press(host, ".game-menu__toggle");
+        press(host, ".game-menu__sound");
+        const played = sound.played.length;
+        receiveThroughTurn(connections[0]);
+
+        expect(heard).toEqual(["discard"]);
+        expect(sound.played).toHaveLength(played);
     });
 });
 

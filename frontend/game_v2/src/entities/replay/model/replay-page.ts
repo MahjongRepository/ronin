@@ -1,3 +1,4 @@
+import { type SoundCue, moveSoundCues } from "@/entities/client";
 import { type ReplayMoves, replayMoves } from "@/entities/replay/lib/replay-display";
 import {
     type LoadedReplay,
@@ -58,8 +59,15 @@ export interface LoadedReplayScreen {
     readonly autoplay: ReplayAutoplay;
     /** Whether the other seats' hands hide, as a seat would see the table. */
     readonly hideHands: boolean;
+    /** Whether a step on plays its move's sounds, a setting the live game shares. */
+    readonly soundOn: boolean;
+    /** Whether the settings menu in the board's corner is open. */
+    readonly settingsOpen: boolean;
     readonly hold: ReplayHold | null;
-    /** Whether the seating shows over the board: a replay opened at its start, until the reader starts or moves. */
+    /**
+     * Whether the seating shows over the board, until the reader starts or moves (never by the wheel): a replay opened
+     * at its start, or anywhere with the sound on, whose Start is the click the browser asks before playing a sound.
+     */
     readonly seating: boolean;
     /** The step button whose press stepped already, so the click that press ends in is dropped, once. */
     readonly pressedStep: StepDirection | null;
@@ -79,10 +87,14 @@ type ReplayToggle = "play" | "view" | "hands";
 /** What a key does on the page: a move, autoplay's switch, the next seat's view, or the other hands' switch. */
 export type ReplayKeyCommand = keyof ReplayMoves | ReplayToggle;
 
-/** Where a fetched replay opens: the page's address, the reader's settings, and the round list and autoplay asked. */
+/**
+ * Where a fetched replay opens: the page's address, the reader's settings, the game's sound setting, and the round
+ * list and autoplay asked.
+ */
 export interface ReplayOpening {
     readonly search: string;
     readonly prefs: ReplayPrefs;
+    readonly soundOn: boolean;
     readonly roundListOpen: boolean;
     readonly autoplay: boolean;
 }
@@ -129,15 +141,18 @@ type RoundListInput =
     | { readonly kind: "dismiss_round_list" };
 
 /**
- * The seating's start, the options, a seat chosen to view from (its plate or score, by board position) and the page
- * hiding.
+ * The seating's start, the options, a seat chosen to view from (its plate or score, by board position), the page
+ * hiding, and the settings menu opened or closed and its sound switch.
  */
 type OptionInput =
     | { readonly kind: "start" }
     | { readonly kind: "toggle_play" }
     | { readonly kind: "view_seat"; readonly seat: SeatPosition }
     | { readonly kind: "toggle_hands" }
-    | { readonly kind: "page_hide" };
+    | { readonly kind: "page_hide" }
+    | { readonly kind: "toggle_settings" }
+    | { readonly kind: "close_settings" }
+    | { readonly kind: "toggle_sound" };
 
 type LoadedInput = StepInput | MoveInput | RoundListInput | OptionInput;
 
@@ -158,6 +173,8 @@ export type ReplayFocusTarget = "root" | "current_round" | "round_list_toggle" |
 /** The IO a transition asks of the view, which runs it after drawing the new screen. */
 export type ReplayPageEffect =
     | { readonly kind: "write_address" }
+    | { readonly kind: "play_sounds"; readonly cues: readonly SoundCue[] }
+    | { readonly kind: "save_sound"; readonly soundOn: boolean }
     | { readonly kind: "save_prefs"; readonly prefs: ReplayPrefs }
     | { readonly kind: "focus"; readonly target: ReplayFocusTarget };
 
@@ -191,9 +208,12 @@ function stepTarget(screen: LoadedReplayScreen, direction: StepDirection): Repla
     return replayMoves(screen.replay.navigation, screen.view.cursor)[direction];
 }
 
-/** Whether a step toward `direction` goes anywhere from the screen shown: a wheel that would take none scrolls. */
+/**
+ * Whether the wheel steps toward `direction` from the screen shown: past the seating, where a step goes. A wheel that
+ * would take none scrolls.
+ */
 export function canStep(screen: ReplayScreen, direction: StepDirection): boolean {
-    return screen.kind === "loaded" && stepTarget(screen, direction) !== null;
+    return screen.kind === "loaded" && !screen.seating && stepTarget(screen, direction) !== null;
 }
 
 /** Whether the cursor shown is where a continuous move pauses: a result's page or the last stop. */
@@ -228,6 +248,21 @@ function withCursor(
     };
 }
 
+/**
+ * What a move to `to` asks of the view: the address written, and, while the sound is on, the sounds of the move a
+ * step on to the next stop makes. A jump, a step back or a turn of a result's page plays nothing.
+ */
+function moveEffects(screen: LoadedReplayScreen, to: ReplayCursor): readonly ReplayPageEffect[] {
+    const from = screen.view.cursor;
+    if (!screen.soundOn || to.stop !== from.stop + 1) {
+        return [WRITE_ADDRESS];
+    }
+    const { calls, navigation, tables } = screen.replay;
+    const [before, after] = [from, to].map((cursor) => navigation.stops[cursor.stop].stateIndex);
+    const cues = moveSoundCues(tables[before], tables[after], calls[after]);
+    return cues.length === 0 ? [WRITE_ADDRESS] : [WRITE_ADDRESS, { cues, kind: "play_sounds" }];
+}
+
 function withoutPressedStep(screen: LoadedReplayScreen): LoadedReplayScreen {
     return screen.pressedStep === null ? screen : { ...screen, pressedStep: null };
 }
@@ -252,7 +287,7 @@ function unheld(screen: LoadedReplayScreen): LoadedReplayScreen {
 /** A move the reader asked for, which stops autoplay and a held step button and closes the seating. */
 function moveTo(screen: LoadedReplayScreen, cursor: ReplayCursor, at: number): LoadedStep {
     return {
-        effects: [WRITE_ADDRESS],
+        effects: moveEffects(screen, cursor),
         screen: { ...withCursor(paused(unheld(screen)), cursor, at), seating: false },
     };
 }
@@ -263,8 +298,8 @@ function savingPrefs(screen: LoadedReplayScreen): LoadedStep {
 }
 
 /**
- * A replay opened where its address says, from the seat it names; one whose address names no position opens on the
- * seating, its start focused, unless autoplay was asked.
+ * A replay opened where its address says, from the seat it names; one whose address names no position, or any with the
+ * sound on, opens on the seating, its start focused, unless autoplay was asked.
  */
 function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number): ReplayPageStep {
     const address = parseReplayAddress(opening.search);
@@ -281,8 +316,10 @@ function openedScreen(replay: LoadedReplay, opening: ReplayOpening, at: number):
         pressedStep: null,
         replay,
         roundListOpen: opening.roundListOpen,
-        seating: address.round === null,
+        seating: address.round === null || opening.soundOn,
+        settingsOpen: false,
         shownCall: shownReplayCall(replay, null, { at, from: null, to: view.cursor }),
+        soundOn: opening.soundOn,
         view,
         wheel: null,
     };
@@ -417,10 +454,11 @@ function onHoldEnd(screen: LoadedReplayScreen, cancelled: boolean): LoadedStep {
 
 /**
  * A wheel turned toward a step that goes somewhere: a gesture steps once it has run far enough, then on a beat, and
- * once it reaches a result or the end it steps no more until it rests or turns back.
+ * once it reaches a result or the end it steps no more until it rests or turns back. It never leaves the seating: a
+ * wheel is no click the browser lets a sound play after.
  */
 function onWheel(screen: LoadedReplayScreen, deltaPx: number, at: number): LoadedStep {
-    const target = stepTarget(screen, deltaPx > 0 ? "next" : "prev");
+    const target = screen.seating ? null : stepTarget(screen, deltaPx > 0 ? "next" : "prev");
     if (target === null) {
         return quiet(screen);
     }
@@ -441,7 +479,10 @@ function autoplayTick(screen: LoadedReplayScreen, at: number): LoadedStep {
         return quiet(paused(screen));
     }
     const moved = withCursor(screen, step.cursor, at);
-    return { effects: [WRITE_ADDRESS], screen: step.pause ? paused(moved) : armed(moved, at) };
+    return {
+        effects: moveEffects(screen, step.cursor),
+        screen: step.pause ? paused(moved) : armed(moved, at),
+    };
 }
 
 function holdTick(screen: LoadedReplayScreen, hold: ReplayHold, at: number): LoadedStep {
@@ -450,7 +491,7 @@ function holdTick(screen: LoadedReplayScreen, hold: ReplayHold, at: number): Loa
         return quiet(unheld(screen));
     }
     return {
-        effects: [WRITE_ADDRESS],
+        effects: moveEffects(screen, target),
         screen: {
             ...withCursor(screen, target, at),
             hold: { ...hold, repeatAt: at + HOLD_REPEAT_MS },
@@ -560,6 +601,19 @@ function stepRoundList(screen: LoadedReplayScreen, event: Timed<RoundListInput>)
     }
 }
 
+/** The settings menu opened or closed, or its sound switch turned, which the view keeps in this browser. */
+function stepSettings(
+    screen: LoadedReplayScreen,
+    kind: "toggle_settings" | "close_settings" | "toggle_sound",
+): LoadedStep {
+    if (kind === "toggle_sound") {
+        const soundOn = !screen.soundOn;
+        return { effects: [{ kind: "save_sound", soundOn }], screen: { ...screen, soundOn } };
+    }
+    const settingsOpen = kind === "toggle_settings" && !screen.settingsOpen;
+    return quiet(settingsOpen === screen.settingsOpen ? screen : { ...screen, settingsOpen });
+}
+
 function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): LoadedStep {
     switch (event.kind) {
         case "start": {
@@ -578,7 +632,7 @@ function stepOption(screen: LoadedReplayScreen, event: Timed<OptionInput>): Load
             return quiet(paused(unheld(screen)));
         }
         default: {
-            return assertNever(event);
+            return stepSettings(screen, event.kind);
         }
     }
 }
@@ -611,8 +665,8 @@ function stepLoaded(screen: LoadedReplayScreen, event: Timed<LoadedInput>): Load
 }
 
 /**
- * The replay page's transition: the screen after `event` and the IO it asks of the view (writing the address, saving
- * the reader's settings, moving the focus). It reads no clock and arms no timer; the deadlines it keeps
+ * The replay page's transition: the screen after `event` and the IO it asks of the view (writing the address, playing
+ * a step's sounds, saving the reader's settings or the sound's, moving the focus). It reads no clock and arms no timer; the deadlines it keeps
  * (`replayPageDeadline`) come back as ticks. A move with nowhere to go, and any input the screen shown cannot take,
  * leaves the screen as it was, the same object.
  */
