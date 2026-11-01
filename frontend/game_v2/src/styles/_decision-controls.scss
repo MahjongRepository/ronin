@@ -1,7 +1,6 @@
 @use "game-board/grid" as *;
 @use "type";
 
-$gap: 6px;
 $row: 40px;
 $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
@@ -48,7 +47,7 @@ $preview-tile-share: 0.42;
 
         @include small-chrome {
             --action-text: 16px;
-            --decision-gap: 6px;
+            --decision-gap: #{$small-decision-gap};
         }
     }
 
@@ -64,14 +63,14 @@ $preview-tile-share: 0.42;
         flex-flow: column nowrap;
         align-items: stretch;
         justify-content: flex-end;
-        gap: $gap;
+        gap: $small-decision-gap;
     }
 
     @include upright-board {
         flex: 1;
         flex-flow: row wrap;
         justify-content: flex-end;
-        gap: $gap;
+        gap: $small-decision-gap;
     }
 
     @include short-desktop-board {
@@ -107,12 +106,12 @@ $preview-tile-share: 0.42;
     }
 
     @include phone-board {
-        gap: $gap;
+        gap: $small-decision-gap;
     }
 
     @include upright-board {
         flex-wrap: wrap;
-        gap: $gap;
+        gap: $small-decision-gap;
     }
 }
 
@@ -149,7 +148,7 @@ $preview-tile-share: 0.42;
     @include phone-board {
         flex-flow: column nowrap;
         align-items: flex-end;
-        padding-right: calc(var(--strip-reserve) + #{$gap});
+        padding-right: calc(var(--strip-reserve) + #{$small-decision-gap});
 
         > .decision-controls__action--win,
         > .decision-controls__action--choice {
@@ -202,7 +201,7 @@ $pair-gap: 4px;
 }
 
 @for $rows from 2 through 6 {
-    @container decisions (height < #{$rows * ($row + $gap) + $row + $win-rise}) {
+    @container decisions (height < #{$rows * ($row + $small-decision-gap) + $row + $win-rise}) {
         .decision-controls[data-upper="#{$rows}"] > .decision-controls__upper {
             @include paired-column;
         }

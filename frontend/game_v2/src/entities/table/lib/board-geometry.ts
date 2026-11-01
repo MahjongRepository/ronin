@@ -27,7 +27,6 @@ import {
     PHONE_CENTRE_MIN,
     PHONE_CHROME,
     PHONE_CHROME_RIVER,
-    PHONE_DRAWN_CHROME,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     RIGHT_LATEST_DISCARD_GAP,
@@ -38,13 +37,17 @@ import {
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,
     STACKED_DEPTH,
+    STRIP_LINES_GAP,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     UPRIGHT_CHROME,
 } from "./board-constants";
-import { type StripRooms, type StripSeat } from "./strip-layout";
+import { type StripRooms, type StripSeat, drawnGap, hairline, handLength } from "./strip-layout";
 
 type BoardFamily = "phone" | "desktop" | "short-desktop" | "upright";
+
+/** A centre's shape: a wide one stands its sides' rows centred, as Tenhou's; a square one's in a pinwheel. */
+type BoardCentre = "wide" | "square";
 
 interface BoardBox {
     readonly width: number;
@@ -78,6 +81,7 @@ type BoardLengths = Readonly<Record<string, number>>;
 interface BoardGeometry {
     readonly family: BoardFamily;
     readonly chrome: ChromeTier;
+    readonly centre: BoardCentre;
     readonly gutter: number;
     readonly box: BoardBox;
     readonly lengths: BoardLengths;
@@ -106,18 +110,14 @@ const STEP_IN_GAP = 6;
 /** The bottom river keeps this far from the switches' place level with it (px). */
 const SWITCHES_RIVER_GAP = 8;
 
-/** The play switches' strip: three square chips and the names' button, and the px between them. */
+/** The play switches' strip: three square chips and the names' button. */
 const SWITCH_CHIPS = 4;
-const SWITCHES_GAPS = 18;
 
-/** The replay's moves in the switches' place, and the px between them. */
+/** The replay's moves in the switches' place. */
 const REPLAY_MOVES = 7;
-const REPLAY_MOVES_GAPS = 36;
 
-/** An opponent's hand: its tiles, a tile's width in hairlines, and its drawn tile's gap in river tiles. */
+/** An opponent's full hand's tiles. */
 const HAND_TILES = 14;
-const TILE_UNITS = 60;
-const OPPONENT_DRAWN_GAP = 0.15;
 
 /** The core's share past the centre, and what each room's height and width hold per river tile. */
 const DESKTOP_SPARE = 1 - DESKTOP_CENTRE_SHARE;
@@ -138,16 +138,14 @@ const SLOT_LEFT_REACH = 2 * TILE_ASPECT + LEFT_REACH_TILES;
  */
 const LEFT_REACH_GAPS = 2 * LATEST_DISCARD_GAP + 0.5;
 
-/** A side strip's two stacked lines' gap, and the gap the right hand keeps under the corner (px). */
-const STRIP_LINES_GAP = 4;
+/** The gap the right hand keeps under the corner (px). */
 const CORNER_GAP = 4;
 
 /** The right hand's origin from the band stands this far under the band's top margin (px). */
 const RIGHT_FROM_BAND_GAP = 2;
 
-/** A phone's switches' place holds the replay's five moves, 4px apart, wider than the play switches. */
+/** A phone's switches' place holds the replay's five moves, wider than the play switches. */
 const REPLAY_MOVES_ON_PHONE = 5;
-const PLACE_GAP = 4;
 
 /**
  * A phone's side fields beside the deepest strips: the notices' place (7.5 of its 11px ems) and its gaps to the strip
@@ -158,12 +156,7 @@ const NOTICE_GAPS = 14;
 const DECISIONS_COLUMN = 84;
 const DECISIONS_GAPS = 12;
 
-/**
- * A phone's left badge stands this far past its strip's first line, and keeps at least this lane beside the top
- * river's longest third row, past its clearance of at least `SIDE_CLEAR` (px).
- */
-const PHONE_BADGE_GAP = 8;
-const PHONE_SIDE_LANE = 90;
+/** A side badge keeps at least this far off the top river's longest third row (px). */
 const SIDE_CLEAR = 16;
 
 /** No phone's river tile passes this share of its height, nor goes under `PHONE_SMALLEST_RIVER` (px). */
@@ -291,21 +284,21 @@ function switchesPlace({ movesH, switchH }: DesktopChrome): number {
     return Math.max(switchH, movesH);
 }
 
-function switchesPlaceWidth({ movesH, switchH }: DesktopChrome): number {
+/** A row of controls this many and this large, this far apart. */
+function rowWidth(count: number, size: number, gap: number): number {
+    return count * size + (count - 1) * gap;
+}
+
+function switchesPlaceWidth({ chipGap, movesH, replayGap, switchH }: DesktopChrome): number {
     return Math.max(
-        SWITCH_CHIPS * switchH + SWITCHES_GAPS,
-        REPLAY_MOVES * movesH + REPLAY_MOVES_GAPS,
+        rowWidth(SWITCH_CHIPS, switchH, chipGap),
+        rowWidth(REPLAY_MOVES, movesH, replayGap),
     );
 }
 
-/**
- * An opponent's full hand along its line: fourteen tiles, whole-pixel hairlines between them and the drawn tile's
- * gap.
- */
+/** An opponent's full hand along its line. */
 function fullReach(rw: number): number {
-    const hairline = Math.ceil(rw / TILE_UNITS);
-    const drawnGap = Math.round(OPPONENT_DRAWN_GAP * rw);
-    return HAND_TILES * rw + (HAND_TILES - 1) * hairline + drawnGap;
+    return handLength(HAND_TILES, true, rw);
 }
 
 /** Where the play switches start: stepped in past the left hand where its full reach meets them. */
@@ -373,6 +366,8 @@ function riverLengths({
         ["reach-top-left", cx + hx - runOnReach],
         ["reach-top-row3", cy - centre / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
         ["right-latest-discard-gap", RIGHT_LATEST_DISCARD_GAP],
+        ["river-across", RIVER_ROWS["run-on"] * rw * TILE_ASPECT],
+        ["river-along", RIVER_ROW_SIZE * rw],
     ];
 }
 
@@ -568,35 +563,27 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     });
 
     return Object.fromEntries([
+        ...chromeLengths(tier),
         ...cornerLengths(rw),
         ...panelLengths(panel),
         ...replayLengths(slots, chrome, tier),
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],
         ["band-lift", bandLift],
-        ...(short ? [] : [["band-reserve", bandReserve]]),
         ["c", centre],
         ["control-h", controlH],
-        ["core", core],
-        ["core-gap", coreGap],
-        ...(short ? [] : [["core-room-band", coreRoomBand]]),
-        ["core-room-h", coreRoomH],
-        ["core-room-w", coreRoomW],
         ["core-top", coreTop],
-        ["corner-in", cornerShift > 0 ? 1 : 0],
         ["corner-shift", cornerShift],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
         ["h", centre / 2],
-        ["hand-bottom", handBottom],
         ["hand-top", handTop],
         ["hx", centreWidth / 2],
         ["m", m],
         ["oh", oh],
         ["ow", ow],
         ["own-badge-h", ownBadgeH],
-        ["own-fit", ownFit],
         ["own-inline", ownInline],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
@@ -605,8 +592,6 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
         ["rh", rh],
         ["row-rise", rowRise],
         ["rw", rw],
-        ["sep", sep],
-        ["switch-gap", switchGap],
         ["switches-bottom", switchesBottom],
         ["w", centreWidth],
     ]);
@@ -624,9 +609,14 @@ interface UprightGroupRoom {
     readonly width: number;
 }
 
+/** A replay's moves' row: a smaller board's five moves, else seven. */
+function replayMovesWidth(chrome: ChromeTier, movesH: number, replayGap: number): number {
+    return rowWidth(chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES, movesH, replayGap);
+}
+
+/** A replay's group: its moves and two more controls, its gap between them. */
 function replayGroupWidth(chrome: ChromeTier, movesH: number, replayGap: number): number {
-    const moves = chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES;
-    return (moves + 2) * movesH + (moves + 1) * replayGap;
+    return replayMovesWidth(chrome, movesH, replayGap) + 2 * (movesH + replayGap);
 }
 
 function replayLengths(
@@ -636,8 +626,8 @@ function replayLengths(
 ): [string, number][] {
     return slots.band === "replay"
         ? [
+              ["moves-w", replayMovesWidth(chrome, movesH, replayGap)],
               ["replay-gap", replayGap],
-              ["replay-group-w", replayGroupWidth(chrome, movesH, replayGap)],
           ]
         : [];
 }
@@ -759,6 +749,7 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
     const halfHand = (FULL_HAND * ow) / 2;
 
     return Object.fromEntries([
+        ...chromeLengths(tier),
         ...cornerLengths(rw),
         ...panelLengths(uprightPanel({ ...groupRoom, slots }, height)),
         ...replayLengths(slots, chrome, tier),
@@ -767,21 +758,13 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
             replay ? uprightGroupBottom(groupRoom) : handTop - ownRise - GROUP_BADGE_GAP,
         ],
         ["band-gap", bandGap],
-        ["band-reserve", bandReserve],
         ["c", centre],
         ["control-h", controlH],
-        ["core", core],
-        ["core-floor", coreFloor],
-        ["core-gap", coreGap],
-        ["core-room-band", coreRoomBand],
-        ["core-room-h", coreRoomH],
-        ["core-room-w", coreRoomW],
         ["core-top", coreTop],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
         ["h", centre / 2],
-        ["hand-bottom", handBottom],
         ["hand-top", handTop],
         ["hx", centreWidth / 2],
         ["m", m],
@@ -789,7 +772,6 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         ["oh", oh],
         ["ow", ow],
         ["own-badge-h", ownBadgeH],
-        ["own-fit", ownFit],
         ["own-inline", ownInline],
         [
             "own-lane",
@@ -801,18 +783,14 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["rw", rw],
-        ["sep", sep],
         ["w", centreWidth],
     ]);
 }
 
-/** A phone's chrome lengths, by the stylesheet's names. */
-type PhoneChrome = Readonly<
-    Record<
-        keyof typeof PHONE_DRAWN_CHROME | "control-h" | "moves-h" | "own-badge-h" | "switch-h",
-        number
-    >
->;
+/** How far in from the board's side edge a side badge stands: past its strip's first line by a badge gap. */
+function sideBadgeX({ badgeGap, m }: DesktopChrome, rw: number): number {
+    return m + STACKED_DEPTH * rw + badgeGap;
+}
 
 /** The deepest a side strip reaches: two stacked lines 4px apart, the second's tiles never under the face floor. */
 function stripReserve(rw: number): number {
@@ -820,21 +798,70 @@ function stripReserve(rw: number): number {
 }
 
 /** A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`. */
-function phoneChrome(rw: number): PhoneChrome {
+function phoneChrome(rw: number): DesktopChrome {
     const scale = Math.max(1, rw / PHONE_CHROME_RIVER);
     const control = PHONE_CHROME.controlH * scale;
     return {
-        "badge-h": PHONE_DRAWN_CHROME["badge-h"] * scale,
-        "control-h": control,
-        "corner-h": PHONE_DRAWN_CHROME["corner-h"] * scale,
-        "counters-w": PHONE_DRAWN_CHROME["counters-w"] * scale,
-        "dora-w": PHONE_DRAWN_CHROME["dora-w"] * scale,
-        "moves-h": control,
-        "own-badge-h": PHONE_CHROME.ownBadgeH * scale,
-        "own-pill-h": PHONE_DRAWN_CHROME["own-pill-h"] * scale,
-        "pill-h": PHONE_DRAWN_CHROME["pill-h"] * scale,
-        "switch-h": control,
-        "timer-w": PHONE_DRAWN_CHROME["timer-w"] * scale,
+        ...PHONE_CHROME,
+        badgeH: PHONE_CHROME.badgeH * scale,
+        controlH: control,
+        cornerH: PHONE_CHROME.cornerH * scale,
+        countersW: PHONE_CHROME.countersW * scale,
+        doraW: PHONE_CHROME.doraW * scale,
+        movesH: control,
+        ownBadgeH: PHONE_CHROME.ownBadgeH * scale,
+        ownPillH: PHONE_CHROME.ownPillH * scale,
+        pillH: PHONE_CHROME.pillH * scale,
+        switchH: control,
+        timerW: PHONE_CHROME.timerW * scale,
+    };
+}
+
+/** The counters' height: the indicator's, and the padding and rim above and below it. */
+function countersHeight({ countersFrame, doraW }: DesktopChrome): number {
+    return doraW * TILE_ASPECT + countersFrame;
+}
+
+/** The chrome px the stylesheet draws with, by its names. */
+function chromeLengths(tier: DesktopChrome): [string, number][] {
+    return [
+        ["action-min-w", tier.actionMinW],
+        ["badge-h", tier.badgeH],
+        ["chip-gap", tier.chipGap],
+        ["counters-h", countersHeight(tier)],
+        ["counters-w", tier.countersW],
+        ["dora-w", tier.doraW],
+        ["moves-h", tier.movesH],
+        ["own-pill-h", tier.ownPillH],
+        ["pill-h", tier.pillH],
+        ["side-lane-min", tier.sideLaneMin],
+        ["switch-h", tier.switchH],
+        ["timer-w", tier.timerW],
+        ["win-min-w", tier.winMinW],
+    ];
+}
+
+/** What a phone's right hand runs in: the band's top, the corner's bottom, its full reach and what bounds it (px). */
+type PhoneRightRoom = Readonly<
+    Record<"bandTop" | "cornerBottom" | "cy" | "fromBand" | "ownRowTop" | "reach", number>
+>;
+
+function phoneRightRoom(
+    sizes: Readonly<
+        Record<
+            "bandGap" | "controlH" | "cornerH" | "cy" | "handTop" | "m" | "ownMeldRise" | "rw",
+            number
+        >
+    >,
+): PhoneRightRoom {
+    const { bandGap, controlH, handTop } = sizes;
+    return {
+        bandTop: handTop - bandGap - controlH,
+        cornerBottom: sizes.m + sizes.cornerH,
+        cy: sizes.cy,
+        fromBand: handTop - 2 * bandGap - controlH + RIGHT_FROM_BAND_GAP,
+        ownRowTop: handTop - sizes.ownMeldRise - SWITCHES_CLEARANCE,
+        reach: fullReach(sizes.rw),
     };
 }
 
@@ -850,9 +877,7 @@ function phoneRightHand({
     fromBand,
     ownRowTop,
     reach,
-}: Readonly<
-    Record<"bandTop" | "cornerBottom" | "cy" | "fromBand" | "ownRowTop" | "reach", number>
->): {
+}: PhoneRightRoom): {
     readonly origin: number;
     readonly cornerIn: boolean;
     readonly bandCrossed: boolean;
@@ -918,9 +943,8 @@ function phoneLayout(
     ow: number,
 ): { readonly fits: boolean; readonly lengths: BoardLengths } {
     const { height, width } = box;
-    const { bandGap, coreGap, m, sep, sideStart, switchGap } = PHONE_CHROME;
     const chrome = phoneChrome(rw);
-    const { "control-h": controlH, "corner-h": cornerH, "own-badge-h": ownBadgeH } = chrome;
+    const { bandGap, controlH, coreGap, cornerH, m, ownBadgeH, sep, sideStart, switchGap } = chrome;
     const rh = rw * TILE_ASPECT;
     const oh = ow * TILE_ASPECT;
     const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
@@ -938,9 +962,9 @@ function phoneLayout(
     const sideReach = riverGap(rw) + (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
     const fieldHalf = width / 2 - sideReach - m - stripReserve(rw);
     const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
-    const leftBadgeX = m + STACKED_DEPTH * rw + PHONE_BADGE_GAP;
+    const leftBadgeX = sideBadgeX(chrome, rw);
     const laneHalf =
-        PHONE_SIDE_LANE + Math.max(SIDE_CLEAR, rw) + leftBadgeX + runOnReach - width / 2;
+        chrome.sideLaneMin + Math.max(SIDE_CLEAR, rw) + leftBadgeX + runOnReach - width / 2;
     const centreMin = Math.max(
         PHONE_CENTRE_MIN,
         (DESKTOP_CENTRE_SHARE / DESKTOP_SPARE) * CORE_TILES * rw,
@@ -949,8 +973,7 @@ function phoneLayout(
         m +
         STACKED_DEPTH * rw +
         STEP_IN_GAP +
-        REPLAY_MOVES_ON_PHONE * controlH +
-        (REPLAY_MOVES_ON_PHONE - 1) * PLACE_GAP;
+        replayMovesWidth("small", chrome.movesH, chrome.replayGap);
     const clearHalf = width / 2 - sideReach - SWITCHES_CLEARANCE - switchesRight;
     const besideSwitches = clearHalf >= Math.max(centreMin / 2, laneHalf);
     const halfRoom = Math.min(
@@ -965,77 +988,66 @@ function phoneLayout(
         Math.min(centre * CENTRE_ASPECT, 2 * halfRoom),
     );
     const leftRiverEnd = coreTop + leftRiverDrop(rw);
-    const reach = fullReach(rw);
     const cy = centreTop + centre / 2;
-    const cornerBottom = m + cornerH;
-    const ownRowTop = handTop - ownMeldRise - SWITCHES_CLEARANCE;
-    const right = phoneRightHand({
-        bandTop: handTop - bandGap - controlH,
-        cornerBottom,
+    const rightRoom = phoneRightRoom({
+        bandGap,
+        controlH,
+        cornerH,
         cy,
-        fromBand: handTop - 2 * bandGap - controlH + RIGHT_FROM_BAND_GAP,
-        ownRowTop,
-        reach,
+        handTop,
+        m,
+        ownMeldRise,
+        rw,
     });
+    const right = phoneRightHand(rightRoom);
     const fits =
         centre >= centreMin &&
         laneHalf <= halfRoom &&
         leftRiverEnd + SWITCHES_CLEARANCE <= (besideSwitches ? handTop - ownRise : switchesTop) &&
-        m + sideStart + reach <= height - m &&
-        right.origin <= ownRowTop;
+        m + sideStart + rightRoom.reach <= height - m &&
+        right.origin <= rightRoom.ownRowTop;
     const stepIn = rh + STEP_IN_GAP;
     const cornerShift = right.cornerIn ? stepIn : 0;
     const bandShift = right.bandCrossed ? stepIn : 0;
     const panel = phonePanel(slots, height, {
         bandShift,
         cornerShift,
-        movesH: chrome["moves-h"],
+        movesH: chrome.movesH,
         rw,
         switchesBottom,
     });
 
     const lengths = Object.fromEntries([
-        ...Object.entries(chrome),
+        ...chromeLengths(chrome),
         ...cornerLengths(rw),
         ...panelLengths(panel),
-        ...replayLengths(slots, "small", {
-            movesH: chrome["moves-h"],
-            replayGap: PHONE_CHROME.replayGap,
-        }),
+        ...replayLengths(slots, "small", chrome),
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],
         ["band-lift", 0],
         ["band-shift", bandShift],
         ["c", centre],
-        ["core", 2 * (LATEST_DISCARD_GAP + rows) + centre],
-        ["core-gap", coreGap],
-        ["core-room-h", height - m - handBottom - oh - coreGap - sep],
-        ["core-room-w", width - 2 * m - CORE_ROOM_SIDES],
+        ["control-h", controlH],
         ["core-top", coreTop],
-        ["corner-in", right.cornerIn ? 1 : 0],
         ["corner-shift", cornerShift],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
         ["h", centre / 2],
-        ["hand-bottom", handBottom],
         ["hand-top", handTop],
         ["hx", centreWidth / 2],
         ["m", m],
         ["oh", oh],
         ["ow", ow],
-        ["own-fit", ow],
+        ["own-badge-h", ownBadgeH],
         ["own-inline", 0],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
         ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
         ["rh", rh],
-        ["right-origin", right.origin],
         ["row-rise", 0],
         ["rw", rw],
-        ["sep", sep],
-        ["switch-gap", switchGap],
         ["switches-bottom", switchesBottom],
         ["w", centreWidth],
     ]);
@@ -1127,9 +1139,6 @@ const SHORT_ACTIONS_MIN = 180;
 /** The band end stands this far past the rivers' reach and a phone's under the right badge (px). */
 const ACTIONS_GAP = 6;
 
-/** A phone's play switches: four chips 4px apart (px). */
-const PHONE_SWITCHES_GAPS = 12;
-
 /** The top badge stands this far past a river tile's edge, the side badges a step this far under its pill (px). */
 const TOP_BADGE_GAP = 6;
 const SIDE_STEP_GAP = 8;
@@ -1163,6 +1172,9 @@ const UPRIGHT_STRIP_GAP = 8;
 const UPRIGHT_PILL_GAP = 6;
 const UPRIGHT_BADGE_GAP = 4;
 
+/** A centre is wide past this width to its height. */
+const WIDE_CENTRE = 1.2;
+
 /** A length past which a CSS comparison counted half a pixel (px). */
 const HALF_PIXEL = 0.5;
 
@@ -1189,19 +1201,23 @@ function ownLane(
     return { end: laneFree ? ownLead + lane + at("band-gap") : -Infinity, lane };
 }
 
+/** Where the opponents' badges stand off an upright board, and the left one's lane (px). */
+type LandscapeBadges = Readonly<
+    Record<"rightBadgeTop" | "sideBadgeTop" | "sideLane" | "topBadgeTop", number>
+>;
+
 /**
  * The opponents' badges off an upright board: the top one under its hand past a river tile's edge; the side ones at
  * the strips' start a step under the top one's pill (a short desktop's only where the decisions' tallest column leaves
  * room under the right one, a phone's right one alone), else past the top river's longest third row where the lane at
  * the start is short of an ordinary name; and the left one's lane.
  */
-function landscapeBadges(room: ShellRoom, rowBottom: number): [string, number][] {
+function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
     const { at, frame, tier } = room;
     const { family } = frame;
     const m = at("m");
     const rw = at("rw");
-    const badgeH = family === "phone" ? at("badge-h") : tier.badgeH;
-    const pillH = family === "phone" ? at("pill-h") : tier.pillH;
+    const { badgeH, pillH } = tier;
     const topBadgeTop = m + at("rh") + TILE_EDGE_SHARE * rw + TOP_BADGE_GAP;
     const stepped = topBadgeTop + pillH + SIDE_STEP_GAP;
     const decisionsTop =
@@ -1214,7 +1230,7 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): [string, number][]
         upright: 0,
     }[family];
     const sideClear = Math.max(SIDE_CLEAR, rw);
-    const leftBadgeX = m + STACKED_DEPTH * rw + tier.badgeGap;
+    const leftBadgeX = sideBadgeX(tier, rw);
     const laneAtStart = at("reach-top-left") - sideClear - leftBadgeX;
     const narrow = tier.sideLaneMin - laneAtStart > 0;
     const topRowsLeft =
@@ -1231,12 +1247,12 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): [string, number][]
             ? Math.max(sideBadgeTop, topBadgeTop + pillH + TOP_BADGE_GAP)
             : sideBadgeTop;
     const sideLane = Math.max(laneAtStart, Math.min(laneBelow, narrow ? Infinity : 0));
-    return [
-        ["right-badge-top", rightBadgeTop],
-        ["side-badge-top", sideBadgeTop],
-        ["side-lane", Math.min(tier.sideCardW, sideLane)],
-        ["top-badge-top", topBadgeTop],
-    ];
+    return {
+        rightBadgeTop,
+        sideBadgeTop,
+        sideLane: Math.min(tier.sideCardW, sideLane),
+        topBadgeTop,
+    };
 }
 
 /** Where the left hand's full reach starts, where its room ends and where the play switches start. */
@@ -1293,7 +1309,7 @@ function desktopActions(
     );
     const need =
         slots.band === "replay"
-            ? at("replay-group-w")
+            ? replayGroupWidth(frame.chrome, tier.movesH, tier.replayGap)
             : tier.winMinW +
               DECISION_OFFERS * tier.actionMinW +
               tier.timerW +
@@ -1377,10 +1393,10 @@ function opponentStrips(
     const { width } = frame.box;
     const reserve = stripReserve(rw);
     const cornerBottom = m + places.cornerH;
-    const leftBadgeX = m + STACKED_DEPTH * rw + tier.badgeGap;
+    const leftBadgeX = sideBadgeX(tier, rw);
     const laneUnder = leftBadgeX + places.sideLane + TOP_START_GAP - places.topStart > 0;
     const leftLine = places.leftRoomEnd - STRIP_ROOM_GAP - places.leftStart;
-    const rightTop = at("corner-in") > 0 ? m - STRIP_ROOM_GAP : cornerBottom;
+    const rightTop = at("corner-shift") > 0 ? m - STRIP_ROOM_GAP : cornerBottom;
     return {
         areas: {
             "strip-left": {
@@ -1435,6 +1451,47 @@ function opponentStrips(
     };
 }
 
+/** A side badge's lane ends this far short of a river's reach (px). */
+const BADGE_REACH_GAP = 6;
+
+/** A side badge's lane short of a river's reach from its edge, unbounded where it stands clear above that river. */
+function laneShortOf(reach: number, from: number, above: boolean): number {
+    return above ? Infinity : reach - BADGE_REACH_GAP - from;
+}
+
+/**
+ * The side badges' widths off an upright board: the left one's lane short of the left river where it stands beside
+ * it; the right one a card wide, short of the right river past its clearance (its whole reach where the badge stands
+ * beside the river's latest rows) and of the top hand's anchor.
+ */
+function landscapeBadgeWidths(
+    { at, frame, tier }: ShellRoom,
+    { rightBadgeTop, sideBadgeTop, sideLane }: LandscapeBadges,
+    topAnchor: number,
+): [string, number][] {
+    const rw = at("rw");
+    const badgeX = sideBadgeX(tier, rw);
+    const centreTop = at("cy") - at("h");
+    const left = laneShortOf(at("reach-left"), badgeX, centreTop - sideBadgeTop - tier.badgeH > 0);
+    const rightRiverTop =
+        at("cy") + at("h") - ROW_BEFORE_SIDEWAYS * rw - at("rh") - RIGHT_LATEST_DISCARD_GAP;
+    const besideRiver = rightBadgeTop + tier.badgeH - rightRiverTop > 0;
+    const coreRight = at("cx") + at("hx");
+    const rightX = frame.box.width - badgeX;
+    const right = Math.min(
+        tier.sideCardW,
+        rightX -
+            coreRight -
+            Math.max(SIDE_CLEAR, rw) -
+            (besideRiver ? at("reach-right") - coreRight : 0),
+        rightX - topAnchor - tier.badgeGap,
+    );
+    return [
+        ["left-badge-w", Math.max(0, Math.min(sideLane, left))],
+        ["right-badge-w", Math.max(0, right)],
+    ];
+}
+
 /** The river's clearance a badge's lane keeps: half a river tile, never under `RIVER_CLEAR_MIN`. */
 function riverClear(rw: number): number {
     return Math.max(RIVER_CLEAR_MIN, rw / 2);
@@ -1452,8 +1509,7 @@ function landscapeTop({
     const m = at("m");
     const reach = fullReach(at("rw"));
     const clear = riverClear(at("rw"));
-    const countersW = frame.family === "phone" ? at("counters-w") : tier.countersW;
-    const start = m + countersW + TOP_START_GAP;
+    const start = m + tier.countersW + TOP_START_GAP;
     const badgeRight =
         frame.box.width - m - at("corner-reserve") - at("corner-shift") - tier.badgeGap;
     const pastRiver = at("cx") + at("hx") + clear;
@@ -1478,7 +1534,19 @@ function desktopRightOrigin(
     const underCorner = Math.max(fromBand, cornerBottom + CORNER_GAP + reach);
     const fromTop = Math.max(fromBand, at("m") + reach);
     const centred = Math.max(cornerBottom + CORNER_GAP + reach, at("cy") + reach / 2);
-    return Math.min(at("corner-in") > 0 ? fromTop : underCorner, centred);
+    return Math.min(at("corner-shift") > 0 ? fromTop : underCorner, centred);
+}
+
+/** A phone's right hand's origin, from its family's lengths. */
+function phoneRightOrigin({ at, tier }: ShellRoom): number {
+    const room = phoneRightRoom({
+        ...tier,
+        cy: at("cy"),
+        handTop: at("hand-top"),
+        ownMeldRise: at("own-meld-rise"),
+        rw: at("rw"),
+    });
+    return phoneRightHand(room).origin;
 }
 
 /**
@@ -1498,15 +1566,11 @@ function landscapeShell(room: ShellRoom): BoardShell {
     const rowRise = at("row-rise");
     const bandTop = handTop - at("band-gap") - at("control-h") - rowRise - at("band-lift");
     const rowBottom = at("band-bottom") - rowRise;
-    const switchH = phone ? at("switch-h") : tier.switchH;
-    const switchesTop =
-        at("switches-bottom") - Math.max(switchH, phone ? at("moves-h") : tier.movesH);
+    const switchesTop = at("switches-bottom") - switchesPlace(tier);
     const left = landscapeLeft(room, { bandTop, switchesTop });
-    const switchesRight =
-        left.switchesLeft + SWITCH_CHIPS * switchH + (phone ? PHONE_SWITCHES_GAPS : SWITCHES_GAPS);
+    const switchesRight = left.switchesLeft + rowWidth(SWITCH_CHIPS, tier.switchH, tier.chipGap);
     const badges = landscapeBadges(room, rowBottom);
-    const badge = Object.fromEntries(badges);
-    const badgeH = phone ? at("badge-h") : tier.badgeH;
+    const { badgeH } = tier;
     const ownStart = Math.max(m, (width - at("own-inline") - FULL_HAND * at("ow")) / 2);
     const ownLead = ownStart + at("own-inline");
     const own = ownLane(room, {
@@ -1518,7 +1582,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
               bottom: rowBottom,
               left: at("reach-right") + ACTIONS_GAP,
               right: width - m,
-              top: (badge["right-badge-top"] ?? 0) + badgeH + ACTIONS_GAP,
+              top: badges.rightBadgeTop + badgeH + ACTIONS_GAP,
           }
         : desktopActions(room, {
               badgeEnd: own.end,
@@ -1527,8 +1591,15 @@ function landscapeShell(room: ShellRoom): BoardShell {
               switchesRight,
           });
     const foregroundTop = bandTop - at("band-gap");
-    const cornerH = phone ? at("corner-h") : tier.cornerH;
+    const { cornerH } = tier;
+    const origin = phone
+        ? phoneRightOrigin(room)
+        : desktopRightOrigin(room, {
+              cornerBottom: m + cornerH,
+              fromBand: foregroundTop + RIGHT_FROM_BAND_GAP,
+          });
     const top = landscapeTop(room);
+    const badgeWidths = landscapeBadgeWidths(room, badges, top.topAnchor);
     const strips = opponentStrips(room, {
         ...top,
         badgeH,
@@ -1537,16 +1608,8 @@ function landscapeShell(room: ShellRoom): BoardShell {
         leftLineEnd: Math.min(foregroundTop, switchesTop - SECOND_LINE_END_GAP),
         leftRoomEnd: left.leftRoomEnd,
         leftStart: left.leftStart,
-        origin: phone
-            ? at("right-origin")
-            : desktopRightOrigin(room, {
-                  cornerBottom: m + cornerH,
-                  fromBand: foregroundTop + RIGHT_FROM_BAND_GAP,
-              }),
-        rightBadgeTop: badge["right-badge-top"] ?? 0,
-        sideBadgeTop: badge["side-badge-top"] ?? 0,
-        sideLane: badge["side-lane"] ?? 0,
-        topBadgeTop: badge["top-badge-top"] ?? 0,
+        origin,
+        ...badges,
         topCap: null,
     });
     const fieldGap = FIELD_GAP[phone ? "phone" : chrome];
@@ -1554,16 +1617,13 @@ function landscapeShell(room: ShellRoom): BoardShell {
         bottom: Math.min(bandTop, switchesTop) - (phone ? PHONE_FIELD_BAND_GAP : FIELD_BAND_GAP),
         left: m + stripReserve(at("rw")) + fieldGap,
         right: at("reach-left") - FIELD_RIVER_GAP,
-        top: Math.max(
-            (badge["side-badge-top"] ?? 0) + badgeH + fieldGap,
-            at("reach-top-row3") + fieldGap,
-        ),
+        top: Math.max(badges.sideBadgeTop + badgeH + fieldGap, at("reach-top-row3") + fieldGap),
     };
     const beside = phone
         ? besideField(room, {
               bandShift: at("band-shift"),
               foregroundTop,
-              origin: at("right-origin"),
+              origin,
           })
         : field;
     return {
@@ -1592,17 +1652,23 @@ function landscapeShell(room: ShellRoom): BoardShell {
             },
         },
         lengths: [
-            ...badges,
+            ...badgeWidths,
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
+            ["counters-top", m],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
+            ["foreground-top", foregroundTop],
+            ["own-badge-x", ownLead],
             ["own-lane", own.lane],
             ["own-start", ownStart],
+            ["right-badge-top", badges.rightBadgeTop],
+            ["side-badge-top", badges.sideBadgeTop],
+            ["side-badge-x", sideBadgeX(tier, at("rw"))],
             ["switches-left", left.switchesLeft],
             ["switches-right", switchesRight],
-            ["switches-top", switchesTop],
+            ["top-badge-top", badges.topBadgeTop],
             ["top-lane", top.topLane],
             ["top-strip-x", top.topAnchor],
         ],
@@ -1643,7 +1709,7 @@ function uprightShell(room: ShellRoom): BoardShell {
     };
     const beside = besideField(room, { bandShift, foregroundTop, origin });
     const countersTop = m + STACKED_DEPTH * rw + UPRIGHT_COUNTERS_GAP;
-    const sideStart = countersTop + tier.countersH + UPRIGHT_COUNTERS_GAP;
+    const sideStart = countersTop + countersHeight(tier) + UPRIGHT_COUNTERS_GAP;
     const leftStart = Math.max(
         sideStart,
         Math.min(at("cy") - reach / 2, bandTop - LEFT_HAND_GAP - reach),
@@ -1653,11 +1719,18 @@ function uprightShell(room: ShellRoom): BoardShell {
         Math.min(leftStart, at("core-top") - tier.badgeH - SIDE_BADGE_CORE_GAP),
     );
     const rightBadgeTop = origin - reach - UPRIGHT_BADGE_GAP - tier.badgeH;
-    const sideLane = Math.min(
+    const badgeX = sideBadgeX(tier, rw);
+    const sideLane = Math.min(tier.sideCardW, at("cx") - at("hx") - riverClear(rw) - badgeX);
+    const sideBottom = sideBadgeTop + tier.badgeH;
+    const laneOverCore = laneShortOf(at("reach-top-left"), badgeX, at("core-top") - sideBottom > 0);
+    const laneByRiver = laneShortOf(at("reach-left"), badgeX, at("cy") - at("h") - sideBottom > 0);
+    const leftBadgeW = Math.min(
         tier.sideCardW,
-        at("cx") - at("hx") - riverClear(rw) - (m + STACKED_DEPTH * rw + tier.badgeGap),
+        Math.max(tier.sideLaneMin, laneOverCore),
+        laneByRiver,
     );
     const topAnchor = Math.max(m + reach, at("cx") + reach / 2);
+    const ownStart = (width - FULL_HAND * at("ow")) / 2;
     const topLane = Math.min(tier.sideCardW, topAnchor - m - tier.countersW - tier.badgeGap);
     const strips = opponentStrips(room, {
         badgeH: tier.badgeH,
@@ -1704,14 +1777,18 @@ function uprightShell(room: ShellRoom): BoardShell {
         lengths: [
             ["actions-left", m],
             ["actions-right", strip],
-            ["corner-in", cornerShift > 0 ? 1 : 0],
             ["corner-shift", cornerShift],
+            ["counters-top", countersTop],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
-            ["own-start", (width - FULL_HAND * at("ow")) / 2],
+            ["foreground-top", foregroundTop],
+            ["own-badge-x", ownStart],
+            ["own-start", ownStart],
             ["right-badge-top", rightBadgeTop],
             ["side-badge-top", sideBadgeTop],
-            ["side-lane", sideLane],
+            ["left-badge-w", Math.max(0, leftBadgeW)],
+            ["right-badge-w", sideLane],
+            ["side-badge-x", badgeX],
             ["top-badge-top", countersTop],
             ["top-lane", topLane],
             ["top-strip-x", topAnchor],
@@ -1720,17 +1797,42 @@ function uprightShell(room: ShellRoom): BoardShell {
     };
 }
 
+/**
+ * What every family's board reads alike: an opponent's hand's gaps and full reach, a side strip's first line and
+ * deepest reach, the face floor.
+ */
+function stripFacts(rw: number): [string, number][] {
+    return [
+        ["bgap", hairline(rw)],
+        ["dg", drawnGap(rw)],
+        ["face-floor", FACE_FLOOR],
+        ["full-reach", fullReach(rw)],
+        ["strip-depth", STACKED_DEPTH * rw],
+        ["strip-reserve", stripReserve(rw)],
+    ];
+}
+
 /** A family's slots from its lengths. */
 function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
     function at(name: string): number {
         return lengths[name] ?? 0;
     }
-    if (frame.family === "upright") {
-        const tier = { ...DESKTOP_CHROME[frame.chrome], ...UPRIGHT_CHROME };
-        return uprightShell({ at, frame, tier });
-    }
-    const tier = frame.family === "phone" ? PHONE_CHROME : DESKTOP_CHROME[frame.chrome];
-    return landscapeShell({ at, frame, tier });
+    const shell =
+        frame.family === "upright"
+            ? uprightShell({
+                  at,
+                  frame,
+                  tier: { ...DESKTOP_CHROME[frame.chrome], ...UPRIGHT_CHROME },
+              })
+            : landscapeShell({
+                  at,
+                  frame,
+                  tier:
+                      frame.family === "phone"
+                          ? phoneChrome(at("rw"))
+                          : DESKTOP_CHROME[frame.chrome],
+              });
+    return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
 }
 
 /** A grid template whose lines stand at each named edge (within the board), merged where edges meet. */
@@ -1833,8 +1935,10 @@ function boardGeometry(input: BoardInput): BoardGeometry {
     const frame = { box: settled, chrome, family, slots: input.slots };
     const sizes = sized ? familyLengths(frame) : {};
     const shell = sized ? boardShell(frame, sizes) : null;
+    const wide = (sizes["w"] ?? 0) - (sizes["c"] ?? 0) * WIDE_CENTRE > 0;
     return Object.freeze({
         box: Object.freeze(settled),
+        centre: wide ? "wide" : "square",
         chrome,
         family,
         gutter: phone ? 0 : PAGE_GUTTER,
@@ -1852,6 +1956,7 @@ function boardGeometry(input: BoardInput): BoardGeometry {
 export { boardGeometry };
 export type {
     BoardBox,
+    BoardCentre,
     BoardEdges,
     BoardFamily,
     BoardGeometry,

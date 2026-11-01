@@ -28,6 +28,11 @@ const TILE_EDGE_SHARE = 0.13;
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
 
+/** A tile's width in hairlines, an opponent's drawn tile's gap in river tiles, and a side strip's lines' gap (px). */
+const TILE_UNITS = 60;
+const OPPONENT_DRAWN_GAP = 0.15;
+const STRIP_LINES_GAP = 4;
+
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT);
 
@@ -64,9 +69,9 @@ const LARGE_CHROME_HEIGHT = 1200;
 type ChromeTier = "small" | "regular" | "large";
 
 /**
- * The px a desktop's sizing and places read of its chrome: margins, gaps, the band's control, the own badge, the
- * switches, the corner, the counters, the replay's controls, the opponents' badges and the decisions' least widths;
- * the stylesheet's chrome blocks mirror the badges', the counters' and the decisions'.
+ * A board's chrome px: margins, gaps, the band's control, the own badge, the switches (their chips' size and gap), the
+ * corner, the counters (the indicator's width, and the padding and rim above and below it), the replay's controls, the
+ * opponents' badges and the decisions' least widths.
  */
 interface DesktopChrome {
     readonly m: number;
@@ -78,15 +83,18 @@ interface DesktopChrome {
     readonly switchGap: number;
     readonly ownInline: number;
     readonly switchH: number;
+    readonly chipGap: number;
     readonly movesH: number;
     readonly sideStart: number;
     readonly cornerH: number;
     readonly countersW: number;
-    readonly countersH: number;
+    readonly doraW: number;
+    readonly countersFrame: number;
     readonly replayGap: number;
     readonly sideLaneMin: number;
     readonly badgeH: number;
     readonly pillH: number;
+    readonly ownPillH: number;
     readonly badgeGap: number;
     readonly sideCardW: number;
     readonly winMinW: number;
@@ -99,15 +107,18 @@ const REGULAR_CHROME: DesktopChrome = {
     badgeGap: 16,
     badgeH: 54,
     bandGap: 18,
+    chipGap: 6,
     controlH: 60,
     coreGap: 40,
     cornerH: 48,
-    countersH: 28 * TILE_ASPECT + 18,
+    countersFrame: 18,
     countersW: 172,
+    doraW: 28,
     m: 18,
     movesH: 52,
     ownBadgeH: 40,
     ownInline: 0,
+    ownPillH: 38,
     pillH: 50,
     replayGap: 6,
     sep: 40,
@@ -126,10 +137,12 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         badgeGap: 20,
         badgeH: 72,
         cornerH: 64,
-        countersH: 37 * TILE_ASPECT + 22,
+        countersFrame: 22,
         countersW: 223,
+        doraW: 37,
         movesH: 60,
         ownBadgeH: 52,
+        ownPillH: 52,
         pillH: 70,
         replayGap: 8,
         sideCardW: 270,
@@ -145,10 +158,12 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         badgeGap: 8,
         badgeH: 40,
         cornerH: 40,
-        countersH: 15 * TILE_ASPECT + 10,
+        countersFrame: 10,
         countersW: 95,
+        doraW: 15,
         movesH: 40,
         ownInline: 96,
+        ownPillH: 30,
         pillH: 38,
         replayGap: 4,
         sideCardW: 130,
@@ -183,38 +198,36 @@ const PHONE_OWN_FLOOR = 36;
 const OWN_BY_RIVER_MAX = 1.7;
 const PHONE_CENTRE_MIN = 94;
 
-/** A phone's chrome over the small tier's: its margins, gaps and band's control, its switches as tall as it. */
+/**
+ * A phone's chrome over the small tier's, which it keeps as a floor: its margins, gaps and band's control, its switches
+ * as tall as it, and its timer.
+ */
 const PHONE_CHROME: DesktopChrome = {
     ...DESKTOP_CHROME.small,
     bandGap: 8,
+    chipGap: 4,
     controlH: 40,
     coreGap: 6,
     m: 4,
     ownInline: 0,
     sep: 10,
     switchH: 40,
+    timerW: 60,
 };
-
-/** A phone's drawn chrome at the small tier's px (the stylesheet's small-chrome block), which it keeps as a floor. */
-const PHONE_DRAWN_CHROME = {
-    "badge-h": 40,
-    "corner-h": 40,
-    "counters-w": 95,
-    "dora-w": 15,
-    "own-pill-h": 30,
-    "pill-h": 38,
-    "timer-w": 60,
-} as const;
 
 /** A phone's chrome grows with its river tile past this one (px). */
 const PHONE_CHROME_RIVER = 24;
 
-/** An upright board's chrome over the desktop tier's: a phone's margin, band gap and control, and room before its own hand. */
+/**
+ * An upright board's chrome over the desktop tier's: a phone's margin, band gap, control and timer, and room before its
+ * own hand.
+ */
 const UPRIGHT_CHROME = {
     bandGap: 8,
     controlH: 40,
     m: 4,
     ownInline: 96,
+    timerW: 60,
 } as const;
 
 export {
@@ -236,13 +249,13 @@ export {
     MENU_MIN,
     MENU_RIVER_SHARE,
     NOTICES_BESIDE_PANEL,
+    OPPONENT_DRAWN_GAP,
     OWN_BY_RIVER_MAX,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
     PHONE_CENTRE_MIN,
     PHONE_CHROME,
     PHONE_CHROME_RIVER,
-    PHONE_DRAWN_CHROME,
     PHONE_HEIGHT,
     PHONE_OWN_FLOOR,
     RIGHT_LATEST_DISCARD_GAP,
@@ -254,8 +267,10 @@ export {
     SIDEWAYS_UNITS,
     SMALL_CHROME_WIDTH,
     STACKED_DEPTH,
+    STRIP_LINES_GAP,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
+    TILE_UNITS,
     UPRIGHT_CHROME,
     UPRIGHT_DEPTH,
 };

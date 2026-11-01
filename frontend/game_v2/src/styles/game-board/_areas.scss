@@ -18,9 +18,6 @@ $max-melds: 4;
     overflow: hidden;
 }
 
-$river-along: calc(6 * var(--rw));
-$river-across: calc(3 * var(--rh));
-
 /* The rivers' pinwheel: each starts at the centre's corner on its seat's left, a gap from the centre. A river's area is
    a normal river's turned footprint, its frame turned to the seat from the area's corner where the first row starts. */
 .board-river {
@@ -29,8 +26,8 @@ $river-across: calc(3 * var(--rh));
 
     position: absolute;
     display: block;
-    width: $river-along;
-    height: $river-across;
+    width: var(--river-along);
+    height: var(--river-across);
 
     &--bottom {
         --frame-turn: 0deg;
@@ -41,28 +38,28 @@ $river-across: calc(3 * var(--rh));
 
     &--right,
     &--left {
-        width: $river-across;
-        height: $river-along;
+        width: var(--river-across);
+        height: var(--river-along);
     }
 
     &--right {
         --frame-turn: -90deg;
 
         left: calc(var(--cx) + var(--hx) + var(--g));
-        top: calc(var(--cy) + var(--h) - #{$river-along});
+        top: calc(var(--cy) + var(--h) - var(--river-along));
     }
 
     &--top {
         --frame-turn: 180deg;
 
-        left: calc(var(--cx) + var(--hx) - #{$river-along});
-        top: calc(var(--cy) - var(--h) - var(--g) - #{$river-across});
+        left: calc(var(--cx) + var(--hx) - var(--river-along));
+        top: calc(var(--cy) - var(--h) - var(--g) - var(--river-across));
     }
 
     &--left {
         --frame-turn: 90deg;
 
-        left: calc(var(--cx) - var(--hx) - var(--g) - #{$river-across});
+        left: calc(var(--cx) - var(--hx) - var(--g) - var(--river-across));
         top: calc(var(--cy) - var(--h));
     }
 }
@@ -71,8 +68,8 @@ $river-across: calc(3 * var(--rh));
     position: absolute;
     left: 0;
     top: 0;
-    width: $river-along;
-    height: $river-across;
+    width: var(--river-along);
+    height: var(--river-across);
     transform-origin: 0 0;
     transform: rotate(var(--frame-turn));
 }
@@ -206,16 +203,15 @@ $river-across: calc(3 * var(--rh));
 
     @include upright-board {
         min-width: calc(
-            var(--meld-units) * #{$face-floor} + max(0, var(--meld-n) - 1) * (var(--g) + 2px) + 2px
+            var(--meld-units) * var(--face-floor) + max(0, var(--meld-n) - 1) * (var(--g) + 2px) + 2px
         );
     }
 
     > :is(.meld, .meld--source) {
         --board-tile-w: max(
-            #{$face-floor},
+            var(--face-floor),
             min(
-                #{$own-meld-scale} * var(--rw),
-                var(--ow),
+                var(--own-meld-tile),
                 (100cqi - (var(--meld-n) - 1) * (var(--g) + 2px) - 2px) / max(var(--meld-units), 1)
             )
         );

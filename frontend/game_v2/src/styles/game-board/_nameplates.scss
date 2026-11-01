@@ -101,72 +101,25 @@ $plate-seats: bottom, right, top, left;
 }
 
 .nameplate--left {
-    --above-left-river: clamp(
-        0px,
-        (var(--cy) - var(--h) - var(--side-badge-top) - var(--badge-h)) * 1000,
-        99999px
-    );
-
-    left: var(--left-badge-x);
-    max-width: min(
-        var(--side-lane),
-        var(--reach-left) - 6px - var(--left-badge-x) + var(--above-left-river)
-    );
-
-    /* Upright, beside its hand's first tile: a card wide over the core, else short of the top river's longest third
-       row but an ordinary name wide at least, which only a third row past six tiles and a riichi tile reaches. */
-    @include upright-board {
-        --above-core: clamp(
-            0px,
-            (var(--core-top) - var(--side-badge-top) - var(--badge-h)) * 1000,
-            99999px
-        );
-
-        max-width: min(
-            var(--side-card-w),
-            max(
-                var(--side-lane-min),
-                var(--reach-top-left) - 6px - var(--left-badge-x) + var(--above-core)
-            ),
-            var(--reach-left) - 6px - var(--left-badge-x) + var(--above-left-river)
-        );
-    }
+    left: var(--side-badge-x);
+    max-width: var(--left-badge-w);
 }
 
 .nameplate--right {
-    --right-river-top: calc(
-        var(--cy) + var(--h) - 5 * var(--rw) - var(--rh) - var(--right-latest-discard-gap)
-    );
-    --beside-right-river: clamp(
-        0px,
-        (var(--right-badge-top) + var(--badge-h) - var(--right-river-top)) * 1000,
-        var(--reach-right) - var(--cx) - var(--hx)
-    );
-    --right-badge-x: calc(100cqw - var(--m) - var(--strip-depth) - var(--badge-gap));
-
     top: var(--right-badge-top);
-    right: calc(100cqw - var(--right-badge-x));
+    right: var(--side-badge-x);
     justify-content: flex-end;
-    max-width: min(
-        var(--side-card-w),
-        var(--right-badge-x) - var(--cx) - var(--hx) - var(--side-clear) - var(--beside-right-river),
-        var(--right-badge-x) - var(--top-strip-x) - var(--badge-gap)
-    );
-
-    @include upright-board {
-        max-width: var(--side-lane);
-    }
+    max-width: var(--right-badge-w);
 }
 
 /* The own badge heads its hand above its left end, under the play switches (`--own-lane`), the one badge on one line:
    its lane is wide and short. The furiten mark follows it on its line (`.board-furiten`). */
 .board-own-head {
     /* A lane short of an ordinary name starts further left, under the switches, clear of the left strip. */
-    --own-badge-x: var(--own-lead);
     --own-badge-shift: clamp(
         0px,
         var(--side-lane-min) - var(--own-lane),
-        var(--own-badge-x) - var(--m) - var(--strip-depth) - var(--badge-gap)
+        var(--own-badge-x) - var(--side-badge-x)
     );
 
     position: absolute;
@@ -178,8 +131,6 @@ $plate-seats: bottom, right, top, left;
     gap: 8px;
 
     @include upright-board {
-        --own-badge-x: var(--own-start);
-
         left: calc(var(--own-start) - var(--m) - var(--own-badge-shift));
     }
 }
@@ -203,7 +154,6 @@ $plate-seats: bottom, right, top, left;
 /* A board without the page's corner (a storybook's) keeps no room for it. */
 .game-board:not(:has(.board-menu)) > :is(.board-layout, .board-overlay) {
     --corner-reserve: 0px;
-    --corner-shift: 0px;
 }
 
 /* A corner holding the debug log (`?debug`) keeps room for its summary beside the cog. */

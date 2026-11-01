@@ -1,4 +1,11 @@
-import { FACE_FLOOR, TILE_ASPECT, UPRIGHT_DEPTH } from "./board-constants";
+import {
+    FACE_FLOOR,
+    OPPONENT_DRAWN_GAP,
+    STRIP_LINES_GAP,
+    TILE_ASPECT,
+    TILE_UNITS,
+    UPRIGHT_DEPTH,
+} from "./board-constants";
 
 /** An opponent's strip seat: the own row is the hand's slot, its melds scaled by their container. */
 type StripSeat = "left" | "top" | "right";
@@ -74,13 +81,6 @@ const STRIP_POLICY = {
     top: { melds: "scale" },
 } as const;
 
-/** The gap between a side strip's two lines (px). */
-const LINES_GAP = 4;
-
-/** An opponent's hand's hairline, in a tile's widths, and its drawn tile's gap, in river tiles. */
-const TILE_UNITS = 60;
-const DRAWN_GAP = 0.15;
-
 /** A deeper meld than this keeps a side strip out from under the page's corner, in its tiles' widths. */
 const SHALLOW_DEPTH = 1.5;
 
@@ -88,10 +88,19 @@ function sum(values: readonly number[]): number {
     return values.reduce((total, value) => total + value, 0);
 }
 
+/** An opponent's hairline between tiles, a whole pixel (a side strip's quarter turn blurs a fractional one away). */
+function hairline(rw: number): number {
+    return Math.ceil(rw / TILE_UNITS);
+}
+
+/** An opponent's drawn tile's gap, a whole pixel. */
+function drawnGap(rw: number): number {
+    return Math.round(OPPONENT_DRAWN_GAP * rw);
+}
+
 /** A hand's length along its line (px): its tiles, whole-pixel hairlines between them and a drawn tile's gap. */
 function handLength(tiles: number, drawn: boolean, rw: number): number {
-    const drawnGap = drawn ? Math.round(DRAWN_GAP * rw) : 0;
-    return tiles * rw + Math.max(0, tiles - 1) * Math.ceil(rw / TILE_UNITS) + drawnGap;
+    return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw) : 0);
 }
 
 function deepest(content: StripContent): number {
@@ -130,14 +139,14 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
             ? { along: handLen + (index + 1) * gap + before(index) * rw + shift, rise: 0, tile: rw }
             : {
                   along: base + before(index) * tile + index * gap - secondStart,
-                  rise: firstLine + LINES_GAP,
+                  rise: firstLine + STRIP_LINES_GAP,
                   tile,
               },
     );
     const oldest = content.melds.at(-1)?.depth ?? 0;
     const over = (ends.at(-1) ?? handLen) > room;
     return {
-        depth: over ? firstLine + LINES_GAP + oldest * rw : firstLine,
+        depth: over ? firstLine + STRIP_LINES_GAP + oldest * rw : firstLine,
         melds,
         pull: 0,
     };
@@ -175,14 +184,19 @@ function stripLayout(seat: StripSeat, content: StripContent, rooms: StripRooms):
     return seat === "top" ? topLayout(content, rooms) : sideLayout(seat, content, rooms);
 }
 
-/** A strip's layout as the lengths its stylesheet places it from (px). */
+/** A strip's layout as lengths (px): its melds, the top strip's pull and a side strip's depth as drawn. */
 function seatLengths(seat: StripSeat, { depth, melds, pull }: StripLayout): [string, number][] {
     const places = melds.flatMap(({ along, rise, tile }, index): [string, number][] => [
         [`${seat}-meld-${index}-along`, along],
         [`${seat}-meld-${index}-tile`, tile],
         [`${seat}-meld-${index}-rise`, rise],
     ]);
-    return [[`${seat}-depth`, depth], [`${seat}-pull`, pull], ...places];
+    const frame: Record<StripSeat, [string, number][]> = {
+        left: [["left-depth", depth]],
+        right: [["right-depth", depth]],
+        top: [["top-pull", pull]],
+    };
+    return [...frame[seat], ...places];
 }
 
 /** The strips' layouts as the lengths their stylesheet places them from, by seat (px). */
@@ -197,7 +211,7 @@ function stripLengths(
     );
 }
 
-export { STRIP_POLICY, stripLayout, stripLengths };
+export { STRIP_POLICY, drawnGap, hairline, handLength, stripLayout, stripLengths };
 export type {
     MeldShape,
     MeldPlace,

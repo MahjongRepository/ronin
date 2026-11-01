@@ -10,10 +10,6 @@
     --row-depth: calc(var(--edge-gap) + var(--row-h) + 2 * var(--stick-gap) + var(--stick-h));
     --corner: calc(var(--c) * 0.07);
 
-    /* 1px where the centre is wide: its sides' rows stand centred, as Tenhou's; a square centre's stand off its
-       corner on the seat's left, a pinwheel, so a long row never meets the next side's. */
-    --centred: clamp(0px, (var(--w) - var(--c) * 1.2) * 1000, 1px);
-
     position: absolute;
     left: calc(var(--cx) - var(--hx));
     top: calc(var(--cy) - var(--h));
@@ -92,9 +88,11 @@
     }
 }
 
+/* A wide centre's sides' rows stand centred, as Tenhou's; a square centre's off its corner on the seat's left, a
+   pinwheel, so a long row never meets the next side's. */
 .board-center__score-line {
     position: absolute;
-    left: max(var(--row-depth), min(50%, var(--row-depth) + var(--centred) * 100000));
+    left: var(--row-depth);
     bottom: var(--edge-gap);
     display: flex;
     align-items: baseline;
@@ -105,7 +103,11 @@
     line-height: var(--row-h);
     color: var(--ronin-text);
     white-space: nowrap;
-    transform: translateX(max(-50%, var(--centred) * -100000));
+
+    @include board-where($wide-centre-board) {
+        left: max(var(--row-depth), 50%);
+        transform: translateX(-50%);
+    }
 }
 
 /* A replay's other seats' scores view from their seats at a pointer's press; their plates are the keyboard's. */

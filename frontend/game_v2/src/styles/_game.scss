@@ -106,16 +106,6 @@ section {
             box-shadow: 0 0 8px color-mix(in srgb, var(--ronin-danger) 70%, transparent);
         }
     }
-
-    &.status-replay {
-        background: var(--ronin-chip);
-        color: var(--ronin-text-secondary);
-        border: 1px solid var(--ronin-badge-rim);
-
-        &::before {
-            background: var(--ronin-text-secondary);
-        }
-    }
 }
 
 .game-menu {

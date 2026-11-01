@@ -1,6 +1,6 @@
 @use "game-board/queries" as *;
 
-@each $name in rb, rgap, moves-w, status-left, status-right {
+@each $name in rb, rgap, status-left, status-right {
     @property --#{$name} {
         syntax: "<length>";
         inherits: true;
@@ -240,7 +240,7 @@
 .game-board--replay:where(#{$phone-board}) > .board-overlay:has(.seating) {
     --panel-left: max(
         var(--geo-overlay-left),
-        var(--switches-left) + 5 * var(--geo-moves-h) + 5 * var(--geo-replay-gap)
+        var(--switches-left) + var(--moves-w) + var(--geo-replay-gap)
     );
     --panel-bottom: calc(
         100cqh - var(--geo-band-bottom) + var(--geo-moves-h) + var(--geo-replay-gap)
@@ -288,7 +288,6 @@
     }
 
     .board-notices {
-        --moves-w: calc(5 * var(--rb) + 4 * var(--rgap));
         --status-left: var(--switches-left);
         --status-right: calc(var(--actions-right) + var(--moves-w) + var(--rb) + 3 * var(--rgap));
 

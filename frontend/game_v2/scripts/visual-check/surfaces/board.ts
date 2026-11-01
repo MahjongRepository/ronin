@@ -1000,7 +1000,7 @@ async function checkBoard({
 
 /**
  * A page at the near-square upright window for the right strip's second meld line must draw one: the
- * strip's depth as laid out (`--right-depth`) past its first line's reserve (`--strip-depth`), or the places beside
+ * strip's depth as laid out (`--right-depth`) past its first line's reserve (`--geo-strip-depth`), or the places beside
  * it go untested. The tiles' rims draw a one-line strip a few pixels past that reserve, so their boxes cannot tell.
  */
 async function expectRightSecondLine(page: Page, report: PageReport): Promise<void> {
@@ -1009,7 +1009,7 @@ async function expectRightSecondLine(page: Page, report: PageReport): Promise<vo
         const style = table === null ? null : getComputedStyle(table);
         return {
             depth: Number.parseFloat(style?.getPropertyValue("--right-depth") ?? "0"),
-            firstLine: Number.parseFloat(style?.getPropertyValue("--strip-depth") ?? "0"),
+            firstLine: Number.parseFloat(style?.getPropertyValue("--geo-strip-depth") ?? "0"),
         };
     });
     report.expect(

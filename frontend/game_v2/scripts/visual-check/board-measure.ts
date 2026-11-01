@@ -221,7 +221,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             }
             const origin = box(strip);
             const style = getComputedStyle(strip);
-            const reach = Number.parseFloat(style.getPropertyValue("--full-reach"));
+            const reach = Number.parseFloat(style.getPropertyValue("--geo-full-reach"));
             const depth = Number.parseFloat(style.getPropertyValue("--bh"));
             const left = seat === "left" ? origin.left : origin.left - depth;
             const top = seat === "left" ? origin.top : origin.top - reach;

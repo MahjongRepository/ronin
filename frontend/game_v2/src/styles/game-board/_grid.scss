@@ -1,25 +1,6 @@
 @forward "queries";
 @use "queries" as *;
 
-/* Lengths CSS computes, registered so each computes once to pixels (an unregistered chain grows with every use). */
-$lengths:
-    strip-depth, strip-reserve, counters-top, bw, bh, foreground-top, band-height, band-bottom,
-    side-badge-top, left-badge-x, side-lane, own-start, switches-left, switches-right, dg, bgap,
-    full-reach, corner-shift, band-shift, switches-top, top-lane, switches-bottom, row-rise,
-    top-strip-x, top-badge-top, right-badge-top, own-lead, own-lane, side-clear, counters-h;
-
-/* Upright, the counters stand this far under the top strip and the left strip this far under them (mirrors
-   `board-geometry.ts`'s `UPRIGHT_COUNTERS_GAP`). */
-$upright-counters-gap: 6px;
-
-@each $name in $lengths {
-    @property --#{$name} {
-        syntax: "<length>";
-        inherits: true;
-        initial-value: 0;
-    }
-}
-
 .game-board {
     container: game-board / size;
     position: relative;
@@ -30,236 +11,88 @@ $upright-counters-gap: 6px;
 }
 
 .game-board > :is(.board-layout, .board-overlay) {
-    /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`; the full reach's and the left
-       hand's literals mirror `board-geometry.ts`'s. */
-
-    /* The viewport class: a desktop's chrome; a phone's and an upright board's sizing chrome is `PHONE_CHROME`'s and
-       `UPRIGHT_CHROME`'s. */
-    --badge-h: 54px;
-    --pill-h: 50px;
-    --own-pill-h: 38px;
-    --badge-gap: 16px;
-    --corner-h: 48px;
-    --counters-w: 172px;
-    --dora-w: 28px;
-
-    /* The counters' height (`.board-dora`): an indicator's, the panel's padding and rim. */
-    --counters-h: calc(var(--dora-w) * 4 / 3 + 18px);
-    --counters-top: var(--m);
     --text: 17px;
-    --switch-h: 44px;
-    --moves-h: 52px;
-    --side-card-w: 200px;
-    --side-lane-min: 125px;
-    --timer-w: 120px;
-    --action-min-w: 96px;
-    --win-min-w: 150px;
 
-    /* The perimeter and the foreground band. An opponent's hand is at the river tile's size, its hairline a whole pixel
-       (a side strip's quarter turn blurs a fractional one away), its full reach fourteen tiles, the drawn one apart. */
+    /* An opponent's hand is at the river tile's size. */
     --bw: var(--rw);
     --bh: var(--rh);
-    --dg: round(calc(0.15 * var(--rw)), 1px);
-    --bgap: round(up, calc(var(--bw) / #{$tile-w}), 1px);
-    --full-reach: calc(14 * var(--bw) + 13 * var(--bgap) + var(--dg));
-    --band-height: calc(
-        2 * var(--band-gap) + var(--control-h) + var(--row-rise) + var(--band-lift)
-    );
-    --foreground-top: calc(var(--hand-top) - var(--band-height));
-    --band-bottom: calc(var(--hand-top) - var(--band-gap) - var(--band-lift));
-    --strip-depth: calc(2 * var(--rw));
 
-    /* A side strip's deepest reach: two stacked lines 4px apart, the second's tiles never under the face floor. */
-    --strip-reserve: calc(2 * var(--rw) + 4px + 2 * max(var(--rw), #{$face-floor}));
-    --left-badge-x: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
-    --side-clear: max(16px, var(--rw));
-
-    /* The own badge's lane starts at the hand's left end. */
-    --own-lead: calc(var(--own-start) + var(--own-inline));
-
-    /* What the stylesheets of the board's other parts count in: a river tile's sixtieth, and the own tile. */
+    /* What the stylesheets of the board's other parts count in: a river tile's sixtieth. */
     --board-table-unit: calc(var(--rw) / #{$tile-w});
-    --board-local-tile-w: var(--ow);
 
     @include small-chrome {
-        --badge-h: 40px;
-        --pill-h: 38px;
-        --own-pill-h: 30px;
-        --badge-gap: 8px;
-        --corner-h: 40px;
-        --counters-w: 95px;
-        --dora-w: 15px;
-        --counters-h: calc(var(--dora-w) * 4 / 3 + 10px);
         --text: 12px;
-        --switch-h: 44px;
-        --moves-h: 40px;
-        --side-card-w: 130px;
-        --side-lane-min: 90px;
-        --timer-w: 76px;
-        --action-min-w: 64px;
-        --win-min-w: 96px;
     }
 
     @include large-chrome {
-        --badge-h: 72px;
-        --pill-h: 70px;
-        --own-pill-h: 52px;
-        --badge-gap: 20px;
-        --corner-h: 64px;
-        --counters-w: 223px;
-        --dora-w: 37px;
-        --counters-h: calc(var(--dora-w) * 4 / 3 + 22px);
         --text: 24px;
-        --switch-h: 52px;
-        --moves-h: 60px;
-        --side-card-w: 270px;
-        --side-lane-min: 170px;
-        --timer-w: 150px;
-    }
-
-    @include upright-board {
-        --row-rise: 0px;
-        --counters-top: calc(var(--m) + var(--strip-depth) + #{$upright-counters-gap});
-        --band-lift: 0px;
-        --timer-w: 60px;
     }
 }
 
-.game-board:where(
-        [data-board-family="desktop"],
-        [data-board-family="short-desktop"],
-        [data-board-family="phone"]
-    )
-    > :is(.board-layout, .board-overlay) {
+/* Every size and place is `boardGeometry`'s, written as `--geo-<name>` on the board. */
+.game-board:where([data-board-family]) > :is(.board-layout, .board-overlay) {
     --rw: var(--geo-rw);
     --rh: var(--geo-rh);
     --ow: var(--geo-ow);
     --oh: var(--geo-oh);
-    --own-fit: var(--geo-own-fit);
     --g: var(--geo-g);
-    --core: var(--geo-core);
     --c: var(--geo-c);
     --h: var(--geo-h);
     --w: var(--geo-w);
     --hx: var(--geo-hx);
     --cx: var(--geo-cx);
     --cy: var(--geo-cy);
-    --core-top: var(--geo-core-top);
-    --hand-bottom: var(--geo-hand-bottom);
-    --hand-top: var(--geo-hand-top);
-    --core-room-h: var(--geo-core-room-h);
-    --core-room-w: var(--geo-core-room-w);
-    --core-room-band: var(--geo-core-room-band);
-    --band-reserve: var(--geo-band-reserve);
-    --band-lift: var(--geo-band-lift);
-    --row-rise: var(--geo-row-rise);
-    --own-meld-tile: var(--geo-own-meld-tile);
     --own-meld-rise: var(--geo-own-meld-rise);
-    --own-rise: var(--geo-own-rise);
+    --own-meld-tile: var(--geo-own-meld-tile);
     --switches-bottom: var(--geo-switches-bottom);
-    --band-bottom: var(--geo-band-bottom);
     --m: var(--geo-m);
-    --sep: var(--geo-sep);
-    --core-gap: var(--geo-core-gap);
     --control-h: var(--geo-control-h);
     --band-gap: var(--geo-band-gap);
     --own-badge-h: var(--geo-own-badge-h);
-    --switch-gap: var(--geo-switch-gap);
-    --own-inline: var(--geo-own-inline);
-    --reach-left: var(--geo-reach-left);
-    --reach-right: var(--geo-reach-right);
-    --reach-top-row3: var(--geo-reach-top-row3);
-    --reach-top-left: var(--geo-reach-top-left);
     --reach-bottom-right: var(--geo-reach-bottom-right);
     --latest-discard-gap: var(--geo-latest-discard-gap);
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
+    --river-along: var(--geo-river-along);
+    --river-across: var(--geo-river-across);
     --menu-size: var(--geo-menu-size);
     --corner-reserve: var(--geo-corner-reserve);
-    --corner-shift: var(--geo-corner-shift);
     --top-badge-top: var(--geo-top-badge-top);
     --side-badge-top: var(--geo-side-badge-top);
     --right-badge-top: var(--geo-right-badge-top);
-    --side-lane: var(--geo-side-lane);
     --own-start: var(--geo-own-start);
     --own-lane: var(--geo-own-lane);
+    --own-badge-x: var(--geo-own-badge-x);
     --switches-left: var(--geo-switches-left);
     --switches-right: var(--geo-switches-right);
-    --switches-top: var(--geo-switches-top);
     --top-strip-x: var(--geo-top-strip-x);
     --top-lane: var(--geo-top-lane);
     --actions-left: var(--geo-actions-left);
     --actions-right: var(--geo-actions-right);
     --actions-bottom: var(--geo-actions-bottom);
-}
-
-/* A phone's chrome and its right hand's place are `boardGeometry`'s too. */
-.game-board:where([data-board-family="phone"]) > :is(.board-layout, .board-overlay) {
     --badge-h: var(--geo-badge-h);
     --pill-h: var(--geo-pill-h);
     --own-pill-h: var(--geo-own-pill-h);
-    --corner-h: var(--geo-corner-h);
     --counters-w: var(--geo-counters-w);
+    --counters-h: var(--geo-counters-h);
+    --counters-top: var(--geo-counters-top);
     --dora-w: var(--geo-dora-w);
     --timer-w: var(--geo-timer-w);
     --switch-h: var(--geo-switch-h);
+    --chip-gap: var(--geo-chip-gap);
     --moves-h: var(--geo-moves-h);
+    --moves-w: var(--geo-moves-w);
+    --side-lane-min: var(--geo-side-lane-min);
+    --action-min-w: var(--geo-action-min-w);
+    --win-min-w: var(--geo-win-min-w);
     --band-shift: var(--geo-band-shift);
-}
-
-.game-board:where([data-board-family="upright"]) > :is(.board-layout, .board-overlay) {
-    --rw: var(--geo-rw);
-    --rh: var(--geo-rh);
-    --ow: var(--geo-ow);
-    --oh: var(--geo-oh);
-    --own-fit: var(--geo-own-fit);
-    --g: var(--geo-g);
-    --core: var(--geo-core);
-    --c: var(--geo-c);
-    --h: var(--geo-h);
-    --w: var(--geo-w);
-    --hx: var(--geo-hx);
-    --cx: var(--geo-cx);
-    --cy: var(--geo-cy);
-    --core-top: var(--geo-core-top);
-    --core-floor: var(--geo-core-floor);
-    --hand-bottom: var(--geo-hand-bottom);
-    --hand-top: var(--geo-hand-top);
-    --core-room-h: var(--geo-core-room-h);
-    --core-room-w: var(--geo-core-room-w);
-    --core-room-band: var(--geo-core-room-band);
-    --band-reserve: var(--geo-band-reserve);
-    --notices-bottom: var(--geo-notices-bottom);
-    --own-meld-tile: var(--geo-own-meld-tile);
-    --own-meld-rise: var(--geo-own-meld-rise);
-    --own-rise: var(--geo-own-rise);
-    --own-lane: var(--geo-own-lane);
-    --own-start: var(--geo-own-start);
-    --actions-left: var(--geo-actions-left);
-    --actions-right: var(--geo-actions-right);
-    --actions-bottom: var(--geo-actions-bottom);
-    --m: var(--geo-m);
-    --sep: var(--geo-sep);
-    --core-gap: var(--geo-core-gap);
-    --control-h: var(--geo-control-h);
-    --band-gap: var(--geo-band-gap);
-    --own-badge-h: var(--geo-own-badge-h);
-    --own-inline: var(--geo-own-inline);
-    --reach-left: var(--geo-reach-left);
-    --reach-right: var(--geo-reach-right);
-    --reach-top-row3: var(--geo-reach-top-row3);
-    --reach-top-left: var(--geo-reach-top-left);
-    --reach-bottom-right: var(--geo-reach-bottom-right);
-    --latest-discard-gap: var(--geo-latest-discard-gap);
-    --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
-    --menu-size: var(--geo-menu-size);
-    --corner-reserve: var(--geo-corner-reserve);
-    --corner-shift: var(--geo-corner-shift);
-    --top-badge-top: var(--geo-top-badge-top);
-    --side-badge-top: var(--geo-side-badge-top);
-    --right-badge-top: var(--geo-right-badge-top);
-    --side-lane: var(--geo-side-lane);
-    --top-strip-x: var(--geo-top-strip-x);
-    --top-lane: var(--geo-top-lane);
+    --foreground-top: var(--geo-foreground-top);
+    --strip-reserve: var(--geo-strip-reserve);
+    --side-badge-x: var(--geo-side-badge-x);
+    --left-badge-w: var(--geo-left-badge-w);
+    --right-badge-w: var(--geo-right-badge-w);
+    --bgap: var(--geo-bgap);
+    --dg: var(--geo-dg);
+    --face-floor: var(--geo-face-floor);
 }
 
 .game-board:not([data-board-family]) > :is(.board-layout, .board-overlay) {

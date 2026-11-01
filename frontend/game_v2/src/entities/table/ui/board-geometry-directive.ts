@@ -39,11 +39,11 @@ function pageEdges(board: HTMLElement): Pick<BoardInput, "gutter" | "safeInsets"
 }
 
 /**
- * Size the board from its own box and the slots its page fills (`boardGeometry`): its family and chrome as
- * `data-board-family` / `data-board-chrome` and its sizes as `--geo-<name>` on the board, measured once its first
- * render is in the document and again as its box or its slots change, until it leaves; and lay out the opponents'
- * strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths, again as what they hold
- * changes. An empty box (a hidden board) changes nothing and the board stays watched.
+ * Size the board from its own box and the slots its page fills (`boardGeometry`): its family, chrome and centre as
+ * `data-board-family` / `data-board-chrome` / `data-board-centre` and its sizes as `--geo-<name>` on the board,
+ * measured once its first render is in the document and again as its box or its slots change, until it leaves; and
+ * lay out the opponents' strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths, again as
+ * what they hold changes. An empty box (a hidden board) changes nothing and the board stays watched.
  */
 class SizeBoard extends AsyncDirective {
     private board: HTMLElement | null = null;
@@ -157,14 +157,18 @@ class SizeBoard extends AsyncDirective {
     }
 
     private write(board: HTMLElement, geometry: BoardGeometry): void {
-        const { chrome, family, lengths, strips, tracks } = geometry;
+        const { centre, chrome, family, lengths, strips, tracks } = geometry;
         this.geometry = geometry;
-        const laid = strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
+        const laid =
+            strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
         if (board.dataset.boardFamily !== family) {
             board.dataset.boardFamily = family;
         }
         if (board.dataset.boardChrome !== chrome) {
             board.dataset.boardChrome = chrome;
+        }
+        if (board.dataset.boardCentre !== centre) {
+            board.dataset.boardCentre = centre;
         }
         this.writeValues(
             board,
@@ -174,7 +178,9 @@ class SizeBoard extends AsyncDirective {
                 ),
                 ["--geo-shell-columns", tracks.columns],
                 ["--geo-shell-rows", tracks.rows],
-                ...Object.entries(laid).map(([name, length]) => [`--${name}`, `${length}px`] as const),
+                ...Object.entries(laid).map(
+                    ([name, length]) => [`--${name}`, `${length}px`] as const,
+                ),
             ]),
         );
     }

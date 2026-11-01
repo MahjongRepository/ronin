@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    DESKTOP_CHROME,
     FULL_HAND,
     LATEST_DISCARD_GAP,
     RIGHT_LATEST_DISCARD_GAP,
@@ -15,9 +16,9 @@ import {
 } from "@/entities/table/lib/board-geometry";
 
 /** The sizes pinned, in the order each case lists them. */
-const SIZES = ["rw", "ow", "core", "c", "w", "core-top"] as const;
+const SIZES = ["rw", "ow", "c", "w", "core-top"] as const;
 const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
-const UPRIGHT_SIZES = ["rw", "core", "core-top"] as const;
+const UPRIGHT_SIZES = ["rw", "c", "core-top"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play", corner: true };
@@ -100,17 +101,20 @@ describe("boardGeometry", () => {
                     family,
                     gutter: 10,
                 });
-                expect(length("core")).toBeGreaterThan(0);
+                expect(length("c")).toBeGreaterThan(0);
                 expect(FULL_HAND * length("ow")).toBeLessThanOrEqual(
                     box.width - 2 * length("m") - length("own-inline"),
                 );
+                const coreBottom =
+                    length("cy") +
+                    length("h") +
+                    length("g") +
+                    3 * length("rh") +
+                    LATEST_DISCARD_GAP;
                 const [aboveBand, bandTop] =
                     family === "short-desktop"
                         ? [length("cy") + length("h"), length("band-bottom") - length("control-h")]
-                        : [
-                              length("core-top") + length("core"),
-                              length("hand-top") - length("band-reserve"),
-                          ];
+                        : [coreBottom, length("foreground-top")];
                 expect(aboveBand).toBeLessThanOrEqual(bandTop + 0.001);
             }
         },
@@ -139,10 +143,10 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1440, 900, [42, 56, 549.2, 173.2, 242.48, 114]],
-        [1440, 800, [36, 48, 471.6, 147.6, 206.64, 106]],
-        [2560, 1440, [73, 97, 937.2, 295.2, 413.28, 191.6]],
-        [800, 600, [22, 29, 295.867, 91.867, 128.613, 87.333]],
+        [1440, 900, [42, 56, 173.2, 242.48, 114]],
+        [1440, 800, [36, 48, 147.6, 206.64, 106]],
+        [2560, 1440, [73, 97, 295.2, 413.28, 191.6]],
+        [800, 600, [22, 29, 91.867, 128.613, 87.333]],
     ])(
         "sizes a %ix%i window's desktop board, its core holding the latest discards' gaps",
         (width, height, expected) => {
@@ -178,13 +182,16 @@ describe("boardGeometry", () => {
             for (const [index, name] of SHORT_DESKTOP_SIZES.entries()) {
                 expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
             }
-            expect(leftRiverEnd + 4).toBeLessThanOrEqual(length("switches-top") + 0.001);
+            const { movesH, switchH } = DESKTOP_CHROME.regular;
+            const switchesTop = length("switches-bottom") - Math.max(movesH, switchH);
+
+            expect(leftRiverEnd + 4).toBeLessThanOrEqual(switchesTop + 0.001);
         },
     );
 
     it.each([
-        [375, 548, [11, 205.667, 103.933]],
-        [800, 801, [30, 393.8, 122]],
+        [375, 548, [11, 97.667, 103.933]],
+        [800, 801, [30, 121.8, 122]],
     ])(
         "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
         (width, height, expected) => {
@@ -203,7 +210,7 @@ describe("boardGeometry", () => {
         {
             above: false,
             height: 430,
-            pinned: { "band-shift": 36.667, "corner-in": 1, ow: 39, "right-origin": 342, rw: 23 },
+            pinned: { "band-shift": 36.667, "corner-shift": 36.667, ow: 39, rw: 23 },
             width: 932,
         },
         { above: false, height: 500, pinned: { "control-h": 43.333, ow: 44, rw: 26 }, width: 1024 },

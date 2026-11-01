@@ -6,8 +6,9 @@ they disagree.
 - **The board sizes itself from its own box.** `.game-board` is a size container named `game-board`; every length
   derives from its box (container query units), never the viewport. A page that gives it a box decides its size.
 - **Sizes come from `boardGeometry` (TS).** The sizes, the geometry family, the chrome tier and every reserved
-  footprint come from it, through its directive on `.game-board`; the styles place from them. Family and chrome
-  branches read the emitted `data-board-family` / `data-board-chrome`, never a CSS query of the board's box (nor
+  footprint come from it, through its directive on `.game-board`; the styles place from them. Family, chrome and
+  centre branches read the emitted `data-board-family` / `data-board-chrome` / `data-board-centre`, never a CSS query
+  of the board's box (nor
   `@container style()`, which Safari 16.4 lacks); container queries remain only for content-responsive rules. The
   family and chrome mixins are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the
   replay's) can use them: a nested rule's selector takes the attribute inside `:where()` on its board compound, or
@@ -29,18 +30,16 @@ they disagree.
   changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from that box's width and the
   board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds 32px, an upright one's
   at 11px.
-- **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) the directive writes the sizes as
-  `--geo-<name>` on `.game-board`; the bridge rules after every family block (`_grid.scss`) map them onto the lengths'
-  own names on `.board-layout` and `.board-overlay`, gated on `data-board-family` inside `:where()` so they keep
-  (0,2,0). There are three: one for the desktop, short desktop and phone,
-  one for the phone's chrome and right hand alone, and one for upright; a name a rule maps that one of its families
-  does not emit stays unset on that family's board, where nothing reads it. No CSS solve remains, so a board without
-  `data-board-family` (not yet measured) hides its layers. A literal both sides need is a TS constant emitted as a
-  `--geo-*` length (the latest discard's gaps); one still in SCSS stays beside a note naming its TS mirror (the
-  chrome blocks' badge and decision px mirror `DESKTOP_CHROME`). A narrow desktop's notices read the left strip's
-  drawn depth (a margin on the field's slot): past the deepest strip its field falls under the 7.5em floor (6.2em at
-  780x580, none at 1080x880), so the fixed-place rule is unmet there until a design choice: smaller tiles, or another
-  place for those notices.
+- **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule after the
+  family blocks (`_grid.scss`) maps those the styles read onto the lengths' own names on `.board-layout` and
+  `.board-overlay`, inside `:where()` so it keeps (0,2,0); a name a family does not emit stays unset on its board,
+  where nothing reads it. No CSS solve remains, so a board without `data-board-family` (not yet measured) hides its
+  layers. A fact both sides need is TS's, emitted as a length (the chrome px, the river's footprint, the face floor,
+  the latest discard's gaps); only what a container query needs stays Sass, beside a note naming its TS mirror (the
+  decisions' gap and a win's rise), and the page's 10px gutter, which the page holds before the board is measured. A
+  narrow desktop's notices read the left strip's drawn depth (a margin on the field's slot): past the deepest strip
+  its field falls under the 7.5em floor (6.2em at 780x580, none at 1080x880), so the fixed-place rule is unmet there
+  until a design choice: smaller tiles, or another place for those notices.
 - **The replay fills live's slots.** GameBoard's band end (`.board-actions`, the decisions' place) holds live's
   decisions or a replay's group, its field (`.board-notices`) the notices and a replay's status; the band end's lengths
   (`--actions-*`, its room for a live row or a replay's group from the band the page fills) are the geometry's, so
