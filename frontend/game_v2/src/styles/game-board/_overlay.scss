@@ -26,6 +26,9 @@ $scroller-room: 4px;
     justify-content: center;
     align-items: center;
     background: var(--ronin-dim);
+
+    /* The dim reaches past the board over the page's edge (`--page-bleed`), so no undimmed frame rings the board. */
+    box-shadow: 0 0 0 var(--page-bleed, 0) var(--ronin-dim);
     z-index: 20;
     padding: 0.5rem;
 }

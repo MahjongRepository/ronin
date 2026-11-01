@@ -12,9 +12,20 @@
     --page-edge-right: max(var(--ronin-safe-right), var(--page-gutter));
     --page-edge-bottom: max(var(--ronin-safe-bottom), var(--page-gutter));
     --page-edge-left: max(var(--ronin-safe-left), var(--page-gutter));
+    --page-bleed: max(
+        var(--page-edge-top),
+        var(--page-edge-right),
+        var(--page-edge-bottom),
+        var(--page-edge-left)
+    );
 
     @media (height >= #{$short-height}) {
         --page-gutter: 10px;
+    }
+
+    /* A storybook's switches beside the board stay undimmed. */
+    &:has(> .board-page__aside) {
+        --page-bleed: 0px;
     }
 
     position: relative;

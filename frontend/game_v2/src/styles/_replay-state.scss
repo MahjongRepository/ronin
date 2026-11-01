@@ -382,6 +382,38 @@ $place-gap: 6px;
         &:has(.seating) {
             padding-right: var(--panel-left);
         }
+
+        /* Any other panel stands centred on the board, moved right or up only as far as keeps the field and the band
+           clear. */
+        &:not(:has(.seating)) {
+            display: grid;
+            grid-template-rows: minmax(0, 1fr) auto minmax(
+                    max(0px, 100cqh - var(--band-reserve-top) - 0.5rem),
+                    1fr
+                );
+            grid-template-columns: minmax(max(0px, var(--panel-left) - 0.5rem), 1fr) auto minmax(
+                    0,
+                    1fr
+                );
+            padding: 0.5rem;
+
+            /* An auto track leaves a percentage nothing to resolve against, so the panel's room is the board's less the
+               field and the band. */
+            > .board-overlay__panel {
+                --panel-room: calc(100cqw - 0.5rem - max(0.5rem, var(--panel-left)));
+
+                grid-area: 2 / 2;
+                max-width: min(900px, var(--panel-room));
+                max-height: calc(var(--band-reserve-top) - 0.5rem);
+            }
+
+            > .board-overlay__panel:has(> .round-end-result) {
+                width: min(
+                    var(--panel-room),
+                    #{$overlay-hand-units} * var(--board-unit) + #{$overlay-chrome}
+                );
+            }
+        }
     }
 }
 
