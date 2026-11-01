@@ -170,8 +170,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the drawn tile set apart by a short gap only where the supplied state identifies one (a replay, a
   revealed hand, a live draw the server announced); a reconnect's snapshot cannot tell a held draw
   from the discard a call leaves owed (both leave 3n+2 tiles), so after one no gap is drawn until the
-  seat's next draw; the seat's melds beyond the hand's
-  right end at river scale. The strip is not a turn cue. Invariant: a strip stands apart from its own
+  seat's next draw; the seat's melds at river scale at the strip's far end (the
+  hand's right, from the seat's view), as the own row's, so a call moves neither the hand nor the melds already laid. The strip is not a turn cue. Invariant: a strip stands apart from its own
   river, backs or faces, so that neither reads as a row of the other. Decision: a concealed hand,
   backs or faces, is 3:4 at the river tile's size (Tenhou's and Mahjong Soul's ratio), so an
   opponent's hand reads as plainly as its river. Decision: a concealed tile stands on its edge,
@@ -201,7 +201,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   it ends before the band's top. A board without the page's corner (a replay's) keeps no room for it.
   The top hand's full reach stands centred, moved right as far as its badge's lane under it needs,
   short of the page's corner and right of the counters; its melds stay above that badge where they reach its lane (a
-  limit that counts the hand without its drawn tile, so a draw never moves it), within the room the whole hand leaves.
+  limit that counts the melds at river scale, or the hand without its drawn tile, so a draw never moves it), within the
+  room the whole hand leaves.
   Upright, a dense top strip (its melds at the face floor) starts further right instead, short of the page's corner,
   its badge staying where it is.
 - **Badges.** One fixed shape for every opponent: the name on its first line and its quiet marks on a

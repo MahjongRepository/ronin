@@ -179,7 +179,7 @@ function ownMeldStyle(player: BoardPlayerDisplay | null): Readonly<Record<string
     return { "--meld-n": style["--meld-n"], "--meld-units": style["--meld-units"] };
 }
 
-/** An opponent's strip in its zone toward its edge: its hand, then its melds beyond the hand's right end. */
+/** An opponent's strip in its zone toward its edge: its hand, then its melds at the strip's far (right) end. */
 function Strip(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     return html`<div class="board-strip board-strip--${seat}" style=${styleMap(stripStyle(player))}>
         ${HandArea(seat, player)}${MeldsArea(seat, player)}
