@@ -30,7 +30,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    width: calc(var(--reach-left) - 24px - var(--notice-left));
+    width: calc(var(--reach-left) - 8px - var(--notice-left));
     max-height: calc(min(var(--band-top), var(--switches-top)) - 24px - var(--notice-top));
     overflow-y: auto;
 
