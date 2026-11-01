@@ -4,9 +4,9 @@
 $max-melds: 4;
 $selected: 1000;
 $strip-lengths:
-    hand-len, held-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start, line2-total,
-    line2-len, line2-base, line2-end, line1-x, line2-x, meld-over, meld-x, meld-tile, meld-rise,
-    top-x;
+    hand-len, hand-tiles-len, held-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start,
+    line2-total, line2-len, line2-base, line2-end, line1-x, line2-x, meld-over, meld-x, meld-tile,
+    meld-rise, top-x;
 
 @for $k from 0 through $max-melds - 1 {
     @each $part in head, end, over, room2, line2-tile, line2-at, pick-tile, pick-at {
@@ -95,7 +95,9 @@ $strip-lengths:
 .board-strip {
     --board-tile-w: var(--bw);
     --board-tile-h: var(--bh);
-    --hand-len: calc(var(--hand-n) * var(--bw) + var(--drawn) * var(--dg));
+    --hand-gaps: max(0, var(--hand-n) - 1);
+    --hand-tiles-len: calc(var(--hand-n) * var(--bw) + var(--hand-gaps) * var(--bgap));
+    --hand-len: calc(var(--hand-tiles-len) + var(--drawn) * var(--dg));
     --meld-gap: calc(var(--g) + 2px);
 
     position: absolute;
@@ -162,7 +164,8 @@ $strip-lengths:
         (var(--left-badge-x) + var(--side-lane) + 8px - var(--top-room-left)) * 1000,
         1px
     );
-    --held-len: calc((var(--hand-n) - var(--drawn)) * var(--bw));
+    --held-n: calc(var(--hand-n) - var(--drawn));
+    --held-len: calc(var(--held-n) * var(--bw) + max(0, var(--held-n) - 1) * var(--bgap));
     --over-top-badge: clamp(0px, (var(--top-lane) - var(--held-len) - var(--meld-gap)) * 1000, 1px);
     --top-badge-floor: calc(var(--top-badge-top) - 6px - #{$tile-edge-share} * var(--rw));
     --top-floor: min(

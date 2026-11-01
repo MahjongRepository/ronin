@@ -178,7 +178,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   drawn as its top seen from above (Tenhou's side seats draw it in profile): half its 3:4 slot,
   at its owner's edge, ivory toward its owner and the back's colour toward the centre, so a live
   hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
-  kept whole, so a reveal shows the faces in the same place. A side strip that cannot hold four melds on its
+  kept whole, so a reveal shows the faces in the same place. Decision: a hand's tiles stand a
+  one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
+  tile edge would fill that hairline, and the table's colour is drawn into it instead. A side strip that cannot hold four melds on its
   line runs its oldest on a second line inside it, from the foreground band (the left strip's from
   above the play switches) toward its badge; the left strip's first line also ends above the switches
   unless they step in past its depth; the top strip and the own melds scale down instead; no meld

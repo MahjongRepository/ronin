@@ -106,6 +106,35 @@ $cap-share: 0.5;
     background: linear-gradient(to bottom, var(--ronin-back) 0 45%, var(--ronin-tile-face) 45%);
 }
 
+/* A side strip runs along the light, so the group's edge would fill each hairline and show in the tiles' rounded
+   corners: the table's colour lies under the hairline, over that edge, a corner's radius into both tiles. */
+$corner-share: 0.09;
+
+.board-strip--left,
+.board-strip--right {
+    .hand-tile + .hand-tile > .tile {
+        --seam: var(--bgap);
+        --seam-corner: calc(var(--tile-w) * #{$corner-share});
+
+        position: relative;
+
+        &::before {
+            content: "";
+            position: absolute;
+            z-index: -1;
+            top: 0;
+            bottom: 0;
+            left: calc(-1 * (var(--seam) + var(--seam-corner)));
+            width: calc(var(--seam) + 2 * var(--seam-corner));
+            background: var(--ronin-table-edge);
+        }
+    }
+
+    .hand-tile + .hand-drawn-gap > .tile {
+        --seam: var(--dg);
+    }
+}
+
 /* A face's name stands in for it until the sprite is in the document, in the tile's own viewBox units. */
 .tile__name {
     font-size: 150px;

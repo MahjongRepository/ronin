@@ -101,9 +101,11 @@ $overlay-chrome: 3rem;
 /* A side strip's depth as drawn, from the lengths its seat's display hands the element (`sideStripStyle`) and the room
    along its line: its first line, and its oldest meld's second line where its melds do not fit beside its hand. */
 @mixin side-strip-depth($side, $room) {
-    --#{$side}-hand-len: calc(
-        var(--#{$side}-hand-n) * var(--bw) + var(--#{$side}-drawn) * var(--dg)
+    --#{$side}-hand-gaps: max(0, var(--#{$side}-hand-n) - 1);
+    --#{$side}-hand-tiles: calc(
+        var(--#{$side}-hand-n) * var(--bw) + var(--#{$side}-hand-gaps) * var(--bgap)
     );
+    --#{$side}-hand-len: calc(var(--#{$side}-hand-tiles) + var(--#{$side}-drawn) * var(--dg));
     --#{$side}-melds-len: calc(
         var(--#{$side}-meld-n) * (var(--g) + 2px) + var(--#{$side}-meld-units) * var(--rw)
     );

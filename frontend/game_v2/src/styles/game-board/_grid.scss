@@ -9,15 +9,15 @@ $lengths:
     foreground-top, row-rise-fixed, band-lift, band-height, band-top, band-bottom, corner-bottom,
     reach-left, reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top,
     left-badge-x, river-clear, lane-at-start, lane-below, start-narrow, side-lane, full-hand-w,
-    own-start, own-hand-right, hand-bottom, switches-left, switches-right, dg, full-reach, step-in,
-    right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
-    right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
-    switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom, own-rise,
-    switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top, side-step,
-    right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place, own-lead,
-    own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end, side-clear,
-    decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start, right-base,
-    right-centred, band-fixed, height-room, band-room;
+    own-start, own-hand-right, hand-bottom, switches-left, switches-right, dg, bgap, full-reach,
+    step-in, right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits,
+    corner-in, right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end,
+    left-meets, switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom,
+    own-rise, switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top,
+    side-step, right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place,
+    own-lead, own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end,
+    side-clear, decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start,
+    right-base, right-centred, band-fixed, height-room, band-room;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them. */
 $upright-counters-gap: 6px;
@@ -183,12 +183,13 @@ $upright-centre-min: 100px;
     --cx: calc(100cqw / 2);
     --cy: calc(var(--core-top) + var(--core) / 2);
 
-    /* The perimeter and the foreground band. An opponent's hand is at the river tile's size, its full reach fourteen
-       tiles with the drawn one a short gap apart. */
+    /* The perimeter and the foreground band. An opponent's hand is at the river tile's size, its hairline a whole pixel
+       (a side strip's quarter turn blurs a fractional one away), its full reach fourteen tiles, the drawn one apart. */
     --bw: var(--rw);
     --bh: var(--rh);
     --dg: round(calc(0.15 * var(--rw)), 1px);
-    --full-reach: calc(14 * var(--bw) + var(--dg));
+    --bgap: round(up, calc(var(--bw) / #{$tile-w}), 1px);
+    --full-reach: calc(14 * var(--bw) + 13 * var(--bgap) + var(--dg));
     --band-height: calc(
         2 * var(--band-gap) + var(--control-h) + var(--row-rise) + var(--band-lift)
     );

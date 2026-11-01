@@ -15,6 +15,10 @@
         gap: calc(var(--ow) / #{$tile-w});
     }
 
+    .board-strip .hand {
+        gap: var(--bgap);
+    }
+
     .hand-drawn-gap {
         margin-left: calc(#{$drawn-gap} * var(--board-tile-w));
     }
