@@ -1,6 +1,7 @@
 import { RIVER_ROWS, RIVER_ROW_SIZE } from "@/entities/tile";
 
 import {
+    BAND_ROW_EXTRA,
     CENTRE_ASPECT,
     CORE_TILES,
     type ChromeTier,
@@ -41,6 +42,8 @@ import {
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     UPRIGHT_CHROME,
+    UPRIGHT_NOTICE_GAP,
+    UPRIGHT_NOTICE_ROOM,
 } from "./board-constants";
 import { type StripRooms, type StripSeat, drawnGap, hairline, handLength } from "./strip-layout";
 
@@ -88,9 +91,6 @@ interface BoardGeometry {
     readonly tracks: BoardTracks;
     readonly strips: StripRooms | null;
 }
-
-/** The band's control row past its control: the room the decisions' row keeps over it (px). */
-const BAND_ROW_EXTRA = 20;
 
 /** What the core's room keeps beside it on a desktop's width, past the margins (px). */
 const CORE_ROOM_SIDES = 24;
@@ -167,18 +167,8 @@ const PHONE_SMALLEST_RIVER = 2;
 const UPRIGHT_COUNTERS_GAP = 6;
 const UPRIGHT_COUNTERS_H = 52;
 
-/**
- * An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding
- * (px).
- */
-const UPRIGHT_NOTICE_ROOM = 44;
-
-/**
- * Upright, the decisions' two rows keep these px between them and the own badge, and the notices this far off the
- * core.
- */
+/** Upright, the decisions' two rows keep these px between them and the own badge. */
 const UPRIGHT_DECISIONS_GAPS = 16;
-const UPRIGHT_NOTICE_GAP = 6;
 
 /** A panel keeps this far off the board's edges where nothing else is reserved there (px). */
 const PANEL_GAP = 8;

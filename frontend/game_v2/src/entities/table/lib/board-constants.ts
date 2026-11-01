@@ -181,6 +181,16 @@ const MENU_MIN = 40;
 const MENU_MAX = 56;
 const MENU_GAP = 6;
 
+/** The band's control row past its control: the room the decisions' row keeps over it (px). */
+const BAND_ROW_EXTRA = 20;
+
+/**
+ * An upright board's notices' place keeps room for one clamped notice (`NOTICE_TAP_MIN`) and the rivers' rounding,
+ * and this far off the core (px).
+ */
+const UPRIGHT_NOTICE_ROOM = 44;
+const UPRIGHT_NOTICE_GAP = 6;
+
 /** Over a panel, a phone's or an upright board's notices stand in a column this wide under the right strip (px). */
 const NOTICES_BESIDE_PANEL = 84;
 
@@ -231,6 +241,7 @@ const UPRIGHT_CHROME = {
 } as const;
 
 export {
+    BAND_ROW_EXTRA,
     CENTRE_ASPECT,
     CORE_TILES,
     DESKTOP_CENTRE_SHARE,
@@ -273,5 +284,7 @@ export {
     TILE_UNITS,
     UPRIGHT_CHROME,
     UPRIGHT_DEPTH,
+    UPRIGHT_NOTICE_GAP,
+    UPRIGHT_NOTICE_ROOM,
 };
 export type { ChromeTier, DesktopChrome };
