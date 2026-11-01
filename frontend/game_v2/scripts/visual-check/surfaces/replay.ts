@@ -698,6 +698,7 @@ async function checkSeatingField(page: Page, report: PageReport): Promise<void> 
         return {
             height: board.clientHeight,
             paddingLeft: Number.parseFloat(style.paddingLeft),
+            paddingRight: Number.parseFloat(style.paddingRight),
             panelLeft: Number.parseFloat(style.getPropertyValue("--panel-left")),
             rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
             unit: Number.parseFloat(style.getPropertyValue("--board-unit")),
@@ -707,10 +708,14 @@ async function checkSeatingField(page: Page, report: PageReport): Promise<void> 
     if (field === null) {
         return;
     }
-    const { height, paddingLeft, panelLeft, rem, unit, width } = field;
+    const { height, paddingLeft, paddingRight, panelLeft, rem, unit, width } = field;
     report.expect(
         Math.abs(paddingLeft - panelLeft) <= EPSILON,
         `the replay's seating starts at ${paddingLeft}px, not its field's end --panel-left ${panelLeft}px`,
+    );
+    report.expect(
+        Math.abs(paddingRight - panelLeft) <= EPSILON,
+        `the replay's seating leaves ${paddingRight}px on its right, not the field's --panel-left ${panelLeft}px`,
     );
     const expected = Math.min(
         OVERLAY_UNIT.max,

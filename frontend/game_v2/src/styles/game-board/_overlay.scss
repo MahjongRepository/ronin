@@ -8,9 +8,6 @@ $indicator-scale: 0.6;
 $scroller-room: 4px;
 $two-column-result: 30rem;
 
-/* The corner's side the panel leaves free: the cog's margin, its reserve and the corner's step in. */
-$corner-clear: calc(var(--m) + var(--corner-reserve) + var(--corner-shift));
-
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
     syntax: "<length>";

@@ -363,6 +363,10 @@ $place-gap: 6px;
         --band-reserve-top: calc(var(--replay-bottom) - 2 * var(--rb) - 2 * var(--rgap));
     }
 
+    @container game-board ((width < #{$small-chrome-width}) or (height < #{$short-height})) and (aspect-ratio >= 1) {
+        @include overlay-unit($corner-clear);
+    }
+
     /* A phone's seating, narrow enough, stands past the moves, whose row rises over the own badge's lane. */
     @include phone-board {
         &:has(.seating) {
@@ -414,6 +418,12 @@ $place-gap: 6px;
                 );
             }
         }
+    }
+}
+
+@container game-board (width < #{$small-chrome-width}) and (height >= #{$short-height}) and (aspect-ratio >= 1) {
+    .game-board--replay > .board-overlay:has(.seating) {
+        padding-inline: $corner-clear;
     }
 }
 

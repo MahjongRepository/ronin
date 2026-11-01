@@ -13,6 +13,9 @@ $notices-beside-panel: 5rem;
 /* The page's corner keeps this much room past its cog. */
 $corner-gap: 6px;
 
+/* The corner's side the panel leaves free: the cog's margin, its reserve and the corner's step in. */
+$corner-clear: calc(var(--m) + var(--corner-reserve) + var(--corner-shift));
+
 /* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
 $full-hand: 14.6;
 $drawn-gap: 0.35;
