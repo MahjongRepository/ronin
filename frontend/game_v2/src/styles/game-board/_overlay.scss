@@ -8,6 +8,9 @@ $indicator-scale: 0.6;
 $scroller-room: 4px;
 $two-column-result: 30rem;
 
+/* The corner's side the panel leaves free: the cog's margin, its reserve and the corner's step in. */
+$corner-clear: calc(var(--m) + var(--corner-reserve) + var(--corner-shift));
+
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
     syntax: "<length>";
@@ -100,52 +103,64 @@ $two-column-result: 30rem;
     }
 }
 
-/* A board with the page's corner keeps it clear of the panel: the corner is capped to a reserve the overlay leaves
-   free beside the panel, on the corner's side alone where a short board has no width to spare. */
+/* A board with the page's corner, live or a replay's, keeps it clear of the panel: the panel leaves the corner's
+   reserve free on the corner's side, or upright stands under the corner's height. */
 @container (aspect-ratio >= 1) {
     .game-board:has(.board-menu) > .board-overlay {
-        @include overlay-unit(calc(2 * (#{$corner-reserve} + 1rem + var(--corner-shift))));
-
-        padding-inline: calc(#{$corner-reserve} + 1rem + var(--corner-shift));
+        padding-right: #{$corner-clear};
     }
 }
 
-/* A narrow desktop has height to spare but no width: the panel takes the width between the side strips under the
-   corner's height instead, and starts past the left river's reach while notices show, leaving them their field. */
-@container (width < #{$small-chrome-width}) and (height >= #{$short-height}) and (aspect-ratio >= 1) {
+@container (aspect-ratio < 1) {
     .game-board:has(.board-menu) > .board-overlay {
+        padding-top: calc(var(--corner-bottom) + 0.5rem);
+    }
+}
+
+/* The live board's panel keeps the corner's reserve free on both sides, its tiles sized to the width between. */
+@container (aspect-ratio >= 1) {
+    .game-board--play:has(.board-menu) > .board-overlay {
+        @include overlay-unit(calc(2 * #{$corner-clear}));
+
+        padding-left: #{$corner-clear};
+    }
+}
+
+/* A narrow desktop has height to spare but no width: the live panel takes the width between the side strips under
+   the corner's height instead, and starts past the left river's reach while notices show, leaving them their field. */
+@container (width < #{$small-chrome-width}) and (height >= #{$short-height}) and (aspect-ratio >= 1) {
+    .game-board--play:has(.board-menu) > .board-overlay {
         @include overlay-unit(calc(2 * (var(--m) + var(--strip-depth))));
 
         padding-top: calc(var(--corner-bottom) + 0.5rem);
         padding-inline: calc(var(--m) + var(--strip-depth) + 0.5rem);
     }
 
-    .game-board:has(.board-menu):has(.board-notice) > .board-overlay {
+    .game-board--play:has(.board-menu):has(.board-notice) > .board-overlay {
         @include overlay-unit(calc(var(--reach-left) + var(--m) + var(--strip-depth)));
 
         padding-left: var(--reach-left);
     }
 }
 
+/* A phone's live panel also leaves the notices' column beside it free (`_notices.scss`). */
 @container (height < #{$short-height}) and (aspect-ratio >= 1) {
-    .game-board:has(.board-menu) > .board-overlay {
-        @include overlay-unit(
-            calc(#{$corner-reserve-short} + 0.25rem + var(--corner-shift) + var(--band-shift))
+    .game-board--play:has(.board-menu) > .board-overlay {
+        --panel-right: max(
+            #{$corner-clear},
+            #{$notices-beside-panel} + 0.25rem + var(--corner-shift) + var(--band-shift)
         );
 
-        padding-inline: 0
-            calc(#{$corner-reserve-short} + 0.25rem + var(--corner-shift) + var(--band-shift));
+        @include overlay-unit(var(--panel-right));
+
+        padding-inline: 0 var(--panel-right);
     }
 }
 
-/* An upright board has height to spare: its panel stands under the corner's height, however tall its content, and
-   above the foreground while notices show, leaving them the reserve under the right strip's end. */
+/* An upright live panel stands above the foreground while notices show, leaving them the reserve under the right
+   strip's end. */
 @container (aspect-ratio < 1) {
-    .game-board:has(.board-menu) > .board-overlay {
-        padding-top: calc(var(--corner-bottom) + 0.5rem);
-    }
-
-    .game-board:has(.board-menu):has(.board-notice) > .board-overlay {
+    .game-board--play:has(.board-menu):has(.board-notice) > .board-overlay {
         padding-bottom: calc(100cqh - var(--foreground-top));
     }
 }
@@ -321,7 +336,7 @@ $two-column-result: 30rem;
    river's reach, so a notice stays readable beside it. */
 @container (width >= #{$small-chrome-width}) and (height >= #{$short-height}) {
     .game-board:has(.board-notice) > .board-overlay {
-        @include overlay-unit(calc(var(--reach-left) + #{$corner-reserve} + 1rem));
+        @include overlay-unit(calc(var(--reach-left) + #{$corner-clear}));
 
         padding-left: var(--reach-left);
     }

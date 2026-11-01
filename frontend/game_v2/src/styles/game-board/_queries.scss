@@ -6,8 +6,12 @@ $small-chrome-width: 1100px;
 $large-chrome-width: 2000px;
 $large-chrome-height: 1200px;
 $wide-board: "4 / 3";
-$corner-reserve: 10rem;
-$corner-reserve-short: 5rem;
+
+/* A short or upright board's notices over a panel: their column under the right strip's end. */
+$notices-beside-panel: 5rem;
+
+/* The page's corner keeps this much room past its cog. */
+$corner-gap: 6px;
 
 /* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
 $full-hand: 14.6;

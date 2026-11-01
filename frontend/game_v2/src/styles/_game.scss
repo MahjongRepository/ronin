@@ -117,8 +117,6 @@ section {
 }
 
 .game-menu {
-    --menu-size: clamp(40px, calc(56 * var(--board-table-unit)), 56px);
-
     position: relative;
     display: flex;
     align-items: center;

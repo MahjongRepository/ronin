@@ -679,6 +679,55 @@ function checkLiveGeometry(results: readonly TaskResult[]): string[] {
     });
 }
 
+/** The overlay's tile unit (`overlay-unit` in `_queries.scss`): its clamp in px, its hand and height in units, its chrome in rem. */
+const OVERLAY_UNIT = { chromeRem: 3, handUnits: 1000, heightUnits: 640, max: 0.8, min: 0.25 };
+const UNIT_EPSILON = 0.001;
+
+/**
+ * A seating panel over a replay's board at the desktop's chrome takes the replay's own field and unit, never the live
+ * board's: it starts at `--panel-left` and its tile unit leaves that field beside it.
+ */
+async function checkSeatingField(page: Page, report: PageReport): Promise<void> {
+    const field = await page.evaluate(() => {
+        const board = document.querySelector(".game-board");
+        const overlay = board?.querySelector(":scope > .board-overlay:has(.seating)") ?? null;
+        if (board === null || overlay === null) {
+            return null;
+        }
+        const style = getComputedStyle(overlay);
+        return {
+            height: board.clientHeight,
+            paddingLeft: Number.parseFloat(style.paddingLeft),
+            panelLeft: Number.parseFloat(style.getPropertyValue("--panel-left")),
+            rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+            unit: Number.parseFloat(style.getPropertyValue("--board-unit")),
+            width: board.clientWidth,
+        };
+    });
+    if (field === null) {
+        return;
+    }
+    const { height, paddingLeft, panelLeft, rem, unit, width } = field;
+    report.expect(
+        Math.abs(paddingLeft - panelLeft) <= EPSILON,
+        `the replay's seating starts at ${paddingLeft}px, not its field's end --panel-left ${panelLeft}px`,
+    );
+    const expected = Math.min(
+        OVERLAY_UNIT.max,
+        Math.max(
+            OVERLAY_UNIT.min,
+            Math.min(
+                (width - OVERLAY_UNIT.chromeRem * rem - panelLeft) / OVERLAY_UNIT.handUnits,
+                height / OVERLAY_UNIT.heightUnits,
+            ),
+        ),
+    );
+    report.expect(
+        Math.abs(unit - expected) <= UNIT_EPSILON,
+        `the replay's seating takes a tile unit of ${unit}px, not the replay's ${expected.toFixed(4)}px`,
+    );
+}
+
 /** The replay's controls and status on a supported screen: in landscape all of the checks, upright on the page. */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
     if (!viewport.portrait) {
@@ -697,6 +746,9 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
     }
     checkReplayControls(replay, { board, screen, state }, report);
     checkReplayStatus(replay, { board, desktop: viewport.desktop, screen, state }, report);
+    if (state.desktopChrome) {
+        await checkSeatingField(page, report);
+    }
 }
 
 /** The replay page: its stories, its states without a board, and the route stepped to the local melds. */

@@ -198,13 +198,14 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* A board without the page's corner (a replay's, a storybook's) keeps no room for it. */
-.game-board:not(:has(.board-menu)) > .board-layout {
+/* A board without the page's corner (a storybook's) keeps no room for it. */
+.game-board:not(:has(.board-menu)) > :is(.board-layout, .board-overlay) {
     --corner-reserve: 0px;
     --corner-shift: 0px;
 }
 
-.board-layout {
+/* A corner holding the debug log (`?debug`) keeps room for its summary beside the cog. */
+.game-board:has(.board-menu .game-log) > :is(.board-layout, .board-overlay) {
     --corner-reserve: 152px;
 
     @include small-chrome {

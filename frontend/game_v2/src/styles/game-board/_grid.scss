@@ -357,6 +357,10 @@ $upright-centre-min: 100px;
     --board-table-unit: calc(var(--rw) / #{$tile-w});
     --board-local-tile-w: var(--ow);
 
+    /* The page's corner: its cog's side, and the room it keeps beside the cog, which the panels read too. */
+    --menu-size: clamp(40px, calc(56 * var(--board-table-unit)), 56px);
+    --corner-reserve: calc(var(--menu-size) + #{$corner-gap});
+
     @include small-chrome {
         --own-inline: 96px;
         --switch-gap: 4px;
