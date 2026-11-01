@@ -202,9 +202,9 @@ $max-melds: 4;
     }
 
     @include upright-board {
-        min-width: calc(
-            var(--meld-units) * var(--face-floor) + max(0, var(--meld-n) - 1) * (var(--g) + 2px) + 2px
-        );
+        --own-meld-gaps: calc(max(0, var(--meld-n) - 1) * (var(--g) + 2px));
+
+        min-width: calc(var(--meld-units) * var(--face-floor) + var(--own-meld-gaps) + 2px);
     }
 
     > :is(.meld, .meld--source) {

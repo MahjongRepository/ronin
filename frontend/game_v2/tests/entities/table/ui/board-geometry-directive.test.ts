@@ -7,8 +7,8 @@ import {
     createInitialPlayerState,
     createInitialTableState,
 } from "@/entities/table/model/initial-state";
-import { type MeldTile } from "@/entities/tile";
 import { GameBoard } from "@/entities/table/ui/game-board";
+import { type MeldTile } from "@/entities/tile";
 
 class FakeObserver implements ResizeObserver {
     static readonly all: FakeObserver[] = [];

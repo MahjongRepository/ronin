@@ -15,7 +15,15 @@ import {
     SEAT_POSITIONS,
     type SeatPosition,
 } from "@/entities/table/model/board-types";
-import { Discards, Hand, Meld, type MeldTile, type RiverOverflow, Tile, TileBack } from "@/entities/tile";
+import {
+    Discards,
+    Hand,
+    Meld,
+    type MeldTile,
+    type RiverOverflow,
+    Tile,
+    TileBack,
+} from "@/entities/tile";
 
 import { sizeBoard } from "./board-geometry-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
@@ -163,7 +171,11 @@ interface OwnRow {
  * side strip's wrap to a second line, the top one's scale); the own row stands in the hand's slot, its melds scaled to
  * end before the board's edge.
  */
-function Strip(seat: SeatPosition, player: BoardPlayerDisplay | null, own?: OwnRow): TemplateResult {
+function Strip(
+    seat: SeatPosition,
+    player: BoardPlayerDisplay | null,
+    own?: OwnRow,
+): TemplateResult {
     if (seat === "bottom") {
         return html`<div class="board-local" style=${styleMap(ownMeldStyle(player))}>
             ${own?.head ?? ""}${HandArea(seat, player, own?.input)}${MeldsArea(seat, player)}
@@ -468,7 +480,12 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
                 ${Strip("bottom", bottom, {
-                    head: plates ? OwnHead(plates.bottom, props.localHand !== undefined && props.furiten === true) : "",
+                    head: plates
+                        ? OwnHead(
+                              plates.bottom,
+                              props.localHand !== undefined && props.furiten === true,
+                          )
+                        : "",
                     ...(props.localHand ? { input: props.localHand } : {}),
                 })}
             </div>
