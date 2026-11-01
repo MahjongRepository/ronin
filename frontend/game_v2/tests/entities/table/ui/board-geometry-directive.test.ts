@@ -146,18 +146,26 @@ describe("sizeBoard", () => {
         box = { height: 880, width: 1420 };
         const { element } = await renderBoard();
 
-        latestObserver().resize(1420, 780);
+        latestObserver().resize(1420, 700);
 
-        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "36px" });
+        expect(written(element)).toEqual({
+            chrome: "regular",
+            family: "short-desktop",
+            rw: "35px",
+        });
+        expect(element.style.getPropertyValue("--geo-band-reserve")).toBe("");
 
         latestObserver().resize(647, 355);
 
-        expect(written(element)).toEqual({ chrome: "regular", family: "desktop", rw: "36px" });
+        expect(written(element)).toEqual({
+            chrome: "regular",
+            family: "short-desktop",
+            rw: "35px",
+        });
 
         nextFrame();
 
         expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "17px" });
-        expect(element.style.getPropertyValue("--geo-band-reserve")).toBe("");
     });
 
     it("keeps the written sizes through a re-render that adds the overlay", async () => {

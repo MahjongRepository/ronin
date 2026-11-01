@@ -59,8 +59,8 @@ they disagree.
   10px gutter adds beyond the safe inset, is classified once: a phone takes no gutter and the unguttered box, any
   other family the 10px gutter on that box. Classifying the guttered board instead would flip the family at the
   threshold (desktop gutter, phone box, no gutter, desktop box). `.board-page` holds the gutter (10px, 0 around a
-  phone's board) and the safe insets as registered lengths, which the directive reads in px; a family change it finds
-  while the observer delivers waits a frame, since the gutter it moves resizes the observed board.
+  phone's board) and the safe insets as registered lengths, which the directive reads in px; a gutter change it finds
+  while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`.
 - The rivers' shared edge and shadow come from `.board-rivers`, the unturned layer holding all four, never from a
   turned river's own filter: Firefox on macOS draws a turned element's filter unturned and clipped to its box.
