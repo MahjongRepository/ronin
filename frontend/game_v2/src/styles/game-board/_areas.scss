@@ -1,36 +1,10 @@
-@use "sass:list";
 @use "grid" as *;
 
 $max-melds: 4;
-$selected: 1000;
-$strip-lengths:
-    hand-len, hand-tiles-len, held-len, meld-gap, room, room2, line1-depth, line2-tile, line2-start,
-    line2-total, line2-len, line2-base, line2-end, line1-x, line1-shift, line1-fit-end, line2-x,
-    meld-over, meld-x, meld-tile, meld-rise, top-x, top-melds-near;
-
-@for $k from 0 through $max-melds - 1 {
-    @each $part in head, end, over, fit-end, room2, line2-tile, line2-at, pick-tile, pick-at {
-        $strip-lengths: list.append($strip-lengths, #{$part}-#{$k}, comma);
-    }
-}
-
-@each $name in $strip-lengths {
-    @property --#{$name} {
-        syntax: "<length>";
-        inherits: true;
-        initial-value: 0;
-    }
-}
 
 .board-area {
     display: flex;
     align-items: flex-end;
-}
-
-@property --right-depth {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
 }
 
 .board-table,
@@ -38,11 +12,6 @@ $strip-lengths:
 .board-rivers {
     position: absolute;
     inset: 0;
-}
-
-/* The visual check reads this too. */
-.board-table {
-    @include right-strip-depth;
 }
 
 .board-zones {
@@ -90,20 +59,39 @@ $strip-lengths:
     }
 }
 
-/* An opponent's strip: its hand of backs (or the faces a replay shows) from the frame's corner, its melds at the river
-   tile's scale at the strip's far end, as the own row's, so a call moves neither the hand nor the melds already laid. */
+/* An opponent's strip: its area sized to its turned footprint, its frame turned to the seat from the area's corner
+   where its hand starts, its melds where `stripLayout` places them, so a call moves neither hand nor melds laid. */
 .board-strip {
     --board-tile-w: var(--bw);
     --board-tile-h: var(--bh);
-    --hand-gaps: max(0, var(--hand-n) - 1);
-    --hand-tiles-len: calc(var(--hand-n) * var(--bw) + var(--hand-gaps) * var(--bgap));
-    --hand-len: calc(var(--hand-tiles-len) + var(--drawn) * var(--dg));
-    --meld-gap: calc(var(--g) + 2px);
 
+    position: relative;
+
+    &--top {
+        --frame-turn: 180deg;
+
+        grid-area: strip-top;
+    }
+
+    &--right {
+        --frame-turn: -90deg;
+
+        grid-area: strip-right;
+    }
+
+    &--left {
+        --frame-turn: 90deg;
+
+        grid-area: strip-left;
+    }
+}
+
+.board-strip__frame {
     position: absolute;
     width: 0;
     height: 0;
     transform-origin: 0 0;
+    transform: rotate(var(--frame-turn));
 
     > .board-area {
         position: absolute;
@@ -111,179 +99,38 @@ $strip-lengths:
         left: 0;
         align-items: flex-end;
     }
-
-    &--top {
-        --frame-turn: 180deg;
-        --top-x: var(--top-strip-x);
-
-        left: var(--top-x);
-        top: var(--m);
-        transform: rotate(180deg);
-
-        /* Upright, a dense strip starts as far right as its melds at the face floor need, short of the page's corner;
-           its badge stays at `--top-strip-x`, so there the hand's right end may stand past it. */
-        @include upright-board {
-            --top-need: calc(var(--hand-len) + var(--meld-n) * var(--meld-gap));
-            --top-x: min(
-                100cqw - var(--m) - var(--corner-reserve),
-                max(
-                    var(--top-strip-x),
-                    var(--top-room-left) + var(--top-need) + var(--meld-units) * #{$face-floor}
-                )
-            );
-        }
-    }
-
-    &--right {
-        --frame-turn: -90deg;
-
-        left: calc(100cqw - var(--m));
-        top: var(--right-origin);
-        transform: rotate(-90deg);
-    }
-
-    &--left {
-        --frame-turn: 90deg;
-
-        left: var(--m);
-        top: var(--left-start);
-        transform: rotate(90deg);
-    }
 }
 
-.board-strip .board-melds {
-    left: var(--hand-len);
+.board-strip--top > .board-strip__frame {
+    left: calc(100% - var(--top-pull));
+    top: 0;
 }
 
-/* The top strip keeps one line, its melds ending right of the counters: they scale to stay above the top river, the top
-   badge where they reach its lane, the side badges where the left badge's lane reaches under them (a ring counted). */
-.board-strip--top .board-melds {
-    --top-room: calc(var(--top-x) - var(--top-room-left));
-    --lane-under: clamp(
-        0px,
-        (var(--left-badge-x) + var(--side-lane) + 8px - var(--top-room-left)) * 1000,
-        1px
-    );
-    --held-n: calc(var(--hand-n) - var(--drawn));
-    --held-len: calc(var(--held-n) * var(--bw) + max(0, var(--held-n) - 1) * var(--bgap));
-    --top-melds-near: max(
-        var(--held-len) + var(--meld-gap),
-        var(--top-room) - var(--meld-units) * var(--rw) - var(--meld-n) * var(--meld-gap)
-    );
-    --over-top-badge: clamp(0px, (var(--top-lane) - var(--top-melds-near)) * 1000, 1px);
-    --top-badge-floor: calc(var(--top-badge-top) - 6px - #{$tile-edge-share} * var(--rw));
-    --top-floor: min(
-        var(--core-top) - 8px,
-        var(--side-badge-top) - 6px + (1px - var(--lane-under)) * 100000,
-        var(--top-badge-floor) + (1px - var(--over-top-badge)) * 100000
-    );
-    --top-depth-tile: calc((var(--top-floor) - var(--m)) / var(--meld-deep));
-    --top-free: calc(var(--top-room) - var(--hand-len) - var(--meld-n) * var(--meld-gap));
-    --top-fit-tile: calc(var(--top-free) / max(var(--meld-units), 1));
-    --board-tile-w: max(#{$face-floor}, min(var(--rw), var(--top-depth-tile), var(--top-fit-tile)));
+.board-strip--right > .board-strip__frame {
+    left: 100%;
+    top: 100%;
+}
+
+.board-strip--left > .board-strip__frame {
+    left: 0;
+    top: 0;
+}
+
+.board-strip .board-melds > :is(.meld, .meld--source) {
     --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
 
-    width: max(0px, var(--top-room) - var(--hand-len));
-    justify-content: flex-end;
-    gap: var(--meld-gap);
-    padding-left: var(--meld-gap);
+    position: absolute;
 }
 
-/* Sets `--NAME` to `$line2` where the meld's `--meld-over` (its overflow past its line, scaled up) is positive, else to
-   `$line1`, in lengths alone: the shift is clamped between none and the whole difference either way. */
-@mixin on-line($name, $line1, $line2) {
-    --#{$name}-d: calc(#{$line2} - #{$line1});
-    --#{$name}-up: max(0px, min(var(--#{$name}-d), var(--meld-over)));
-    --#{$name}-down: min(0px, max(var(--#{$name}-d), -1 * var(--meld-over)));
-    --#{$name}: calc(#{$line1} + var(--#{$name}-up) + var(--#{$name}-down));
-}
-
-.board-strip--right,
-.board-strip--left {
-    --line2-end: var(--foreground-top);
-    --room2: calc(var(--line2-end) - var(--badge-top) - var(--badge-h) - 2px);
-    --line1-depth: max(var(--bh), var(--meld-deep) * var(--rw));
-
+@each $seat in top, right, left {
     @for $k from 0 through $max-melds - 1 {
-        $next: $k + 1;
+        .board-strip--#{$seat} .board-melds > :is(.meld, .meld--source):nth-child(#{$k + 1}) {
+            --board-tile-w: var(--#{$seat}-meld-#{$k}-tile);
 
-        --head-#{$k}: calc(var(--hand-len) + #{$next} * var(--meld-gap));
-        --end-#{$k}: calc(var(--head-#{$k}) + var(--mp-#{$next}) * var(--rw) - var(--mg-#{$k}));
-        --over-#{$k}: calc((var(--end-#{$k}) - var(--room)) * #{$selected});
-        --fit-end-#{$k}: calc(var(--end-#{$k}) - clamp(0px, var(--over-#{$k}), 1px) * 100000);
-        --room2-#{$k}: calc(var(--room2) - (var(--meld-n) - #{$next}) * var(--meld-gap));
-        --line2-tile-#{$k}: calc(var(--room2-#{$k}) / var(--ms-#{$k}));
-        --line2-at-#{$k}: calc(var(--mp-#{$k}) * var(--line2-tile) + #{$k} * var(--meld-gap));
-        --pick-tile-#{$k}: clamp(
-            var(--line2-tile-#{$k}),
-            var(--line2-tile-#{$k}) - var(--over-#{$k}),
-            9999px
-        );
-        --pick-at-#{$k}: clamp(
-            var(--line2-at-#{$k}),
-            var(--line2-at-#{$k}) - var(--over-#{$k}),
-            99999px
-        );
-    }
-
-    /* The melds that fit on the first line move together to its far end. */
-    --line1-fit-end: max(
-        var(--hand-len),
-        var(--fit-end-0),
-        var(--fit-end-1),
-        var(--fit-end-2),
-        var(--fit-end-3)
-    );
-    --line1-shift: max(0px, var(--room) - var(--line1-fit-end));
-    --line2-tile: clamp(
-        #{$face-floor},
-        min(var(--pick-tile-0), var(--pick-tile-1), var(--pick-tile-2), var(--pick-tile-3)),
-        var(--rw)
-    );
-    --line2-start: min(var(--pick-at-0), var(--pick-at-1), var(--pick-at-2), var(--pick-at-3));
-    --line2-total: calc(var(--meld-units) * var(--line2-tile) + var(--meld-n) * var(--meld-gap));
-    --line2-len: calc(var(--line2-total) - var(--line2-start) - var(--meld-gap));
-
-    .board-melds {
-        left: 0;
-    }
-
-    @for $k from 0 through $max-melds - 1 {
-        .board-melds > :is(.meld, .meld--source):nth-child(#{$k + 1}) {
-            --meld-over: var(--over-#{$k});
-            --line1-x: calc(var(--head-#{$k}) + var(--mp-#{$k}) * var(--rw) + var(--line1-shift));
-            --line2-x: calc(var(--line2-base) + var(--line2-at-#{$k}) - var(--line2-start));
-
-            @include on-line(meld-x, var(--line1-x), var(--line2-x));
-            @include on-line(meld-tile, var(--rw), var(--line2-tile));
-            @include on-line(meld-rise, calc(var(--m) * 0), calc(var(--line1-depth) + 4px));
-
-            --board-tile-w: var(--meld-tile);
-            --board-tile-h: calc(var(--board-tile-w) * 4 / 3);
-
-            position: absolute;
-            left: var(--meld-x);
-            bottom: var(--meld-rise);
+            left: var(--#{$seat}-meld-#{$k}-along);
+            bottom: var(--#{$seat}-meld-#{$k}-rise);
         }
     }
-}
-
-.board-strip--right {
-    --badge-top: var(--right-badge-top);
-    --shallow: clamp(0, (1.5 - var(--meld-deep)) * 1000, 1);
-    --room-top: max(
-        var(--m) - 8px,
-        var(--corner-bottom) - var(--corner-in) * var(--shallow) * 100000
-    );
-    --room: calc(var(--right-origin) - var(--room-top) - 8px);
-    --line2-base: calc(var(--right-origin) - var(--right-from-band));
-}
-
-.board-strip--left {
-    --badge-top: var(--side-badge-top);
-    --room: calc(var(--left-room-end) - 8px - var(--left-start));
-    --line2-end: var(--left-line2-end);
-    --line2-base: calc(var(--line2-end) - var(--left-start) - var(--line2-len));
 }
 
 /* The own row, in the hand's slot: the hand from a full hand's fixed start, its melds at the row's right end by the

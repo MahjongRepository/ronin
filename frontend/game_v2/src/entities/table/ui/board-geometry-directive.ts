@@ -9,6 +9,10 @@ import {
     type BoardSlots,
     boardGeometry,
 } from "@/entities/table/lib/board-geometry";
+import { type StripContent, type StripSeat, stripLengths } from "@/entities/table/lib/strip-layout";
+
+/** What the opponents' strips hold, by seat. */
+type StripContents = Readonly<Record<StripSeat, StripContent>>;
 
 const NO_PAGE = { gutter: 0, safeInsets: { bottom: 0, left: 0, right: 0, top: 0 } };
 
@@ -37,14 +41,17 @@ function pageEdges(board: HTMLElement): Pick<BoardInput, "gutter" | "safeInsets"
 /**
  * Size the board from its own box and the slots its page fills (`boardGeometry`): its family and chrome as
  * `data-board-family` / `data-board-chrome` and its sizes as `--geo-<name>` on the board, measured once its first
- * render is in the document and again as its box or its slots change, until it leaves. An empty box (a hidden board)
- * changes nothing and the board stays watched.
+ * render is in the document and again as its box or its slots change, until it leaves; and lay out the opponents'
+ * strips in the rooms it leaves them (`stripLayout`) as `--<seat>-meld-<n>-*` lengths, again as what they hold
+ * changes. An empty box (a hidden board) changes nothing and the board stays watched.
  */
 class SizeBoard extends AsyncDirective {
     private board: HTMLElement | null = null;
     private observer: ResizeObserver | null = null;
     private frame: number | null = null;
     private slots: BoardSlots | null = null;
+    private strips: StripContents | null = null;
+    private geometry: BoardGeometry | null = null;
     private readonly written = new Map<string, string>();
 
     constructor(partInfo: PartInfo) {
@@ -54,22 +61,33 @@ class SizeBoard extends AsyncDirective {
         }
     }
 
-    render(_slots: BoardSlots): typeof nothing {
+    render(_slots: BoardSlots, _strips: StripContents): typeof nothing {
         return nothing;
     }
 
-    override update(part: ElementPart, [slots]: [BoardSlots]): typeof nothing {
+    override update(
+        part: ElementPart,
+        [slots, strips]: [BoardSlots, StripContents],
+    ): typeof nothing {
         if (part.element instanceof HTMLElement) {
             this.board = part.element;
         }
         const moved = this.slots?.corner !== slots.corner || this.slots.band !== slots.band;
+        const changed = JSON.stringify(this.strips) !== JSON.stringify(strips);
         this.slots = slots;
+        this.strips = strips;
+        this.schedule(moved, changed);
+        return nothing;
+    }
+
+    private schedule(moved: boolean, changed: boolean): void {
         if (this.observer === null) {
             queueMicrotask(() => this.observe());
         } else if (moved) {
             queueMicrotask(() => this.resize());
+        } else if (changed) {
+            queueMicrotask(() => this.relayout());
         }
-        return nothing;
     }
 
     protected override disconnected(): void {
@@ -86,6 +104,13 @@ class SizeBoard extends AsyncDirective {
         const { board } = this;
         if (this.observer !== null && board !== null) {
             this.size(board, board.getBoundingClientRect(), false);
+        }
+    }
+
+    private relayout(): void {
+        const { board, geometry } = this;
+        if (this.observer !== null && board !== null && geometry !== null) {
+            this.write(board, geometry);
         }
     }
 
@@ -131,7 +156,10 @@ class SizeBoard extends AsyncDirective {
         }
     }
 
-    private write(board: HTMLElement, { chrome, family, lengths, tracks }: BoardGeometry): void {
+    private write(board: HTMLElement, geometry: BoardGeometry): void {
+        const { chrome, family, lengths, strips, tracks } = geometry;
+        this.geometry = geometry;
+        const laid = strips === null || this.strips === null ? {} : stripLengths(strips, this.strips);
         if (board.dataset.boardFamily !== family) {
             board.dataset.boardFamily = family;
         }
@@ -146,6 +174,7 @@ class SizeBoard extends AsyncDirective {
                 ),
                 ["--geo-shell-columns", tracks.columns],
                 ["--geo-shell-rows", tracks.rows],
+                ...Object.entries(laid).map(([name, length]) => [`--${name}`, `${length}px`] as const),
             ]),
         );
     }
@@ -167,3 +196,4 @@ class SizeBoard extends AsyncDirective {
 }
 
 export const sizeBoard = directive(SizeBoard);
+export type { StripContents };

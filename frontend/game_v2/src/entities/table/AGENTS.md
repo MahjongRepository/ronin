@@ -32,11 +32,12 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - The seating panel is the game's start and its end: the seats in wind order before the first deal, then in
   placement order with their scores and uma/oka results once the game ends.
 - The board's geometry is the slice's: `lib/board-geometry.ts`'s `boardGeometry`, a pure function from the board's
-  box and the slots its page fills to a frozen result (family, chrome, sizes, the panel's free box in px and the
-  board shell's grid tracks), its facts
+  box and the slots its page fills to a frozen result (family, chrome, sizes, the panel's free box in px, the
+  board shell's grid tracks and the opponents' strips' rooms), its facts
   once in `lib/board-constants.ts` (the river's rows in the tile slice's `river-shape.ts`), and
   `ui/board-geometry-directive.ts`'s `sizeBoard` on GameBoard's root, the one place that measures the board and writes
-  the result. GameBoard never binds `style` on its root, which would
-  clear what `sizeBoard` wrote.
+  the result. `lib/strip-layout.ts`'s `stripLayout` lays out a strip's melds in those rooms from what it holds, which
+  `sizeBoard` takes beside the slots and never hands `boardGeometry`. GameBoard never binds `style` on its root, which
+  would clear what `sizeBoard` wrote.
 - `model/replay-file.ts` refuses a file whose version is not `REPLAY_VERSION` and reports a bad or live-only line,
   never skipping it into a recording that looks whole.

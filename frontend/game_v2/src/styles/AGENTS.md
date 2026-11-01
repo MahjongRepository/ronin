@@ -19,8 +19,8 @@ they disagree.
   named line); `.board-layout` and `.board-table` lay them out and each slot takes its `grid-area`, aligned the way its
   contents stand in it. A slot's place is never a CSS formula: what its contents read (`--actions-*`,
   `--switches-*`, the field's height, which the notices' clamp reads as `max-height`) comes from the geometry too.
-  The core's pinwheel (centre, rivers), the strips, the badges and the counters stand absolutely over the grid, and so
-  do the replay's moves in the switches' place (from the band end, by the geometry's lengths) and its status over a
+  The core's pinwheel (centre, rivers), the badges and the counters stand absolutely over the grid, and so do the
+  replay's moves in the switches' place (from the band end, by the geometry's lengths) and its status over a
   smaller board's panel.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (the corner,
   live play's or a replay's band) and the family's places; the overlay centres the panel on the board within its
@@ -60,8 +60,17 @@ they disagree.
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
 - **Two script measurements**: the board's geometry directive and the notices' clamp. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;
-  content still reaches CSS as display-state custom properties (`stripStyle`, `sideStripStyle`), never fed into the
-  box's sizing.
+  content reaches the strips through `stripLayout`, never fed into the box's sizing.
+- **One strip primitive, four seats.** GameBoard's `Strip` draws every seat's hand and melds; an opponent's is a grid
+  area the geometry sizes to its turned footprint (a side strip's deepest reach along its hand's room, the top one's
+  stacked depth along its line), its frame turned to the seat inside (a rotation, never `writing-mode`, which leaves
+  each tile's SVG unturned) from the area's corner where its hand starts. Each seat's policy is explicit
+  (`STRIP_POLICY`): a side strip's melds wrap to a second line, which starts at the band (right) or ends at its room's
+  end (left); the top strip's and the own row's melds keep one line and scale. `stripLayout` (`entities/table/lib`),
+  a pure function apart from `boardGeometry`, places an opponent's melds from what the strip holds and the rooms the
+  geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths, with each side strip's depth as
+  drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the viewport's solve. The own row's melds
+  scale in their container (`ownMeldStyle`'s counts).
 - **Places are fixed per viewport.** Badges, an opponent's full hand reach, the decisions' place, the notices' place
   and the replay's controls never move with tile counts or what a stop shows; nothing else enters a full hand's reach.
   A place beside a side strip keeps clear of the strip's deepest reach, never its depth as drawn.

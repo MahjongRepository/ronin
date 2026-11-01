@@ -692,7 +692,8 @@
         {
             "files": [
                 "src/entities/table/model/apply-event.ts",
-                "src/entities/table/lib/board-geometry.ts"
+                "src/entities/table/lib/board-geometry.ts",
+                "src/entities/table/lib/strip-layout.ts"
             ],
             "rules": {
                 "max-statements": "off"

@@ -215,7 +215,7 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         const aside = document.querySelector(".board-page__aside");
         const overlay = board.querySelector(".board-overlay__panel");
         const handReach = ["left", "right"].flatMap((seat) => {
-            const strip = board.querySelector(`.board-strip--${seat}`);
+            const strip = board.querySelector(`.board-strip--${seat} > .board-strip__frame`);
             if (strip === null) {
                 return [];
             }

@@ -293,6 +293,9 @@ describe("boardGeometry's shell tracks", () => {
             field: [82, 102, 166, 228.3],
             "field-beside": [583, 272.3, 663, 318.3],
             hand: [70.7, 322.3, 663, 370.3],
+            "strip-left": [4, 56, 76, 266.3],
+            "strip-right": [591, 4, 663, 268.3],
+            "strip-top": [107, 4, 490.3, 38],
             switches: [44, 0, 667, 276.3],
         });
     });

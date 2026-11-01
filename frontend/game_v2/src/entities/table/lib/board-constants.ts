@@ -65,8 +65,8 @@ type ChromeTier = "small" | "regular" | "large";
 
 /**
  * The px a desktop's sizing and places read of its chrome: margins, gaps, the band's control, the own badge, the
- * switches, the corner, the replay's controls, the opponents' badges and the decisions' least widths; the stylesheet's
- * chrome blocks mirror the badges' and the decisions'.
+ * switches, the corner, the counters, the replay's controls, the opponents' badges and the decisions' least widths;
+ * the stylesheet's chrome blocks mirror the badges', the counters' and the decisions'.
  */
 interface DesktopChrome {
     readonly m: number;
@@ -81,6 +81,8 @@ interface DesktopChrome {
     readonly movesH: number;
     readonly sideStart: number;
     readonly cornerH: number;
+    readonly countersW: number;
+    readonly countersH: number;
     readonly replayGap: number;
     readonly sideLaneMin: number;
     readonly badgeH: number;
@@ -100,6 +102,8 @@ const REGULAR_CHROME: DesktopChrome = {
     controlH: 60,
     coreGap: 40,
     cornerH: 48,
+    countersH: 28 * TILE_ASPECT + 18,
+    countersW: 172,
     m: 18,
     movesH: 52,
     ownBadgeH: 40,
@@ -122,6 +126,8 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         badgeGap: 20,
         badgeH: 72,
         cornerH: 64,
+        countersH: 37 * TILE_ASPECT + 22,
+        countersW: 223,
         movesH: 60,
         ownBadgeH: 52,
         pillH: 70,
@@ -139,6 +145,8 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         badgeGap: 8,
         badgeH: 40,
         cornerH: 40,
+        countersH: 15 * TILE_ASPECT + 10,
+        countersW: 95,
         movesH: 40,
         ownInline: 96,
         pillH: 38,

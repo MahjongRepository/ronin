@@ -7,12 +7,6 @@
     initial-value: 0;
 }
 
-@property --left-depth {
-    syntax: "<length>";
-    inherits: true;
-    initial-value: 0;
-}
-
 /* The field's slot (`boardGeometry`'s); its height is a length, which the notices' clamp reads as the place's
    `max-height`. */
 .board-notices {
@@ -28,8 +22,6 @@
 
     /* Narrow desktop: past the deepest strip the field falls under 7.5em, so it starts past the strip as drawn. */
     @include board-where($narrow-desktop-board) {
-        @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
-
         margin-left: calc(var(--left-depth) - var(--strip-reserve));
     }
 }

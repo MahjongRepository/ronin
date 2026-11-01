@@ -4,6 +4,7 @@ import { styleMap } from "lit-html/directives/style-map.js";
 
 import { SIDEWAYS_UNITS, STACKED_DEPTH, UPRIGHT_DEPTH } from "@/entities/table/lib/board-constants";
 import { CALLOUT_MS } from "@/entities/table/lib/callouts";
+import { type StripContent } from "@/entities/table/lib/strip-layout";
 import {
     type BoardCallout,
     type BoardCallouts,
@@ -97,7 +98,6 @@ function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateR
 }
 
 const STRIP_SEATS: readonly SeatPosition[] = ["right", "top", "left"];
-const MAX_MELDS = 4;
 
 /** How long a laid meld is, in its tiles' widths: a sideways or stacked tile lies as long as a tile is tall. */
 function meldUnits(tiles: readonly MeldTile[]): number {
@@ -113,54 +113,16 @@ function meldDepth(tiles: readonly MeldTile[]): number {
     return tiles.some((tile) => tile.kind === "stacked") ? STACKED_DEPTH : UPRIGHT_DEPTH;
 }
 
-/** How far past every place a missing meld's end is pushed, so it never counts as overflowing its line. */
-const ABSENT_MELD = "99999px";
-
-/**
- * What a strip's stylesheet places its tiles from: how many tiles its hand holds and whether one is drawn apart, and
- * its melds newest first: how long they are before each and from each on, and the deepest, so a side strip can tell
- * which melds fit its line.
- */
-function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
-    const melds = (player?.melds ?? []).toReversed();
-    const units = melds.map(meldUnits);
-    const drawn = player?.drawnTile === undefined ? 0 : 1;
-    const deepest = Math.max(UPRIGHT_DEPTH, ...melds.map(meldDepth));
-    function sum(from: number, to: number): number {
-        return units.slice(from, to).reduce((total, unit) => total + unit, 0);
-    }
-    const perMeld = Array.from({ length: MAX_MELDS }, (_unused, index) => [
-        [`--mp-${index}`, String(sum(0, index))],
-        [`--ms-${index}`, String(Math.max(1, sum(index, MAX_MELDS)))],
-        [`--mg-${index}`, index < melds.length ? "0px" : ABSENT_MELD],
-    ]).flat();
-    return Object.fromEntries([
-        ["--hand-n", String((player?.hand.length ?? 0) + drawn)],
-        ["--drawn", String(drawn)],
-        ["--meld-n", String(melds.length)],
-        ["--meld-units", String(sum(0, MAX_MELDS))],
-        [`--mp-${MAX_MELDS}`, String(sum(0, MAX_MELDS))],
-        ["--meld-deep", String(deepest)],
-        ...perMeld,
-    ]);
-}
-
-/**
- * A side strip's counts for its depth as drawn, read by the visual check and a narrow desktop's notices.
- */
-function sideStripStyle(
-    side: "left" | "right",
-    player: BoardPlayerDisplay | null,
-): Readonly<Record<string, string>> {
-    const style = stripStyle(player);
-    const oldest = player?.melds[0];
-    return Object.fromEntries([
-        ...["--hand-n", "--drawn", "--meld-n", "--meld-units", "--meld-deep"].map((name) => [
-            `--${side}${name.slice(1)}`,
-            style[name],
-        ]),
-        [`--${side}-oldest-deep`, String(oldest === undefined ? 0 : meldDepth(oldest))],
-    ]);
+/** What an opponent's strip is laid out from: its hand's tiles, whether one is drawn apart, its melds newest first. */
+function stripContent(player: BoardPlayerDisplay | null): StripContent {
+    const drawn = player?.drawnTile !== undefined;
+    return {
+        drawn,
+        hand: (player?.hand.length ?? 0) + (drawn ? 1 : 0),
+        melds: (player?.melds ?? [])
+            .toReversed()
+            .map((tiles) => ({ depth: meldDepth(tiles), units: meldUnits(tiles) })),
+    };
 }
 
 function seatPlayer(
@@ -172,14 +134,33 @@ function seatPlayer(
 
 /** What the own row's melds scale from to end before the board's edge: how many there are and how long, in tiles. */
 function ownMeldStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, string>> {
-    const style = stripStyle(player);
-    return { "--meld-n": style["--meld-n"], "--meld-units": style["--meld-units"] };
+    const melds = player?.melds ?? [];
+    return {
+        "--meld-n": String(melds.length),
+        "--meld-units": String(melds.reduce((sum, tiles) => sum + meldUnits(tiles), 0)),
+    };
 }
 
-/** An opponent's strip in its zone toward its edge: its hand, then its melds at the strip's far (right) end. */
-function Strip(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
-    return html`<div class="board-strip board-strip--${seat}" style=${styleMap(stripStyle(player))}>
-        ${HandArea(seat, player)}${MeldsArea(seat, player)}
+/** The own row's badge and the hand's input, which only the bottom seat's strip holds. */
+interface OwnRow {
+    readonly head: TemplateResult | "";
+    readonly input?: LocalHandInput;
+}
+
+/**
+ * A seat's strip: its hand, then its melds newest first from the hand outward. An opponent's stands in its area, its
+ * frame turned to its seat from the area's corner at its hand's start, its melds where `stripLayout` places them (a
+ * side strip's wrap to a second line, the top one's scale); the own row stands in the hand's slot, its melds scaled to
+ * end before the board's edge.
+ */
+function Strip(seat: SeatPosition, player: BoardPlayerDisplay | null, own?: OwnRow): TemplateResult {
+    if (seat === "bottom") {
+        return html`<div class="board-local" style=${styleMap(ownMeldStyle(player))}>
+            ${own?.head ?? ""}${HandArea(seat, player, own?.input)}${MeldsArea(seat, player)}
+        </div>`;
+    }
+    return html`<div class="board-strip board-strip--${seat}">
+        <div class="board-strip__frame">${HandArea(seat, player)}${MeldsArea(seat, player)}</div>
     </div>`;
 }
 
@@ -449,18 +430,25 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     return html`
         <div
             class="${boardClass}"
-            ${sizeBoard({ band: props.replay ? "replay" : "play", corner: props.menu !== undefined })}
+            ${sizeBoard(
+                { band: props.replay ? "replay" : "play", corner: props.menu !== undefined },
+                {
+                    left: stripContent(seatPlayer(state, "left")),
+                    right: stripContent(seatPlayer(state, "right")),
+                    top: stripContent(seatPlayer(state, "top")),
+                },
+            )}
             @click=${unpinOnClickElsewhere}
             @keydown=${onKey}
         >
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
-                <div class="board-table" style=${styleMap({ ...sideStripStyle("left", seatPlayer(state, "left")), ...sideStripStyle("right", seatPlayer(state, "right")) })}>
+                <div class="board-table">
                     <div class="board-rivers">
                         ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
                     </div>
                     ${state ? CenterInfo(state.center, state.nameplates, platePress) : EmptyCenterArea()}
-                    ${STRIP_SEATS.map((seat) => Strip(seat, state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null))}
+                    ${STRIP_SEATS.map((seat) => Strip(seat, seatPlayer(state, seat)))}
                     ${state ? DoraDisplay(state.center) : ""}
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
@@ -469,9 +457,10 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
                     ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>
-                <div class="board-local" style=${styleMap(ownMeldStyle(bottom))}>
-                    ${plates ? OwnHead(plates.bottom, props.localHand !== undefined && props.furiten === true) : ""}${HandArea("bottom", bottom, props.localHand)}${MeldsArea("bottom", bottom)}
-                </div>
+                ${Strip("bottom", bottom, {
+                    head: plates ? OwnHead(plates.bottom, props.localHand !== undefined && props.furiten === true) : "",
+                    ...(props.localHand ? { input: props.localHand } : {}),
+                })}
             </div>
             ${props.notices ? NoticeAnnouncements(props.notices) : ""}
             ${CalloutAnnouncements(props.callouts, state)}

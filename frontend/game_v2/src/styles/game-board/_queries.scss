@@ -114,37 +114,3 @@ $desktop-chrome: ':is([data-board-chrome="regular"], [data-board-chrome="large"]
         @content;
     }
 }
-
-/* A side strip's depth as drawn, from the lengths its seat's display hands the element (`sideStripStyle`) and the room
-   along its line: its first line, and its oldest meld's second line where its melds do not fit beside its hand. */
-@mixin side-strip-depth($side, $room) {
-    --#{$side}-hand-gaps: max(0, var(--#{$side}-hand-n) - 1);
-    --#{$side}-hand-tiles: calc(
-        var(--#{$side}-hand-n) * var(--bw) + var(--#{$side}-hand-gaps) * var(--bgap)
-    );
-    --#{$side}-hand-len: calc(var(--#{$side}-hand-tiles) + var(--#{$side}-drawn) * var(--dg));
-    --#{$side}-melds-len: calc(
-        var(--#{$side}-meld-n) * (var(--g) + 2px) + var(--#{$side}-meld-units) * var(--rw)
-    );
-    --#{$side}-len: calc(var(--#{$side}-hand-len) + var(--#{$side}-melds-len));
-    --#{$side}-line1: max(
-        var(--bh),
-        min(1, var(--#{$side}-meld-n)) * var(--#{$side}-meld-deep) * var(--rw)
-    );
-    --#{$side}-line2: calc(var(--#{$side}-line1) + 4px + var(--#{$side}-oldest-deep) * var(--rw));
-    --#{$side}-depth: max(
-        var(--#{$side}-line1),
-        min(var(--#{$side}-line2), (var(--#{$side}-len) - #{$room}) * 1000)
-    );
-}
-
-/* The right strip's depth as drawn: its room runs from its origin up to the page's corner or the top margin. */
-@mixin right-strip-depth {
-    --right-shallow: clamp(0, (1.5 - var(--right-meld-deep)) * 1000, 1);
-    --right-room-top: max(
-        var(--m) - 8px,
-        var(--corner-bottom) - var(--corner-in) * var(--right-shallow) * 100000
-    );
-
-    @include side-strip-depth(right, calc(var(--right-origin) - var(--right-room-top) - 8px));
-}

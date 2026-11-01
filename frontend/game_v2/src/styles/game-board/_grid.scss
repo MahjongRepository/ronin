@@ -3,13 +3,10 @@
 
 /* Lengths CSS computes, registered so each computes once to pixels (an unregistered chain grows with every use). */
 $lengths:
-    strip-depth, strip-reserve, counters-top, top-room-left, bw, bh, foreground-top, band-height,
-    band-top, band-bottom, corner-bottom, side-badge-top, left-badge-x, river-clear, side-lane,
-    own-start, switches-left, switches-right, dg, bgap, full-reach, step-in, right-from-band,
-    right-under-corner, right-from-top, corner-in, right-pull, right-origin, corner-shift,
-    band-shift, switches-top, top-badge-right, top-lane, switches-bottom, row-rise, top-strip-x,
-    top-badge-top, right-badge-top, left-room-end, left-line2-end, own-lead, own-lane, side-clear,
-    counters-h, side-start, left-start, right-base, right-centred;
+    strip-depth, strip-reserve, counters-top, bw, bh, foreground-top, band-height, band-bottom,
+    side-badge-top, left-badge-x, side-lane, own-start, switches-left, switches-right, dg, bgap,
+    full-reach, corner-shift, band-shift, switches-top, top-lane, switches-bottom, row-rise,
+    top-strip-x, top-badge-top, right-badge-top, own-lead, own-lane, side-clear, counters-h;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them (mirrors
    `board-geometry.ts`'s `UPRIGHT_COUNTERS_GAP`). */
@@ -37,7 +34,6 @@ $upright-counters-gap: 6px;
 
     /* The viewport class: a desktop's chrome; a phone's and an upright board's sizing chrome is `PHONE_CHROME`'s and
        `UPRIGHT_CHROME`'s. */
-    --side-start: calc(var(--m) + 72px);
     --badge-h: 54px;
     --pill-h: 50px;
     --own-pill-h: 38px;
@@ -49,7 +45,6 @@ $upright-counters-gap: 6px;
     /* The counters' height (`.board-dora`): an indicator's, the panel's padding and rim. */
     --counters-h: calc(var(--dora-w) * 4 / 3 + 18px);
     --counters-top: var(--m);
-    --top-room-left: calc(var(--m) + var(--counters-w) + 8px);
     --text: 17px;
     --switch-h: 44px;
     --moves-h: 52px;
@@ -70,60 +65,13 @@ $upright-counters-gap: 6px;
         2 * var(--band-gap) + var(--control-h) + var(--row-rise) + var(--band-lift)
     );
     --foreground-top: calc(var(--hand-top) - var(--band-height));
-    --band-top: calc(var(--foreground-top) + var(--band-gap));
     --band-bottom: calc(var(--hand-top) - var(--band-gap) - var(--band-lift));
-    --corner-bottom: calc(var(--m) + var(--corner-h));
-    --step-in: calc(var(--bh) + 6px);
-
-    /* The right hand's origin, from its full reach (never the tiles held): the band's top under the corner, else the
-       top margin with the corner stepped in, else under the corner across the band, whose row then ends before it. */
-    --right-from-band: calc(var(--foreground-top) + 2px);
-    --right-under-corner: max(
-        var(--right-from-band),
-        var(--corner-bottom) + 4px + var(--full-reach)
-    );
-    --right-from-top: max(var(--right-from-band), var(--m) + var(--full-reach));
-    --right-pull: min(var(--right-under-corner) - var(--right-from-top), var(--corner-in) * 100000);
-    --right-base: calc(var(--right-under-corner) - var(--right-pull));
-
-    /* Where the hand's full reach fits under the corner, it stands centred on the core as far as that origin allows. */
-    --right-centred: max(
-        var(--corner-bottom) + 4px + var(--full-reach),
-        var(--cy) + var(--full-reach) / 2
-    );
-    --right-origin: min(var(--right-base), var(--right-centred));
-
-    /* The left strip's melds stand above the switches' place. */
-    --left-line2-end: min(var(--foreground-top), var(--switches-top) - 4px);
-
-    /* The top hand's full reach stands centred, moved right as far as its badge's lane under its start needs, short of
-       the page's corner, and right of the counters. */
-    --top-badge-right: calc(
-        100cqw - var(--m) - var(--corner-reserve) - var(--corner-shift) - var(--badge-gap)
-    );
-    --top-strip-x: max(
-        var(--top-room-left) + var(--full-reach),
-        min(
-            max(
-                var(--cx) + var(--full-reach) / 2,
-                var(--cx) + var(--hx) + var(--river-clear) + var(--side-lane-min)
-            ),
-            var(--top-badge-right)
-        )
-    );
     --strip-depth: calc(2 * var(--rw));
 
     /* A side strip's deepest reach: two stacked lines 4px apart, the second's tiles never under the face floor. */
     --strip-reserve: calc(2 * var(--rw) + 4px + 2 * max(var(--rw), #{$face-floor}));
     --left-badge-x: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
-    --river-clear: max(10px, var(--rw) / 2);
     --side-clear: max(16px, var(--rw));
-
-    /* The top badge's lane, under its hand's start: from half a river tile past the top river to the hand's end. */
-    --top-lane: min(
-        var(--side-card-w),
-        var(--top-strip-x) - var(--cx) - var(--hx) - var(--river-clear)
-    );
 
     /* The own badge's lane starts at the hand's left end. */
     --own-lead: calc(var(--own-start) + var(--own-inline));
@@ -133,7 +81,6 @@ $upright-counters-gap: 6px;
     --board-local-tile-w: var(--ow);
 
     @include small-chrome {
-        --side-start: calc(var(--m) + 52px);
         --badge-h: 40px;
         --pill-h: 38px;
         --own-pill-h: 30px;
@@ -153,7 +100,6 @@ $upright-counters-gap: 6px;
     }
 
     @include large-chrome {
-        --side-start: calc(var(--m) + 100px);
         --badge-h: 72px;
         --pill-h: 70px;
         --own-pill-h: 52px;
@@ -172,45 +118,8 @@ $upright-counters-gap: 6px;
 
     @include upright-board {
         --row-rise: 0px;
-        --left-room-end: var(--band-top);
-
-        /* The left hand's full reach stands centred on the core as far as it stays under the counters and above the
-           band. */
-        --left-start: max(
-            var(--side-start),
-            min(var(--cy) - var(--full-reach) / 2, var(--left-room-end) - 8px - var(--full-reach))
-        );
-        --left-line2-end: min(var(--foreground-top), var(--hand-top) - var(--own-rise) - 4px);
         --counters-top: calc(var(--m) + var(--strip-depth) + #{$upright-counters-gap});
-        --top-room-left: var(--m);
-        --top-badge-top: var(--counters-top);
-
-        /* The left hand runs down from under the counters, its badge beside its first tile toward the table; the right
-           badge stands in its zone beside the core, never over it, over its river, its hand running up to it. */
-        --side-start: calc(var(--counters-top) + var(--counters-h) + #{$upright-counters-gap});
         --band-lift: 0px;
-        --side-badge-top: max(
-            var(--side-start),
-            min(var(--left-start), var(--core-top) - var(--badge-h) - 6px)
-        );
-        --right-lowest-top: calc(var(--top-badge-top) + var(--pill-h) + 6px + var(--badge-h) + 4px);
-        --right-origin: min(
-            var(--right-from-band),
-            max(var(--cy) + var(--full-reach) / 2, var(--right-lowest-top) + var(--full-reach))
-        );
-        --right-badge-top: calc(var(--right-origin) - var(--full-reach) - 4px - var(--badge-h));
-        --side-lane: min(
-            var(--side-card-w),
-            var(--cx) - var(--hx) - var(--river-clear) - var(--left-badge-x)
-        );
-        --top-strip-x: max(
-            var(--top-room-left) + var(--full-reach),
-            var(--cx) + var(--full-reach) / 2
-        );
-        --top-lane: min(
-            var(--side-card-w),
-            var(--top-strip-x) - var(--m) - var(--counters-w) - var(--badge-gap)
-        );
         --timer-w: 60px;
     }
 }
@@ -265,7 +174,6 @@ $upright-counters-gap: 6px;
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
     --menu-size: var(--geo-menu-size);
     --corner-reserve: var(--geo-corner-reserve);
-    --corner-in: var(--geo-corner-in);
     --corner-shift: var(--geo-corner-shift);
     --top-badge-top: var(--geo-top-badge-top);
     --side-badge-top: var(--geo-side-badge-top);
@@ -273,11 +181,11 @@ $upright-counters-gap: 6px;
     --side-lane: var(--geo-side-lane);
     --own-start: var(--geo-own-start);
     --own-lane: var(--geo-own-lane);
-    --left-start: var(--geo-left-start);
-    --left-room-end: var(--geo-left-room-end);
     --switches-left: var(--geo-switches-left);
     --switches-right: var(--geo-switches-right);
     --switches-top: var(--geo-switches-top);
+    --top-strip-x: var(--geo-top-strip-x);
+    --top-lane: var(--geo-top-lane);
     --actions-left: var(--geo-actions-left);
     --actions-right: var(--geo-actions-right);
     --actions-bottom: var(--geo-actions-bottom);
@@ -294,7 +202,6 @@ $upright-counters-gap: 6px;
     --timer-w: var(--geo-timer-w);
     --switch-h: var(--geo-switch-h);
     --moves-h: var(--geo-moves-h);
-    --right-origin: var(--geo-right-origin);
     --band-shift: var(--geo-band-shift);
 }
 
@@ -345,8 +252,13 @@ $upright-counters-gap: 6px;
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
     --menu-size: var(--geo-menu-size);
     --corner-reserve: var(--geo-corner-reserve);
-    --corner-in: var(--geo-corner-in);
     --corner-shift: var(--geo-corner-shift);
+    --top-badge-top: var(--geo-top-badge-top);
+    --side-badge-top: var(--geo-side-badge-top);
+    --right-badge-top: var(--geo-right-badge-top);
+    --side-lane: var(--geo-side-lane);
+    --top-strip-x: var(--geo-top-strip-x);
+    --top-lane: var(--geo-top-lane);
 }
 
 .game-board:not([data-board-family]) > :is(.board-layout, .board-overlay) {
