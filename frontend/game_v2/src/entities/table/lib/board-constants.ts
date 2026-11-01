@@ -1,4 +1,4 @@
-import { RIVER_ROWS } from "@/entities/tile";
+import { RIVER_ROWS, RIVER_ROW_SIZE } from "@/entities/tile";
 
 /** A tile's height to its width. */
 const TILE_ASPECT = 4 / 3;
@@ -31,6 +31,9 @@ const FACE_FLOOR = 13;
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT);
 
+/** How far a side river's row reaches down from the core's top past its sideways tile, in river tiles. */
+const LEFT_REACH_TILES = CORE_TILES / 2 + RIVER_ROW_SIZE - 1;
+
 /** What the side rivers' rows take of the board's width beside the centre, in river tiles. */
 const SIDE_REACH_TILES = 2 * RIVER_ROWS.wrap * TILE_ASPECT;
 
@@ -49,7 +52,7 @@ const LARGE_CHROME_HEIGHT = 1200;
 
 type ChromeTier = "small" | "regular" | "large";
 
-/** The px a desktop's sizing reads of its chrome: margins, gaps, the band's control and the own badge. */
+/** The px a desktop's sizing reads of its chrome: margins, gaps, the band's control, the own badge and the switches. */
 interface DesktopChrome {
     readonly m: number;
     readonly sep: number;
@@ -59,6 +62,9 @@ interface DesktopChrome {
     readonly ownBadgeH: number;
     readonly switchGap: number;
     readonly ownInline: number;
+    readonly switchH: number;
+    readonly movesH: number;
+    readonly sideStart: number;
 }
 
 const REGULAR_CHROME: DesktopChrome = {
@@ -66,16 +72,31 @@ const REGULAR_CHROME: DesktopChrome = {
     controlH: 60,
     coreGap: 40,
     m: 18,
+    movesH: 52,
     ownBadgeH: 40,
     ownInline: 0,
     sep: 40,
+    sideStart: 72,
     switchGap: 18,
+    switchH: 44,
 };
 
 const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
-    large: { ...REGULAR_CHROME, ownBadgeH: 52 },
+    large: {
+        ...REGULAR_CHROME,
+        movesH: 60,
+        ownBadgeH: 52,
+        sideStart: 100,
+        switchH: 52,
+    },
     regular: REGULAR_CHROME,
-    small: { ...REGULAR_CHROME, ownInline: 96, switchGap: 4 },
+    small: {
+        ...REGULAR_CHROME,
+        movesH: 40,
+        ownInline: 96,
+        sideStart: 52,
+        switchGap: 4,
+    },
 };
 
 /** The desktop's centre share of the core, and its own tile's and core's caps in shares of the board. */
@@ -96,6 +117,7 @@ export {
     FULL_HAND,
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
+    LEFT_REACH_TILES,
     OWN_MELD_SCALE,
     PHONE_HEIGHT,
     RIVER_GAP_SHARE,

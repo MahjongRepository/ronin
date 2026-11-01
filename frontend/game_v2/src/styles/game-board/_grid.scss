@@ -14,10 +14,10 @@ $lengths:
     right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
     switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom, own-rise,
     switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top, side-step,
-    right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place, switches-place-w,
-    own-lead, own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end,
-    side-clear, decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start,
-    right-base, right-centred, height-room;
+    right-badge-top, left-room-end, left-line2-end, switches-place, switches-place-w, own-lead,
+    own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end, side-clear,
+    decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start, right-base,
+    right-centred, height-room;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them. */
 $upright-counters-gap: 6px;
@@ -41,7 +41,8 @@ $upright-centre-min: 100px;
 }
 
 .game-board > :is(.board-layout, .board-overlay) {
-    /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`. */
+    /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`; the full reach's, the switches'
+       place's and the left hand's literals mirror `board-geometry.ts`'s. */
 
     /* The viewport class: a desktop's margins, gaps, chrome and centre share; a phone and an upright board override. */
     --m: 18px;
@@ -124,13 +125,11 @@ $upright-centre-min: 100px;
         (var(--height-room) - var(--spare) * var(--m)) / var(--rows-at-margin),
         var(--height-room) / var(--rows-at-edge)
     );
-    --rw-by-switches: 9999px;
     --rw-by-centre: 9999px;
     --rw: round(
         down,
         min(
             var(--rw-by-own),
-            var(--rw-by-switches),
             var(--rw-by-centre),
             var(--rw-by-height),
             var(--rw-by-band),
@@ -152,13 +151,11 @@ $upright-centre-min: 100px;
 
     /* The centre is wider than tall, as Tenhou's is, where the width beside the core allows: its sides' rows and its
        round need the length. The rivers keep its corners, so a narrow board's centre stays square. */
-    --w-by-switches: 9999px;
     --w: max(
         var(--c),
         min(
             var(--c) * #{$centre-aspect},
-            var(--core-room-w) - (#{$side-reach-tiles} + #{$core-tiles}) * var(--rw),
-            var(--w-by-switches)
+            var(--core-room-w) - (#{$side-reach-tiles} + #{$core-tiles}) * var(--rw)
         )
     );
     --hx: calc(var(--w) / 2);
@@ -437,16 +434,9 @@ $upright-centre-min: 100px;
         --timer-w: 60px;
     }
 
-    /* A short desktop's river tile keeps its left river's reach from the core's top slot above the switches (the slot's
-       river tile, the core's half less the centre's, and that river's row), and its core centres only as far. */
     @include short-desktop-board {
-        /* The bottom river, from the centre's left corner, stays clear of the switches' place level with it. */
-        --w-by-switches: calc(
-            2 * (var(--cx) - var(--switches-left) - var(--switches-place-w) - 8px)
-        );
-
-        /* Its side badges step down where the decisions' tallest column (five offers over the band's control and the
-           timer: six rows, a win's rise) leaves room under the right one. */
+        /* A short desktop's side badges step down where the decisions' tallest column (five offers over the band's
+           control and the timer: six rows, a win's rise) leaves room under the right one. */
         --decisions-top: calc(
             var(--row-bottom) - 6 * var(--control-h) - 5 * #{$decision-gap} - #{$win-rise}
         );
@@ -457,24 +447,6 @@ $upright-centre-min: 100px;
             1px
         );
         --side-step: min(var(--stepped-top), var(--side-step-room) * 100000);
-
-        /* `--switches-top` solved for the tile: the own row, its meld rise and badge, the switches' place above. */
-        --switches-fixed: calc(
-            var(--own-badge-h) + 6px + var(--switch-gap) + var(--switches-place) + var(--sep)
-        );
-        --switches-tiles: calc(2 * 4 / 3 + 9.3 + var(--own-row) + var(--band-tile-share));
-        --rw-by-switches: min(
-            (100cqh - 2 * var(--m) - var(--switches-fixed)) / var(--switches-tiles),
-            (100cqh - var(--m) - var(--switches-fixed)) / (var(--switches-tiles) + var(--own-edge))
-        );
-        --rw-by-band: 9999px;
-        --core-room-band: 9999px;
-        --core-top-room: calc(
-            var(--switches-top) - 4px - var(--core-top-slot) - 9.3 * var(--rw) - var(--rh)
-        );
-        --core-top: calc(
-            var(--core-top-slot) + clamp(0px, var(--core-top-free), var(--core-top-room))
-        );
     }
 
     /* Upright, the core stands below the counters, and above two rows of decisions and the notices' place over them,
@@ -562,7 +534,8 @@ $upright-centre-min: 100px;
 }
 
 /* A family `boardGeometry` sizes takes its lengths from it; the replay's later overrides still win. */
-.game-board:where([data-board-family="desktop"]) > :is(.board-layout, .board-overlay) {
+.game-board:where([data-board-family="desktop"], [data-board-family="short-desktop"])
+    > :is(.board-layout, .board-overlay) {
     --rw: var(--geo-rw);
     --rh: var(--geo-rh);
     --ow: var(--geo-ow);

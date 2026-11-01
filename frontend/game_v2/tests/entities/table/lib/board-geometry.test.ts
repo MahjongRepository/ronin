@@ -4,6 +4,7 @@ import { boardGeometry } from "@/entities/table/lib/board-geometry";
 
 /** The sizes pinned, in the order each case lists them. */
 const SIZES = ["rw", "ow", "core", "c", "w", "core-top"] as const;
+const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
 
 describe("boardGeometry", () => {
     it.each([
@@ -29,6 +30,18 @@ describe("boardGeometry", () => {
         const { lengths } = boardGeometry({ height, width });
 
         for (const [index, name] of SIZES.entries()) {
+            expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+        }
+    });
+
+    it.each([
+        [1346, 637, [30, 227.388, 101.623]],
+        [1260, 700, [35, 225.4, 109.833]],
+        [1420, 750, [38, 235.48, 119.5]],
+    ])("sizes a %ix%i short desktop board as its stylesheet did", (width, height, expected) => {
+        const { lengths } = boardGeometry({ height, width });
+
+        for (const [index, name] of SHORT_DESKTOP_SIZES.entries()) {
             expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
         }
     });
