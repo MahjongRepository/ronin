@@ -39,6 +39,7 @@ describe("boardGeometry", () => {
         [1346, 637, [30, 227.388, 101.623]],
         [1260, 700, [35, 225.4, 109.833]],
         [1420, 750, [38, 235.48, 119.5]],
+        [1150, 600, [28, 211.333, 96.0002]],
     ])("sizes a %ix%i short desktop board as its stylesheet did", (width, height, expected) => {
         const { lengths } = boardGeometry({ height, width });
 

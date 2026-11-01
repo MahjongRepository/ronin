@@ -185,7 +185,10 @@ function switchesPlaceWidth({ movesH, switchH }: DesktopChrome): number {
     );
 }
 
-/** An opponent's full hand along its line: fourteen tiles, whole-pixel hairlines between them and the drawn tile's gap. */
+/**
+ * An opponent's full hand along its line: fourteen tiles, whole-pixel hairlines between them and the drawn tile's
+ * gap.
+ */
 function fullReach(rw: number): number {
     const hairline = Math.ceil(rw / TILE_UNITS);
     const drawnGap = Math.round(OPPONENT_DRAWN_GAP * rw);
