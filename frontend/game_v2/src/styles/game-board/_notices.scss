@@ -26,7 +26,7 @@
     max-height: var(--geo-field-height);
     overflow-y: auto;
 
-    /* Temporary narrow desktop exception: past the deepest strip the place is too narrow. */
+    /* Narrow desktop: past the deepest strip the field falls under 7.5em, so it starts past the strip as drawn. */
     @include board-where($narrow-desktop-board) {
         @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
 

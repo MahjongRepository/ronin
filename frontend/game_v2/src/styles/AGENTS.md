@@ -37,8 +37,10 @@ they disagree.
   does not emit stays unset on that family's board, where nothing reads it. No CSS solve remains, so a board without
   `data-board-family` (not yet measured) hides its layers. A literal both sides need is a TS constant emitted as a
   `--geo-*` length (the latest discard's gaps); one still in SCSS stays beside a note naming its TS mirror (the
-  chrome blocks' badge and decision px mirror `DESKTOP_CHROME`). A narrow desktop's notices still start past the left
-  strip's drawn depth (a margin on the field's slot): the deepest strip leaves them too narrow, a choice still open.
+  chrome blocks' badge and decision px mirror `DESKTOP_CHROME`). A narrow desktop's notices read the left strip's
+  drawn depth (a margin on the field's slot): past the deepest strip its field falls under the 7.5em floor (6.2em at
+  780x580, none at 1080x880), so the fixed-place rule is unmet there until a design choice: smaller tiles, or another
+  place for those notices.
 - **The replay fills live's slots.** GameBoard's band end (`.board-actions`, the decisions' place) holds live's
   decisions or a replay's group, its field (`.board-notices`) the notices and a replay's status; the band end's lengths
   (`--actions-*`, its room for a live row or a replay's group from the band the page fills) are the geometry's, so
