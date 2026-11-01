@@ -11,7 +11,11 @@ they disagree.
   are `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the replay's) can use them.
 - **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) a family not yet moved keeps its CSS
   solve beside the TS one, the bridge gated on the measured family, and the code may lag the spec's phone
-  composition until task 10. Until then, on a phone the places beside a side strip (the notices, the decisions'
+  composition until task 10. The directive writes the sizes as `--geo-<name>` on `.game-board`; one bridge rule
+  after every family block (`_grid.scss`) maps them onto the lengths' own names on `.board-layout` and
+  `.board-overlay`, gated on `data-board-family` inside `:where()` so it keeps the solve's (0,2,0) and the lazy
+  replay's overrides still win. A moved family's CSS solve is deleted; a literal both sides need stays in SCSS beside
+  a note naming its TS mirror. Until then, on a phone the places beside a side strip (the notices, the decisions'
   column) still read its drawn depth, the deepest strip leaving them too narrow.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre

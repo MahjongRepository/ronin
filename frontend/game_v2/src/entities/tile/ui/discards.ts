@@ -1,5 +1,6 @@
 import { html } from "lit-html";
 
+import { RIVER_ROWS, RIVER_ROW_SIZE, type RiverOverflow } from "@/entities/tile/lib/river-shape";
 import { type TileFace } from "@/entities/tile/lib/tile-utils";
 
 import { Tile } from "./tile";
@@ -11,18 +12,9 @@ interface DiscardTile {
     last?: boolean;
 }
 
-/**
- * How a river past its normal three rows lies: a top or bottom river's third row runs on along its line (`run-on`), a
- * side river wraps its overflow into a fourth row of six toward its seat (`wrap`).
- */
-type RiverOverflow = "run-on" | "wrap";
-
-const ROW_SIZE = 6;
-
 /** The row a discard lies in: six to a row, the last row taking every tile past the full ones. */
 function rowOf(index: number, overflow: RiverOverflow): number {
-    const lastRow = overflow === "wrap" ? 3 : 2;
-    return Math.min(lastRow, Math.floor(index / ROW_SIZE));
+    return Math.min(RIVER_ROWS[overflow] - 1, Math.floor(index / RIVER_ROW_SIZE));
 }
 
 /** Render a player's discard pile as rows of six, past three rows as `overflow` says. */
@@ -53,4 +45,4 @@ function Discards(tiles: readonly DiscardTile[], overflow: RiverOverflow = "run-
 }
 
 export { Discards };
-export type { DiscardTile, RiverOverflow };
+export type { DiscardTile };

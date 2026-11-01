@@ -4,20 +4,20 @@
 /* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
    length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
 $lengths:
-    own-fit, ow, oh, strip-depth, strip-reserve, core-room-band, counters-top, top-room-left, hand-top,
-    core-room-h, core-room-w, rw, rh, g, core, c, h, w, hx, core-top, cx, cy, bw, bh,
-    foreground-top, row-rise-fixed, band-lift, band-height, band-top, band-bottom, corner-bottom,
-    reach-left, reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top,
-    left-badge-x, river-clear, lane-at-start, lane-below, start-narrow, side-lane, full-hand-w,
-    own-start, own-hand-right, hand-bottom, switches-left, switches-right, dg, bgap, full-reach,
-    step-in, right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits,
-    corner-in, right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end,
-    left-meets, switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom,
-    own-rise, switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top,
-    side-step, right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place,
-    switches-place-w, own-lead, own-lane-free, own-lane-beside-river, own-river-lane, own-lane,
-    own-badge-end, side-clear, decisions-top, side-step-room, counters-h, side-start, plate-reach,
-    left-start, right-base, right-centred, band-fixed, height-room, band-room;
+    own-fit, ow, oh, strip-depth, strip-reserve, core-room-band, counters-top, top-room-left,
+    hand-top, core-room-h, core-room-w, rw, rh, g, core, c, h, w, hx, core-top, cx, cy, bw, bh,
+    foreground-top, band-lift, band-height, band-top, band-bottom, corner-bottom, reach-left,
+    reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top, left-badge-x,
+    river-clear, lane-at-start, lane-below, start-narrow, side-lane, full-hand-w, own-start,
+    own-hand-right, hand-bottom, switches-left, switches-right, dg, bgap, full-reach, step-in,
+    right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
+    right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
+    switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom, own-rise,
+    switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top, side-step,
+    right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place, switches-place-w,
+    own-lead, own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end,
+    side-clear, decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start,
+    right-base, right-centred, height-room;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them. */
 $upright-counters-gap: 6px;
@@ -41,6 +41,8 @@ $upright-centre-min: 100px;
 }
 
 .game-board > :is(.board-layout, .board-overlay) {
+    /* The desktop's chrome px here and in the chrome blocks mirror `DESKTOP_CHROME`. */
+
     /* The viewport class: a desktop's margins, gaps, chrome and centre share; a phone and an upright board override. */
     --m: 18px;
     --switch-gap: var(--band-gap);
@@ -98,16 +100,11 @@ $upright-centre-min: 100px;
         100cqh - var(--m) - var(--hand-bottom) - var(--oh) - var(--core-gap) - var(--sep)
     );
     --core-room-w: calc(100cqw - 2 * var(--m) - 24px);
-    --band-reserve: calc(
-        var(--band-gap) + var(--control-h) + 20px + var(--row-rise) + var(--band-lift)
-    );
 
-    /* The own row's height and edge in river tiles, and the band's rise over it (the meld rise) and a fixed part. */
+    /* The own row's height and edge in river tiles, and the band's rise over it (the meld rise). */
     --own-row: calc(4 / 3 * var(--own-scale));
     --own-edge: calc(#{$tile-edge-share} * var(--own-scale));
     --band-tile-share: max(0, 2 * min(#{$own-meld-scale}, var(--own-scale)) - var(--own-row));
-    --row-rise-fixed: 0px;
-    --core-room-band: calc(var(--hand-top) - var(--band-reserve) - var(--m) - var(--sep));
 
     /* The river tile: the largest that keeps the centre at its share of the core in each room the core has (a room's
        tiles count the core's 8.6 and what else stands in that room per river tile). */
@@ -126,15 +123,6 @@ $upright-centre-min: 100px;
     --rw-by-height: min(
         (var(--height-room) - var(--spare) * var(--m)) / var(--rows-at-margin),
         var(--height-room) / var(--rows-at-edge)
-    );
-    --band-fixed: calc(
-        var(--sep) + var(--band-gap) + var(--control-h) + 20px + var(--row-rise-fixed)
-    );
-    --band-room: calc(var(--spare) * (100cqh - var(--m) - var(--band-fixed)));
-    --band-rise: calc(var(--spare) * var(--band-tile-share));
-    --rw-by-band: min(
-        (var(--band-room) - var(--spare) * var(--m)) / (var(--rows-at-margin) + var(--band-rise)),
-        var(--band-room) / (var(--rows-at-edge) + var(--band-rise))
     );
     --rw-by-switches: 9999px;
     --rw-by-centre: 9999px;
@@ -177,7 +165,6 @@ $upright-centre-min: 100px;
     --core-top-slot: calc(var(--m) + var(--rh) + var(--sep));
     --core-top-free: calc((var(--core-room-h) - var(--rh) - var(--core)) / 2);
     --core-top-band: calc(var(--hand-top) - var(--band-reserve) - var(--core));
-    --core-top: min(var(--core-top-slot) + var(--core-top-free), var(--core-top-band));
     --cx: calc(100cqw / 2);
     --cy: calc(var(--core-top) + var(--core) / 2);
 
@@ -365,10 +352,8 @@ $upright-centre-min: 100px;
     --corner-reserve: calc(var(--menu-size) + #{$corner-gap});
 
     @include small-chrome {
-        --own-inline: 96px;
         --switch-gap: 4px;
         --row-bottom: var(--switches-bottom);
-        --row-rise-fixed: calc(var(--own-badge-h) + 2px + var(--switch-gap) - var(--band-gap));
         --plate-reach: 99999px;
         --side-start: calc(var(--m) + 52px);
         --badge-h: 40px;
@@ -574,6 +559,45 @@ $upright-centre-min: 100px;
         --own-lane: calc(var(--full-hand-w) / 2);
         --timer-w: 60px;
     }
+}
+
+/* A family `boardGeometry` sizes takes its lengths from it; the replay's later overrides still win. */
+.game-board:where([data-board-family="desktop"]) > :is(.board-layout, .board-overlay) {
+    --rw: var(--geo-rw);
+    --rh: var(--geo-rh);
+    --ow: var(--geo-ow);
+    --oh: var(--geo-oh);
+    --own-fit: var(--geo-own-fit);
+    --g: var(--geo-g);
+    --core: var(--geo-core);
+    --c: var(--geo-c);
+    --h: var(--geo-h);
+    --w: var(--geo-w);
+    --hx: var(--geo-hx);
+    --cx: var(--geo-cx);
+    --cy: var(--geo-cy);
+    --core-top: var(--geo-core-top);
+    --hand-bottom: var(--geo-hand-bottom);
+    --hand-top: var(--geo-hand-top);
+    --core-room-h: var(--geo-core-room-h);
+    --core-room-w: var(--geo-core-room-w);
+    --core-room-band: var(--geo-core-room-band);
+    --band-reserve: var(--geo-band-reserve);
+    --band-lift: var(--geo-band-lift);
+    --row-rise: var(--geo-row-rise);
+    --own-meld-tile: var(--geo-own-meld-tile);
+    --own-meld-rise: var(--geo-own-meld-rise);
+    --own-rise: var(--geo-own-rise);
+    --switches-bottom: var(--geo-switches-bottom);
+    --band-bottom: var(--geo-band-bottom);
+    --m: var(--geo-m);
+    --sep: var(--geo-sep);
+    --core-gap: var(--geo-core-gap);
+    --control-h: var(--geo-control-h);
+    --band-gap: var(--geo-band-gap);
+    --own-badge-h: var(--geo-own-badge-h);
+    --switch-gap: var(--geo-switch-gap);
+    --own-inline: var(--geo-own-inline);
 }
 
 .board-layout {

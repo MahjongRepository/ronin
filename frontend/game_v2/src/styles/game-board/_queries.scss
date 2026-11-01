@@ -1,5 +1,7 @@
 $tile-w: 60;
 $tile-h: 80;
+
+/* The family and chrome thresholds mirror `board-constants.ts`. */
 $short-height: 520px;
 $short-desktop-height: 760px;
 $small-chrome-width: 1100px;
@@ -15,6 +17,9 @@ $corner-gap: 6px;
 
 /* The corner's side the panel leaves free: the cog's margin, its reserve and the corner's step in. */
 $corner-clear: calc(var(--m) + var(--corner-reserve) + var(--corner-shift));
+
+/* `$full-hand`, `$own-meld-scale`, `$river-gap-share`, `$core-tiles`, `$centre-aspect`, `$side-reach-tiles`,
+   `$tile-edge-share` and `$face-floor` mirror `board-constants.ts`. */
 
 /* A full own hand's width in own tiles: fourteen tiles, the drawn tile's gap and the hairlines between them. */
 $full-hand: 14.6;

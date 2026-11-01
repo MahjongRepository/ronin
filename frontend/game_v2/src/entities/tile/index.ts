@@ -7,7 +7,9 @@ export { Meld } from "./ui/meld";
 export { meldTiles } from "./lib/meld-tiles";
 export type { MeldInput, MeldTile } from "./lib/meld-tiles";
 export { Discards } from "./ui/discards";
-export type { DiscardTile, RiverOverflow } from "./ui/discards";
+export type { DiscardTile } from "./ui/discards";
+export { RIVER_ROWS, RIVER_ROW_SIZE } from "./lib/river-shape";
+export type { RiverOverflow } from "./lib/river-shape";
 export { TILE_FACES_SET } from "./lib/tile-config";
 export {
     tile136toString,

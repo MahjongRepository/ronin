@@ -2,6 +2,7 @@ import { type TemplateResult, html, nothing } from "lit-html";
 import { keyed } from "lit-html/directives/keyed.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
+import { SIDEWAYS_UNITS, STACKED_DEPTH, UPRIGHT_DEPTH } from "@/entities/table/lib/board-constants";
 import { CALLOUT_MS } from "@/entities/table/lib/callouts";
 import {
     type BoardCallout,
@@ -15,6 +16,7 @@ import {
 } from "@/entities/table/model/board-types";
 import { Discards, Hand, Meld, type MeldTile, Tile, TileBack } from "@/entities/tile";
 
+import { sizeBoard } from "./board-geometry-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type PlatePress, pinnedPlate } from "./nameplate";
@@ -95,9 +97,6 @@ function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateR
 
 const STRIP_SEATS: readonly SeatPosition[] = ["right", "top", "left"];
 const MAX_MELDS = 4;
-const SIDEWAYS_UNITS = 4 / 3;
-const UPRIGHT_DEPTH = 4 / 3;
-const STACKED_DEPTH = 2;
 
 /** How long a laid meld is, in its tiles' widths: a sideways or stacked tile lies as long as a tile is tall. */
 function meldUnits(tiles: readonly MeldTile[]): number {
@@ -444,7 +443,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     }
 
     return html`
-        <div class="${boardClass}" @click=${unpinOnClickElsewhere} @keydown=${onKey}>
+        <div class="${boardClass}" ${sizeBoard()} @click=${unpinOnClickElsewhere} @keydown=${onKey}>
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
                 <div class="board-table" style=${styleMap({ ...sideStripStyle("left", seatPlayer(state, "left")), ...sideStripStyle("right", seatPlayer(state, "right")) })}>

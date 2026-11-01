@@ -60,8 +60,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   of calls, one more discard, a new second of a long decision's last five), so scenarios and timelines stay silent
   and a snapshot plays nothing. Only the live driver plays them, while `PlayUi.soundOn`. A move's part
   (`moveSoundCues`) is the replay's too.
-- The notices' clamp (`entities/table/ui/notice-clamp.ts`) is the board's only script measurement; it writes
-  attributes only.
+- The board's script measurements are the table slice's: its geometry directive (`sizeBoard`) and the notices' clamp
+  (`entities/table/ui/notice-clamp.ts`), which writes attributes only.
 - Live regions announce each notice and call once, never each second or redraw; never `role="status"` (atomic).
 
 ## Scenarios

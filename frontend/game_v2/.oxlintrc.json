@@ -689,7 +689,10 @@
             }
         },
         {
-            "files": ["src/entities/table/model/apply-event.ts"],
+            "files": [
+                "src/entities/table/model/apply-event.ts",
+                "src/entities/table/lib/board-geometry.ts"
+            ],
             "rules": {
                 "max-statements": "off"
             }
