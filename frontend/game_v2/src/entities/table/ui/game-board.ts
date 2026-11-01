@@ -418,6 +418,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
     ]
         .filter(Boolean)
         .join(" ");
+    const bandEnd = props.actions ?? props.replay?.controls;
     const bottom = state?.players[0] ?? null;
     const plates = state ? Nameplates(state.nameplates, platePress) : null;
     function unpinOnClickElsewhere(event: MouseEvent): void {
@@ -458,9 +459,8 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     ${state ? DoraDisplay(state.center) : ""}
                     ${plates ? html`${plates.right}${plates.top}${plates.left}` : ""}
                     ${props.menu ? html`<div class="board-menu">${props.menu}</div>` : ""}
-                    ${props.actions ? html`<div class="board-actions" data-area="actions">${props.actions}</div>` : ""}
+                    ${bandEnd ? html`<div class="board-actions" data-area="actions">${bandEnd}</div>` : ""}
                     ${props.switches ?? ""}
-                    ${props.replay ? html`<div class="board-replay">${props.replay.controls}</div>` : ""}
                     ${props.notices || props.replay ? BoardNotices(props.notices ?? [], props.replay?.status) : ""}
                     ${props.callouts ? Callouts(props.callouts) : ""}
                 </div>

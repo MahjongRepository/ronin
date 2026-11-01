@@ -174,10 +174,10 @@ function RoundsButton(props: ReplayControlsProps): TemplateResult {
 export function ReplayControls(props: ReplayControlsProps): TemplateResult {
     const { playback } = props;
     return html`
-        <div class="replay-controls replay-controls__moves" role="group" aria-label="Move through the replay">
+        <div class="replay-controls__moves" role="group" aria-label="Move through the replay">
             ${JumpButton("first", props)}${JumpButton("prevRound", props)}${StepButton("prev", props.moves.prev, props)}${PlayButton(props)}${StepButton("next", props.moves.next, props)}${JumpButton("nextRound", props)}${JumpButton("last", props)}
         </div>
-        <div class="replay-controls replay-controls__options" role="group" aria-label="View">
+        <div class="replay-controls__options" role="group" aria-label="View">
             ${OptionButton({
                 content: Icon(playback.hideHands ? OPTION_ICONS.handsHidden : OPTION_ICONS.hands),
                 kind: "hands",

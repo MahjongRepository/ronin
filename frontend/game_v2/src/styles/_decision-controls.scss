@@ -7,7 +7,7 @@ $choice-tile-share: 0.45;
 $preview-tile-share: 0.42;
 $corner-min-w: 180px;
 
-@each $name in upper-clear, actions-left, actions-right {
+@each $name in upper-clear, actions-left, actions-right, actions-bottom {
     @property --#{$name} {
         syntax: "<length>";
         inherits: true;
@@ -17,7 +17,7 @@ $corner-min-w: 180px;
 
 /* A desktop's band row past the switches and the own badge's lane, to the hand's right end or as far past it as a full
    row of offers needs; a phone's column beside the right river and strip. */
-.board-actions {
+.board-table {
     --actions-left: max(var(--switches-right) + var(--band-gap), var(--own-badge-end));
     --actions-need: calc(
         var(--win-min-w) + 4 * var(--action-min-w) + var(--timer-w) + 5 * #{$decision-gap}
@@ -26,20 +26,11 @@ $corner-min-w: 180px;
         var(--m),
         min(100cqw - var(--own-hand-right), 100cqw - var(--actions-left) - var(--actions-need))
     );
+    --actions-bottom: var(--row-bottom);
     --upper-clear: max(
         0px,
         var(--m) + var(--strip-reserve) + #{$decision-gap} - var(--actions-right)
     );
-
-    container: decisions / inline-size;
-    position: absolute;
-    left: var(--actions-left);
-    right: var(--actions-right);
-    bottom: calc(100cqh - var(--row-bottom));
-    z-index: 3;
-    display: flex;
-    justify-content: flex-end;
-    min-width: 0;
 
     @include short-desktop-board {
         --actions-left: max(
@@ -55,17 +46,30 @@ $corner-min-w: 180px;
 
     @include phone-board {
         --actions-left: calc(var(--reach-right) + #{$gap});
-
-        container: decisions / size;
-        left: var(--actions-left);
-        right: var(--m);
-        top: calc(var(--right-badge-top) + var(--badge-h) + #{$gap});
+        --actions-right: var(--m);
     }
 
     @include upright-board {
-        left: var(--m);
-        right: calc(var(--m) + var(--strip-reserve) + 8px);
-        bottom: calc(100cqh - var(--hand-top) + var(--own-rise) + 4px);
+        --actions-left: var(--m);
+        --actions-right: calc(var(--m) + var(--strip-reserve) + 8px);
+        --actions-bottom: var(--geo-actions-bottom);
+    }
+}
+
+.board-actions {
+    container: decisions / inline-size;
+    position: absolute;
+    left: var(--actions-left);
+    right: var(--actions-right);
+    bottom: calc(100cqh - var(--actions-bottom));
+    z-index: 3;
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+
+    @include phone-board {
+        container: decisions / size;
+        top: calc(var(--right-badge-top) + var(--badge-h) + #{$gap});
     }
 }
 

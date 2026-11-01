@@ -521,6 +521,7 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     return Object.fromEntries([
         ...cornerLengths(rw),
         ...panelLengths(panel),
+        ...replayLengths(slots, chrome, tier),
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],
         ["band-lift", bandLift],
@@ -572,21 +573,39 @@ interface UprightGroupRoom {
     readonly width: number;
 }
 
+function replayGroupWidth(chrome: ChromeTier, movesH: number, replayGap: number): number {
+    const moves = chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES;
+    return (moves + 2) * movesH + (moves + 1) * replayGap;
+}
+
+function replayLengths(
+    slots: BoardSlots,
+    chrome: ChromeTier,
+    { movesH, replayGap }: Readonly<Record<"movesH" | "replayGap", number>>,
+): [string, number][] {
+    return slots.band === "replay"
+        ? [
+              ["replay-gap", replayGap],
+              ["replay-group-w", replayGroupWidth(chrome, movesH, replayGap)],
+          ]
+        : [];
+}
+
+function uprightGroupLane(room: UprightGroupRoom): number {
+    const { bandGap, m, movesH, replayGap } = room.tier;
+    const groupW = replayGroupWidth(room.chrome, movesH, replayGap);
+    const groupLeft = room.width - m - stripReserve(room.rw) - GROUP_STRIP_GAP - groupW;
+    return groupLeft - bandGap - (room.width - FULL_HAND * room.ow) / 2;
+}
+
 /**
  * Where an upright replay's group's row ends: in the own badge's row over the melds where the group leaves the badge an
  * ordinary name beside the centred hand, else over the badge.
  */
 function uprightGroupBottom(room: UprightGroupRoom): number {
-    const { handTop, tier } = room;
-    const { bandGap, m, movesH, replayGap, sideLaneMin } = tier;
-    const moves = room.chrome === "small" ? REPLAY_MOVES_ON_PHONE : REPLAY_MOVES;
-    const groupW = (moves + 2) * movesH + (moves + 1) * replayGap;
-    const groupLeft = room.width - m - stripReserve(room.rw) - GROUP_STRIP_GAP - groupW;
-    const ownStart = (room.width - FULL_HAND * room.ow) / 2;
-    const oneRow = groupLeft - bandGap - ownStart - sideLaneMin >= 0;
-    return oneRow
-        ? handTop - room.ownMeldRise - GROUP_MELD_GAP
-        : handTop - room.ownRise - GROUP_BADGE_GAP;
+    return uprightGroupLane(room) >= room.tier.sideLaneMin
+        ? room.handTop - room.ownMeldRise - GROUP_MELD_GAP
+        : room.handTop - room.ownRise - GROUP_BADGE_GAP;
 }
 
 /**
@@ -683,14 +702,19 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core),
     );
     const cy = coreTop + core / 2;
-    const panel = uprightPanel(
-        { chrome, handTop, ow, ownMeldRise, ownRise, rw, slots, tier, width },
-        height,
-    );
+    const groupRoom = { chrome, handTop, ow, ownMeldRise, ownRise, rw, tier, width };
+    const replay = slots.band === "replay";
+    const groupLane = uprightGroupLane(groupRoom);
+    const halfHand = (FULL_HAND * ow) / 2;
 
     return Object.fromEntries([
         ...cornerLengths(rw),
-        ...panelLengths(panel),
+        ...panelLengths(uprightPanel({ ...groupRoom, slots }, height)),
+        ...replayLengths(slots, chrome, tier),
+        [
+            "actions-bottom",
+            replay ? uprightGroupBottom(groupRoom) : handTop - ownRise - GROUP_BADGE_GAP,
+        ],
         ["notices-beside-panel", NOTICES_BESIDE_PANEL],
         ["band-gap", bandGap],
         ["band-reserve", bandReserve],
@@ -717,6 +741,10 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         ["own-badge-h", ownBadgeH],
         ["own-fit", ownFit],
         ["own-inline", ownInline],
+        [
+            "own-lane",
+            replay && groupLane >= tier.sideLaneMin ? Math.min(halfHand, groupLane) : halfHand,
+        ],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
@@ -921,6 +949,10 @@ function phoneLayout(
         ...Object.entries(chrome),
         ...cornerLengths(rw),
         ...panelLengths(panel),
+        ...replayLengths(slots, "small", {
+            movesH: chrome["moves-h"],
+            replayGap: PHONE_CHROME.replayGap,
+        }),
         ["notices-beside-panel", NOTICES_BESIDE_PANEL],
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],

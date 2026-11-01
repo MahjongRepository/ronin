@@ -77,7 +77,7 @@ function controlsTemplate(
               rows: display.rounds,
           })
         : nothing;
-    return html`${ReplayControls({
+    return html`<div class="replay-controls">${ReplayControls({
         moves: display.moves,
         onMove: handlers.move,
         onStepClick: handlers.stepClick,
@@ -87,7 +87,7 @@ function controlsTemplate(
         onToggleRoundList: handlers.toggleRoundList,
         playback: { hideHands, playing: autoplay.playing },
         roundListOpen,
-    })}${roundList}`;
+    })}${roundList}</div>`;
 }
 
 /** The ways back from the game's end: the lobby and the game history. */

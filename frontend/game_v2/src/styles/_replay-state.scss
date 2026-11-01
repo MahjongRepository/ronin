@@ -2,11 +2,8 @@
 
 $controls-z: 26;
 $round-list-z: 30;
-$place-gap: 6px;
 
-@each $name in rb, rgap, opt-right, opt-left, opts-w, moves-w, group-w, slot-w, group-left, one-row,
-    opts-rise, shown-opts-w, opts-fit, pair-clear, pair-shift, upper-extra, list-rise, replay-bottom
-{
+@each $name in rb, rgap, moves-w, status-left, status-right {
     @property --#{$name} {
         syntax: "<length>";
         inherits: true;
@@ -66,147 +63,58 @@ $place-gap: 6px;
     outline: none;
 }
 
-/* The moves and options group at the band's right, beside the own badge; where the band shares the core's corners the
-   moves keep the switches' place, and an upright group too wide for the badge's row stands over it (`--opts-rise`). */
-.game-board--replay > :is(.board-layout, .board-overlay) {
-    --rb: var(--moves-h);
-    --rgap: 6px;
-    --replay-bottom: var(--row-bottom);
-    --opt-right: calc(100cqw - var(--own-hand-right));
-    --opts-w: calc(2 * var(--rb) + var(--rgap));
-    --moves-w: calc(7 * var(--rb) + 6 * var(--rgap));
-    --group-w: calc(var(--moves-w) + var(--rgap) + var(--opts-w));
-    --slot-w: 0px;
-    --one-row: 1px;
-    --opts-rise: min(var(--rb) + var(--rgap), (1px - var(--one-row)) * 100000);
-
-    @include small-chrome {
-        --rgap: 4px;
-        --moves-w: calc(5 * var(--rb) + 4 * var(--rgap));
-    }
-
-    @include large-chrome {
-        --rgap: 8px;
-    }
-
-    /* A desktop's chrome over its band keeps the own badge's lane short of the group in its row, the group standing past
-       the hand's end where the hand leaves the badge less than an ordinary name. */
-    @include board-where('[data-board-family="desktop"]#{$desktop-chrome}') {
-        --opt-right: max(
-            var(--m),
-            min(
-                100cqw - var(--own-hand-right),
-                100cqw - var(--own-lead) - var(--side-lane-min) - var(--band-gap) - var(--group-w)
-            )
-        );
-        --plate-reach: calc(100cqw - var(--opt-right) - var(--group-w) - var(--band-gap));
-    }
-
-    @include phone-board {
-        --opt-right: calc(var(--m) + var(--band-shift));
-    }
-
-    @include shared-corners-board {
-        --opt-left: calc(max(var(--reach-bottom-right), var(--reach-right)) + #{$place-gap});
-        --slot-w: calc(var(--moves-w) + var(--rgap));
-    }
-
-    @include upright-board {
-        --group-left: calc(100cqw - var(--m) - var(--strip-reserve) - 8px - var(--group-w));
-        --one-row: clamp(
-            0px,
-            (var(--group-left) - var(--band-gap) - var(--own-start) - var(--side-lane-min)) * 1000,
-            1px
-        );
-        --replay-bottom: max(
-            var(--hand-top) - var(--own-rise) - 4px,
-            var(--hand-top) - var(--own-meld-rise) - 2px - (1px - var(--one-row)) * 100000
-        );
-        --own-lane: min(
-            var(--full-hand-w) / 2,
-            var(--group-left) - var(--band-gap) - var(--own-start) + (1px - var(--one-row)) * 100000
-        );
-    }
-}
-
-/* Upright, the group's row and the status's place above it end short of the right strip's deepest reach. */
 .game-board--replay .board-table {
-    @include upright-board {
-        --opt-right: calc(var(--m) + var(--strip-reserve) + 8px);
-    }
+    --rb: var(--moves-h);
+    --rgap: var(--geo-replay-gap);
+    --actions-need: var(--geo-replay-group-w);
 }
 
-/* `--opts-fit` (1px) is whether both options fit a row where the band shares the core's corners, else the hands'
-   switch stands over the round list's toggle. */
-.board-replay {
-    --shown-opts-w: var(--opts-w);
-    --opts-fit: 1px;
-    --pair-clear: max(0px, var(--m) + var(--strip-reserve) + #{$place-gap} - var(--opt-right));
-    --pair-shift: clamp(
-        0px,
-        var(--pair-clear),
-        100cqw - var(--opt-left) - var(--rb) - var(--opt-right)
-    );
-    --upper-extra: min(var(--pair-clear) - var(--pair-shift), (1px - var(--opts-fit)) * 100000);
-
-    /* The round list stands over the options' upper row: the hands' switch over the toggle, or upright the options
-       over the moves. */
-    --list-rise: calc(
-        var(--opts-rise) + min(var(--rb) + var(--rgap), (1px - var(--opts-fit)) * 100000)
-    );
-
-    display: contents;
-
-    @include shared-corners-board {
-        --opts-fit: clamp(
-            0px,
-            (100cqw - var(--opt-right) - var(--opt-left) - var(--opts-w) + 0.5px) * 1000,
-            1px
-        );
-    }
-}
-
-/* Under a panel over a desktop's board, the board beneath is inert, so every option takes the band row. */
-.game-board--replay:has(> .board-overlay) .board-replay {
-    --opts-fit: 1px;
+/* Over the panel's layer, which never covers the replay's controls. */
+.game-board--replay .board-actions {
+    z-index: $controls-z;
 }
 
 .replay-controls {
-    position: absolute;
-    bottom: calc(100cqh - var(--replay-bottom));
-    z-index: $controls-z;
+    position: relative;
     display: flex;
+    flex: 1;
+    flex-wrap: wrap-reverse;
+    align-items: flex-end;
+    align-self: flex-end;
+    justify-content: flex-end;
     gap: var(--rgap);
-    height: var(--rb);
+    min-width: 0;
+
+    @include phone-board {
+        margin-right: var(--band-shift);
+    }
+
+    /* Upright, it wraps exactly where the geometry finds the own badge's row too short for it. */
+    @include upright-board {
+        padding-left: calc(
+            var(--own-start) + var(--band-gap) + var(--side-lane-min) - var(--actions-left)
+        );
+    }
 }
 
 /* The moves before the options in their row, else under them; where the band shares the core's corners, in the
    switches' place. */
 .replay-controls__moves {
-    right: calc(var(--opt-right) + min(var(--shown-opts-w) + var(--rgap), var(--one-row) * 100000));
+    display: flex;
+    gap: var(--rgap);
 
     @include shared-corners-board {
-        right: auto;
-        left: var(--switches-left);
-        bottom: calc(100cqh - var(--switches-bottom));
+        position: absolute;
+        left: calc(var(--switches-left) - var(--actions-left));
+        bottom: calc(var(--actions-bottom) - var(--switches-bottom));
     }
 }
 
-/* The options in one row, or the hands' switch over the round list's toggle, clear of the right strip's deepest reach, the
-   toggle in the band; upright, over the moves where the group does not share the own badge's row. */
 .replay-controls__options {
-    right: calc(var(--opt-right) + min(var(--pair-shift), (1px - var(--opts-fit)) * 100000));
-    bottom: calc(100cqh - var(--replay-bottom) + var(--opts-rise));
+    display: flex;
     flex-wrap: wrap;
     place-content: flex-end flex-end;
-    width: calc(var(--rb) + min(var(--rb) + var(--rgap), var(--opts-fit) * 100000));
-    height: auto;
-
-    /* The upper switch steps further from the right strip where the band's toggle must stay past the river's reach. */
-    > :first-child {
-        position: relative;
-        right: var(--upper-extra);
-    }
+    gap: var(--rgap);
 }
 
 /* The bottom plate is the seat viewed from, which pressing leaves as it is. */
@@ -330,21 +238,6 @@ $place-gap: 6px;
     }
 }
 
-/* Upright, the left field is too narrow for text: the place spans the board above the controls' rows. */
-.game-board--replay .board-notices {
-    @include upright-board {
-        --place-bottom: calc(
-            var(--replay-bottom) - var(--rb) - var(--rgap) - var(--opts-rise) - #{$place-gap}
-        );
-
-        top: auto;
-        bottom: calc(100cqh - var(--place-bottom));
-        left: var(--m);
-        width: calc(100cqw - var(--opt-right) - var(--m));
-        max-height: calc(var(--place-bottom) - var(--bottom-river-end));
-    }
-}
-
 /* Off a phone's short board, the replay's seating (its start, its end) covers the table's centre block whole: it
    stands centred on the block, past its edges and its text scaled to it. */
 .game-board--replay:where(#{$desktop-board}, #{$upright-board}) {
@@ -380,30 +273,37 @@ $place-gap: 6px;
 /* On a smaller board a panel takes all but the moves' row: the options hide but the round list's toggle (its last row
    is the end), and the end's mark stands between the moves and the toggle, or before the group where they share it. */
 .game-board--replay:has(> .board-overlay):where(#{$small-chrome}) {
-    .board-replay {
-        --shown-opts-w: var(--rb);
-    }
-
-    .replay-controls__options {
-        right: var(--opt-right);
-        width: auto;
-
-        > :not(.replay-controls__option--rounds) {
-            display: none;
-        }
+    .replay-controls__options > :not(.replay-controls__option--rounds) {
+        display: none;
     }
 
     .board-notices {
-        --band-middle-end: calc(
-            var(--opt-right) + var(--rb) + 3 * var(--rgap) + var(--moves-w) - var(--slot-w)
-        );
+        --moves-w: calc(5 * var(--rb) + 4 * var(--rgap));
+        --status-left: var(--switches-left);
+        --status-right: calc(var(--actions-right) + var(--moves-w) + var(--rb) + 3 * var(--rgap));
 
         top: auto;
-        bottom: calc(100cqh - var(--replay-bottom));
-        left: calc(var(--switches-left) + var(--slot-w));
+        bottom: calc(100cqh - var(--actions-bottom));
+        left: var(--status-left);
         align-items: flex-start;
-        width: calc(100cqw - var(--band-middle-end) - var(--slot-w) - var(--switches-left));
+        width: calc(100cqw - var(--status-left) - var(--status-right));
         max-height: calc(var(--rb) + var(--rgap));
+
+        @include phone-board {
+            --status-left: calc(var(--switches-left) + var(--moves-w) + var(--rgap));
+            --status-right: calc(
+                var(--actions-right) + var(--band-shift) + var(--rb) + 2 * var(--rgap)
+            );
+        }
+
+        /* Upright, the status stands in the row over the group's, before the round list's toggle where that row is the
+           options'. */
+        @include upright-board {
+            --status-left: var(--m);
+            --status-right: calc(var(--actions-right) + var(--rb) + var(--rgap));
+
+            bottom: calc(100cqh - var(--actions-bottom) + var(--rb) + var(--rgap));
+        }
     }
 
     .replay-status {
@@ -424,26 +324,16 @@ $place-gap: 6px;
     }
 }
 
-/* Upright, the status stands in the row over the group's, before the round list's toggle where that row is the
-   options'. */
-.game-board--replay:has(> .board-overlay):where(#{$upright-board}) .board-notices {
-    --band-middle-end: calc(var(--opt-right) + var(--opts-rise));
-
-    bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap));
-    left: var(--m);
-    width: calc(100cqw - var(--band-middle-end) - 2 * var(--m));
-}
-
 .round-list {
     position: absolute;
-    right: var(--opt-right);
-    bottom: calc(100cqh - var(--replay-bottom) + var(--rb) + var(--rgap) + var(--list-rise));
+    right: 0;
+    bottom: calc(100% + var(--rgap));
     z-index: $round-list-z;
     display: flex;
     flex-direction: column;
     gap: 0;
-    width: min(24rem, 100cqw - var(--opt-right) - var(--m));
-    max-height: calc(var(--replay-bottom) - var(--rb) - var(--rgap) - var(--m) - var(--list-rise));
+    width: min(24rem, 2 * var(--cx) - var(--actions-right) - var(--m));
+    max-height: calc(var(--actions-bottom) - 100% - var(--rgap) - var(--m));
     margin: 0;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);

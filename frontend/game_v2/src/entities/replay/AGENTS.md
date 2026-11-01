@@ -26,6 +26,7 @@ Moving through a recorded game: navigation, stops, cursor, address, autoplay, re
   (`play_sounds`, from `moveSoundCues`) while the sound is on; a jump, a step back or a result's page plays none. The
   sound setting is the live game's (`save_sound`), never the reader's settings.
 - `ReplayBoard` assembles the replay's `GameBoard` (panel, controls, status, menu) from `replayDisplay` and the
-  loaded screen, as `PlayBoard` does the live one; it decides nothing.
+  loaded screen, as `PlayBoard` does the live one; it decides nothing. Its controls fill the live board's slots: the
+  group (moves, options, the round list over them) the band end, the status the field; none places itself.
 - What a page finds of the slice's UI by selector (`ROUND_LIST_SELECTOR`, `ROUND_LIST_TOGGLE_SELECTOR`,
   `STEP_BUTTON_ATTRIBUTE`) is exported beside the component that renders it; change both together.

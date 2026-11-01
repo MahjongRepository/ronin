@@ -344,12 +344,10 @@ $upright-counters-gap: 6px;
         );
         --switches-left: var(--m);
         --switches-w: 0px;
-        --own-lane: calc(var(--full-hand-w) / 2);
         --timer-w: 60px;
     }
 }
 
-/* Every family takes its lengths from `boardGeometry`; the replay's later overrides still win. */
 .game-board:where(
         [data-board-family="desktop"],
         [data-board-family="short-desktop"],
@@ -446,6 +444,7 @@ $upright-counters-gap: 6px;
     --own-meld-tile: var(--geo-own-meld-tile);
     --own-meld-rise: var(--geo-own-meld-rise);
     --own-rise: var(--geo-own-rise);
+    --own-lane: var(--geo-own-lane);
     --m: var(--geo-m);
     --sep: var(--geo-sep);
     --core-gap: var(--geo-core-gap);
