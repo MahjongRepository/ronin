@@ -28,6 +28,7 @@ function renderBoard(pinned: SeatPosition | null, onPin = vi.fn()): HTMLElement 
         honbaSticks: 2,
         players,
         riichiSticks: 1,
+        tilesRemaining: 34,
     };
     const state = tableStateToDisplayState(table, { bottomSeat: 0, reveal: "bottom" });
     const host = document.createElement("div");
@@ -56,14 +57,14 @@ function texts(host: HTMLElement, selector: string): (string | undefined)[] {
 }
 
 describe("GameBoard centre and dora", () => {
-    it("gives each seat its wind and score on its side of the centre, its differences beside, and its riichi stick", () => {
+    it("gives each seat its wind and score in hundreds on its side of the centre, its differences beside, and its riichi stick", () => {
         const host = renderBoard(null);
-        expect(texts(host, ".board-center__seat--dealer .board-center__wind")).toEqual(["E"]);
-        expect(host.querySelector(".board-center__seat--dealer")).toBe(
-            host.querySelector(".board-center__seat--right"),
-        );
         expect(texts(host, ".board-center__wind")).toEqual(["N", "E", "S", "W"]);
+        expect(texts(host, ".board-center__seat--dealer .board-center__wind")).toEqual(["E"]);
         expect(texts(host, ".board-center__score")).toEqual(["25000", "26000", "27000", "28000"]);
+        expect(
+            texts(host, ".board-center__seat--bottom .board-center__score .board-center__hundreds"),
+        ).toEqual(["00"]);
         expect(texts(host, ".board-center__seat--left .board-center__diff--bottom")).toEqual([
             "+3000",
         ]);
@@ -75,7 +76,7 @@ describe("GameBoard centre and dora", () => {
         ).toBeNull();
     });
 
-    it("shows the dora indicators turned so far, a back in each of the five slots still to turn, and the sticks", () => {
+    it("shows the dora indicators turned so far, a back in each of the five slots still to turn, and counts the wall and sticks in the centre", () => {
         const host = renderBoard(null);
         const slots = [...host.querySelectorAll(".board-dora__tile .tile")];
         expect(slots.map((tile) => tile.classList.contains("tile-back"))).toEqual([
@@ -86,8 +87,8 @@ describe("GameBoard centre and dora", () => {
             true,
         ]);
         expect(
-            texts(host, ".board-dora__stick").map((text) => text?.replaceAll(/\s+/gu, " ")),
-        ).toEqual(["Honba 2", "Riichi sticks 1"]);
+            texts(host, ".board-center__count").map((text) => text?.replaceAll(/\s+/gu, " ")),
+        ).toEqual(["Wall 34", "Honba 2", "Riichi sticks 1"]);
     });
 });
 

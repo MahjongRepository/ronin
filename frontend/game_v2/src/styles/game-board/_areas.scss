@@ -61,14 +61,14 @@ $strip-lengths:
     transform-origin: 0 0;
 
     &--bottom {
-        left: calc(var(--cx) - var(--h));
+        left: calc(var(--cx) - var(--hx));
         top: calc(var(--cy) + var(--h) + var(--g));
     }
 
     &--right {
         --frame-turn: -90deg;
 
-        left: calc(var(--cx) + var(--h) + var(--g));
+        left: calc(var(--cx) + var(--hx) + var(--g));
         top: calc(var(--cy) + var(--h));
         transform: rotate(-90deg);
     }
@@ -76,7 +76,7 @@ $strip-lengths:
     &--top {
         --frame-turn: 180deg;
 
-        left: calc(var(--cx) + var(--h));
+        left: calc(var(--cx) + var(--hx));
         top: calc(var(--cy) - var(--h) - var(--g));
         transform: rotate(180deg);
     }
@@ -84,7 +84,7 @@ $strip-lengths:
     &--left {
         --frame-turn: 90deg;
 
-        left: calc(var(--cx) - var(--h) - var(--g));
+        left: calc(var(--cx) - var(--hx) - var(--g));
         top: calc(var(--cy) - var(--h));
         transform: rotate(90deg);
     }

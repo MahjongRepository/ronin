@@ -238,24 +238,22 @@ function DoraDisplay(center: BoardCenterInfo): TemplateResult {
                 ${indicators.map((face) => html`<span class="board-dora__tile">${Tile(face, "face")}</span>`)}
                 ${Array.from({ length: backs }, () => html`<span class="board-dora__tile">${TileBack()}</span>`)}
             </div>
-            <div class="board-dora__sticks">
-                <span class="board-dora__stick" title="Honba">
-                    ${HonbaStickIcon()}<span class="board-dora__label">Honba </span
-                    ><span class="board-dora__count">${center.honbaSticks}</span>
-                </span>
-                <span class="board-dora__stick" title="Riichi sticks on the table">
-                    ${RiichiStickIcon()}<span class="board-dora__label">Riichi sticks </span
-                    ><span class="board-dora__count">${center.riichiSticks}</span>
-                </span>
-            </div>
         </div>
     `;
 }
 
+/** A score in hundreds with its last two digits apart, as Tenhou draws it (`250` `00`); a score is whole hundreds. */
+function ScoreFigures(score: string): TemplateResult {
+    const split = /^(?<hundreds>[+-]?\d+)00$/u.exec(score);
+    return split?.groups === undefined
+        ? html`${score}`
+        : html`${split.groups.hundreds}<span class="board-center__hundreds">00</span>`;
+}
+
 /**
- * A seat's side of the centre, turned to face it: its wind (the dealer's marked) and score, or while a plate is hovered
- * or pinned its difference from that plate's seat, and above them its riichi stick once its riichi stands. A bar
- * along its edge marks whose turn it is. Where pressing a plate views from its seat, so does a pointer's press of
+ * A seat's side of the centre, turned to face it: its wind (the dealer's, East, on a muted red chip) and score, or while a plate is
+ * hovered or pinned its difference from that plate's seat, and above them its riichi stick once its riichi stands. A
+ * bar along its edge marks whose turn it is. Where pressing a plate views from its seat, so does a pointer's press of
  * another seat's score; the keyboard's is the plate's.
  */
 function CenterSeat(
@@ -273,7 +271,9 @@ function CenterSeat(
         .join(" ");
     const diffs = SEAT_POSITIONS.filter((other) => other !== position).map(
         (other) =>
-            html`<span class="board-center__diff board-center__diff--${other}">${plate.scoreDiffs[other]}</span>`,
+            html`<span class="board-center__diff board-center__diff--${other}"
+                >${ScoreFigures(plate.scoreDiffs[other])}</span
+            >`,
     );
     const viewable = onView !== null && position !== "bottom";
     return html`<div class=${classes}>
@@ -283,7 +283,7 @@ function CenterSeat(
             title=${viewable ? `View from ${plate.name}` : nothing}
             @click=${viewable ? () => onView(position) : nothing}
             ><span class="board-center__wind">${plate.wind}</span
-            ><span class="board-center__score">${plate.score}</span>${diffs}</span
+            ><span class="board-center__score">${ScoreFigures(plate.score)}</span>${diffs}</span
         >
     </div>`;
 }
@@ -310,7 +310,7 @@ function DiffLabels(plates: BoardDisplayState["nameplates"]): TemplateResult {
 
 /**
  * The centre: each seat's wind and score on its side, its riichi stick inside the edge, the turn's bar on it, and in
- * its middle the round and the wall's count.
+ * its middle the round over the wall's count and the honba and riichi sticks on the table, as Tenhou's.
  */
 function CenterInfo(
     center: BoardCenterInfo,
@@ -323,9 +323,21 @@ function CenterInfo(
             ${SEAT_POSITIONS.map((position, index) => CenterSeat(plates[index], position, onView))}
             <div class="board-center__info">
                 <div class="board-center__round">${center.roundDisplay}</div>
-                <div class="board-center__wall">
-                    <span class="board-center__wall-label">Wall</span>
-                    <span class="board-center__wall-count">${center.tilesRemaining}</span>
+                <div class="board-center__counts">
+                    <span class="board-center__count board-center__count--wall" title="Tiles left in the wall"
+                        ><span class="board-center__label">Wall </span
+                        ><span class="board-center__figure">${center.tilesRemaining}</span></span
+                    >
+                    <span class="board-center__sticks">
+                        <span class="board-center__count" title="Honba"
+                            >${HonbaStickIcon()}<span class="board-center__label">Honba </span
+                            ><span class="board-center__figure">${center.honbaSticks}</span></span
+                        >
+                        <span class="board-center__count" title="Riichi sticks on the table"
+                            >${RiichiStickIcon()}<span class="board-center__label">Riichi sticks </span
+                            ><span class="board-center__figure">${center.riichiSticks}</span></span
+                        >
+                    </span>
                 </div>
                 ${DiffLabels(plates)}
             </div>

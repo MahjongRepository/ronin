@@ -339,15 +339,15 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
 const BOARD_TEXT = {
     centerTextSelectors: [
         ".board-center__round",
-        ".board-center__wall",
+        ".board-center__counts",
         ".board-center__riichi:not(.board-center__riichi--none)",
         ".board-center__score-line",
     ].join(", "),
     fontSelectors: [
         ".board-center__round",
-        ".board-center__wall",
-        ".board-dora__sticks",
+        ".board-center__counts",
         ".board-center__score-line",
+        ".board-center__hundreds",
         ".nameplate__name",
         ".nameplate__riichi",
         ".nameplate__ai",

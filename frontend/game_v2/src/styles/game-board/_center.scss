@@ -1,39 +1,47 @@
 @use "../type";
-@use "grid" as *;
 
-/* A phone's centre, smaller under the lane its own badge takes, scales its text down to a floor still read at a glance. */
 .board-center {
-    --score-size: max(12.5px, calc(var(--c) * 0.115));
-    --round-size: max(14px, calc(var(--c) * 0.135));
-    --wall-size: max(11.5px, calc(var(--c) * 0.1));
+    --score-size: max(11px, calc(var(--c) * 0.12));
+    --row-h: calc(var(--score-size) * 1.25);
+    --edge-gap: max(4px, calc(var(--c) * 0.035));
+    --stick-h: max(4px, calc(var(--c) * 0.035));
+    --stick-gap: max(2px, calc(var(--c) * 0.012));
+    --row-depth: calc(var(--edge-gap) + var(--row-h) + 2 * var(--stick-gap) + var(--stick-h));
+    --corner: calc(var(--c) * 0.07);
 
-    @include phone-board {
-        --score-size: max(11px, calc(var(--c) * 0.115));
-        --round-size: max(12px, calc(var(--c) * 0.135));
-        --wall-size: max(10.5px, calc(var(--c) * 0.1));
-    }
-
-    --row-h: calc(var(--score-size) * 1.3);
-    --row-depth: calc(var(--row-edge) + var(--row-h) + 1px);
+    /* 1px where the centre is wide: its sides' rows stand centred, as Tenhou's; a square centre's stand off its
+       corner on the seat's left, a pinwheel, so a long row never meets the next side's. */
+    --centred: clamp(0px, (var(--w) - var(--c) * 1.2) * 1000, 1px);
 
     position: absolute;
-    left: calc(var(--cx) - var(--h));
+    left: calc(var(--cx) - var(--hx));
     top: calc(var(--cy) - var(--h));
-    width: var(--c);
+    width: var(--w);
     height: var(--c);
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-border);
-    border-radius: 7%;
+    border-radius: var(--corner);
     box-shadow: var(--ronin-panel-shadow);
 }
 
+/* A seat's frame is the panel turned to face it: a side seat's is as long as the panel is tall. */
 .board-center__seat {
     position: absolute;
     inset: 0;
+    isolation: isolate;
     pointer-events: none;
 
+    &--right,
+    &--left {
+        inset: auto;
+        left: 50%;
+        top: 50%;
+        width: var(--c);
+        height: var(--w);
+    }
+
     &--right {
-        transform: rotate(270deg);
+        transform: translate(-50%, -50%) rotate(270deg);
     }
 
     &--top {
@@ -41,27 +49,26 @@
     }
 
     &--left {
-        transform: rotate(90deg);
+        transform: translate(-50%, -50%) rotate(90deg);
     }
 
+    /* The seat in turn: Tenhou's green bar along its whole edge, under the seat's stick and row. */
     &--current::after {
         content: "";
         position: absolute;
-        left: 14%;
-        right: 14%;
-        bottom: -1px;
-        height: max(3px, calc(var(--c) * 0.035));
-        border-radius: 3px 3px 0 0;
-        background: var(--ronin-table-turn);
+        z-index: -1;
+        inset: -1px;
+        border-bottom: max(3px, calc(var(--c) * 0.028)) solid var(--ronin-table-turn);
+        border-radius: var(--corner);
     }
 }
 
 .board-center__riichi {
     position: absolute;
     left: 50%;
-    bottom: calc(var(--row-edge) * 0.38);
+    bottom: calc(var(--edge-gap) + var(--row-h) + var(--stick-gap));
     width: calc(var(--c) * 0.44);
-    height: max(4px, calc(var(--c) * 0.04));
+    height: var(--stick-h);
     background: var(--ronin-stick);
     border-radius: 999px;
     box-shadow: 0 0 0 1px var(--ronin-stick-rim);
@@ -86,17 +93,18 @@
 
 .board-center__score-line {
     position: absolute;
-    left: var(--row-depth);
-    bottom: var(--row-edge);
+    left: max(var(--row-depth), min(50%, var(--row-depth) + var(--centred) * 100000));
+    bottom: var(--edge-gap);
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 0.3em;
     height: var(--row-h);
     font-size: var(--score-size);
     font-weight: 650;
-    line-height: 1;
+    line-height: var(--row-h);
     color: var(--ronin-text);
     white-space: nowrap;
+    transform: translateX(max(-50%, var(--centred) * -100000));
 }
 
 /* A replay's other seats' scores view from their seats at a pointer's press; their plates are the keyboard's. */
@@ -105,20 +113,18 @@
     cursor: pointer;
 }
 
+/* The wind is a quiet letter before its score; the dealer's, East, a muted red chip, as Mahjong Soul and Riichi City
+   mark it in red. */
 .board-center__wind {
-    display: inline-grid;
-    place-items: center;
-    width: 1.3em;
-    height: 1.3em;
-    font-weight: 750;
-    color: var(--ronin-wind-ink);
-    border: 1.5px solid var(--ronin-wind-rim);
-    border-radius: 4px;
+    font-weight: 500;
+    color: var(--ronin-text-secondary);
 
     .board-center__seat--dealer & {
-        color: var(--ronin-dealer-ink);
-        background: var(--ronin-dealer);
-        border-color: var(--ronin-dealer);
+        padding: 0 0.22em;
+        font-weight: 650;
+        color: var(--ronin-dealer-soft-ink);
+        background: var(--ronin-dealer-soft);
+        border-radius: 3px;
     }
 }
 
@@ -132,46 +138,92 @@
     display: none;
 }
 
+.board-center__hundreds {
+    font-size: max(10px, 0.78em);
+    font-weight: 500;
+    color: var(--ronin-text-secondary);
+}
+
 .board-center__info {
     position: absolute;
-    inset: var(--row-depth);
+    inset: calc(var(--row-depth) + var(--c) * 0.03) calc(var(--row-depth) + var(--c) * 0.02);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: calc(var(--c) * 0.03);
+    gap: calc(var(--c) * 0.04);
     min-width: 0;
     line-height: 1.1;
     white-space: nowrap;
 }
 
+/* The round as large as the room between the side rows holds its longest name (South 4). */
 .board-center__round {
-    font-size: var(--round-size);
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    font-size: max(
+        14px,
+        min(calc(var(--c) * 0.2), calc((var(--w) - 2 * var(--row-depth) - var(--c) * 0.08) / 3.9))
+    );
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.015em;
     color: var(--ronin-text);
 }
 
-.board-center__wall,
-.board-center__diff-label {
-    color: var(--ronin-text);
-}
-
-.board-center__wall {
+/* One line shrunk to the room between the side rows; past the floor the wall's count takes a line of its own,
+   the honba and riichi sticks staying together. */
+.board-center__counts {
     display: flex;
-    align-items: baseline;
-    gap: 0.3em;
-    font-size: var(--wall-size);
-    font-weight: 650;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2em 0.4em;
+    max-width: 100%;
+    font-size: max(
+        10px,
+        min(calc(var(--c) * 0.08), calc((var(--w) - 2 * var(--row-depth) - var(--c) * 0.04) / 6))
+    );
+    font-weight: 600;
+    line-height: 1;
+    color: var(--ronin-text);
 }
 
-.board-center__wall-count {
+.board-center__sticks {
+    display: inline-flex;
+    gap: 0.4em;
+}
+
+.board-center__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2em;
+
+    .board-stick-icon {
+        width: auto;
+        height: 1em;
+
+        /* A low-density screen blurs a smaller stick's dots under their contrast. */
+        @media (resolution <= 1.5dppx) {
+            height: max(1em, 12px);
+        }
+    }
+}
+
+.board-center__figure {
     @include type.figures;
 }
 
-.board-center__wall-label {
-    font-weight: 500;
-    color: var(--ronin-text-secondary);
+/* A count's name, for a screen reader alone: the icon beside it, or the count's place under the round, names it. */
+.board-center__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.board-center__diff-label {
+    color: var(--ronin-text);
 }
 
 /* While a badge's differences show, its label takes the round's line: the seat's whole name on one line where it fits,

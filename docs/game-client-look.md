@@ -61,7 +61,7 @@ The derived proportions are the three reference viewports' values under the sizi
 
 ```
 +-------------------------------------------------------------------+
-| dora, sticks  |                                      | menu, status|
+| dora          |                                      | menu, status|
 |               |     top strip (backs)                |             |
 | [left badge]  |               [top badge]            | [right badge]|
 | left strip    |          [ top river ]               | right strip |
@@ -101,23 +101,32 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Surface.** Fills the viewport, under the safe-area insets too, while the content keeps to the
   play area. Decision: a dark, subdued teal family, with the zone device and nothing else; ivory
   faces separate from it by value.
-- **Centre.** One panel with an internal hierarchy: the round name large (East 1, South 4, a West
-  round when the game runs on), the wall count with it; each seat's wind and score on the side
-  facing it, all four at the same emphasis, tabular digits, the current dealer's wind marked; one
-  primary cue on the centre for the seat in turn. Decision: each side's wind and score sit in one
-  row, offset toward that seat's right like the rivers' pinwheel, so the four rows never meet at the
-  corners; while a badge is pinned, the wall count stays and a label in the round's place names whose
-  differences show: the seat's whole name on one line where it fits at a readable size, never
-  shortened or broken, else the seat's wind. A
-  seat's accepted riichi stick lies on its side of the centre, as on a real table; this is where an
-  established riichi is read, and the seat's badge only repeats it quietly. Decision: the stick lies
-  along that side's edge of the centre panel, inside it, so the gap between the centre and the
-  rivers stays free. The stick appears only once the declaration discard has passed without a ron,
-  never when a ron or an abortive draw ends the hand on that discard; during the call window riichi
-  is readable from the sideways tile and the callout alone. A seat's riichi marks reset at the next
-  deal; sticks nobody collected stay in the pool. The turn cue lies on the panel's outer edge and
-  the stick inside it, between the edge and the row, so a seat in turn and in riichi shows both
-  apart.
+- **Centre.** Decision, following Tenhou's panel: one panel wider than tall, each seat's wind and
+  score on the side facing it, turned to that seat and close to its edge, and in the middle the
+  round name large (East 1, South 4, a West round when the game runs on) over one line of the wall
+  count, the honba and the riichi sticks on the table. Each side reads wind then score, all four at
+  the same emphasis, tabular digits: the wind a quiet letter, the dealer's (East) on a muted red chip,
+  as Mahjong Soul and Riichi City mark it in red; the score in hundreds with its last two digits
+  smaller and quieter (`250` `00`), as Tenhou draws it. The panel is 1.4 times as wide as tall where
+  the width beside the core allows (Tenhou's is about 1.5), and as wide as it can be, never narrower
+  than tall, where it does not; its height is the centre's side of the sizing rule, and the rivers
+  keep its corners. A wide enough panel centres each side's row on its side; a narrower one offsets
+  the rows toward their seat's right like the rivers' pinwheel, so a long row never meets the next
+  side's. The counts keep one line, a narrow centre's at a smaller size; where even the floor's
+  size cannot hold them, the wall count takes a line of its own and the honba and riichi sticks stay
+  together on the next. While a badge is pinned, the wall count stays and a label in the round's
+  place names whose differences show: the seat's whole name on one line where it fits at a readable
+  size, never shortened or broken, else the seat's wind; the honba and stick counts step aside for
+  it. One primary cue on the centre for the seat in turn: Tenhou's green bar along that seat's whole
+  edge of the panel, its corners included, a shape the riichi stick never takes. Convention: a seat's
+  accepted riichi stick lies on its side of the centre, as on a real table; this is where an
+  established riichi is read, and the seat's badge only repeats it quietly. Decision: the stick, a
+  short pill with its dot, lies inside the panel between that side's score and the middle, so the
+  gap between the centre and the rivers stays free and the turn bar on the edge and the stick read
+  apart. The stick appears only once the declaration discard has passed without a ron, never when a
+  ron or an abortive draw ends the hand on that discard; during the call window riichi is readable
+  from the sideways tile and the callout alone. A seat's riichi marks reset at the next deal; sticks
+  nobody collected stay in the pool.
 - **Rivers.** Convention: each seat's river runs along its side, six tiles the normal row, three
   rows, reading left to right from the seat; a third row longer than six runs on along its own line;
   the riichi declaration discard lies sideways, and if that tile is claimed for a meld the
@@ -231,14 +240,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   differences (kept from the current board). The badge is therefore a control: its tap area meets
   the control floor whatever the drawn badge's size, a key activates it like a tap, a tap pins the
   differences, and tapping it again, tapping elsewhere or Escape returns the totals; a pinned badge
-  shows a faint 1px inset ring on a slightly lighter plate, quieter than the turn bar, and a focused one the accent's outline. The name
+  shows a faint 1px inset ring on a slightly lighter plate, quieter than the turn cue, and a focused one the accent's outline. The name
   shows on every board, upright ones included, shortened rather than dropped.
-- **Pooled counters.** The five dora indicator slots (each indicator as a face once the event
-  that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles) with
-  the honba and riichi-stick counts as icon and number, in one corner. Decision, not a
-  convention: a real table keeps the honba counters by the dealer and the sticks by the centre,
-  and the established clients differ; here they are shown once, with the dora, and the centre
-  does not repeat them.
+- **Dora indicators.** The five dora indicator slots (each indicator as a face once the event
+  that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles), in
+  one corner. The honba and riichi-stick counts are the centre's, under the round, as Tenhou shows
+  them; the corner does not repeat them.
 - **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
   right; the melds stand at the row's right end by the board's edge, as on a table, so a call moves
   neither the hand nor the melds already laid, never larger than its tiles. Decision: its tiles are
@@ -309,9 +316,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   sent, bank), so expiry, submission and the bank never move it or the controls. It is the viewer's
   own: it shows for the viewer's open decision and round confirm only; the server sends no other
   seat's time, and none is drawn.
-- **Turn cue.** One primary cue for the seat in turn, a neutral bar along its side of the centre,
-  and one quiet reinforcement on its badge, a bar along the badge's edge facing the centre, neither
-  in the accent; no further turn decoration: the
+- **Turn cue.** One primary cue for the seat in turn, Tenhou's green bar along its side of the
+  centre's edge, and one quiet reinforcement on its badge, a bar in the same green along the badge's
+  edge facing the centre, neither in the accent; no further turn decoration: the
   current board's "Your turn" and "Your call" labels and the line under the hand are decoration and
   go. Selectable tiles, the latest discard and the decision controls keep their own states, which
   are information, not decoration.
@@ -460,8 +467,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   unreadable at river scale with that room is reported, not redrawn in a ticket. Decision: one face,
   Inter, self-hosted as a Latin subset, with its tabular digits wherever numbers align; no
   monospace. Decision: one accent colour, used only for the player's own action (the primary
-  control, the riichi toggle, a selected or declaring tile); the latest discard, the action source
-  and the turn cue are neutral, and every text, mark and glyph on every face state keeps 4.5:1. Text
+  control, the riichi toggle, a selected or declaring tile); the latest discard and the action source
+  are neutral, the turn cue Tenhou's green, and every text, mark and glyph on every face state keeps 4.5:1. Text
   keeps a readable size at every supported viewport; the gate's 10px floor is a safety limit, never
   the size to design to.
 
@@ -485,7 +492,10 @@ The own hand tile is fixed at 36x48 on a phone, and the river tile starts there 
 phone the own hand tile is 4/3 of the river tile, at most min(0.05 of the width, 0.1 of the height) and
 what a full hand's row holds. The river tile is the largest that keeps the centre's side at least 0.39 of the
 core on a phone (0.33 on a desktop), solved for the own row it sizes off a phone; the core's side is
-the centre plus eight river tiles and two gaps of 0.3 of a river tile. On a desktop the core stands above the
+the centre plus eight river tiles and two gaps of 0.3 of a river tile. The centre's width is 1.4 of
+its side where the width beside the core holds it with the river tile unchanged (on a short desktop
+also where the bottom river, from the centre's left corner, stays 8px clear of the play switches),
+else as much as it holds, never under its side. On a desktop the core stands above the
 foreground band, its side at most 0.66 of the height. On a phone and a short desktop the core fills
 the height between the top strip's slot and the own hand, and the foreground band shares its lower
 corners, which the pinwheel leaves empty, its controls kept outside every river's capacity reach. A
@@ -502,6 +512,7 @@ apart.
 |---|---|---|
 | Core height / play area height | 0.6 | 0.66 / 0.65 / 0.63 |
 | Centre side / core height | 0.3 | 0.41 / 0.39 / 0.34 |
+| Centre width / centre side | 1.4 (Tenhou about 1.5) | 1.4 / 1.4 / 1.4 |
 | River tile width / own hand tile width | 0.65 (0.75 off a phone) | 0.47 / 0.47 / 0.75 |
 | Opponent hand tile width / river tile width | 1.0 | 1.0 / 1.0 / 1.0 |
 | Opponent hand tile width / own hand tile width | 0.65 (0.75 off a phone) | 0.47 / 0.47 / 0.75 |

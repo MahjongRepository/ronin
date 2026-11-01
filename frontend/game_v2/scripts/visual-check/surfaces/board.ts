@@ -499,8 +499,8 @@ function checkBadgeTaps(board: BoardMeasure, report: PageReport): void {
 }
 
 /**
- * The seats the board cues as in turn, as painted, never by their state's class: the centre's bar drawn on their side
- * (shown, opaque and of some size), and their badge's pill underlined (an opaque inset shadow, the pill shown).
+ * The seats the board cues as in turn, as painted, never by their state's class: the centre's edge lit on their side
+ * (shown, its edge's line opaque and of some width), and their badge's pill underlined (an opaque inset shadow, the pill shown).
  */
 interface TurnCues {
     readonly bars: readonly string[];
@@ -542,7 +542,8 @@ function measureTurnCues(page: Page): Promise<TurnCues> {
                 Number.parseFloat(bar.opacity) > 0 &&
                 Number.parseFloat(bar.width) > 0 &&
                 Number.parseFloat(bar.height) > 0 &&
-                opaque(bar.backgroundColor)
+                Number.parseFloat(bar.borderBottomWidth) > 0 &&
+                opaque(bar.borderBottomColor)
             );
         });
         const underlined = [...(board?.querySelectorAll(".nameplate") ?? [])].filter((plate) => {
@@ -795,7 +796,7 @@ function measureDiffLabel(page: Page): Promise<DiffLabelRead> {
             center: box(center.getBoundingClientRect()),
             centerPieces: [
                 ...center.querySelectorAll(
-                    ".board-center__round, .board-center__wall, .board-center__score-line",
+                    ".board-center__round, .board-center__counts, .board-center__score-line",
                 ),
             ]
                 .filter(shown)

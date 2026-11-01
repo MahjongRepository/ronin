@@ -15,6 +15,9 @@ $drawn-gap: 0.35;
 $own-meld-scale: 1.2;
 $river-gap-share: 0.3;
 $core-tiles: 8.6;
+
+/* The centre's width to its height where the board's width allows (Tenhou's panel is about 1.5). */
+$centre-aspect: 1.4;
 $river-by-own: 0.65;
 $side-reach-tiles: 10.6667;
 $decision-gap: 12px;

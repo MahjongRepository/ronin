@@ -37,22 +37,22 @@ $overlay-hold-ms: 1000ms;
     }
 
     &--bottom {
-        left: calc(var(--cx) - var(--h) + var(--spot-along) * var(--rw));
+        left: calc(var(--cx) - var(--hx) + var(--spot-along) * var(--rw));
         top: calc(var(--cy) + var(--h) + var(--g) + var(--spot-across) * var(--rh));
     }
 
     &--top {
-        left: calc(var(--cx) + var(--h) - var(--spot-along) * var(--rw));
+        left: calc(var(--cx) + var(--hx) - var(--spot-along) * var(--rw));
         top: calc(var(--cy) - var(--h) - var(--g) - var(--spot-across) * var(--rh));
     }
 
     &--right {
-        left: calc(var(--cx) + var(--h) + var(--g) + var(--spot-across) * var(--rh));
+        left: calc(var(--cx) + var(--hx) + var(--g) + var(--spot-across) * var(--rh));
         top: calc(var(--cy) + var(--h) - var(--spot-along) * var(--rw));
     }
 
     &--left {
-        left: calc(var(--cx) - var(--h) - var(--g) - var(--spot-across) * var(--rh));
+        left: calc(var(--cx) - var(--hx) - var(--g) - var(--spot-across) * var(--rh));
         top: calc(var(--cy) - var(--h) + var(--spot-along) * var(--rw));
     }
 

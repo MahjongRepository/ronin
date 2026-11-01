@@ -7,6 +7,9 @@ they disagree.
   derives from its box (container query units), never the viewport. A page that gives it a box decides its size.
 - The sizing rule lives in `game-board/_grid.scss` alone. Breakpoints and viewport mixins are
   `game-board/_queries.scss`'s, which emits no CSS, so a lazy chunk's stylesheet (the replay's) can use them.
+- The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
+  `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
+  text size follows `--c`.
 - Lengths are registered with `@property` (`<length>`), so each computes once to pixels; an unregistered chain grows
   with every reference until a browser drops the declaration.
 - **No script measurement** (except the notices' clamp). Content that changes a placement reaches CSS as custom

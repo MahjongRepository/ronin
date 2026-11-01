@@ -163,7 +163,7 @@ $plate-seats: bottom, right, top, left;
     --beside-right-river: clamp(
         0px,
         (var(--right-badge-top) + var(--badge-h) - var(--right-river-top)) * 1000,
-        var(--reach-right) - var(--cx) - var(--h)
+        var(--reach-right) - var(--cx) - var(--hx)
     );
     --right-badge-x: calc(100cqw - var(--m) - var(--strip-depth) - var(--badge-gap));
 
@@ -172,7 +172,7 @@ $plate-seats: bottom, right, top, left;
     justify-content: flex-end;
     max-width: min(
         var(--side-card-w),
-        var(--right-badge-x) - var(--cx) - var(--h) - var(--side-clear) - var(--beside-right-river),
+        var(--right-badge-x) - var(--cx) - var(--hx) - var(--side-clear) - var(--beside-right-river),
         var(--right-badge-x) - var(--top-strip-x) - var(--badge-gap)
     );
 
@@ -285,7 +285,8 @@ $plate-seats: bottom, right, top, left;
         text-underline-offset: 3px;
     }
 
-    .board-center__round {
+    .board-center__round,
+    .board-center__sticks {
         display: none;
     }
 

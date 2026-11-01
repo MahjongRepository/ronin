@@ -5,11 +5,11 @@
    length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
 $lengths:
     own-fit, ow, oh, strip-depth, core-room-band, counters-top, top-room-left, hand-top,
-    core-room-h, core-room-w, rw, rh, g, core, c, h, core-top, cx, cy, bw, bh, foreground-top,
-    row-rise-fixed, band-lift, band-height, band-top, band-bottom, corner-bottom, reach-left,
-    reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top, left-badge-x,
-    river-clear, lane-at-start, lane-below, start-narrow, side-lane, full-hand-w, own-start,
-    own-hand-right, hand-bottom, switches-left, switches-right, dg, full-reach, step-in,
+    core-room-h, core-room-w, rw, rh, g, core, c, h, w, hx, core-top, cx, cy, bw, bh,
+    foreground-top, row-rise-fixed, band-lift, band-height, band-top, band-bottom, corner-bottom,
+    reach-left, reach-right, reach-top-row3, reach-top-left, reach-bottom-right, side-badge-top,
+    left-badge-x, river-clear, lane-at-start, lane-below, start-narrow, side-lane, full-hand-w,
+    own-start, own-hand-right, hand-bottom, switches-left, switches-right, dg, full-reach, step-in,
     right-from-band, right-under-corner, right-from-top, right-fits, right-top-fits, corner-in,
     right-pull, right-origin, corner-shift, band-shift, switches-top, left-reach-end, left-meets,
     switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom, own-rise,
@@ -62,18 +62,16 @@ $upright-centre-min: 100px;
     --own-pill-h: 38px;
     --badge-gap: 16px;
     --corner-h: 48px;
-    --counters-w: 280px;
+    --counters-w: 172px;
     --dora-w: 28px;
 
-    /* The counters' height (`.board-dora`): an indicator's, the panel's padding and rim, and on a phone's chrome the
-       counts' line under the indicators. */
+    /* The counters' height (`.board-dora`): an indicator's, the panel's padding and rim. */
     --counters-h: calc(var(--dora-w) * 4 / 3 + 18px);
     --counters-top: var(--m);
     --top-room-left: calc(var(--m) + var(--counters-w) + 8px);
     --centre-share: 0.33;
     --own-cap: min(5cqw, 10cqh);
     --core-cap: 66cqh;
-    --row-edge: max(11px, var(--c) * 0.1);
     --text: 17px;
     --switches-w: 470px;
     --switch-h: 44px;
@@ -165,6 +163,19 @@ $upright-centre-min: 100px;
     );
     --c: calc(var(--core) - #{$core-tiles} * var(--rw));
     --h: calc(var(--c) / 2);
+
+    /* The centre is wider than tall, as Tenhou's is, where the width beside the core allows: its sides' rows and its
+       round need the length. The rivers keep its corners, so a narrow board's centre stays square. */
+    --w-by-switches: 9999px;
+    --w: max(
+        var(--c),
+        min(
+            var(--c) * #{$centre-aspect},
+            var(--core-room-w) - (#{$side-reach-tiles} + #{$core-tiles}) * var(--rw),
+            var(--w-by-switches)
+        )
+    );
+    --hx: calc(var(--w) / 2);
     --core-top-slot: calc(var(--m) + var(--rh) + var(--sep));
     --core-top-free: calc((var(--core-room-h) - var(--rh) - var(--core)) / 2);
     --core-top-band: calc(var(--hand-top) - var(--band-reserve) - var(--core));
@@ -258,7 +269,7 @@ $upright-centre-min: 100px;
         min(
             max(
                 var(--cx) + var(--full-reach) / 2,
-                var(--cx) + var(--h) + var(--river-clear) + var(--side-lane-min)
+                var(--cx) + var(--hx) + var(--river-clear) + var(--side-lane-min)
             ),
             var(--top-badge-right)
         )
@@ -266,11 +277,11 @@ $upright-centre-min: 100px;
 
     /* The rivers' reach at their capacity, a row's sideways riichi tile counted: a side river's fourth row, a top or
        bottom river's third row run on to twelve tiles. */
-    --reach-left: calc(var(--cx) - var(--h) - var(--g) - 4 * var(--rh));
-    --reach-right: calc(var(--cx) + var(--h) + var(--g) + 4 * var(--rh));
+    --reach-left: calc(var(--cx) - var(--hx) - var(--g) - 4 * var(--rh));
+    --reach-right: calc(var(--cx) + var(--hx) + var(--g) + 4 * var(--rh));
     --reach-top-row3: calc(var(--cy) - var(--h) - var(--g) - 2 * var(--rh));
-    --reach-top-left: calc(var(--cx) + var(--h) - 11 * var(--rw) - var(--rh));
-    --reach-bottom-right: calc(var(--cx) - var(--h) + 11 * var(--rw) + var(--rh));
+    --reach-top-left: calc(var(--cx) + var(--hx) - 11 * var(--rw) - var(--rh));
+    --reach-bottom-right: calc(var(--cx) - var(--hx) + 11 * var(--rw) + var(--rh));
     --strip-depth: calc(2 * var(--rw));
     --left-badge-x: calc(var(--m) + var(--strip-depth) + var(--badge-gap));
 
@@ -284,7 +295,7 @@ $upright-centre-min: 100px;
     --side-clear: max(16px, var(--rw));
     --lane-at-start: calc(var(--reach-top-left) - var(--side-clear) - var(--left-badge-x));
     --lane-below: calc(
-        var(--cx) + var(--h) - 5 * var(--rw) - var(--rh) - var(--side-clear) - var(--left-badge-x)
+        var(--cx) + var(--hx) - 5 * var(--rw) - var(--rh) - var(--side-clear) - var(--left-badge-x)
     );
     --start-narrow: clamp(0px, (var(--side-lane-min) - var(--lane-at-start)) * 1000, 1px);
     --side-badge-top: max(
@@ -304,7 +315,7 @@ $upright-centre-min: 100px;
     /* The top badge's lane, under its hand's start: from half a river tile past the top river to the hand's end. */
     --top-lane: min(
         var(--side-card-w),
-        var(--top-strip-x) - var(--cx) - var(--h) - var(--river-clear)
+        var(--top-strip-x) - var(--cx) - var(--hx) - var(--river-clear)
     );
 
     /* The own row: a full hand's place, centred with its furiten slot, whatever the hand holds. */
@@ -334,7 +345,7 @@ $upright-centre-min: 100px;
         (var(--cy) + var(--h) + var(--g) + 3 * var(--rh) - var(--hand-top) + var(--own-rise)) * 1000,
         1px
     );
-    --own-river-lane: calc(var(--cx) - var(--h) - var(--river-clear) - var(--own-lead));
+    --own-river-lane: calc(var(--cx) - var(--hx) - var(--river-clear) - var(--own-lead));
     --own-lane: min(
         var(--full-hand-w) / 2,
         var(--own-river-lane) + (1px - var(--own-lane-beside-river)) * 100000,
@@ -362,7 +373,7 @@ $upright-centre-min: 100px;
         --corner-h: 40px;
         --counters-w: 95px;
         --dora-w: 15px;
-        --counters-h: calc(var(--dora-w) * 4 / 3 + 26px);
+        --counters-h: calc(var(--dora-w) * 4 / 3 + 10px);
         --text: 12px;
         --switches-w: 232px;
         --switch-h: 44px;
@@ -382,7 +393,7 @@ $upright-centre-min: 100px;
         --own-pill-h: 52px;
         --badge-gap: 20px;
         --corner-h: 64px;
-        --counters-w: 400px;
+        --counters-w: 223px;
         --dora-w: 37px;
         --counters-h: calc(var(--dora-w) * 4 / 3 + 22px);
         --text: 24px;
@@ -424,7 +435,6 @@ $upright-centre-min: 100px;
         --switch-gap: 4px;
         --own-inline: 0px;
         --row-bottom: var(--band-bottom);
-        --row-edge: max(8px, var(--c) * 0.1);
         --m: 4px;
         --sep: 10px;
         --core-gap: 6px;
@@ -441,6 +451,9 @@ $upright-centre-min: 100px;
     /* A short desktop's river tile keeps its left river's reach from the core's top slot above the switches (the slot's
        river tile, the core's half less the centre's, and that river's row), and its core centres only as far. */
     @include short-desktop-board {
+        /* The bottom river, from the centre's left corner, stays clear of the play switches level with it. */
+        --w-by-switches: calc(2 * (var(--cx) - var(--switches-right) - 8px));
+
         /* Its side badges step down where the decisions' tallest column (five offers over the band's control and the
            timer: six rows, a win's rise) leaves room under the right one. */
         --decisions-top: calc(
@@ -503,7 +516,7 @@ $upright-centre-min: 100px;
         --right-badge-top: calc(var(--right-origin) - var(--full-reach) - 4px - var(--badge-h));
         --side-lane: min(
             var(--side-card-w),
-            var(--cx) - var(--h) - var(--river-clear) - var(--left-badge-x)
+            var(--cx) - var(--hx) - var(--river-clear) - var(--left-badge-x)
         );
         --under-strip: calc(var(--m) + #{$upright-counters-gap + $upright-counters-h});
         --core-floor: calc(var(--under-strip) + var(--strip-depth));

@@ -433,7 +433,7 @@ $place-gap: 6px;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        min-width: calc(var(--c) + 6rem);
+        min-width: calc(var(--w) + 6rem);
         min-height: calc(var(--c) + 3rem);
     }
 

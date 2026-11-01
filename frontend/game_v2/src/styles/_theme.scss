@@ -63,7 +63,8 @@
     --ronin-panel-shadow: 0 6px 18px rgb(0 0 0 / 35%);
     --ronin-dim: rgb(8 15 17 / 62%);
 
-    /* The table's surface: its gradient, the zone lines and field tints, the neutral latest and turn marks. */
+    /* The table's surface: its gradient, the zone lines and field tints, the neutral latest mark and Tenhou's green turn
+       bar. */
     --ronin-table-fill: radial-gradient(ellipse at 50% 45%, #23393d 0%, #1c3033 55%, #172a2d 100%);
     --ronin-table-edge: #172a2d;
     --ronin-table-zone-line: rgb(214 236 230 / 17%);
@@ -71,7 +72,7 @@
     --ronin-table-field-end: rgb(0 0 0 / 6%);
     --ronin-table-latest: #f4f7f5;
     --ronin-table-latest-inner: #26332f;
-    --ronin-table-turn: #e8efeb;
+    --ronin-table-turn: #4cc27a;
 
     /* Tiles: an ivory face with a rim, lit from the screen's top; an edge toward the screen's bottom, the ivory body over
        the back's layer; a shadow down and to the right; backs one quiet teal. */
@@ -95,11 +96,10 @@
     --ronin-badge-muted: #b9c9c4;
     --ronin-chip: rgb(11 21 23 / 62%);
     --ronin-notice: rgb(11 21 23 / 88%);
-    --ronin-wind-ink: #d3e2dd;
-    --ronin-wind-rim: #46616a;
     --ronin-dealer: #c2382f;
     --ronin-dealer-ink: #fff;
-    --ronin-dealer-mark: #ffb36b;
+    --ronin-dealer-soft: #6e2a26;
+    --ronin-dealer-soft-ink: #f6d9d5;
     --ronin-stick: #f4f1e8;
     --ronin-stick-rim: rgb(0 0 0 / 45%);
     --ronin-stick-dot: #c42230;

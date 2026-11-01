@@ -8,8 +8,8 @@
     --or: 0px;
     --ob: 0px;
     --zone-w: calc(100cqw + var(--ox) + var(--or));
-    --zone-tl-x: calc(var(--cx) - var(--h) + var(--ox));
-    --zone-tr-x: calc(var(--cx) + var(--h) + var(--ox));
+    --zone-tl-x: calc(var(--cx) - var(--hx) + var(--ox));
+    --zone-tr-x: calc(var(--cx) + var(--hx) + var(--ox));
     --zone-top-y: calc(var(--cy) - var(--h) + var(--oy));
     --zone-bottom-y: calc(var(--cy) + var(--h) + var(--oy));
     --zone-band-y: calc(var(--foreground-top) + var(--oy));
