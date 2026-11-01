@@ -89,32 +89,8 @@ function MeldsArea(seat: SeatPosition, player: BoardPlayerDisplay | null): Templ
 function River(seat: SeatPosition, player: BoardPlayerDisplay | null): TemplateResult {
     const overflow = seat === "left" || seat === "right" ? "wrap" : "run-on";
     return html`<div class="board-area board-river board-river--${seat}" data-area="${seat}-discards">
-        ${player ? Discards(player.discards, overflow) : ""}${LatestMark(seat, player)}
+        ${player ? Discards(player.discards, overflow) : ""}
     </div>`;
-}
-
-/**
- * The latest discard's ring and pointer, laid over its slot beside the river's tiles rather than among them, so the
- * tiles' shared edge and shadow never extrude them: its column and row, and whether it or a tile before it on its row
- * lies sideways.
- */
-function LatestMark(
-    seat: SeatPosition,
-    player: BoardPlayerDisplay | null,
-): TemplateResult | typeof nothing {
-    const latest = latestSlot(seat, player);
-    if (latest === null || player === null) {
-        return nothing;
-    }
-    const rowStart = latest.row * RIVER_ROW;
-    const index = rowStart + latest.col;
-    const wideBefore = player.discards.slice(rowStart, index).some((tile) => tile.riichi === true);
-    const wide = player.discards[index]?.riichi === true;
-    return html`<span
-        class="board-river__latest"
-        style="--latest-col: ${latest.col}; --latest-row: ${latest.row}; --latest-wide-before: ${Number(wideBefore)}; --latest-wide: ${Number(wide)}"
-        aria-hidden="true"
-    ></span>`;
 }
 
 const STRIP_SEATS: readonly SeatPosition[] = ["right", "top", "left"];
@@ -532,7 +508,9 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             <div class="board-layout" ?inert=${props.inert ?? false}>
                 ${Zones()}
                 <div class="board-table" style=${styleMap({ ...sideStripStyle("left", seatPlayer(state, "left")), ...sideStripStyle("right", seatPlayer(state, "right")) })}>
-                    ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
+                    <div class="board-rivers">
+                        ${SEAT_POSITIONS.map((seat, i) => River(seat, state?.players[i] ?? null))}
+                    </div>
                     ${state ? CenterInfo(state.center, state.nameplates, platePress) : EmptyCenterArea()}
                     ${STRIP_SEATS.map((seat) => Strip(seat, state?.players[SEAT_POSITIONS.indexOf(seat)] ?? null))}
                     ${state ? DoraDisplay(state.center) : ""}

@@ -28,4 +28,6 @@ they disagree.
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter past a phone's height. No
   tile's edge leaves the board: the own row stands at least its edge's depth off the bottom.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`.
+- The rivers' shared edge and shadow come from `.board-rivers`, the unturned layer holding all four, never from a
+  turned river's own filter: Firefox on macOS draws a turned element's filter unturned and clipped to its box.
 - Held-back tiles are recessed, never darkened; switch states differ by more than colour.

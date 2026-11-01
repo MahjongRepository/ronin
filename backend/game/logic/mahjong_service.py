@@ -60,8 +60,10 @@ from game.logic.types import (
     ChiActionData,
     DiscardActionData,
     DoubleRonResult,
+    ExhaustiveDrawResult,
     GamePlayerInfo,
     KanActionData,
+    NagashiManganResult,
     PlayerReconnectState,
     PonActionData,
     ReconnectionSnapshot,
@@ -144,12 +146,14 @@ def _snapshot_round_header(game_state: MahjongGameState) -> _RoundHeader:
 
 def _latest_discard_seat(round_state: MahjongRoundState) -> int | None:
     """
-    Return the seat whose discard is the round's latest while it still lies in its river, else None.
+    Return the seat whose discard is the table's last action, else None.
 
     all_discards holds the round's discarded tiles in play order, so its last is the latest discard. A meld that holds
-    that tile claimed it, and then no discard is the latest, never the one before it; a draw and a kan from the hand
-    claim none, so the latest discard is kept through them, and through a round's result too. Raises DiscardHistoryError
-    when that unclaimed tile lies last in no river.
+    that tile claimed it, and then no discard is the latest, never the one before it. The next seat's draw is the next
+    action: the turn passes to it only on that draw, so a current seat other than the discarder means the discard is no
+    longer the latest action, except after an exhaustive draw, whose turn passed to a seat the empty wall gave no tile.
+    A result on the discard itself (a ron, an abort) keeps it. Raises DiscardHistoryError when that unclaimed tile lies
+    last in no river.
     """
     if not round_state.all_discards:
         return None
@@ -161,6 +165,10 @@ def _latest_discard_seat(round_state: MahjongRoundState) -> int | None:
     discarder = next((p.seat for p in round_state.players if p.discards and p.discards[-1].tile_id == tile_id), None)
     if discarder is None:
         raise DiscardHistoryError(f"the latest discard {tile_id} lies last in no river")
+
+    wall_ran_out = isinstance(round_state.result, ExhaustiveDrawResult | NagashiManganResult)
+    if discarder != round_state.current_player_seat and not wall_ran_out:
+        return None
 
     return discarder
 

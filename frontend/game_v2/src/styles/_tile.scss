@@ -57,16 +57,13 @@ $cast-blur: 0.07;
     }
 }
 
-/* One edge and shadow under a whole group, so none lies on a face; the own playable hand keeps each tile's own,
-   since a held-back tile lies flat without one. */
-.discards,
-.meld,
-.hand:not(:has(> button)) {
-    --unit: var(--board-tile-w, 60px);
+/* One edge and shadow under everything the element paints, for tiles of width `$unit` in a frame turned by `$turn`. */
+@mixin group-edge($unit, $turn) {
+    --unit: #{$unit};
 
-    @include screen-offset(group-body, 0, $body-share, var(--unit), var(--frame-turn, 0deg));
-    @include screen-offset(group-back, 0, $back-share, var(--unit), var(--frame-turn, 0deg));
-    @include screen-offset(group-cast, $cast-x, $cast-y, var(--unit), var(--frame-turn, 0deg));
+    @include screen-offset(group-body, 0, $body-share, var(--unit), $turn);
+    @include screen-offset(group-back, 0, $back-share, var(--unit), $turn);
+    @include screen-offset(group-cast, $cast-x, $cast-y, var(--unit), $turn);
 
     filter: drop-shadow(var(--group-body-x) var(--group-body-y) 0 var(--ronin-tile-edge))
         drop-shadow(var(--group-back-x) var(--group-back-y) 0 var(--ronin-tile-back-edge))
@@ -74,9 +71,26 @@ $cast-blur: 0.07;
             var(--group-cast-x) var(--group-cast-y) calc(var(--unit) * #{$cast-blur * 0.5})
                 var(--ronin-tile-shadow)
         );
+}
+
+/* One edge and shadow under a whole group, so none lies on a face; the own playable hand keeps each tile's own,
+   since a held-back tile lies flat without one. */
+.discards,
+.meld,
+.hand:not(:has(> button)) {
+    @include group-edge(var(--board-tile-w, 60px), var(--frame-turn, 0deg));
 
     .tile {
         --tile-lift: 0 0 transparent;
+    }
+}
+
+/* Firefox on macOS draws a turned element's filter unturned, so the rivers take their edge from an unturned layer. */
+.board-rivers {
+    @include group-edge(var(--rw), 0deg);
+
+    .discards {
+        filter: none;
     }
 }
 

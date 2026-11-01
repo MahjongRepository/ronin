@@ -395,32 +395,21 @@ describe("tableStateToDisplayState last discard", () => {
         return marked(replay.tables[index + 1]);
     }
 
-    test("marks the latest discard, moving with each discard and kept through the next draw, a kan from the hand and an added kan open to chankan, and none once a call claims it", () => {
+    test("marks the latest discard, moving with each discard, and none once the next seat draws or a call claims it", () => {
         expect(markedAfter("pao", (event) => event.type === "discard")).toEqual(["0:0 5z"]);
-        expect(markedAfter("pao", (event) => event.type === "draw", 1)).toEqual(["1:0 9p"]);
+        expect(markedAfter("pao", (event) => event.type === "discard", 1)).toEqual(["1:0 9p"]);
+        expect(markedAfter("pao", (event) => event.type === "draw", 1)).toEqual([]);
         expect(markedAfter("pao", (event) => event.type === "meld")).toEqual([]);
-        const kans = loadEngineReplay("kans");
-        const closedKan = kans.events.findIndex(
-            (event) => event?.type === "meld" && event.meldType === "closed_kan",
-        );
-        expect(marked(kans.tables[closedKan])).toEqual(["2:2 7z"]);
-        expect(marked(kans.tables[closedKan + 1])).toEqual(["2:2 7z"]);
-        expect(marked(checkpointState("chankan_passed_seat_3", "chankan prompt").table)).toEqual([
-            "0:0 7z",
-        ]);
     });
 
-    test("marks after a reconnect the latest discard the snapshot names: in a call prompt, at a draw, in a chankan window and under a pending result, kept through the re-sent draw", () => {
+    test("marks after a reconnect the latest discard the snapshot names, and none once the next seat drew", () => {
         const marks = [
             "reconnect_seat_1",
+            "riichi_reconnect_seat_1",
             "own_turn_seat_1",
             "chankan_passed_seat_3",
             "chankan_robbed_seat_1",
-            "riichi_reconnect_seat_1",
         ].map((name) => marked(checkpointState(name, "reconnected").table));
-        expect(marks).toEqual([["0:0 5z"], ["0:0 2z"], ["0:0 7z"], ["0:1 7z"], ["2:0 6s"]]);
-        expect(marked(checkpointState("own_turn_seat_1", "draw re-sent").table)).toEqual([
-            "0:0 2z",
-        ]);
+        expect(marks).toEqual([["0:0 5z"], ["2:0 6s"], [], [], []]);
     });
 });

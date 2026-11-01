@@ -35,7 +35,7 @@ The derived proportions are the three reference viewports' values under the sizi
   back's layer) and its shadow falls down and to the right, whatever the seat; tiles lying together
   (a river, a meld, a hand that takes no input) share one edge and shadow under all their faces, so
   a tile nearer the screen's bottom covers the edge of the one behind it and no edge or shadow ever
-  lies on a face. The latest discard's ring and a chankan source's ring lie flat over the tiles.
+  lies on a face. A chankan source's ring lies flat over the tiles.
   The own hand's tiles stand facing their player (Tenhou's): a band across each one's top.
 - **Composed for ordinary play.** The design anchor is a mid-round state with real decisions on
   screen. Dense states (long rivers, four melds a seat, five dora indicators, long names) must
@@ -144,14 +144,14 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   owner's in every orientation. Decision: a drawn-and-discarded tile is not told apart from one
   played from the hand (Tenhou shades it, Mahjong Soul does not); the rivers keep as few tile states
   as possible so the latest discard and the riichi tile are found at a glance.
-- **Latest discard.** Decision: the newest discard on the table is marked at all times, whether or
-  not the viewer has an offer on it, so a player can always see what just happened, with a ring and
-  a notch on its far side in a neutral colour, never the accent. The mark moves to each new discard
-  and leaves with a tile that is claimed, since the claim is then read from the meld. During a
-  discard offer this mark is the action source, and it outlives the offer, since a pass changes
-  nothing on the table. A chankan offer's source is a kan in a meld and is marked separately, the
-  whole kan ringed in its meld; while both are marked, the offered kan is what the controls refer
-  to.
+- **Latest discard.** Decision: the newest discard is marked while it is the table's last action,
+  whether or not the viewer has an offer on it, so a player can see what just happened: a small gap
+  (7px; 10px along the right river's row) before it along its row and toward its seat, as a tile
+  just thrown lies, with no ring, pointer or colour. The next draw ends it, the tile then lying in the river as any other; a call
+  that claims it ends it too, the claim then read from the meld, and a result on it (a ron, an
+  abortive or exhaustive draw) keeps it. During a discard offer this mark is the action source. A
+  chankan offer's source is a kan in a meld and is marked separately, the whole kan ringed in its
+  meld.
 - **Melds**, every seat's. Convention: to the right of the hand from the seat's own view, the first
   meld farthest right and each later one toward the hand; the called tile sideways, at the meld's
   left when it came from the seat on the left, in the middle from the seat across, at the right from
@@ -264,7 +264,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   raised, and a selected or riichi-declaring tile is lifted and outlined in the accent.
 - **Action source.** What an offer refers to is marked where it lies: the latest discard in its
   river, or for a chankan offer the whole kan in its meld (an added kan, or a closed kan robbed for
-  kokushi musou). A discard's mark is the latest-discard mark and stays after the offer; a kan's
+  kokushi musou). A discard's mark is the latest-discard mark, which the next draw ends; a kan's
   mark goes when its chankan offer resolves. No callout, animation or automatic notice covers the
   action source or the faces that identify it while an offer is open; a sheet the player opens does,
   by the player's choice.

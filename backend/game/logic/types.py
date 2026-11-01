@@ -503,10 +503,10 @@ class ReconnectionSnapshot(BaseModel):
     result is the round's result through its round-advance wait, None while the round is in play. During that wait
     the snapshot shows the round that ended: its dealer, wind, round number, number within the wind and honba with its
     tiles, beside the scores and riichi sticks the result left. A robbed kan is in no meld list, so the result's robbed
-    kan is the one record of it for the reconnected table. latest_discard_seat is the seat whose discard is the round's
-    latest, which lies last in its river; None (absent on the wire) before the round's first discard and once a meld
-    claimed the latest one. riichi_stick_value is the game's, and first_dealer_seat the game's first dealer, as
-    game_started carries them.
+    kan is the one record of it for the reconnected table. latest_discard_seat is the seat whose discard is the table's
+    last action, which lies last in its river; None (absent on the wire) before the round's first discard, once a meld
+    claimed the latest one and once the next seat drew. riichi_stick_value is the game's, and first_dealer_seat the
+    game's first dealer, as game_started carries them.
     """
 
     game_id: str = Field(serialization_alias="gid")

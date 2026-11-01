@@ -274,6 +274,24 @@ describe("applyEvent - hidden hands", () => {
         expect(next.tilesRemaining).toBe(69);
     });
 
+    test("the next draw, the own or another seat's, leaves no latest discard", () => {
+        const discarded = applyEvent(
+            applyEvent(liveDeal(), makeDrawNoticeEvent(1)),
+            makeDiscardEvent({ seat: 1, tileId: 100 }),
+        );
+        const ownDraw = applyEvent(
+            discarded,
+            makeDrawEvent({ seat: 0, tileId: 60, tilesRemaining: 68 }),
+        );
+        const otherDraw = applyEvent(discarded, makeDrawNoticeEvent(2, 68));
+
+        expect([
+            discarded.lastDiscardSeat,
+            ownDraw.lastDiscardSeat,
+            otherDraw.lastDiscardSeat,
+        ]).toEqual([1, null, null]);
+    });
+
     test("a hidden hand calls pon from its count and its discard after the call draws nothing", () => {
         const drawn = applyEvent(liveDeal(), makeDrawNoticeEvent(1));
         const afterDiscard = applyEvent(drawn, makeDiscardEvent({ seat: 1, tileId: 100 }));

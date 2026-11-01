@@ -26,7 +26,7 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - The live wall's count, a riichi's deposit (the declarer's score and the table's sticks), the sticks a round end
   leaves, a round's number within its wind (`roundInWind`) and a chankan prompt's kan type are the server's, never
   counted or inferred by the client.
-- The latest discard is the server's on reconnect (`ld`); the client never infers it.
+- The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.
 - The seating panel is the game's start and its end: the seats in wind order before the first deal, then in

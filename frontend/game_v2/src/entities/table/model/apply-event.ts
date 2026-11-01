@@ -100,8 +100,9 @@ function applyRoundStarted(state: TableState, event: RoundStartedEvent): TableSt
 }
 
 /**
- * A draw puts its tile in the hand, and the wall stands at the server's count after it. The draw a reconnect re-sends
- * names a tile the snapshot's hand already holds: it only marks the drawn tile again.
+ * A draw puts its tile in the hand, and the wall stands at the server's count after it; the discard before it is no
+ * longer the latest action. The draw a reconnect re-sends names a tile the snapshot's hand already holds: it only marks
+ * the drawn tile again.
  */
 function applyDraw(state: TableState, event: DrawEvent): TableState {
     const player = requirePlayer(state, event.seat);
@@ -109,6 +110,7 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
     return {
         ...state,
         currentPlayerSeat: event.seat,
+        lastDiscardSeat: null,
         players: updatePlayer(state.players, event.seat, {
             drawnTileId: event.tileId,
             tiles: resent ? player.tiles : [...player.tiles, event.tileId],
@@ -118,14 +120,15 @@ function applyDraw(state: TableState, event: DrawEvent): TableState {
 }
 
 /**
- * Another seat's draw, its tile private to that seat: a face-down tile joins its hand in its turn, and the wall stands
- * at the server's count after it.
+ * Another seat's draw, its tile private to that seat: a face-down tile joins its hand in its turn, the wall stands at
+ * the server's count after it, and the discard before it is no longer the latest action.
  */
 function applyDrawNotice(state: TableState, event: DrawNoticeEvent): TableState {
     const player = requirePlayer(state, event.seat);
     return {
         ...state,
         currentPlayerSeat: event.seat,
+        lastDiscardSeat: null,
         players: updatePlayer(state.players, event.seat, {
             concealedCount: player.concealedCount + 1,
             drawnConcealed: true,

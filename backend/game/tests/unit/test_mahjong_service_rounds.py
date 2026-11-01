@@ -236,6 +236,7 @@ class TestMahjongGameServiceAfterDiscardRoundEnd:
         round_end = next(e for e in update.events if e.type == EventType.ROUND_END)
         assert isinstance(round_end.result, ExhaustiveDrawResult)
         assert round_end.result.tempai_seats == [1]
+        assert service.build_reconnection_snapshot(runtime, 0).latest_discard_seat == 0
         assert runtime.pending_confirm is not None
         assert (update.awaiting.kind, update.awaiting.seats) == (WaitKind.ROUND_ADVANCE, frozenset({0}))
         assert service._process_ai_player_followup(runtime) == []

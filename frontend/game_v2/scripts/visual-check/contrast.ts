@@ -47,15 +47,6 @@ const STICK_DOTS = " :is(.board-stick-icon__dot, .board-stick-icon__honba)";
 
 /** The marks on the board that carry information, each measured against what it is painted on. */
 const CONTRAST_MARKS: readonly ContrastMark[] = [
-    {
-        hide: [
-            ["", NO_OUTLINE],
-            ["::after", HIDDEN],
-        ],
-        name: "latest discard's ring and notch",
-        reach: 12,
-        selector: ".board-river__latest",
-    },
     { hide: [["", NO_OUTLINE]], name: "offered kan's ring", reach: 4, selector: ".meld--source" },
     {
         hide: [["::after", HIDDEN]],

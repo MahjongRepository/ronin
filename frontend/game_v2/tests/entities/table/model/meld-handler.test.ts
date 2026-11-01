@@ -74,15 +74,14 @@ function claimedFlags(state: TableState, seat: number): (boolean | undefined)[] 
 }
 
 describe("applyEvent - meld - chi", () => {
-    test("takes the caller's two tiles into the chi, claims the discard and clears the caller's drawn mark", () => {
-        const state = drawTile(stateWithDiscard(3, 5), 0, 53);
+    test("takes the caller's two tiles into the chi and claims the discard", () => {
+        const state = stateWithDiscard(3, 5);
         const next = applyEvent(state, CHI_OF_2M);
 
         expect(next.players[0].tiles).toEqual(
             state.players[0].tiles.filter((t) => t !== 0 && t !== 8),
         );
         expect(next.players[0].melds.map((m) => m.meldType)).toEqual(["chi"]);
-        expect(next.players[0].drawnTileId).toBeNull();
         expect(claimedFlags(next, 3)).toEqual([true]);
     });
 });

@@ -508,7 +508,6 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
     ):
         earlier_discard = tile_copies(2, honors="1")[0]
         haku = tile_copies(0, honors="5")[0]
-        pon_caller_discard = tile_copies(1, man="1")[0]
         players = (
             create_player(
                 seat=0,
@@ -536,15 +535,10 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         assert runtime.state.round_state.pending_call_prompt is not None
         offered = _latest_discard_on_wire(service, runtime)
         service.handle_action(runtime, seat=3, action=GameAction.CALL_PON, data={"tile_id": haku})
-        claimed = _latest_discard_on_wire(service, runtime)
-        service.handle_action(runtime, seat=3, action=GameAction.DISCARD, data={"tile_id": pon_caller_discard})
-        assert runtime.state.round_state.current_player_seat == 0
 
-        assert (offered, claimed, _latest_discard_on_wire(service, runtime)) == (1, None, 3)
+        assert (offered, _latest_discard_on_wire(service, runtime)) == (1, None)
 
-    def test_build_reconnection_snapshot__when_hand_kans_and_a_robbed_kan_follow__should_keep_the_latest_discard(
-        self, service
-    ):
+    def test_build_reconnection_snapshot__when_the_next_seat_drew__should_name_no_latest_discard(self, service):
         man_1 = [tile_copies(copy, man="1")[0] for copy in range(4)]
         sou_5 = [tile_copies(copy, sou="5")[0] for copy in range(4)]
         latest_discard = tile_copies(2, man="9")[0]
@@ -620,8 +614,8 @@ class TestMahjongGameServiceBuildReconnectionSnapshot:
         service.handle_action(runtime, seat=2, action=GameAction.CALL_RON, data={})
         assert runtime.state.round_state.result is not None
 
-        assert (after_the_draw, after_the_closed_kan, in_the_chankan_window) == (0, 0, 0)
-        assert _latest_discard_on_wire(service, runtime) == 0
+        assert (after_the_draw, after_the_closed_kan, in_the_chankan_window) == (None, None, None)
+        assert _latest_discard_on_wire(service, runtime) is None
 
     def test_build_reconnection_snapshot__when_the_discard_history_disagrees_with_the_rivers__should_raise(
         self, service
