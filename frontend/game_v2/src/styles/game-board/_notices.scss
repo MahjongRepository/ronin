@@ -39,14 +39,18 @@
         --notice-gap: 8px;
 
         width: calc(var(--reach-left) - 8px - var(--notice-left));
+
+        /* Temporary landscape exception (phone until task 10, narrow desktop until task 16): past the deepest strip the
+           place is too narrow. */
+        @container game-board (aspect-ratio >= 1) {
+            @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
+
+            --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
+        }
     }
 
-    /* Temporary phone exception until task 10: past the deepest strip the place is too narrow. */
     @include phone-board {
-        @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
-
         --notice-gap: 6px;
-        --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));
 
         width: calc(var(--reach-left) - 8px - var(--notice-left));
         max-height: calc(min(var(--band-top), var(--switches-top)) - 8px - var(--notice-top));

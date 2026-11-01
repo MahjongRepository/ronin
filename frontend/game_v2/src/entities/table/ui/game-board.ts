@@ -145,10 +145,8 @@ function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, 
 }
 
 /**
- * What the places beside a side strip read of it (the decisions, the replay's options and an upright board's notices
- * beside the right strip, the notices beside the left), handed to the table holding them all: its hand's and melds'
- * lengths, its deepest meld and its oldest, which a second line of its melds starts with, so a place stays clear of
- * that line.
+ * A side strip's counts for its depth as drawn, which only the phone's notices and decisions column (until task 10)
+ * and the visual check read.
  */
 function sideStripStyle(
     side: "left" | "right",

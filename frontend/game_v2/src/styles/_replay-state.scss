@@ -113,7 +113,7 @@ $place-gap: 6px;
     }
 
     @include upright-board {
-        --group-left: calc(100cqw - var(--m) - 2 * var(--strip-depth) - 12px - var(--group-w));
+        --group-left: calc(100cqw - var(--m) - var(--strip-reserve) - 8px - var(--group-w));
         --one-row: clamp(
             0px,
             (var(--group-left) - var(--band-gap) - var(--own-start) - var(--side-lane-min)) * 1000,

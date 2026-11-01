@@ -15,8 +15,9 @@ they disagree.
   after every family block (`_grid.scss`) maps them onto the lengths' own names on `.board-layout` and
   `.board-overlay`, gated on `data-board-family` inside `:where()` so it keeps the solve's (0,2,0) and the lazy
   replay's overrides still win. A moved family's CSS solve is deleted; a literal both sides need stays in SCSS beside
-  a note naming its TS mirror. Until then, on a phone the places beside a side strip (the notices, the decisions'
-  column) still read its drawn depth, the deepest strip leaving them too narrow.
+  a note naming its TS mirror. Until then (task 10 for a phone, task 16 for a narrow desktop), the notices on a
+  small-chrome landscape board and a phone's decisions column still read the side strip's drawn depth, the deepest
+  strip leaving them too narrow.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
   text size follows `--c`.
