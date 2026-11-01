@@ -33,7 +33,7 @@ function texts(el: HTMLElement, selector: string): string[] {
 }
 
 describe("RoundEndDisplay", () => {
-    test("a win: the closed hand, then the winning tile under its label, then the melds", () => {
+    test("a win: the closed hand, then the winning tile with its label for a screen reader, then the melds", () => {
         const el = renderResult(lastRoundEndTable("pao"));
         const hand = el.querySelector(".round-end-result__hand");
         assert(hand !== null);

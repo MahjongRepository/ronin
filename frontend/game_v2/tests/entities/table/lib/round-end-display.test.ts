@@ -59,7 +59,6 @@ describe("roundEndDisplay - a win", () => {
             points: 12_000,
             title: "Ron",
             winnerName: "Alice",
-            winnerWind: "South",
         });
         expect(page.yaku.map((line) => [line.name, line.han, line.isDora])).toEqual([
             ["Ippatsu", 1, false],
@@ -68,7 +67,7 @@ describe("roundEndDisplay - a win", () => {
             ["Ittsu", 2, false],
             ["Red Five", 1, true],
         ]);
-        expect(page.notes).toEqual(["Riichi ×1 +1,000"]);
+        expect(page.notes).toEqual(["Riichi +1,000"]);
     });
 
     test("a chankan: the ron reads as robbing the declarer's kan, not as taking a discard", () => {
@@ -215,7 +214,7 @@ describe("roundEndDisplay - the server's facts, never the table's or arithmetic"
         const stale: TableState = { ...table, dealerSeat: 2, doraIndicators: [] };
         const page = winPage(stale);
 
-        expect(page.winnerWind).toBe("South");
+        expect(displayAt(stale).scores).toEqual(displayAt(table).scores);
         expect(page.doraIndicators).toHaveLength(result.doraIndicators.length);
         expect(page.doraIndicators.length).toBeGreaterThan(0);
     });

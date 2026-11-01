@@ -246,7 +246,7 @@ const PAGES: readonly PageCase[] = [
     },
     {
         ...replayCase("ends_on_result", [
-            ".round-end-result__title",
+            ".round-end-result__kind",
             ".replay-status__incomplete--end",
         ]),
         at: [FLOOR, UPRIGHT_PHONE],
@@ -254,10 +254,10 @@ const PAGES: readonly PageCase[] = [
     { ...replayCase("damaged", [".replay-status__incomplete--end"]), at: [FLOOR, MID_DESKTOP] },
     { ...replayCase("double_ron", [".round-end-result__pager"]), at: [FLOOR, SHORT_TABLET] },
     {
-        ...replayCase("result_hidden", [".round-end-result__title"]),
+        ...replayCase("result_hidden", [".round-end-result__kind"]),
         required: {
             attached: [".replay-controls__option--hands[aria-pressed='true']"],
-            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__title"],
+            visible: [...BOARD_VISIBLE, ".replay-controls__moves", ".round-end-result__kind"],
         },
     },
     replayCase("game_end", [".seating__ending--tobi", ".seating__result--positive"]),

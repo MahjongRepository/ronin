@@ -270,7 +270,6 @@ const PAGES: readonly PageCase[] = [
     resultStory("dealer", {
         ".round-end-result__limit": "Mangan",
         ".round-end-result__points": "12,000",
-        ".round-end-result__wind": "East",
     }),
     resultStory("kazoe", { ".round-end-result__limit": "Kazoe Yakuman" }),
     resultStory("chankan", {

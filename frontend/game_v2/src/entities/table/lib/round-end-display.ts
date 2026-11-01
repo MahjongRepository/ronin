@@ -62,7 +62,6 @@ export interface WinPageDisplay {
     /** Tsumo, Ron or Double ron. */
     readonly title: string;
     readonly winnerName: string;
-    readonly winnerWind: string;
     /**
      * Whom a ron took its tile from, null for a tsumo: "from Bob", or "robbing Bob's kan" for a chankan, so a robbed kan
      * reads as a robbed attempt.
@@ -236,10 +235,9 @@ function paoNote(result: RoundEndResult, winner: WinnerResult, names: SeatNames)
 }
 
 function winNotes(result: RoundEndResult, winner: WinnerResult, names: SeatNames): string[] {
-    const sticks = winner.riichiSticksCollected;
     const notes = [
         winner.honbaBonus > 0 ? `Honba ${formatDelta(winner.honbaBonus)}` : null,
-        sticks > 0 ? `Riichi ×${sticks} ${formatDelta(winner.riichiBonus)}` : null,
+        winner.riichiSticksCollected > 0 ? `Riichi ${formatDelta(winner.riichiBonus)}` : null,
         paoNote(result, winner, names),
         headBumpNote(result, names),
     ];
@@ -267,7 +265,6 @@ function winPage(result: RoundEndResult, winner: WinnerResult, names: SeatNames)
         title: winTitle(result),
         uraIndicators: winner.uraDoraIndicators.map(tile136toString),
         winnerName: names.name(winner.seat),
-        winnerWind: names.wind(winner.seat),
         winningTile: handTile(winner.winningTile),
         winningTileLabel: result.resultType === ROUND_RESULT_TYPE.TSUMO ? "Tsumo" : "Ron",
         yaku: yakuLines(winner),

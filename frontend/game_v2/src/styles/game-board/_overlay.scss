@@ -1,11 +1,12 @@
 @use "grid" as *;
 
-/* The overlay sizes its tiles from the board's box like the board does; a wide board lays the round end out in
+/* The overlay sizes its tiles from the board's box like the board does; a wide panel lays the round end out in
    two columns under the hand so it fits without scrolling. */
 
 $tenpai-scale: 0.5;
 $indicator-scale: 0.6;
 $scroller-room: 4px;
+$two-column-result: 30rem;
 
 /* A length where it is set, so a tile in a container inside the overlay takes the board's unit, not its own. */
 @property --board-unit {
@@ -78,7 +79,7 @@ $scroller-room: 4px;
         min-height: calc(2lh + 1px);
     }
 
-    /* A scroller clips sideways too: the yaku's and the value's room keeps the indicator tiles' rims and shadows. */
+    /* A scroller clips sideways too: the yaku's and the value's room keeps their text's overhang whole. */
     > :is(.round-end-result__yaku, .round-end-result__value) {
         margin: -$scroller-room;
         padding: $scroller-room;
@@ -161,7 +162,9 @@ $scroller-room: 4px;
     --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * var(--board-unit));
 }
 
-@container (aspect-ratio >= #{$wide-board}) {
+/* A panel wide enough for two columns (a landscape phone's included) puts the yaku beside the value, the value's
+   column starting about where the third seat's score does. */
+@container result-foot (width >= #{$two-column-result}) {
     .board-overlay .round-end-result--win {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         grid-template-areas:
@@ -188,8 +191,8 @@ $scroller-room: 4px;
         grid-template-areas:
             "head"
             "hand"
-            "value"
             "yaku"
+            "value"
             "scores"
             "controls";
     }
@@ -279,19 +282,15 @@ $scroller-room: 4px;
 @container (height >= 560px) {
     .board-overlay .round-end-result {
         font-size: 0.95rem;
-        gap: 0.75rem 1.5rem;
+        gap: 0.75rem 1rem;
     }
 
     .board-overlay .round-end-result__title {
         font-size: 1.4rem;
     }
 
-    .board-overlay .round-end-result__yaku {
-        font-size: 0.9rem;
-    }
-
     .board-overlay .round-end-result__points {
-        font-size: 3rem;
+        font-size: 2.5rem;
     }
 
     .board-overlay .round-end-result__limit {
@@ -308,12 +307,12 @@ $scroller-room: 4px;
         padding: 0.25rem;
     }
 
-    .board-overlay .round-end-result__indicators {
-        flex-basis: auto;
-    }
-
     .board-overlay .round-end-result__points {
         font-size: 1.5rem;
+    }
+
+    .board-overlay .round-end-result__limit {
+        font-size: 0.9rem;
     }
 }
 

@@ -414,10 +414,10 @@ describe("mountReplayView - moving", () => {
     it("shows the result page the cursor stands on", async () => {
         const { host } = await mountLoadedReplay("double_ron");
         button(host, ".replay-controls__move--last").click();
-        expect(textOf(host, ".round-end-result__title")).toBe("Charlie West");
+        expect(textOf(host, ".round-end-result__winner")).toBe("Charlie");
 
         button(host, ".replay-controls__move--prev").click();
-        expect(textOf(host, ".round-end-result__title")).toBe("Alice South");
+        expect(textOf(host, ".round-end-result__winner")).toBe("Alice");
     });
 });
 
@@ -455,12 +455,12 @@ describe("mountReplayView - keys", () => {
         next.focus();
 
         const prevented = [false, true, true].map((repeat) => pressKey(next, "Enter", { repeat }));
-        const held = [position(host), textOf(host, ".round-end-result__title")];
+        const held = [position(host), textOf(host, ".round-end-result__winner")];
         pressKey(next, "Enter");
 
         expect(prevented).toEqual([true, true, true]);
-        expect(held).toEqual(["East 1 Step 11 of 11", "Alice South"]);
-        expect(textOf(host, ".round-end-result__title")).toBe("Charlie West");
+        expect(held).toEqual(["East 1 Step 11 of 11", "Alice"]);
+        expect(textOf(host, ".round-end-result__winner")).toBe("Charlie");
     });
 
     it("steps once for Space on a focused step button and once for an assistive technology's click", async () => {
@@ -715,7 +715,7 @@ describe("mountReplayView - view", () => {
         const { host } = await mountLoadedReplay("double_ron", "?round=0&step=10", {
             prefs: { hideHands: true },
         });
-        expect(textOf(host, ".round-end-result__title")).toBe("Alice South");
+        expect(textOf(host, ".round-end-result__winner")).toBe("Alice");
         expect(["right", "top", "left"].map((seat) => handTiles(host, seat))).toEqual([
             [13, 0],
             [13, 0],
@@ -735,7 +735,7 @@ describe("mountReplayView - focus", () => {
         pressOnFocus(host, "ArrowLeft");
 
         expect(focused).toBe(rootOf(host));
-        expect(textOf(host, ".round-end-result__title")).toBe("Alice South");
+        expect(textOf(host, ".round-end-result__winner")).toBe("Alice");
     });
 });
 

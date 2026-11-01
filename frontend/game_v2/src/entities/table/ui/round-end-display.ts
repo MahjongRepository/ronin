@@ -46,7 +46,10 @@ function TenpaiHand(name: string, hand: ResultHandDisplay): TemplateResult {
     </li>`;
 }
 
-/** The winner's closed tiles, then the winning tile set apart under its label, then the melds. */
+/**
+ * The winner's closed tiles, then the winning tile set apart, then the melds. The head already says how it was won, so
+ * the tile's label is for a screen reader alone.
+ */
 function WinHand(page: WinPageDisplay): TemplateResult {
     return html`<div class="round-end-result__hand">
         ${Hand({ tiles: page.hand.tiles })}
@@ -120,15 +123,22 @@ function YakuList(page: WinPageDisplay): TemplateResult {
     </ul>`;
 }
 
+/** The dora and ura indicators, at the head's end. */
+function Indicators(page: WinPageDisplay): TemplateResult | typeof nothing {
+    if (page.doraIndicators.length === 0 && page.uraIndicators.length === 0) {
+        return nothing;
+    }
+    return html`<div class="round-end-result__indicators">
+        ${IndicatorGroup("Dora", page.doraIndicators)} ${IndicatorGroup("Ura", page.uraIndicators)}
+    </div>`;
+}
+
+/** The hand's value, then the notes on what a payment adds to it or who pays it. */
 function WinValue(page: WinPageDisplay): TemplateResult {
     return html`<div class="round-end-result__value">
         <div class="round-end-result__points">${formatPoints(page.points)}</div>
         ${page.limit === null ? nothing : html`<div class="round-end-result__limit">${page.limit}</div>`}
         ${page.hanFu === null ? nothing : html`<div class="round-end-result__han-fu">${page.hanFu}</div>`}
-        <div class="round-end-result__indicators">
-            ${IndicatorGroup("Dora", page.doraIndicators)}
-            ${IndicatorGroup("Ura", page.uraIndicators)}
-        </div>
         ${
             page.notes.length === 0
                 ? nothing
@@ -196,11 +206,14 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
     return html`<div class="round-end-result round-end-result--win">
         <div class="round-end-result__head">
             <span class="round-end-result__kind">${page.title}</span>
-            <span class="round-end-result__title">
-                ${page.winnerName}
-                <span class="round-end-result__wind">${page.winnerWind}</span>
-            </span>
-            ${page.from === null ? nothing : html`<span class="round-end-result__from">${page.from}</span>`}
+            <span class="round-end-result__who"
+                ><span class="round-end-result__winner">${page.winnerName}</span>${
+                    page.from === null
+                        ? nothing
+                        : html` <span class="round-end-result__from">${page.from}</span>`
+                }</span
+            >
+            ${Indicators(page)}
             ${PagerControls(props)}
         </div>
         ${WinHand(page)}

@@ -115,12 +115,9 @@ function mapPlayerDisplay(
     };
 }
 
-/** How far `score` is from `from`, signed: `+1000`, `-3000`, or `±0`. */
+/** How far `score` is from `from`, signed: `+1000`, `-3000`, or `0`. */
 function formatScoreDiff(score: number, from: number): string {
     const diff = score - from;
-    if (diff === 0) {
-        return "±0";
-    }
     return diff > 0 ? `+${formatScore(diff)}` : formatScore(diff);
 }
 

@@ -442,8 +442,8 @@ describe("stepGameClient - desync around the game's start and end", () => {
     const finalRoundEnd = receivedPayload(finalRound, "round end");
     const gameEnd = receivedPayload(finalRound, "game end");
 
-    /** The dealer's name the last result's panel, shown over the game's end, gives its winner's wind by. */
-    function resultWinnerWind(state: LiveClient): string | null {
+    /** The dealer's name in the last result's panel, shown over the game's end: its scores' first seat, East. */
+    function resultDealerName(state: LiveClient): string | null {
         const host = document.createElement("div");
         const panel = tablePanel(state.table, {
             callouts: null,
@@ -455,13 +455,13 @@ describe("stepGameClient - desync around the game's start and end", () => {
         assert(panel !== null);
         render(TablePanelDisplay(panel), host);
         expect(host.querySelector(".round-end-result")).not.toBeNull();
-        return host.querySelector(".round-end-result__wind")?.textContent ?? null;
+        return host.querySelector(".round-end-result__score-name")?.textContent ?? null;
     }
 
     it("ends on the server's last result and final scores out of step, the result read from the server alone", () => {
         const inStep = checkpointState(FINAL, "game end");
-        const wind = resultWinnerWind(inStep);
-        expect([inStep.table.inStep, wind === null]).toEqual([true, false]);
+        const dealer = resultDealerName(inStep);
+        expect([inStep.table.inStep, dealer === null]).toEqual([true, false]);
         const desynced = run(checkpointState(FINAL, "ron chosen"), [
             message(5000, { t: 999 }),
         ]).state;
@@ -476,7 +476,7 @@ describe("stepGameClient - desync around the game's start and end", () => {
             true,
         ]);
         const stale = { ...ended.state, table: { ...ended.state.table, dealerSeat: 3 } };
-        expect([ended.state.table.inStep, resultWinnerWind(stale)]).toEqual([false, wind]);
+        expect([ended.state.table.inStep, resultDealerName(stale)]).toEqual([false, dealer]);
     });
 
     it("never shows an earlier hand's result as the last one when the page lost step after it", () => {

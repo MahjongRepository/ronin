@@ -291,7 +291,7 @@ describe("tableStateToDisplayState nameplates", () => {
             right: "+32100",
             top: "+33600",
         });
-        expect(right.scoreDiffs).toEqual({ bottom: "-32100", left: "±0", right: "", top: "+1500" });
+        expect(right.scoreDiffs).toEqual({ bottom: "-32100", left: "0", right: "", top: "+1500" });
     });
 
     test("marks an AI player seated from the start apart from one standing in for a human who left or never came", () => {

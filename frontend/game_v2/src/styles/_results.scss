@@ -215,16 +215,16 @@
 
 /* ─── Round-End Result Panel ───────────────────────────────── */
 
-/* One page of a round's result. Single column on an upright board; beside each other on a wide one, the yaku and the
-   hand's value, under the hand that spans the panel. Tiles take the overlay's board unit. */
+/* One page of a round's result in the spec's order: hand, yaku, value. A wide panel puts the yaku beside the value,
+   under the hand that spans it. Tiles take the overlay's board unit. */
 .round-end-result {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
         "head"
         "hand"
-        "value"
         "yaku"
+        "value"
         "scores";
     gap: 0.4rem 1rem;
     font-size: 0.8rem;
@@ -253,8 +253,8 @@
     grid-template-areas:
         "head head"
         "hand hand"
-        "value value"
         "yaku yaku"
+        "value value"
         "scores controls";
 }
 
@@ -282,10 +282,10 @@
 }
 
 .round-end-result__kind {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.1em;
     color: var(--ronin-text);
 }
 
@@ -295,18 +295,26 @@
     line-height: 1.2;
 }
 
-.round-end-result__wind,
 .round-end-result__label,
 .round-end-result__score-wind {
     font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     color: var(--ronin-text-secondary);
 }
 
 .round-end-result__from {
     color: var(--ronin-text-secondary);
+}
+
+/* A win's head reads as one plain line: how it was won, by whom, and from whom, a word space apart. */
+.round-end-result__who {
+    color: var(--ronin-text);
+
+    .round-end-result__from {
+        color: inherit;
+    }
 }
 
 .round-end-result__pager {
@@ -411,13 +419,10 @@
     row-gap: 0.25rem;
 }
 
-/* The winning tile stands apart from the closed tiles and the melds, ringed in the neutral mark under the way it was
-   won. */
+/* The winning tile stands apart from the closed tiles and the melds, ringed in the neutral mark. */
 .round-end-result__win-tile {
+    position: relative;
     display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.15rem;
     margin-inline: 0.6rem 0.3rem;
 
     .tile {
@@ -430,12 +435,12 @@
 }
 
 .round-end-result__win-label {
-    font-size: 0.6rem;
-    font-weight: 700;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--ronin-text);
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 .round-end-result__melds {
@@ -444,12 +449,13 @@
     margin-left: 0.3rem;
 }
 
+/* Capped, so a yaku's han stays beside its name rather than across the panel. */
 .round-end-result__yaku {
     grid-area: yaku;
+    max-width: 15rem;
     list-style: none;
     margin: 0;
     padding: 0;
-    font-size: 0.75rem;
 
     > li {
         display: flex;
@@ -458,13 +464,14 @@
         margin: 0;
         padding: 0.05rem 0;
         list-style: none;
-        color: var(--ronin-text-secondary);
+        color: var(--ronin-text);
     }
 }
 
 .round-end-result__han {
     @include type.figures;
 
+    white-space: nowrap;
     color: var(--ronin-text);
     font-weight: 600;
 
@@ -481,8 +488,13 @@
     color: var(--ronin-text);
 }
 
-.round-end-result__yaku-dora > span:first-child {
+/* The dora lines after the yaku start a group of their own, quieter than the yaku. */
+.round-end-result__yaku > .round-end-result__yaku-dora {
     color: var(--ronin-text-secondary);
+}
+
+.round-end-result__yaku > li:not(.round-end-result__yaku-dora) + .round-end-result__yaku-dora {
+    margin-top: 0.3rem;
 }
 
 .round-end-result__value {
@@ -514,19 +526,22 @@
     color: var(--ronin-text-secondary);
 }
 
+/* The indicators stand in the head's far corner, before a double ron's pager, their labels on the head's baseline. */
 .round-end-result__indicators {
-    flex-basis: 100%;
+    margin-left: auto;
+    align-self: baseline;
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 0.3rem 1rem;
 
-    &:empty {
-        display: none;
+    + .round-end-result__pager {
+        margin-left: 0;
     }
 }
 
 .round-end-result__indicator-group {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 0.4rem;
 }
 
@@ -638,8 +653,9 @@
 .round-end-result__score-tag {
     grid-row: 2;
     font-size: 0.65rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.1em;
     color: var(--ronin-text-secondary);
 }
 
@@ -658,6 +674,10 @@
 
     &--negative {
         color: var(--ronin-score-negative);
+    }
+
+    &:not(&--positive, &--negative) {
+        font-weight: 400;
     }
 }
 
