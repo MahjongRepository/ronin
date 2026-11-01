@@ -51,12 +51,11 @@ button.hand-tile {
     }
 }
 
-/* A tile held back by a rule is recessed, never darkened: lower, slightly smaller, flat, with a dashed inner rim, its
-   face and glyph colours kept. While some are held back, the ones that may be played stand slightly raised. */
+/* A tile held back by a rule is greyed out and recessed: lower, slightly smaller, flat, its glyphs grey and the whole
+   face a step dimmer, never dark. While some are held back, the ones that may be played stand slightly raised. */
 .hand-tile--disabled .tile {
-    outline: 1.5px dashed var(--ronin-held-rim);
-    outline-offset: -3px;
     box-shadow: none;
+    filter: grayscale(1) brightness(0.82);
     transform: translateY(2px) scale(0.95);
 }
 

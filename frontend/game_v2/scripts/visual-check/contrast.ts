@@ -130,12 +130,6 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ":is(.hand-tile--declaring, .hand-tile--selected) .tile",
     },
     {
-        hide: [["", NO_OUTLINE]],
-        name: "held-back tile's rim",
-        reach: 0,
-        selector: ".hand-tile--disabled .tile",
-    },
-    {
         hide: [["::before", HIDDEN]],
         name: "connection dot",
         reach: 0,
@@ -178,6 +172,12 @@ const HIDE_PSEUDO_TEXT = `
 type ContrastKind = "glyph" | "mark" | "text";
 
 type Rgb = readonly [number, number, number];
+
+/** What the elements over a paint do to it: the opacity they apply and how their filters recolour it. */
+interface Paint {
+    readonly opacity: number;
+    readonly recolour: (rgb: Rgb) => Rgb;
+}
 
 /** A colour as painted: its RGB and how much of it covers what lies beneath (its alpha times every opacity above it). */
 interface PaintedColour {
@@ -307,33 +307,68 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                           rgb: [Number(parts.red), Number(parts.green), Number(parts.blue)],
                       };
             }
-            /** Whether `filter` changes an element's own pixels: drop shadows alone are painted beneath them. */
-            // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
-            function recolours(filter: string): boolean {
-                return (
-                    filter !== "none" &&
-                    filter.replaceAll(/drop-shadow\((?:[^()]|\([^()]*\))*\)/g, "").trim() !== ""
-                );
-            }
             /**
-             * The opacity every element from `element` up to `until` (exclusive) applies, or null under a filter that
-             * recolours it.
+             * What `filter` does to an element's own colours, as the Filter Effects matrices in sRGB, or null for a
+             * function the check cannot follow: drop shadows are painted beneath them, `grayscale` and `brightness`
+             * are followed, anything else is unreadable.
              */
             // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
-            function opacityOf(element: Element, until: Element | null): number | null {
+            function recolouring(filter: string): ((rgb: Rgb) => Rgb) | null {
+                const steps: ((rgb: Rgb) => Rgb)[] = [];
+                for (const { groups } of filter.matchAll(
+                    /(?<name>[a-z-]+)\((?<argument>(?:[^()]|\([^()]*\))*)\)/g,
+                )) {
+                    const { argument = "", name } = groups ?? {};
+                    const amount = argument.endsWith("%")
+                        ? Number.parseFloat(argument) / 100
+                        : Number(argument);
+                    if (name === "grayscale") {
+                        const keep = 1 - Math.min(1, amount);
+                        steps.push(([red, green, blue]) => {
+                            const luma = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+                            return [
+                                luma + keep * (red - luma),
+                                luma + keep * (green - luma),
+                                luma + keep * (blue - luma),
+                            ];
+                        });
+                    } else if (name === "brightness") {
+                        steps.push(([red, green, blue]) => [
+                            Math.min(255, red * amount),
+                            Math.min(255, green * amount),
+                            Math.min(255, blue * amount),
+                        ]);
+                    } else if (name !== "drop-shadow") {
+                        return null;
+                    }
+                }
+                return (rgb) => steps.reduce((colour, step) => step(colour), rgb);
+            }
+            /**
+             * What every element from `element` up to `until` (exclusive) does to its paint: the opacity it applies
+             * and how its filters recolour it, innermost first; null under a filter or blend the check cannot follow.
+             */
+            // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
+            function paintOf(element: Element, until: Element | null): Paint | null {
                 let opacity = 1;
+                const filters: ((rgb: Rgb) => Rgb)[] = [];
                 for (
                     let at: Element | null = element;
                     at !== null && at !== until;
                     at = at.parentElement
                 ) {
                     const style = getComputedStyle(at);
-                    if (recolours(style.filter) || style.mixBlendMode !== "normal") {
+                    const filter = recolouring(style.filter);
+                    if (filter === null || style.mixBlendMode !== "normal") {
                         return null;
                     }
+                    filters.push(filter);
                     opacity *= Number(style.opacity);
                 }
-                return opacity;
+                return {
+                    opacity,
+                    recolour: (rgb) => filters.reduce((colour, filter) => filter(colour), rgb),
+                };
             }
             function textColour(
                 element: Element,
@@ -342,12 +377,12 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
             ): PaintedColour | null {
                 const style = getComputedStyle(element, which);
                 const colour = parsed(style.webkitTextFillColor || style.color);
-                const opacity = opacityOf(element, null);
-                if (colour === null || opacity === null) {
+                const paint = paintOf(element, null);
+                if (colour === null || paint === null) {
                     unreadable.push(label);
                     return null;
                 }
-                return { alpha: colour.alpha * opacity, rgb: colour.rgb };
+                return { alpha: colour.alpha * paint.opacity, rgb: paint.recolour(colour.rgb) };
             }
             const board = document.querySelector(".game-board");
             const scope = board?.querySelector(".board-overlay__panel") ?? board;
@@ -418,18 +453,19 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                 return null;
             }
             /**
-             * A symbol's inks: each fill and stroke, with the symbol's own opacities and the rendered instance's
-             * (`instance`), but the artwork's own highlights: a paint the sprite authors white and that still paints white.
+             * A symbol's inks: each fill and stroke, with the symbol's own opacities and filters and the rendered
+             * instance's (`instance`), inks no pixel could tell apart (navy and black greyed) as one, but the artwork's
+             * own highlights: a paint the sprite authors white and that still paints white.
              * A paint is never dropped for being pale, so a real ink turned pale stays expected and fails.
              */
-            function inksOf(symbol: Element, instance: number): GlyphInk[] {
+            function inksOf(symbol: Element, instance: Paint): GlyphInk[] {
                 const inks = new Map<string, GlyphInk>();
                 const shapes = symbol.querySelectorAll(
                     ":is(path, circle, ellipse, rect, polygon, polyline, line, text):not(:is(mask, clipPath, pattern) *)",
                 );
                 for (const node of shapes) {
                     const style = getComputedStyle(node);
-                    const opacity = opacityOf(node, symbol);
+                    const own = paintOf(node, symbol);
                     for (const [paint, share, attribute] of [
                         [style.fill, style.fillOpacity, "fill"],
                         [style.stroke, style.strokeOpacity, "stroke"],
@@ -440,16 +476,21 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                                 (authored(node, attribute, symbol) ?? "").toLowerCase(),
                             ) && colour?.rgb.every((channel) => channel === 255) === true;
                         const ink =
-                            colour === null || opacity === null || highlight
+                            colour === null || own === null || highlight
                                 ? null
                                 : {
-                                      alpha: colour.alpha * Number(share) * opacity * instance,
-                                      rgb: colour.rgb,
+                                      alpha:
+                                          colour.alpha *
+                                          Number(share) *
+                                          own.opacity *
+                                          instance.opacity,
+                                      rgb: instance.recolour(own.recolour(colour.rgb)),
                                   };
                         if (ink !== null) {
-                            inks.set(`${ink.rgb.join(",")}@${ink.alpha}`, {
+                            const shade = ink.rgb.map((channel) => Math.round(channel / 8));
+                            inks.set(`${shade.join(",")}@${ink.alpha}`, {
                                 ...ink,
-                                name: `rgb(${ink.rgb.join(", ")})${ink.alpha < 1 ? ` at ${ink.alpha}` : ""}`,
+                                name: `rgb(${ink.rgb.map(Math.round).join(", ")})${ink.alpha < 1 ? ` at ${ink.alpha}` : ""}`,
                             });
                         }
                     }
@@ -465,7 +506,7 @@ function collectContrastTargets(page: Page): Promise<ContrastTargets> {
                     if (symbol !== null && symbol.childElementCount === 0) {
                         return [];
                     }
-                    const instance = use === null ? null : opacityOf(use, null);
+                    const instance = use === null ? null : paintOf(use, null);
                     const inks =
                         symbol === null || instance === null ? [] : inksOf(symbol, instance);
                     const rect = tile.getBoundingClientRect();

@@ -262,9 +262,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   closed kan stays available. Tile states are told apart at a glance: selectable, selected, held
   back by a rule (kuikae after a call, a red and an ordinary five alike; a riichi discard that
   breaks tenpai: quiet, never hidden), and the tile an answer already played. Decision: a held-back
-  tile shows reduced emphasis, never darkness: recessed (lower, slightly smaller, flat, without its
-  edge and shadow) with a dashed inner rim, its ivory face and glyph colours unchanged, so every
-  glyph keeps its contrast; while some tiles are held back the selectable ones stand slightly
+  tile shows reduced emphasis, never darkness: greyed out (its glyphs grey, the face a step dimmer)
+  and recessed (lower, slightly smaller, flat, without its edge and shadow), every glyph keeping its
+  contrast against its face; while some tiles are held back the selectable ones stand slightly
   raised, and a selected or riichi-declaring tile is lifted and outlined in the accent.
 - **Action source.** What an offer refers to is marked where it lies: the latest discard in its
   river, or for a chankan offer the whole kan in its meld (an added kan, or a closed kan robbed for
@@ -619,7 +619,7 @@ and a notice shown in whole lines with a "Show all" that opens the complete mess
 failures; any other clipping is), tap targets (40x40 for a button, a badge and a play switch, which
 are controls; an own tile keeps the 32x42 floor on a phone, a safety limit; a desktop's own tile
 follows the derived values and has no separate floor), readable faces and text sizes, text and marks
-at a contrast of at least 4.5:1 against what they sit on (a held-back face included: it is recessed,
+at a contrast of at least 4.5:1 against what they sit on (a held-back face included: it is greyed,
 never darkened), no state told by colour alone (a switch's on state included; tile identity aside: a
 red five is red and carries its own extra dot, which must stay visible at river scale), safe areas
 respected, the rotate panel on an upright phone, and, at the reference viewports, two
