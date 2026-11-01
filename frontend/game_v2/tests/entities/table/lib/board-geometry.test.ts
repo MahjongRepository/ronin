@@ -155,24 +155,36 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        [1366, 657, [30, 207.788, 101.623]],
-        [1280, 720, [35, 204.4, 109.833]],
-        [1440, 770, [38, 217, 119.5]],
-        [1170, 620, [28, 198.8, 96]],
+        [1366, 657, [29, 218.988, 102.29]],
+        [1280, 720, [34, 218.4, 109.067]],
+        [1440, 770, [37, 228.2, 119.5]],
+        [1170, 620, [27, 210, 96]],
     ])(
-        "sizes a %ix%i window's short desktop board, its core holding the latest discards' gaps",
+        "sizes a %ix%i window's short desktop board, a replay's full left river ending over its moves",
         (width, height, expected) => {
             const { lengths } = windowGeometry({ height, width });
+            const replay = boardGeometry({
+                box: { height, width },
+                gutter: 0,
+                safeInsets: NO_INSETS,
+                slots: REPLAY_SLOTS,
+            }).lengths;
+            function length(name: string): number {
+                return replay[name] ?? Number.NaN;
+            }
+            const leftRiverEnd =
+                length("cy") - length("h") + 5 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
 
             for (const [index, name] of SHORT_DESKTOP_SIZES.entries()) {
                 expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
             }
+            expect(leftRiverEnd + 4).toBeLessThanOrEqual(length("switches-top") + 0.001);
         },
     );
 
     it.each([
-        [375, 548, [11, 205.666, 96.933]],
-        [800, 801, [30, 386.8, 122]],
+        [375, 548, [11, 205.667, 103.933]],
+        [800, 801, [30, 393.8, 122]],
     ])(
         "sizes a %ix%i window's upright board, its core holding the latest discards' gaps",
         (width, height, expected) => {

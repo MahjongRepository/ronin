@@ -132,6 +132,12 @@ const ROWS_AT_EDGE = HEIGHT_TILES + DESKTOP_SPARE * (OWN_ROW + OWN_EDGE);
 /** The left river's reach under the core's top slot, in river tiles: the slot's tile, the river, its sideways tile. */
 const SLOT_LEFT_REACH = 2 * TILE_ASPECT + LEFT_REACH_TILES;
 
+/**
+ * What the left river's reach takes past its river tiles (px): the top river's latest discard and its own inside the
+ * core, and the river gap's rounding at most.
+ */
+const LEFT_REACH_GAPS = 2 * LATEST_DISCARD_GAP + 0.5;
+
 /** A side strip's two stacked lines' gap, and the gap the right hand keeps under the corner (px). */
 const STRIP_LINES_GAP = 4;
 const CORNER_GAP = 4;
@@ -269,7 +275,13 @@ function bandRiverTile({ height, rowRiseFixed, tier }: DesktopRooms): number {
 function switchesRiverTile({ height, tier }: DesktopRooms): number {
     const { m, ownBadgeH, sep, switchGap } = tier;
     const fixed =
-        ownBadgeH + OWN_BADGE_LANE + SWITCHES_CLEARANCE + switchGap + switchesPlace(tier) + sep;
+        ownBadgeH +
+        OWN_BADGE_LANE +
+        SWITCHES_CLEARANCE +
+        switchGap +
+        switchesPlace(tier) +
+        sep +
+        LEFT_REACH_GAPS;
     const tiles = SLOT_LEFT_REACH + OWN_ROW + BAND_TILE_SHARE;
     return Math.min((height - 2 * m - fixed) / tiles, (height - m - fixed) / (tiles + OWN_EDGE));
 }
@@ -325,6 +337,16 @@ function riverGap(rw: number): number {
 /** A top or bottom river's reach from the centre at its capacity: the gap and its rows. */
 function riverRows(rw: number): number {
     return riverGap(rw) + (CORE_TILES / 2 - RIVER_GAP_SHARE) * rw;
+}
+
+/** How far down from the core's top the left river's capacity reaches, its sideways tile and latest discard counted. */
+function leftRiverDrop(rw: number): number {
+    return (
+        2 * LATEST_DISCARD_GAP +
+        riverRows(rw) +
+        (LEFT_REACH_TILES - CORE_TILES / 2) * rw +
+        rw * TILE_ASPECT
+    );
 }
 
 /**
@@ -512,7 +534,7 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     const coreTopSlot = m + rh + sep;
     const coreTopFree = (coreRoomH - rh - core) / 2;
     const switchesTop = switchesBottom - switchesPlace(tier);
-    const coreTopRoom = switchesTop - SWITCHES_CLEARANCE - coreTopSlot - LEFT_REACH_TILES * rw - rh;
+    const coreTopRoom = switchesTop - SWITCHES_CLEARANCE - coreTopSlot - leftRiverDrop(rw);
     const coreTop = short
         ? coreTopSlot + Math.max(0, Math.min(coreTopFree, coreTopRoom))
         : Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core);
@@ -680,7 +702,6 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
         OWN_BADGE_LANE +
         UPRIGHT_NOTICE_GAP +
         UPRIGHT_NOTICE_ROOM +
-        LATEST_DISCARD_GAP +
         underStrip;
     const edgeTiles = UPRIGHT_TILES + DESKTOP_SPARE * OWN_EDGE;
     const rw = Math.floor(
@@ -709,8 +730,7 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
     const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
     const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
     const noticesBottom = handTop - ownRise - 2 * controlH - UPRIGHT_DECISIONS_GAPS;
-    const bandReserve =
-        handTop - noticesBottom + UPRIGHT_NOTICE_ROOM + UPRIGHT_NOTICE_GAP + LATEST_DISCARD_GAP;
+    const bandReserve = handTop - noticesBottom + UPRIGHT_NOTICE_ROOM + UPRIGHT_NOTICE_GAP;
     const coreRoomBand = handTop - bandReserve - underStrip;
     const stripDepth = STACKED_DEPTH * rw;
 
@@ -944,8 +964,7 @@ function phoneLayout(
         2 * laneHalf,
         Math.min(centre * CENTRE_ASPECT, 2 * halfRoom),
     );
-    const leftRiverEnd =
-        centreTop + (LEFT_REACH_TILES - CORE_TILES / 2) * rw + rh + LATEST_DISCARD_GAP;
+    const leftRiverEnd = coreTop + leftRiverDrop(rw);
     const reach = fullReach(rw);
     const cy = centreTop + centre / 2;
     const cornerBottom = m + cornerH;
@@ -1370,7 +1389,12 @@ function opponentStrips(
                 right: m + reserve,
                 top: places.leftStart,
             },
-            "strip-right": { bottom: places.origin, left: width - m - reserve, right: width - m, top: m },
+            "strip-right": {
+                bottom: places.origin,
+                left: width - m - reserve,
+                right: width - m,
+                top: m,
+            },
             "strip-top": {
                 bottom: m + STACKED_DEPTH * rw,
                 left: places.topStart,
@@ -1420,9 +1444,11 @@ function riverClear(rw: number): number {
  * Off an upright board, the top hand's full reach stands centred, moved right as far as its badge's lane under its
  * start needs, short of the page's corner, and right of the counters; the lane runs from past the top river to there.
  */
-function landscapeTop(
-    { at, frame, tier }: ShellRoom,
-): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
+function landscapeTop({
+    at,
+    frame,
+    tier,
+}: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
     const m = at("m");
     const reach = fullReach(at("rw"));
     const clear = riverClear(at("rw"));
