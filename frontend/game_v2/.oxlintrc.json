@@ -108,7 +108,8 @@
                     "OptionButton",
                     "StepButton",
                     "SwitchButton",
-                    "PlaySwitches"
+                    "PlaySwitches",
+                    "SwitchNames"
                 ]
             }
         ],

@@ -77,7 +77,7 @@ function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
  * The view's `ui` after a command, before it settles: picking riichi's discard, or choosing a call's tiles, turns on or off for the open
  * decision, each turning the other off, and an answered decision keeps both as they were; stepping back leaves the
  * choice of tiles, else the riichi pick; the result's panel turns to a page of the result showing, and the game's last
- * result reopens on its first; a nameplate is pinned, or none; a notice opens whole in its sheet, or the sheet closes.
+ * result reopens on its first; a nameplate is pinned, or none; the play switches' names show or hide; a notice opens whole in its sheet, or the sheet closes.
  */
 function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
@@ -85,11 +85,9 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         case "reload": {
             return command.kind === "intent" ? uiAfterIntent(ui, command.intent) : ui;
         }
-        case "ask_leave": {
-            return { ...ui, confirmingLeave: true };
-        }
+        case "ask_leave":
         case "cancel_leave": {
-            return { ...ui, confirmingLeave: false };
+            return { ...ui, confirmingLeave: command.kind === "ask_leave" };
         }
         case "show_notice":
         case "close_notice": {
@@ -106,6 +104,9 @@ function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): P
         }
         case "pin_nameplate": {
             return { ...ui, pinnedNameplate: command.seat };
+        }
+        case "toggle_switch_names": {
+            return { ...ui, switchNames: !ui.switchNames };
         }
         default: {
             return assertNever(command);

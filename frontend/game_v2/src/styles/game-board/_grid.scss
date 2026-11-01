@@ -15,9 +15,9 @@ $lengths:
     left-meets, switches-clear, top-badge-right, top-lane, band-crossed, core-floor, notices-bottom,
     own-rise, switches-bottom, row-rise, own-meld-rise, own-meld-tile, top-strip-x, top-badge-top,
     side-step, right-badge-top, core-top-room, left-room-end, left-line2-end, switches-place,
-    own-lead, own-lane-free, own-lane-beside-river, own-river-lane, own-lane, own-badge-end,
-    side-clear, decisions-top, side-step-room, counters-h, side-start, plate-reach, left-start,
-    right-base, right-centred, band-fixed, height-room, band-room;
+    switches-place-w, own-lead, own-lane-free, own-lane-beside-river, own-river-lane, own-lane,
+    own-badge-end, side-clear, decisions-top, side-step-room, counters-h, side-start, plate-reach,
+    left-start, right-base, right-centred, band-fixed, height-room, band-room;
 
 /* Upright, the counters stand this far under the top strip and the left strip this far under them. */
 $upright-counters-gap: 6px;
@@ -73,8 +73,10 @@ $upright-centre-min: 100px;
     --own-cap: min(5cqw, 10cqh);
     --core-cap: 66cqh;
     --text: 17px;
-    --switches-w: 470px;
     --switch-h: 44px;
+
+    /* The play switches' strip: three square chips and the names' button, 6px apart (4px on a phone). */
+    --switches-w: calc(4 * var(--switch-h) + 18px);
     --moves-h: 52px;
     --side-card-w: 200px;
     --side-lane-min: 125px;
@@ -246,6 +248,10 @@ $upright-centre-min: 100px;
     /* The left hand runs down from below the counters; the switches' place, as tall as the play switches or the replay's
        moves (so both boards size alike), steps in past its depth where it meets them, the left strip's melds above. */
     --switches-place: max(var(--switch-h), var(--moves-h));
+
+    /* The switches' place is as wide as the play switches or the replay's seven moves there, so a replay's board is the
+       live game's. */
+    --switches-place-w: max(var(--switches-w), 7 * var(--moves-h) + 36px);
     --switches-top: calc(var(--switches-bottom) - var(--switches-place));
     --left-room-end: min(var(--band-top), var(--switches-top));
 
@@ -376,7 +382,6 @@ $upright-centre-min: 100px;
         --dora-w: 15px;
         --counters-h: calc(var(--dora-w) * 4 / 3 + 10px);
         --text: 12px;
-        --switches-w: 232px;
         --switch-h: 44px;
         --moves-h: 40px;
         --side-card-w: 130px;
@@ -398,7 +403,6 @@ $upright-centre-min: 100px;
         --dora-w: 37px;
         --counters-h: calc(var(--dora-w) * 4 / 3 + 22px);
         --text: 24px;
-        --switches-w: 560px;
         --switch-h: 52px;
         --moves-h: 60px;
         --side-card-w: 270px;
@@ -446,14 +450,17 @@ $upright-centre-min: 100px;
         --core-room-band: 9999px;
         --core-top: var(--core-top-slot);
         --switch-h: var(--control-h);
+        --switches-w: calc(4 * var(--switch-h) + 12px);
         --timer-w: 60px;
     }
 
     /* A short desktop's river tile keeps its left river's reach from the core's top slot above the switches (the slot's
        river tile, the core's half less the centre's, and that river's row), and its core centres only as far. */
     @include short-desktop-board {
-        /* The bottom river, from the centre's left corner, stays clear of the play switches level with it. */
-        --w-by-switches: calc(2 * (var(--cx) - var(--switches-right) - 8px));
+        /* The bottom river, from the centre's left corner, stays clear of the switches' place level with it. */
+        --w-by-switches: calc(
+            2 * (var(--cx) - var(--switches-left) - var(--switches-place-w) - 8px)
+        );
 
         /* Its side badges step down where the decisions' tallest column (five offers over the band's control and the
            timer: six rows, a win's rise) leaves room under the right one. */

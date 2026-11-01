@@ -94,16 +94,7 @@ const CONTRAST_MARKS: readonly ContrastMark[] = [
         selector: ".board-stick-icon",
     },
     { hide: [["", HIDDEN]], name: "furiten dot", reach: 0, selector: ".board-furiten__dot" },
-    {
-        hide: [
-            ["", HIDDEN],
-            [" .play-switch__knob", SHOWN],
-        ],
-        name: "switch track",
-        reach: 0,
-        selector: ".play-switch__track",
-    },
-    { hide: [["", HIDDEN]], name: "switch knob", reach: 0, selector: ".play-switch__knob" },
+    { hide: [["", HIDDEN]], name: "switch lamp", reach: 0, selector: ".play-switch__lamp" },
     {
         hide: [
             ["", "border-color: transparent !important"],

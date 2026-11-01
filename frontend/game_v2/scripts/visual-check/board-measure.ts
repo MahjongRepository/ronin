@@ -3,13 +3,13 @@ import { type Page } from "playwright";
 import { type Box, type GroupedBox, type Size, describeSize } from "./boxes.ts";
 
 /**
- * A play switch: its box, the state it announces, and how it shows it apart from colour (the knob right of its track's
- * middle) and by its fill (the track's background not transparent).
+ * A play switch: its box, the state it announces, and how it shows it apart from colour (its lamp a bar, wider than
+ * tall, not a ring) and by its fill (the lamp's background not transparent).
  */
 export interface SwitchMeasure {
     readonly box: Box;
     readonly checked: boolean;
-    readonly knobRight: boolean;
+    readonly bar: boolean;
     readonly filled: boolean;
 }
 
@@ -163,19 +163,14 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
             grouped.push({ box: box(element), group: "switches" });
         }
         const switches = switchElements.map((element) => {
-            const track = element.querySelector(".play-switch__track");
-            const knob = element.querySelector(".play-switch__knob");
-            const trackBox = track?.getBoundingClientRect();
-            const knobBox = knob?.getBoundingClientRect();
-            const fill = track === null ? "" : getComputedStyle(track).backgroundColor;
+            const lamp = element.querySelector(".play-switch__lamp");
+            const lampBox = lamp?.getBoundingClientRect();
+            const fill = lamp === null ? "" : getComputedStyle(lamp).backgroundColor;
             return {
+                bar: lampBox !== undefined && lampBox.width > 1.5 * lampBox.height,
                 box: box(element),
                 checked: element.getAttribute("aria-checked") === "true",
                 filled: fill !== "" && fill !== "transparent" && fill !== "rgba(0, 0, 0, 0)",
-                knobRight:
-                    trackBox !== undefined &&
-                    knobBox !== undefined &&
-                    knobBox.left + knobBox.width / 2 > trackBox.left + trackBox.width / 2,
             };
         });
         const zones = board.querySelector(".board-zones");

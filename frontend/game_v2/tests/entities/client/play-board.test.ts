@@ -124,20 +124,37 @@ function timer(host: HTMLElement): [string | undefined, string | undefined, bool
     ];
 }
 
-/** The play switches a live board draws for a state, each press going to `onCommand`. */
-function renderSwitches(
+/** The play switches' slot a live board draws for a state, each press going to `onCommand`. */
+function renderSwitchSlot(
     state: LiveClient,
     onCommand: (command: PlayCommand) => void,
-): HTMLButtonElement[] {
+    ui: PlayUi = NO_PLAY_UI,
+): HTMLElement {
     const host = document.createElement("div");
     render(
         PlayBoard({
-            display: playDisplay(state, NO_PLAY_UI),
+            display: playDisplay(state, ui),
             onCommand,
         }),
         host,
     );
-    return [...host.querySelectorAll<HTMLButtonElement>(".play-switch")];
+    return host;
+}
+
+/** Each name the switches' slot shows over the strip: its letter and its label. */
+function switchNames(host: HTMLElement): (string | null)[][] {
+    return [...host.querySelectorAll(".play-switches__names li")].map((item) =>
+        [...item.querySelectorAll("span")].map((span) => span.textContent),
+    );
+}
+
+function renderSwitches(
+    state: LiveClient,
+    onCommand: (command: PlayCommand) => void,
+): HTMLButtonElement[] {
+    return [
+        ...renderSwitchSlot(state, onCommand).querySelectorAll<HTMLButtonElement>(".play-switch"),
+    ];
 }
 
 const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
@@ -355,7 +372,9 @@ describe("PlayBoard", () => {
         expect(timer(renderPlay(inBank))).toEqual(["Bank", "0+29", true]);
         expect(timer(renderPlay(sent))).toEqual(["Sent", "", false]);
     });
+});
 
+describe("PlaySwitches", () => {
     it("draws each play switch as a switch announcing its state, a press turning it and sending nothing", () => {
         const turn = checkpointState("anchor_seat_1", "own turn");
         const commands: PlayCommand[] = [];
@@ -369,14 +388,33 @@ describe("PlayBoard", () => {
         expect(step.effects).toEqual([]);
         expect(
             switches.map((button) => [
-                button.textContent?.trim(),
+                button.querySelector(".play-switch__letter")?.textContent,
+                button.querySelector(".play-switch__label")?.textContent,
                 button.getAttribute("role"),
                 button.getAttribute("aria-checked"),
             ]),
         ).toEqual([
-            ["Auto win", "switch", "true"],
-            ["No calls", "switch", "false"],
-            ["Auto discard", "switch", "false"],
+            ["A", "Auto win", "switch", "true"],
+            ["C", "No calls", "switch", "false"],
+            ["D", "Auto discard", "switch", "false"],
         ]);
+    });
+
+    it("shows the play switches' letters with their names only while the player keeps the names open", () => {
+        const turn = checkpointState("anchor_seat_1", "own turn");
+        const commands: PlayCommand[] = [];
+        const closed = renderSwitchSlot(turn, (command) => commands.push(command));
+        closed.querySelector<HTMLButtonElement>(".play-switches__names-toggle")?.click();
+        const [toggle] = commands;
+        const opened = stepPlayUi(turn, NO_PLAY_UI, toggle);
+        const open = renderSwitchSlot(turn, () => {}, opened);
+
+        expect(switchNames(closed)).toEqual([]);
+        expect(switchNames(open)).toEqual([
+            ["A", "Auto win"],
+            ["C", "No calls"],
+            ["D", "Auto discard"],
+        ]);
+        expect(stepPlayUi(turn, opened, toggle)).toEqual(NO_PLAY_UI);
     });
 });

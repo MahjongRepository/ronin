@@ -358,10 +358,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   starts with them off. They are the client's standing answers, taken exactly where the player's
   press would be, with the decision's wait id, so the server, which keeps no preference, sees an
   ordinary answer; the latest-discard mark and the table are unchanged by an automatic pass, and an
-  automatic discard travels like a pressed one. Each switch shows on and off apart, not by colour
-  alone (the established clients use grey against green), with a label a player understands without
-  a manual, and meets the control floor; a switch is reached from the hand's focus like a decision
-  control. Not on a replay board; the decisions stories show them, on and off. No auto-sort switch:
+  automatic discard travels like a pressed one. Decision: Mahjong Soul's compact strip, a square
+  chip per switch showing its letter (A, C, D) and a button after them that shows each letter's name
+  over the strip until pressed again, so a player understands them without a manual; the name is
+  each chip's tooltip and its accessible name too. Each switch shows on and off apart, not by colour
+  alone (the established clients use grey against green): filled with a bar under the letter, or
+  empty with a ring. Each chip meets the control floor; a switch is reached from the hand's focus
+  like a decision control. Not on a replay board; the decisions stories show them, on and off. No auto-sort switch:
   the hand is always sorted. No forced auto-discard after idleness: the server's timeout and the AI
   stand-in cover an absent player.
 - **Settings.** Not built: a settings sheet exists only while it has an entry, and it has none. The

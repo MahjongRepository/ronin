@@ -193,7 +193,7 @@ const PAGES: readonly PageCase[] = [
     ]),
     {
         ...decisionCase("switches_furiten", [
-            ".play-switch--on .play-switch__knob",
+            ".play-switch--on .play-switch__lamp",
             ".board-furiten__word",
         ]),
         at: [FLOOR, MID_DESKTOP],
@@ -299,7 +299,7 @@ function checkActions(board: BoardMeasure, screen: Box, report: PageReport): voi
 /**
  * The play switches sit wholly on the board and the screen, each large enough to tap, clear of every tile by the gap
  * a decision control keeps and off every decision control and the timer, and each shows the state it announces apart
- * from colour (its knob's side) and by its fill.
+ * from colour (its lamp's shape) and by its fill.
  */
 function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): void {
     const { switches } = board;
@@ -331,11 +331,11 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
         `play switch(es) within ${MIN_CONTROL_TILE_GAP}px of a tile or over a decision control: ${crowded.map(describeBox).join(", ")}`,
     );
     const misread = switches.filter(
-        (control) => control.knobRight !== control.checked || control.filled !== control.checked,
+        (control) => control.bar !== control.checked || control.filled !== control.checked,
     );
     report.expect(
         misread.length === 0,
-        `play switch(es) whose knob or fill does not show their state: ${misread.map((control) => describeBox(control.box)).join(", ")}`,
+        `play switch(es) whose lamp or fill does not show their state: ${misread.map((control) => describeBox(control.box)).join(", ")}`,
     );
 }
 

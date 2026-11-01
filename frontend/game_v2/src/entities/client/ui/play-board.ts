@@ -222,8 +222,9 @@ export function DecisionControls(
 }
 
 /**
- * A play switch: a native button (focus, Enter and Space) with the switch role, its state told by the knob's side,
- * the track's fill and a mark on the track's free side (a bar while on, a ring while off), never by colour alone.
+ * A play switch: a native button (focus, Enter and Space) with the switch role, shown as its letter, named by its label
+ * (hidden but read, and its tooltip), its state told by the chip's fill and a lamp under the letter (a bar while on, a
+ * ring while off), never by colour alone.
  */
 function SwitchButton(
     control: SwitchControl,
@@ -234,16 +235,35 @@ function SwitchButton(
         role="switch"
         class="play-switch ${control.on ? "play-switch--on" : ""}"
         aria-checked=${String(control.on)}
+        title=${control.label}
         @click=${() => onCommand(control.command)}
     >
-        <span class="play-switch__track" aria-hidden="true"><span class="play-switch__knob"></span></span
+        <span class="play-switch__letter" aria-hidden="true">${control.letter}</span
+        ><span class="play-switch__lamp" aria-hidden="true"></span
         ><span class="play-switch__label">${control.label}</span>
     </button>`;
 }
 
-/** The play switches in their slot on the band, or none while the player may not turn them. */
+/** What each letter stands for, over the switches while the player keeps it open. */
+function SwitchNames(switches: readonly SwitchControl[]): TemplateResult {
+    return html`<ul class="play-switches__names" aria-hidden="true">
+        ${switches.map(
+            (control) =>
+                html`<li>
+                    <span class="play-switches__names-letter">${control.letter}</span
+                    ><span>${control.label}</span>
+                </li>`,
+        )}
+    </ul>`;
+}
+
+/**
+ * The play switches in their slot on the band as a strip of letters, Mahjong Soul's, its last button showing or hiding
+ * their names; none while the player may not turn them.
+ */
 export function PlaySwitches(
     switches: readonly SwitchControl[],
+    namesShown: boolean,
     onCommand: PlayBoardProps["onCommand"],
 ): TemplateResult | undefined {
     if (switches.length === 0) {
@@ -254,7 +274,19 @@ export function PlaySwitches(
             switches,
             (control) => control.playSwitch,
             (control) => SwitchButton(control, onCommand),
-        )}
+        )}<button
+            type="button"
+            class="play-switches__names-toggle"
+            aria-pressed=${String(namesShown)}
+            aria-label="Switch names"
+            title=${namesShown ? "Hide switch names" : "Show switch names"}
+            @click=${() => onCommand({ kind: "toggle_switch_names" })}
+        >
+            <svg class="play-switches__arrow" viewBox="0 0 10 10" aria-hidden="true">
+                <polygon points=${namesShown ? "7,1 7,9 2,5" : "3,1 3,9 8,5"}></polygon>
+            </svg>
+        </button>
+        ${namesShown ? SwitchNames(switches) : nothing}
     </div>`;
 }
 
@@ -470,6 +502,6 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             pinned: display.pinnedNameplate,
         },
         state: display.board,
-        switches: PlaySwitches(display.switches, onCommand),
+        switches: PlaySwitches(display.switches, display.switchNames, onCommand),
     });
 }

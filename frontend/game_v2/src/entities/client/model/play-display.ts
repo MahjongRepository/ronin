@@ -61,10 +61,12 @@ import {
 import { type LiveClient, type LocalIntent, type PlayIntent, type PlaySwitch } from "./types";
 
 /**
- * A play switch on the board: its label, whether it is on, and the command turning it, which sends nothing itself.
+ * A play switch on the board: its letter, its label, whether it is on, and the command turning it, which sends nothing
+ * itself.
  */
 export interface SwitchControl {
     readonly playSwitch: PlaySwitch;
+    readonly letter: string;
     readonly label: string;
     readonly on: boolean;
     readonly command: PlayCommand;
@@ -113,6 +115,8 @@ export interface PlayDisplay {
     readonly furiten: boolean;
     /** The play switches, while the player may turn them (a live seat in a round); else none. */
     readonly switches: readonly SwitchControl[];
+    /** The play switches' names show beside their letters. */
+    readonly switchNames: boolean;
     /** The nameplate pinned for the others' score differences, or null. */
     readonly pinnedNameplate: SeatPosition | null;
     /** The result panel's controls while the viewer has a round result to confirm or waits on one; else null. */
@@ -133,10 +137,12 @@ export interface PlayDisplay {
 const DISCARD_ACTION = "Discard";
 const RIICHI_ACTION = "Declare riichi discarding";
 
-const SWITCH_LABELS: Readonly<Record<PlaySwitch, string>> = {
-    auto_discard: "Auto discard",
-    auto_win: "Auto win",
-    no_calls: "No calls",
+const SWITCH_LABELS: Readonly<
+    Record<PlaySwitch, { readonly letter: string; readonly label: string }>
+> = {
+    auto_discard: { label: "Auto discard", letter: "D" },
+    auto_win: { label: "Auto win", letter: "A" },
+    no_calls: { label: "No calls", letter: "C" },
 };
 
 function playTile(tile: HandTile, plays: ReadonlyMap<number, TilePlay>): HandTile {
@@ -227,7 +233,7 @@ function switchControls(state: LiveClient): SwitchControl[] {
         return [
             {
                 command: intentCommand(intent),
-                label: SWITCH_LABELS[playSwitch],
+                ...SWITCH_LABELS[playSwitch],
                 on: state.switches[playSwitch],
                 playSwitch,
             },
@@ -313,6 +319,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
         status: describePlayerClientStatus(state),
+        switchNames: ui.switchNames,
         switches: switchControls(state),
         tileAction: picking ? RIICHI_ACTION : DISCARD_ACTION,
         tileIntents: intentsOf(plays),

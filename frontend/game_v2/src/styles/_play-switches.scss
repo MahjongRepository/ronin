@@ -2,7 +2,8 @@
 
 $gap: 6px;
 
-/* The play switches' slot: the band's row on its side away from the decisions, which never reach into it. */
+/* The play switches' slot: the band's row on its side away from the decisions, which never reach into it. A strip of
+   square chips, a letter each, and the button showing their names over them, Mahjong Soul's. */
 .play-switches {
     position: absolute;
     left: var(--switches-left);
@@ -11,10 +12,19 @@ $gap: 6px;
     display: flex;
     align-items: flex-end;
     gap: $gap;
-    max-width: var(--switches-w);
+    font-size: 22px;
+
+    @include small-chrome {
+        font-size: 17px;
+    }
+
+    @include large-chrome {
+        font-size: 24px;
+    }
 
     @include phone-board {
         gap: 4px;
+        font-size: 16px;
     }
 
     @include upright-board {
@@ -22,33 +32,23 @@ $gap: 6px;
     }
 }
 
-@mixin stacked {
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.36em;
-    padding: 0 0.8em;
-}
-
-/* A switch: a knob in a track over (phone) or before (desktop) its label; on, the knob sits right on a filled track
-   with a bar, off left on an empty one with a ring, so its state never reads by colour alone. */
-.play-switches .play-switch {
+.play-switches :is(.play-switch, .play-switches__names-toggle) {
     display: inline-flex;
     flex: none;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
-    gap: 0.45em;
-    min-width: 40px;
+    justify-content: center;
+    width: var(--switch-h);
     height: var(--switch-h);
     margin: 0;
-    padding: 0 0.7em 0 0.55em;
+    padding: 0;
     border: 1px solid var(--ronin-switch-rim);
     border-radius: 10px;
     background: var(--ronin-switch-face);
     color: var(--ronin-text-secondary);
-    font-size: 18px;
-    font-weight: 550;
+    font-size: inherit;
+    font-weight: 700;
     line-height: 1;
-    white-space: nowrap;
     touch-action: manipulation;
 
     &:is(:hover, :active, :focus) {
@@ -61,25 +61,10 @@ $gap: 6px;
         outline: 3px solid var(--ronin-text);
         outline-offset: 3px;
     }
-
-    @include small-chrome {
-        @include stacked;
-
-        font-size: 12px;
-    }
-
-    @include large-chrome {
-        font-size: 22px;
-    }
-
-    @include phone-board {
-        @include stacked;
-
-        padding: 0 0.5em;
-        font-size: 11px;
-    }
 }
 
+/* On, a filled chip with its letter bright and a bar under it; off, an empty one with a ring, so its state never reads by
+   colour alone. */
 .play-switches .play-switch--on {
     &,
     &:is(:hover, :active, :focus) {
@@ -89,55 +74,78 @@ $gap: 6px;
     }
 }
 
-.play-switch__track {
-    position: relative;
-    flex: none;
-    width: 2em;
-    height: 1.1em;
-    border: 0.09em solid var(--ronin-switch-track);
-    border-radius: 99px;
-
-    &::after {
-        content: "";
-        position: absolute;
-        top: 50%;
-        right: 0.22em;
-        width: 0.34em;
-        height: 0.34em;
-        border: 0.09em solid var(--ronin-switch-track);
-        border-radius: 50%;
-        transform: translateY(-50%);
-    }
+.play-switch__lamp {
+    width: 0.32em;
+    height: 0.32em;
+    margin-top: 0.22em;
+    border: 0.08em solid var(--ronin-switch-track);
+    border-radius: 50%;
 }
 
-.play-switch__knob {
+.play-switch--on .play-switch__lamp {
+    width: 0.9em;
+    height: 0.18em;
+    border: 0;
+    border-radius: 0.09em;
+    background: var(--ronin-switch-on);
+}
+
+/* The label names the switch for assistive technology; the strip shows only its letter. */
+.play-switch__label {
     position: absolute;
-    top: 50%;
-    left: 0.13em;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.play-switches__arrow {
     width: 0.7em;
     height: 0.7em;
-    border-radius: 50%;
-    background: var(--ronin-switch-track);
-    transform: translateY(-50%);
+    fill: currentcolor;
 }
 
-.play-switch--on .play-switch__track {
-    border-color: var(--ronin-switch-on);
-    background: var(--ronin-switch-on);
-
-    &::after {
-        right: auto;
-        left: 0.42em;
-        width: 0.1em;
-        height: 0.46em;
-        border: 0;
-        border-radius: 0.05em;
-        background: var(--ronin-switch-on-knob);
+.play-switches .play-switches__names-toggle[aria-pressed="true"] {
+    &,
+    &:is(:hover, :active, :focus) {
+        border-color: var(--ronin-switch-track);
+        color: var(--ronin-text);
     }
 }
 
-.play-switch--on .play-switch__knob {
-    left: auto;
-    right: 0.13em;
-    background: var(--ronin-switch-on-knob);
+/* The letters' names, over the strip from its start, until the player hides them. */
+.play-switches__names {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + #{$gap});
+    display: grid;
+    gap: 0.3em;
+    margin: 0;
+    padding: 0.5em 0.75em;
+    border: 1px solid var(--ronin-badge-rim);
+    border-radius: 10px;
+    background: var(--ronin-notice);
+    box-shadow: var(--ronin-panel-shadow);
+    color: var(--ronin-badge-ink);
+    font-size: 0.75em;
+    font-weight: 550;
+    line-height: 1.2;
+    white-space: nowrap;
+    list-style: none;
+
+    li {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+}
+
+.play-switches__names-letter {
+    display: inline-block;
+    width: 1.2em;
+    margin-right: 0.4em;
+    color: var(--ronin-switch-on);
+    font-weight: 700;
+    text-align: center;
 }
