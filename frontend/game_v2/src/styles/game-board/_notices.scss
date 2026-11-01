@@ -22,7 +22,7 @@
 
     /* Narrow desktop: past the deepest strip the field falls under 7.5em, so it starts past the strip as drawn. */
     @include board-where($narrow-desktop-board) {
-        margin-left: calc(var(--left-depth) - var(--strip-reserve));
+        margin-left: var(--left-depth);
     }
 }
 

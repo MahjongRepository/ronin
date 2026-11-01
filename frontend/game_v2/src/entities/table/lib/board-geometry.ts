@@ -1615,7 +1615,10 @@ function landscapeShell(room: ShellRoom): BoardShell {
     const fieldGap = FIELD_GAP[phone ? "phone" : chrome];
     const field = {
         bottom: Math.min(bandTop, switchesTop) - (phone ? PHONE_FIELD_BAND_GAP : FIELD_BAND_GAP),
-        left: m + stripReserve(at("rw")) + fieldGap,
+        left:
+            m +
+            (family === "desktop" && chrome === "small" ? 0 : stripReserve(at("rw"))) +
+            fieldGap,
         right: at("reach-left") - FIELD_RIVER_GAP,
         top: Math.max(badges.sideBadgeTop + badgeH + fieldGap, at("reach-top-row3") + fieldGap),
     };
@@ -1835,55 +1838,63 @@ function boardShell(frame: BoardFrame, lengths: BoardLengths): BoardShell {
     return { ...shell, lengths: [...shell.lengths, ...stripFacts(at("rw"))] };
 }
 
-/** A grid template whose lines stand at each named edge (within the board), merged where edges meet. */
-function lineTemplate(edges: readonly (readonly [string, number])[], extent: number): string {
-    const lines = new Map<number, string[]>([
-        [0, []],
-        [extent, []],
+/** A named edge of a slot's area, on a line of its own after any other at its place where its area is empty. */
+type GridEdge = readonly [name: string, at: number, after: boolean];
+
+/** A line of a grid template: where it stands, whether past the line there, and the edges it names. */
+interface GridLine {
+    readonly at: number;
+    readonly after: boolean;
+    readonly names: readonly string[];
+}
+
+/** A grid template whose lines stand at each named edge and the board's edges, merged where edges meet. */
+function lineTemplate(edges: readonly GridEdge[], extent: number): string {
+    const lines = new Map<string, GridLine>([
+        ["0:false", { after: false, at: 0, names: [] }],
+        [`${extent}:false`, { after: false, at: extent, names: [] }],
     ]);
-    for (const [name, edge] of edges) {
-        const at = Math.min(extent, Math.max(0, edge));
-        lines.set(at, [...(lines.get(at) ?? []), name]);
+    for (const [name, at, after] of edges) {
+        const key = `${at}:${after}`;
+        lines.set(key, { after, at, names: [...(lines.get(key)?.names ?? []), name] });
     }
-    const sorted = [...lines.keys()].toSorted((first, second) => first - second);
+    const sorted = [...lines.values()].toSorted(
+        (first, second) => first.at - second.at || Number(first.after) - Number(second.after),
+    );
     return sorted
-        .map((at, index) => {
-            const names = lines.get(at) ?? [];
+        .map(({ at, names }, index) => {
             const label = names.length > 0 ? `[${names.join(" ")}]` : "";
             const next = sorted[index + 1];
-            return next === undefined ? label : `${label} ${next - at}px`;
+            return next === undefined ? label : `${label} ${next.at - at}px`;
         })
         .join(" ")
         .trim();
 }
 
-/** The shell's grid: a line at every slot's edges, an empty slot's edges together. */
+/** A slot's edges along one axis within the board: an empty or inverted area keeps its end on a line past its start. */
+function axisEdges(
+    name: string,
+    [start, end]: readonly [number, number],
+    extent: number,
+): GridEdge[] {
+    const from = Math.min(extent, Math.max(0, start));
+    const to = Math.min(extent, Math.max(from, end));
+    return [
+        [`${name}-start`, from, false],
+        [`${name}-end`, to, to === from],
+    ];
+}
+
+/** The shell's grid: a line at every slot's edges. */
 function shellTracks(areas: BoardShell["areas"], { height, width }: BoardBox): BoardTracks {
-    const rects = Object.entries(areas).map(
-        ([name, { bottom, left, right, top }]) =>
-            [
-                name,
-                {
-                    bottom: Math.max(top, bottom),
-                    left,
-                    right: Math.max(left, right),
-                    top,
-                },
-            ] as const,
-    );
+    const rects = Object.entries(areas);
     return {
         columns: lineTemplate(
-            rects.flatMap(([name, rect]) => [
-                [`${name}-start`, rect.left],
-                [`${name}-end`, rect.right],
-            ]),
+            rects.flatMap(([name, rect]) => axisEdges(name, [rect.left, rect.right], width)),
             width,
         ),
         rows: lineTemplate(
-            rects.flatMap(([name, rect]) => [
-                [`${name}-start`, rect.top],
-                [`${name}-end`, rect.bottom],
-            ]),
+            rects.flatMap(([name, rect]) => axisEdges(name, [rect.top, rect.bottom], height)),
             height,
         ),
     };

@@ -318,6 +318,16 @@ describe("boardGeometry's shell tracks", () => {
             switches: [44, 0, 667, 276.3],
         });
     });
+
+    it("ends a narrow desktop's notices' field short of the left river, every slot on lines of its own", () => {
+        const { lengths, tracks } = windowGeometry({ height: 900, width: 1100 });
+        const areas = Object.values(slotAreas(tracks));
+
+        expect(slotAreas(tracks)["field"]?.[2]).toBeCloseTo((lengths["reach-left"] ?? 0) - 8, 1);
+        expect(
+            areas.filter(([left, top, right, bottom]) => !(left < right && top < bottom)),
+        ).toEqual([]);
+    });
 });
 
 describe("boardGeometry on a replay", () => {
