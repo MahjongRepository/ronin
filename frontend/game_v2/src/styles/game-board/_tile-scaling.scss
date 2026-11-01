@@ -64,13 +64,13 @@
 
     /* The latest discard lies a little apart from the tile before it and the row above, as a tile just thrown does. */
     .discard-tile--last {
-        margin-top: 7px;
-        margin-left: 7px;
+        margin-top: var(--latest-discard-gap);
+        margin-left: var(--latest-discard-gap);
     }
 
     /* The right river's gap runs up the screen, over the tile's bared edge, so it is wider to read as the same gap. */
     .board-river--right .discard-tile--last {
-        margin-left: 10px;
+        margin-left: var(--right-latest-discard-gap);
     }
 
     /* A chankan offer's source: the whole kan, ringed in its meld like the latest discard, until the offer resolves. */

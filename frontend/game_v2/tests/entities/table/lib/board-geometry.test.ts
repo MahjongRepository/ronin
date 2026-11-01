@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { FULL_HAND } from "@/entities/table/lib/board-constants";
+import {
+    FULL_HAND,
+    LATEST_DISCARD_GAP,
+    RIGHT_LATEST_DISCARD_GAP,
+} from "@/entities/table/lib/board-constants";
 import {
     type BoardBox,
     type BoardEdges,
@@ -144,6 +148,41 @@ describe("boardGeometry", () => {
             expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
         }
     });
+
+    it.each([
+        [667, 375],
+        [1440, 900],
+    ])(
+        "counts the latest discard's gap in a %ix%i window's river reaches, none at the top river's near edge",
+        (width, height) => {
+            const { lengths } = windowGeometry({ height, width });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const across = length("g") + 4 * length("rh") + LATEST_DISCARD_GAP;
+            const runOn = 11 * length("rw") + length("rh") + LATEST_DISCARD_GAP;
+            const left = length("cx") - length("hx");
+            const right = length("cx") + length("hx");
+            const expected = {
+                "reach-bottom-right": left + runOn,
+                "reach-left": left - across,
+                "reach-right": right + across,
+                "reach-top-left": right - runOn,
+                "reach-top-row3": length("cy") - length("h") - length("g") - 2 * length("rh"),
+            };
+
+            for (const [name, reach] of Object.entries(expected)) {
+                expect(length(name), name).toBeCloseTo(reach, 3);
+            }
+            expect(
+                length("cy") +
+                    length("h") -
+                    5 * length("rw") -
+                    length("rh") -
+                    RIGHT_LATEST_DISCARD_GAP,
+            ).toBeGreaterThanOrEqual(length("core-top"));
+        },
+    );
 
     it("keeps a narrow upright board's centre at least 100px across", () => {
         expect(windowGeometry({ height: 620, width: 260 }).lengths["c"]).toBeGreaterThanOrEqual(

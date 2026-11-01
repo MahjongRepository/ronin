@@ -21,7 +21,8 @@ they disagree.
   mapping only the names its families emit. No CSS solve remains, so a board without `data-board-family` (not yet
   measured) hides its layers. A literal both sides need stays in SCSS beside a note naming its TS mirror. Until task
   10 for a phone and task 16 for a narrow desktop, the notices on a small-chrome landscape board and a phone's
-  decisions column still read the side strip's drawn depth, the deepest strip leaving them too narrow.
+  decisions column still read the side strip's drawn depth, the deepest strip leaving them too narrow; until task 10
+  a phone's decisions column also stands from the right river's reach less its latest discard's gap.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
   text size follows `--c`.

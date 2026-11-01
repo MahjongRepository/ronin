@@ -12,6 +12,7 @@ import {
     FULL_HAND,
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
+    LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
@@ -19,8 +20,11 @@ import {
     PHONE_CHROME,
     PHONE_HEIGHT,
     PHONE_OWN_CAP,
+    RIGHT_LATEST_DISCARD_GAP,
     RIVER_BY_OWN,
     RIVER_GAP_SHARE,
+    ROWS_BEFORE_RUN_ON,
+    RUN_ON_REACH_TILES,
     SHORT_DESKTOP_HEIGHT,
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,
@@ -253,6 +257,38 @@ function switchesLeft(
     return leftMeets ? m + rw * TILE_ASPECT + STEP_IN_GAP : m;
 }
 
+/** The gap between the centre and a river, a whole pixel. */
+function riverGap(rw: number): number {
+    return Math.round(RIVER_GAP_SHARE * rw);
+}
+
+/**
+ * The rivers' reach at their capacity, a row's sideways riichi tile and the latest discard's gap counted: a side
+ * river's fourth row, a top or bottom river's third row run on to twelve tiles, and the top river's third row's
+ * centre-facing edge, which no gap moves toward the centre; and the latest discard's gaps.
+ */
+function riverLengths({
+    centre,
+    centreWidth,
+    cx,
+    cy,
+    rw,
+}: Readonly<Record<"centre" | "centreWidth" | "cx" | "cy" | "rw", number>>): [string, number][] {
+    const hx = centreWidth / 2;
+    const gap = riverGap(rw);
+    const sideReach = (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
+    const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
+    return [
+        ["latest-discard-gap", LATEST_DISCARD_GAP],
+        ["reach-bottom-right", cx - hx + runOnReach],
+        ["reach-left", cx - hx - gap - sideReach],
+        ["reach-right", cx + hx + gap + sideReach],
+        ["reach-top-left", cx + hx - runOnReach],
+        ["reach-top-row3", cy - centre / 2 - gap - ROWS_BEFORE_RUN_ON * rw],
+        ["right-latest-discard-gap", RIGHT_LATEST_DISCARD_GAP],
+    ];
+}
+
 /** The desktop and short desktop's root sizes and the lengths the stylesheet reads with them, in px. */
 function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {
     const { width, height } = box;
@@ -332,7 +368,7 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
         ["core-top", coreTop],
         ["cx", width / 2],
         ["cy", cy],
-        ["g", Math.round(RIVER_GAP_SHARE * rw)],
+        ["g", riverGap(rw)],
         ["h", centre / 2],
         ["hand-bottom", handBottom],
         ["hand-top", handTop],
@@ -346,6 +382,7 @@ function desktopLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily):
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
+        ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["row-rise", rowRise],
         ["rw", rw],
@@ -421,6 +458,7 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
         coreFloor,
         Math.min(coreTopSlot + coreTopFree, handTop - bandReserve - core),
     );
+    const cy = coreTop + core / 2;
 
     return Object.fromEntries([
         ["band-gap", bandGap],
@@ -435,8 +473,8 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
         ["core-room-w", coreRoomW],
         ["core-top", coreTop],
         ["cx", width / 2],
-        ["cy", coreTop + core / 2],
-        ["g", Math.round(RIVER_GAP_SHARE * rw)],
+        ["cy", cy],
+        ["g", riverGap(rw)],
         ["h", centre / 2],
         ["hand-bottom", handBottom],
         ["hand-top", handTop],
@@ -451,6 +489,7 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
+        ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["rw", rw],
         ["sep", sep],
@@ -495,6 +534,7 @@ function phoneLengths({ width, height }: BoardBox): BoardLengths {
         Math.min(centre * CENTRE_ASPECT, coreRoomW - (SIDE_REACH_TILES + CORE_TILES) * rw),
     );
     const coreTop = m + rh + sep;
+    const cy = coreTop + core / 2;
 
     return Object.fromEntries([
         ["band-bottom", bandBottom],
@@ -508,8 +548,8 @@ function phoneLengths({ width, height }: BoardBox): BoardLengths {
         ["core-room-w", coreRoomW],
         ["core-top", coreTop],
         ["cx", width / 2],
-        ["cy", coreTop + core / 2],
-        ["g", Math.round(RIVER_GAP_SHARE * rw)],
+        ["cy", cy],
+        ["g", riverGap(rw)],
         ["h", centre / 2],
         ["hand-bottom", handBottom],
         ["hand-top", handTop],
@@ -523,6 +563,7 @@ function phoneLengths({ width, height }: BoardBox): BoardLengths {
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
+        ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
         ["rh", rh],
         ["row-rise", 0],
         ["rw", rw],

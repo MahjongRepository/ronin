@@ -54,8 +54,11 @@ $corner-min-w: 180px;
     }
 
     @include phone-board {
+        /* Temporary until task 10: the column keeps the right river's reach without its latest discard's gap. */
+        --actions-left: calc(var(--reach-right) - var(--latest-discard-gap) + #{$gap});
+
         container: decisions / size;
-        left: calc(var(--reach-right) + #{$gap});
+        left: var(--actions-left);
         right: var(--m);
         top: calc(var(--right-badge-top) + var(--badge-h) + #{$gap});
     }
@@ -158,8 +161,8 @@ $corner-min-w: 180px;
         margin-right: var(--band-shift);
         margin-left: max(
             0px,
-            var(--reach-bottom-right) + 5px - var(--reach-right) - #{$gap},
-            var(--switches-right) + var(--band-gap) - var(--reach-right) - #{$gap}
+            var(--reach-bottom-right) + 5px - var(--actions-left),
+            var(--switches-right) + var(--band-gap) - var(--actions-left)
         );
 
         &:empty {

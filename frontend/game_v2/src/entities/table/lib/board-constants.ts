@@ -37,6 +37,14 @@ const LEFT_REACH_TILES = CORE_TILES / 2 + RIVER_ROW_SIZE - 1;
 /** What the side rivers' rows take of the board's width beside the centre, in river tiles. */
 const SIDE_REACH_TILES = 2 * RIVER_ROWS.wrap * TILE_ASPECT;
 
+/** A top or bottom river's rows before its third, in river tiles; the third runs on to twelve tiles, one sideways. */
+const ROWS_BEFORE_RUN_ON = (RIVER_ROWS["run-on"] - 1) * TILE_ASPECT;
+const RUN_ON_REACH_TILES = 2 * RIVER_ROW_SIZE - 1 + TILE_ASPECT;
+
+/** The latest discard's gap from the tile before it and the row above (px); the right river's runs up the screen. */
+const LATEST_DISCARD_GAP = 7;
+const RIGHT_LATEST_DISCARD_GAP = 10;
+
 /** A landscape board under this height is a phone's (px). */
 const PHONE_HEIGHT = 520;
 
@@ -140,6 +148,7 @@ export {
     FULL_HAND,
     LARGE_CHROME_HEIGHT,
     LARGE_CHROME_WIDTH,
+    LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
@@ -148,7 +157,10 @@ export {
     PHONE_HEIGHT,
     PHONE_OWN_CAP,
     RIVER_BY_OWN,
+    RIGHT_LATEST_DISCARD_GAP,
     RIVER_GAP_SHARE,
+    ROWS_BEFORE_RUN_ON,
+    RUN_ON_REACH_TILES,
     SHORT_DESKTOP_HEIGHT,
     SIDE_REACH_TILES,
     SIDEWAYS_UNITS,
