@@ -1,8 +1,7 @@
 @forward "queries";
 @use "queries" as *;
 
-/* The sizing rule's lengths, registered so each computes once to pixels where it is set and children inherit the
-   length, not the expression (an unregistered chain grows with every reference until a browser drops it). */
+/* Lengths CSS computes, registered so each computes once to pixels (an unregistered chain grows with every use). */
 $lengths:
     strip-depth, strip-reserve, counters-top, top-room-left, bw, bh, foreground-top, band-height,
     band-top, band-bottom, corner-bottom, reach-left, reach-right, reach-top-row3, reach-top-left,
