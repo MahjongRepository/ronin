@@ -21,6 +21,7 @@ const UPRIGHT_SIZES = ["rw", "core", "core-top"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
 const LIVE_SLOTS: BoardSlots = { band: "play", corner: true };
+const REPLAY_SLOTS: BoardSlots = { band: "replay", corner: true };
 
 /** A window's board under the gutter its page applies: each edge pads the larger of its safe inset and the gutter. */
 function windowGeometry(
@@ -195,7 +196,7 @@ describe("boardGeometry", () => {
         },
         { above: false, height: 500, pinned: { "control-h": 43.333, ow: 44, rw: 26 }, width: 1024 },
     ])(
-        "sizes a $width x $height window's phone board's tiles jointly, a full left river over the switches ending above them ($above)",
+        "sizes a $width x $height window's phone board's tiles jointly, a full left river over the switches ending above them ($above), else past the moves' place over the own badge",
         ({ above, height, pinned, width }) => {
             const { lengths } = windowGeometry({ height, width });
             function length(name: string): number {
@@ -210,7 +211,12 @@ describe("boardGeometry", () => {
             expect(
                 length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
             ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
+            const pastMoves =
+                length("reach-left") >=
+                    length("switches-left") + 5 * length("control-h") + 4 * 4 - 0.001 &&
+                leftRiverEnd <= length("hand-top") - length("own-rise") + 0.001;
             expect(leftRiverEnd <= length("switches-bottom") - length("control-h")).toBe(above);
+            expect(above || pastMoves).toBe(true);
         },
     );
 
@@ -290,4 +296,31 @@ describe("boardGeometry's shell tracks", () => {
             switches: [44, 0, 667, 276.3],
         });
     });
+});
+
+describe("boardGeometry on a replay", () => {
+    it.each([
+        { height: 844, lane: 116.8, oneRow: false, width: 390 },
+        { height: 1024, lane: 218, oneRow: true, width: 768 },
+    ])(
+        "stands a $width x $height upright replay's group in the own badge's row only where it leaves the badge an ordinary lane ($oneRow)",
+        ({ height, lane, oneRow, width }) => {
+            const { lengths } = boardGeometry({
+                box: { height, width },
+                gutter: 0,
+                safeInsets: NO_INSETS,
+                slots: REPLAY_SLOTS,
+            });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const handTop = length("hand-top");
+
+            expect(length("actions-bottom")).toBeCloseTo(
+                oneRow ? handTop - length("own-meld-rise") - 2 : handTop - length("own-rise") - 4,
+                3,
+            );
+            expect(length("own-lane")).toBeCloseTo(lane, 3);
+        },
+    );
 });

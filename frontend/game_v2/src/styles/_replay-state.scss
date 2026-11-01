@@ -71,6 +71,7 @@ $round-list-z: 30;
 /* Over the panel's layer, which never covers the replay's controls. */
 .game-board--replay .board-actions {
     z-index: $controls-z;
+    pointer-events: none;
 }
 
 .replay-controls {
@@ -132,6 +133,7 @@ $round-list-z: 30;
 }
 
 :is(.replay-controls__option, .replay-controls__move, .replay-controls__play) {
+    pointer-events: auto;
     display: grid;
     flex: none;
     place-items: center;
@@ -332,6 +334,7 @@ $round-list-z: 30;
     right: 0;
     bottom: calc(100% + var(--rgap));
     z-index: $round-list-z;
+    pointer-events: auto;
     display: flex;
     flex-direction: column;
     gap: 0;

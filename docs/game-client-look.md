@@ -476,9 +476,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   move and its centre the round, and the position (round, step) is read out to assistive technology
   only. Its calls are read out as the live board's are, silent while the reader scrubs (see
   Notices). Decision: the controls take the foreground band outside the own river's capacity reach
-  as one group in the decisions' place, at the band's right and ending at the hand's end, the moves
-  before the options; the own badge heads its hand alone at the band's left, nothing over it (the
-  switches' place stays empty). Where the band shares the core's corners (a phone, a short desktop)
+  as one group in the decisions' place, standing as live's decisions do (right-aligned in it, ending
+  at the hand's end unless the place reaches past it to hold the group), the moves before the
+  options; the own badge heads its hand alone at the band's left with live's lane, nothing over it
+  (the switches' place stays empty). Where the band shares the core's corners (a phone, a short desktop)
   the group does not fit beside the rivers' reach: the moves keep the switches' place and the
   options the decisions', on a phone filling the live slots of its composition: the moves in the
   switches' one-row place, the options at the band's right end. Upright, the group stands in the own badge's row, short of the right
