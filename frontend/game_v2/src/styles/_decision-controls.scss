@@ -54,8 +54,7 @@ $corner-min-w: 180px;
     }
 
     @include phone-board {
-        /* Temporary until task 10: the column keeps the right river's reach without its latest discard's gap. */
-        --actions-left: calc(var(--reach-right) - var(--latest-discard-gap) + #{$gap});
+        --actions-left: calc(var(--reach-right) + #{$gap});
 
         container: decisions / size;
         left: var(--actions-left);
@@ -178,11 +177,10 @@ $corner-min-w: 180px;
         padding-right: var(--upper-clear);
     }
 
-    /* Temporary phone exception until task 10: the deepest strip leaves no room for a pair. */
     @include phone-board {
         flex-flow: column nowrap;
         align-items: flex-end;
-        padding-right: calc(var(--right-depth) + #{$gap});
+        padding-right: calc(var(--strip-reserve) + #{$gap});
 
         > .decision-controls__action--win,
         > .decision-controls__action--choice {

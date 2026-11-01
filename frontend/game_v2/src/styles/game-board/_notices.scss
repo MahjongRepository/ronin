@@ -40,9 +40,8 @@
 
         width: calc(var(--reach-left) - 8px - var(--notice-left));
 
-        /* Temporary landscape exception (phone until task 10, narrow desktop until task 16): past the deepest strip the
-           place is too narrow. */
-        @include board-where($landscape-board) {
+        /* Temporary narrow desktop exception until task 16: past the deepest strip the place is too narrow. */
+        @include board-where($narrow-desktop-board) {
             @include side-strip-depth(left, calc(var(--left-room-end) - 8px - var(--left-start)));
 
             --notice-left: calc(var(--m) + var(--left-depth) + var(--notice-gap));

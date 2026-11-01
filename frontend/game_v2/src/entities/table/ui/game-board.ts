@@ -145,8 +145,8 @@ function stripStyle(player: BoardPlayerDisplay | null): Readonly<Record<string, 
 }
 
 /**
- * A side strip's counts for its depth as drawn, read by the visual check, a phone's decisions column (until task 10)
- * and the notices on a small-chrome landscape board (a phone's until task 10, a narrow desktop's until task 16).
+ * A side strip's counts for its depth as drawn, read by the visual check and a narrow desktop's notices (until task
+ * 16).
  */
 function sideStripStyle(
     side: "left" | "right",

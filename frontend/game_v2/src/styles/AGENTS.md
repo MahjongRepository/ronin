@@ -13,17 +13,19 @@ they disagree.
   replay's) can use them: a nested rule's selector takes the attribute inside `:where()` on its board compound, or
   behind a `:where(.game-board)` where it names none, keeping its specificity and place; a top-level block names the
   board itself.
-- **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) the code may lag the spec's phone
-  composition until task 10. The directive writes the sizes as `--geo-<name>` on `.game-board`; the bridge rules
-  after every family block (`_grid.scss`) map them onto the lengths' own names on `.board-layout` and
-  `.board-overlay`, gated on `data-board-family` inside `:where()` so they keep (0,2,0) and the lazy replay's
-  overrides still win. There are two, one for the desktop, short desktop and phone and one for upright; a name a
-  rule maps that one of its families does not emit stays unset on that family's board, where nothing reads it. No
-  CSS solve remains, so a board without `data-board-family` (not yet measured) hides its layers. A literal both
-  sides need stays in SCSS beside a note naming its TS mirror. Until task
-  10 for a phone and task 16 for a narrow desktop, the notices on a small-chrome landscape board and a phone's
-  decisions column still read the side strip's drawn depth, the deepest strip leaving them too narrow; until task 10
-  a phone's decisions column also stands from the right river's reach less its latest discard's gap.
+- **During the layout rethink** (`thoughts/plans/v2-board-layout-rethink.md`) the directive writes the sizes as
+  `--geo-<name>` on `.game-board`; the bridge rules after every family block (`_grid.scss`) map them onto the lengths'
+  own names on `.board-layout` and `.board-overlay`, gated on `data-board-family` inside `:where()` so they keep
+  (0,2,0) and the lazy replay's overrides still win. There are three: one for the desktop, short desktop and phone,
+  one for the phone's chrome and right hand alone, and one for upright; a name a rule maps that one of its families
+  does not emit stays unset on that family's board, where nothing reads it. No CSS solve remains, so a board without
+  `data-board-family` (not yet measured) hides its layers. A literal both sides need stays in SCSS beside a note
+  naming its TS mirror. Until task 16 a narrow desktop's notices still read the side strip's drawn depth, the deepest
+  strip leaving them too narrow.
+- **A phone's composition is its own.** `boardGeometry` solves its river tile as the largest that fits and its own
+  tile on its own scale from the box (at most 1.7 river tiles, never under 36px); its band's controls float in the
+  gap above the hand, its chrome follows the river tile with the control floor, and its right hand's place (the
+  corner and the band row stepping in) is computed there too, never with a length switch.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
   text size follows `--c`.

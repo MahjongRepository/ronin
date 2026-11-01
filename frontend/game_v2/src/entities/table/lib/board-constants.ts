@@ -116,10 +116,13 @@ const DESKTOP_OWN_CAP_WIDTH = 0.05;
 const DESKTOP_OWN_CAP_HEIGHT = 0.1;
 const DESKTOP_CORE_CAP = 0.66;
 
-/** A phone's centre share of the core, its own tile's cap (px) and its river tile to its own tile. */
-const PHONE_CENTRE_SHARE = 0.39;
-const PHONE_OWN_CAP = 36;
-const RIVER_BY_OWN = 0.65;
+/**
+ * A phone's own tile: at least this wide (px) and at most this many river tiles where the floor allows; its centre
+ * never under this height (px).
+ */
+const PHONE_OWN_FLOOR = 36;
+const OWN_BY_RIVER_MAX = 1.7;
+const PHONE_CENTRE_MIN = 94;
 
 /** A phone's chrome over the small tier's: its margins, gaps and band's control, its switches as tall as it. */
 const PHONE_CHROME: DesktopChrome = {
@@ -133,8 +136,27 @@ const PHONE_CHROME: DesktopChrome = {
     switchH: 40,
 };
 
+/** A phone's drawn chrome at the small tier's px (the stylesheet's small-chrome block), which it keeps as a floor. */
+const PHONE_DRAWN_CHROME = {
+    "badge-h": 40,
+    "corner-h": 40,
+    "counters-w": 95,
+    "dora-w": 15,
+    "own-pill-h": 30,
+    "pill-h": 38,
+    "timer-w": 60,
+} as const;
+
+/** A phone's chrome grows with its river tile past this one (px). */
+const PHONE_CHROME_RIVER = 24;
+
 /** An upright board's chrome over the desktop tier's: a phone's margin, band gap and control, and room before its own hand. */
-const UPRIGHT_CHROME = { bandGap: 8, controlH: 40, m: 4, ownInline: 96 } as const;
+const UPRIGHT_CHROME = {
+    bandGap: 8,
+    controlH: 40,
+    m: 4,
+    ownInline: 96,
+} as const;
 
 export {
     CENTRE_ASPECT,
@@ -150,13 +172,15 @@ export {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
+    OWN_BY_RIVER_MAX,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
-    PHONE_CENTRE_SHARE,
+    PHONE_CENTRE_MIN,
     PHONE_CHROME,
+    PHONE_CHROME_RIVER,
+    PHONE_DRAWN_CHROME,
     PHONE_HEIGHT,
-    PHONE_OWN_CAP,
-    RIVER_BY_OWN,
+    PHONE_OWN_FLOOR,
     RIGHT_LATEST_DISCARD_GAP,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,

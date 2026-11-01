@@ -14,14 +14,16 @@ import {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
+    OWN_BY_RIVER_MAX,
     OWN_MELD_SCALE,
     PAGE_GUTTER,
-    PHONE_CENTRE_SHARE,
+    PHONE_CENTRE_MIN,
     PHONE_CHROME,
+    PHONE_CHROME_RIVER,
+    PHONE_DRAWN_CHROME,
     PHONE_HEIGHT,
-    PHONE_OWN_CAP,
+    PHONE_OWN_FLOOR,
     RIGHT_LATEST_DISCARD_GAP,
-    RIVER_BY_OWN,
     RIVER_GAP_SHARE,
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
@@ -113,10 +115,36 @@ const ROWS_AT_EDGE = HEIGHT_TILES + DESKTOP_SPARE * (OWN_ROW + OWN_EDGE);
 /** The left river's reach under the core's top slot, in river tiles: the slot's tile, the river, its sideways tile. */
 const SLOT_LEFT_REACH = 2 * TILE_ASPECT + LEFT_REACH_TILES;
 
-/** A phone's core share past the centre, and what its rooms' height and width hold per river tile. */
-const PHONE_SPARE = 1 - PHONE_CENTRE_SHARE;
-const PHONE_HEIGHT_TILES = CORE_TILES + PHONE_SPARE * TILE_ASPECT;
-const PHONE_WIDTH_TILES = CORE_TILES + PHONE_SPARE * SIDE_REACH_TILES;
+/** A side strip's two stacked lines' gap, and the gap the right hand keeps under the corner (px). */
+const STRIP_LINES_GAP = 4;
+const CORNER_GAP = 4;
+
+/** The right hand's origin from the band stands this far under the band's top margin (px). */
+const RIGHT_FROM_BAND_GAP = 2;
+
+/** A phone's switches' place holds the replay's five moves, 4px apart, wider than the play switches. */
+const REPLAY_MOVES_ON_PHONE = 5;
+const PLACE_GAP = 4;
+
+/**
+ * A phone's side fields beside the deepest strips: the notices' place (7.5 of its 11px ems) and its gaps to the strip
+ * and the left river, and the decisions' column (two controls a row) and its gaps (px).
+ */
+const NOTICE_FIELD = 84;
+const NOTICE_GAPS = 14;
+const DECISIONS_COLUMN = 84;
+const DECISIONS_GAPS = 12;
+
+/**
+ * A phone's left badge stands this far past its strip's first line, and keeps at least this lane beside the top
+ * river's longest third row, past its clearance of at least `SIDE_CLEAR` (px).
+ */
+const PHONE_BADGE_GAP = 8;
+const PHONE_SIDE_LANE = 90;
+const SIDE_CLEAR = 16;
+
+/** No phone's river tile passes this share of its height. */
+const PHONE_MAX_RIVER_SHARE = 10;
 
 /** Upright, the counters' place under the top strip: its gap above and its height (px). */
 const UPRIGHT_COUNTERS_GAP = 6;
@@ -419,7 +447,14 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
     const edgeTiles = UPRIGHT_TILES + DESKTOP_SPARE * OWN_EDGE;
     const rw = Math.floor(
         Math.min(
-            sharedRiverTile({ coreCap, coreRoomW, height, ownFit, rowRiseFixed: 0, tier }),
+            sharedRiverTile({
+                coreCap,
+                coreRoomW,
+                height,
+                ownFit,
+                rowRiseFixed: 0,
+                tier,
+            }),
             (DESKTOP_SPARE * (height - m - fixed)) / UPRIGHT_TILES,
             (DESKTOP_SPARE * (height - fixed)) / edgeTiles,
             (coreRoomW - UPRIGHT_CENTRE_MIN) / (CORE_TILES + SIDE_REACH_TILES),
@@ -497,56 +532,167 @@ function uprightLengths(box: BoardBox, chrome: ChromeTier): BoardLengths {
     ]);
 }
 
+/** A phone's chrome lengths, by the stylesheet's names. */
+type PhoneChrome = Readonly<
+    Record<
+        keyof typeof PHONE_DRAWN_CHROME | "control-h" | "moves-h" | "own-badge-h" | "switch-h",
+        number
+    >
+>;
+
+/** The deepest a side strip reaches: two stacked lines 4px apart, the second's tiles never under the face floor. */
+function stripReserve(rw: number): number {
+    return STACKED_DEPTH * rw + STRIP_LINES_GAP + STACKED_DEPTH * Math.max(rw, FACE_FLOOR);
+}
+
+/** A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`. */
+function phoneChrome(rw: number): PhoneChrome {
+    const scale = Math.max(1, rw / PHONE_CHROME_RIVER);
+    const control = PHONE_CHROME.controlH * scale;
+    const drawn = Object.fromEntries(
+        Object.entries(PHONE_DRAWN_CHROME).map(([name, px]) => [name, px * scale]),
+    ) as Record<keyof typeof PHONE_DRAWN_CHROME, number>;
+    return {
+        ...drawn,
+        "control-h": control,
+        "moves-h": control,
+        "own-badge-h": PHONE_CHROME.ownBadgeH * scale,
+        "switch-h": control,
+    };
+}
+
 /**
- * A phone's root sizes and the lengths the stylesheet reads with them, in px: its own tile the largest a full hand
- * holds, its river tile a share of it, its core at its top slot and its left river's reach ending above the switches.
+ * Where a phone's right hand runs, from its full reach: centred under the corner above the band, else up to the top
+ * margin above it, else from under the corner across the band, else from the top margin across it, short of the own
+ * row; the corner, the band's row or both stepping in past it. `null` where even that enters the own row.
  */
-function phoneLengths({ width, height }: BoardBox): BoardLengths {
-    const { bandGap, controlH, coreGap, m, ownBadgeH, ownInline, sep, switchGap } = PHONE_CHROME;
-    const ow = Math.min(PHONE_OWN_CAP, (width - 2 * m - ownInline) / FULL_HAND);
+function phoneRightHand({
+    bandTop,
+    cornerBottom,
+    cy,
+    fromBand,
+    ownRowTop,
+    reach,
+}: Readonly<
+    Record<"bandTop" | "cornerBottom" | "cy" | "fromBand" | "ownRowTop" | "reach", number>
+>): {
+    readonly origin: number;
+    readonly cornerIn: boolean;
+    readonly bandCrossed: boolean;
+} | null {
+    const { m } = PHONE_CHROME;
+    const underCorner = Math.max(fromBand, cornerBottom + CORNER_GAP + reach);
+    const fromTop = Math.max(fromBand, m + reach);
+    const centred = Math.max(cornerBottom + CORNER_GAP + reach, cy + reach / 2);
+    if (underCorner <= bandTop) {
+        return {
+            bandCrossed: false,
+            cornerIn: false,
+            origin: Math.min(underCorner, centred),
+        };
+    }
+    if (fromTop <= bandTop) {
+        return {
+            bandCrossed: false,
+            cornerIn: true,
+            origin: Math.min(fromTop, centred),
+        };
+    }
+    if (underCorner <= ownRowTop) {
+        return {
+            bandCrossed: true,
+            cornerIn: false,
+            origin: Math.min(underCorner, centred),
+        };
+    }
+    return fromTop <= ownRowTop ? { bandCrossed: true, cornerIn: true, origin: fromTop } : null;
+}
+
+/** A phone's lengths at a river and own tile, in px, or `null` where its places do not fit them. */
+function phoneLayout({ width, height }: BoardBox, rw: number, ow: number): BoardLengths | null {
+    const { bandGap, coreGap, m, sep, sideStart, switchGap } = PHONE_CHROME;
+    const chrome = phoneChrome(rw);
+    const { "control-h": controlH, "corner-h": cornerH, "own-badge-h": ownBadgeH } = chrome;
+    const rh = rw * TILE_ASPECT;
     const oh = ow * TILE_ASPECT;
     const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
     const handTop = height - handBottom - oh;
-    const coreRoomH = height - m - handBottom - oh - coreGap - sep;
-    const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
-    const riverByOwn = RIVER_BY_OWN * ow;
-    const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * riverByOwn, ow));
+    const ownMeldTile = Math.max(FACE_FLOOR, Math.min(OWN_MELD_SCALE * rw, ow));
     const ownMeldRise = Math.max(0, 2 * ownMeldTile - oh);
     const ownRise = ownMeldRise + ownBadgeH + OWN_BADGE_LANE;
     const bandBottom = handTop - bandGap;
     const switchesBottom = Math.min(bandBottom, handTop - ownRise - switchGap);
-    const switchesTop = switchesBottom - switchesPlace(PHONE_CHROME);
-    const riverBySwitches = (switchesTop - SWITCHES_CLEARANCE - m - sep) / SLOT_LEFT_REACH;
-    const coreCap = (CORE_TILES * riverBySwitches) / PHONE_SPARE;
-    const rw = Math.floor(
-        Math.min(
-            riverByOwn,
-            (PHONE_SPARE * coreRoomH) / PHONE_HEIGHT_TILES,
-            riverBySwitches,
-            (PHONE_SPARE * coreRoomW) / PHONE_WIDTH_TILES,
-        ),
+    const switchesTop = switchesBottom - controlH;
+    const coreTop = m + rh + sep;
+    const rows = riverGap(rw) + (CORE_TILES / 2 - RIVER_GAP_SHARE) * rw;
+    const centreTop = coreTop + LATEST_DISCARD_GAP + rows;
+    const heightRoom = handTop - coreGap - LATEST_DISCARD_GAP - rows - centreTop;
+    const sideReach = riverGap(rw) + (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
+    const fieldHalf = width / 2 - sideReach - m - stripReserve(rw);
+    const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
+    const leftBadgeX = m + STACKED_DEPTH * rw + PHONE_BADGE_GAP;
+    const laneHalf =
+        PHONE_SIDE_LANE + Math.max(SIDE_CLEAR, rw) + leftBadgeX + runOnReach - width / 2;
+    const centreMin = Math.max(
+        PHONE_CENTRE_MIN,
+        (DESKTOP_CENTRE_SHARE / DESKTOP_SPARE) * CORE_TILES * rw,
     );
-    const rh = rw * TILE_ASPECT;
-    const core = Math.min(coreRoomH - rh, coreCap, coreRoomW - SIDE_REACH_TILES * rw);
-    const centre = core - CORE_TILES * rw;
+    const switchesRight =
+        m +
+        STACKED_DEPTH * rw +
+        STEP_IN_GAP +
+        REPLAY_MOVES_ON_PHONE * controlH +
+        (REPLAY_MOVES_ON_PHONE - 1) * PLACE_GAP;
+    const clearHalf = width / 2 - sideReach - SWITCHES_CLEARANCE - switchesRight;
+    const besideSwitches = clearHalf >= Math.max(centreMin / 2, laneHalf);
+    const halfRoom = Math.min(
+        fieldHalf - NOTICE_FIELD - NOTICE_GAPS,
+        fieldHalf - DECISIONS_COLUMN - DECISIONS_GAPS,
+        besideSwitches ? clearHalf : Infinity,
+    );
+    const centre = Math.min(heightRoom, 2 * halfRoom);
     const centreWidth = Math.max(
         centre,
-        Math.min(centre * CENTRE_ASPECT, coreRoomW - (SIDE_REACH_TILES + CORE_TILES) * rw),
+        2 * laneHalf,
+        Math.min(centre * CENTRE_ASPECT, 2 * halfRoom),
     );
-    const coreTop = m + rh + sep;
-    const cy = coreTop + core / 2;
+    const leftRiverEnd = coreTop + LATEST_DISCARD_GAP + LEFT_REACH_TILES * rw + rh;
+    const reach = fullReach(rw);
+    const cy = centreTop + centre / 2;
+    const cornerBottom = m + cornerH;
+    const right = phoneRightHand({
+        bandTop: handTop - bandGap - controlH,
+        cornerBottom,
+        cy,
+        fromBand: handTop - 2 * bandGap - controlH + RIGHT_FROM_BAND_GAP,
+        ownRowTop: handTop - ownMeldRise - SWITCHES_CLEARANCE,
+        reach,
+    });
+    const fits =
+        centre >= centreMin &&
+        laneHalf <= halfRoom &&
+        leftRiverEnd + SWITCHES_CLEARANCE <= (besideSwitches ? handTop - ownRise : switchesTop) &&
+        m + sideStart + reach <= height - m &&
+        right !== null;
+    if (!fits) {
+        return null;
+    }
+    const stepIn = rh + STEP_IN_GAP;
 
     return Object.fromEntries([
+        ...Object.entries(chrome),
         ["band-bottom", bandBottom],
         ["band-gap", bandGap],
         ["band-lift", 0],
+        ["band-shift", right.bandCrossed ? stepIn : 0],
         ["c", centre],
-        ["control-h", controlH],
-        ["core", core],
+        ["core", 2 * (LATEST_DISCARD_GAP + rows) + centre],
         ["core-gap", coreGap],
-        ["core-room-h", coreRoomH],
-        ["core-room-w", coreRoomW],
+        ["core-room-h", height - m - handBottom - oh - coreGap - sep],
+        ["core-room-w", width - 2 * m - CORE_ROOM_SIDES],
         ["core-top", coreTop],
+        ["corner-in", right.cornerIn ? 1 : 0],
+        ["corner-shift", right.cornerIn ? stepIn : 0],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
@@ -557,14 +703,14 @@ function phoneLengths({ width, height }: BoardBox): BoardLengths {
         ["m", m],
         ["oh", oh],
         ["ow", ow],
-        ["own-badge-h", ownBadgeH],
         ["own-fit", ow],
-        ["own-inline", ownInline],
+        ["own-inline", 0],
         ["own-meld-rise", ownMeldRise],
         ["own-meld-tile", ownMeldTile],
         ["own-rise", ownRise],
         ...riverLengths({ centre, centreWidth, cx: width / 2, cy, rw }),
         ["rh", rh],
+        ["right-origin", right.origin],
         ["row-rise", 0],
         ["rw", rw],
         ["sep", sep],
@@ -572,6 +718,28 @@ function phoneLengths({ width, height }: BoardBox): BoardLengths {
         ["switches-bottom", switchesBottom],
         ["w", centreWidth],
     ]);
+}
+
+/**
+ * A phone's root sizes and the lengths the stylesheet reads with them, in px: the largest river tile that fits, then
+ * the largest own tile that fits with it, at most `OWN_BY_RIVER_MAX` river tiles but never under `PHONE_OWN_FLOOR`,
+ * which wins where both cannot hold.
+ */
+function phoneLengths(box: BoardBox): BoardLengths {
+    const ownFit = Math.floor((box.width - 2 * PHONE_CHROME.m) / FULL_HAND);
+    for (let rw = Math.floor(box.height / PHONE_MAX_RIVER_SHARE); rw > 1; rw -= 1) {
+        const largest = Math.max(
+            PHONE_OWN_FLOOR,
+            Math.min(Math.floor(OWN_BY_RIVER_MAX * rw), ownFit),
+        );
+        for (let ow = largest; ow >= PHONE_OWN_FLOOR; ow -= 1) {
+            const layout = phoneLayout(box, rw, ow);
+            if (layout !== null) {
+                return layout;
+            }
+        }
+    }
+    return {};
 }
 
 function familyLengths(box: BoardBox, chrome: ChromeTier, family: BoardFamily): BoardLengths {

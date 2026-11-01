@@ -145,14 +145,23 @@ describe("boardGeometry", () => {
     it.each([
         [667, 375, [17, 36]],
         [750, 369, [17, 36]],
-        [1024, 510, [23, 36]],
-    ])("sizes a %ix%i window's phone board as its stylesheet did", (width, height, expected) => {
-        const { lengths } = windowGeometry({ height, width });
+        [932, 430, [23, 39]],
+    ])(
+        "sizes a %ix%i window's phone board's river and own tiles jointly, the top river's gap inside its core",
+        (width, height, expected) => {
+            const { lengths } = windowGeometry({ height, width });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
 
-        for (const [index, name] of PHONE_SIZES.entries()) {
-            expect(lengths[name], name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
-        }
-    });
+            for (const [index, name] of PHONE_SIZES.entries()) {
+                expect(length(name), name).toBeCloseTo(expected[index] ?? Number.NaN, 2);
+            }
+            expect(
+                length("reach-top-row3") - length("rh") - LATEST_DISCARD_GAP,
+            ).toBeGreaterThanOrEqual(length("core-top") - 0.001);
+        },
+    );
 
     it.each([
         [667, 375],

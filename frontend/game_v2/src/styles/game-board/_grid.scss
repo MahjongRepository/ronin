@@ -291,9 +291,7 @@ $upright-counters-gap: 6px;
         --left-room-end: min(var(--band-top), var(--switches-top) + var(--left-meets) * 100000);
         --left-start: var(--side-start);
         --row-bottom: var(--band-bottom);
-        --switch-h: var(--control-h);
         --switches-w: calc(4 * var(--switch-h) + 12px);
-        --timer-w: 60px;
     }
 
     @include short-desktop-board {
@@ -404,6 +402,23 @@ $upright-counters-gap: 6px;
     --reach-bottom-right: var(--geo-reach-bottom-right);
     --latest-discard-gap: var(--geo-latest-discard-gap);
     --right-latest-discard-gap: var(--geo-right-latest-discard-gap);
+}
+
+/* A phone's chrome and its right hand's place are `boardGeometry`'s too. */
+.game-board:where([data-board-family="phone"]) > :is(.board-layout, .board-overlay) {
+    --badge-h: var(--geo-badge-h);
+    --pill-h: var(--geo-pill-h);
+    --own-pill-h: var(--geo-own-pill-h);
+    --corner-h: var(--geo-corner-h);
+    --counters-w: var(--geo-counters-w);
+    --dora-w: var(--geo-dora-w);
+    --timer-w: var(--geo-timer-w);
+    --switch-h: var(--geo-switch-h);
+    --moves-h: var(--geo-moves-h);
+    --right-origin: var(--geo-right-origin);
+    --corner-in: var(--geo-corner-in);
+    --corner-shift: var(--geo-corner-shift);
+    --band-shift: var(--geo-band-shift);
 }
 
 .game-board:where([data-board-family="upright"]) > :is(.board-layout, .board-overlay) {
