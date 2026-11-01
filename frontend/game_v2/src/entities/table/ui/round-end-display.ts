@@ -123,12 +123,16 @@ function YakuList(page: WinPageDisplay): TemplateResult {
     </ul>`;
 }
 
-/** The dora and ura indicators, at the head's end. */
+/**
+ * The dora and ura indicators in a column of their own beside the value, under a caption naming them indicators, so
+ * the tiles never read as the dora themselves.
+ */
 function Indicators(page: WinPageDisplay): TemplateResult | typeof nothing {
     if (page.doraIndicators.length === 0 && page.uraIndicators.length === 0) {
         return nothing;
     }
     return html`<div class="round-end-result__indicators">
+        <span class="round-end-result__label round-end-result__indicators-caption">Indicators</span>
         ${IndicatorGroup("Dora", page.doraIndicators)} ${IndicatorGroup("Ura", page.uraIndicators)}
     </div>`;
 }
@@ -213,12 +217,12 @@ function WinPage(props: RoundEndDisplayProps, page: WinPageDisplay): TemplateRes
                         : html` <span class="round-end-result__from">${page.from}</span>`
                 }</span
             >
-            ${Indicators(page)}
             ${PagerControls(props)}
         </div>
         ${WinHand(page)}
         ${YakuList(page)}
         ${WinValue(page)}
+        ${Indicators(page)}
         ${ScoreFoot(display.scores, props.controls)}
     </div>`;
 }

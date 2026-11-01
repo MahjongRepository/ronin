@@ -215,8 +215,8 @@
 
 /* ─── Round-End Result Panel ───────────────────────────────── */
 
-/* One page of a round's result in the spec's order: hand, yaku, value. A wide panel puts the yaku beside the value,
-   under the hand that spans it. Tiles take the overlay's board unit. */
+/* One page of a round's result in the spec's order: hand, yaku, value, indicators. A wide panel puts the three side by
+   side, under the hand that spans them. Tiles take the overlay's board unit. */
 .round-end-result {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -225,6 +225,7 @@
         "hand"
         "yaku"
         "value"
+        "dora"
         "scores";
     gap: 0.4rem 1rem;
     font-size: 0.8rem;
@@ -255,6 +256,7 @@
         "hand hand"
         "yaku yaku"
         "value value"
+        "dora dora"
         "scores controls";
 }
 
@@ -526,23 +528,22 @@
     color: var(--ronin-text-secondary);
 }
 
-/* The indicators stand in the head's far corner, before a double ron's pager, their labels on the head's baseline. */
+/* The indicators under their caption, a row per kind, the kinds' labels in a column of their own. */
 .round-end-result__indicators {
-    margin-left: auto;
-    align-self: baseline;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem 1rem;
+    grid-area: dora;
+    display: grid;
+    grid-template-columns: auto auto;
+    place-content: start;
+    align-items: center;
+    gap: 0.3rem 0.5rem;
+}
 
-    + .round-end-result__pager {
-        margin-left: 0;
-    }
+.round-end-result__indicators-caption {
+    grid-column: 1 / -1;
 }
 
 .round-end-result__indicator-group {
-    display: flex;
-    align-items: baseline;
-    gap: 0.4rem;
+    display: contents;
 }
 
 .round-end-result__indicator-tiles {

@@ -162,25 +162,25 @@ $two-column-result: 30rem;
     --board-tile-h: calc(#{$tile-h} * #{$indicator-scale} * var(--board-unit));
 }
 
-/* A panel wide enough for two columns (a landscape phone's included) puts the yaku beside the value, the value's
-   column starting about where the third seat's score does. */
+/* A panel wide enough for columns (a landscape phone's included) puts the yaku, the value and the indicators side by
+   side, the indicators' column as narrow as their tiles. */
 @container result-foot (width >= #{$two-column-result}) {
     .board-overlay .round-end-result--win {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        grid-template-areas:
-            "head head"
-            "hand hand"
-            "yaku value"
-            "scores scores";
-    }
-
-    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
         grid-template-areas:
             "head head head"
             "hand hand hand"
-            "yaku value value"
-            "scores scores controls";
+            "yaku value dora"
+            "scores scores scores";
+    }
+
+    .board-overlay .round-end-result--win:has(> .round-end-result__controls) {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+        grid-template-areas:
+            "head head head head"
+            "hand hand hand hand"
+            "yaku value dora dora"
+            "scores scores scores controls";
     }
 }
 
@@ -193,6 +193,7 @@ $two-column-result: 30rem;
             "hand"
             "yaku"
             "value"
+            "dora"
             "scores"
             "controls";
     }
