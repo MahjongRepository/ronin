@@ -72,7 +72,7 @@ $overlay-chrome: 3rem;
 }
 
 /* A result taller than its panel keeps its head, its hands and the controls whole and scrolls the rest in place: the
-   yaku, the value and the score rows; the panel scrolls only where even those parts do not fit. */
+   yaku, the value, the indicators and the score rows; the panel scrolls only where even those parts do not fit. */
 .board-overlay__panel:has(> .round-end-result) {
     container: result-foot / inline-size;
     display: flex;
@@ -83,12 +83,18 @@ $overlay-chrome: 3rem;
 .board-overlay__panel > .round-end-result {
     min-height: 0;
 
-    /* Each scroller keeps a readable row at least: a yaku, the points, a score's name and change. */
-    > :is(.round-end-result__yaku, .round-end-result__value, .round-end-result__foot) {
+    /* Each scroller keeps a readable row at least: a yaku, the indicators' caption, the points, a score's name and
+       change. */
+    > :is(
+            .round-end-result__yaku,
+            .round-end-result__value,
+            .round-end-result__indicators,
+            .round-end-result__foot
+        ) {
         overflow-y: auto;
     }
 
-    > .round-end-result__yaku {
+    > :is(.round-end-result__yaku, .round-end-result__indicators) {
         min-height: calc(1lh + 2 * #{$scroller-room});
     }
 
@@ -100,8 +106,9 @@ $overlay-chrome: 3rem;
         min-height: calc(2lh + 1px);
     }
 
-    /* A scroller clips sideways too: the yaku's and the value's room keeps their text's overhang whole. */
-    > :is(.round-end-result__yaku, .round-end-result__value) {
+    /* A scroller clips sideways too: the yaku's, the value's and the indicators' room keeps their text's overhang and
+       tiles' edges whole. */
+    > :is(.round-end-result__yaku, .round-end-result__value, .round-end-result__indicators) {
         margin: -$scroller-room;
         padding: $scroller-room;
     }

@@ -75,59 +75,6 @@ function resultStory(
     };
 }
 
-/**
- * A decisions story whose result panel is forced shorter than its content (`parts`: by half of what its scrolling
- * parts hold; `panel`: by a quarter of what its head, hands and controls take): the live confirm must stay in view.
- */
-function scrollingResultCase(
-    story: string,
-    extra: readonly string[],
-    scrolls: "parts" | "panel" = "parts",
-): PageCase {
-    return {
-        ...decisionCase(story, extra),
-        name: `decisions-${story.replaceAll("_", "-")}-${scrolls === "parts" ? "scrolling" : "overflowing"}`,
-        panelScrolls: scrolls,
-        prepare: (page) => forceResultPanelShort(page, scrolls),
-    };
-}
-
-/** Cap the result's panel, measured as it stands, at a height its content cannot fit (`scrollingResultCase`). */
-async function forceResultPanelShort(page: Page, scrolls: "parts" | "panel"): Promise<void> {
-    await page.waitForSelector(
-        ".board-overlay__panel > .round-end-result .round-end-result__foot",
-        {
-            timeout: SELECTOR_TIMEOUT_MS,
-        },
-    );
-    const height = await page.evaluate((short) => {
-        const panel = document.querySelector(".board-overlay__panel:has(> .round-end-result)");
-        if (!(panel instanceof HTMLElement)) {
-            return null;
-        }
-        const parts = panel;
-        function total(selector: string): number {
-            return [...parts.querySelectorAll(selector)].reduce(
-                (sum, part) => sum + part.getBoundingClientRect().height,
-                0,
-            );
-        }
-        const scrolling = total(
-            ".round-end-result > :is(.round-end-result__yaku, .round-end-result__value, .round-end-result__foot)",
-        );
-        const kept = total(
-            ".round-end-result > :is(.round-end-result__head, .round-end-result__hand, .round-end-result__rivers, .round-end-result__tenpai, .round-end-result__controls)",
-        );
-        return short === "parts" ? panel.offsetHeight - scrolling / 2 : (kept * 3) / 4;
-    }, scrolls);
-    if (height === null) {
-        throw new Error("no round result panel to force short");
-    }
-    await page.addStyleTag({
-        content: `.board-overlay__panel:has(> .round-end-result) { max-height: ${height}px !important; }`,
-    });
-}
-
 /** An upright board's result panel made as tall as its overlay allows. */
 async function forceResultPanelTall(page: Page): Promise<void> {
     await page.addStyleTag({
@@ -216,11 +163,10 @@ async function checkSettings(
 
 /**
  * The panels' worst cases: the densest results (pao, a double ron's pager, a hand with its melds) and the game end
- * at the desktops and the notch phone too, the results a forced short panel makes scroll at the small windows, and
- * every other panel once, at the floor or, for the rotate panel, upright. A panel a kept one shows in a harsher form
- * is left out (the plain round end and its reconnected copy, a head bump, an all-noten draw, a double ron's first page
- * unforced, the last result and its reopened copy, a kick, the leave question after a win, the rotate panel waiting
- * or counting down).
+ * at the desktops and the notch phone too, a double ron's first page at the small windows, and every other panel
+ * once, at the floor or, for the rotate panel, upright. A panel a kept one shows in a harsher form is left out (the
+ * round end's reconnected copy, a head bump, an all-noten draw, the last result and its reopened copy, a kick, the
+ * leave question after a win, the rotate panel waiting or counting down).
  */
 const PAGES: readonly PageCase[] = [
     {
@@ -310,25 +256,14 @@ const PAGES: readonly PageCase[] = [
         name: "decisions-round-end-tall",
         prepare: forceResultPanelTall,
     },
-    scrollingResultCase("round_end", [
-        ".round-end-result__confirm",
-        ".round-end-result__countdown",
-    ]),
+    decisionCase("round_end", [".round-end-result__confirm", ".round-end-result__countdown"]),
     {
-        ...scrollingResultCase("double_ron_first", [
+        ...decisionCase("double_ron_first", [
             ".round-end-result__pager",
             ".round-end-result__confirm",
             ".round-end-result__countdown",
         ]),
         at: [FLOOR, MID_DESKTOP, ...SMALL_WINDOWS],
-    },
-    {
-        ...scrollingResultCase(
-            "double_ron_first",
-            [".round-end-result__confirm", ".round-end-result__countdown"],
-            "panel",
-        ),
-        at: [FLOOR, MID_DESKTOP],
     },
     {
         ...decisionCase("double_ron_last", [
@@ -441,23 +376,15 @@ interface ResultPanelView {
     readonly parts: readonly Box[];
 }
 
-/**
- * A part of the result that scrolls in place, as its own scroll shows it: how much it holds against what it shows,
- * its overflow, a readable row of it (its first child, at most two lines), and whether its first and its last content
- * come wholly into its view at its scroll's start and end, the scroll moving between them.
- */
+/** A part of the result that scrolls in place: how much it holds against what it shows. */
 interface ResultScroller {
     readonly name: string;
     readonly scroll: number;
     readonly client: number;
-    readonly overflowY: string;
-    readonly row: number;
-    readonly reaches: boolean;
 }
 
 /** A round result's panel at the start and the end of its scroll, restored to its start after. */
 interface ResultPanelMeasure {
-    readonly overflowY: string;
     readonly scroll: Size;
     readonly client: Size;
     readonly scrollers: readonly ResultScroller[];
@@ -518,51 +445,13 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 requestAnimationFrame(() => done());
             });
         }
-        async function scroller(part: HTMLElement): Promise<ResultScroller> {
-            function port(): DOMRect {
-                const rect = part.getBoundingClientRect();
-                return new DOMRect(
-                    rect.left + part.clientLeft,
-                    rect.top + part.clientTop,
-                    part.clientWidth,
-                    part.clientHeight,
-                );
-            }
-            const first = part.firstElementChild;
-            const line = Number.parseFloat(getComputedStyle(part).lineHeight);
-            const row = Math.min(
-                first?.getBoundingClientRect().height ?? 0,
-                2 * (Number.isFinite(line) ? line : 0),
-            );
-            part.scrollTo({ behavior: "instant", top: 0 });
-            await nextFrame();
-            const top = part.scrollTop;
-            const opening = first?.getBoundingClientRect().top ?? 0;
-            const firstShown =
-                first === null || (opening >= port().top - 1 && opening < port().bottom);
-            part.scrollTo({ behavior: "instant", top: part.scrollHeight });
-            await nextFrame();
-            const moved = part.scrollTop > top;
-            const last = part.lastElementChild;
-            const ending = last?.getBoundingClientRect().bottom ?? 0;
-            const lastShown = last === null || (ending <= port().bottom + 1 && ending > port().top);
-            part.scrollTo({ behavior: "instant", top: 0 });
-            await nextFrame();
-            return {
+        const scrollers = [...panel.querySelectorAll(".round-end-result > *")]
+            .filter((part) => part.scrollHeight > part.clientHeight + 1)
+            .map((part) => ({
                 client: part.clientHeight,
                 name: part.className.split(" ")[0] ?? "",
-                overflowY: getComputedStyle(part).overflowY,
-                reaches: firstShown && lastShown && moved,
-                row,
                 scroll: part.scrollHeight,
-            };
-        }
-        const scrollers: ResultScroller[] = [];
-        for (const part of panel.querySelectorAll(".round-end-result > *")) {
-            if (part instanceof HTMLElement && part.scrollHeight > part.clientHeight + 1) {
-                scrollers.push(await scroller(part));
-            }
-        }
+            }));
         panel.scrollTo({ behavior: "instant", top: 0 });
         await nextFrame();
         const start = view(panel);
@@ -574,7 +463,6 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
         return {
             client: { height: panel.clientHeight, width: panel.clientWidth },
             end,
-            overflowY: getComputedStyle(panel).overflowY,
             scroll: { height: panel.scrollHeight, width: panel.scrollWidth },
             scrollers,
             start,
@@ -583,40 +471,20 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
 }
 
 /**
- * A round result that does not fit its panel keeps its head's pager and its primary button and countdown in view and
- * scrolls the rest in place (its yaku, value and score rows), each scroller showing a readable row at least and
- * bringing its first and last content into view; only where even its head, hands and controls do not fit does the
- * panel itself scroll, its controls then held at its bottom. While the panel itself does not scroll, the hand row (a
- * draw's tenpai hands, a nagashi's river) lies whole in view under no other part. A case that forces the panel short
- * first proves the scroll it asks for; on a desktop, any other result fits whole.
+ * A round result fits its panel whole at every supported size, none of its parts scrolling in place, its head's pager
+ * and its primary button and countdown in view; the hand row (a draw's tenpai hands, a nagashi's river) lies whole in
+ * view under no other part.
  */
-function checkResultPanel(
-    panel: ResultPanelMeasure | null,
-    {
-        desktop,
-        mustScroll,
-    }: { readonly desktop: boolean; readonly mustScroll: "parts" | "panel" | null },
-    report: PageReport,
-): void {
+function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport): void {
     if (panel === null) {
-        report.expect(mustScroll === null, "no round result panel to scroll");
         return;
     }
     const panelOverflows = panel.scroll.height > panel.client.height + EPSILON;
     const { scrollers } = panel;
-    const overflows = panelOverflows || scrollers.length > 0;
     const held = `${describeSize(panel.scroll)} in ${describeSize(panel.client)}${scrollers.map(({ client, name, scroll }) => `, ${name} ${scroll}px in ${client}px`).join("")}`;
     report.expect(
-        overflows || mustScroll === null,
-        `the result panel forced short still fits: ${held}`,
-    );
-    report.expect(
-        mustScroll !== "panel" || panelOverflows,
-        `the result panel forced under its head, hands and controls does not scroll: ${held}`,
-    );
-    report.expect(
-        !overflows || mustScroll !== null || !desktop,
-        `a desktop's result does not fit its panel: ${held}`,
+        !panelOverflows && scrollers.length === 0,
+        `a result does not fit its panel: ${held}`,
     );
     const ends = [
         ["start", panel.start],
@@ -644,26 +512,6 @@ function checkResultPanel(
     report.expect(
         clipped.length === 0,
         `the result's hand row is clipped at the scroll's start: ${clipped.map(({ box }) => describeBox(box)).join(", ")}`,
-    );
-    const stuck = [
-        ...scrollers.filter(({ overflowY }) => overflowY !== "auto" && overflowY !== "scroll"),
-        ...(panelOverflows && panel.overflowY !== "auto" && panel.overflowY !== "scroll"
-            ? [{ name: "the panel", overflowY: panel.overflowY }]
-            : []),
-    ];
-    report.expect(
-        stuck.length === 0,
-        `the result overflows (${held}) where it cannot scroll: ${stuck.map(({ name, overflowY }) => `${name} with overflow-y ${overflowY}`).join(", ")}`,
-    );
-    const cramped = scrollers.filter(({ client, row }) => client + EPSILON < row);
-    report.expect(
-        cramped.length === 0,
-        `a result's scrolling part shows less than a readable row: ${cramped.map(({ client, name, row }) => `${name} ${client}px of ${row.toFixed(0)}px`).join(", ")}`,
-    );
-    const unreached = scrollers.filter(({ reaches }) => !reaches);
-    report.expect(
-        unreached.length === 0,
-        `a result's scrolling part does not bring its first and last content into view: ${unreached.map(({ name }) => name).join(", ")}`,
     );
 }
 
@@ -885,27 +733,16 @@ async function checkRotatePanel(
 }
 
 /**
- * The panels over the board: inside it (over the cog), a round result scrolling where it does not fit,
+ * The panels over the board: inside it (over the cog), a round result fitting it whole,
  * the seating, and on a landscape board the names of a result's scores apart.
  */
-async function checkBoard({
-    board,
-    options,
-    page,
-    report,
-    screen,
-    viewport,
-}: BoardRun): Promise<void> {
+async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
     checkOverlay(board, viewport, report);
     if (viewport.portrait && board.overlay !== null) {
         await checkUprightNotices(page, board.overlay.box, report);
     }
     if (viewport.supported) {
-        checkResultPanel(
-            await measureResultPanel(page),
-            { desktop: viewport.desktop, mustScroll: options.panelScrolls ?? null },
-            report,
-        );
+        checkResultPanel(await measureResultPanel(page), report);
     }
     checkSeating(await measureSeating(page), { screen, viewport }, report);
     const wrapped = await measureWrappedFigures(page);
