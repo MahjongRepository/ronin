@@ -24,8 +24,9 @@ interface StripContent {
 }
 
 /**
- * A side strip's room along its line from its anchor (px): its first line's, deeper where a stacked meld keeps it out
- * from under the page's corner; its second line's; and where that line starts (right) or ends (left).
+ * A side strip's room along its line from its anchor (px): its first line's for a meld a tile's height deep and for a
+ * stacked one (the left strip's shallower meld runs on past the switches, which step in past its depth); its second
+ * line's; and where that line starts (right) or ends (left).
  */
 interface SideStripRoom {
     readonly line: number;
@@ -35,8 +36,8 @@ interface SideStripRoom {
 }
 
 /**
- * The top strip's room (px): its anchor (`top-strip-x`), the farthest a dense strip may move it (upright, short of the
- * page's corner) or none, its line's start, and the depth its melds have above what they keep clear of, closer where
+ * The top strip's room (px): its anchor (`top-strip-x`), the farthest a dense strip may move it (upright, to the
+ * board's edge) or none, its line's start, and the depth its melds have above what they keep clear of, closer where
  * they reach the top badge's lane.
  */
 interface TopStripRoom {
@@ -81,7 +82,7 @@ const STRIP_POLICY = {
     top: { melds: "scale" },
 } as const;
 
-/** A deeper meld than this keeps a side strip out from under the page's corner, in its tiles' widths. */
+/** A meld deeper than this, in its tiles' widths, takes its side strip's stacked room. */
 const SHALLOW_DEPTH = 1.5;
 
 function sum(values: readonly number[]): number {
@@ -108,25 +109,27 @@ function deepest(content: StripContent): number {
 }
 
 /**
- * A side strip: the melds that fit its first line beside the hand move together to its far end; from the first that
- * does not, the oldest go to a second line toward the table, scaled to fit beside the badge (never under the face
- * floor) and aligned at the line's start or end.
+ * A side strip: the melds that fit its first line beside the hand, each within the room its own depth has, move
+ * together to its far end as far as the tightest allows; from the first that does not fit, the oldest go to a second
+ * line toward the table, scaled to fit beside the badge (never under the face floor) and aligned at the line's start or
+ * end.
  */
 function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
     const { gap, rw } = rooms;
     const { line, deepLine, secondLine, secondAt } = rooms[seat];
     const units = content.melds.map((meld) => meld.units);
+    const lineRooms = content.melds.map((meld) => (meld.depth < SHALLOW_DEPTH ? line : deepLine));
     const count = units.length;
     const deep = deepest(content);
-    const room = deep < SHALLOW_DEPTH ? line : deepLine;
     const handLen = handLength(content.hand, content.drawn, rw);
     function before(index: number): number {
         return sum(units.slice(0, index));
     }
     const ends = units.map((_unit, index) => handLen + (index + 1) * gap + before(index + 1) * rw);
-    const firstOver = ends.findIndex((end) => end > room);
+    const firstOver = ends.findIndex((end, index) => end > (lineRooms[index] ?? line));
     const wrapped = firstOver === -1 ? count : firstOver;
-    const shift = Math.max(0, room - Math.max(handLen, ...ends.slice(0, wrapped)));
+    const slack = ends.slice(0, wrapped).map((end, index) => (lineRooms[index] ?? line) - end);
+    const shift = Math.max(0, Math.min(...slack));
     const secondUnits = Math.max(1, sum(units.slice(wrapped)));
     const secondRoom = secondLine - (count - wrapped - 1) * gap;
     const tile = Math.max(FACE_FLOOR, Math.min(secondRoom / secondUnits, rw));
@@ -144,7 +147,7 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
               },
     );
     const oldest = content.melds.at(-1)?.depth ?? 0;
-    const over = (ends.at(-1) ?? handLen) > room;
+    const over = wrapped < count;
     return {
         depth: over ? firstLine + STRIP_LINES_GAP + oldest * rw : firstLine,
         melds,
@@ -153,9 +156,10 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
 }
 
 /**
- * The top strip: one line, its melds ending at its anchor, scaled to stay above what they keep clear of (the top
- * badge only where they reach its lane) and to fit beside the hand, never under the face floor; upright, a dense strip
- * moves its anchor as far right as its melds at the face floor need, up to its cap.
+ * The top strip: one line, its melds ending at its anchor at one size, the largest that keeps each above what it keeps
+ * clear of where it stands (the top badge only for a meld reaching its lane) and fits them beside the hand, never under
+ * the face floor; upright, a dense strip moves its anchor as far right as its melds at the face floor need, up to its
+ * cap.
  */
 function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLayout {
     const { anchor, badgeDepth, cap, depth, lane, start } = top;
@@ -167,10 +171,15 @@ function topLayout(content: StripContent, { gap, rw, top }: StripRooms): StripLa
     const need = start + handLen + count * gap + total * FACE_FLOOR;
     const anchorAt = cap === null ? anchor : Math.min(cap, Math.max(anchor, need));
     const room = anchorAt - start;
-    const near = Math.max(heldLen + gap, room - total * rw - count * gap);
-    const floor = Math.min(depth, lane - near > 0 ? badgeDepth : Infinity);
+    function near(index: number): number {
+        return Math.max(heldLen + gap, room - sum(units.slice(index)) * rw - (count - index) * gap);
+    }
+    const bounds = content.melds.map(
+        (meld, index) =>
+            Math.min(depth, lane - near(index) > 0 ? badgeDepth : Infinity) / meld.depth,
+    );
     const fit = (room - handLen - count * gap) / Math.max(total, 1);
-    const tile = Math.max(FACE_FLOOR, Math.min(rw, floor / deepest(content), fit));
+    const tile = Math.max(FACE_FLOOR, Math.min(rw, fit, ...bounds));
     const end = handLen + Math.max(gap, room - handLen);
     const melds = units.map((_unit, index) => ({
         along: end - (sum(units.slice(index)) * tile + (count - 1 - index) * gap),

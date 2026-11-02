@@ -42,6 +42,7 @@ import {
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     UPRIGHT_CHROME,
+    UPRIGHT_DEPTH,
     UPRIGHT_NOTICE_GAP,
     UPRIGHT_NOTICE_ROOM,
 } from "./board-constants";
@@ -138,9 +139,6 @@ const SLOT_LEFT_REACH = 2 * TILE_ASPECT + LEFT_REACH_TILES;
  */
 const LEFT_REACH_GAPS = 2 * LATEST_DISCARD_GAP + 0.5;
 
-/** The gap the right hand keeps under the corner (px). */
-const CORNER_GAP = 4;
-
 /** The right hand's origin from the band stands this far under the band's top margin (px). */
 const RIGHT_FROM_BAND_GAP = 2;
 
@@ -163,8 +161,8 @@ const SIDE_CLEAR = 16;
 const PHONE_MAX_RIVER_SHARE = 10;
 const PHONE_SMALLEST_RIVER = 2;
 
-/** Upright, the counters' place under the top strip: its gap above and its height (px). */
-const UPRIGHT_COUNTERS_GAP = 6;
+/** The counters' place under the top strip: its gap above and below, and its height upright (px). */
+const COUNTERS_GAP = 6;
 const UPRIGHT_COUNTERS_H = 52;
 
 /** Upright, the decisions' two rows keep these px between them and the own badge. */
@@ -301,11 +299,11 @@ function switchesLeft(
         switchesTop,
     }: Readonly<Record<"bandTop" | "cy" | "rw" | "switchesTop", number>>,
 ): number {
-    const { m, sideStart } = tier;
+    const { m } = tier;
     const reach = fullReach(rw);
     const roomEnd = Math.min(bandTop, switchesTop);
     const leftStart = Math.max(
-        m + sideStart,
+        sidesStart(tier, rw),
         Math.min(cy - reach / 2, roomEnd - LEFT_HAND_GAP - reach),
     );
     const leftMeets = leftStart + reach + SWITCHES_CLEARANCE > switchesTop;
@@ -371,20 +369,14 @@ function menuSize(rw: number): number {
     return Math.min(MENU_MAX, Math.max(MENU_MIN, MENU_RIVER_SHARE * rw));
 }
 
-/** The cog's side and the room the corner keeps beside it. */
+/** The cog's side; it reserves no room, standing over whatever lies under it. */
 function cornerLengths(rw: number): [string, number][] {
-    return [
-        ["corner-reserve", menuSize(rw) + MENU_GAP],
-        ["menu-size", menuSize(rw)],
-    ];
+    return [["menu-size", menuSize(rw)]];
 }
 
-/** The corner's side a panel leaves free: the cog's margin, its reserve and the corner's step in; else a gap. */
-function cornerClear(
-    slots: BoardSlots,
-    { cornerShift, m, rw }: Readonly<Record<"cornerShift" | "m" | "rw", number>>,
-): number {
-    return slots.corner ? m + menuSize(rw) + MENU_GAP + cornerShift : PANEL_GAP;
+/** The corner's side a panel leaves free: the cog's margin, its side and a gap past it; else a gap. */
+function cornerClear(slots: BoardSlots, { m, rw }: Readonly<Record<"m" | "rw", number>>): number {
+    return slots.corner ? m + menuSize(rw) + MENU_GAP : PANEL_GAP;
 }
 
 /** The panel's free box, as the overlay's insets from the board's edges. */
@@ -402,24 +394,9 @@ function movesRowTop(switchesBottom: number, movesH: number, replayGap: number):
     return switchesBottom - movesH - replayGap;
 }
 
-/**
- * How far a desktop's corner steps in: an opponent's tile and a gap where the right hand's full reach fits above the
- * band only from the top margin, not under the corner.
- */
-function desktopCornerShift(
-    tier: DesktopChrome,
-    { bandTop, rw }: Readonly<Record<"bandTop" | "rw", number>>,
-): number {
-    const reach = fullReach(rw);
-    const underCorner = tier.m + tier.cornerH + CORNER_GAP + reach <= bandTop;
-    const fromTop = tier.m + reach <= bandTop;
-    return !underCorner && fromTop ? rw * TILE_ASPECT + STEP_IN_GAP : 0;
-}
-
 /** What a desktop's panel is placed from, in px. */
 interface DesktopPanelRoom {
     readonly chrome: ChromeTier;
-    readonly cornerShift: number;
     readonly foregroundTop: number;
     readonly height: number;
     readonly reachLeft: number;
@@ -438,9 +415,9 @@ interface DesktopPanelRoom {
  * river's reach; a replay's above its moves' row.
  */
 function desktopPanel(room: DesktopPanelRoom): BoardEdges {
-    const { chrome, cornerShift, height, rw, slots, tier } = room;
+    const { chrome, height, rw, slots, tier } = room;
     const { m, movesH, replayGap } = tier;
-    const clear = cornerClear(slots, { cornerShift, m, rw });
+    const clear = cornerClear(slots, { m, rw });
     const replay = slots.band === "replay";
     if (chrome !== "small") {
         const movesEnd =
@@ -526,7 +503,6 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     const cy = coreTop + core / 2;
     const bandTop = handTop - bandGap - controlH - rowRise - bandLift;
     const switchesX = switchesLeft(tier, { bandTop, cy, rw, switchesTop });
-    const cornerShift = desktopCornerShift(tier, { bandTop, rw });
     const centreBySwitches = short
         ? 2 * (width / 2 - switchesX - switchesPlaceWidth(tier) - SWITCHES_RIVER_GAP)
         : Infinity;
@@ -540,7 +516,6 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
     );
     const panel = desktopPanel({
         chrome,
-        cornerShift,
         foregroundTop: bandTop - bandGap,
         height,
         reachLeft: leftReach(width / 2, centreWidth, rw),
@@ -563,7 +538,6 @@ function desktopLengths({ box, chrome, family, slots }: BoardFrame): BoardLength
         ["c", centre],
         ["control-h", controlH],
         ["core-top", coreTop],
-        ["corner-shift", cornerShift],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
@@ -674,7 +648,7 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
     );
     const coreCap = DESKTOP_CORE_CAP * height;
     const coreRoomW = width - 2 * m - CORE_ROOM_SIDES;
-    const underStrip = m + UPRIGHT_COUNTERS_GAP + UPRIGHT_COUNTERS_H;
+    const underStrip = m + COUNTERS_GAP + UPRIGHT_COUNTERS_H;
     const fixed =
         ownBadgeH +
         2 * controlH +
@@ -812,6 +786,16 @@ function countersHeight({ countersFrame, doraW }: DesktopChrome): number {
     return doraW * TILE_ASPECT + countersFrame;
 }
 
+/** The counters' top: in the top-left corner under the top strip's stacked depth, off its line. */
+function countersTop(m: number, rw: number): number {
+    return m + STACKED_DEPTH * rw + COUNTERS_GAP;
+}
+
+/** Where the side strips and their badges start: under the counters. */
+function sidesStart(tier: DesktopChrome, rw: number): number {
+    return countersTop(tier.m, rw) + countersHeight(tier) + COUNTERS_GAP;
+}
+
 /** The chrome px the stylesheet draws with, by its names. */
 function chromeLengths(tier: DesktopChrome): [string, number][] {
     return [
@@ -831,23 +815,19 @@ function chromeLengths(tier: DesktopChrome): [string, number][] {
     ];
 }
 
-/** What a phone's right hand runs in: the band's top, the corner's bottom, its full reach and what bounds it (px). */
+/** What a phone's right hand runs in: the band's top, its full reach and what bounds it (px). */
 type PhoneRightRoom = Readonly<
-    Record<"bandTop" | "cornerBottom" | "cy" | "fromBand" | "ownRowTop" | "reach", number>
+    Record<"bandTop" | "cy" | "fromBand" | "ownRowTop" | "reach", number>
 >;
 
 function phoneRightRoom(
     sizes: Readonly<
-        Record<
-            "bandGap" | "controlH" | "cornerH" | "cy" | "handTop" | "m" | "ownMeldRise" | "rw",
-            number
-        >
+        Record<"bandGap" | "controlH" | "cy" | "handTop" | "m" | "ownMeldRise" | "rw", number>
     >,
 ): PhoneRightRoom {
     const { bandGap, controlH, handTop } = sizes;
     return {
         bandTop: handTop - bandGap - controlH,
-        cornerBottom: sizes.m + sizes.cornerH,
         cy: sizes.cy,
         fromBand: handTop - 2 * bandGap - controlH + RIGHT_FROM_BAND_GAP,
         ownRowTop: handTop - sizes.ownMeldRise - SWITCHES_CLEARANCE,
@@ -856,48 +836,16 @@ function phoneRightRoom(
 }
 
 /**
- * Where a phone's right hand runs, from its full reach: centred under the corner above the band, else up to the top
- * margin above it, else from under the corner across the band, else from the top margin across it, short of the own
- * row; the corner, the band's row or both stepping in past it.
+ * Where a phone's right hand runs, from its full reach: centred between the top margin and the band, else up from the
+ * band, else from the top margin across the band, whose row then steps in past it.
  */
-function phoneRightHand({
-    bandTop,
-    cornerBottom,
-    cy,
-    fromBand,
-    ownRowTop,
-    reach,
-}: PhoneRightRoom): {
+function phoneRightHand({ bandTop, cy, fromBand, reach }: PhoneRightRoom): {
     readonly origin: number;
-    readonly cornerIn: boolean;
     readonly bandCrossed: boolean;
 } {
-    const { m } = PHONE_CHROME;
-    const underCorner = Math.max(fromBand, cornerBottom + CORNER_GAP + reach);
-    const fromTop = Math.max(fromBand, m + reach);
-    const centred = Math.max(cornerBottom + CORNER_GAP + reach, cy + reach / 2);
-    if (underCorner <= bandTop) {
-        return {
-            bandCrossed: false,
-            cornerIn: false,
-            origin: Math.min(underCorner, centred),
-        };
-    }
-    if (fromTop <= bandTop) {
-        return {
-            bandCrossed: false,
-            cornerIn: true,
-            origin: Math.min(fromTop, centred),
-        };
-    }
-    if (underCorner <= ownRowTop) {
-        return {
-            bandCrossed: true,
-            cornerIn: false,
-            origin: Math.min(underCorner, centred),
-        };
-    }
-    return { bandCrossed: true, cornerIn: true, origin: fromTop };
+    const top = PHONE_CHROME.m + reach;
+    const origin = Math.min(Math.max(fromBand, top), Math.max(top, cy + reach / 2));
+    return { bandCrossed: origin > bandTop, origin };
 }
 
 /**
@@ -907,14 +855,11 @@ function phoneRightHand({
 function phonePanel(
     slots: BoardSlots,
     height: number,
-    lengths: Readonly<
-        Record<"cornerShift" | "bandShift" | "movesH" | "rw" | "switchesBottom", number>
-    >,
+    lengths: Readonly<Record<"bandShift" | "movesH" | "rw" | "switchesBottom", number>>,
 ): BoardEdges {
     const { m, replayGap } = PHONE_CHROME;
-    const clear = cornerClear(slots, { cornerShift: lengths.cornerShift, m, rw: lengths.rw });
-    const beside =
-        NOTICES_BESIDE_PANEL + NOTICES_PANEL_GAP + lengths.cornerShift + lengths.bandShift;
+    const clear = cornerClear(slots, { m, rw: lengths.rw });
+    const beside = NOTICES_BESIDE_PANEL + NOTICES_PANEL_GAP + lengths.bandShift;
     const replay = slots.band === "replay";
     return {
         bottom: replay
@@ -934,7 +879,7 @@ function phoneLayout(
 ): { readonly fits: boolean; readonly lengths: BoardLengths } {
     const { height, width } = box;
     const chrome = phoneChrome(rw);
-    const { bandGap, controlH, coreGap, cornerH, m, ownBadgeH, sep, sideStart, switchGap } = chrome;
+    const { bandGap, controlH, coreGap, m, ownBadgeH, sep, switchGap } = chrome;
     const rh = rw * TILE_ASPECT;
     const oh = ow * TILE_ASPECT;
     const handBottom = Math.max(m, ow * TILE_EDGE_SHARE);
@@ -982,7 +927,6 @@ function phoneLayout(
     const rightRoom = phoneRightRoom({
         bandGap,
         controlH,
-        cornerH,
         cy,
         handTop,
         m,
@@ -994,14 +938,11 @@ function phoneLayout(
         centre >= centreMin &&
         laneHalf <= halfRoom &&
         leftRiverEnd + SWITCHES_CLEARANCE <= (besideSwitches ? handTop - ownRise : switchesTop) &&
-        m + sideStart + rightRoom.reach <= height - m &&
+        sidesStart(chrome, rw) + rightRoom.reach <= height - m &&
         right.origin <= rightRoom.ownRowTop;
-    const stepIn = rh + STEP_IN_GAP;
-    const cornerShift = right.cornerIn ? stepIn : 0;
-    const bandShift = right.bandCrossed ? stepIn : 0;
+    const bandShift = right.bandCrossed ? rh + STEP_IN_GAP : 0;
     const panel = phonePanel(slots, height, {
         bandShift,
-        cornerShift,
         movesH: chrome.movesH,
         rw,
         switchesBottom,
@@ -1019,7 +960,6 @@ function phoneLayout(
         ["c", centre],
         ["control-h", controlH],
         ["core-top", coreTop],
-        ["corner-shift", cornerShift],
         ["cx", width / 2],
         ["cy", cy],
         ["g", riverGap(rw)],
@@ -1226,7 +1166,7 @@ function landscapeBadges(room: ShellRoom, rowBottom: number): LandscapeBadges {
     const topRowsLeft =
         at("cx") + at("hx") - ROW_BEFORE_SIDEWAYS * rw - at("rh") - LATEST_DISCARD_GAP;
     const laneBelow = topRowsLeft - sideClear - leftBadgeX;
-    const sideStart = m + tier.sideStart;
+    const sideStart = sidesStart(tier, rw);
     const sideBadgeTop = Math.max(
         sideStart,
         sideStep,
@@ -1258,7 +1198,7 @@ function landscapeLeft(
         return {
             leftRoomEnd: roomEnd,
             leftStart: Math.max(
-                m + tier.sideStart,
+                sidesStart(tier, rw),
                 Math.min(at("cy") - reach / 2, roomEnd - LEFT_HAND_GAP - reach),
             ),
             switchesLeft: switchesLeft(tier, {
@@ -1269,7 +1209,7 @@ function landscapeLeft(
             }),
         };
     }
-    const leftStart = m + tier.sideStart;
+    const leftStart = sidesStart(tier, rw);
     const meets = leftStart + reach + SWITCHES_CLEARANCE > switchesTop;
     return {
         leftRoomEnd: meets ? bandTop : Math.min(bandTop, switchesTop),
@@ -1351,11 +1291,12 @@ const TOP_BADGE_CLEAR = 6;
 /** Upright, the left badge keeps this far over the core (px). */
 const SIDE_BADGE_CORE_GAP = 6;
 
-/** Where an opponent's strips stand and what their rooms end at, by their family's places (px). */
+/**
+ * Where an opponent's strips stand and what their rooms end at, by their family's places (px): past the switches, the
+ * left strip's first line runs on to `leftFar` for a meld shallower than the depth they step in (`leftPast`).
+ */
 interface StripPlaces {
     readonly badgeH: number;
-    readonly cornerH: number;
-    readonly cornerShift: number;
     readonly foregroundTop: number;
     readonly origin: number;
     readonly rightBadgeTop: number;
@@ -1363,6 +1304,8 @@ interface StripPlaces {
     readonly sideLane: number;
     readonly leftStart: number;
     readonly leftRoomEnd: number;
+    readonly leftFar: number;
+    readonly leftPast: number;
     readonly leftLineEnd: number;
     readonly topAnchor: number;
     readonly topCap: number | null;
@@ -1383,11 +1326,15 @@ function opponentStrips(
     const rw = at("rw");
     const { width } = frame.box;
     const reserve = stripReserve(rw);
-    const cornerBottom = m + places.cornerH;
     const leftBadgeX = sideBadgeX(tier, rw);
     const laneUnder = leftBadgeX + places.sideLane + TOP_START_GAP - places.topStart > 0;
-    const leftLine = places.leftRoomEnd - STRIP_ROOM_GAP - places.leftStart;
-    const rightTop = places.cornerShift > 0 ? m - STRIP_ROOM_GAP : cornerBottom;
+    function leftLine(depth: number): number {
+        const end =
+            depth * rw < places.leftPast ? places.leftFar : places.leftRoomEnd - STRIP_ROOM_GAP;
+        return end - places.leftStart;
+    }
+    const topOver = (places.topCap ?? places.topAnchor) > width - m - STACKED_DEPTH * rw;
+    const rightLine = places.origin - (topOver ? m + STACKED_DEPTH * rw + STRIP_ROOM_GAP : m);
     return {
         areas: {
             "strip-left": {
@@ -1412,15 +1359,15 @@ function opponentStrips(
         strips: {
             gap: at("g") + MELD_GAP_EXTRA,
             left: {
-                deepLine: leftLine,
-                line: leftLine,
+                deepLine: leftLine(STACKED_DEPTH),
+                line: leftLine(UPRIGHT_DEPTH),
                 secondAt: places.leftLineEnd - places.leftStart,
                 secondLine:
                     places.leftLineEnd - places.sideBadgeTop - places.badgeH - SECOND_LINE_GAP,
             },
             right: {
-                deepLine: places.origin - cornerBottom - STRIP_ROOM_GAP,
-                line: places.origin - rightTop - STRIP_ROOM_GAP,
+                deepLine: rightLine,
+                line: rightLine,
                 secondAt: places.origin - places.foregroundTop - RIGHT_FROM_BAND_GAP,
                 secondLine:
                     places.foregroundTop - places.rightBadgeTop - places.badgeH - SECOND_LINE_GAP,
@@ -1488,23 +1435,17 @@ function riverClear(rw: number): number {
     return Math.max(RIVER_CLEAR_MIN, rw / 2);
 }
 
-/** The room the page's corner keeps beside the cog, none on a board without one. */
-function cornerReserve({ at, frame }: ShellRoom): number {
-    return frame.slots.corner ? at("corner-reserve") : 0;
-}
-
 /**
  * Off an upright board, the top hand's full reach stands centred, moved right as far as its badge's lane under its
- * start needs, short of the page's corner, and right of the counters; the lane runs from past the top river to there.
+ * start needs, short of the board's edge; the lane runs from past the top river to there, the line from the margin.
  */
 function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane" | "topStart"> {
     const { at, frame, tier } = room;
     const m = at("m");
     const reach = fullReach(at("rw"));
     const clear = riverClear(at("rw"));
-    const start = m + tier.countersW + TOP_START_GAP;
-    const badgeRight =
-        frame.box.width - m - cornerReserve(room) - at("corner-shift") - tier.badgeGap;
+    const start = m;
+    const badgeRight = frame.box.width - m - tier.badgeGap;
     const pastRiver = at("cx") + at("hx") + clear;
     const centred = Math.max(at("cx") + reach / 2, pastRiver + tier.sideLaneMin);
     const anchor = Math.max(start + reach, Math.min(centred, badgeRight));
@@ -1516,18 +1457,13 @@ function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane
 }
 
 /**
- * A desktop's right hand's origin, from its full reach: under the corner, or from the top margin where the corner steps
- * in, and centred on the core as far as that allows.
+ * A desktop's right hand's origin, from its full reach: up from the band, else from the top margin across it, and
+ * centred on the core as far as that allows; the cog stands over whatever reaches under it.
  */
-function desktopRightOrigin(
-    { at }: ShellRoom,
-    { cornerBottom, fromBand }: Readonly<Record<"cornerBottom" | "fromBand", number>>,
-): number {
+function desktopRightOrigin({ at }: ShellRoom, fromBand: number): number {
     const reach = fullReach(at("rw"));
-    const underCorner = Math.max(fromBand, cornerBottom + CORNER_GAP + reach);
-    const fromTop = Math.max(fromBand, at("m") + reach);
-    const centred = Math.max(cornerBottom + CORNER_GAP + reach, at("cy") + reach / 2);
-    return Math.min(at("corner-shift") > 0 ? fromTop : underCorner, centred);
+    const top = at("m") + reach;
+    return Math.min(Math.max(fromBand, top), Math.max(top, at("cy") + reach / 2));
 }
 
 /** A phone's right hand's origin, from its family's lengths. */
@@ -1543,7 +1479,7 @@ function phoneRightOrigin({ at, tier }: ShellRoom): number {
 }
 
 /**
- * A phone's or a desktop's slots: the corner at the top right, stepped in where the right hand needs; the switches at
+ * A phone's or a desktop's slots: the corner at the top right, over whatever reaches under it; the switches at
  * the band's start, stepped in past the left hand where its reach meets them; the decisions' place after them (a
  * phone's beside the right river under the right badge); the notices' field past the left strip's deepest reach,
  * under the badges and the top river, short of the left river and the band (a phone's over a panel under the right
@@ -1551,7 +1487,7 @@ function phoneRightOrigin({ at, tier }: ShellRoom): number {
  */
 function landscapeShell(room: ShellRoom): BoardShell {
     const { at, frame, tier } = room;
-    const { box, chrome, family, slots } = frame;
+    const { box, chrome, family } = frame;
     const { height, width } = box;
     const phone = family === "phone";
     const m = at("m");
@@ -1584,22 +1520,18 @@ function landscapeShell(room: ShellRoom): BoardShell {
               switchesRight,
           });
     const foregroundTop = bandTop - at("band-gap");
-    const { cornerH } = tier;
     const origin = phone
         ? phoneRightOrigin(room)
-        : desktopRightOrigin(room, {
-              cornerBottom: m + cornerH,
-              fromBand: foregroundTop + RIGHT_FROM_BAND_GAP,
-          });
+        : desktopRightOrigin(room, foregroundTop + RIGHT_FROM_BAND_GAP);
     const top = landscapeTop(room);
     const badgeWidths = landscapeBadgeWidths(room, badges, top.topAnchor);
     const strips = opponentStrips(room, {
         ...top,
         badgeH,
-        cornerH,
-        cornerShift: at("corner-shift"),
         foregroundTop,
+        leftFar: height - m,
         leftLineEnd: Math.min(foregroundTop, switchesTop - SECOND_LINE_END_GAP),
+        leftPast: left.switchesLeft - m,
         leftRoomEnd: left.leftRoomEnd,
         leftStart: left.leftStart,
         origin,
@@ -1629,7 +1561,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
             corner: {
                 bottom: height,
                 left: 0,
-                right: width - m - (slots.corner ? at("corner-shift") : 0),
+                right: width - m,
                 top: m,
             },
             field,
@@ -1653,7 +1585,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
-            ["counters-top", m],
+            ["counters-top", countersTop(m, at("rw"))],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
@@ -1674,7 +1606,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
 }
 
 /**
- * An upright board's slots: the corner, stepped in where the right hand needs; the decisions' rows across the board
+ * An upright board's slots: the corner; the decisions' rows across the board
  * short of the right strip's deepest reach; the notices' field under the bottom river over those rows (over a panel
  * under the right strip's end); the own row across the board; no switches.
  */
@@ -1687,8 +1619,7 @@ function uprightShell(room: ShellRoom): BoardShell {
     const reach = fullReach(rw);
     const foregroundTop = handTop - 2 * at("band-gap") - at("control-h");
     const bandTop = foregroundTop + at("band-gap");
-    const cornerShift = desktopCornerShift(tier, { bandTop, rw });
-    const topBadgeTop = m + STACKED_DEPTH * rw + UPRIGHT_COUNTERS_GAP;
+    const topBadgeTop = countersTop(m, rw);
     const lowestTop = topBadgeTop + tier.pillH + UPRIGHT_PILL_GAP + tier.badgeH + UPRIGHT_BADGE_GAP;
     const origin = Math.min(
         foregroundTop + RIGHT_FROM_BAND_GAP,
@@ -1705,8 +1636,7 @@ function uprightShell(room: ShellRoom): BoardShell {
         top: bottomRiverEnd + FIELD_GAP.phone,
     };
     const beside = besideField(room, { bandShift, foregroundTop, origin });
-    const countersTop = m + STACKED_DEPTH * rw + UPRIGHT_COUNTERS_GAP;
-    const sideStart = countersTop + countersHeight(tier) + UPRIGHT_COUNTERS_GAP;
+    const sideStart = sidesStart(tier, rw);
     const leftStart = Math.max(
         sideStart,
         Math.min(at("cy") - reach / 2, bandTop - LEFT_HAND_GAP - reach),
@@ -1731,10 +1661,10 @@ function uprightShell(room: ShellRoom): BoardShell {
     const topLane = Math.min(tier.sideCardW, topAnchor - m - tier.countersW - tier.badgeGap);
     const strips = opponentStrips(room, {
         badgeH: tier.badgeH,
-        cornerH: tier.cornerH,
-        cornerShift,
         foregroundTop,
+        leftFar: bandTop,
         leftLineEnd: Math.min(foregroundTop, handTop - at("own-rise") - SECOND_LINE_END_GAP),
+        leftPast: 0,
         leftRoomEnd: bandTop,
         leftStart,
         origin,
@@ -1742,8 +1672,8 @@ function uprightShell(room: ShellRoom): BoardShell {
         sideBadgeTop,
         sideLane,
         topAnchor,
-        topBadgeTop: countersTop,
-        topCap: width - m - cornerReserve(room) - cornerShift,
+        topBadgeTop,
+        topCap: width - m,
         topLane,
         topStart: m,
     });
@@ -1758,7 +1688,7 @@ function uprightShell(room: ShellRoom): BoardShell {
             corner: {
                 bottom: height,
                 left: 0,
-                right: width - m - (frame.slots.corner ? cornerShift : 0),
+                right: width - m,
                 top: m,
             },
             field,
@@ -1775,8 +1705,7 @@ function uprightShell(room: ShellRoom): BoardShell {
         lengths: [
             ["actions-left", m],
             ["actions-right", strip],
-            ["corner-shift", cornerShift],
-            ["counters-top", countersTop],
+            ["counters-top", topBadgeTop],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
@@ -1787,7 +1716,7 @@ function uprightShell(room: ShellRoom): BoardShell {
             ["left-badge-w", Math.max(0, leftBadgeW)],
             ["right-badge-w", sideLane],
             ["side-badge-x", badgeX],
-            ["top-badge-top", countersTop],
+            ["top-badge-top", topBadgeTop],
             ["top-lane", topLane],
             ["top-strip-x", topAnchor],
         ],

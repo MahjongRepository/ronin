@@ -25,11 +25,11 @@ they disagree.
   smaller board's panel.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (the corner,
   live play's or a replay's band) and the family's places; the overlay centres the panel on the board within its
-  `--geo-overlay-*` insets, live and replay alike, clear of the cog wherever the corner steps in (the geometry decides
-  that step on every landscape board). The notices' field is reserved whether a notice shows or not, so no notice
-  changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from that box's width and the
-  board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds 32px, an upright one's
-  at 11px.
+  `--geo-overlay-*` insets, live and replay alike, clear of the cog. The cog reserves no other room: strips, hands and
+  badges run to the board's edges under it, and it stands over them by its layer. The notices' field is reserved whether
+  a notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
+  that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
+  32px, an upright one's at 11px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule
   (`_grid.scss`) maps those the styles read onto the lengths' own names on `.board-layout` and
   `.board-overlay`, inside `:where()` so it keeps (0,2,0); a name a family does not emit stays unset on its board,
@@ -51,7 +51,7 @@ they disagree.
 - **A phone's composition is its own.** `boardGeometry` solves its river tile as the largest that fits and its own
   tile on its own scale from the box (at most 1.7 river tiles, never under 36px); its band's controls float in the
   gap above the hand, its chrome follows the river tile with the control floor, and its right hand's place (the
-  corner and the band row stepping in) is computed there too, never with a length switch.
+  band row stepping in) is computed there too, never with a length switch.
 - The centre is wider than tall: its width is `--w` (half `--hx`), its height the sizing rule's side `--c` (half
   `--h`). A placement across the board offsets from `--cx` by `--hx`, one up or down from `--cy` by `--h`; a centre
   text size follows `--c`.
@@ -65,11 +65,13 @@ they disagree.
   stacked depth along its line), its frame turned to the seat inside (a rotation, never `writing-mode`, which leaves
   each tile's SVG unturned) from the area's corner where its hand starts. Each seat's policy is explicit
   (`STRIP_POLICY`): a side strip's melds wrap to a second line, which starts at the band (right) or ends at its room's
-  end (left); the top strip's and the own row's melds keep one line and scale. `stripLayout` (`entities/table/lib`),
-  a pure function apart from `boardGeometry`, places an opponent's melds from what the strip holds and the rooms the
-  geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths, with each side strip's depth as
-  drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the viewport's solve. The own row's melds
-  scale in their container (`ownMeldStyle`'s counts).
+  end (left); the top strip's and the own row's melds keep one line and scale. Each meld is bounded only where it
+  stands: by its own depth's room (the left strip's shallow meld runs past switches stepped in past its depth, a stacked
+  one stops above them) and, on the top strip, by the badge only within the badge's lane, the strip's tiles one size.
+  `stripLayout` (`entities/table/lib`), a pure function apart from `boardGeometry`, places an opponent's melds from what
+  the strip holds and the rooms the geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths,
+  with each side strip's depth as drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the
+  viewport's solve. The own row's melds scale in their container (`ownMeldStyle`'s counts).
 - **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal

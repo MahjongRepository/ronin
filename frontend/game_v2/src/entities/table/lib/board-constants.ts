@@ -70,8 +70,8 @@ type ChromeTier = "small" | "regular" | "large";
 
 /**
  * A board's chrome px: margins, gaps, the band's control, the own badge, the switches (their chips' size and gap), the
- * corner, the counters (the indicator's width, and the padding and rim above and below it), the replay's controls, the
- * opponents' badges and the decisions' least widths.
+ * corner a panel keeps clear, the counters (the indicator's width, and the padding and rim above and below it), the
+ * replay's controls, the opponents' badges and the decisions' least widths.
  */
 interface DesktopChrome {
     readonly m: number;
@@ -85,7 +85,6 @@ interface DesktopChrome {
     readonly switchH: number;
     readonly chipGap: number;
     readonly movesH: number;
-    readonly sideStart: number;
     readonly cornerH: number;
     readonly countersW: number;
     readonly doraW: number;
@@ -124,7 +123,6 @@ const REGULAR_CHROME: DesktopChrome = {
     sep: 40,
     sideCardW: 200,
     sideLaneMin: 125,
-    sideStart: 72,
     switchGap: 18,
     switchH: 44,
     timerW: 120,
@@ -147,7 +145,6 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         replayGap: 8,
         sideCardW: 270,
         sideLaneMin: 170,
-        sideStart: 100,
         switchH: 52,
         timerW: 150,
     },
@@ -168,14 +165,13 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         replayGap: 4,
         sideCardW: 130,
         sideLaneMin: 90,
-        sideStart: 52,
         switchGap: 4,
         timerW: 76,
         winMinW: 96,
     },
 };
 
-/** The page's cog: its side at this share of the river tile within its floor and cap, and the room kept past it. */
+/** The page's cog: its side, a share of the river tile within a floor and cap, and the room a panel keeps past it. */
 const MENU_RIVER_SHARE = 56 / 60;
 const MENU_MIN = 40;
 const MENU_MAX = 56;

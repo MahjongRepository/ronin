@@ -227,7 +227,7 @@ describe("boardGeometry", () => {
         {
             above: false,
             height: 430,
-            pinned: { "band-shift": 36.667, "corner-shift": 36.667, ow: 39, rw: 23 },
+            pinned: { "band-shift": 35.333, ow: 37, rw: 22 },
             width: 932,
         },
         { above: false, height: 500, pinned: { "control-h": 43.333, ow: 44, rw: 26 }, width: 1024 },
@@ -304,16 +304,12 @@ describe("boardGeometry", () => {
 
     it("keeps the notices' field and the cog free of the panel", () => {
         const { lengths } = windowGeometry({ height: 900, width: 1440 });
-        const stepped = windowGeometry({ height: 620, width: 1170 }).lengths;
         function length(name: string): number {
-            return stepped[name] ?? Number.NaN;
+            return lengths[name] ?? Number.NaN;
         }
 
-        expect(lengths["overlay-left"]).toBeGreaterThanOrEqual(lengths["reach-left"] ?? Infinity);
-        expect(length("corner-shift")).toBeGreaterThan(0);
-        expect(length("overlay-right")).toBeGreaterThanOrEqual(
-            length("m") + length("corner-shift") + length("menu-size"),
-        );
+        expect(length("overlay-left")).toBeGreaterThanOrEqual(length("reach-left"));
+        expect(length("overlay-right")).toBeGreaterThanOrEqual(length("m") + length("menu-size"));
     });
 
     it("gives an empty box no sizes", () => {
@@ -322,35 +318,48 @@ describe("boardGeometry", () => {
 });
 
 describe("boardGeometry's strips", () => {
-    it("caps an upright top strip short of the cog's room, and of the margin alone on a board without one", () => {
-        const box = { height: 528, width: 355 };
-        function cap(corner: boolean): BoardGeometry {
-            return boardGeometry({
-                box,
-                gutter: 10,
-                safeInsets: NO_INSETS,
-                slots: { band: "play", corner },
-            });
-        }
-        const { lengths, strips } = cap(true);
-        const m = lengths["m"] ?? Number.NaN;
+    it.each([
+        { height: 900, under: 0, width: 1440 },
+        { height: 548, under: 2, width: 375 },
+    ])(
+        "runs a $width x $height board's right strip to the top margin under the cog, past $under top strip tiles",
+        ({ height, under, width }) => {
+            const { lengths, strips, tracks } = windowGeometry({ height, width });
+            const origin = slotAreas(tracks)["strip-right"]?.[3] ?? Number.NaN;
+            const end =
+                (lengths["m"] ?? Number.NaN) + (under > 0 ? under * (lengths["rw"] ?? 0) + 8 : 0);
 
-        expect(strips?.top.cap).toBe(box.width - m - (lengths["corner-reserve"] ?? Number.NaN));
-        expect(cap(false).strips?.top.cap).toBe(box.width - m);
+            expect(strips?.right.line).toBeCloseTo(origin - end, 1);
+            expect(strips?.right.deepLine).toBe(strips?.right.line);
+        },
+    );
+
+    it("runs a desktop's left first line past stepped-in switches to the bottom, a stacked meld's above them", () => {
+        const { box, lengths, strips, tracks } = windowGeometry({ height: 900, width: 1440 });
+        function length(name: string): number {
+            return lengths[name] ?? Number.NaN;
+        }
+        const start = slotAreas(tracks)["strip-left"]?.[1] ?? Number.NaN;
+        const { movesH, switchH } = DESKTOP_CHROME.regular;
+        const switchesTop = length("switches-bottom") - Math.max(movesH, switchH);
+
+        expect(length("switches-left")).toBeGreaterThan(length("m"));
+        expect(start + (strips?.left.line ?? 0)).toBeCloseTo(box.height - length("m"), 1);
+        expect(start + (strips?.left.deepLine ?? 0)).toBeCloseTo(switchesTop - 8, 1);
     });
 });
 
 describe("boardGeometry's shell tracks", () => {
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
-            actions: [499, 124.9, 663, 314.3],
-            corner: [0, 4, 634.3, 375],
-            field: [82, 102, 166, 228.3],
+            actions: [499, 126, 663, 314.3],
+            corner: [0, 4, 663, 375],
+            field: [82, 126, 166, 228.3],
             "field-beside": [583, 272.3, 663, 318.3],
             hand: [70.7, 322.3, 663, 370.3],
-            "strip-left": [4, 56, 76, 266.3],
+            "strip-left": [4, 80, 76, 266.3],
             "strip-right": [591, 4, 663, 268.3],
-            "strip-top": [107, 4, 490.3, 38],
+            "strip-top": [4, 4, 490.3, 38],
             switches: [44, 0, 667, 276.3],
         });
     });

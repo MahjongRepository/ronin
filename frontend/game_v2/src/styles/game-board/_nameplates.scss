@@ -151,25 +151,20 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* A board without the page's corner (a storybook's) keeps no room for it. */
-.game-board:not(:has(.board-menu)) > :is(.board-layout, .board-overlay) {
-    --corner-reserve: 0px;
-}
-
-/* A corner holding the debug log (`?debug`) keeps room for its summary beside the cog. */
+/* A corner holding the debug log (`?debug`) holds its summary beside the cog, at most this wide. */
 .game-board:has(.board-menu .game-log) > :is(.board-layout, .board-overlay) {
-    --corner-reserve: 152px;
+    --corner-max-w: 152px;
 
     @include small-chrome {
-        --corner-reserve: 88px;
+        --corner-max-w: 88px;
     }
 
     @include large-chrome {
-        --corner-reserve: 13rem;
+        --corner-max-w: 13rem;
     }
 
     @include upright-board {
-        --corner-reserve: 76px;
+        --corner-max-w: 76px;
     }
 }
 
@@ -255,14 +250,15 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* The page's corner: the settings cog, small, at the play area's top right; above every panel while its menu is open. */
+/* The page's corner: the settings cog, small, at the play area's top right, reserving no room but standing over what
+   lies under it; above every panel while its menu is open. */
 .board-menu {
     position: relative;
     grid-area: corner;
     place-self: start end;
     z-index: layer(controls);
     min-width: 0;
-    max-width: var(--corner-reserve);
+    max-width: var(--corner-max-w, none);
 
     &:has(.game-menu__panel) {
         z-index: layer(open);

@@ -34,6 +34,7 @@ export interface BoardMeasure {
     } | null;
     readonly tiles: readonly Box[];
     readonly hiddenTiles: number;
+    /** The board's parts that never overlap, by group; not the cog, which reserves no room and stands over them. */
     readonly grouped: readonly GroupedBox[];
     readonly localTiles: readonly Box[];
     /**
@@ -132,9 +133,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
         }
         for (const dora of board.querySelectorAll(".board-dora")) {
             grouped.push({ box: box(dora), group: "dora" });
-        }
-        for (const menu of board.querySelectorAll(".board-menu")) {
-            grouped.push({ box: box(menu), group: "menu" });
         }
         const nameplates = [...board.querySelectorAll(".nameplate")].map((plate) => ({
             box: box(plate),

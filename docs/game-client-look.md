@@ -64,9 +64,9 @@ The derived proportions are the three reference viewports' values under the sizi
 
 ```
 +-------------------------------------------------------------------+
-| dora          |                                      |   settings  |
-|               |     top strip (backs)                |             |
-| [left badge]  |               [top badge]            | [right badge]|
+|  top strip (backs) ............................     |   settings  |
+| dora          |               [top badge]            |             |
+| [left badge]  |                                      | [right badge]|
 | left strip    |          [ top river ]               | right strip |
 |               |  [L river]  [centre]  [R river]      |             |
 |               |          [ bottom river ]            |             |
@@ -187,9 +187,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
   tile edge would fill that hairline, and the table's colour is drawn into it instead. A side strip that cannot hold four melds on its
   line runs its oldest on a second line inside it, from the foreground band (the left strip's from
-  above the play switches) toward its badge; the left strip's first line also ends above the switches
-  unless they step in past its depth; the top strip and the own melds scale down instead; no meld
-  face goes under the 13x17 face floor.
+  above the play switches) toward its badge; the left strip's first line also ends above the switches,
+  except that a meld shallower than their step in runs on past them to the bottom margin; the top strip
+  and the own melds scale down instead; no meld face goes under the 13x17 face floor. Each meld is
+  bounded only where it stands: a strip's melds move together to its far end as far as the tightest
+  one's room allows (a stacked meld's room is its own), and the top strip's tiles keep one size, the
+  largest at which every meld stays above what it keeps clear of there, scaling only where its line
+  cannot hold them at the river tile.
   Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
   viewport, never read from the tiles held, and nothing else stands in it. Decision: each hand's full
   reach stands centred on its side (the side hands on the core's height) as far as its limits below
@@ -197,20 +201,18 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   reach is centred where it fits between the counters and the switches (or the band); else, and on a
   phone, it runs down from below the counters, and the play switches step in past its depth where it
   would meet them (on a phone past its strip's deepest first line, which then runs on beside them).
-  The right hand's reach is centred where it fits between the page's corner and the band's top, else
-  it runs up from the band's top; where its full reach would
-  then enter the band (a short desktop, the 667x375 floor), it runs up to the top margin instead and
-  the corner steps in past its depth; where even that enters the band, it runs from below the
-  corner across the band, whose row then ends before it; on a
-  phone, where that would reach the own row, it runs from the top margin across the band instead, the
-  corner and the band's row both stepping in past it, ending above the own row.
-  Upright, its reach is centred where it stays under the top badge's pill with its badge over it, else
-  it ends before the band's top. A board without the page's corner keeps no room for it.
-  The top hand's full reach stands centred, moved right as far as its badge's lane under it needs,
-  short of the page's corner and right of the counters; its melds stay above that badge where they reach its lane (a
+  The right hand's reach is centred where it fits between the top margin and the band's top, else
+  it runs up from the band's top; where its full reach would then enter the band (a short desktop,
+  the 667x375 floor), it runs from the top margin across the band, whose row then ends before it (on a
+  phone, ending above the own row). Upright, its reach is centred where it stays under the top badge's
+  pill with its badge over it, else it ends before the band's top. The right strip's melds run to the
+  top margin, under the page's corner (upright, to under the top strip's depth, which may reach over it).
+  The top strip's line runs from the left margin, the counters standing under it, and its hand's full
+  reach stands centred, moved right as far as its badge's lane under it needs, short of the board's
+  edge by a badge gap; its melds stay above that badge where they reach its lane (a
   limit that counts the melds at river scale, or the hand without its drawn tile, so a draw never moves it), within the
   room the whole hand leaves.
-  Upright, a dense top strip (its melds at the face floor) starts further right instead, short of the page's corner,
+  Upright, a dense top strip (its melds at the face floor) starts further right instead, up to the board's edge,
   its badge staying where it is.
 - **Badges.** One fixed shape for every opponent: the name on its first line and its quiet marks on a
   second, an AI player, a human seat an AI stands in for (the human identity kept, the mark cleared
@@ -231,7 +233,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the top badge, 6px under that badge's pill, the decisions' column starting under it. The top badge mirrors the own one through the centre, under the top
   hand's first tile toward the table, a river tile's edge and 6px below the hand's line so a meld
   over it keeps a gap, ending where the hand ends, its lane from half a river tile past the top
-  river's end at least an ordinary name wide where the page's corner allows; the right badge stays
+  river's end at least an ordinary name wide where the board allows; the right badge stays
   right of the top hand's end. The own badge heads its hand, above the hand's first tile and any added kan's rise, under the play
   switches, which stand that much higher (a narrow desktop's band row with them); where the switches' end leaves it
   less than an ordinary name's lane (an ultrawide desktop's hand starts near or past it), its lane is its own, short of
@@ -255,8 +257,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   shows on every board, upright ones included, shortened rather than dropped.
 - **Dora indicators.** The five dora indicator slots (each indicator as a face once the event
   that reveals it has arrived, the rest unreadable backs; indicators are not the bonus tiles), in
-  one corner. The honba and riichi-stick counts are the centre's, under the round, as Tenhou shows
-  them; the corner does not repeat them.
+  the top-left corner under the top strip's line, the left strip and its badge starting under them.
+  The honba and riichi-stick counts are the centre's, under the round, as Tenhou shows them; the
+  corner does not repeat them.
 - **Own hand.** Sorted, from its full reach's fixed start, the drawn tile set apart by a gap at the
   right; the melds stand at the row's right end by the board's edge, as on a table, so a call moves
   neither the hand nor the melds already laid, never larger than its tiles. Decision: its tiles are
@@ -385,7 +388,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Candidate: a move may be animated briefly (a discard travels from hand
   to river); reduced motion turns it off.
-- **Page corner.** A settings cog, small, in one corner. Decision: its menu holds the sound switch, then the
+- **Page corner.** A settings cog, small, in one corner. Decision: it reserves no room on the board:
+  the strips, hands and badges run to the board's edges under it and the cog stands over them (a
+  panel alone keeps clear of it). Decision: its menu holds the sound switch, then the
   connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
   the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
   shows without opening the menu. A replay has the same corner and cog, its menu the sound switch alone. The live

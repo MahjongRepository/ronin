@@ -1,7 +1,7 @@
 @use "grid" as *;
 
-/* The dora indicator slots in the top-left corner, `--counters-h` tall, its indicators centred down it, which an
-   upright board's left badge stands under; the honba and riichi-stick counts are the centre's. */
+/* The dora indicator slots in the top-left corner under the top strip's line, `--counters-h` tall, its indicators
+   centred down it, the left strip and badge under them; the honba and riichi-stick counts are the centre's. */
 .board-dora {
     --board-tile-w: var(--dora-w);
     --board-tile-h: calc(var(--dora-w) * 4 / 3);
