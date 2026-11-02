@@ -243,7 +243,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   the bottom river, and the decisions' row starts past it. An upright board
   keeps that template as far as its geometry allows: the own badge above its hand's left end, under
   the decisions' rows, the hand centred in the width its tile leaves; the top badge under the top
-  hand's end, level with the counters. Its top zone spans the whole width over the core, so a side
+  hand's end, under the top strip as the counters, its lane clear of them where they stand level with
+  it. Its top zone spans the whole width over the core, so a side
   badge there reads as the top seat's: the right badge stands in its own zone instead, right over its
   hand's reach, under the top badge's pill, short of the centre's column by half a river tile. The
   left badge stands toward the table from its hand, under the counters,

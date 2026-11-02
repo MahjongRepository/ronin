@@ -43,11 +43,10 @@ describe("stripLayout", () => {
         ({ deepLine, end, wraps }) => {
             const left = { ...SIDE, deepLine, line: 400 };
             const content: StripContent = { drawn: true, hand: 2, melds: [CHI, ADDED_KAN] };
-            const [chi, kan] = stripLayout("left", content, { ...ROOMS, left }).melds;
-            const last = wraps ? chi : kan;
+            const { melds } = stripLayout("left", content, { ...ROOMS, left });
+            const last = melds[wraps ? 0 : 1];
 
-            expect(kan?.rise !== 0).toBe(wraps);
-            expect(chi?.rise).toBe(0);
+            expect(melds.map((meld) => meld.rise > 0)).toEqual([false, wraps]);
             expect((last?.along ?? 0) + CHI.units * ROOMS.rw).toBeCloseTo(end, 6);
         },
     );

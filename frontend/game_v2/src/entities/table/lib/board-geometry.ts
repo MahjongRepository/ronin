@@ -802,6 +802,11 @@ function sidesStart(tier: DesktopChrome, rw: number): number {
     return belowTopStrip(tier.m, rw) + countersHeight(tier) + COUNTERS_GAP;
 }
 
+/** The counters' top: directly over the left badge, never above the top strip's depth and a gap. */
+function countersTop(tier: DesktopChrome, rw: number, leftBadgeTop: number): number {
+    return Math.max(belowTopStrip(tier.m, rw), leftBadgeTop - countersHeight(tier) - COUNTERS_GAP);
+}
+
 /** The chrome px the stylesheet draws with, by its names. */
 function chromeLengths(tier: DesktopChrome): [string, number][] {
     return [
@@ -1584,7 +1589,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
             ["actions-bottom", actions.bottom],
             ["actions-left", actions.left],
             ["actions-right", width - actions.right],
-            ["counters-top", belowTopStrip(m, at("rw"))],
+            ["counters-top", countersTop(tier, at("rw"), badges.sideBadgeTop)],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
@@ -1657,7 +1662,10 @@ function uprightShell(room: ShellRoom): BoardShell {
     );
     const topAnchor = Math.max(m + reach, at("cx") + reach / 2);
     const ownStart = (width - FULL_HAND * at("ow")) / 2;
-    const topLane = Math.min(tier.sideCardW, topAnchor - m - tier.countersW - tier.badgeGap);
+    const counters = countersTop(tier, rw, sideBadgeTop);
+    const levelCounters = counters < topBadgeTop + tier.badgeH;
+    const laneStart = badgeX + (levelCounters ? tier.countersW + tier.badgeGap : 0);
+    const topLane = Math.min(tier.sideCardW, topAnchor - laneStart);
     const strips = opponentStrips(room, {
         badgeH: tier.badgeH,
         foregroundTop,
@@ -1703,7 +1711,7 @@ function uprightShell(room: ShellRoom): BoardShell {
         lengths: [
             ["actions-left", m],
             ["actions-right", strip],
-            ["counters-top", topBadgeTop],
+            ["counters-top", counters],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],
             ["foreground-top", foregroundTop],
