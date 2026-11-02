@@ -86,11 +86,11 @@ $overlay-chrome: 3rem;
     /* Each scroller keeps a readable row at least: a yaku, the indicators' caption, the points, a score's name and
        change. */
     > :is(
-            .round-end-result__yaku,
-            .round-end-result__value,
-            .round-end-result__indicators,
-            .round-end-result__foot
-        ) {
+        .round-end-result__yaku,
+        .round-end-result__value,
+        .round-end-result__indicators,
+        .round-end-result__foot
+    ) {
         overflow-y: auto;
     }
 
