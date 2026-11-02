@@ -436,8 +436,7 @@ export function offerAnswer(
 
 /**
  * The action that answers a decision with `intent`, or null when it was already answered or does not offer it. A
- * decision past its deadline still takes one answer, which the server accepts or refuses as stale; the client never
- * answers without the player's instruction, standing (a play switch) or given.
+ * decision past its deadline still takes one answer, which the server accepts or refuses as stale.
  */
 export function answerDecision(
     decision: Decision,

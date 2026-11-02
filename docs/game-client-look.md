@@ -271,15 +271,16 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   neither the hand nor the melds already laid, never larger than its tiles. Decision: its tiles are
   the play area's largest: on a phone for touch; off a phone (a desktop, an upright board) 4/3 of the
   tile every other hand and river shares, as large across as a side seat's tile turned sideways; after a pon or chi there is no drawn tile and nothing is set
-  apart. Every face stays readable in every state: a riichi hand is marked, never dimmed into
-  darkness, and after riichi only the drawn tile looks discardable, while an offered tsumo or
-  closed kan stays available. Tile states are told apart at a glance: selectable, selected, held
+  apart. Every face stays readable in every state: after riichi the locked hand keeps its normal
+  colours, and a draw with no offers is discarded automatically. An offered tsumo or closed kan
+  stays available, with only the drawn tile discardable if the player declines it. Tile states are told apart at a
+  glance: selectable, selected, held
   back by a rule (kuikae after a call, a red and an ordinary five alike; a riichi discard that
   breaks tenpai: quiet, never hidden), and the tile an answer already played. Decision: a held-back
   tile shows reduced emphasis, never darkness: greyed out (its glyphs grey, the face a step dimmer)
-  and recessed (lower, slightly smaller, flat, without its edge and shadow), every glyph keeping its
-  contrast against its face; while some tiles are held back the selectable ones stand slightly
-  raised; a riichi-declaring tile is lifted, and the tile an answer played is lifted and outlined in
+  at its normal size and position, with its edge and shadow kept and every glyph keeping its
+  contrast against its face; selectable tiles keep their normal position too. A riichi-declaring
+  tile is lifted, and the tile an answer played is lifted and outlined in
   the accent.
 - **Action source.** What an offer refers to is marked where it lies: the latest discard in its
   river, or for a chankan offer the whole kan in its meld (an added kan, or a closed kan robbed for
@@ -301,7 +302,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   controls, in the controls' place, each a tile group drawn as the meld will lie (the called tile
   turned toward its feeder, a closed kan's ends face down, an added kan's added tile stacked), with
   Back in the place of Pass. Riichi is a toggle that marks the discards that declare it on the hand
-  and recesses the rest; it can be untoggled until the discard is sent, not after. An expired
+  and greys out the rest; it can be untoggled until the discard is sent, not after. An expired
   decision stays visible and looks different from an open one; expiry is the client's
   estimate, and the server's resulting move (a timeout's discard or pass) is shown when it arrives.
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
@@ -359,8 +360,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   controls show, and never touches the viewer's own turn (closed kan, added kan, riichi, tsumo and
   kyuushu stay offered); *Auto discard* discards the drawn tile at once on a turn that offers
   nothing else, and leaves a turn with any other offer (tsumo, kan, riichi, kyuushu), and the turn
-  after the viewer's own chi or pon, to the player. After riichi a draw is discarded by a press, or
-  by *Auto discard* where it applies; the board adds no automatic post-riichi discard of its own. A
+  after the viewer's own chi or pon, to the player. After riichi a fresh draw with no offers is
+  discarded automatically even with *Auto discard* off; a kan or win offer waits for the player
+  unless *Auto win* claims the win. Automatic riichi discards use the same unseen-wait guard as
+  the switches, so a repeated wait, reconnect or refusal never causes an automatic resend. A
   win always outranks a discard or a pass, so with both switches on a tsumo offer wins. A switch
   answers a wait the first time the client sees its id while the switch is on, and never a wait it
   has already seen: not the decision already open when the switch is turned on, so nothing moves

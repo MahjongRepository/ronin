@@ -137,7 +137,7 @@ describe("playDisplay", () => {
         expect(expired.countdown?.kind).toBe("expired");
     });
 
-    it("in riichi lets only the drawn tile discard, offers tsumo and shows the seat's furiten", () => {
+    it("in riichi keeps the locked hand unmarked, lets only the drawn tile discard, offers tsumo and shows furiten", () => {
         const state = checkpointState("own_turn_seat_1", "tsumo draw");
         const drawn = state.table.players.find((player) => player.seat === 1)?.drawnTileId;
         const display = playDisplay(state, NO_PLAY_UI);
@@ -146,6 +146,11 @@ describe("playDisplay", () => {
         expect(handMarks(display).filter(([, mark]) => mark === "selectable")).toEqual([
             [drawn, "selectable"],
         ]);
+        expect(handMarks(display).filter(([tileId]) => tileId !== drawn)).toEqual(
+            viewerTiles(state)
+                .filter((tileId) => tileId !== drawn)
+                .map((tileId) => [tileId, "waiting"]),
+        );
         expect(display.actions.map((action) => action.label)).toEqual(["Tsumo"]);
         expect(display.furiten).toBe(true);
     });

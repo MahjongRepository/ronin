@@ -61,7 +61,7 @@ export function takesIntent(state: LiveClient, intent: PlayIntent): boolean {
 }
 
 /**
- * Answer the open decision, by the player's press or by the play switch `bySwitch`: send the action it takes and mark
+ * Answer the open decision, by the player's press, a riichi discard or the play switch `bySwitch`: send the action it takes and mark
  * it submitted, or change nothing.
  */
 export function decisionIntentStep(
@@ -85,11 +85,11 @@ export function decisionIntentStep(
 }
 
 /**
- * The play switches' standing answer to a decision a message opened on a wait above the highest the game opened before
+ * The automatic answer to a decision a message opened on a wait above the highest the game opened before
  * it (`highestBefore`), taken exactly where the player's press would be; nothing for a decision already open, re-sent after
  * a reconnect or reopened by a refusal, which stay the player's.
  */
-export function switchStep(
+export function automaticStep(
     state: LiveClient,
     highestBefore: number | null,
 ): ClientStep<LiveClient> {
@@ -98,9 +98,22 @@ export function switchStep(
         return { effects: [], state };
     }
     const answer = switchAnswer(decision, state.switches);
-    return answer === null
-        ? { effects: [], state }
-        : decisionIntentStep(state, answer.intent, answer.bySwitch);
+    if (answer !== null) {
+        return decisionIntentStep(state, answer.intent, answer.bySwitch);
+    }
+    if (
+        decision.kind !== "turn" ||
+        decision.opening.kind !== "draw" ||
+        decision.offers.length > 0 ||
+        !viewerOf(state)?.isRiichi
+    ) {
+        return { effects: [], state };
+    }
+    return decisionIntentStep(
+        state,
+        { tileId: decision.opening.drawnTileId, type: "discard" },
+        null,
+    );
 }
 
 /** Turn a play switch on or off, sending nothing: it answers the waits the client sees from then on. */

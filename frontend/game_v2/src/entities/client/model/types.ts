@@ -38,9 +38,8 @@ export type PlaySwitches = Readonly<Record<PlaySwitch, boolean>>;
 
 /**
  * Where a decision stands: open for an answer, answered with the intent the dispatcher took and sent (by the player's
- * press, or by the play switch that answered it, `bySwitch`), or past its deadline in logical time. Expired is for display: it still takes
- * one answer, which the server judges by its wait id, and the client never sends one without the player's
- * instruction.
+ * press, an automatic riichi discard, or the play switch that answered it, `bySwitch`), or past its deadline in
+ * logical time. Expired is for display: it still takes one answer, which the server judges by its wait id.
  */
 export type DecisionStatus =
     | { readonly kind: "open" }

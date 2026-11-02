@@ -136,8 +136,8 @@ function tileIntent(tileId: number, picking: boolean): DecisionIntent {
 
 /**
  * How each of the viewer's tiles plays, by asking the dispatcher whether it takes the tile's intent: selectable
- * when it does (declaring, while riichi's discard is picked); on an open turn, disabled when it does not (kuikae,
- * riichi, or not riichi's while picking it); the tile an answer played, selected; any other moment, waiting. Every
+ * when it does (declaring, while riichi's discard is picked); before riichi, disabled when an open turn holds it back
+ * (kuikae or not riichi's while picking it); the tile an answer played, selected; otherwise waiting. Every
  * tile stays a button, so focus stays in the hand.
  */
 export function tilePlays(
@@ -154,7 +154,7 @@ export function tilePlays(
             if (takesIntent(state, intent)) {
                 return [tileId, { intent, state: picking ? "declaring" : "selectable" }];
             }
-            const waiting: PlayableState = openTurn ? "disabled" : "waiting";
+            const waiting: PlayableState = openTurn && !viewer.isRiichi ? "disabled" : "waiting";
             return [tileId, { intent: null, state: tileId === played ? "selected" : waiting }];
         }),
     );

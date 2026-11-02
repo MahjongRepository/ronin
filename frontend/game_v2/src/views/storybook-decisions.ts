@@ -34,6 +34,7 @@ import GAME_END_RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/game_end_reconn
 import KAN_CHOICE_SEAT_1 from "@/fixtures/seat-scenarios/kan_choice_seat_1.json";
 import OWN_TURN_SEAT_1 from "@/fixtures/seat-scenarios/own_turn_seat_1.json";
 import RECONNECT_SEAT_1 from "@/fixtures/seat-scenarios/reconnect_seat_1.json";
+import RIICHI_KAN_SEAT_1 from "@/fixtures/seat-scenarios/riichi_kan_seat_1.json";
 import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
@@ -53,6 +54,7 @@ const TRANSCRIPTS = {
     kan_choice_seat_1: KAN_CHOICE_SEAT_1,
     own_turn_seat_1: OWN_TURN_SEAT_1,
     reconnect_seat_1: RECONNECT_SEAT_1,
+    riichi_kan_seat_1: RIICHI_KAN_SEAT_1,
     seat_left_seat_1: SEAT_LEFT_SEAT_1,
     seat_left_seat_3: SEAT_LEFT_SEAT_3,
 } as const satisfies Readonly<Record<string, unknown>>;
@@ -109,6 +111,7 @@ const STORY_KEYS = [
     "turn_in_bank",
     "riichi_pick",
     "riichi_turn",
+    "riichi_kan",
     "switches_furiten",
     "discard_pending",
     "kyuushu_offer",
@@ -365,6 +368,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     player_left: checkpoint("seat_left_seat_1", "player left", "Player left"),
     reconnect_owed: checkpoint("double_ron_seat_1", "reconnected", "Reconnect owed"),
     replaced: checkpoint("reconnect_seat_1", "replaced", "Opened elsewhere"),
+    riichi_kan: checkpoint("riichi_kan_seat_1", "kan offer", "In riichi: kan offered"),
     riichi_pick: {
         ...checkpoint("own_turn_seat_1", "rinshan", "Riichi pick"),
         pickRiichi: true,

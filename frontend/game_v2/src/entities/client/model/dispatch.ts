@@ -47,7 +47,7 @@ import {
     takesWhileDesynced,
     withPacing,
 } from "./desync";
-import { canAnswer, decisionIntentStep, switchStep, toggleSwitchStep } from "./intents";
+import { automaticStep, canAnswer, decisionIntentStep, toggleSwitchStep } from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
 import {
     decisionOf,
@@ -260,7 +260,7 @@ function withPendingAfter(state: LiveClient, message: ParsedServerMessage): Live
 /**
  * The client after a server message the session took (`stepped`, from `before`): the table event it carries and its
  * calls, the viewer's facts, the play switches, what the seat owes, the game's last result and the notices, then the
- * switches' answer to a decision it opened on an unseen wait.
+ * automatic answer to a decision it opened on an unseen wait.
  */
 function takeMessage(
     before: LiveClient,
@@ -278,7 +278,7 @@ function takeMessage(
     const shown = { ...owed, showsLastResult: showsLastResultAfter(owed, message) };
     const noticeBefore = { session: before.session, submitted: submittedWaitId(viewed) };
     const noticed = withNotice(noticeBefore, shown, message);
-    return switchStep(noticed, viewed.highestOpenedWaitId);
+    return automaticStep(noticed, viewed.highestOpenedWaitId);
 }
 
 /**

@@ -154,7 +154,7 @@ function promptPass(prompt: Readonly<Record<string, unknown>>): ClientEffect {
     return sent(buildPassAction(Number(prompt.wi)));
 }
 
-describe("switchAnswer", () => {
+describe("automatic answers", () => {
     it("Auto win takes the tsumo at its draw over Auto discard, leaving the prompt open when turned on; the press after sends nothing", () => {
         const { scenario } = loadSeatScenario("own_turn_seat_1");
         const switched = answeredBySwitch(
@@ -233,20 +233,52 @@ describe("switchAnswer", () => {
         expect(bySwitch(stateAt(switched, run, "next turn"))).toBe("auto_discard");
     });
 
-    it("Auto discard discards a plain draw in riichi, which the board never discards on its own", () => {
+    it("discards a plain draw in riichi with every switch off, once even if the draw is repeated", () => {
         const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
         const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
-        const plainDraw = { event: { at: 13_000, kind: "server_message", raw: plain } } as const;
-        const unswitched = branchAfter(scenario, "furiten", [{ ...plainDraw, label: "plain" }]);
-        const switchedOn = switchedOnBefore(scenario, "furiten", ["auto_discard"]);
-        const switched = branchAfter(switchedOn, "furiten", [
-            { ...plainDraw, effects: [drawnDiscard(plain)], label: "plain" },
+        const refusal = wireRuleRefusal(Number(plain.wi));
+        const unswitched = branchAfter(scenario, "furiten", [
+            { ...received(13_000, plain, "plain"), effects: [drawnDiscard(plain)] },
+            received(13_000, plain, "repeated"),
+            received(13_001, refusal, "refused"),
         ]);
         const unswitchedRun = runClean(unswitched);
-        const switchedRun = runClean(switched);
+        const submitted = stateAt(unswitched, unswitchedRun, "plain");
+        const display = playDisplay(submitted, NO_PLAY_UI);
+        expect([
+            bySwitch(submitted),
+            submitted.switches,
+            display.actions,
+            display.countdown,
+        ]).toEqual([null, ALL_OFF, [], null]);
+        expect(decisionOf(stateAt(unswitched, unswitchedRun, "repeated"))).toEqual(
+            decisionOf(submitted),
+        );
+        expect(bySwitch(stateAt(unswitched, unswitchedRun, "refused"))).toBe("open");
+    });
 
-        expect(bySwitch(stateAt(unswitched, unswitchedRun, "plain"))).toBe("open");
-        expect(bySwitch(stateAt(switched, switchedRun, "plain"))).toBe("auto_discard");
+    it("leaves a post-riichi kan and its replacement draw's tsumo to the player", () => {
+        const { scenario } = loadSeatScenario("riichi_kan_seat_1");
+        const run = runClean(scenario);
+        const offered = stateAt(scenario, run, "kan offer");
+        const display = playDisplay(offered, NO_PLAY_UI);
+
+        expect(
+            offered.table.players.find((player) => player.seat === offered.viewerSeat)?.isRiichi,
+        ).toBe(true);
+        expect([
+            bySwitch(offered),
+            display.actions.map((action) => action.label),
+            display.tileIntents.size,
+        ]).toEqual(["open", ["Kan"], 1]);
+        expect(display.board?.players[0].hand.map((tile) => tile.state)).toEqual(
+            Array(13).fill("waiting"),
+        );
+        const replacement = stateAt(scenario, run, "tsumo draw");
+        expect(bySwitch(replacement)).toBe("open");
+        expect(playDisplay(replacement, NO_PLAY_UI).actions.map((action) => action.label)).toEqual([
+            "Tsumo",
+        ]);
     });
 });
 

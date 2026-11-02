@@ -21,6 +21,10 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   (`refusalOf`).
 - A round confirm closes only on the next deal. Its deadline is the timeout the round end names, never a count of
   result pages. A double ron confirms only from its last page.
+- **After riichi**, a fresh draw with no offers discards automatically, regardless of the play switches. A kan or
+  win offer stays answerable by the player (Auto win can still claim a win). `automaticStep` uses the same unseen-wait
+  guard as the switches, so a duplicate, reconnect or refusal never causes a repeated automatic answer. The locked
+  hand keeps its normal appearance; only kuikae and picking the declaration discard grey out restricted tiles.
 - **Play switches** answer only decisions on a wait id above `highestOpenedWaitId`, so a decision already open when a
   switch turns on, one re-sent after reconnect, or one a refusal reopened is the player's. The mark is never lowered,
   never taken from a snapshot's `wi`, and forgotten only on another game's table. `switchAnswer` is the policy. A

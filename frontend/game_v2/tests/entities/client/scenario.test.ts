@@ -125,6 +125,7 @@ describe("seatScenarioFromTranscript", () => {
             "reconnect_seat_1",
             "resync_before_deal_seat_1",
             "resync_seat_1",
+            "riichi_kan_seat_1",
             "riichi_reconnect_seat_1",
             "seat_left_seat_1",
             "seat_left_seat_3",

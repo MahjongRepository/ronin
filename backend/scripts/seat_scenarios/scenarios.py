@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from game.logic.enums import KanType
@@ -177,6 +178,37 @@ def own_turn() -> tuple[SeatTranscript, ...]:
         alice.label("dealer draw", WireEventType.DRAW)
 
         return game.transcripts("own_turn", PLAYER)
+
+
+def riichi_kan() -> tuple[SeatTranscript, ...]:
+    """
+    Offer a concealed kan after Alice declares riichi, then tsumo on its replacement draw.
+    """
+    declaration = tile(0, honors="4")
+    staged = replace(
+        _own_turn_wall(),
+        draws=(
+            (0, tile(0, honors="2")),
+            (1, declaration),
+            (2, tile(0, honors="3")),
+            (3, tile(0, honors="6")),
+            (0, tile(0, honors="7")),
+            (1, tile(3, man="1")),
+        ),
+        rinshan=(tile(0, sou="9"),),
+    )
+
+    with seated_game("seat-riichi-kan", staged, players=(PLAYER,)) as game:
+        alice = game.clients[PLAYER]
+        alice.join(at=0)
+        game.wait_until(4)
+        alice.label("riichi offer", WireEventType.DRAW)
+        alice.riichi(declaration, at=5, label="riichi chosen")
+        alice.label("kan offer", WireEventType.DRAW)
+        alice.kan(tile(0, man="1"), KanType.CLOSED, at=6, label="kan chosen")
+        alice.label("tsumo draw", WireEventType.DRAW)
+
+        return game.transcripts("riichi_kan", PLAYER)
 
 
 def bank_reconnect() -> tuple[SeatTranscript, ...]:
@@ -784,6 +816,7 @@ SCENARIOS: dict[str, Callable[[], tuple[SeatTranscript, ...]]] = {
     "call_prompt": call_prompt,
     "kan_choice": kan_choice,
     "own_turn": own_turn,
+    "riichi_kan": riichi_kan,
     "bank_reconnect": bank_reconnect,
     "reconnect": reconnect,
     "riichi_reconnect": riichi_reconnect,
