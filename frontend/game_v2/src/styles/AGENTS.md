@@ -25,8 +25,10 @@ they disagree.
   smaller board's panel.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (live play's or
   a replay's band) and the family's places; the overlay centres the panel on the board within its `--geo-overlay-*`
-  insets, live and replay alike, over the cog where they reach it. The cog reserves no room: strips, hands and badges
-  run to the board's edges under it, and it stands over them by its layer. The notices' field is reserved whether a
+  insets, live and replay alike, over the cog where they reach it. The cog reserves no room in the strips: in landscape
+  its corner slot ends inside the right strip's deepest reach with a gap, keeping its target clear of the melds.
+  Where the top hand leaves too little room beside it, the corner starts below the top strip and badge.
+  Upright it stays at the board's top right. The notices' field is reserved whether a
   notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
   that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
   32px, an upright one's at 11px.

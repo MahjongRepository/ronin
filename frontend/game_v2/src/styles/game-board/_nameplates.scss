@@ -250,8 +250,6 @@ $plate-seats: bottom, right, top, left;
     }
 }
 
-/* The page's corner: the settings cog, small, at the play area's top right, reserving no room but standing over what
-   lies under it; above every panel while its menu is open. */
 .board-menu {
     position: relative;
     grid-area: corner;

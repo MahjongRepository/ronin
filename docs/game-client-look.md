@@ -397,8 +397,11 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Candidate: a move may be animated briefly (a discard travels from hand
   to river); reduced motion turns it off.
-- **Page corner.** A settings cog, small, in one corner. Decision: it reserves no room on the board:
-  the strips, hands and badges run to the board's edges under it and the cog stands over them; a
+- **Page corner.** A settings cog, small, in one corner. In landscape it sits in the free space
+  inside the right strip's deepest reach, with a gap so its whole tap target clears the melds;
+  where the top hand leaves too little room, it sits below the top strip and badge instead.
+  Upright it stays at the top right. The icon is smaller than its control-floor tap target.
+  It reserves no room in the strips, hands or badges, which keep their places; a
   panel may cover it. Decision: its menu holds the sound switch, then the
   connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
   the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop

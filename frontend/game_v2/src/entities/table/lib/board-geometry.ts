@@ -1479,7 +1479,7 @@ function phoneRightOrigin({ at, tier }: ShellRoom): number {
 }
 
 /**
- * A phone's or a desktop's slots: the corner at the top right, over whatever reaches under it; the switches at
+ * A phone's or a desktop's slots: the corner at the top right, inside the right strip; the switches at
  * the band's start, stepped in past the left hand where its reach meets them; the decisions' place after them (a
  * phone's beside the right river under the right badge); the notices' field past the left strip's deepest reach,
  * under the badges and the top river, short of the left river and the band (a phone's over a panel under the right
@@ -1558,14 +1558,20 @@ function landscapeShell(room: ShellRoom): BoardShell {
               origin,
           })
         : field;
+    const cornerRight = strips.areas["strip-right"].left - STRIP_ROOM_GAP;
+    const cornerTop =
+        cornerRight - menuSize(at("rw")) >= strips.areas["strip-top"].right + STRIP_ROOM_GAP
+            ? m
+            : Math.max(strips.areas["strip-top"].bottom, badges.topBadgeTop + badgeH) +
+              STRIP_ROOM_GAP;
     return {
         areas: {
             actions,
             corner: {
                 bottom: height,
                 left: 0,
-                right: width - m,
-                top: m,
+                right: cornerRight,
+                top: cornerTop,
             },
             field,
             "field-beside": beside,

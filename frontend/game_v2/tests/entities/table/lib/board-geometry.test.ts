@@ -348,7 +348,7 @@ describe("boardGeometry's strips", () => {
         { height: 900, under: 0, width: 1440 },
         { height: 548, under: 2, width: 375 },
     ])(
-        "runs a $width x $height board's right strip to the top margin under the cog, past $under top strip tiles",
+        "runs a $width x $height board's right strip to the top margin, past $under top strip tiles",
         ({ height, under, width }) => {
             const { lengths, strips, tracks } = windowGeometry({ height, width });
             const origin = slotAreas(tracks)["strip-right"]?.[3] ?? Number.NaN;
@@ -396,10 +396,23 @@ describe("boardGeometry's strips", () => {
 });
 
 describe("boardGeometry's shell tracks", () => {
+    it.each([
+        { height: 800, width: 1280 },
+        { height: 375, width: 667 },
+    ])("keeps the $width x $height settings target clear of both top corner strips", (box) => {
+        const { lengths, tracks } = windowGeometry(box);
+        const areas = slotAreas(tracks);
+        const cornerRight = areas["corner"]?.[2] ?? Number.NaN;
+        const menuSize = lengths["menu-size"] ?? Number.NaN;
+
+        expect(cornerRight).toBeLessThan(areas["strip-right"]?.[0] ?? Number.NaN);
+        expect(cornerRight - menuSize).toBeGreaterThan(areas["strip-top"]?.[2] ?? Number.NaN);
+    });
+
     it("lays a landscape phone's slots where its board measured them", () => {
         expect(slotAreas(windowGeometry({ height: 375, width: 667 }).tracks)).toEqual({
             actions: [499, 126, 663, 314.3],
-            corner: [0, 4, 663, 375],
+            corner: [0, 4, 583, 375],
             field: [82, 126, 166, 228.3],
             "field-beside": [583, 272.3, 663, 318.3],
             hand: [70.7, 322.3, 663, 370.3],
@@ -408,6 +421,18 @@ describe("boardGeometry's shell tracks", () => {
             "strip-top": [4, 4, 490.3, 38],
             switches: [44, 0, 667, 276.3],
         });
+    });
+
+    it("places the settings below the top strip and badge in a near-square landscape window", () => {
+        const { lengths, tracks } = windowGeometry({ height: 799, width: 800 });
+        const areas = slotAreas(tracks);
+        const cornerTop = areas["corner"]?.[1] ?? Number.NaN;
+
+        expect(cornerTop).toBeGreaterThan(areas["strip-top"]?.[3] ?? Number.NaN);
+        expect(cornerTop).toBeGreaterThan(
+            (lengths["top-badge-top"] ?? Number.NaN) + DESKTOP_CHROME.small.badgeH,
+        );
+        expect(areas["corner"]?.[2]).toBeLessThan(areas["strip-right"]?.[0] ?? Number.NaN);
     });
 
     it("ends a narrow desktop's notices' field short of the left river, every slot on lines of its own", () => {
