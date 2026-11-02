@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { SIDEWAYS_UNITS, STACKED_DEPTH, UPRIGHT_DEPTH } from "@/entities/table/lib/board-constants";
+import {
+    SIDEWAYS_UNITS,
+    STACKED_DEPTH,
+    STRIP_LINES_GAP,
+    UPRIGHT_DEPTH,
+} from "@/entities/table/lib/board-constants";
 import { type StripContent, type StripRooms, stripLayout } from "@/entities/table/lib/strip-layout";
 
 const CHI = { depth: UPRIGHT_DEPTH, units: 2 + SIDEWAYS_UNITS };
 const ADDED_KAN = { depth: STACKED_DEPTH, units: 2 + SIDEWAYS_UNITS };
 const FOUR_CHI: StripContent = { drawn: true, hand: 2, melds: [CHI, CHI, CHI, CHI] };
-const SIDE = { deepLine: 300, line: 300, secondAt: 0, secondLine: 200 };
+const SIDE = { deepLine: 300, line: 300, secondAt: 250, secondLine: 200 };
 const ROOMS: StripRooms = {
     gap: 8,
     left: SIDE,
@@ -16,13 +21,32 @@ const ROOMS: StripRooms = {
 };
 
 describe("stripLayout", () => {
-    it("puts a side strip's oldest meld that misses its line on a second line, where the top strip scales", () => {
-        const side = stripLayout("right", FOUR_CHI, ROOMS).melds;
-        const top = stripLayout("top", FOUR_CHI, ROOMS).melds;
+    it.each(["left", "right"] as const)(
+        "keeps the %s strip's overflow at the meld end, where the top strip scales",
+        (seat) => {
+            const side = stripLayout(seat, FOUR_CHI, ROOMS).melds;
+            const top = stripLayout("top", FOUR_CHI, ROOMS).melds;
 
-        expect(side.map((meld) => meld.rise > 0)).toEqual([false, false, false, true]);
-        expect(side.slice(0, 3).every((meld) => meld.tile === ROOMS.rw)).toBe(true);
-        expect(top.every((meld) => meld.rise === 0 && meld.tile < ROOMS.rw)).toBe(true);
+            expect(side.map((meld) => meld.rise > 0)).toEqual([false, false, false, true]);
+            expect(side.slice(0, 3).every((meld) => meld.tile === ROOMS.rw)).toBe(true);
+            const [, , , overflow] = side;
+            expect(overflow).toBeDefined();
+            expect((overflow?.along ?? Number.NaN) + CHI.units * (overflow?.tile ?? 0)).toBeCloseTo(
+                SIDE.secondAt,
+                6,
+            );
+            expect(top.every((meld) => meld.rise === 0 && meld.tile < ROOMS.rw)).toBe(true);
+        },
+    );
+
+    it("keeps a wrapped added kan beside the first row without reserving its stack in both rows", () => {
+        const content: StripContent = { drawn: true, hand: 5, melds: [CHI, CHI, ADDED_KAN] };
+        const right = { ...SIDE, secondLine: 50 };
+        const { melds, depth } = stripLayout("right", content, { ...ROOMS, right });
+        expect(melds.map((meld) => meld.rise > 0)).toEqual([false, false, true]);
+        expect(melds[2]?.rise).toBeCloseTo(UPRIGHT_DEPTH * ROOMS.rw + STRIP_LINES_GAP, 6);
+        expect(melds[2]?.tile).toBeCloseTo(15, 6);
+        expect(depth).toBeCloseTo((melds[2]?.rise ?? Number.NaN) + STACKED_DEPTH * 15, 6);
     });
 
     it("keeps the top strip at the river tile where its stacked kan stands past the badge's lane", () => {

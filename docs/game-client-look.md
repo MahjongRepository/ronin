@@ -186,8 +186,9 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   kept whole, so a reveal shows the faces in the same place. Decision: a hand's tiles stand a
   one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
   tile edge would fill that hairline, and the table's colour is drawn into it instead. A side strip that cannot hold four melds on its
-  line runs its oldest on a second line inside it, from the foreground band (the left strip's from
-  above the play switches) toward its badge; the left strip's first line also ends above the switches,
+  line runs its oldest on a second line inside it, kept at the meld end toward its owner's right:
+  the right strip's ends under its badge and the left strip's above the play switches, never starting
+  back beside the concealed hand when there is room beside the melds. The left strip's first line also ends above the switches,
   except that a meld shallower than their step in, where the own row starts past it, runs on past them
   to the bottom margin; the top strip and the own melds scale down instead; no meld face goes under
   the 13x17 face floor. Each meld is bounded only where it stands: a strip's melds move together to

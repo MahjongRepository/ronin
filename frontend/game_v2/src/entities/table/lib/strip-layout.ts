@@ -2,7 +2,6 @@ import {
     FACE_FLOOR,
     OPPONENT_DRAWN_GAP,
     STRIP_LINES_GAP,
-    TILE_ASPECT,
     TILE_UNITS,
     UPRIGHT_DEPTH,
 } from "./board-constants";
@@ -26,7 +25,7 @@ interface StripContent {
 /**
  * A side strip's room along its line from its anchor (px): its first line's for a meld a tile's height deep and for a
  * stacked one (the left strip's shallower meld runs on past switches and an own row clear of its depth); its second
- * line's; and where that line starts (right) or ends (left).
+ * line's; and where that line ends, toward the seat's right.
  */
 interface SideStripRoom {
     readonly line: number;
@@ -72,16 +71,6 @@ interface StripLayout {
     readonly pull: number;
 }
 
-/**
- * Each seat's placement: a side strip's melds wrap to a second line, which runs from the band's start up (right) or
- * ends at its room's end (left); the top strip's (and the own row's) melds keep one line and scale.
- */
-const STRIP_POLICY = {
-    left: { melds: "wrap", second: "end" },
-    right: { melds: "wrap", second: "start" },
-    top: { melds: "scale" },
-} as const;
-
 /** A meld deeper than this, in its tiles' widths, takes its side strip's stacked room. */
 const SHALLOW_DEPTH = 1.5;
 
@@ -104,15 +93,10 @@ function handLength(tiles: number, drawn: boolean, rw: number): number {
     return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw) : 0);
 }
 
-function deepest(content: StripContent): number {
-    return Math.max(UPRIGHT_DEPTH, ...content.melds.map((meld) => meld.depth));
-}
-
 /**
  * A side strip: the melds that fit its first line beside the hand, each within the room its own depth has, move
  * together to its far end as far as the tightest allows; from the first that does not fit, the oldest go to a second
- * line toward the table, scaled to fit beside the badge (never under the face floor) and aligned at the line's start or
- * end.
+ * line toward the table, scaled to fit beside the badge (never under the face floor) and aligned at its far end.
  */
 function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
     const { gap, rw } = rooms;
@@ -120,7 +104,6 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
     const units = content.melds.map((meld) => meld.units);
     const lineRooms = content.melds.map((meld) => (meld.depth < SHALLOW_DEPTH ? line : deepLine));
     const count = units.length;
-    const deep = deepest(content);
     const handLen = handLength(content.hand, content.drawn, rw);
     function before(index: number): number {
         return sum(units.slice(0, index));
@@ -135,8 +118,9 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
     const tile = Math.max(FACE_FLOOR, Math.min(secondRoom / secondUnits, rw));
     const secondStart = before(wrapped) * tile + wrapped * gap;
     const secondLen = sum(units) * tile + count * gap - secondStart - gap;
-    const base = STRIP_POLICY[seat].second === "start" ? secondAt : secondAt - secondLen;
-    const firstLine = Math.max(rw * TILE_ASPECT, count > 0 ? deep * rw : 0);
+    const base = secondAt - secondLen;
+    const firstLine =
+        Math.max(UPRIGHT_DEPTH, ...content.melds.slice(0, wrapped).map((meld) => meld.depth)) * rw;
     const melds = units.map((_unit, index) =>
         index < wrapped
             ? { along: handLen + (index + 1) * gap + before(index) * rw + shift, rise: 0, tile: rw }
@@ -146,10 +130,13 @@ function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripR
                   tile,
               },
     );
-    const oldest = content.melds.at(-1)?.depth ?? 0;
+    const secondDepth = Math.max(
+        0,
+        ...content.melds.slice(wrapped).map((meld) => meld.depth * tile),
+    );
     const over = wrapped < count;
     return {
-        depth: over ? firstLine + STRIP_LINES_GAP + oldest * rw : firstLine,
+        depth: over ? firstLine + STRIP_LINES_GAP + secondDepth : firstLine,
         melds,
         pull: 0,
     };
@@ -220,7 +207,7 @@ function stripLengths(
     );
 }
 
-export { STRIP_POLICY, drawnGap, hairline, handLength, stripLayout, stripLengths };
+export { drawnGap, hairline, handLength, stripLayout, stripLengths };
 export type {
     MeldShape,
     MeldPlace,

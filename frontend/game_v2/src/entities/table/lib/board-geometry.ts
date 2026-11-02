@@ -1372,7 +1372,7 @@ function opponentStrips(
             right: {
                 deepLine: rightLine,
                 line: rightLine,
-                secondAt: places.origin - places.foregroundTop - RIGHT_FROM_BAND_GAP,
+                secondAt: places.origin - places.rightBadgeTop - places.badgeH - SECOND_LINE_GAP,
                 secondLine:
                     places.foregroundTop - places.rightBadgeTop - places.badgeH - SECOND_LINE_GAP,
             },
