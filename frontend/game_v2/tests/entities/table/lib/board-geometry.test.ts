@@ -221,7 +221,7 @@ describe("boardGeometry", () => {
     );
 
     it.each([
-        { above: true, height: 375, pinned: { "band-shift": 0, ow: 36, rw: 17 }, width: 667 },
+        { above: true, height: 375, pinned: { "band-shift": 28.667, ow: 36, rw: 17 }, width: 667 },
         { above: true, height: 369, pinned: { ow: 36, rw: 16 }, width: 750 },
         { above: true, height: 480, pinned: { ow: 40, rw: 24 }, width: 850 },
         {
@@ -414,10 +414,10 @@ describe("boardGeometry's shell tracks", () => {
             actions: [499, 126, 663, 314.3],
             corner: [0, 4, 583, 375],
             field: [82, 126, 166, 228.3],
-            "field-beside": [583, 272.3, 663, 318.3],
+            "field-beside": [554.3, 270.3, 634.3, 318.3],
             hand: [70.7, 322.3, 663, 370.3],
             "strip-left": [4, 44, 76, 266.3],
-            "strip-right": [591, 4, 663, 268.3],
+            "strip-right": [591, 4, 663, 295.3],
             "strip-top": [4, 4, 490.3, 38],
             switches: [44, 0, 667, 276.3],
         });

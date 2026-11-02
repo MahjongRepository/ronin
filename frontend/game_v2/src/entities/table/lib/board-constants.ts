@@ -28,10 +28,10 @@ const TILE_EDGE_SHARE = 0.13;
 /** No meld face goes under this width (px). */
 const FACE_FLOOR = 13;
 
-/** A tile's width in hairlines, an opponent's drawn tile's gap in river tiles, and a side strip's lines' gap (px). */
+/** A tile's width in hairlines, an opponent's drawn tile's gap in river tiles, and a side lane's clearance (px). */
 const TILE_UNITS = 60;
 const OPPONENT_DRAWN_GAP = 0.15;
-const STRIP_LINES_GAP = 4;
+const SIDE_LANE_GAP = 4;
 
 /** The core's height past the centre, in river tiles: a gap and a top or bottom river's rows on each side. */
 const CORE_TILES = 2 * (RIVER_GAP_SHARE + RIVER_ROWS["run-on"] * TILE_ASPECT);
@@ -268,7 +268,7 @@ export {
     SIDEWAYS_UNITS,
     SMALL_CHROME_WIDTH,
     STACKED_DEPTH,
-    STRIP_LINES_GAP,
+    SIDE_LANE_GAP,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     TILE_UNITS,

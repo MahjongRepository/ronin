@@ -34,10 +34,11 @@ import {
     ROWS_BEFORE_RUN_ON,
     RUN_ON_REACH_TILES,
     SHORT_DESKTOP_HEIGHT,
+    SIDEWAYS_UNITS,
+    SIDE_LANE_GAP,
     SIDE_REACH_TILES,
     SMALL_CHROME_WIDTH,
     STACKED_DEPTH,
-    STRIP_LINES_GAP,
     TILE_ASPECT,
     TILE_EDGE_SHARE,
     UPRIGHT_CHROME,
@@ -45,7 +46,14 @@ import {
     UPRIGHT_NOTICE_GAP,
     UPRIGHT_NOTICE_ROOM,
 } from "./board-constants";
-import { type StripRooms, type StripSeat, drawnGap, hairline, handLength } from "./strip-layout";
+import {
+    type StripObstacle,
+    type StripRooms,
+    type StripSeat,
+    drawnGap,
+    hairline,
+    handLength,
+} from "./strip-layout";
 
 type BoardFamily = "phone" | "desktop" | "short-desktop" | "upright";
 
@@ -287,13 +295,26 @@ function fullReach(rw: number): number {
     return handLength(HAND_TILES, true, rw);
 }
 
+/** A side strip reserves one line even for four open kans at the meld face floor. */
+function sideStripReach(rw: number): number {
+    const gap = riverGap(rw) + MELD_GAP_EXTRA;
+    return Math.max(
+        fullReach(rw),
+        ...[1, 2, 3, 4].map(
+            (count) =>
+                handLength(HAND_TILES - 3 * count, true, rw) +
+                count * (gap + (3 + SIDEWAYS_UNITS) * FACE_FLOOR),
+        ),
+    );
+}
+
 /** A short desktop's centre width that keeps its bottom river clear of the switches' place starting at `left`. */
 function centreBesideSwitches(tier: DesktopChrome, width: number, left: number): number {
     return 2 * (width / 2 - left - switchesPlaceWidth(tier) - SWITCHES_RIVER_GAP);
 }
 
 /**
- * Where the play switches start: past the left strip's stacked first line where the left hand's reach meets them, so
+ * Where the play switches start: past the left strip's stacked depth where the left hand's reach meets them, so
  * every meld runs on beside them; on a short desktop whose centre cannot narrow for that, past a tile-high line only.
  */
 function switchesLeft(
@@ -309,13 +330,13 @@ function switchesLeft(
     short: boolean,
 ): number {
     const { m } = tier;
-    const reach = fullReach(rw);
+    const reach = sideStripReach(rw);
     const roomEnd = Math.min(bandTop, switchesTop);
     const leftStart = Math.max(
         belowTopStrip(m, rw),
         Math.min(cy - reach / 2, roomEnd - LEFT_HAND_GAP - reach),
     );
-    if (leftStart + reach + SWITCHES_CLEARANCE <= switchesTop) {
+    if (leftStart + reach + STRIP_ROOM_GAP <= switchesTop) {
         return m;
     }
     const stacked = m + STACKED_DEPTH * rw + STEP_IN_GAP;
@@ -605,7 +626,7 @@ function replayLengths(
 function uprightGroupLane(room: UprightGroupRoom): number {
     const { bandGap, m, movesH, replayGap } = room.tier;
     const groupW = replayGroupWidth(room.chrome, movesH, replayGap);
-    const groupLeft = room.width - m - stripReserve(room.rw) - GROUP_STRIP_GAP - groupW;
+    const groupLeft = room.width - m - sideLaneReserve(room.rw) - GROUP_STRIP_GAP - groupW;
     return groupLeft - bandGap - (room.width - FULL_HAND * room.ow) / 2;
 }
 
@@ -757,14 +778,14 @@ function uprightLengths({ box, chrome, slots }: BoardFrame): BoardLengths {
     ]);
 }
 
-/** How far in from the board's side edge a side badge stands: past its strip's first line by a badge gap. */
+/** How far in from the board's side edge a side badge stands: past its strip's line by a badge gap. */
 function sideBadgeX({ badgeGap, m }: DesktopChrome, rw: number): number {
     return m + STACKED_DEPTH * rw + badgeGap;
 }
 
-/** The deepest a side strip reaches: two stacked lines 4px apart, the second's tiles never under the face floor. */
-function stripReserve(rw: number): number {
-    return STACKED_DEPTH * rw + STRIP_LINES_GAP + STACKED_DEPTH * Math.max(rw, FACE_FLOOR);
+/** Side tiles and an equally deep buffer before interior controls, retained as melds scale within their line. */
+function sideLaneReserve(rw: number): number {
+    return STACKED_DEPTH * rw + SIDE_LANE_GAP + STACKED_DEPTH * Math.max(rw, FACE_FLOOR);
 }
 
 /** A phone's chrome at its river tile: the small tier's px, growing with the river tile past `PHONE_CHROME_RIVER`. */
@@ -841,7 +862,7 @@ function phoneRightRoom(
         cy: sizes.cy,
         fromBand: handTop - 2 * bandGap - controlH + RIGHT_FROM_BAND_GAP,
         ownRowTop: handTop - sizes.ownMeldRise - SWITCHES_CLEARANCE,
-        reach: fullReach(sizes.rw),
+        reach: sideStripReach(sizes.rw),
     };
 }
 
@@ -903,7 +924,7 @@ function phoneLayout(
     const centreTop = coreTop + LATEST_DISCARD_GAP + rows;
     const heightRoom = handTop - coreGap - LATEST_DISCARD_GAP - rows - centreTop;
     const sideReach = riverGap(rw) + (SIDE_REACH_TILES / 2) * rw + LATEST_DISCARD_GAP;
-    const fieldHalf = width / 2 - sideReach - m - stripReserve(rw);
+    const fieldHalf = width / 2 - sideReach - m - sideLaneReserve(rw);
     const runOnReach = RUN_ON_REACH_TILES * rw + LATEST_DISCARD_GAP;
     const leftBadgeX = sideBadgeX(chrome, rw);
     const laneHalf =
@@ -1198,11 +1219,11 @@ function landscapeLeft(
 ): Readonly<Record<"leftRoomEnd" | "leftStart" | "switchesLeft", number>> {
     const m = at("m");
     const rw = at("rw");
-    const reach = fullReach(rw);
+    const reach = sideStripReach(rw);
     if (frame.family !== "phone") {
         const roomEnd = Math.min(bandTop, switchesTop);
         return {
-            leftRoomEnd: roomEnd,
+            leftRoomEnd: Math.max(bandTop, switchesTop),
             leftStart: Math.max(
                 belowTopStrip(m, rw),
                 Math.min(at("cy") - reach / 2, roomEnd - LEFT_HAND_GAP - reach),
@@ -1215,7 +1236,7 @@ function landscapeLeft(
         };
     }
     const leftStart = belowTopStrip(m, rw);
-    const meets = leftStart + reach + SWITCHES_CLEARANCE > switchesTop;
+    const meets = leftStart + reach + STRIP_ROOM_GAP > switchesTop;
     return {
         leftRoomEnd: meets ? bandTop : Math.min(bandTop, switchesTop),
         leftStart,
@@ -1281,12 +1302,12 @@ function besideField(
 /** The gap between a strip's melds past the river gap (px). */
 const MELD_GAP_EXTRA = 2;
 
-/** A strip's line ends this far short of what ends its room, its second line this far past its badge (px). */
+/** Clearance at a strip's outer-line limit and around a badge's reserved footprint (px). */
 const STRIP_ROOM_GAP = 8;
-const SECOND_LINE_GAP = 2;
+const STRIP_BADGE_CLEAR = 2;
 
-/** The left strip's second line ends this far above the switches' place or the own row (px). */
-const SECOND_LINE_END_GAP = 4;
+/** Clearance around the switches' and own row's reserved footprints (px). */
+const STRIP_CONTROL_CLEAR = 4;
 
 /** The top strip's melds keep this far above the core and the top badge (px). */
 const TOP_CORE_CLEAR = 8;
@@ -1297,20 +1318,17 @@ const SIDE_BADGE_CORE_GAP = 6;
 
 /**
  * Where an opponent's strips stand and what their rooms end at, by their family's places (px): past the switches, the
- * left strip's first line runs on to `end` for a meld shallower than `depth` (none upright); the right strip's line
+ * left strip's line runs on to `end` for a meld shallower than `depth` (none upright); the right strip's line
  * ends at `rightEnd`.
  */
 interface StripPlaces {
-    readonly badgeH: number;
-    readonly foregroundTop: number;
     readonly origin: number;
-    readonly rightBadgeTop: number;
     readonly rightEnd: number;
-    readonly sideBadgeTop: number;
+    readonly leftObstacles: readonly StripObstacle[];
+    readonly rightObstacles: readonly StripObstacle[];
     readonly leftStart: number;
     readonly leftRoomEnd: number;
     readonly leftPast: { readonly depth: number; readonly end: number } | null;
-    readonly leftLineEnd: number;
     readonly topAnchor: number;
     readonly topCap: number | null;
     readonly topStart: number;
@@ -1329,7 +1347,7 @@ function opponentStrips(
     const m = at("m");
     const rw = at("rw");
     const { width } = frame.box;
-    const reserve = stripReserve(rw);
+    const reserve = sideLaneReserve(rw);
     const { leftPast } = places;
     function leftLine(depth: number): number {
         const end =
@@ -1365,16 +1383,12 @@ function opponentStrips(
             left: {
                 deepLine: leftLine(STACKED_DEPTH),
                 line: leftLine(UPRIGHT_DEPTH),
-                secondAt: places.leftLineEnd - places.leftStart,
-                secondLine:
-                    places.leftLineEnd - places.sideBadgeTop - places.badgeH - SECOND_LINE_GAP,
+                obstacles: places.leftObstacles,
             },
             right: {
                 deepLine: rightLine,
                 line: rightLine,
-                secondAt: places.origin - places.rightBadgeTop - places.badgeH - SECOND_LINE_GAP,
-                secondLine:
-                    places.foregroundTop - places.rightBadgeTop - places.badgeH - SECOND_LINE_GAP,
+                obstacles: places.rightObstacles,
             },
             rw,
             top: {
@@ -1461,7 +1475,7 @@ function landscapeTop(room: ShellRoom): Pick<StripPlaces, "topAnchor" | "topLane
  * centred on the core as far as that allows; the cog stands over whatever reaches under it.
  */
 function desktopRightOrigin({ at }: ShellRoom, fromBand: number): number {
-    const reach = fullReach(at("rw"));
+    const reach = sideStripReach(at("rw"));
     const top = at("m") + reach;
     return Math.min(Math.max(fromBand, top), Math.max(top, at("cy") + reach / 2));
 }
@@ -1527,9 +1541,23 @@ function landscapeShell(room: ShellRoom): BoardShell {
     const badgeWidths = landscapeBadgeWidths(room, badges, top.topAnchor);
     const strips = opponentStrips(room, {
         ...top,
-        badgeH,
-        foregroundTop,
-        leftLineEnd: Math.min(foregroundTop, switchesTop - SECOND_LINE_END_GAP),
+        leftObstacles: [
+            {
+                depth: sideBadgeX(tier, at("rw")) - m - STRIP_BADGE_CLEAR,
+                from: badges.sideBadgeTop - left.leftStart - STRIP_BADGE_CLEAR,
+                to: badges.sideBadgeTop + badgeH - left.leftStart + STRIP_BADGE_CLEAR,
+            },
+            {
+                depth: left.switchesLeft - m - STRIP_CONTROL_CLEAR,
+                from: switchesTop - left.leftStart - STRIP_CONTROL_CLEAR,
+                to: at("switches-bottom") - left.leftStart + STRIP_CONTROL_CLEAR,
+            },
+            {
+                depth: ownStart - m - STEP_IN_GAP,
+                from: bandTop - left.leftStart,
+                to: height - left.leftStart,
+            },
+        ],
         leftPast: {
             depth: Math.min(left.switchesLeft, ownStart - STEP_IN_GAP) - m,
             end: height - m,
@@ -1538,7 +1566,14 @@ function landscapeShell(room: ShellRoom): BoardShell {
         leftStart: left.leftStart,
         origin,
         rightEnd: m,
-        ...badges,
+        rightObstacles: [
+            {
+                depth: sideBadgeX(tier, at("rw")) - m - STRIP_BADGE_CLEAR,
+                from: origin - badges.rightBadgeTop - badgeH - STRIP_BADGE_CLEAR,
+                to: origin - badges.rightBadgeTop + STRIP_BADGE_CLEAR,
+            },
+        ],
+        topBadgeTop: badges.topBadgeTop,
         topCap: null,
     });
     const fieldGap = FIELD_GAP[phone ? "phone" : chrome];
@@ -1546,7 +1581,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
         bottom: Math.min(bandTop, switchesTop) - (phone ? PHONE_FIELD_BAND_GAP : FIELD_BAND_GAP),
         left:
             m +
-            (family === "desktop" && chrome === "small" ? 0 : stripReserve(at("rw"))) +
+            (family === "desktop" && chrome === "small" ? 0 : sideLaneReserve(at("rw"))) +
             fieldGap,
         right: at("reach-left") - FIELD_RIVER_GAP,
         top: Math.max(badges.sideBadgeTop + badgeH + fieldGap, at("reach-top-row3") + fieldGap),
@@ -1625,7 +1660,7 @@ function uprightShell(room: ShellRoom): BoardShell {
     const m = at("m");
     const rw = at("rw");
     const handTop = at("hand-top");
-    const reach = fullReach(rw);
+    const reach = sideStripReach(rw);
     const foregroundTop = handTop - 2 * at("band-gap") - at("control-h");
     const bandTop = foregroundTop + at("band-gap");
     const topBadgeTop = belowTopStrip(m, rw);
@@ -1635,12 +1670,12 @@ function uprightShell(room: ShellRoom): BoardShell {
         Math.max(at("cy") + reach / 2, lowestTop + reach),
     );
     const bandShift = origin - bandTop - HALF_PIXEL > 0 ? at("rh") + STEP_IN_GAP : 0;
-    const strip = m + stripReserve(rw) + UPRIGHT_STRIP_GAP;
+    const strip = m + sideLaneReserve(rw) + UPRIGHT_STRIP_GAP;
     const bottomRiverEnd =
         at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + LATEST_DISCARD_GAP;
     const field = {
         bottom: at("notices-bottom"),
-        left: m + stripReserve(rw) + FIELD_GAP.phone,
+        left: m + sideLaneReserve(rw) + FIELD_GAP.phone,
         right: width - strip,
         top: bottomRiverEnd + FIELD_GAP.phone,
     };
@@ -1672,16 +1707,30 @@ function uprightShell(room: ShellRoom): BoardShell {
     const laneStart = badgeX + (levelCounters ? tier.countersW + tier.badgeGap : 0);
     const topLane = Math.min(tier.sideCardW, topAnchor - laneStart);
     const strips = opponentStrips(room, {
-        badgeH: tier.badgeH,
-        foregroundTop,
-        leftLineEnd: Math.min(foregroundTop, handTop - at("own-rise") - SECOND_LINE_END_GAP),
+        leftObstacles: [
+            {
+                depth: badgeX - m - STRIP_BADGE_CLEAR,
+                from: sideBadgeTop - leftStart - STRIP_BADGE_CLEAR,
+                to: sideBadgeTop + tier.badgeH - leftStart + STRIP_BADGE_CLEAR,
+            },
+            {
+                depth: ownStart - m - STEP_IN_GAP,
+                from: handTop - at("own-rise") - leftStart - STRIP_CONTROL_CLEAR,
+                to: height - leftStart,
+            },
+        ],
         leftPast: null,
         leftRoomEnd: bandTop,
         leftStart,
         origin,
-        rightBadgeTop,
         rightEnd: m + STACKED_DEPTH * rw + STRIP_ROOM_GAP,
-        sideBadgeTop,
+        rightObstacles: [
+            {
+                depth: badgeX - m - STRIP_BADGE_CLEAR,
+                from: origin - rightBadgeTop - tier.badgeH - STRIP_BADGE_CLEAR,
+                to: origin - rightBadgeTop + STRIP_BADGE_CLEAR,
+            },
+        ],
         topAnchor,
         topBadgeTop,
         topCap: width - m,
@@ -1736,8 +1785,8 @@ function uprightShell(room: ShellRoom): BoardShell {
 }
 
 /**
- * What every family's board reads alike: an opponent's hand's gaps and full reach, a side strip's first line and
- * deepest reach, the face floor.
+ * What every family's board reads alike: an opponent's hand's gaps and full reach, a side strip's stacked depth and
+ * reserved lane, the face floor.
  */
 function stripFacts(rw: number): [string, number][] {
     return [
@@ -1746,7 +1795,7 @@ function stripFacts(rw: number): [string, number][] {
         ["face-floor", FACE_FLOOR],
         ["full-reach", fullReach(rw)],
         ["strip-depth", STACKED_DEPTH * rw],
-        ["strip-reserve", stripReserve(rw)],
+        ["strip-reserve", sideLaneReserve(rw)],
     ];
 }
 

@@ -185,23 +185,21 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   hand never reads as face-down tiles (a closed kan's ends, the unrevealed indicators); the slot is
   kept whole, so a reveal shows the faces in the same place. Decision: a hand's tiles stand a
   one-pixel hairline apart, as the own hand's; a side strip's tiles run along the light, so the
-  tile edge would fill that hairline, and the table's colour is drawn into it instead. A side strip that cannot hold four melds on its
-  line runs its oldest on a second line inside it, kept at the meld end toward its owner's right:
-  the right strip's ends under its badge and the left strip's above the play switches, never starting
-  back beside the concealed hand when there is room beside the melds. The left strip's first line also ends above the switches,
-  except that a meld shallower than their step in, where the own row starts past it, runs on past them
-  to the bottom margin; the top strip and the own melds scale down instead; no meld face goes under
-  the 13x17 face floor. Each meld is bounded only where it stands: a strip's melds move together to
-  its far end as far as the tightest one's room allows (a stacked meld's room is its own), and the top
-  strip's tiles keep one size, the largest at which every meld stays above what it keeps clear of
-  there, scaling only where its line cannot hold them at the river tile.
-  Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
-  viewport, never read from the tiles held, and nothing else stands in it. Decision: each hand's full
+  tile edge would fill that hairline, and the table's colour is drawn into it instead. Every seat
+  keeps its melds in one continuous line to the hand's right from that player's view: downward for the left seat, upward for the right. The oldest meld stays at the far end;
+  newer melds join toward the hand. Melds never wrap beside the hand or into parallel columns.
+  All melds in a strip scale together to fit, never below the 13x17 face floor. The side lanes keep
+  their existing buffer before interior controls as the melds scale inside the edge line. The side layout
+  clears the reserved badge, play switches and own row using each meld's actual footprint.
+  Each top meld stays above what it keeps clear of there, its tiles one size, scaling only where
+  its line cannot hold them at the river tile. Decision: a side strip reserves the larger of a
+  full concealed hand and a hand with up to four kans at the meld face floor. That reach has one fixed place per viewport, never read from the
+  tiles held, and nothing else stands in it. Decision: each hand's full
   reach stands centred on its side (the side hands on the core's height) as far as its limits below
   allow, so a hand holding fewer tiles fills its reach from its start. Off a phone, the left hand's
   reach is centred where it fits between the top strip and the switches (or the band); else, and on a
   phone, it runs down from under the top strip's depth, and the play switches step in past its
-  strip's deepest first line where it would meet them, so every meld runs on beside them (on a short
+  strip's stacked depth where it would meet them, so every meld runs on beside them (on a short
   desktop whose centre cannot narrow for that, past a tile-high line only, a stacked meld then ending
   above them).
   The right hand's reach is centred where it fits between the top margin and the band's top, else
@@ -232,8 +230,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   ordinary name's lane beside that third row, below it by a river tile instead. A short
   desktop takes that step only where the decisions' tallest column (five offers over the band's
   control and the timer) leaves room under the right one, else keeps them under the counters. A
-  phone keeps the left badge there,
-  the room under it the left strip's second line's, and steps the right one, which stands beside
+  phone keeps the left badge there and steps the right one, which stands beside
   the top badge, 6px under that badge's pill, the decisions' column starting under it. The top badge mirrors the own one through the centre, under the top
   hand's first tile toward the table, a river tile's edge and 6px below the hand's line so a meld
   over it keeps a gap, ending where the hand ends, its lane from half a river tile past the top
@@ -596,7 +593,7 @@ own badge's lane, centred in its room only as far as that allows. On a short des
 as tall as the play switches or the replay's moves (which stand there where the band shares the
 core's corners), whichever is taller, so a replay's board is the live game's. A phone's place is
 one row as tall as a control and as wide as the replay's five moves, stepped in past the left
-strip's first line over the own badge; its left river's capacity ends above the own badge, and
+strip's stacked depth over the own badge; its left river's capacity ends above the own badge, and
 above that place too where the centre is too wide for the river to pass beside it, so a replay's
 board is the live game's there too.
 An opponent's concealed hand tile is the river tile; its drawn tile stands 0.15 of a river tile

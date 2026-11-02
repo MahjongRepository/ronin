@@ -167,8 +167,7 @@ interface OwnRow {
 
 /**
  * A seat's strip: its hand, then its melds newest first from the hand outward. An opponent's stands in its area, its
- * frame turned to its seat from the area's corner at its hand's start, its melds where `stripLayout` places them (a
- * side strip's wrap to a second line, the top one's scale); the own row stands in the hand's slot, its melds scaled to
+ * frame turned to its seat from the area's corner at its hand's start, its melds in one line at `stripLayout`'s shared scale; the own row stands in the hand's slot, its melds scaled to
  * end before the board's edge.
  */
 function Strip(

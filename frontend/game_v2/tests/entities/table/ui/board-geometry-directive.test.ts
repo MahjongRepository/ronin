@@ -185,7 +185,10 @@ describe("sizeBoard", () => {
         nextFrame();
 
         expect(written(element)).toEqual({ chrome: "small", family: "phone", rw: "17px" });
-        expect(element.style.getPropertyValue("--geo-band-shift")).toBe("0px");
+        expect(parseFloat(element.style.getPropertyValue("--geo-band-shift"))).toBeCloseTo(
+            28.667,
+            2,
+        );
 
         latestObserver().resize(1420, 700);
 

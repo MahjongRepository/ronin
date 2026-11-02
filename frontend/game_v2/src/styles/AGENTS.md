@@ -62,17 +62,14 @@ they disagree.
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;
   content reaches the strips through `stripLayout`, never fed into the box's sizing.
 - **One strip primitive, four seats.** GameBoard's `Strip` draws every seat's hand and melds; an opponent's is a grid
-  area the geometry sizes to its turned footprint (a side strip's deepest reach along its hand's room, the top one's
+  area the geometry sizes to its turned footprint (a side lane's reserve along its hand's room, the top one's
   stacked depth along its line), its frame turned to the seat inside (a rotation, never `writing-mode`, which leaves
-  each tile's SVG unturned) from the area's corner where its hand starts. A side strip's melds wrap to a second line
-  at the meld end, toward its owner's right: under the right badge or above the left play switches.
-  The top strip's and the own row's melds keep one line and scale. Each meld is bounded only where it
-  stands: by its own depth's room (the left strip's meld runs past switches and an own row clear of its depth, a stacked
-  one stops above them) and, on the top strip, by the badge only within the badge's lane, the strip's tiles one size.
-  `stripLayout` (`entities/table/lib`), a pure function apart from `boardGeometry`, places an opponent's melds from what
-  the strip holds and the rooms the geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths,
-  with each side strip's depth as drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the
-  viewport's solve. The own row's melds scale in their container (`ownMeldStyle`'s counts).
+  each tile's SVG unturned) from the area's corner where its hand starts. Every seat keeps its melds in one line to its owner's right,
+  oldest at the far end; side melds never wrap into parallel columns. `stripLayout` scales all melds
+  together to fit, using their actual footprints to clear the geometry's reserved badge, switches
+  and own row. `stripLayout` (`entities/table/lib`) stays separate from
+  `boardGeometry`; the directive writes its placements as `--<seat>-meld-<n>-*` lengths and each
+  side strip's drawn depth as `--left-depth` / `--right-depth`. Contents never enter the viewport's solve. The own row's melds scale in their container (`ownMeldStyle`'s counts).
 - **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a
   top or bottom one runs its third row on); it stays in the core's pinwheel, absolutely placed, its area a normal

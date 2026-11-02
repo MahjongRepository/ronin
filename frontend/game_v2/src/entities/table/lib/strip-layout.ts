@@ -1,10 +1,4 @@
-import {
-    FACE_FLOOR,
-    OPPONENT_DRAWN_GAP,
-    STRIP_LINES_GAP,
-    TILE_UNITS,
-    UPRIGHT_DEPTH,
-} from "./board-constants";
+import { FACE_FLOOR, OPPONENT_DRAWN_GAP, TILE_UNITS, UPRIGHT_DEPTH } from "./board-constants";
 
 /** An opponent's strip seat: the own row is the hand's slot, its melds scaled by their container. */
 type StripSeat = "left" | "top" | "right";
@@ -22,16 +16,18 @@ interface StripContent {
     readonly melds: readonly MeldShape[];
 }
 
-/**
- * A side strip's room along its line from its anchor (px): its first line's for a meld a tile's height deep and for a
- * stacked one (the left strip's shallower meld runs on past switches and an own row clear of its depth); its second
- * line's; and where that line ends, toward the seat's right.
- */
+/** A reserved control or hand in strip coordinates, extending inward from `depth`. */
+interface StripObstacle {
+    readonly from: number;
+    readonly to: number;
+    readonly depth: number;
+}
+
+/** A side strip's length limits and the nearby controls its melds must clear. */
 interface SideStripRoom {
     readonly line: number;
     readonly deepLine: number;
-    readonly secondLine: number;
-    readonly secondAt: number;
+    readonly obstacles: readonly StripObstacle[];
 }
 
 /**
@@ -71,8 +67,14 @@ interface StripLayout {
     readonly pull: number;
 }
 
-/** A meld deeper than this, in its tiles' widths, takes its side strip's stacked room. */
+/** A meld deeper than this many river-tile widths takes its side strip's stacked room. */
 const SHALLOW_DEPTH = 1.5;
+const LAYOUT_EPSILON = 0.001;
+
+interface LaidMeld extends MeldPlace {
+    readonly end: number;
+    readonly depth: number;
+}
 
 function sum(values: readonly number[]): number {
     return values.reduce((total, value) => total + value, 0);
@@ -93,53 +95,100 @@ function handLength(tiles: number, drawn: boolean, rw: number): number {
     return tiles * rw + Math.max(0, tiles - 1) * hairline(rw) + (drawn ? drawnGap(rw) : 0);
 }
 
-/**
- * A side strip: the melds that fit its first line beside the hand, each within the room its own depth has, move
- * together to its far end as far as the tightest allows; from the first that does not fit, the oldest go to a second
- * line toward the table, scaled to fit beside the badge (never under the face floor) and aligned at its far end.
- */
-function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
-    const { gap, rw } = rooms;
-    const { line, deepLine, secondLine, secondAt } = rooms[seat];
-    const units = content.melds.map((meld) => meld.units);
-    const lineRooms = content.melds.map((meld) => (meld.depth < SHALLOW_DEPTH ? line : deepLine));
-    const count = units.length;
-    const handLen = handLength(content.hand, content.drawn, rw);
-    function before(index: number): number {
-        return sum(units.slice(0, index));
+interface MeldLine {
+    readonly tile: number;
+    readonly gap: number;
+}
+
+interface SideFit extends MeldLine {
+    readonly rw: number;
+    readonly handEnd: number;
+}
+
+function placeSideMelds(
+    shapes: readonly MeldShape[],
+    { tile, gap }: MeldLine,
+    end: number,
+): readonly LaidMeld[] {
+    return shapes.map((meld, index) => {
+        const remaining = shapes.slice(index);
+        const along =
+            end - sum(remaining.map((shape) => shape.units)) * tile - (remaining.length - 1) * gap;
+        return {
+            along,
+            depth: meld.depth * tile,
+            end: along + meld.units * tile,
+            rise: 0,
+            tile,
+        };
+    });
+}
+
+function fitSideMelds(
+    shapes: readonly MeldShape[],
+    room: SideStripRoom,
+    fit: SideFit,
+): StripLayout | null {
+    const { handEnd, gap, rw } = fit;
+    const offsets = placeSideMelds(shapes, fit, 0);
+    const endLimits = offsets.map((meld) => {
+        const limit = meld.depth < SHALLOW_DEPTH * rw ? room.line : room.deepLine;
+        return limit - meld.end;
+    });
+    let end = Math.min(...endLimits);
+    const minimumEnd = Math.max(...offsets.map((meld) => handEnd + gap - meld.along));
+    while (end + LAYOUT_EPSILON >= minimumEnd) {
+        const melds = placeSideMelds(shapes, fit, end);
+        let shift = 0;
+        for (const meld of melds) {
+            for (const obstacle of room.obstacles) {
+                if (
+                    meld.depth > obstacle.depth + LAYOUT_EPSILON &&
+                    meld.along < obstacle.to - LAYOUT_EPSILON &&
+                    meld.end > obstacle.from + LAYOUT_EPSILON
+                ) {
+                    shift = Math.max(shift, meld.end - obstacle.from);
+                }
+            }
+        }
+        if (shift === 0) {
+            return {
+                depth: Math.max(UPRIGHT_DEPTH * rw, ...melds.map((meld) => meld.depth)),
+                melds,
+                pull: 0,
+            };
+        }
+        end -= shift;
     }
-    const ends = units.map((_unit, index) => handLen + (index + 1) * gap + before(index + 1) * rw);
-    const firstOver = ends.findIndex((end, index) => end > (lineRooms[index] ?? line));
-    const wrapped = firstOver === -1 ? count : firstOver;
-    const slack = ends.slice(0, wrapped).map((end, index) => (lineRooms[index] ?? line) - end);
-    const shift = Math.max(0, Math.min(...slack));
-    const secondUnits = Math.max(1, sum(units.slice(wrapped)));
-    const secondRoom = secondLine - (count - wrapped - 1) * gap;
-    const tile = Math.max(FACE_FLOOR, Math.min(secondRoom / secondUnits, rw));
-    const secondStart = before(wrapped) * tile + wrapped * gap;
-    const secondLen = sum(units) * tile + count * gap - secondStart - gap;
-    const base = secondAt - secondLen;
-    const firstLine =
-        Math.max(UPRIGHT_DEPTH, ...content.melds.slice(0, wrapped).map((meld) => meld.depth)) * rw;
-    const melds = units.map((_unit, index) =>
-        index < wrapped
-            ? { along: handLen + (index + 1) * gap + before(index) * rw + shift, rise: 0, tile: rw }
-            : {
-                  along: base + before(index) * tile + index * gap - secondStart,
-                  rise: firstLine + STRIP_LINES_GAP,
-                  tile,
-              },
+    return null;
+}
+
+function getTileCandidates(rw: number): readonly number[] {
+    const largest = Math.max(FACE_FLOOR, rw);
+    return Array.from({ length: Math.ceil(largest - FACE_FLOOR) + 1 }, (_value, step) =>
+        Math.max(FACE_FLOOR, largest - step),
     );
-    const secondDepth = Math.max(
-        0,
-        ...content.melds.slice(wrapped).map((meld) => meld.depth * tile),
-    );
-    const over = wrapped < count;
-    return {
-        depth: over ? firstLine + STRIP_LINES_GAP + secondDepth : firstLine,
-        melds,
-        pull: 0,
-    };
+}
+
+/** Side melds form one line toward their owner's right, oldest at the end, at one fitting size. */
+function sideLayout(seat: "left" | "right", content: StripContent, rooms: StripRooms): StripLayout {
+    const { rw } = rooms;
+    if (content.melds.length === 0) {
+        return { depth: UPRIGHT_DEPTH * rw, melds: [], pull: 0 };
+    }
+    const handEnd = handLength(content.hand, content.drawn, rw);
+    for (const tile of getTileCandidates(rw)) {
+        const layout = fitSideMelds(content.melds, rooms[seat], {
+            gap: rooms.gap,
+            handEnd,
+            rw,
+            tile,
+        });
+        if (layout) {
+            return layout;
+        }
+    }
+    throw new RangeError(`The ${seat} melds do not fit their strip at the face floor`);
 }
 
 /**
@@ -216,5 +265,6 @@ export type {
     StripLayout,
     StripRooms,
     StripSeat,
+    StripObstacle,
     TopStripRoom,
 };
