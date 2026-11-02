@@ -87,8 +87,8 @@ they disagree.
   goes under 13px wide; scaled text keeps a 10px
   floor (a safety limit, not a design size).
 - A round result fits its panel whole at every supported size; only on a board too small for it does it scroll its
-  yaku, value, indicators and score rows in place, keeping its head and the viewer's controls whole, every part that
-  shares a row with a scroller scrolling too.
+  yaku, value, indicators and score rows in place, keeping its head and the viewer's controls whole, every other part
+  that shares a row with a scroller scrolling too.
 - Pages never clip the board: `.board-page` gives it the safe area, and a 10px gutter on every board but a phone's.
   No tile's edge leaves the board: the own row stands at least its edge's depth off the bottom.
 - **The gutter follows the family, decided once.** The board's box without the gutter, less on each edge what a

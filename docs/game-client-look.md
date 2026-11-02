@@ -442,9 +442,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Panels.** Round results, the seating before the first deal and at the game's end, and the leave question use
   a legible overlay area over the board and dim it beneath; each has the size its content needs, not
   the core's, covering whatever of the board's middle it needs (the rivers, the centre, a call's
-  announcement). At every supported size every panel fits whole; only a board too small to hold it
-  scrolls it inside its area, first a result's yaku, value, indicators and score rows in place,
-  then the panel itself, its primary button and countdown kept in view. A panel may cover the page
+  announcement). At the primary sizes every panel, a round result included, fits whole; a board too
+  small to hold it (a best-effort narrow window at most) scrolls it inside its area, first a result's
+  yaku, value, indicators and score rows in place, then the panel itself, its primary button and
+  countdown kept in view. A panel may cover the page
   corner, which reserves no room; the leave question is modal: it says that an AI takes the seat over
   and makes staying the clear default. The seating shows the game's length and first round, every seat's
   wind and player, the dealer, AI players, the viewer, and the start countdown or that it waits; a replay opens on it

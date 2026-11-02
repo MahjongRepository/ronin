@@ -29,8 +29,6 @@ export interface BoardMeasure {
         readonly box: Box;
         readonly scroll: Size;
         readonly client: Size;
-        /** A round result's panel, which may scroll its parts in place (`checkResultPanel`); any other panel fits. */
-        readonly result: boolean;
     } | null;
     readonly tiles: readonly Box[];
     readonly hiddenTiles: number;
@@ -304,7 +302,6 @@ export function measureBoard(page: Page): Promise<BoardMeasure> {
                     : {
                           box: box(overlay),
                           client: { height: overlay.clientHeight, width: overlay.clientWidth },
-                          result: overlay.querySelector(":scope > .round-end-result") !== null,
                           scroll: { height: overlay.scrollHeight, width: overlay.scrollWidth },
                       },
             riverTiles: bySeat(board, ".board-river .tile", ".board-river"),

@@ -94,6 +94,10 @@ $overlay-chrome: 3rem;
         overflow-y: auto;
     }
 
+    > .round-end-result__indicators {
+        overflow-x: hidden;
+    }
+
     > :is(.round-end-result__yaku, .round-end-result__indicators) {
         min-height: calc(1lh + 2 * #{$scroller-room});
     }

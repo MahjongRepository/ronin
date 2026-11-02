@@ -332,7 +332,7 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
     if (viewport.supported) {
         report.expect(
             overlay.scroll.width <= overlay.client.width + EPSILON &&
-                (overlay.result || overlay.scroll.height <= overlay.client.height + EPSILON),
+                overlay.scroll.height <= overlay.client.height + EPSILON,
             `the overlay panel's content overflows it: ${describeSize(overlay.scroll)} > ${describeSize(overlay.client)}`,
         );
     }
@@ -363,11 +363,11 @@ async function checkUprightNotices(page: Page, panel: Box, report: PageReport): 
     );
 }
 
-/** What a round result's panel shows at one end of its scroll. */
+/** What a round result's panel shows. */
 interface ResultPanelView {
     /** The panel's visible area, inside its border. */
     readonly shown: Box;
-    /** The primary button and its countdown, which stay in view at either end. */
+    /** The primary button and its countdown, which stay in view. */
     readonly kept: readonly { readonly name: string; readonly box: Box }[];
     readonly pager: readonly Box[];
     /** The winner's hand row, or a draw's tenpai hands and a nagashi's river: what the result is about, never cut. */
@@ -383,17 +383,16 @@ interface ResultScroller {
     readonly client: number;
 }
 
-/** A round result's panel at the start and the end of its scroll, restored to its start after. */
+/** A round result's panel as it stands: what it holds against what it shows, and what it shows. */
 interface ResultPanelMeasure {
     readonly scroll: Size;
     readonly client: Size;
     readonly scrollers: readonly ResultScroller[];
-    readonly start: ResultPanelView;
-    readonly end: ResultPanelView;
+    readonly view: ResultPanelView;
 }
 
 function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
-    return page.evaluate(async () => {
+    return page.evaluate(() => {
         const panel = document.querySelector(".board-overlay__panel:has(> .round-end-result)");
         if (!(panel instanceof HTMLElement)) {
             return null;
@@ -439,12 +438,6 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 },
             };
         }
-        // eslint-disable-next-line unicorn/consistent-function-scoping -- runs in the page, outside the script's scope
-        function nextFrame(): Promise<void> {
-            return new Promise((done) => {
-                requestAnimationFrame(() => done());
-            });
-        }
         const scrollers = [...panel.querySelectorAll(".round-end-result > *")]
             .filter((part) => part.scrollHeight > part.clientHeight + 1)
             .map((part) => ({
@@ -452,20 +445,11 @@ function measureResultPanel(page: Page): Promise<ResultPanelMeasure | null> {
                 name: part.className.split(" ")[0] ?? "",
                 scroll: part.scrollHeight,
             }));
-        panel.scrollTo({ behavior: "instant", top: 0 });
-        await nextFrame();
-        const start = view(panel);
-        panel.scrollTo({ behavior: "instant", top: panel.scrollHeight });
-        await nextFrame();
-        const end = view(panel);
-        panel.scrollTo({ behavior: "instant", top: 0 });
-        await nextFrame();
         return {
             client: { height: panel.clientHeight, width: panel.clientWidth },
-            end,
             scroll: { height: panel.scrollHeight, width: panel.scrollWidth },
             scrollers,
-            start,
+            view: view(panel),
         };
     });
 }
@@ -486,32 +470,24 @@ function checkResultPanel(panel: ResultPanelMeasure | null, report: PageReport):
         !panelOverflows && scrollers.length === 0,
         `a result does not fit its panel: ${held}`,
     );
-    const ends = [
-        ["start", panel.start],
-        ["end", panel.end],
-    ] as const;
-    for (const [end, view] of ends) {
-        const hidden = view.kept.filter(({ box }) => !contains(view.shown, box));
-        report.expect(
-            hidden.length === 0,
-            `at the scroll's ${end}, the result's ${hidden.map(({ name }) => name).join(", ")} leave(s) its panel's view`,
-        );
-    }
-    const hiddenPager = panel.start.pager.filter((button) => !contains(panel.start.shown, button));
+    const { view } = panel;
+    const hidden = view.kept.filter(({ box }) => !contains(view.shown, box));
+    report.expect(
+        hidden.length === 0,
+        `the result's ${hidden.map(({ name }) => name).join(", ")} leave(s) its panel's view`,
+    );
+    const hiddenPager = view.pager.filter((button) => !contains(view.shown, button));
     report.expect(
         hiddenPager.length === 0,
         `the winner pager leaves the result panel's view: ${hiddenPager.map(describeBox).join(", ")}`,
     );
-    const clipped = panel.start.hands.filter(
+    const clipped = view.hands.filter(
         ({ box, cut }) =>
-            cut ||
-            (!panelOverflows &&
-                (!contains(panel.start.shown, box) ||
-                    panel.start.parts.some((part) => intersects(part, box)))),
+            cut || !contains(view.shown, box) || view.parts.some((part) => intersects(part, box)),
     );
     report.expect(
         clipped.length === 0,
-        `the result's hand row is clipped at the scroll's start: ${clipped.map(({ box }) => describeBox(box)).join(", ")}`,
+        `the result's hand row is clipped: ${clipped.map(({ box }) => describeBox(box)).join(", ")}`,
     );
 }
 
