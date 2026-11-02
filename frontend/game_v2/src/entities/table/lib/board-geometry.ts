@@ -64,9 +64,8 @@ interface BoardEdges {
     readonly left: number;
 }
 
-/** The slots the board's page fills: the page's corner, and whose controls hold the band (live play's or a replay's). */
+/** The slots the board's page fills: whose controls hold the band (live play's or a replay's). */
 interface BoardSlots {
-    readonly corner: boolean;
     readonly band: "play" | "replay";
 }
 

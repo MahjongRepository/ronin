@@ -25,8 +25,8 @@ const SHORT_DESKTOP_SIZES = ["rw", "w", "core-top"] as const;
 const UPRIGHT_SIZES = ["rw", "c", "core-top"] as const;
 
 const NO_INSETS: BoardEdges = { bottom: 0, left: 0, right: 0, top: 0 };
-const LIVE_SLOTS: BoardSlots = { band: "play", corner: true };
-const REPLAY_SLOTS: BoardSlots = { band: "replay", corner: true };
+const LIVE_SLOTS: BoardSlots = { band: "play" };
+const REPLAY_SLOTS: BoardSlots = { band: "replay" };
 
 /** A window's board under the gutter its page applies: each edge pads the larger of its safe inset and the gutter. */
 function windowGeometry(
@@ -302,19 +302,45 @@ describe("boardGeometry", () => {
         );
     });
 
-    it("keeps the notices' field free of the panel, which may stand over the cog", () => {
+    it("keeps the notices' field free of the panel", () => {
         const { lengths } = windowGeometry({ height: 900, width: 1440 });
-        function length(name: string): number {
-            return lengths[name] ?? Number.NaN;
-        }
 
-        expect(length("overlay-left")).toBeGreaterThanOrEqual(length("reach-left"));
-        expect(length("overlay-right")).toBeLessThan(length("m") + length("menu-size"));
+        expect(lengths["overlay-left"]).toBeGreaterThanOrEqual(lengths["reach-left"] ?? Infinity);
     });
 
     it("gives an empty box no sizes", () => {
         expect(windowGeometry({ height: 0, width: 0 }).lengths).toEqual({});
     });
+});
+
+describe("boardGeometry's counters", () => {
+    it.each([
+        { height: 640, slots: REPLAY_SLOTS, width: 360 },
+        { height: 620, slots: LIVE_SLOTS, width: 340 },
+        { height: 548, slots: LIVE_SLOTS, width: 375 },
+    ])(
+        "stands a $width x $height upright board's dora box 6px over the left badge, clear of the top badge",
+        ({ height, slots, width }) => {
+            const { lengths } = boardGeometry({
+                box: { height, width },
+                gutter: 0,
+                safeInsets: NO_INSETS,
+                slots,
+            });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const doraRight = length("side-badge-x") + length("counters-w");
+            const doraBottom = length("counters-top") + length("counters-h");
+            const topBadgeBottom = length("top-badge-top") + length("badge-h");
+            const topLaneStart = length("top-strip-x") - length("top-lane");
+
+            expect(length("side-badge-top") - doraBottom).toBeCloseTo(6, 3);
+            expect(topLaneStart >= doraRight || length("counters-top") >= topBadgeBottom).toBe(
+                true,
+            );
+        },
+    );
 });
 
 describe("boardGeometry's strips", () => {

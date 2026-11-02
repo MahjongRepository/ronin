@@ -23,13 +23,13 @@ they disagree.
   The core's pinwheel (centre, rivers), the badges and the counters stand absolutely over the grid, and so do the
   replay's moves in the switches' place (from the band end, by the geometry's lengths) and its status over a
   smaller board's panel.
-- **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (the corner,
-  live play's or a replay's band) and the family's places; the overlay centres the panel on the board within its
-  `--geo-overlay-*` insets, live and replay alike, over the cog where they reach it. The cog reserves no room: strips,
-  hands and badges run to the board's edges under it, and it stands over them by its layer. The notices' field is
-  reserved whether a notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays
-  `--board-unit`, from that box's width and the board's height: one from `--rw` would draw a phone's result at 17px
-  tiles where its box holds 32px, an upright one's at 11px.
+- **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (live play's or
+  a replay's band) and the family's places; the overlay centres the panel on the board within its `--geo-overlay-*`
+  insets, live and replay alike, over the cog where they reach it. The cog reserves no room: strips, hands and badges
+  run to the board's edges under it, and it stands over them by its layer. The notices' field is reserved whether a
+  notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
+  that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
+  32px, an upright one's at 11px.
 - **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
   maps those the styles read onto the lengths' own names on `.board-layout` and `.board-overlay`, inside `:where()` so
   it keeps (0,2,0); a name a family does not emit stays unset on its board, where nothing reads it. No CSS solve

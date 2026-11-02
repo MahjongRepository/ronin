@@ -453,7 +453,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         <div
             class="${boardClass}"
             ${sizeBoard(
-                { band: props.replay ? "replay" : "play", corner: props.menu !== undefined },
+                { band: props.replay ? "replay" : "play" },
                 {
                     left: stripContent(seatPlayer(state, "left")),
                     right: stripContent(seatPlayer(state, "right")),

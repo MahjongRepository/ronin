@@ -72,7 +72,7 @@ class SizeBoard extends AsyncDirective {
         if (part.element instanceof HTMLElement) {
             this.board = part.element;
         }
-        const moved = this.slots?.corner !== slots.corner || this.slots.band !== slots.band;
+        const moved = this.slots?.band !== slots.band;
         const changed = JSON.stringify(this.strips) !== JSON.stringify(strips);
         this.slots = slots;
         this.strips = strips;
