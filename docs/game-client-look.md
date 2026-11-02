@@ -295,16 +295,17 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   win since it ends the hand, with playing on as the alternative; calls, kan and riichi come next;
   pass is subordinate and never the most prominent thing on screen; several equally valid actions
   are presented as equals. Decision: a win is larger and ringed; on a phone it takes a row of its
-  own above the calls. The controls show exactly the offer the server made and vanish when it
-  resolves; an offer a play switch answers shows only as submitted, or not at all where the switch
-  passes it (No calls). Decision: a call with a choice of tiles (which chi, which tile to kan) is
+  own above the calls. The controls show exactly the offer the server made and vanish as soon as
+  the player or a play switch answers it. Pass dismisses them silently; a declaration immediately
+  shows its callout and plays its voice, while the table waits for the server to resolve the action.
+  Decision: a call with a choice of tiles (which chi, which tile to kan) is
   taken in two steps, the call, then the tiles, with a way to go back, and an illegal combination is
   never selectable; the first step shows one control per kind, and at the second the choices are the
   controls, in the controls' place, each a tile group drawn as the meld will lie (the called tile
   turned toward its feeder, a closed kan's ends face down, an added kan's added tile stacked), with
   Back in the place of Pass. Riichi is a toggle that marks the discards that declare it on the hand
-  and recesses the rest; it can be untoggled until the discard is sent, not after. A submitted
-  answer and an expired decision each look different from an open one; expiry is the client's
+  and recesses the rest; it can be untoggled until the discard is sent, not after. An expired
+  decision stays visible and looks different from an open one; expiry is the client's
   estimate, and the server's resulting move (a timeout's discard or pass) is shown when it arrives.
   After a reconnect the open decision resumes with its remaining time, never a fresh one, and no
   stale selection survives. Decision: on a desktop the controls and the timer after them stand in
@@ -340,7 +341,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Timer.** The countdown beside the decision controls as large digits, the base time and the bank
   apart (`5 +20`), the bank marked while it alone is draining, so a player always knows which time
   is being spent. Decision: a slot of fixed size and place, a caption line over the digits (time up,
-  sent, bank), so expiry, submission and the bank never move it or the controls. It is the viewer's
+  bank), so expiry and the bank never move it or the controls. Answering dismisses the timer with
+  the controls; there is no submitted caption or checkmark. It is the viewer's
   own: it shows for the viewer's open decision and round confirm only; the server sends no other
   seat's time, and none is drawn.
 - **Turn cue.** One primary cue for the seat in turn, Tenhou's green bar along its side of the
@@ -392,7 +394,10 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Callouts.** Decision: a call, a riichi, a kan, a kyuushu kyuuhai declaration and a win show as
   one word on a borderless chip over the caller's own river, upright, three river rows' worth of type,
   a win's word in its own colour, covering no decision control and no face of the own hand; it may
-  cover an action source for its moment (decision: size over a clear source). A double or triple ron
+  cover an action source for its moment (decision: size over a clear source). A local declaration
+  appears on selection, without moving tiles or changing scores. A matching server confirmation
+  does not repeat a lone callout or its voice, even after its popup expires. Another player's winning
+  call replaces it when the server resolves priority. A double or triple ron
   shows every claimant's at once. It shows for three seconds and fades out last: in live play until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
   on through its round, gone on stepping back past it or into another round. Candidate: a move may be animated briefly (a discard travels from hand
@@ -409,7 +414,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   board has no way back of its own; the upright phone's rotate panel keeps
   one, which asks the leave question, and an end's panel offers the lobby.
 - **Sound.** The live game plays the v1 client's sounds: a discard's click, each call's voice as its callout first
-  shows, the gong with a yakuman win's voice, and a beep for each of the last five seconds of a decision that runs
+  shows, the gong when the server confirms a yakuman result, and a beep for each of the last five
+  seconds of a decision that runs
   longer than five. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser
   plays no sound before a click, tap or key on the page, and a wheel is none, so with the sound on a replay always

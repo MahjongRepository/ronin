@@ -264,7 +264,6 @@ interface StoryOffer {
 
 function storyControl({ command, label, pressed, rank, tiles }: StoryOffer): DecisionAction {
     return {
-        chosen: false,
         command,
         group: null,
         label,

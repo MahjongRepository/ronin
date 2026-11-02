@@ -11,7 +11,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 - A decision opens only from a message with a wait id for the viewer's seat, while a round plays; an opening anywhere
   else is a `DesyncError`. It offers exactly what the server listed; the client judges only the discard rule
   (kuikae, riichi's drawn tile). The intent gate (`takesIntent`) is the one test of what may be played, so the board
-  offers exactly what stepping the intent would send.
+  offers exactly what stepping the intent would send. Once answered, its controls and timer disappear;
+  the internal submitted state still prevents a second answer.
 - Deadlines are display only: the client estimates the server's timer in logical time (re-sent waits backdated by
   their elapsed time) and never answers, confirms or arms a timer on expiry. An expired decision still takes one
   answer; the server decides by wait id whether it counts.
@@ -43,8 +44,11 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 
 ## Calls and the live board
 
-- A kan is called once, when the table first shows it. Calls end on a deal or a snapshot that left the hand, never on
-  a move that calls nothing or the game's end.
+- A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
+  table. The submitted decision identifies its server echo even after the callout expires, so confirmation never
+  repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all
+  winners. A kan's declaration and completion announce it only once. Calls end on a deal or a snapshot that left
+  the hand, never on a move that calls nothing or the game's end. The yakuman gong waits for the server's result.
 - `playDisplay` maps the whole client state for the live board and never restates what may be played: every tile
   intent and button is one the intent gate takes. `PlayBoard` only renders it; its view state is `PlayUi`, whose
   per-decision parts are keyed by wait id so a newer decision never inherits them. `PlayUi` moves only through

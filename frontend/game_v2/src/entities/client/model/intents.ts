@@ -2,7 +2,8 @@ import { hasEnded, holdsSeat } from "@/entities/session";
 import { type PlayerState } from "@/entities/table";
 import { type ClientMessage } from "@/shared/protocol";
 
-import { answerDecision, offerAnswer } from "./decision";
+import { declareIntent } from "./calls";
+import { answerDecision } from "./decision";
 import { decisionOf, replaceDecision } from "./pending";
 import { switchAnswer, unseenWait } from "./play-switches";
 import { confirmStep, reopenResultStep } from "./round-confirm";
@@ -34,19 +35,6 @@ function decisionAnswer(state: LiveClient, intent: DecisionIntent): ClientMessag
         return null;
     }
     return answerDecision(decision, intent, viewerOf(state));
-}
-
-/**
- * Whether the decision the seat owes offers `intent`, open or answered: what the dispatcher takes from it until it is
- * answered, and once answered, the controls it was answered from, which never move while the server answers.
- */
-export function offersIntent(state: LiveClient, intent: DecisionIntent): boolean {
-    const decision = decisionOf(state);
-    return (
-        decision !== null &&
-        canAnswer(state) &&
-        offerAnswer(decision, intent, viewerOf(state)) !== null
-    );
 }
 
 /** Whether the player may turn a play switch on or off now: on a live seat while a round plays. */
@@ -89,7 +77,10 @@ export function decisionIntentStep(
     const status = { at: state.now, bySwitch, intent, kind: "submitted" } as const;
     return {
         effects: [{ message, type: "send" }],
-        state: replaceDecision(state, { ...decision, status }),
+        state: replaceDecision(
+            { ...state, calls: declareIntent(state, intent, bySwitch) },
+            { ...decision, status },
+        ),
     };
 }
 

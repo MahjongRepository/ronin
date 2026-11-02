@@ -336,12 +336,7 @@ describe("playDisplay decisions", () => {
             },
         ]);
         expect(sent.effects).toEqual([{ message: buildChiAction(8, [4, 12], 1), type: "send" }]);
-        expect(playDisplay(sent.state, choosing).actions.map((action) => action.chosen)).toEqual([
-            true,
-            false,
-            false,
-            false,
-        ]);
+        expect(playDisplay(sent.state, choosing).actions).toEqual([]);
     });
 
     it("goes back from a call's choice of tiles by Back, Escape or the call pressed again, and never into a newer wait's", () => {
@@ -410,9 +405,8 @@ describe("playDisplay decisions", () => {
         ]);
     });
 
-    it("keeps an answered call's controls in place, inert, marking the one that sent the answer", () => {
+    it("dismisses a passed call without changing the table or announcing a call", () => {
         const state = checkpointState("anchor_seat_1", "call offer");
-        const open = playDisplay(state, NO_PLAY_UI);
         const passed = stepGameClient(state, {
             at: state.now,
             intent: { type: "pass" },
@@ -420,16 +414,10 @@ describe("playDisplay decisions", () => {
         }).state;
         const sent = playDisplay(passed, NO_PLAY_UI);
 
-        expect(sent.actions.map((action) => [action.label, action.chosen])).toEqual([
-            ["Pon", false],
-            ["Pass", true],
-        ]);
-        expect(sent.actions.map((action) => ({ ...action, chosen: false }))).toEqual(open.actions);
-        expect([sent.decisionStanding, sent.countdown, sent.escape]).toEqual([
-            "submitted",
-            null,
-            null,
-        ]);
+        expect(sent.actions).toEqual([]);
+        expect([sent.decisionStanding, sent.countdown, sent.escape]).toEqual([null, null, null]);
+        expect(passed.table).toBe(state.table);
+        expect(passed.calls).toBe(state.calls);
         expect(stepPlayUi(passed, NO_PLAY_UI, CHOOSE_CHI)).toEqual(NO_PLAY_UI);
     });
 

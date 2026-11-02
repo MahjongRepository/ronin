@@ -909,13 +909,15 @@ describe("mountGameView choice of tiles", () => {
         expect(labelsAfter(host, () => {})).toEqual(["Chi 2m 4m", "Chi 1m 2m", "Chi", "Back"]);
     });
 
-    it("names the control that sent the answer once it is sent", () => {
-        const { connections, host } = mountWithFakes();
+    it("dismisses the controls silently once Pass is pressed", () => {
+        const { connections, host, sound } = mountWithFakes();
         openCallPrompt(connections[0]);
+        const played = [...sound.played];
 
         const sent = labelsAfter(host, () => press(host, ".decision-controls__action--pass"));
 
-        expect(sent).toEqual(["Kan 3m", "Pon 3m", "Chi", "Pass (sent)"]);
+        expect(sent).toEqual([]);
+        expect(sound.played).toEqual(played);
     });
 });
 
@@ -972,14 +974,18 @@ describe("mountGameView board", () => {
     });
 
     it("opens a chi's choice of tiles on Chi, sending nothing, goes back on Escape, and sends the chosen chi once", () => {
-        const { connections, host } = mountWithFakes();
+        const { connections, host, sound } = mountWithFakes();
         openCallPrompt(connections[0]);
 
         const choosing = labelsAfter(host, () => press(host, FIRST_STEP_CALL));
         const back = labelsAfter(host, () => pressKey(host, ".board-local .hand-tile", "Escape"));
         press(host, FIRST_STEP_CALL);
         press(host, ".decision-controls__action--choice");
-        press(host, ".decision-controls__action--choice");
+        expect(host.querySelector(".decision-controls")).toBeNull();
+        expect([
+            host.querySelector(".board-callout--bottom .board-callout__word")?.textContent,
+            sound.played.filter((cue) => cue === "chi"),
+        ]).toEqual(["Chi", ["chi"]]);
 
         expect([choosing, back]).toEqual([
             ["Chi 2m 4m", "Chi 1m 2m", "Chi", "Back"],

@@ -43,8 +43,7 @@ import {
 /** The least room between a decision control and any tile outside the controls, so a tap meant for one never lands on the other. */
 const MIN_CONTROL_TILE_GAP = 4;
 /**
- * A decision story and the stories of the same decision answered and expired, whose controls and timer must stand
- * where the open one's stand: answering or running out never moves them.
+ * A decision story and its expired state, whose controls and timer stay where the open one's stand.
  */
 const CONTROL_FAMILIES: readonly string[] = ["decisions-anchor-call"];
 /**
@@ -170,8 +169,12 @@ const PAGES: readonly PageCase[] = [
         contrast: true,
     },
     {
-        ...decisionCase("anchor_call_sent", [`${ACTION}--chosen`, ".decision-timer--sent"]),
+        ...decisionCase("anchor_call_passed", []),
         at: [FLOOR, MID_DESKTOP],
+        prepare: async (page) => {
+            await page.waitForSelector(".game-board");
+            await page.waitForSelector(".decision-controls", { state: "detached" });
+        },
     },
     {
         ...decisionCase("anchor_call_expired", [ACTION, ".decision-timer--time-up"]),
@@ -179,6 +182,14 @@ const PAGES: readonly PageCase[] = [
     },
     decisionCase("call_prompt", [ACTION, ".decision-controls__countdown"]),
     decisionCase("chi_choice", [`${ACTION}--choice .meld-tile-sideways`, `${ACTION}--pass`]),
+    {
+        ...decisionCase("anchor_pon_declared", [".board-callout--bottom.board-callout--pon"]),
+        at: [FLOOR, MID_DESKTOP],
+        prepare: async (page) => {
+            await page.waitForSelector(".game-board");
+            await page.waitForSelector(".decision-controls", { state: "detached" });
+        },
+    },
     decisionCase("kan_offer", [`${ACTION}[aria-pressed="false"]`, ".decision-controls__countdown"]),
     {
         ...decisionCase("kan_choice", [`${ACTION}--choice .tile-back`, `${ACTION}--pass`]),
@@ -200,7 +211,7 @@ const PAGES: readonly PageCase[] = [
         contrast: true,
         prepare: checkSwitchKeys,
     },
-    decisionCase("answered", [".hand-tile--selected"]),
+    decisionCase("discard_pending", [".hand-tile--selected"]),
     decisionCase("kyuushu_offer", [
         `${ACTION}[aria-label="Kyuushu"]`,
         ".decision-controls__countdown",
@@ -407,14 +418,14 @@ async function checkGame(run: PageRun, checkLiveBoard: () => Promise<string>): P
 }
 
 /**
- * A decision's controls and timer stand where they stood while it was open once it is answered or has run out
+ * A decision's controls and timer stand where they stood while it was open once it has run out
  * (`CONTROL_FAMILIES`), at each viewport.
  */
 function checkControlPlaces(results: readonly TaskResult[]): string[] {
     return CONTROL_FAMILIES.flatMap((family) => {
         const members = results.flatMap(({ page, report, viewport }) => {
             const places = CONTROL_PLACES.read(report);
-            return (page === family || page.startsWith(`${family}-`)) && places !== undefined
+            return (page === family || page === `${family}-expired`) && places !== undefined
                 ? [{ page, places, viewport }]
                 : [];
         });

@@ -26,6 +26,7 @@ import {
     roundConfirmOf,
     runSeatScenario,
     scenarioStateIndex,
+    soundCues,
     stepGameClient,
     takesIntent,
     timelineStates,
@@ -180,6 +181,9 @@ describe("switchAnswer", () => {
         const run = runClean(switched);
 
         expect(bySwitch(stateAt(switched, run, "chankan prompt"))).toBe("auto_win");
+        const states = timelineStates(run.timeline);
+        const index = scenarioStateIndex(switched, "chankan prompt");
+        expect(soundCues(states[index - 1], states[index])).toEqual(["kan", "ron"]);
     });
 
     it("No calls passes a prompt of open kan, pon and chi before its controls show", () => {

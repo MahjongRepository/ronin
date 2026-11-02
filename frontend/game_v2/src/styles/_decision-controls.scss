@@ -329,40 +329,6 @@ $pair-gap: 4px;
     }
 }
 
-/* An answered decision keeps its controls where they were, quiet and inert, the one that sent the answer checked. */
-.decision-controls--submitted .decision-controls__action {
-    &,
-    &:is(:hover, :active, :focus) {
-        border-color: var(--ronin-border-mark);
-        background-color: transparent;
-        box-shadow: none;
-        color: var(--ronin-text-secondary);
-        cursor: default;
-    }
-
-    &.decision-controls__action--chosen {
-        border-color: var(--ronin-text);
-        box-shadow: inset 0 0 0 1px var(--ronin-text);
-        color: var(--ronin-text);
-
-        &::after {
-            content: "✓";
-            position: absolute;
-            top: 3px;
-            right: 3px;
-            display: grid;
-            place-items: center;
-            width: 1.2em;
-            height: 1.2em;
-            border-radius: 50%;
-            background: var(--ronin-text);
-            color: var(--ronin-surface);
-            font-size: 0.6em;
-            line-height: 1;
-        }
-    }
-}
-
 .decision-controls__tiles,
 .decision-controls__group {
     display: inline-flex;
@@ -456,10 +422,6 @@ $pair-gap: 4px;
 
 .decision-timer--time-up .decision-timer__caption {
     color: var(--ronin-warning);
-}
-
-.decision-timer--sent .decision-timer__caption {
-    color: var(--ronin-text);
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -355,7 +355,7 @@ describe("PlayBoard", () => {
         expect(controls.length).toBeGreaterThan(0);
     });
 
-    it("times a turn as its base and bank apart, marks the bank once it alone drains, and says Sent once answered", () => {
+    it("times a turn as its base and bank apart, marks the bank once it alone drains, and removes the controls and timer once answered", () => {
         const turn = checkpointState("own_turn_seat_1", "rinshan");
         const inBank = stepGameClient(turn, { at: turn.now + 6000, kind: "tick" }).state;
         const discard = {
@@ -370,7 +370,7 @@ describe("PlayBoard", () => {
 
         expect(timer(renderPlay(turn))).toEqual(["", "5+30", false]);
         expect(timer(renderPlay(inBank))).toEqual(["Bank", "0+29", true]);
-        expect(timer(renderPlay(sent))).toEqual(["Sent", "", false]);
+        expect(renderPlay(sent).querySelector(".decision-controls")).toBeNull();
     });
 });
 

@@ -8,10 +8,7 @@ import {
     expiryNote,
     moveName,
 } from "@/entities/client/model/countdown-text";
-import {
-    type DecisionAction,
-    type DecisionStanding,
-} from "@/entities/client/model/decision-controls";
+import { type DecisionAction } from "@/entities/client/model/decision-controls";
 import {
     type PlayDisplay,
     type PlayPanel,
@@ -55,14 +52,7 @@ export interface PlayBoardProps {
     readonly links?: GameEndLinks;
 }
 
-/** What the timer's caption line says over its digits: that time ran out, the answer went, or the bank alone drains. */
-function timerCaption(
-    standing: DecisionStanding | null,
-    countdown: DecisionCountdown | null,
-): string {
-    if (standing === "submitted") {
-        return "Sent";
-    }
+function timerCaption(countdown: DecisionCountdown | null): string {
     if (countdown?.kind === "expired") {
         return "Time up";
     }
@@ -96,13 +86,12 @@ function TimerDigits(countdown: DecisionCountdown | null): TemplateResult | type
 }
 
 /**
- * The timer's slot, fixed in size and place whatever it shows, so running out, answering and the bank never move it
- * or the controls: a caption line over the digits.
+ * The timer's slot, fixed in size and place while the decision is answerable: a caption line over the digits.
  */
 function DecisionTimer(display: DecisionView): TemplateResult {
-    const { countdown, decisionStanding } = display;
-    const caption = timerCaption(decisionStanding, countdown);
-    const digits = decisionStanding === "submitted" ? nothing : TimerDigits(countdown);
+    const { countdown } = display;
+    const caption = timerCaption(countdown);
+    const digits = TimerDigits(countdown);
     return html`<div class="decision-timer ${caption === "" ? "" : `decision-timer--${caption.toLowerCase().replace(" ", "-")}`}">
         <span class="decision-timer__caption">${caption}</span>
         <span class="decision-timer__digits">${digits}</span>
@@ -134,12 +123,10 @@ function Lamp(pressed: boolean | null): TemplateResult {
 }
 
 /**
- * A decision control: its label (a second step's choice shows its tiles in its place), riichi's lamp, Back's arrow;
- * once answered, inert, the one that sent the answer marked.
+ * A decision control: its label (a second step's choice shows its tiles in its place), riichi's lamp, Back's arrow.
  */
 function ActionButton(
     action: DecisionAction,
-    answered: boolean,
     onCommand: PlayBoardProps["onCommand"],
 ): TemplateResult {
     const isBack = action.command.kind === "step_back";
@@ -150,16 +137,11 @@ function ActionButton(
     const lamp = action.command.kind === "toggle_riichi_pick" ? Lamp(action.pressed) : nothing;
     return html`<button
         type="button"
-        class="decision-controls__action ${rankClass(action)} ${action.chosen ? "decision-controls__action--chosen" : ""}"
-        aria-label=${[action.label, ...action.tiles, ...(action.chosen ? ["(sent)"] : [])].join(" ")}
+        class="decision-controls__action ${rankClass(action)}"
+        aria-label=${[action.label, ...action.tiles].join(" ")}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
-        aria-disabled=${answered ? "true" : nothing}
-        data-focus-key=${focusKeys(commandFocusKey(action.command), answered ? null : DECISION_ACTION_FOCUS_KEY) ?? nothing}
-        @click=${() => {
-            if (!answered) {
-                onCommand(action.command);
-            }
-        }}
+        data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}
+        @click=${() => onCommand(action.command)}
     >
         ${lamp}${label}${ActionTiles(action)}
     </button>`;
@@ -195,7 +177,7 @@ export type DecisionView = Pick<PlayDisplay, "actions" | "countdown" | "decision
 /**
  * The decision's controls by the hand, ranked, with the timer's slot after them: a desktop lays them in one row ending
  * at the hand's right end; a phone keeps the lowest-ranked in the band beside the timer and stacks the rest above it,
- * pairing them when the column is too short. They stay in place while the decision is open, expired or answered.
+ * pairing them when the column is too short. They stay in place while the decision is open or expired, and disappear once answered.
  * Only the countdown's thresholds and its bank are announced.
  */
 export function DecisionControls(
@@ -206,16 +188,15 @@ export function DecisionControls(
     if (decisionStanding === null) {
         return undefined;
     }
-    const answered = decisionStanding === "submitted";
     const band = bandAction(actions);
     const upper = band === null ? actions : actions.slice(0, -1);
     return html`<div
         class="decision-controls decision-controls--${decisionStanding}"
         data-upper=${upper.length}
     >
-        <div class="decision-controls__upper">${repeat(upper, actionKey, (action) => ActionButton(action, answered, onCommand))}</div>
+        <div class="decision-controls__upper">${repeat(upper, actionKey, (action) => ActionButton(action, onCommand))}</div>
         <div class="decision-controls__band">
-            ${band === null ? nothing : ActionButton(band, answered, onCommand)}${DecisionTimer(display)}
+            ${band === null ? nothing : ActionButton(band, onCommand)}${DecisionTimer(display)}
         </div>
         <span class="decision-controls__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>
     </div>`;

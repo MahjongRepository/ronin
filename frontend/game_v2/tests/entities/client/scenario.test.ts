@@ -278,7 +278,7 @@ describe("stepGameClient - generated call prompt", () => {
 
         expect(decisionOf(stateAt(twice, run, "chi chosen"))?.status).toEqual(submitted);
         expect(decisionOf(stateAt(twice, run, "chi again"))?.status).toEqual(submitted);
-        expect(nextDeadline(stateAt(twice, run, "chi again"))).toBeNull();
+        expect(nextDeadline(stateAt(twice, run, "chi again"))).toBe(submitted.at + CALLOUT_MS);
     });
 
     it("opens the turn after the chi with the kuikae types the server named", () => {
@@ -945,7 +945,7 @@ describe("stepGameClient - generated reconnect", () => {
 
         expect(decisionOf(refused)).toMatchObject({ deadline: 8000, status: { kind: "expired" } });
         expect(refused.notice).toMatchObject({ code: "invalid_pon", kind: "refused" });
-        expect(nextDeadline(refused)).toBe(refused.notice?.until);
+        expect(nextDeadline(refused)).toBe(6500 + CALLOUT_MS);
         expect(decisionOf(stateAt(late, run, "again"))?.status).toMatchObject({
             at: 8200,
             kind: "submitted",

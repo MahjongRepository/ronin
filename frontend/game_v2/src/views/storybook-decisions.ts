@@ -81,7 +81,7 @@ interface DecisionStory {
 
 /**
  * The stories in the order the page lists them: the look spec's anchor (`docs/game-client-look.md`, States) at its
- * three checkpoints and its call answered and expired, the seating before the first deal, the call prompts and a
+ * three checkpoints and its call passed, declared and expired, the seating before the first deal, the call prompts and a
  * chi's choice of tiles, the turns (a kan's choice of tiles, in their base time and in the bank), the play switches on
  * beside furiten, what follows an answer, the first turns of a hand (kyuushu, tenhou, chiihou), the round results the
  * player confirms, the game's end and the last result reopened from it, a game ended out of step, then another
@@ -94,7 +94,8 @@ const STORY_KEYS = [
     "anchor_call",
     "anchor_riichi",
     "anchor_riichi_off",
-    "anchor_call_sent",
+    "anchor_call_passed",
+    "anchor_pon_declared",
     "anchor_call_expired",
     "game_start",
     "call_prompt",
@@ -109,7 +110,7 @@ const STORY_KEYS = [
     "riichi_pick",
     "riichi_turn",
     "switches_furiten",
-    "answered",
+    "discard_pending",
     "kyuushu_offer",
     "tenhou_offer",
     "chiihou_offer",
@@ -250,9 +251,19 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("anchor_seat_1", "call offer", "Anchor: call expired"),
         followUp: after(5),
     },
-    anchor_call_sent: {
+    anchor_call_passed: {
         ...checkpoint("anchor_seat_1", "call offer", "Anchor: call passed"),
         followUp: answering({ type: "pass" }),
+    },
+    anchor_pon_declared: {
+        ...checkpoint("anchor_seat_1", "call offer", "Anchor: Pon declared"),
+        followUp: (state) => {
+            const offer = decisionOf(state)?.offers.find((candidate) => candidate.kind === "pon");
+            if (offer === undefined) {
+                throw new Error("The anchor call must offer Pon");
+            }
+            return answering({ offer, type: "choose" })(state);
+        },
     },
     anchor_riichi: {
         ...checkpoint("anchor_seat_1", "riichi offer", "Anchor: riichi"),
@@ -260,7 +271,6 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
     },
     anchor_riichi_off: checkpoint("anchor_seat_1", "riichi offer", "Anchor: riichi offered"),
     anchor_turn: checkpoint("anchor_seat_1", "own turn", "Anchor: own turn"),
-    answered: checkpoint("call_prompt_seat_1", "discarded", "Answered"),
     call_prompt: checkpoint("call_prompt_seat_1", "prompt", "Call prompt"),
     chankan_prompt: checkpoint("chankan_robbed_seat_3", "chankan prompt", "Chankan prompt"),
     chi_choice: {
@@ -272,6 +282,7 @@ const DECISION_STORIES: Readonly<Record<DecisionStoryKey, DecisionStory>> = {
         ...checkpoint("call_prompt_seat_1", "turn", "Connection lost"),
         followUp: closedWith(1006),
     },
+    discard_pending: checkpoint("call_prompt_seat_1", "discarded", "Discard pending"),
     double_ron_first: checkpoint("double_ron_seat_1", "round end", "Double ron 1/2"),
     double_ron_last: {
         ...checkpoint("double_ron_seat_1", "round end", "Double ron 2/2"),

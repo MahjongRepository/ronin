@@ -10,8 +10,7 @@ import {
 import { assertNever } from "@/shared/lib";
 import { KAN_TYPE, tileType, tileTypeCopies } from "@/shared/protocol";
 
-import { sameIntent } from "./decision";
-import { offersIntent, takesIntent } from "./intents";
+import { takesIntent } from "./intents";
 import { decisionOf } from "./pending";
 import {
     type EscapeStep,
@@ -45,12 +44,10 @@ export interface DecisionAction extends PlayAction {
     readonly rank: ActionRank;
     /** A choice of tiles at a call's second step, laid as the meld will lie; null for any other control. */
     readonly group: readonly MeldTile[] | null;
-    /** Once the decision is answered, whether this control sent the answer; false while it is open. */
-    readonly chosen: boolean;
 }
 
-/** Where the open decision stands for its controls: open, past its deadline (still answerable), or answered. */
-export type DecisionStanding = "open" | "expired" | "submitted";
+/** Where an answerable decision stands: open or past its deadline. */
+export type DecisionStanding = "open" | "expired";
 
 /** How each tile of the viewer's hand plays now: its mark, and what tapping it sends when selectable. */
 export interface TilePlay {
@@ -87,18 +84,10 @@ function submittedTileId(decision: Decision | null): number | null {
     return intent.type === "choose" && intent.offer.kind === "riichi" ? intent.offer.tileId : null;
 }
 
-/**
- * Whether the decision takes an intent, as a control asks: now (`takesIntent`), or, for the controls an answered
- * decision keeps, as it stood for its answer (`offersIntent`), so they never move under the answer.
- */
 type IntentJudge = (intent: DecisionIntent) => boolean;
 
 function judgeNow(state: LiveClient): IntentJudge {
     return (intent) => takesIntent(state, intent);
-}
-
-function judgeAsAnswered(state: LiveClient): IntentJudge {
-    return (intent) => offersIntent(state, intent);
 }
 
 /** The offers the judge takes, in the order the server listed them. */
@@ -207,7 +196,7 @@ type ControlFields = Pick<DecisionAction, "label" | "command" | "rank"> &
     Partial<Pick<DecisionAction, "group" | "pressed" | "tiles">>;
 
 function control(fields: ControlFields): DecisionAction {
-    return { chosen: false, group: null, pressed: null, tiles: [], ...fields };
+    return { group: null, pressed: null, tiles: [], ...fields };
 }
 
 function offerAction(offer: Offer): DecisionAction {
@@ -337,43 +326,16 @@ function firstStepActions(
     return [...wins, ...riichi, ...perKind, ...pass];
 }
 
-/** Whether pressing `candidate` gives the answer the decision was answered with. */
-function sentBy(candidate: DecisionAction, sent: DecisionIntent): boolean {
-    if (candidate.command.kind !== "intent") {
-        return false;
-    }
-    const { intent } = candidate.command;
-    if (intent.type !== "choose" && intent.type !== "pass" && intent.type !== "discard") {
-        return false;
-    }
-    return sameIntent(intent, sent);
-}
-
-/**
- * The decision's controls, each one the dispatcher would answer now: the first step, or the second while the player
- * chooses a call's tiles. An answered decision keeps the controls it was answered from, marking the one that sent the
- * answer, so nothing moves while the server answers.
- */
 export function decisionActions(state: LiveClient, ui: PlayUi): DecisionAction[] {
-    if (passedByNoCalls(state)) {
+    if (decisionStanding(state) === null) {
         return [];
     }
-    const takes = judgeAsAnswered(state);
+    const takes = judgeNow(state);
     const offers = takenOffers(state, takes);
     const choosing = choosingTilesBy(state, ui, takes);
-    const controls =
-        choosing === null
-            ? firstStepActions(offers, pickingRiichiBy(state, ui, takes), takes)
-            : tileChoiceActions(state, choosing, offers);
-    const status = decisionOf(state)?.status;
-    if (status?.kind !== "submitted") {
-        return controls;
-    }
-    return controls.map((candidate) => answeredBy(candidate, sentBy(candidate, status.intent)));
-}
-
-function answeredBy(candidate: DecisionAction, chosen: boolean): DecisionAction {
-    return { ...candidate, chosen };
+    return choosing === null
+        ? firstStepActions(offers, pickingRiichiBy(state, ui, takes), takes)
+        : tileChoiceActions(state, choosing, offers);
 }
 
 /**
@@ -393,12 +355,7 @@ export function escapeStep(state: LiveClient, ui: PlayUi): EscapeStep | null {
         : null;
 }
 
-/** Whether No calls passed the decision, which then shows nothing: its controls never appear. */
-function passedByNoCalls(state: LiveClient): boolean {
-    const status = decisionOf(state)?.status;
-    return status?.kind === "submitted" && status.bySwitch === "no_calls";
-}
-
 export function decisionStanding(state: LiveClient): DecisionStanding | null {
-    return passedByNoCalls(state) ? null : (decisionOf(state)?.status.kind ?? null);
+    const status = decisionOf(state)?.status.kind;
+    return status === undefined || status === "submitted" ? null : status;
 }

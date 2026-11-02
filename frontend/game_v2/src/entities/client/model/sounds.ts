@@ -1,6 +1,7 @@
 import { type Call, type CalloutKind, type TableState } from "@/entities/table";
 import { type LocalStore } from "@/shared/lib";
 
+import { matchesCall, submittedCall } from "./calls";
 import { decisionCountdown } from "./countdown";
 import { decisionOf } from "./pending";
 import { type LiveClient } from "./types";
@@ -48,7 +49,9 @@ export function moveSoundCues(
 /** The calls the board starts showing at a live step; none while the same calls stay showing, or none show. */
 function newCalls(before: LiveClient, after: LiveClient): readonly Call[] {
     const shown = after.calls;
-    return shown === null || shown === before.calls ? [] : shown.calls;
+    return shown === null || shown === before.calls
+        ? []
+        : shown.calls.filter((call) => !before.calls?.calls.includes(call));
 }
 
 /** The whole seconds the viewer's open decision reads, while it runs and lasts longer than the beeping seconds. */
@@ -81,8 +84,15 @@ function beepCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
  * gong for a yakuman win, and the beep of each new second at the end of a long decision.
  */
 export function soundCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
-    const move = moveSoundCues(before.table, after.table, newCalls(before, after));
-    return [...move, ...beepCues(before, after)];
+    const declared = submittedCall(before);
+    const calls = newCalls(before, after).filter((call) => !matchesCall(call, declared));
+    const move = moveSoundCues(before.table, after.table, calls);
+    const confirmedWin =
+        (declared?.kind === "ron" || declared?.kind === "tsumo") &&
+        before.table.roundEndResult !== after.table.roundEndResult &&
+        paysYakuman(after.table) &&
+        !move.includes("yakuman");
+    return [...move, ...(confirmedWin ? ["yakuman" as const] : []), ...beepCues(before, after)];
 }
 
 /** The sound setting as this browser keeps it: the v1 client's key and shape, so both clients share one setting. */

@@ -99,7 +99,7 @@ export interface PlayDisplay {
     readonly callouts: BoardCallouts | null;
     readonly tileAction: string;
     readonly tileIntents: ReadonlyMap<number, LocalIntent>;
-    /** The open decision's controls, ranked; an answered one keeps them, showing which sent the answer. */
+    /** The answerable decision's controls, ranked; none once answered. */
     readonly actions: readonly DecisionAction[];
     /** Where the viewer's decision stands; null with none. */
     readonly decisionStanding: DecisionStanding | null;
