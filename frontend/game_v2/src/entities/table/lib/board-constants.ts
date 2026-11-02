@@ -70,8 +70,8 @@ type ChromeTier = "small" | "regular" | "large";
 
 /**
  * A board's chrome px: margins, gaps, the band's control, the own badge, the switches (their chips' size and gap), the
- * corner a panel keeps clear, the counters (the indicator's width, and the padding and rim above and below it), the
- * replay's controls, the opponents' badges and the decisions' least widths.
+ * counters (the indicator's width, and the padding and rim above and below it), the replay's controls, the opponents'
+ * badges and the decisions' least widths.
  */
 interface DesktopChrome {
     readonly m: number;
@@ -85,7 +85,6 @@ interface DesktopChrome {
     readonly switchH: number;
     readonly chipGap: number;
     readonly movesH: number;
-    readonly cornerH: number;
     readonly countersW: number;
     readonly doraW: number;
     readonly countersFrame: number;
@@ -109,7 +108,6 @@ const REGULAR_CHROME: DesktopChrome = {
     chipGap: 6,
     controlH: 60,
     coreGap: 40,
-    cornerH: 48,
     countersFrame: 18,
     countersW: 172,
     doraW: 28,
@@ -134,7 +132,6 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         ...REGULAR_CHROME,
         badgeGap: 20,
         badgeH: 72,
-        cornerH: 64,
         countersFrame: 22,
         countersW: 223,
         doraW: 37,
@@ -154,7 +151,6 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
         actionMinW: 64,
         badgeGap: 8,
         badgeH: 40,
-        cornerH: 40,
         countersFrame: 10,
         countersW: 95,
         doraW: 15,
@@ -171,11 +167,10 @@ const DESKTOP_CHROME: Readonly<Record<ChromeTier, DesktopChrome>> = {
     },
 };
 
-/** The page's cog: its side, a share of the river tile within a floor and cap, and the room a panel keeps past it. */
+/** The page's cog: its side, a share of the river tile within a floor and cap. */
 const MENU_RIVER_SHARE = 56 / 60;
 const MENU_MIN = 40;
 const MENU_MAX = 56;
-const MENU_GAP = 6;
 
 /** The band's control row past its control: the room the decisions' row keeps over it (px). */
 const BAND_ROW_EXTRA = 20;
@@ -251,7 +246,6 @@ export {
     LARGE_CHROME_WIDTH,
     LATEST_DISCARD_GAP,
     LEFT_REACH_TILES,
-    MENU_GAP,
     MENU_MAX,
     MENU_MIN,
     MENU_RIVER_SHARE,

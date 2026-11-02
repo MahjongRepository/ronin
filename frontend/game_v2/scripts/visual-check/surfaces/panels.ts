@@ -128,7 +128,7 @@ async function forceResultPanelShort(page: Page, scrolls: "parts" | "panel"): Pr
     });
 }
 
-/** An upright board's result panel made as tall as its overlay allows: it must still leave the page's corner clear. */
+/** An upright board's result panel made as tall as its overlay allows. */
 async function forceResultPanelTall(page: Page): Promise<void> {
     await page.addStyleTag({
         content: ".board-overlay__panel:has(> .round-end-result) { height: 100vh !important; }",
@@ -394,11 +394,6 @@ function checkOverlay(board: BoardMeasure, viewport: Viewport, report: PageRepor
         return;
     }
     report.expect(contains(board.board, overlay.box), "the overlay panel leaves the board");
-    const covered = board.menu.filter((control) => intersects(control, overlay.box));
-    report.expect(
-        covered.length === 0,
-        `the overlay panel ${describeBox(overlay.box)} covers the page's corner: ${covered.map(describeBox).join(", ")}`,
-    );
     if (viewport.supported) {
         report.expect(
             overlay.scroll.width <= overlay.client.width + EPSILON &&
@@ -890,7 +885,7 @@ async function checkRotatePanel(
 }
 
 /**
- * The panels over the board: inside it and clear of the page's corner, a round result scrolling where it does not fit,
+ * The panels over the board: inside it (over the cog), a round result scrolling where it does not fit,
  * the seating, and on a landscape board the names of a result's scores apart.
  */
 async function checkBoard({

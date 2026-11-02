@@ -25,21 +25,20 @@ they disagree.
   smaller board's panel.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (the corner,
   live play's or a replay's band) and the family's places; the overlay centres the panel on the board within its
-  `--geo-overlay-*` insets, live and replay alike, clear of the cog. The cog reserves no other room: strips, hands and
-  badges run to the board's edges under it, and it stands over them by its layer. The notices' field is reserved whether
-  a notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays `--board-unit`, from
-  that box's width and the board's height: one from `--rw` would draw a phone's result at 17px tiles where its box holds
-  32px, an upright one's at 11px.
-- **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule
-  (`_grid.scss`) maps those the styles read onto the lengths' own names on `.board-layout` and
-  `.board-overlay`, inside `:where()` so it keeps (0,2,0); a name a family does not emit stays unset on its board,
-  where nothing reads it. No CSS solve remains, so a board without `data-board-family` (not yet measured) hides its
-  layers. A fact both sides need is TS's, emitted as a length (the chrome px, the river's footprint, the face floor,
-  the latest discard's gaps); only what a container query needs stays Sass, beside a note naming its TS mirror (the
-  decisions' gap and a win's rise), and the page's 10px gutter, which the page holds before the board is measured. A
-  narrow desktop's notices read the left strip's drawn depth (a margin on the field's slot): past the deepest strip
-  its field falls under the 7.5em floor (6.2em at 780x580, none at 1080x880), so the fixed-place rule is unmet there
-  until a design choice: smaller tiles, or another place for those notices.
+  `--geo-overlay-*` insets, live and replay alike, over the cog where they reach it. The cog reserves no room: strips,
+  hands and badges run to the board's edges under it, and it stands over them by its layer. The notices' field is
+  reserved whether a notice shows or not, so no notice changes the panel's box or tiles. The panel's tile unit stays
+  `--board-unit`, from that box's width and the board's height: one from `--rw` would draw a phone's result at 17px
+  tiles where its box holds 32px, an upright one's at 11px.
+- **One source per fact.** The directive writes the sizes as `--geo-<name>` on `.game-board`; one rule (`_grid.scss`)
+  maps those the styles read onto the lengths' own names on `.board-layout` and `.board-overlay`, inside `:where()` so
+  it keeps (0,2,0); a name a family does not emit stays unset on its board, where nothing reads it. No CSS solve
+  remains, so a board without `data-board-family` (not yet measured) hides its layers. A fact both sides need is TS's,
+  emitted as a length (the chrome px, the river's footprint, the face floor, the latest discard's gaps); only what a
+  container query needs stays Sass, beside a note naming its TS mirror (the decisions' gap and a win's rise), and the
+  page's 10px gutter, which the page holds before the board is measured. A narrow desktop, best-effort in the spec's
+  support tiers, reads the left strip's drawn depth for its notices (a margin on the field's slot): past the deepest
+  strip its field falls under the 7.5em floor (6.2em at 780x580, none at 1080x880), a trade-off that tier accepts.
 - **The replay fills live's slots.** GameBoard's band end (`.board-actions`, the decisions' place) holds live's
   decisions or a replay's group, its field (`.board-notices`) the notices and a replay's status; the band end's lengths
   (`--actions-*`, its room for a live row or a replay's group from the band the page fills) are the geometry's, so
@@ -66,11 +65,11 @@ they disagree.
   each tile's SVG unturned) from the area's corner where its hand starts. Each seat's policy is explicit
   (`STRIP_POLICY`): a side strip's melds wrap to a second line, which starts at the band (right) or ends at its room's
   end (left); the top strip's and the own row's melds keep one line and scale. Each meld is bounded only where it
-  stands: by its own depth's room (the left strip's shallow meld runs past switches and an own row clear of its depth, a
-  stacked one stops above them) and, on the top strip, by the badge only within the badge's lane, the strip's tiles one
-  size. `stripLayout` (`entities/table/lib`), a pure function apart from `boardGeometry`, places an opponent's melds
-  from what the strip holds and the rooms the geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*`
-  lengths, with each side strip's depth as drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the
+  stands: by its own depth's room (the left strip's meld runs past switches and an own row clear of its depth, a stacked
+  one stops above them) and, on the top strip, by the badge only within the badge's lane, the strip's tiles one size.
+  `stripLayout` (`entities/table/lib`), a pure function apart from `boardGeometry`, places an opponent's melds from what
+  the strip holds and the rooms the geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths,
+  with each side strip's depth as drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the
   viewport's solve. The own row's melds scale in their container (`ownMeldStyle`'s counts).
 - **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a

@@ -179,7 +179,7 @@ describe("boardGeometry", () => {
         [1366, 657, [29, 218.988, 102.29]],
         [1280, 720, [34, 218.4, 109.067]],
         [1440, 770, [37, 228.2, 119.5]],
-        [1170, 620, [27, 210, 96]],
+        [1170, 620, [27, 178, 96]],
     ])(
         "sizes a %ix%i window's short desktop board, a replay's full left river ending over its moves",
         (width, height, expected) => {
@@ -227,7 +227,7 @@ describe("boardGeometry", () => {
         {
             above: false,
             height: 430,
-            pinned: { "band-shift": 35.333, ow: 37, rw: 22 },
+            pinned: { "band-shift": 36.667, ow: 39, rw: 23 },
             width: 932,
         },
         { above: false, height: 500, pinned: { "control-h": 43.333, ow: 44, rw: 26 }, width: 1024 },
@@ -302,14 +302,14 @@ describe("boardGeometry", () => {
         );
     });
 
-    it("keeps the notices' field and the cog free of the panel", () => {
+    it("keeps the notices' field free of the panel, which may stand over the cog", () => {
         const { lengths } = windowGeometry({ height: 900, width: 1440 });
         function length(name: string): number {
             return lengths[name] ?? Number.NaN;
         }
 
         expect(length("overlay-left")).toBeGreaterThanOrEqual(length("reach-left"));
-        expect(length("overlay-right")).toBeGreaterThanOrEqual(length("m") + length("menu-size"));
+        expect(length("overlay-right")).toBeLessThan(length("m") + length("menu-size"));
     });
 
     it("gives an empty box no sizes", () => {
@@ -334,19 +334,39 @@ describe("boardGeometry's strips", () => {
         },
     );
 
-    it("runs a desktop's left first line past stepped-in switches to the bottom, a stacked meld's above them", () => {
+    it("runs a desktop's left first line past the switches to the bottom margin for every meld's depth", () => {
         const { box, lengths, strips, tracks } = windowGeometry({ height: 900, width: 1440 });
         function length(name: string): number {
             return lengths[name] ?? Number.NaN;
         }
         const start = slotAreas(tracks)["strip-left"]?.[1] ?? Number.NaN;
-        const { movesH, switchH } = DESKTOP_CHROME.regular;
-        const switchesTop = length("switches-bottom") - Math.max(movesH, switchH);
 
-        expect(length("switches-left")).toBeGreaterThan(length("m"));
+        expect(length("switches-left")).toBeGreaterThan(length("m") + 2 * length("rw"));
         expect(start + (strips?.left.line ?? 0)).toBeCloseTo(box.height - length("m"), 1);
-        expect(start + (strips?.left.deepLine ?? 0)).toBeCloseTo(switchesTop - 8, 1);
+        expect(strips?.left.deepLine).toBe(strips?.left.line);
     });
+
+    it.each([
+        { height: 770, stacked: true, width: 1440 },
+        { height: 640, stacked: false, width: 1127 },
+    ])(
+        "steps a $width x $height short desktop's switches past a stacked meld ($stacked), moves clear of the river",
+        ({ height, stacked, width }) => {
+            const { lengths } = boardGeometry({
+                box: { height: height - 20, width: width - 20 },
+                gutter: 10,
+                safeInsets: NO_INSETS,
+                slots: REPLAY_SLOTS,
+            });
+            function length(name: string): number {
+                return lengths[name] ?? Number.NaN;
+            }
+            const movesEnd = length("switches-left") + length("moves-w");
+
+            expect(length("switches-left") > length("m") + 2 * length("rw")).toBe(stacked);
+            expect(length("cx") - length("hx")).toBeGreaterThanOrEqual(movesEnd + 8 - 0.001);
+        },
+    );
 });
 
 describe("boardGeometry's shell tracks", () => {
@@ -357,7 +377,7 @@ describe("boardGeometry's shell tracks", () => {
             field: [82, 126, 166, 228.3],
             "field-beside": [583, 272.3, 663, 318.3],
             hand: [70.7, 322.3, 663, 370.3],
-            "strip-left": [4, 80, 76, 266.3],
+            "strip-left": [4, 44, 76, 266.3],
             "strip-right": [591, 4, 663, 268.3],
             "strip-top": [4, 4, 490.3, 38],
             switches: [44, 0, 667, 276.3],

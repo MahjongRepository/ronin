@@ -336,13 +336,12 @@ function checkLocalHand(
 }
 
 /**
- * A side strip's full hand, as its place reserves it whatever the seat holds, stays clear of the play switches, the
- * page's corner and the decision's controls and timer: a full concealed hand is the strips' binding capacity.
+ * A side strip's full hand, as its place reserves it whatever the seat holds, stays clear of the play switches and the
+ * decision's controls and timer (the cog reserves no room): a full concealed hand is the strips' binding capacity.
  */
 function checkHandReach(board: BoardMeasure, report: PageReport): void {
     const controls = [
         ...board.switches.map((control) => control.box),
-        ...board.menu,
         ...board.actions,
         ...(board.timer === null ? [] : [board.timer]),
     ];
@@ -358,7 +357,7 @@ function checkHandReach(board: BoardMeasure, report: PageReport): void {
     );
     report.expect(
         crowded.length === 0,
-        `a side hand's full reach meets a switch, the page's corner or a decision control: ${crowded.map((reach) => `${reach.group} ${describeBox(reach.box)}`).join(", ")}`,
+        `a side hand's full reach meets a switch or a decision control: ${crowded.map((reach) => `${reach.group} ${describeBox(reach.box)}`).join(", ")}`,
     );
 }
 

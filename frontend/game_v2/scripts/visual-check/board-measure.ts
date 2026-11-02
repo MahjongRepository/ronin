@@ -83,7 +83,7 @@ export interface BoardMeasure {
     };
     readonly center: Box | null;
     readonly opponentFaces: readonly Box[];
-    /** The page's corner on the board: the settings cog, which no panel over the board covers. */
+    /** The page's corner on the board: the settings cog, which a panel over the board may cover. */
     readonly menu: readonly Box[];
 }
 
