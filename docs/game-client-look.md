@@ -188,12 +188,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   tile edge would fill that hairline, and the table's colour is drawn into it instead. A side strip that cannot hold four melds on its
   line runs its oldest on a second line inside it, from the foreground band (the left strip's from
   above the play switches) toward its badge; the left strip's first line also ends above the switches,
-  except that a meld shallower than their step in runs on past them to the bottom margin; the top strip
-  and the own melds scale down instead; no meld face goes under the 13x17 face floor. Each meld is
-  bounded only where it stands: a strip's melds move together to its far end as far as the tightest
-  one's room allows (a stacked meld's room is its own), and the top strip's tiles keep one size, the
-  largest at which every meld stays above what it keeps clear of there, scaling only where its line
-  cannot hold them at the river tile.
+  except that a meld shallower than their step in, where the own row starts past it, runs on past them
+  to the bottom margin; the top strip and the own melds scale down instead; no meld face goes under
+  the 13x17 face floor. Each meld is bounded only where it stands: a strip's melds move together to
+  its far end as far as the tightest one's room allows (a stacked meld's room is its own), and the top
+  strip's tiles keep one size, the largest at which every meld stays above what it keeps clear of
+  there, scaling only where its line cannot hold them at the river tile.
   Decision: a side hand's full reach (fourteen tiles, the drawn one apart) has one fixed place per
   viewport, never read from the tiles held, and nothing else stands in it. Decision: each hand's full
   reach stands centred on its side (the side hands on the core's height) as far as its limits below
@@ -550,9 +550,9 @@ never under 36x48, the floor winning where both cannot hold (a river tile under 
 band's controls float in the gap above the hand, and the phone's chrome scales from the river tile
 (the small chrome's px up to a 24px river tile, growing with it past that, never under 40x40),
 except the decision controls, which keep their 40px rows. It gives river and own tiles of 17 and
-36px at 667x375, 16 and 36px at the notch phone's 750x369, 18 and 36px at 844x390, and 23 and 39px
+36px at 667x375, 16 and 36px at the notch phone's 750x369, 18 and 36px at 844x390, and 22 and 37px
 at 932x430 (0.59 of the own tile; the 26 to 28px river there was a target, not reached), and on a
-desktop window short enough to be a phone 30 and 51px at 1195x539 and 27 and 45px at 1100x489,
+desktop window short enough to be a phone 29 and 49px at 1195x539 and 26 and 44px at 1100x489,
 whatever the state shows. Among the layouts tried, larger tiles on
 the smaller phones would need the own badge to leave the hand's first tile, a look decision not
 taken. Off a phone the own hand tile is 4/3 of the river tile, at most min(0.05 of

@@ -769,7 +769,6 @@ function phoneChrome(rw: number): DesktopChrome {
         ...PHONE_CHROME,
         badgeH: PHONE_CHROME.badgeH * scale,
         controlH: control,
-        cornerH: PHONE_CHROME.cornerH * scale,
         countersW: PHONE_CHROME.countersW * scale,
         doraW: PHONE_CHROME.doraW * scale,
         movesH: control,
@@ -822,7 +821,7 @@ type PhoneRightRoom = Readonly<
 
 function phoneRightRoom(
     sizes: Readonly<
-        Record<"bandGap" | "controlH" | "cy" | "handTop" | "m" | "ownMeldRise" | "rw", number>
+        Record<"bandGap" | "controlH" | "cy" | "handTop" | "ownMeldRise" | "rw", number>
     >,
 ): PhoneRightRoom {
     const { bandGap, controlH, handTop } = sizes;
@@ -929,7 +928,6 @@ function phoneLayout(
         controlH,
         cy,
         handTop,
-        m,
         ownMeldRise,
         rw,
     });
@@ -1283,8 +1281,7 @@ const SECOND_LINE_GAP = 2;
 /** The left strip's second line ends this far above the switches' place or the own row (px). */
 const SECOND_LINE_END_GAP = 4;
 
-/** The top strip's line starts this far past the counters, its melds this far above the core and the badges (px). */
-const TOP_START_GAP = 8;
+/** The top strip's melds keep this far above the core and the top badge (px). */
 const TOP_CORE_CLEAR = 8;
 const TOP_BADGE_CLEAR = 6;
 
@@ -1293,19 +1290,19 @@ const SIDE_BADGE_CORE_GAP = 6;
 
 /**
  * Where an opponent's strips stand and what their rooms end at, by their family's places (px): past the switches, the
- * left strip's first line runs on to `leftFar` for a meld shallower than the depth they step in (`leftPast`).
+ * left strip's first line runs on to `end` for a meld shallower than `depth` (none upright); the right strip's line
+ * ends at `rightEnd`.
  */
 interface StripPlaces {
     readonly badgeH: number;
     readonly foregroundTop: number;
     readonly origin: number;
     readonly rightBadgeTop: number;
+    readonly rightEnd: number;
     readonly sideBadgeTop: number;
-    readonly sideLane: number;
     readonly leftStart: number;
     readonly leftRoomEnd: number;
-    readonly leftFar: number;
-    readonly leftPast: number;
+    readonly leftPast: { readonly depth: number; readonly end: number } | null;
     readonly leftLineEnd: number;
     readonly topAnchor: number;
     readonly topCap: number | null;
@@ -1319,22 +1316,22 @@ interface StripPlaces {
  * hand's room, the top one's stacked depth along its line), and the rooms their melds are laid out in.
  */
 function opponentStrips(
-    { at, frame, tier }: ShellRoom,
+    { at, frame }: ShellRoom,
     places: StripPlaces,
 ): Pick<BoardShell, "strips"> & { readonly areas: Record<`strip-${StripSeat}`, BoardRect> } {
     const m = at("m");
     const rw = at("rw");
     const { width } = frame.box;
     const reserve = stripReserve(rw);
-    const leftBadgeX = sideBadgeX(tier, rw);
-    const laneUnder = leftBadgeX + places.sideLane + TOP_START_GAP - places.topStart > 0;
+    const { leftPast } = places;
     function leftLine(depth: number): number {
         const end =
-            depth * rw < places.leftPast ? places.leftFar : places.leftRoomEnd - STRIP_ROOM_GAP;
+            leftPast !== null && depth * rw < leftPast.depth
+                ? leftPast.end
+                : places.leftRoomEnd - STRIP_ROOM_GAP;
         return end - places.leftStart;
     }
-    const topOver = (places.topCap ?? places.topAnchor) > width - m - STACKED_DEPTH * rw;
-    const rightLine = places.origin - (topOver ? m + STACKED_DEPTH * rw + STRIP_ROOM_GAP : m);
+    const rightLine = places.origin - places.rightEnd;
     return {
         areas: {
             "strip-left": {
@@ -1377,11 +1374,7 @@ function opponentStrips(
                 anchor: places.topAnchor,
                 badgeDepth: places.topBadgeTop - TOP_BADGE_CLEAR - TILE_EDGE_SHARE * rw - m,
                 cap: places.topCap,
-                depth:
-                    Math.min(
-                        at("core-top") - TOP_CORE_CLEAR,
-                        laneUnder ? places.sideBadgeTop - TOP_BADGE_CLEAR : Infinity,
-                    ) - m,
+                depth: at("core-top") - TOP_CORE_CLEAR - m,
                 lane: places.topLane,
                 start: places.topStart,
             },
@@ -1529,12 +1522,15 @@ function landscapeShell(room: ShellRoom): BoardShell {
         ...top,
         badgeH,
         foregroundTop,
-        leftFar: height - m,
         leftLineEnd: Math.min(foregroundTop, switchesTop - SECOND_LINE_END_GAP),
-        leftPast: left.switchesLeft - m,
+        leftPast: {
+            depth: Math.min(left.switchesLeft, ownStart - STEP_IN_GAP) - m,
+            end: height - m,
+        },
         leftRoomEnd: left.leftRoomEnd,
         leftStart: left.leftStart,
         origin,
+        rightEnd: m,
         ...badges,
         topCap: null,
     });
@@ -1662,15 +1658,14 @@ function uprightShell(room: ShellRoom): BoardShell {
     const strips = opponentStrips(room, {
         badgeH: tier.badgeH,
         foregroundTop,
-        leftFar: bandTop,
         leftLineEnd: Math.min(foregroundTop, handTop - at("own-rise") - SECOND_LINE_END_GAP),
-        leftPast: 0,
+        leftPast: null,
         leftRoomEnd: bandTop,
         leftStart,
         origin,
         rightBadgeTop,
+        rightEnd: m + STACKED_DEPTH * rw + STRIP_ROOM_GAP,
         sideBadgeTop,
-        sideLane,
         topAnchor,
         topBadgeTop,
         topCap: width - m,

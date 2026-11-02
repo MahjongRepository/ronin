@@ -34,4 +34,21 @@ describe("stripLayout", () => {
         expect(melds[0]?.along).toBeLessThan(top.lane);
         expect(melds[1]?.along).toBeGreaterThan(top.lane);
     });
+
+    it.each([
+        { deepLine: 200, end: 200, wraps: false },
+        { deepLine: 150, end: 400, wraps: true },
+    ])(
+        "holds a left strip's chi and added kan to the kan's stacked room ($deepLine), wrapping it past ($wraps)",
+        ({ deepLine, end, wraps }) => {
+            const left = { ...SIDE, deepLine, line: 400 };
+            const content: StripContent = { drawn: true, hand: 2, melds: [CHI, ADDED_KAN] };
+            const [chi, kan] = stripLayout("left", content, { ...ROOMS, left }).melds;
+            const last = wraps ? chi : kan;
+
+            expect(kan?.rise !== 0).toBe(wraps);
+            expect(chi?.rise).toBe(0);
+            expect((last?.along ?? 0) + CHI.units * ROOMS.rw).toBeCloseTo(end, 6);
+        },
+    );
 });

@@ -66,11 +66,11 @@ they disagree.
   each tile's SVG unturned) from the area's corner where its hand starts. Each seat's policy is explicit
   (`STRIP_POLICY`): a side strip's melds wrap to a second line, which starts at the band (right) or ends at its room's
   end (left); the top strip's and the own row's melds keep one line and scale. Each meld is bounded only where it
-  stands: by its own depth's room (the left strip's shallow meld runs past switches stepped in past its depth, a stacked
-  one stops above them) and, on the top strip, by the badge only within the badge's lane, the strip's tiles one size.
-  `stripLayout` (`entities/table/lib`), a pure function apart from `boardGeometry`, places an opponent's melds from what
-  the strip holds and the rooms the geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*` lengths,
-  with each side strip's depth as drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the
+  stands: by its own depth's room (the left strip's shallow meld runs past switches and an own row clear of its depth, a
+  stacked one stops above them) and, on the top strip, by the badge only within the badge's lane, the strip's tiles one
+  size. `stripLayout` (`entities/table/lib`), a pure function apart from `boardGeometry`, places an opponent's melds
+  from what the strip holds and the rooms the geometry leaves it, and the directive writes them as `--<seat>-meld-<n>-*`
+  lengths, with each side strip's depth as drawn (`--left-depth`, `--right-depth`); what a strip holds never reaches the
   viewport's solve. The own row's melds scale in their container (`ownMeldStyle`'s counts).
 - **One river primitive, four seats.** GameBoard's `River` draws every seat's river on the tile slice's shape
   (`river-shape.ts`), its overflow an explicit per-seat policy (`RIVER_OVERFLOW`: a side river wraps a fourth row, a

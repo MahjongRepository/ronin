@@ -25,7 +25,7 @@ interface StripContent {
 
 /**
  * A side strip's room along its line from its anchor (px): its first line's for a meld a tile's height deep and for a
- * stacked one (the left strip's shallower meld runs on past the switches, which step in past its depth); its second
+ * stacked one (the left strip's shallower meld runs on past switches and an own row clear of its depth); its second
  * line's; and where that line starts (right) or ends (left).
  */
 interface SideStripRoom {
