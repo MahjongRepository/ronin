@@ -50,11 +50,12 @@ import type * as StorybookRoutes from "@/views/storybook-routes";
 const REPLAY_PREFS_KEY = "ronin.v2.replay-prefs";
 
 const VOICE_VOLUME = 0.2;
+const DISCARD_VOLUME = 0.1;
 const GAME_SOUNDS: Readonly<Record<SoundCue, SoundSource>> = {
     beep: { kind: "file", url: countdownUrl, volume: VOICE_VOLUME },
     chi: { kind: "file", url: chiUrl, volume: VOICE_VOLUME },
     decision: { kind: "generated", ...synthesizeDecision(), volume: VOICE_VOLUME },
-    discard: { kind: "file", url: discardUrl, volume: VOICE_VOLUME },
+    discard: { kind: "file", url: discardUrl, volume: DISCARD_VOLUME },
     kan: { kind: "file", url: kanUrl, volume: VOICE_VOLUME },
     pon: { kind: "file", url: ponUrl, volume: VOICE_VOLUME },
     riichi: { kind: "file", url: riichiUrl, volume: VOICE_VOLUME },
