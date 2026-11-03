@@ -16,11 +16,24 @@ BOT_ISSUE_PATTERN="ERROR|WARNING|CRITICAL|Traceback|$PYTHON_WARNING_PATTERN"
 MAX_GAMES="${1:-10}"
 TABLES="${TABLES:-1}"
 PROFILE="${PROFILE:-0}"
+MODE="${MODE:-}"
 
 if ! [[ $MAX_GAMES =~ ^[1-9][0-9]*$ && $TABLES =~ ^[1-9][0-9]*$ ]]; then
     echo "games and tables must be positive integers, got GAMES=$MAX_GAMES TABLES=$TABLES"
     exit 1
 fi
+
+BOT_ARGS=()
+BATCH_TIMEOUT=120
+case "$MODE" in
+    "") ;;
+    fast) BOT_ARGS=(--mode fast) ;;
+    human) BOT_ARGS=(--mode human) && BATCH_TIMEOUT=7200 ;;
+    *)
+        echo "unknown bot mode MODE=$MODE, expected fast or human"
+        exit 1
+        ;;
+esac
 
 BOT_NAMES=(Akagi Tetsuya Ichihime Miki)
 PROFILE_DIR="$PROJECT_ROOT/backend/profiles"
@@ -31,7 +44,6 @@ HARNESS_LOG="$PROJECT_ROOT/backend/logs/harness.log"
 GAME_PORT=8711
 LOBBY_PORT=8710
 MAX_RETRIES=10
-BATCH_TIMEOUT=120
 SHUTDOWN_TIMEOUT=15
 
 SERVER_PIDS=()
@@ -279,7 +291,7 @@ start_bots() {
     for idx in $(seq 0 $((tables * ${#BOT_NAMES[@]} - 1))); do
         local name="${BOT_ACCOUNTS[$idx]}"
         PYTHONPATH="$BOT_ROOT/project" "$BOT_ROOT/.venv/bin/python" "$BOT_ROOT/project/run_ronin.py" \
-            -p "$name" -k "${BOT_KEYS[$idx]}" > "$BOT_LOG_DIR/console-$batch-$name.raw" 2>&1 &
+            -p "$name" -k "${BOT_KEYS[$idx]}" "${BOT_ARGS[@]}" > "$BOT_LOG_DIR/console-$batch-$name.raw" 2>&1 &
         BOT_PIDS+=($!)
     done
 }
@@ -382,7 +394,7 @@ archive_failed_run() {
     cp "$PROFILE_FILE" "$FAILED_RUN_DIR/" 2>/dev/null || true
     {
         echo "exit status: $status"
-        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE"
+        echo "games: $PLAYED of $MAX_GAMES played, tables: $TABLES, profile: $PROFILE, mode: ${MODE:-default}"
         echo "batch seconds: ${BATCH_TIMES[*]}"
         echo "batch game server CPU ticks: ${BATCH_SERVER_TICKS[*]}"
     } > "$FAILED_RUN_DIR/run.txt"
@@ -441,7 +453,7 @@ start_server "game" "game.server.app:get_app" "$GAME_PORT" 262144 "$GAME_LOG_DIR
 start_server "lobby" "lobby.server.app:get_app" "$LOBBY_PORT" 8192 "$LOBBY_LOG_DIR" uv run --project backend uvicorn
 
 echo ""
-echo "running $MAX_GAMES game(s), up to $TABLES at a time..."
+echo "running $MAX_GAMES game(s), up to $TABLES at a time, bot mode ${MODE:-default}..."
 echo ""
 
 GAME_SERVER_PID=$(lsof -ti tcp:"$GAME_PORT" -sTCP:LISTEN | head -1)

@@ -77,10 +77,10 @@ profile:
 	$(BE_RUN) python bin/profile_replay.py
 
 run-games:
-	@TABLES=$(TABLES) bash ./bin/run-bots-games.sh $(GAMES)
+	@TABLES=$(TABLES) MODE=$(MODE) bash ./bin/run-bots-games.sh $(GAMES)
 
 profile-games:
-	@PROFILE=1 TABLES=12 bash ./bin/run-bots-games.sh 48
+	@PROFILE=1 TABLES=12 MODE= bash ./bin/run-bots-games.sh 48
 
 measure-wall:
 	cd backend && uv run python -m scripts.measure_wall $(MEASURE_ARGS)

@@ -43,8 +43,9 @@ The `Makefile` lists the targets; the non-obvious ones:
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).
 * `make profile` — profile the game engine replay runner (the `optimize-engine` skill uses it).
-* `make run-games [GAMES=n] [TABLES=t]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
-  default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, stopping at the first batch
+* `make run-games [GAMES=n] [TABLES=t] [MODE=m]` — play bot games (the `mahjong-bot` repo at `BOT_ROOT`,
+  default `~/work/mahjong-bot`) on fresh servers, `t` tables at a time, the bots in play mode `m`
+  (their `--mode`, only when set; `human` thinks 1-5 s per action and gets a 2-hour batch timeout), stopping at the first batch
   with a game that is not completed, whose replay does not reproduce it (`bin/verify_games.py`), or
   after which any log (server stderr and bot console included) holds a warning or an abnormal event
   such as a timeout auto-action or a bot replaced by AI. It forces debug console logging, so these
