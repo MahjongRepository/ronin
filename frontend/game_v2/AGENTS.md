@@ -33,7 +33,7 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
 * A new route also needs its path in the lobby's game page list (`backend/lobby/server/app.py`), which 404s others.
   The replay and storybook are lazy routes, so neither ships to a player who only plays.
 * `package.json` `sideEffects` lists every module with an import-time effect; a new one goes there or the build drops it.
-* UI text is English literals; there are no catalogs.
+* UI text is English literals; there are no catalogs. Game logic uses protocol codes and ids, never displayed text.
 
 ## Structure
 

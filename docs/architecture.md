@@ -426,13 +426,12 @@ honours this contract can replace it.
   the game end reaches the players before the server has saved the replay, so the replay may answer
   404 for a moment after it.
 * **Leaving:** the client returns players to the lobby at `/`.
-* **Language:** the page's language is the `lang` cookie (`ja`, `en` or `ru`; `Path=/`,
-  `Max-Age=31536000`, `SameSite=Lax`, `Secure` over HTTPS, not HttpOnly), which the lobby's
-  `POST /lang` writes; when it is absent or holds anything else, the first supported
-  `navigator.languages` entry by its primary subtag, else `en`. A replacement client honours the
-  cookie, and a language choice it offers writes the same cookie with the same attributes, so the
-  lobby follows it (`docs/i18n.md`). The game server sends codes, never text to show: errors carry
-  a code beside an English diagnostic message the client does not display.
+* **Language:** v2 is currently English-only, with literal UI text and no catalogs or language switch.
+  The lobby and v1 support Japanese, English and Russian under `docs/i18n.md`. Future game-client
+  localization must follow that contract: resolve the `lang` cookie first, then the browser's supported
+  language, then English; an explicit language choice writes the same cookie so the lobby follows it.
+  The game server sends codes, never text to show: errors carry a code beside an English diagnostic
+  message the client does not display.
 * **CSP:** game pages allow scripts, styles and fonts from `'self'` (inline styles too; no Google
   Fonts, which only the lobby pages load) and WebSocket connections to any host; no `eval`, so a
   library that compiles code at runtime must run without it. A client needing more changes

@@ -2,6 +2,7 @@
 
 One machine owns finding the handoff, joining, playing, reconnecting and the end.
 
+- Credentials come only from the lobby's handoff in the tab's session storage or its recovery endpoint, never the URL.
 - Each state is a variant carrying only its own facts. Other slices ask the session (`holdsSeat`, `takesMessages`,
   `canRequestResync`, `awaitsSnapshot`, `connectionTrouble`, `endReasonOf`, `hasEnded`, `leavingHandsSeatToAi`), never
   read its status, identity or retry fields; a new need is a new query here, its words stay the asker's.

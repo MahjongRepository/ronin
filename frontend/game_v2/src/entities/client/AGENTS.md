@@ -13,6 +13,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   (kuikae, riichi's drawn tile). The intent gate (`takesIntent`) is the one test of what may be played, so the board
   offers exactly what stepping the intent would send. Once answered, its controls and timer disappear;
   the internal submitted state still prevents a second answer.
+- After the viewer's pon or chi, the play decision opens on the server's `turn`, never on the meld. A reconnect
+  snapshot opens no play decision: the server re-sends its opening message. It may restore an owed round confirm.
 - Deadlines are display only: the client estimates the server's timer in logical time (re-sent waits backdated by
   their elapsed time) and never answers, confirms or arms a timer on expiry. An expired decision still takes one
   answer; the server decides by wait id whether it counts.
@@ -48,6 +50,7 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 
 ## Calls and the live board
 
+- A click or tap on the board's background never answers a decision or confirms or dismisses a round result.
 - A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
   table. The submitted decision identifies its server echo even after the callout expires, so confirmation never
   repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all
