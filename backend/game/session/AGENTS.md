@@ -76,12 +76,13 @@ interleave.
   timer runs until the deal, a seat left empty then gets its AI player only with the deal (no AI
   move goes out ahead of it), and a RECONNECT answers retry later until then. The game client derives its silence watchdog limit from the timer settings it is sent and,
   before the game starts, from the pending game timeout `game_joined` names.
-  The client also re-implements the turn, call, bank and game start pause rules
-  from the timer settings it is sent once, taking only the bank from each turn's
+  The client also re-implements the shared turn/call bank and game start pause rules
+  from the timer settings it is sent once, taking only the bank from each decision's
   opening message (`messaging/AGENTS.md`), so a change to how a wait is paced changes its countdown
   too; a round advance's timeout is named on its round end and in the snapshot instead
-  (`TimerConfig.round_advance_seconds`, which the timer arms too). A new round's bonus goes into the banks before the wait's events go out, so that bank
-  includes it.
+  (`TimerConfig.round_advance_seconds`, which the timer arms too). Every participant's bank resets at each hand's first wait, before its opening messages go out,
+  including the first hand and disconnected seats. Turns and calls draw from the same bank after their free base
+  time; ending a wait charges every running decision, even a call resolved by another seat.
   The timers sleep on the event loop and measure the bank and elapsed time on the manager's clock,
   which every monotonic time the manager reads comes from (`time.monotonic` unless given), so the two
   must agree: the seat scenario generator runs the loop on virtual time and passes the loop's own

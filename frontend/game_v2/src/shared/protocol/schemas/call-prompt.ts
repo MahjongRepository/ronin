@@ -28,6 +28,7 @@ const availableCallSchema = z.union([
 const ronPromptSchema = z.pipe(
     z.object({
         ac: z.optional(z.array(availableCallSchema)),
+        bk: z.optional(secondsSchema),
         clt: z.literal(CALL_TYPE.RON),
         cs: seatSchema,
         el: z.optional(secondsSchema),
@@ -38,6 +39,7 @@ const ronPromptSchema = z.pipe(
     }),
     z.transform((raw) => ({
         availableCalls: raw.ac ?? [],
+        bankSeconds: raw.bk ?? null,
         callType: CALL_TYPE.RON as typeof CALL_TYPE.RON,
         callerSeat: raw.cs,
         elapsedSeconds: raw.el ?? null,
@@ -53,6 +55,7 @@ const ronPromptSchema = z.pipe(
 /** A chankan prompt names the kan it offers to rob: an added kan, or the closed kan kokushi musou may rob. */
 const chankanPromptSchema = z.pipe(
     z.object({
+        bk: z.optional(secondsSchema),
         clt: z.literal(CALL_TYPE.CHANKAN),
         cs: seatSchema,
         el: z.optional(secondsSchema),
@@ -63,6 +66,7 @@ const chankanPromptSchema = z.pipe(
         wi: z.optional(waitIdSchema),
     }),
     z.transform((raw) => ({
+        bankSeconds: raw.bk ?? null,
         callType: CALL_TYPE.CHANKAN as typeof CALL_TYPE.CHANKAN,
         callerSeat: raw.cs,
         elapsedSeconds: raw.el ?? null,
@@ -79,6 +83,7 @@ const chankanPromptSchema = z.pipe(
 const meldPromptSchema = z.pipe(
     z.object({
         ac: z.array(availableCallSchema).check(z.minLength(1)),
+        bk: z.optional(secondsSchema),
         clt: z.literal(CALL_TYPE.MELD),
         cs: seatSchema,
         el: z.optional(secondsSchema),
@@ -89,6 +94,7 @@ const meldPromptSchema = z.pipe(
     }),
     z.transform((raw) => ({
         availableCalls: raw.ac,
+        bankSeconds: raw.bk ?? null,
         callType: CALL_TYPE.MELD as typeof CALL_TYPE.MELD,
         callerSeat: raw.cs,
         elapsedSeconds: raw.el ?? null,

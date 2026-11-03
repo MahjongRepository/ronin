@@ -146,16 +146,13 @@ def refused_wait_id(data: dict[str, Any]) -> int | None:
 
 class TimerSettings(BaseModel):
     """
-    A seat's pacing for its own countdowns (seconds): the turn base time, the seat's bank, the round bonus and the bank
-    cap it adds up to, the fixed call decision time, the round advance timeout per result shown and the game start
-    pause.
+    Describe a seat's pacing (seconds): the shared turn/call base time, current and full per-hand bank, round advance
+    timeout per result shown and game start pause.
     """
 
     base_turn_seconds: float = Field(serialization_alias="tb")
     bank_seconds: float = Field(serialization_alias="bk")
-    round_bonus_seconds: float = Field(serialization_alias="rb")
     max_bank_seconds: float = Field(serialization_alias="mb")
-    meld_decision_seconds: float = Field(serialization_alias="md")
     round_advance_timeout_seconds: float = Field(serialization_alias="ra")
     game_start_pause_seconds: float = Field(serialization_alias="gp")
 

@@ -11,10 +11,8 @@ const WIRE_ROUND_ADVANCE_SECONDS = 15;
 const WIRE_TIMER: WirePayload = {
     bk: 20,
     gp: 3,
-    mb: 60,
-    md: 10,
+    mb: 20,
     ra: WIRE_ROUND_ADVANCE_SECONDS,
-    rb: 5,
     tb: 5,
 };
 

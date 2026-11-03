@@ -31,7 +31,7 @@ function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
         countdown.kind === "running"
             ? html`<p class="rotate-panel__countdown" aria-live="off">
                   <span class="rotate-panel__seconds">${countdown.secondsLeft}</span> s left${
-                      countdown.turn?.inBank === true ? " in your time bank" : ""
+                      countdown.clock?.inBank === true ? " in your time bank" : ""
                   }
               </p>`
             : "";

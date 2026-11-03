@@ -368,8 +368,8 @@ describe("PlayBoard", () => {
             kind: "intent",
         }).state;
 
-        expect(timer(renderPlay(turn))).toEqual(["", "5+30", false]);
-        expect(timer(renderPlay(inBank))).toEqual(["Bank", "0+29", true]);
+        expect(timer(renderPlay(turn))).toEqual(["", "5+20", false]);
+        expect(timer(renderPlay(inBank))).toEqual(["Bank", "0+19", true]);
         expect(renderPlay(sent).querySelector(".decision-controls")).toBeNull();
     });
 });

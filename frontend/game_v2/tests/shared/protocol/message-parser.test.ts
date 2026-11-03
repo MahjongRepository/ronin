@@ -15,7 +15,7 @@ const LIVE_GAME_STARTED = {
     rsv: 10,
     s: 0,
     t: EVENT_TYPE.GAME_STARTED,
-    tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
+    tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
 };
 
 const LIVE_ROUND_STARTED = {
@@ -85,7 +85,7 @@ describe("parseServerMessage", () => {
                 rsv: 10,
                 rw: 1,
                 s: 0,
-                tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
+                tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
                 tr: 60,
                 type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
                 w: 0,
@@ -154,7 +154,7 @@ describe("parseServerMessage", () => {
                 rsv: 10,
                 s: 0,
                 t: EVENT_TYPE.GAME_STARTED,
-                tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
+                tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
             };
             const [err, parsed] = parseServerMessage(raw);
             expect(err).toBeNull();
@@ -163,6 +163,7 @@ describe("parseServerMessage", () => {
 
         it("parses a call_prompt event (ron)", () => {
             const raw = {
+                bk: 17,
                 clt: 0,
                 cs: 2,
                 frs: 1,
@@ -174,6 +175,7 @@ describe("parseServerMessage", () => {
             expect(err).toBeNull();
             expect(parsed).toEqual({
                 availableCalls: [],
+                bankSeconds: 17,
                 callType: 0,
                 callerSeat: 2,
                 elapsedSeconds: null,
@@ -291,7 +293,12 @@ describe("parseServerMessage", () => {
             ["deal without its viewer seat", { ...LIVE_ROUND_STARTED, s: undefined }, "s"],
             ["draw without its wait id", { bk: 20, d: 5, t: EVENT_TYPE.DRAW, tr: 69 }, "wi"],
             ["turn without its bank", { kt: [], t: EVENT_TYPE.TURN, wi: 5 }, "bk"],
-            ["call prompt without its wait id", { clt: 0, cs: 2, frs: 1, t: 3, ti: 50 }, "wi"],
+            [
+                "call prompt without its wait id",
+                { bk: 20, clt: 0, cs: 2, frs: 1, t: 3, ti: 50 },
+                "wi",
+            ],
+            ["call prompt without its bank", { clt: 0, cs: 2, frs: 1, t: 3, ti: 50, wi: 4 }, "bk"],
         ])("refuses a %s, which the live socket always stamps", (_name, raw, key) => {
             const [err, parsed] = parseServerMessage(raw);
             expect([err?.message, parsed]).toEqual([expect.stringContaining(`no ${key},`), null]);

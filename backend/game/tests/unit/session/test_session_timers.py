@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-ARMING_CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20, meld_decision_seconds=3)
+ARMING_CONFIG = TimerConfig(base_turn_seconds=5, initial_bank_seconds=20)
 
 
 def _arm_double_ron_round_advance(manager: SessionManager, participant: Participant) -> None:
@@ -72,7 +72,7 @@ class TestWaitTimerArming:
         "arming",
         [
             (SessionManager._start_turn_timer, TimeoutType.TURN, 25.0),
-            (SessionManager._start_meld_timer, TimeoutType.MELD, 3),
+            (SessionManager._start_meld_timer, TimeoutType.MELD, 25.0),
             (
                 partial(SessionManager._start_round_advance_timer, results_shown=1),
                 TimeoutType.ROUND_ADVANCE,
@@ -128,9 +128,9 @@ class TestWaitTimers:
         await manager.shutdown()
 
     async def test_meld_timers__when_one_of_two_callers_passes__should_keep_the_other_callers_deadline(
-        self, seeded_engine
+        self, seeded_engine, fake_clock
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
         alice, bob, carol = (participant_of(manager, conn).seat for conn in conns)
         discarded_four_pin = arrange_ron_and_pon_on_a_discard(runtime_of(manager), discarder=alice, ron=bob, pon=carol)
@@ -142,25 +142,61 @@ class TestWaitTimers:
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob, carol}))
         carol_timer = participant_of(manager, conns[2]).timer
         carol_deadline = carol_timer.task
+        prompt_message = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.CALL_PROMPT])
+        assert prompt_message["bk"] == 20
+        fake_clock.advance(7)
 
         manager.handle_game_action(conns[1], action=GameAction.PASS, data={}, wait_id=prompt.wait_id)
         assert manager.get_game("game1").awaiting == replace(prompt, seats=frozenset({carol}))
         assert participant_of(manager, conns[1]).timer.task is None
         assert carol_timer.task is carol_deadline
         assert not carol_deadline.done()
+        assert participant_of(manager, conns[1]).timer.bank_seconds == 18
+
+        fake_clock.advance(2)
+        manager.handle_game_action(
+            conns[2], action=GameAction.CALL_PON, data={"tile_id": discarded_four_pin}, wait_id=prompt.wait_id
+        )
+        assert carol_timer.bank_seconds == 16
+        turn = next(m for m in conns[2].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.TURN])
+        assert turn["bk"] == 16
 
         await manager.shutdown()
 
-    async def test_round_bonus__when_rounds_start_and_end__should_add_it_once_per_round_before_its_first_draw(
-        self, seeded_engine
+    async def test_call_bank__when_callers_time_out__should_exhaust_their_reserves_and_pass(
+        self, seeded_engine, fake_clock, held_sleep
     ):
-        manager = make_session_manager(seeded_engine)
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+        conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
+        alice, bob, carol = (participant_of(manager, conn) for conn in conns)
+        discarded_four_pin = arrange_ron_and_pon_on_a_discard(
+            runtime_of(manager), discarder=alice.seat, ron=bob.seat, pon=carol.seat
+        )
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+        )
+        assert game_of(manager).awaiting.seats == frozenset({bob.seat, carol.seat})
+        await asyncio.sleep(0)
+        assert held_sleep.durations == [25, 25]
+        fake_clock.advance(25)
+
+        await held_sleep.release_all()
+        assert game_of(manager).awaiting.kind == WaitKind.TURN
+        assert (bob.timer.bank_seconds, carol.timer.bank_seconds) == (0, 0)
+
+        await manager.shutdown()
+
+    async def test_round_bank__when_rounds_start_and_end__should_reset_once_before_the_first_draw(
+        self, seeded_engine, fake_clock
+    ):
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
         conns = create_started_game(manager, player_names=["Alice"])
         alice_seat = participant_of(manager, conns[0]).seat
         timer = participant_of(manager, conns[0]).timer
         config = TimerConfig()
-        first_round_bank = config.initial_bank_seconds + config.round_bonus_seconds
-        assert timer._bank_seconds == first_round_bank
+        first_round_bank = config.initial_bank_seconds
+        assert timer.bank_seconds == first_round_bank
+        fake_clock.advance(7)
 
         arrange_exhaustive_draw(runtime_of(manager))
         drawn_tile = runtime_of(manager).state.round_state.players[alice_seat].tiles[-1]
@@ -168,16 +204,17 @@ class TestWaitTimers:
             conns[0], action=GameAction.DISCARD, data={"tile_id": drawn_tile}, wait_id=current_wait_id(manager)
         )
         assert manager.get_game("game1").awaiting.kind == WaitKind.ROUND_ADVANCE
-        assert timer._bank_seconds == first_round_bank
+        assert timer.bank_seconds == first_round_bank - 2
 
         conns[0]._outbox.clear()
         manager.handle_game_action(conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager))
         second_round = manager.get_game("game1").awaiting
         assert (second_round.round_number, second_round.seats) == (1, frozenset({alice_seat}))
-        assert timer._bank_seconds == first_round_bank + config.round_bonus_seconds
+        assert timer._bank_seconds == first_round_bank
         opening_draw = next(m for m in conns[0].sent_messages if m.get("t") == EVENT_TYPE_INT[EventType.DRAW])
-        assert opening_draw["bk"] == first_round_bank + config.round_bonus_seconds
+        assert opening_draw["bk"] == first_round_bank
 
+        fake_clock.advance(8)
         if second_round.kind == WaitKind.CALL:
             manager.handle_game_action(conns[0], action=GameAction.PASS, data={}, wait_id=second_round.wait_id)
         else:
@@ -188,19 +225,20 @@ class TestWaitTimers:
         next_wait = manager.get_game("game1").awaiting
         assert next_wait.round_number == 1
         assert next_wait.wait_id != second_round.wait_id
-        assert timer._bank_seconds == first_round_bank + config.round_bonus_seconds
+        assert timer.bank_seconds == first_round_bank - 3
 
         await manager.shutdown()
 
-    async def test_round_bonus__when_a_round_starts_while_a_participant_is_away__should_skip_their_bank(
+    async def test_round_bank__when_a_round_starts_while_a_participant_is_away__should_reset_their_bank(
         self, seeded_engine
     ):
         manager = make_session_manager(seeded_engine)
         conns = create_started_game(manager, player_names=["Alice", "Bob"])
         alice, bob = (participant_of(manager, conn) for conn in conns)
-        first_round_bank = TimerConfig().initial_bank_seconds + TimerConfig().round_bonus_seconds
+        first_round_bank = TimerConfig().initial_bank_seconds
         assert (alice.timer._bank_seconds, bob.timer._bank_seconds) == (first_round_bank, first_round_bank)
         manager.disconnect(conns[1])
+        bob.timer._bank_seconds = 3
         game = game_of(manager)
         assert (game.awaiting.kind, game.awaiting.seats) == (WaitKind.TURN, frozenset({alice.seat}))
 
@@ -211,7 +249,7 @@ class TestWaitTimers:
         )
         manager.handle_game_action(conns[0], action=GameAction.CONFIRM_ROUND, data={}, wait_id=current_wait_id(manager))
         assert game.awaiting.round_number == 1
-        assert alice.timer._bank_seconds == first_round_bank + TimerConfig().round_bonus_seconds
+        assert alice.timer._bank_seconds == first_round_bank
 
         reconnecting = MockConnection()
         manager.register_connection(reconnecting)

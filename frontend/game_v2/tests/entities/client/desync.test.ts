@@ -578,7 +578,7 @@ describe("stepGameClient - desync before the first deal", () => {
     });
 
     it("keeps a game start's timer settings while awaiting the deal, so the socket waits through a long start pause", () => {
-        const timer = { bk: 20, gp: 240, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+        const timer = { bk: 20, gp: 240, mb: 20, ra: 15, tb: 5 };
         const started = run(refusedBeforeDeal().state, [
             message(500, { ...WIRE_GAME_STARTED, s: 0, tm: timer }),
         ]);
@@ -590,7 +590,7 @@ describe("stepGameClient - desync before the first deal", () => {
     });
 
     it("keeps a game start that came while its request was outstanding, so the refusal that follows asks at the deal and the socket waits out the pause", () => {
-        const timer = { bk: 20, gp: 75, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+        const timer = { bk: 20, gp: 75, mb: 20, ra: 15, tb: 5 };
         const refused = run(startGameClient(GAME_ID, HANDOFF, 0).state, [
             opened(0),
             message(0, WIRE_GAME_JOINED),

@@ -259,13 +259,13 @@ describe("mountGameView", () => {
         const { clock, connections, host } = mountWithFakes();
         openCallPrompt(connections[0]);
 
-        const shown = [0, 999, 1000, 2000, 3000, 4000].map((at) => {
+        const shown = [0, 999, 1000, 5000, 24_000, 24_999].map((at) => {
             clock.advanceTo(at);
             return secondsLeft(host);
         });
-        clock.advanceTo(5000);
+        clock.advanceTo(25_000);
 
-        expect(shown).toEqual(["5", "5", "4", "3", "2", "1"]);
+        expect(shown).toEqual(["25", "25", "24", "20", "1", "1"]);
         expect(host.querySelector(".game__rotate .rotate-panel__decision--expired")).not.toBeNull();
         expect(connections[0].sent).toEqual([JOIN]);
     });
@@ -538,7 +538,7 @@ describe("mountGameView connection", () => {
         const identifying = socket.silenceLimitMs;
         socket.handlers.onMessage({ ...WIRE_GAME_JOINED, pt: 300 });
         const joined = socket.silenceLimitMs;
-        const timer = { bk: 120, gp: 3, mb: 180, md: 5, ra: 15, rb: 10, tb: 10 };
+        const timer = { bk: 120, gp: 3, mb: 180, ra: 15, tb: 10 };
         socket.handlers.onMessage({ ...WIRE_GAME_STARTED, s: 0, tm: timer });
 
         expect([identifying, joined, socket.silenceLimitMs]).toEqual([90_000, 325_000, 215_000]);

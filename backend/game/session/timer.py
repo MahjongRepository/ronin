@@ -4,7 +4,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -12,25 +12,15 @@ if TYPE_CHECKING:
 
 class TimerConfig(BaseModel):
     """
-    Pacing of a game: turn base and bank time, fixed meld, round-advance and pending-game timeouts, and the game start
-    pause before the first deal (seconds).
+    Pace turns and calls with a shared per-hand bank, plus fixed round-advance and pending-game timeouts and a game
+    start pause before the first deal (seconds).
     """
 
     base_turn_seconds: float = Field(default=5, ge=0)
     initial_bank_seconds: float = Field(default=20, gt=0)
-    max_bank_seconds: float = 60
-    round_bonus_seconds: float = Field(default=10, ge=0)
-    meld_decision_seconds: float = Field(default=5, gt=0)
     round_advance_timeout_seconds: float = Field(default=10, gt=0)
     pending_game_timeout_seconds: float = Field(default=30, gt=0)
     game_start_pause_seconds: float = Field(default=3, ge=0)
-
-    @model_validator(mode="after")
-    def _validate_bank_cap(self) -> TimerConfig:
-        if self.max_bank_seconds < self.initial_bank_seconds:
-            raise ValueError("max_bank_seconds must be >= initial_bank_seconds")
-
-        return self
 
     def round_advance_seconds(self, results_shown: int) -> float:
         """
@@ -44,7 +34,7 @@ class TurnTimer:
     Manage action timers for a player in a game.
 
     Uses a two-phase timer: base time (free, resets each turn) followed by bank time
-    (drains only when base time expires). Meld decisions use a separate fixed timer. The clock (monotonic seconds)
+    (drains only when base time expires). Turns and calls share the bank, reset each hand. The clock (monotonic seconds)
     times the bank and the elapsed time, and must agree with the event loop's clock, which times the sleeps: a harness
     that runs the loop on virtual time passes the loop's.
     """
@@ -81,29 +71,20 @@ class TurnTimer:
 
         return self._clock() - self._started_at
 
-    def add_round_bonus(self) -> None:
+    def reset_bank(self) -> None:
         """
-        Add round bonus time to the bank, capped at max_bank_seconds.
+        Restore the hand's full bank.
         """
-        self._bank_seconds = min(
-            self._bank_seconds + self._config.round_bonus_seconds,
-            self._config.max_bank_seconds,
-        )
+        self._bank_seconds = self._config.initial_bank_seconds
 
-    def start_turn_timer(self, on_timeout: Callable[[], None]) -> None:
+    def start_decision_timer(self, on_timeout: Callable[[], None]) -> None:
         """
-        Start the turn timer using base time + bank time.
+        Start a turn or call timer using base time + bank time.
         """
         self.cancel()
         self._turn_start_time = self._started_at = self._clock()
         total = self._config.base_turn_seconds + self._bank_seconds
         self._active_task = asyncio.create_task(self._run_timer(total, on_timeout))
-
-    def start_meld_timer(self, on_timeout: Callable[[], None]) -> None:
-        """
-        Start a fixed meld decision timer (does not consume bank time).
-        """
-        self.start_fixed_timer(self._config.meld_decision_seconds, on_timeout)
 
     def start_fixed_timer(self, duration: float, on_timeout: Callable[[], None]) -> None:
         """

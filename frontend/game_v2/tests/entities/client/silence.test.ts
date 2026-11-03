@@ -8,7 +8,7 @@ const { message, opened } = clientEvent;
 
 describe("serverSilenceLimitMs", () => {
     it("waits out a round advance over three winners' pages, the most rons one discard can make", () => {
-        const timer = { bk: 20, gp: 3, mb: 60, md: 5, ra: 40, rb: 10, tb: 5 };
+        const timer = { bk: 20, gp: 3, mb: 20, ra: 40, tb: 5 };
         const started = [
             opened(0),
             message(0, WIRE_GAME_JOINED),

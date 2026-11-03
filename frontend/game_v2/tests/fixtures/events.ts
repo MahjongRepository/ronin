@@ -168,6 +168,7 @@ export function makeChankanPromptEvent(
     overrides: Partial<ChankanPromptEvent> = {},
 ): ChankanPromptEvent {
     return {
+        bankSeconds: null,
         callType: CALL_TYPE.CHANKAN,
         callerSeat: 1,
         elapsedSeconds: null,

@@ -84,20 +84,20 @@ function deadlineAfter(at: number, seconds: number, elapsedSeconds: number | nul
     return at + Math.max(0, seconds - (elapsedSeconds ?? 0)) * MS_PER_SECOND;
 }
 
-const UNTIMED_TURN = { baseDeadline: null, deadline: null } as const;
+const UNTIMED_DECISION = { baseDeadline: null, deadline: null } as const;
 
 /**
- * A turn runs its base time, then the bank its opening message names, which drains only once the base ran out; a
- * re-sent wait's elapsed time comes off the base first. The client keeps no bank of its own, so a turn message without
+ * A decision runs its base time, then the bank its opening message names, which drains only once the base ran out; a
+ * re-sent wait's elapsed time comes off the base first. The client keeps no bank of its own, so an opening message without
  * one gets no deadline rather than a guess.
  */
-function turnDeadlines(
+function decisionDeadlines(
     timer: TimerSettings | null,
     at: number,
-    event: DrawEvent | TurnEvent,
-): Pick<TurnDecision, "baseDeadline" | "deadline"> {
+    event: DrawEvent | TurnEvent | CallPromptEvent,
+): Pick<Decision, "baseDeadline" | "deadline"> {
     if (timer === null || event.bankSeconds === null) {
-        return UNTIMED_TURN;
+        return UNTIMED_DECISION;
     }
     const { baseTurnSeconds } = timer;
     return {
@@ -190,7 +190,7 @@ function openTurn(
                   opening: { kind: "after_call", kuikaeTileTypes: event.kuikaeTileTypes },
               };
     return {
-        ...turnDeadlines(context.timer, context.at, event),
+        ...decisionDeadlines(context.timer, context.at, event),
         ...opened,
         kind: "turn",
         openedAt: context.at,
@@ -202,11 +202,8 @@ function openTurn(
 function openCall(prompt: CallPromptEvent, waitId: number, context: DecisionContext): CallDecision {
     const { at, timer } = context;
     return {
+        ...decisionDeadlines(timer, at, prompt),
         callType: prompt.callType,
-        deadline:
-            timer === null
-                ? null
-                : deadlineAfter(at, timer.meldDecisionSeconds, prompt.elapsedSeconds),
         fromSeat: prompt.fromSeat,
         kind: "call",
         offers: promptOffers(prompt),

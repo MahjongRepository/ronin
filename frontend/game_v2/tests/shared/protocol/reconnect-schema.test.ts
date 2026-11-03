@@ -82,7 +82,7 @@ function makeReconnectPayload(overrides?: Record<string, unknown>): Record<strin
         rsv: 15,
         rw: 2,
         s: 0,
-        tm: { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 },
+        tm: { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 },
         tr: 52,
         type: SESSION_MESSAGE_TYPE.GAME_RECONNECTED,
         w: 0,

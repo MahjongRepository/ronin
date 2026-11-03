@@ -18,12 +18,12 @@ import { CONNECTION_STATUS } from "@/shared/protocol";
 const LEAVE: LeaveControls = { command: { kind: "ask_leave" }, confirming: false };
 
 function running(secondsLeft: number): DecisionCountdown {
-    return { kind: "running", move: "turn", secondsLeft, turn: null };
+    return { clock: null, kind: "running", move: "turn", secondsLeft };
 }
 
 function inBank(secondsLeft: number): DecisionCountdown {
-    const turn = { bankSeconds: secondsLeft, baseSeconds: 0, inBank: true };
-    return { kind: "running", move: "turn", secondsLeft, turn };
+    const clock = { bankSeconds: secondsLeft, baseSeconds: 0, inBank: true };
+    return { clock, kind: "running", move: "turn", secondsLeft };
 }
 
 function renderPanel(view: RotatePanelView): HTMLElement {
@@ -44,7 +44,7 @@ describe("RotatePanel", () => {
         const host = renderPanel(playDisplay(prompt, NO_PLAY_UI));
 
         expect(host.querySelector("[role=status]")?.textContent).toBe("Connected");
-        expect(host.querySelector(".rotate-panel__seconds")?.textContent).toBe("5");
+        expect(host.querySelector(".rotate-panel__seconds")?.textContent).toBe("25");
     });
 
     it("names a chankan prompt as the chance to rob the kan, not a call on the last discard", () => {

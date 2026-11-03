@@ -310,7 +310,12 @@ function fiveOffers(): DecisionView {
                 rank: "pass",
             }),
         ],
-        countdown: { kind: "running", move: "call", secondsLeft: 5, turn: null },
+        countdown: {
+            clock: { bankSeconds: 20, baseSeconds: 5, inBank: false },
+            kind: "running",
+            move: "call",
+            secondsLeft: 25,
+        },
         decisionStanding: "open",
     };
 }
@@ -327,10 +332,10 @@ function riichiOffer(): DecisionView {
             }),
         ],
         countdown: {
+            clock: { bankSeconds: 20, baseSeconds: 5, inBank: false },
             kind: "running",
             move: "turn",
-            secondsLeft: 45,
-            turn: { bankSeconds: 40, baseSeconds: 5, inBank: false },
+            secondsLeft: 25,
         },
         decisionStanding: "open",
     };
@@ -355,10 +360,10 @@ function bankOffers(): DecisionView {
             }),
         ],
         countdown: {
+            clock: { bankSeconds: 8, baseSeconds: 0, inBank: true },
             kind: "running",
             move: "turn",
             secondsLeft: 8,
-            turn: { bankSeconds: 8, baseSeconds: 0, inBank: true },
         },
         decisionStanding: "open",
     };

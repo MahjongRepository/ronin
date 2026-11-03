@@ -10,10 +10,10 @@ const COUNTDOWN_STEP_MS = 1000;
 type DecisionMove = "turn" | "call" | "chankan" | "result";
 
 /**
- * A turn's time as the server runs it, in whole seconds (rounded up): its base time first, then its bank, which drains
+ * A decision's time as the server runs it, in whole seconds (rounded up): its base time first, then its bank, which drains
  * only once the base ran out. In the bank the base reads 0 and the bank is the time left.
  */
-export interface TurnClock {
+export interface DecisionClock {
     readonly inBank: boolean;
     readonly baseSeconds: number;
     readonly bankSeconds: number;
@@ -21,7 +21,7 @@ export interface TurnClock {
 
 /**
  * Where the move awaiting the viewer stands at the state's logical `now`: running with the whole seconds left to its
- * deadline (rounded up, so it reads 1 until the deadline) and, for a turn, its base and bank apart; open with no
+ * deadline (rounded up, so it reads 1 until the deadline) and its base and bank apart; open with no
  * deadline to count down to; or past its deadline.
  */
 export type DecisionCountdown =
@@ -29,7 +29,7 @@ export type DecisionCountdown =
           readonly kind: "running";
           readonly move: DecisionMove;
           readonly secondsLeft: number;
-          readonly turn: TurnClock | null;
+          readonly clock: DecisionClock | null;
       }
     | { readonly kind: "untimed" | "expired"; readonly move: DecisionMove };
 
@@ -44,8 +44,8 @@ function secondsLeft(deadline: number, now: number): number {
     return Math.ceil(Math.max(0, deadline - now) / COUNTDOWN_STEP_MS);
 }
 
-function turnClock(decision: Decision, deadline: number, now: number): TurnClock | null {
-    if (decision.kind !== "turn" || decision.baseDeadline === null) {
+function decisionClock(decision: Decision, deadline: number, now: number): DecisionClock | null {
+    if (decision.baseDeadline === null) {
         return null;
     }
     const { baseDeadline } = decision;
@@ -74,10 +74,10 @@ export function decisionCountdown(state: LiveClient): DecisionCountdown | null {
         return { kind: "untimed", move };
     }
     return {
+        clock: decisionClock(decision, deadline, state.now),
         kind: "running",
         move,
         secondsLeft: secondsLeft(deadline, state.now),
-        turn: turnClock(decision, deadline, state.now),
     };
 }
 
@@ -106,7 +106,7 @@ export function roundConfirmCountdown(state: LiveClient): DecisionCountdown | nu
     if (state.now >= deadline) {
         return { kind: "expired", move };
     }
-    return { kind: "running", move, secondsLeft: secondsLeft(deadline, state.now), turn: null };
+    return { clock: null, kind: "running", move, secondsLeft: secondsLeft(deadline, state.now) };
 }
 
 /** The countdown of what awaits the viewer now: its unanswered decision, else a round result it owes a confirm. */
@@ -135,12 +135,12 @@ function nextShownChange(deadline: number, seconds: number): number {
     return deadline - (seconds - 1) * COUNTDOWN_STEP_MS;
 }
 
-/** When a turn's base time runs out, or null for a turn without a deadline, a call or no decision. */
-function turnBaseDeadline(decision: Decision | null): number | null {
-    return decision?.kind === "turn" ? decision.baseDeadline : null;
+/** When a decision's base time runs out, or null without a timed decision. */
+function decisionBaseDeadline(decision: Decision | null): number | null {
+    return decision?.baseDeadline ?? null;
 }
 
-/** Every time a running countdown next shows a different number: its seconds left and, in a turn's base, the base's. */
+/** Every time a running countdown next shows a different number: its seconds left and, in a decision's base, the base's. */
 function countdownChanges(countdown: DecisionCountdown | null, state: LiveClient): number[] {
     if (countdown?.kind !== "running") {
         return [];
@@ -153,9 +153,9 @@ function countdownChanges(countdown: DecisionCountdown | null, state: LiveClient
         return [];
     }
     const changes = [nextShownChange(deadline, countdown.secondsLeft)];
-    const baseDeadline = turnBaseDeadline(decisionOf(state));
-    if (countdown.turn !== null && !countdown.turn.inBank && baseDeadline !== null) {
-        changes.push(nextShownChange(baseDeadline, countdown.turn.baseSeconds));
+    const baseDeadline = decisionBaseDeadline(decisionOf(state));
+    if (countdown.clock !== null && !countdown.clock.inBank && baseDeadline !== null) {
+        changes.push(nextShownChange(baseDeadline, countdown.clock.baseSeconds));
     }
     return changes;
 }

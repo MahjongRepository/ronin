@@ -1,7 +1,6 @@
 import asyncio
 
 import pytest
-from pydantic import ValidationError
 
 from game.session.timer import TimerConfig, TurnTimer
 
@@ -19,11 +18,6 @@ def _recording_callback(calls: list[str], name: str):
     return on_timeout
 
 
-def test_timer_config__when_max_bank_below_initial_bank__should_raise():
-    with pytest.raises(ValidationError, match="max_bank_seconds must be >= initial_bank_seconds"):
-        TimerConfig(max_bank_seconds=5, initial_bank_seconds=20)
-
-
 class TestTurnTimerDeadline:
     async def test_turn_timer__when_bank_exhausted__should_fire_callback(self):
         timer = TurnTimer(TimerConfig(base_turn_seconds=0, initial_bank_seconds=0.05))
@@ -32,7 +26,7 @@ class TestTurnTimerDeadline:
         def on_timeout():
             callback_called.set()
 
-        timer.start_turn_timer(on_timeout)
+        timer.start_decision_timer(on_timeout)
         await asyncio.wait_for(callback_called.wait(), timeout=1.0)
         assert callback_called.is_set()
 
@@ -40,20 +34,9 @@ class TestTurnTimerDeadline:
         timer = TurnTimer(BASE_AND_BANK)
         calls: list[str] = []
 
-        timer.start_turn_timer(_recording_callback(calls, "timeout"))
+        timer.start_decision_timer(_recording_callback(calls, "timeout"))
         await asyncio.sleep(0)
         assert held_sleep.durations == [25.0]
-
-        await held_sleep.release_all()
-        assert calls == ["timeout"]
-
-    async def test_meld_timer__when_started__should_sleep_for_the_fixed_meld_time(self, held_sleep):
-        timer = TurnTimer(TimerConfig(meld_decision_seconds=3))
-        calls: list[str] = []
-
-        timer.start_meld_timer(_recording_callback(calls, "timeout"))
-        await asyncio.sleep(0)
-        assert held_sleep.durations == [3]
 
         await held_sleep.release_all()
         assert calls == ["timeout"]
@@ -69,17 +52,17 @@ class TestTurnTimerBank:
     ):
         timer = TurnTimer(BASE_AND_BANK, clock=fake_clock.monotonic)
 
-        timer.start_turn_timer(_noop)
+        timer.start_decision_timer(_noop)
         fake_clock.advance(elapsed)
         timer.stop()
         assert timer._bank_seconds == bank_after
 
-    async def test_meld_timer__when_cancelled__should_keep_bank_unchanged(self, fake_clock, held_sleep):
+    async def test_fixed_timer__when_stopped__should_keep_bank_unchanged(self, fake_clock, held_sleep):
         timer = TurnTimer(BASE_AND_BANK, clock=fake_clock.monotonic)
 
-        timer.start_meld_timer(_noop)
-        fake_clock.advance(4)
-        timer.cancel()
+        timer.start_fixed_timer(10, _noop)
+        fake_clock.advance(8)
+        timer.stop()
         assert timer._bank_seconds == 20.0
 
 
@@ -88,7 +71,7 @@ class TestTurnTimerCancel:
         timer = TurnTimer(BASE_AND_BANK)
         calls: list[str] = []
 
-        timer.start_turn_timer(_recording_callback(calls, "timeout"))
+        timer.start_decision_timer(_recording_callback(calls, "timeout"))
         sleeping = timer.task
         timer.stop()
         await asyncio.sleep(0)
@@ -101,9 +84,9 @@ class TestTurnTimerCancel:
         timer = TurnTimer(BASE_AND_BANK)
         calls: list[str] = []
 
-        timer.start_turn_timer(_recording_callback(calls, "first"))
+        timer.start_decision_timer(_recording_callback(calls, "first"))
         first = timer.task
-        timer.start_turn_timer(_recording_callback(calls, "second"))
+        timer.start_decision_timer(_recording_callback(calls, "second"))
         await asyncio.sleep(0)
         assert first.cancelled()
 
@@ -119,10 +102,10 @@ class TestTimerCallbackOwnership:
         finished: list[str] = []
 
         def restart():
-            timer.start_meld_timer(_noop)
+            timer.start_decision_timer(_noop)
             finished.append("callback")
 
-        timer.start_turn_timer(restart)
+        timer.start_decision_timer(restart)
         fired = timer.task
         assert fired is not None
 
@@ -136,15 +119,15 @@ class TestTimerCallbackOwnership:
         timer.cancel()
 
 
-class TestBankCap:
-    def test_round_bonus__when_exceeding_max_bank__should_cap_at_max(self):
-        timer = TurnTimer(TimerConfig(initial_bank_seconds=55.0, max_bank_seconds=60.0, round_bonus_seconds=10.0))
+class TestBankReset:
+    @pytest.mark.parametrize("elapsed", [0, 7.5, 40])
+    async def test_reset_bank__when_a_new_hand_starts__should_restore_exactly_the_full_bank(
+        self, fake_clock, held_sleep, elapsed
+    ):
+        timer = TurnTimer(BASE_AND_BANK, clock=fake_clock.monotonic)
+        timer.start_decision_timer(_noop)
+        fake_clock.advance(elapsed)
+        timer.stop()
 
-        timer.add_round_bonus()
-        assert timer._bank_seconds == 60.0
-
-    def test_round_bonus__when_below_cap__should_add_full_bonus(self):
-        timer = TurnTimer(TimerConfig(initial_bank_seconds=10.0, max_bank_seconds=60.0, round_bonus_seconds=10.0))
-
-        timer.add_round_bonus()
-        assert timer._bank_seconds == 20.0
+        timer.reset_bank()
+        assert timer.bank_seconds == 20

@@ -1,5 +1,4 @@
 import time
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -165,16 +164,27 @@ class TestBankTimePreservation:
         reconnected = next(m for m in new_conn.sent_messages if m.get("type") == SessionMessageType.GAME_RECONNECTED)
         assert reconnected["tm"]["bk"] == bank_after_leave
 
-    @pytest.mark.asyncio
-    async def test_bank_time__when_player_leaves_during_meld_prompt__should_keep_bank_unchanged(self, manager):
-        conns = create_started_game(manager, player_names=["Alice", "Bob"])
-        alice_conn = conns[0]
-        timer = participant_of(manager, alice_conn).timer
-        initial_bank = timer._bank_seconds
-        timer.start_meld_timer(MagicMock())
+    async def test_bank_time__when_player_leaves_during_meld_prompt__should_charge_overtime(
+        self, seeded_engine, fake_clock
+    ):
+        manager = make_session_manager(seeded_engine, clock=fake_clock.monotonic)
+        conns = create_started_game(manager, player_names=["Alice", "Bob", "Carol"])
+        alice, bob, carol = (participant_of(manager, conn) for conn in conns)
+        discarded_four_pin = arrange_ron_and_pon_on_a_discard(
+            runtime_of(manager), discarder=alice.seat, ron=bob.seat, pon=carol.seat
+        )
+        manager.handle_game_action(
+            conns[0], action=GameAction.DISCARD, data={"tile_id": discarded_four_pin}, wait_id=current_wait_id(manager)
+        )
+        assert game_of(manager).awaiting.kind == WaitKind.CALL
+        assert carol.seat in game_of(manager).awaiting.seats
+        fake_clock.advance(7)
 
-        manager.disconnect(alice_conn)
-        assert timer._bank_seconds == initial_bank
+        manager.disconnect(conns[2])
+        assert carol.timer.bank_seconds == 18
+        assert carol.timer.task is None
+
+        await manager.shutdown()
 
 
 class TestReconnectTakeover:
@@ -241,7 +251,7 @@ class TestReconnectTakeover:
         prompt = game_of(manager).awaiting
         assert (prompt.kind, prompt.seats) == (WaitKind.CALL, frozenset({bob.seat, carol.seat}))
         carol_deadline = carol.timer.task
-        fake_clock.advance(2)
+        fake_clock.advance(7)
 
         new_conn = MockConnection()
         manager.register_connection(new_conn)
@@ -253,8 +263,9 @@ class TestReconnectTakeover:
             discarded_four_pin,
             carol.seat,
             prompt.wait_id,
-            2,
+            7,
         )
+        assert call_prompt["bk"] == 20
         assert [call["clt"] for call in call_prompt["ac"]] == [WireMeldCallType.PON]
         assert game_of(manager).awaiting == prompt
         assert carol.timer.task is carol_deadline
@@ -262,6 +273,7 @@ class TestReconnectTakeover:
 
         manager.handle_game_action(new_conn, action=GameAction.PASS, data={}, wait_id=prompt.wait_id)
         assert game_of(manager).awaiting.seats == frozenset({bob.seat})
+        assert carol.timer.bank_seconds == 18
 
         await manager.shutdown()
 

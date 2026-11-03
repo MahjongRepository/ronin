@@ -4,6 +4,13 @@ Standard Japanese Riichi Mahjong (4-player). This document lists the specific ru
 
 ---
 
+## Time Controls
+
+- Turns and calls (including ron and chankan) each receive 5 seconds of free decision time, then draw from the same 20-second reserve.
+- Every hand starts with exactly 20 seconds in reserve, including the first hand and seats temporarily played by AI. Unused time does not carry over, and quick decisions do not replenish it.
+- Elapsed time beyond the free allowance is charged when a decision ends, including a call resolved by another player. Reconnecting within a hand preserves the bank and any running deadline.
+- Round-result confirmation and the game-start pause use separate timers and do not consume the reserve.
+
 ## Basic Mechanics
 
 Rules fundamental to Riichi Mahjong that cannot be configured via settings.

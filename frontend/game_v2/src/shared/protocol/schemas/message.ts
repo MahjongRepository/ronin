@@ -128,7 +128,7 @@ function wrapParseError(raw: Record<string, unknown>, err: unknown): Error {
 /**
  * The fields the live socket stamps on a message for its recipient alone, by wire key, as parsed: a game start's
  * viewer seat and timer settings, a deal's viewer seat and private hand, and the wait id of a turn or call prompt
- * opening, a turn's with its bank. A replay records none of them.
+ * opening, each with its bank. A replay records none of them.
  */
 function liveStamps(message: ParsedServerMessage): readonly (readonly [string, unknown])[] {
     switch (message.type) {
@@ -145,14 +145,12 @@ function liveStamps(message: ParsedServerMessage): readonly (readonly [string, u
             ];
         }
         case "draw":
+        case "call_prompt":
         case "turn": {
             return [
                 ["wi", message.waitId],
                 ["bk", message.bankSeconds],
             ];
-        }
-        case "call_prompt": {
-            return [["wi", message.waitId]];
         }
         default: {
             return [];

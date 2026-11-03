@@ -55,10 +55,9 @@ interface DecisionBase {
     readonly waitId: number;
     readonly offers: readonly Offer[];
     readonly openedAt: number;
-    /**
-     * When the server's timer for the wait likely runs out, in logical time: an estimate for the countdown, never a
-     * gate. Null without the timer settings, or for a turn whose opening message names no bank.
-     */
+    /** When the decision's free base time ends, in logical time; null without a timed opening. */
+    readonly baseDeadline: number | null;
+    /** The estimated server deadline for display only; null without timer settings or an opening bank. */
     readonly deadline: number | null;
     readonly status: DecisionStatus;
 }
@@ -74,11 +73,6 @@ export type TurnOpening =
 /** The seat's own turn, opened by its draw, or by the `turn` event after its own pon or chi. */
 export interface TurnDecision extends DecisionBase {
     readonly kind: "turn";
-    /**
-     * When the turn's base time likely runs out and its bank starts to drain, in logical time: the server's base time
-     * from the opening, less what a re-sent wait says has run. Null when the turn has no deadline.
-     */
-    readonly baseDeadline: number | null;
     readonly opening: TurnOpening;
 }
 

@@ -550,7 +550,7 @@ describe("readReplayTimeline - engine fixtures", () => {
 
 type WireLine = Readonly<Record<string, unknown>>;
 
-const PROJECTED_TIMER = { bk: 20, gp: 3, mb: 60, md: 10, ra: 15, rb: 5, tb: 5 };
+const PROJECTED_TIMER = { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 };
 
 function projectLine(raw: WireLine, line: ReplayLine, seat: number): WireLine | null {
     switch (line.type) {

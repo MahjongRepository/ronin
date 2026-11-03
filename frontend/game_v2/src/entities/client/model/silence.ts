@@ -24,7 +24,6 @@ const SILENCE_MARGIN_MS = 25_000;
 function longestWaitSeconds(timer: TimerSettings): number {
     return Math.max(
         timer.baseTurnSeconds + timer.maxBankSeconds,
-        timer.meldDecisionSeconds,
         timer.roundAdvanceTimeoutSeconds * MAX_RESULTS_SHOWN,
         timer.gameStartPauseSeconds,
     );

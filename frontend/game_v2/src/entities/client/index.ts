@@ -31,7 +31,7 @@ export { serverSilenceLimitMs } from "./model/silence";
 export { decisionOf, roundConfirmOf } from "./model/pending";
 export { MAX_RESYNC_REQUESTS, RESYNC_ANSWER_MS, desyncOf, failGameClient } from "./model/desync";
 export { PLAY_SWITCHES } from "./model/play-switches";
-export type { DecisionCountdown, TurnClock } from "./model/countdown";
+export type { DecisionCountdown, DecisionClock } from "./model/countdown";
 export {
     decisionCountdown,
     firstDealCountdown,

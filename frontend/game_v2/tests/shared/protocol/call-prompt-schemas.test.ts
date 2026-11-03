@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { CALL_TYPE, EVENT_TYPE, KAN_TYPE, MELD_CALL_TYPE } from "@/shared/protocol/constants";
 import { parseCallPrompt } from "@/shared/protocol/schemas/call-prompt";
@@ -17,6 +17,7 @@ describe("parseCallPrompt", () => {
             const result = parseCallPrompt(wire);
             expect(result).toEqual({
                 availableCalls: [],
+                bankSeconds: null,
                 callType: CALL_TYPE.RON,
                 callerSeat: 2,
                 elapsedSeconds: null,
@@ -30,9 +31,10 @@ describe("parseCallPrompt", () => {
         it("reads the meld choices offered beside the ron and a re-send's elapsed seconds", () => {
             const wire = {
                 ac: [{ clt: MELD_CALL_TYPE.PON }],
+                bk: 17,
                 clt: CALL_TYPE.RON,
                 cs: 2,
-                el: 1.5,
+                el: 6.5,
                 frs: 0,
                 t: EVENT_TYPE.CALL_PROMPT,
                 ti: 42,
@@ -43,7 +45,9 @@ describe("parseCallPrompt", () => {
                 throw new Error("wrong type");
             }
             expect(result.availableCalls).toEqual([{ callType: MELD_CALL_TYPE.PON }]);
-            expect(result.elapsedSeconds).toBe(1.5);
+            expect(result.elapsedSeconds).toBe(6.5);
+            expect(result.bankSeconds).toBe(17);
+            expectTypeOf(result.bankSeconds).toEqualTypeOf<number | null>();
         });
     });
 
@@ -59,6 +63,7 @@ describe("parseCallPrompt", () => {
             };
             const result = parseCallPrompt(wire);
             expect(result).toEqual({
+                bankSeconds: null,
                 callType: CALL_TYPE.CHANKAN,
                 callerSeat: 3,
                 elapsedSeconds: null,

@@ -235,8 +235,9 @@ describe("stepGameClient - generated call prompt", () => {
         expect(calls).toEqual([0, 0, 0, 0]);
         expect(decisionOf(dealt)).toBeNull();
         expect(decisionOf(prompt)).toEqual({
+            baseDeadline: 3000 + 5000,
             callType: CALL_TYPE.MELD,
-            deadline: 3000 + 5000,
+            deadline: 3000 + 25_000,
             fromSeat: 0,
             kind: "call",
             offers: [
@@ -258,7 +259,7 @@ describe("stepGameClient - generated call prompt", () => {
             [0, 13, []],
         ]);
         expect(prompt.table.tilesRemaining).toBe(69);
-        expect(nextDeadline(prompt)).toBe(8000);
+        expect(nextDeadline(prompt)).toBe(28_000);
     });
 
     it("sends the chi once: a second choice before the meld arrives sends nothing", () => {
@@ -288,7 +289,7 @@ describe("stepGameClient - generated call prompt", () => {
         const turnPayload = receivedPayload(transcript, "turn");
 
         expect(decisionOf(turn)).toMatchObject({
-            deadline: 5000 + (5 + 30) * 1000,
+            deadline: 5000 + (5 + 20) * 1000,
             kind: "turn",
             offers: [],
             opening: { kind: "after_call", kuikaeTileTypes: turnPayload.kt },
@@ -305,7 +306,7 @@ describe("stepGameClient - generated call prompt", () => {
 
         expect(decisionOf(stateAt(scenario, run, "dropped"))).toBeNull();
         expect(decisionOf(resent)).toMatchObject({
-            deadline: 5000 + (5 + 30) * 1000,
+            deadline: 5000 + (5 + 20) * 1000,
             kind: "turn",
             offers: [],
             openedAt: 7000,
@@ -374,7 +375,7 @@ describe("stepGameClient - generated call prompt", () => {
         });
         expect(decisionOf(stateAt(scenario, run, "passed"))?.status.kind).toBe("submitted");
         expect(decisionOf(next)).toMatchObject({
-            deadline: 14_000 + (5 + 28) * 1000,
+            deadline: 14_000 + (5 + 18) * 1000,
             kind: "turn",
             opening: { drawnTileId: 72, kind: "draw" },
             waitId: drawPayload.wi,
@@ -384,11 +385,11 @@ describe("stepGameClient - generated call prompt", () => {
     });
 
     it("keeps an expired prompt for display: a late choice still sends once, with or without a tick first", () => {
-        const late = { at: 8500, intent: PON_THREE_MAN, kind: "intent" } as const;
-        const again = { at: 8750, intent: PON_THREE_MAN, kind: "intent" } as const;
+        const late = { at: 28_500, intent: PON_THREE_MAN, kind: "intent" } as const;
+        const again = { at: 28_750, intent: PON_THREE_MAN, kind: "intent" } as const;
         const ticked = branchAfter(scenario, "prompt", [
-            { event: { at: 7999, kind: "tick" }, label: "just before" },
-            { event: { at: 8000, kind: "tick" }, label: "deadline" },
+            { event: { at: 27_999, kind: "tick" }, label: "just before" },
+            { event: { at: 28_000, kind: "tick" }, label: "deadline" },
             { effects: [PON_THREE_MAN_SENT], event: late, label: "late" },
             { event: again },
         ]);
@@ -420,7 +421,7 @@ describe("stepGameClient - generated own turn", () => {
 
         expect(decisionOf(stateAt(scenario, run, "first draw"))).toEqual({
             baseDeadline: 3000 + 5 * 1000,
-            deadline: 3000 + (5 + 30) * 1000,
+            deadline: 3000 + (5 + 20) * 1000,
             kind: "turn",
             offers: [
                 { kind: "riichi", tileId: 0 },
@@ -445,7 +446,7 @@ describe("stepGameClient - generated own turn", () => {
         expect([decisionOf(dropped), dropped.session?.status]).toEqual([null, "awaiting_retry"]);
         expect(decisionOf(stateAt(scenario, run, "reconnected"))).toBeNull();
         expect(decisionOf(resent)).toMatchObject({
-            deadline: 3000 + (5 + 30) * 1000,
+            deadline: 3000 + (5 + 20) * 1000,
             openedAt: 4500,
             status: { kind: "open" },
             waitId: receivedPayload(transcript, "draw re-sent").wi,
@@ -530,7 +531,7 @@ describe("stepGameClient - generated own turn", () => {
         expect(roundConfirmOf(stateAt(scenario, run, "next round"))).toBeNull();
     });
 
-    it("deals the next round to the winner as dealer, furiten cleared and the round bonus in the bank", () => {
+    it("deals the next round to the winner as dealer, furiten cleared and the bank restored to 20 seconds", () => {
         const run = runClean(scenario);
         const nextRound = stateAt(scenario, run, "next round");
 
@@ -542,7 +543,7 @@ describe("stepGameClient - generated own turn", () => {
             receivedPayload(transcript, "next round").mt,
         );
         expect(decisionOf(stateAt(scenario, run, "dealer draw"))?.deadline).toBe(
-            16_000 + (5 + 39) * 1000,
+            16_000 + (5 + 20) * 1000,
         );
     });
 });
@@ -866,7 +867,7 @@ describe("stepGameClient - generated reconnect", () => {
         const reconnected = stateAt(scenario, run, "reconnected");
         const resent = stateAt(scenario, run, "prompt re-sent");
 
-        expect(decisionOf(stateAt(scenario, run, "prompt"))?.deadline).toBe(8000);
+        expect(decisionOf(stateAt(scenario, run, "prompt"))?.deadline).toBe(28_000);
         expect([decisionOf(dropped), dropped.session?.status]).toEqual([null, "awaiting_retry"]);
         expect([decisionOf(reconnected), reconnected.session?.status]).toEqual([null, "playing"]);
         expect(seatsAt(reconnected)).toEqual([
@@ -876,7 +877,7 @@ describe("stepGameClient - generated reconnect", () => {
             [0, 13, []],
         ]);
         expect(decisionOf(resent)).toMatchObject({
-            deadline: 8000,
+            deadline: 28_000,
             offers: [{ kind: "pon", tileId: HAKU }],
             status: { kind: "open" },
             waitId: receivedPayload(transcript, "prompt re-sent").wi,
@@ -937,18 +938,21 @@ describe("stepGameClient - generated reconnect", () => {
 
     it("reopens a refused answer past the prompt's deadline as expired at once, still taking one answer", () => {
         const late = branchAfter(scenario, "pon chosen", [
-            lateError(8100, wireRuleRefusal(resentWaitId), "refused late"),
-            { effects: [ponHakuSent], event: { at: 8200, intent: ponHaku, kind: "intent" } },
-            { event: { at: 8300, intent: ponHaku, kind: "intent" }, label: "again" },
+            lateError(28_100, wireRuleRefusal(resentWaitId), "refused late"),
+            { effects: [ponHakuSent], event: { at: 28_200, intent: ponHaku, kind: "intent" } },
+            { event: { at: 28_300, intent: ponHaku, kind: "intent" }, label: "again" },
         ]);
         const run = runClean(late);
         const refused = stateAt(late, run, "refused late");
 
-        expect(decisionOf(refused)).toMatchObject({ deadline: 8000, status: { kind: "expired" } });
+        expect(decisionOf(refused)).toMatchObject({
+            deadline: 28_000,
+            status: { kind: "expired" },
+        });
         expect(refused.notice).toMatchObject({ code: "invalid_pon", kind: "refused" });
-        expect(nextDeadline(refused)).toBe(6500 + CALLOUT_MS);
+        expect(nextDeadline(refused)).toBe(refused.notice?.until);
         expect(decisionOf(stateAt(late, run, "again"))?.status).toMatchObject({
-            at: 8200,
+            at: 28_200,
             kind: "submitted",
         });
     });
@@ -997,7 +1001,7 @@ describe("stepGameClient - generated resync", () => {
         expect(desyncOf(stateAt(scenario, run, "turn snapshot"))).toBeNull();
         expect(decisionOf(resent)).toMatchObject({
             baseDeadline: 3000 + 5000,
-            deadline: 3000 + (5 + 30) * 1000,
+            deadline: 3000 + (5 + 20) * 1000,
             offers: [{ kind: "kyuushu" }],
             openedAt: 4000,
             status: { kind: "open" },
@@ -1137,7 +1141,7 @@ describe("stepGameClient - generated anchor", () => {
         expect([turn.now, turn.table.players[1].drawnTileId]).toEqual([20_000, SIX_PIN]);
         expect(decisionOf(turn)).toMatchObject({
             baseDeadline: 20_000 + 5000,
-            deadline: 20_000 + (5 + 40) * 1000,
+            deadline: 20_000 + (5 + 20) * 1000,
             kind: "turn",
             offers: [],
             waitId: receivedPayload(transcript, "own turn").wi,
@@ -1151,8 +1155,9 @@ describe("stepGameClient - generated anchor", () => {
         expect(boardAt(offer)).toEqual(["East 2", 1, [9, 10, 10, 9], CHUN_PON, BOB_IN_RIICHI, []]);
         expect(offer.now).toBe(21_000);
         expect(decisionOf(offer)).toEqual({
+            baseDeadline: 21_000 + 5000,
             callType: CALL_TYPE.MELD,
-            deadline: 21_000 + 5000,
+            deadline: 21_000 + 25_000,
             fromSeat: 2,
             kind: "call",
             offers: [{ kind: "pon", tileId: CHARLIES_FIVE_SOU }],
@@ -1178,7 +1183,7 @@ describe("stepGameClient - generated anchor", () => {
         ]);
         expect(riichi.now).toBe(22_500);
         expect(decisionOf(riichi)).toMatchObject({
-            deadline: 22_500 + (5 + 40) * 1000,
+            deadline: 22_500 + (5 + 20) * 1000,
             kind: "turn",
             offers: [
                 { kind: "riichi", tileId: THREE_PIN },

@@ -122,9 +122,7 @@ export const timerSettingsSchema = z.pipe(
         bk: secondsSchema,
         gp: secondsSchema,
         mb: secondsSchema,
-        md: secondsSchema,
         ra: secondsSchema,
-        rb: secondsSchema,
         tb: secondsSchema,
     }),
     z.transform((raw) => ({
@@ -132,8 +130,6 @@ export const timerSettingsSchema = z.pipe(
         baseTurnSeconds: raw.tb,
         gameStartPauseSeconds: raw.gp,
         maxBankSeconds: raw.mb,
-        meldDecisionSeconds: raw.md,
         roundAdvanceTimeoutSeconds: raw.ra,
-        roundBonusSeconds: raw.rb,
     })),
 );

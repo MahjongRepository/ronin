@@ -20,8 +20,8 @@ from game.logic.events import (
 from game.logic.exceptions import InvalidGameActionError
 from game.messaging.event_payload import (
     CONFIRMATION_OWED_KEY,
+    DECISION_BANK_KEY,
     ROUND_ADVANCE_SECONDS_KEY,
-    TURN_BANK_KEY,
     WAIT_ELAPSED_KEY,
     WAIT_ID_KEY,
     draw_notice_payload,
@@ -786,16 +786,16 @@ class SessionManager:
                 message[WAIT_ELAPSED_KEY] = elapsed
 
             message = stamp_wait_id(message, event, awaiting)
-            connection.send_message(self._stamp_turn_bank(message, participant, awaiting))
+            connection.send_message(self._stamp_decision_bank(message, participant, awaiting))
 
     @staticmethod
-    def _stamp_turn_bank(message: dict[str, Any], participant: Participant, awaiting: Awaiting) -> dict[str, Any]:
+    def _stamp_decision_bank(message: dict[str, Any], participant: Participant, awaiting: Awaiting) -> dict[str, Any]:
         """
-        Stamp the message that opens a seat's turn with the bank its timer starts with (`bk`), so the client's countdown
-        never carries an earlier turn's delivery delays into the next.
+        Stamp a turn or call opening with the bank its timer starts with (`bk`), so the client's countdown never carries
+        an earlier decision's delivery delays into the next.
         """
-        if awaiting.kind == WaitKind.TURN and WAIT_ID_KEY in message:
-            message[TURN_BANK_KEY] = participant.timer.bank_seconds
+        if awaiting.kind in (WaitKind.TURN, WaitKind.CALL) and WAIT_ID_KEY in message:
+            message[DECISION_BANK_KEY] = participant.timer.bank_seconds
 
         return message
 
@@ -811,17 +811,17 @@ class SessionManager:
         Deliver an engine call's events and drive the timers from the wait it reports.
 
         The call's actor is the seat that acted, timed out or was replaced; a game start has none. When the wait id
-        changed, the actor's timer stops (deducting its bank on a turn), every other timer is cancelled and a new
-        round's bonus is added before the events go out, and the new wait's timers start after them. When it did not,
-        only an actor that left the wait (a partial prompt response or confirmation) has its timer stopped; an actor
-        still awaited (an error) keeps it running with nothing deducted.
+        changed, every timer stops (charging elapsed decision time) and a new round's banks reset before the events go
+        out, and the new wait's timers start after them. When it did not, only an actor that left the wait (a partial
+        prompt response or confirmation) has its timer stopped; an actor still awaited (an error) keeps it running with
+        nothing deducted.
         """
         previous = game.awaiting
         game.awaiting = awaiting
         new_wait = previous is None or awaiting.wait_id != previous.wait_id
         if new_wait:
-            self._end_wait_timers(game, actor=actor)
-            self._add_round_bonus(game, previous=previous, awaiting=awaiting)
+            self._end_wait_timers(game)
+            self._reset_round_banks(game, previous=previous, awaiting=awaiting)
         elif actor is not None and actor in previous.seats and actor not in awaiting.seats:
             self._stop_timer_at(game, actor)
 
@@ -830,15 +830,12 @@ class SessionManager:
             self._start_wait_timers(game, awaiting=awaiting)
 
     @staticmethod
-    def _end_wait_timers(game: GameSession, *, actor: int | None) -> None:
+    def _end_wait_timers(game: GameSession) -> None:
         """
-        Stop the actor's timer and cancel the others when a wait ended.
+        Charge every running decision when its wait ends, including calls resolved by another seat.
         """
         for participant in game.participants:
-            if actor is not None and participant.seat == actor:
-                participant.timer.stop()
-            else:
-                participant.timer.cancel()
+            participant.timer.stop()
 
     @staticmethod
     def _stop_timer_at(game: GameSession, seat: int) -> None:
@@ -847,14 +844,14 @@ class SessionManager:
             participant.timer.stop()
 
     @staticmethod
-    def _add_round_bonus(game: GameSession, *, previous: Awaiting | None, awaiting: Awaiting) -> None:
+    def _reset_round_banks(game: GameSession, *, previous: Awaiting | None, awaiting: Awaiting) -> None:
         """
-        Add the round bonus to every connected participant's bank on the first wait of a round, the first round
-        included: ahead of the wait's events, so a turn's opening message carries the bank its timer starts with.
+        Reset every participant's bank on the first wait of each round, including absent seats and the first round,
+        before sending the opening messages.
         """
         if previous is None or awaiting.round_number != previous.round_number:
-            for participant in game.connected():
-                participant.timer.add_round_bonus()
+            for participant in game.participants:
+                participant.timer.reset_bank()
 
     def _start_wait_timers(self, game: GameSession, *, awaiting: Awaiting) -> None:
         """
@@ -877,10 +874,10 @@ class SessionManager:
                 self._start_meld_timer(participant)
 
     def _start_turn_timer(self, participant: Participant) -> None:
-        participant.timer.start_turn_timer(lambda: self._handle_timeout(participant, TimeoutType.TURN))
+        participant.timer.start_decision_timer(lambda: self._handle_timeout(participant, TimeoutType.TURN))
 
     def _start_meld_timer(self, participant: Participant) -> None:
-        participant.timer.start_meld_timer(lambda: self._handle_timeout(participant, TimeoutType.MELD))
+        participant.timer.start_decision_timer(lambda: self._handle_timeout(participant, TimeoutType.MELD))
 
     def _start_round_advance_timer(self, participant: Participant, *, results_shown: int) -> None:
         """
@@ -932,7 +929,7 @@ class SessionManager:
             elif isinstance(event.target, SeatTarget):
                 participant = game.at_seat(event.target.seat)
                 if participant is not None and participant.connection is not None:
-                    participant.connection.send_message(self._stamp_turn_bank(message, participant, awaiting))
+                    participant.connection.send_message(self._stamp_decision_bank(message, participant, awaiting))
 
                 if isinstance(event, DrawEvent):
                     self._send_draw_notice(game, event)
@@ -963,9 +960,7 @@ class SessionManager:
         return TimerSettings(
             base_turn_seconds=config.base_turn_seconds,
             bank_seconds=participant.timer.bank_seconds,
-            round_bonus_seconds=config.round_bonus_seconds,
-            max_bank_seconds=config.max_bank_seconds,
-            meld_decision_seconds=config.meld_decision_seconds,
+            max_bank_seconds=config.initial_bank_seconds,
             round_advance_timeout_seconds=config.round_advance_timeout_seconds,
             game_start_pause_seconds=config.game_start_pause_seconds,
         )

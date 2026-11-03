@@ -108,7 +108,12 @@ describe("playDisplay", () => {
             kind: "intent",
         });
         expect([display.countdown, display.tileIntents.size]).toEqual([
-            { kind: "running", move: "call", secondsLeft: 5, turn: null },
+            {
+                clock: { bankSeconds: 20, baseSeconds: 5, inBank: false },
+                kind: "running",
+                move: "call",
+                secondsLeft: 25,
+            },
             0,
         ]);
         expect(handMarks(display).every(([, mark]) => mark === "waiting")).toBe(true);
@@ -221,7 +226,7 @@ describe("playDisplay", () => {
                 pressed: null,
                 tiles: [],
             },
-            countdown: { kind: "running", move: "result", secondsLeft: 20, turn: null },
+            countdown: { clock: null, kind: "running", move: "result", secondsLeft: 20 },
             waiting: false,
         });
         expect(last?.action).toMatchObject({
@@ -235,7 +240,7 @@ describe("playDisplay", () => {
 
         expect(playDisplay(confirmed, NO_PLAY_UI).result).toEqual({
             action: null,
-            countdown: { kind: "running", move: "result", secondsLeft: 9, turn: null },
+            countdown: { clock: null, kind: "running", move: "result", secondsLeft: 9 },
             waiting: true,
         });
         expect(nextCountdownChange(confirmed)).toBeGreaterThan(confirmed.now);

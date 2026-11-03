@@ -107,7 +107,7 @@ describe("gameStartedSchema", () => {
             rsv: 10,
             t: EVENT_TYPE.GAME_STARTED,
         };
-        const timer = { bk: 20, gp: 3, mb: 60, md: 5, ra: 15, rb: 10, tb: 5 };
+        const timer = { bk: 20, gp: 3, mb: 20, ra: 15, tb: 5 };
         const live = gameStartedSchema.parse({ ...wire, s: 2, tm: timer });
         const replay = gameStartedSchema.parse(wire);
         expect(live.gameType).toBe(GAME_TYPE.TONPUSEN);
@@ -116,10 +116,8 @@ describe("gameStartedSchema", () => {
             bankSeconds: 20,
             baseTurnSeconds: 5,
             gameStartPauseSeconds: 3,
-            maxBankSeconds: 60,
-            meldDecisionSeconds: 5,
+            maxBankSeconds: 20,
             roundAdvanceTimeoutSeconds: 15,
-            roundBonusSeconds: 10,
         });
         expect(replay.seat).toBeNull();
         expect(replay.timer).toBeNull();

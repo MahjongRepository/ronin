@@ -46,5 +46,5 @@ export function countdownAnnouncement(countdown: DecisionCountdown | null): stri
     if (crossed !== undefined) {
         return `${crossed} seconds or less left`;
     }
-    return countdown.turn?.inBank === true ? "Your time bank is running" : "";
+    return countdown.clock?.inBank === true ? "Your time bank is running" : "";
 }

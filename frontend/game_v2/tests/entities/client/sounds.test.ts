@@ -222,7 +222,7 @@ describe("soundCues", () => {
         });
     });
 
-    it("beeps once for each of a long turn's last five seconds, and never for a call prompt of five seconds", () => {
+    it("beeps once for each of a turn or call's last five seconds", () => {
         const turn = cuesBeforeDeadline(
             checkpointState("own_turn_seat_1", "first draw"),
             [6000, 5000, 4500, 4000, 1000],
@@ -233,7 +233,7 @@ describe("soundCues", () => {
         );
 
         expect(turn).toEqual([[], ["beep"], [], ["beep"], ["beep"]]);
-        expect(prompt).toEqual([[], []]);
+        expect(prompt).toEqual([["beep"], ["beep"]]);
     });
 });
 

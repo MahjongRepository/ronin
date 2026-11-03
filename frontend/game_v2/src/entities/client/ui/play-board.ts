@@ -56,12 +56,12 @@ function timerCaption(countdown: DecisionCountdown | null): string {
     if (countdown?.kind === "expired") {
         return "Time up";
     }
-    return countdown?.kind === "running" && countdown.turn?.inBank === true ? "Bank" : "";
+    return countdown?.kind === "running" && countdown.clock?.inBank === true ? "Bank" : "";
 }
 
 /**
- * The digits: the base time and the bank apart (`5 +20`) on a turn, the bank marked once it alone drains; a call's
- * seconds; 0 once time ran out; none once answered.
+ * Show base time and bank apart (`5 +20`) on turns and calls, marking the bank once it alone drains; 0 once time
+ * ran out; none once answered.
  */
 function TimerDigits(countdown: DecisionCountdown | null): TemplateResult | typeof nothing {
     if (countdown?.kind === "expired") {
@@ -70,19 +70,19 @@ function TimerDigits(countdown: DecisionCountdown | null): TemplateResult | type
     if (countdown?.kind !== "running") {
         return nothing;
     }
-    const { turn } = countdown;
-    if (turn === null) {
+    const { clock } = countdown;
+    if (clock === null) {
         return html`<span class="decision-controls__countdown" title="Seconds left">${countdown.secondsLeft}</span>`;
     }
-    const bankClass = turn.inBank
+    const bankClass = clock.inBank
         ? "decision-controls__bank decision-controls__bank--draining"
         : "decision-controls__bank";
-    const title = turn.inBank
+    const title = clock.inBank
         ? "Seconds left in your time bank"
         : "Seconds left, then your time bank";
-    return html`<span class="decision-controls__countdown ${turn.inBank ? "decision-controls__countdown--spent" : ""}" title=${title}
-            >${turn.baseSeconds}</span
-        ><span class=${bankClass} title=${title}>+${turn.bankSeconds}</span>`;
+    return html`<span class="decision-controls__countdown ${clock.inBank ? "decision-controls__countdown--spent" : ""}" title=${title}
+            >${clock.baseSeconds}</span
+        ><span class=${bankClass} title=${title}>+${clock.bankSeconds}</span>`;
 }
 
 /**
@@ -381,7 +381,7 @@ function owedMove(countdown: NoticeSheetDisplay["countdown"]): TemplateResult | 
     if (countdown?.kind === "running") {
         return html` ${moveName(countdown.move)}:
             <span class="notice-sheet__seconds">${countdown.secondsLeft}</span> s
-            left${countdown.turn?.inBank === true ? " in your time bank" : ""}.`;
+            left${countdown.clock?.inBank === true ? " in your time bank" : ""}.`;
     }
     if (countdown?.kind === "expired") {
         return html` ${moveName(countdown.move)}, and its time is up: ${expiryNote(countdown.move)}.`;

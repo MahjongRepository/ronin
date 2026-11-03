@@ -19,7 +19,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   starts, so a client's silence watchdog follows the server's pacing rather than a copy of its defaults.
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
-  current bank; the client counts its own turns and the game start pause down from them), and the
+  current bank; the client counts its turns, calls and the game start pause down from them), and the
   first deal follows it only after the session's game start pause; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
@@ -28,9 +28,8 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   opens a decision. The
   replay records the draw once and no notice; a draw re-sent on a reconnect goes to its seat alone.
   No draw or notice follows the seat's own pon or chi: a
-  `turn` event to that seat names the tile types kuikae forbids it to discard instead; the draw or
-  `turn` event that opens a seat's turn names its bank as the turn's timer starts (`bk`), so the
-  client's bank never drifts by delivery delays; a discard's
+  `turn` event to that seat names the tile types kuikae forbids it to discard instead; each draw, `turn` event or call prompt that opens a decision names its bank as the timer starts (`bk`),
+  so the client's bank never drifts by delivery delays; a discard's
   call prompt is split per seat; after the `game_reconnected` snapshot a reconnect re-sends the
   event that opened the wait the game owes the seat (its draw, its `turn` event or its call
   prompt), with how long the wait's timer has run (`el`, seconds), and a resync request on the seat's

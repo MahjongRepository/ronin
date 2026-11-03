@@ -17,7 +17,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   snapshot opens no play decision: the server re-sends its opening message. It may restore an owed round confirm.
 - Deadlines are display only: the client estimates the server's timer in logical time (re-sent waits backdated by
   their elapsed time) and never answers, confirms or arms a timer on expiry. An expired decision still takes one
-  answer; the server decides by wait id whether it counts.
+  answer; the server decides by wait id whether it counts. Turns and calls use the same base-plus-bank
+  countdown, reading the bank from each opening message rather than carrying a client-side reserve.
 - An answer is sent once and marked submitted. `DECISION_AFTER` says, for every message type, whether it closes or
   keeps the decision; a new message type must be added. A refusal reopens only when it names the decision's wait id
   (`refusalOf`).
