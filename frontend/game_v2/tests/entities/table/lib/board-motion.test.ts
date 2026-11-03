@@ -23,6 +23,22 @@ function tile(key: string, overrides: Partial<MotionTile> = {}): MotionTile {
 }
 
 describe("planTileMotion", () => {
+    it("resizes a laid meld tile even when its corner stays fixed", () => {
+        const hand = tile("hand");
+        const meld = tile("meld", { region: "melds" });
+        const resized = { ...meld, rect: { ...meld.rect, height: 32, width: 24 } };
+        const result = planTileMotion([hand, meld], [hand, resized]);
+        expect(result).toEqual([
+            {
+                delay: 0,
+                duration: BOARD_MOTION.reflow,
+                kind: "reflow",
+                source: meld.key,
+                target: meld.key,
+            },
+        ]);
+    });
+
     it.each([
         { mode: "step", pause: BOARD_MOTION.discardPause },
         { mode: "replay", pause: 0 },

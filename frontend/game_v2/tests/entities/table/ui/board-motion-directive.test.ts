@@ -17,7 +17,7 @@ import { animateBoard } from "@/entities/table/ui/board-motion-directive";
 import { BoardMotionPlayer } from "@/entities/table/ui/board-motion-player";
 import { snapshotTiles } from "@/entities/table/ui/board-motion-snapshot";
 import { GameBoard } from "@/entities/table/ui/game-board";
-import { Discards, Hand, type HandTile } from "@/entities/tile";
+import { Discards, Hand, type HandTile, Meld } from "@/entities/tile";
 
 let host = document.createElement("div");
 let animations: Animation[] = [];
@@ -155,13 +155,14 @@ function getMovingFace(): HTMLElement {
     return face;
 }
 
-function renderRiichiFlight(discarded: boolean): void {
+function renderRiichiFlight(discarded: boolean, last = false): void {
+    const held: HandTile = { face: "2m", show: "face", state: "selectable", tileId: 4 };
     const tiles: readonly HandTile[] = discarded
-        ? []
-        : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }];
+        ? [held]
+        : [{ face: "1m", show: "face", state: "selectable", tileId: 0 }, held];
     render(
         html`<div class="board-local" data-area="bottom-hand">${Hand({ tiles })}</div>
-        <div data-area="bottom-discards">${Discards(discarded ? [{ face: "1m", riichi: true, tileId: 0 }] : [])}</div>`,
+        <div data-area="bottom-discards">${Discards(discarded ? [{ face: "1m", last, riichi: true, tileId: 0 }] : [])}</div>`,
         host,
     );
 }
@@ -170,9 +171,111 @@ function measureFlightTile(this: HTMLElement): DOMRect {
     if (!this.classList.contains("tile")) {
         return getBox(this);
     }
-    return this.closest("[data-area='bottom-hand']") === null
-        ? new DOMRect(100, 300, 48, 36)
-        : new DOMRect(100, 600, 48, 64);
+    if (this.closest("[data-area='bottom-hand']") !== null) {
+        return new DOMRect(100, 600, 48, 64);
+    }
+    const gap = this.parentElement?.classList.contains("discard-tile--last") ? 7 : 0;
+    return new DOMRect(100 + gap, 300 + gap, 48, 36);
+}
+
+function startRiichiFlight(last = false): BoardMotionPlayer {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureFlightTile);
+    renderRiichiFlight(false);
+    const before = snapshotTiles(host);
+    renderRiichiFlight(true, last);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
+    return player;
+}
+
+function setHalfwayRiichiPose(): void {
+    const image = host.querySelector<HTMLElement>(".board-motion__tile");
+    if (image === null) {
+        throw new Error("Expected a flying discard");
+    }
+    image.style.setProperty("--motion-angle", "45deg");
+    image.style.setProperty("--motion-height", "56px");
+    image.style.setProperty("--motion-width", "42px");
+    image.style.setProperty("--motion-standing", "0.5");
+}
+
+function settleRiichiFlight(player: BoardMotionPlayer): void {
+    player.prepareRender();
+    const before = snapshotTiles(host);
+    renderRiichiFlight(true);
+    const after = snapshotTiles(host);
+    player.play(planTileMotion(before, after), before, after);
+}
+
+function renderSettlingRiver(seat: SeatPosition, riichi: boolean, last: boolean): void {
+    render(
+        html`<div data-area=${`${seat}-hand`}>${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}</div>
+        <div data-area=${`${seat}-discards`}>${Discards([
+            { face: "2m", tileId: 4 },
+            { face: "3m", last, riichi, tileId: 8 },
+        ])}</div>`,
+        host,
+    );
+}
+
+function startSettlingRiver(seat: SeatPosition, riichi: boolean): BoardMotionPlayer {
+    renderSettlingRiver(seat, riichi, true);
+    const before = snapshotTiles(host);
+    renderSettlingRiver(seat, riichi, false);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
+    return player;
+}
+
+function renderResizingMeld(small: boolean): void {
+    render(
+        html`<div data-area="right-hand">${Hand({ tiles: [{ face: "1m", show: "face", tileId: 0 }] })}</div>
+        <div data-area="right-melds" data-small=${String(small)}>${Meld([
+            { face: "2m", kind: "upright", tileId: 4 },
+            { face: "2m", kind: "sideways", tileId: 5 },
+            { face: "2m", kind: "upright", tileId: 6 },
+        ])}</div>`,
+        host,
+    );
+}
+
+function measureMeldTile(this: HTMLElement): DOMRect {
+    const area = this.closest<HTMLElement>("[data-area='right-melds']");
+    if (area === null) {
+        return getBox(this);
+    }
+    const small = area.dataset.small === "true";
+    const id = Number(this.parentElement?.dataset.tileId);
+    const sideways = id === 5;
+    const scale = small ? 0.8 : 1;
+    return new DOMRect(
+        small ? 308 : 300,
+        200 - (id - 4) * 40 * scale,
+        (sideways ? 30 : 40) * scale,
+        (sideways ? 40 : 30) * scale,
+    );
+}
+
+function startResizingMeld(): BoardMotionPlayer {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(measureMeldTile);
+    renderResizingMeld(false);
+    const before = snapshotTiles(host);
+    renderResizingMeld(true);
+    const after = snapshotTiles(host);
+    const player = new BoardMotionPlayer(host);
+    player.play(planTileMotion(before, after), before, after);
+    return player;
+}
+
+async function startRevealingHand(): Promise<{ state: TableState; view: BoardPerspective }> {
+    const view = { bottomSeat: 0, reveal: "bottom" } as const;
+    const dealt = table(true);
+    await show(dealt, { mode: "reset", sequence: 0 }, view);
+    const state = { ...dealt, revealedSeats: [1] };
+    await show(state, { mode: "step", sequence: 1 }, view);
+    return { state, view };
 }
 
 async function showPanel(matchResult: boolean, afterCall: boolean): Promise<void> {
@@ -279,6 +382,48 @@ afterEach(() => {
     render(nothing, host);
     host.remove();
     vi.restoreAllMocks();
+});
+
+describe("shared tile depth", () => {
+    it("resizes a laid meld's upright and sideways tiles inside their shared shadow", () => {
+        const player = startResizingMeld();
+        expect([animations.length, hiddenTiles(), host.querySelector(".board-motion")]).toEqual([
+            3,
+            0,
+            null,
+        ]);
+        expect(animations.map((animation) => getAnimationFrames(animation)[0].transform)).toEqual([
+            expect.stringContaining("scale(1.25)"),
+            expect.stringContaining("scale(1.25)"),
+            expect.stringContaining("scale(1.25)"),
+        ]);
+        expect(animations.map((animation) => getAnimationFrames(animation)[1].transform)).toEqual([
+            "translate(0px, 0px) scale(1)",
+            "translate(0px, 0px) scale(1)",
+            "translate(0px, 0px) scale(1)",
+        ]);
+        player.cancel();
+        expect(animations.every((animation) => animation.playState === "idle")).toBe(true);
+    });
+
+    it("stages a revealed hand inside its native slots and keeps its timing through redraws", async () => {
+        const { state, view } = await startRevealingHand();
+        expect([
+            animations.length,
+            host.querySelectorAll(".hand-tile > .board-reveal-back").length,
+            host.querySelector(".board-motion"),
+        ]).toEqual([13, 13, null]);
+        animations[0].finish();
+        animations[5].currentTime = 90;
+        await show(state, { mode: "step", sequence: 1 }, view);
+        expect([
+            animations.length,
+            animations[5].currentTime,
+            host.querySelectorAll(".hand-tile > .board-reveal-back").length,
+        ]).toEqual([13, 90, 12]);
+        render(nothing, host);
+        expect(animations.map((animation) => animation.playState)).toEqual(Array(13).fill("idle"));
+    });
 });
 
 describe("board motion", () => {
@@ -404,15 +549,7 @@ describe("board motion", () => {
 
 describe("tile flight material", () => {
     it("starts a riichi discard at hand size and rotates and shrinks it into the sideways river slot", () => {
-        vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-            measureFlightTile,
-        );
-        renderRiichiFlight(false);
-        const before = snapshotTiles(host);
-        renderRiichiFlight(true);
-        const after = snapshotTiles(host);
-        const player = new BoardMotionPlayer(host);
-        player.play(planTileMotion(before, after), before, after);
+        const player = startRiichiFlight();
         expect(getAnimationFrames(animations[0])).toMatchObject([
             {
                 "--motion-angle": "0deg",
@@ -429,6 +566,37 @@ describe("tile flight material", () => {
         ]);
         player.cancel();
     });
+
+    it("continues an unfinished riichi flight's pose when the next draw closes its river gap", () => {
+        const player = startRiichiFlight(true);
+        expect(animations).toHaveLength(4);
+        setHalfwayRiichiPose();
+        settleRiichiFlight(player);
+        expect(animations).toHaveLength(5);
+        expect(animations.slice(0, 4).map((animation) => animation.playState)).toEqual([
+            "idle",
+            "idle",
+            "idle",
+            "idle",
+        ]);
+        expect(getAnimationFrames(animations[4])).toMatchObject([
+            {
+                "--motion-angle": "45deg",
+                "--motion-height": "56px",
+                "--motion-standing": "0.5",
+                "--motion-width": "42px",
+            },
+            {
+                "--motion-angle": "90deg",
+                "--motion-height": "48px",
+                "--motion-standing": "0",
+                "--motion-width": "36px",
+            },
+        ]);
+        finishAll();
+        expect([hiddenTiles(), host.querySelector(".board-motion")]).toEqual([0, null]);
+        player.cancel();
+    });
 });
 
 describe("side hand depth", () => {
@@ -443,6 +611,52 @@ describe("side hand depth", () => {
             expect(Number.parseFloat(String(start.left))).toBeCloseTo(0);
             expect(Number.parseFloat(String(start.top))).toBeCloseTo(seat === "left" ? -32 : 32);
             expect(end).toMatchObject({ left: "0px", top: "0px" });
+            player.cancel();
+        },
+    );
+});
+
+describe("settling river depth", () => {
+    const seats = [
+        { dx: 7, dy: 7, seat: "bottom" },
+        { dx: -7, dy: 7, seat: "left" },
+        { dx: -7, dy: -7, seat: "top" },
+        { dx: 7, dy: -10, seat: "right" },
+    ] as const;
+
+    it.each(seats.flatMap((seat) => [false, true].map((riichi) => ({ ...seat, riichi }))))(
+        "settles the $seat discard (riichi: $riichi) inside the river in its seat's frame",
+        ({ dx, dy, riichi, seat }) => {
+            vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+                function measureRiver(this: HTMLElement) {
+                    if (!this.matches(".discard-tile[data-tile-id='8'] > .tile")) {
+                        return getBox(this);
+                    }
+                    const last = this.parentElement?.classList.contains("discard-tile--last");
+                    const sideways = (seat === "left" || seat === "right") !== riichi;
+                    return new DOMRect(
+                        100 + (last ? dx : 0),
+                        300 + (last ? dy : 0),
+                        sideways ? 40 : 30,
+                        sideways ? 30 : 40,
+                    );
+                },
+            );
+            const player = startSettlingRiver(seat, riichi);
+            expect(animations).toHaveLength(1);
+            const [start, end] = getAnimationFrames(animations[0]);
+            expect(Number.parseFloat(String(start.left))).toBeCloseTo(seat === "right" ? 10 : 7);
+            expect(Number.parseFloat(String(start.top))).toBeCloseTo(7);
+            expect([
+                hiddenTiles(),
+                host.querySelector(".board-motion"),
+                start.transform,
+                start.translate,
+                end.left,
+                end.top,
+            ]).toEqual([0, null, undefined, undefined, "0px", "0px"]);
+            finishAll();
+            expect([hiddenTiles(), animations[0].playState]).toEqual([0, "idle"]);
             player.cancel();
         },
     );

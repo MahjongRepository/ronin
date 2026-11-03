@@ -405,14 +405,17 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
 - **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
   120ms, with a faint trail. The latest discard settles into its river slot in 120ms when its mark ends.
   A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
-  changing continuously from source to destination. Light stays fixed to the screen. Rearranging hands move
-  their actual tile wrappers inside the hand, retaining the group's shared edge and native button feedback.
+  changing continuously from source to destination. Light stays fixed to the screen. Rearranging hands, settling
+  discards and moving or resizing laid melds animate their actual tile wrappers inside their group, retaining its
+  shared edge and shadow and native button feedback. Meld resizing keeps its tiles moving and scaling together
+  under that shared shadow. A discard still changing size or orientation in flight finishes as a travelling tile.
   The hand closes gaps and sorts over 200ms after the discard's flight, with an additional 300ms pause in live play.
   Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
   only the latest move and never waits for an animation backlog. Calls assemble their
   meld from the original hand and river positions; travel time follows distance at the local tile scale, bounded
   to 80–300ms. Starting hands and indicator slots appear immediately at each deal. There is no drawn wall.
-  Opponents' revealed hands replace their standing backs one tile every 30ms, without a flip. The hand stays
+  Opponents' revealed hands replace their standing backs one tile every 30ms, without a flip; waiting backs stay
+  in their native hand slots, retaining the hand's shared shadow and the side hands' gaps. The hand stays
   automatically sorted and keeps its existing hover and selection feedback. Motion never blocks input, delays
   game state or invents a hidden tile identity; later events preserve unaffected movements. A fresh page,
   reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion disables

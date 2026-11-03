@@ -99,9 +99,11 @@ they disagree.
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
 - Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. Flying tiles use that same
   material with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
-  light does not rotate with the face. Hand reflow stays inside the original hand and its shared shadow, using
-  positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam masks over
-  neighbouring faces and depth.
+  light does not rotate with the face. Native reflow stays inside its original group and shared shadow. Hands and
+  rivers use positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam
+  masks over neighbouring faces and depth. Laid melds have no seam masks and transform their tile wrappers to
+  interpolate position and size. Reveal backs stay inside the native hand slots, absolutely placed over the hidden
+  faces so they retain the hand's shared shadow and gap masks without changing its layout.
 - The rivers' shared edge and shadow come from `.board-rivers` (`_tile.scss`), the unturned layer holding all four,
   never from a turned river frame's own filter: Firefox on macOS draws a turned element's filter unturned and clipped
   to its box.

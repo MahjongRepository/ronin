@@ -1,8 +1,8 @@
 import { type MotionRect, type TileMotion } from "@/entities/table/lib/board-motion";
 
-import { type TileSnapshot } from "./board-motion-snapshot";
+import { SEAT_TURNS, type TileSnapshot } from "./board-motion-snapshot";
 
-interface HandReflow {
+interface TileReflow {
     readonly animation: Animation;
     readonly effect: KeyframeEffect;
     target: TileSnapshot;
@@ -10,19 +10,26 @@ interface HandReflow {
 }
 
 function reflowFrames(source: MotionRect, target: TileSnapshot): Keyframe[] {
-    const angle = (target.pose.angle * Math.PI) / 180;
-    const dx = source.left - target.rect.left;
-    const dy = source.top - target.rect.top;
+    const angle = (SEAT_TURNS[target.seat] * Math.PI) / 180;
+    const dx = source.left + source.width / 2 - target.rect.left - target.rect.width / 2;
+    const dy = source.top + source.height / 2 - target.rect.top - target.rect.height / 2;
     const localX = (dx * Math.cos(angle) + dy * Math.sin(angle)) / target.scale;
     const localY = (dy * Math.cos(angle) - dx * Math.sin(angle)) / target.scale;
+    if (target.region === "melds") {
+        const scale = source.width / target.rect.width;
+        return [
+            { transform: `translate(${localX}px, ${localY}px) scale(${scale})` },
+            { transform: "translate(0px, 0px) scale(1)" },
+        ];
+    }
     return [
         { left: `${localX}px`, top: `${localY}px` },
         { left: "0px", top: "0px" },
     ];
 }
 
-export class HandReflowPlayer {
-    private readonly running = new Map<string, HandReflow>();
+export class TileReflowPlayer {
+    private readonly running = new Map<string, TileReflow>();
 
     get suspended(): boolean {
         return [...this.running.values()].some(({ effect }) => effect.target === null);
@@ -39,7 +46,19 @@ export class HandReflowPlayer {
 
     source(tile: TileSnapshot): TileSnapshot {
         const active = this.running.get(tile.key);
-        return active === undefined ? tile : { ...tile, rect: active.visible };
+        if (active === undefined) {
+            return tile;
+        }
+        const scale = tile.rect.width > 0 ? active.visible.width / tile.rect.width : 1;
+        return {
+            ...tile,
+            pose: {
+                ...tile.pose,
+                height: tile.pose.height * scale,
+                width: tile.pose.width * scale,
+            },
+            rect: active.visible,
+        };
     }
 
     reconcile(after: ReadonlyMap<string, TileSnapshot>, plan: readonly TileMotion[]): void {
@@ -49,7 +68,7 @@ export class HandReflowPlayer {
         }
     }
 
-    private rebind(key: string, active: HandReflow, next: TileSnapshot | undefined): void {
+    private rebind(key: string, active: TileReflow, next: TileSnapshot | undefined): void {
         if (next === undefined) {
             this.stop(key);
             return;
@@ -71,7 +90,7 @@ export class HandReflowPlayer {
         });
         if (!(animation.effect instanceof KeyframeEffect)) {
             animation.cancel();
-            throw new Error("Hand reflow requires a keyframe effect");
+            throw new Error("Tile reflow requires a keyframe effect");
         }
         this.running.set(motion.target, {
             animation,

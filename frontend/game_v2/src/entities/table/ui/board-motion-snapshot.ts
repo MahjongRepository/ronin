@@ -15,7 +15,7 @@ export interface TileSnapshot extends MotionTile {
     readonly image: HTMLElement;
 }
 
-const SEAT_TURNS: Readonly<Record<SeatPosition, number>> = {
+export const SEAT_TURNS: Readonly<Record<SeatPosition, number>> = {
     bottom: 0,
     left: 90,
     right: 270,

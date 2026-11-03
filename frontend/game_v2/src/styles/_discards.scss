@@ -18,6 +18,7 @@ $sideways-height: $tile-width; // 60px
 }
 
 .discard-tile {
+    position: relative;
     display: inline-block;
     line-height: 0;
 }
@@ -26,7 +27,6 @@ $sideways-height: $tile-width; // 60px
     display: inline-block;
     width: $sideways-width;
     height: $sideways-height;
-    position: relative;
 
     > .tile {
         --tile-turn: calc(var(--frame-turn, 0deg) + 90deg);

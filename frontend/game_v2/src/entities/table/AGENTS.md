@@ -32,7 +32,12 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - Board motion is presentation only. The mapper preserves physical tile ids across hands, rivers and both tiles
   of an added-kan stack; concealed hands keep anonymous slots, never invented ids. The board's motion directive
   captures positions before a render and measures destinations after its geometry directive. Its player owns
-  temporary copies for cross-region travel and native wrapper animations for hand reflow. Native effects detach
+  temporary copies for cross-region travel and native wrapper animations for hand, river and laid-meld reflow.
+  Meld tiles scale and move inside the meld's shared shadow; sampled native sizes carry into interrupted moves.
+  A staged reveal keeps a temporary back inside its native hand slot, detached before lit renders and rebound
+  with its original deadline; completion or cancellation removes the back and restores the face. River reflow
+  stays in the shared depth layer unless an interrupted flight is still changing pose. Wrapper offsets follow the
+  seat's frame, not a sideways tile's extra rotation. Native effects detach
   before lit changes the DOM, so geometry measures final positions, then rebind by physical tile key with their
   timing preserved. Flight copies keep complete material and interpolate size and orientation. A flying local
   tile forwards taps to its current native button, with its stationary hitbox disabled until arrival. Copies

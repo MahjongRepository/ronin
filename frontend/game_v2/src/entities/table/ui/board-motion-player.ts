@@ -7,7 +7,8 @@ import {
     refreshTileFeedback,
     snapshotTiles,
 } from "./board-motion-snapshot";
-import { HandReflowPlayer } from "./hand-reflow-player";
+import { TileReflowPlayer } from "./tile-reflow-player";
+import { TileRevealPlayer } from "./tile-reveal-player";
 
 interface Flight {
     readonly fromPose: TilePose;
@@ -30,16 +31,15 @@ interface Scene {
 function createFlight(motion: TileMotion, scene: Scene, target: TileSnapshot): Flight {
     const source = motion.source === null ? undefined : scene.before.get(motion.source);
     const origin = source?.rect ?? centerOrigin(scene.board, target);
-    const reveal = motion.kind === "reveal";
     return {
         board: scene.box,
         from: origin,
         fromPose: (source ?? target).pose,
-        image: reveal ? (source ?? target).image : target.image,
+        image: target.image,
         motion,
         target: target.element,
-        to: reveal ? origin : target.rect,
-        toPose: reveal ? (source ?? target).pose : target.pose,
+        to: target.rect,
+        toPose: target.pose,
     };
 }
 
@@ -60,6 +60,15 @@ function poseFrame(pose: TilePose): Keyframe {
         "--motion-standing": String(pose.standing),
         "--motion-width": `${pose.width}px`,
     };
+}
+
+function hasSamePose(from: TilePose, to: TilePose): boolean {
+    return (
+        Math.abs(from.width - to.width) < 0.5 &&
+        Math.abs(from.height - to.height) < 0.5 &&
+        (from.angle - to.angle) % 360 === 0 &&
+        from.standing === to.standing
+    );
 }
 
 function sampleFlight(tile: TileSnapshot, active: RunningTile): TileSnapshot {
@@ -116,7 +125,8 @@ function hideDestination(target: HTMLElement): void {
 export class BoardMotionPlayer {
     private readonly board: HTMLElement;
     private layer: HTMLElement | null = null;
-    private readonly hand = new HandReflowPlayer();
+    private readonly reflow = new TileReflowPlayer();
+    private readonly reveal = new TileRevealPlayer();
     private readonly sprites = new Set<RunningSprite>();
     private readonly running = new Map<string, RunningTile>();
 
@@ -141,7 +151,8 @@ export class BoardMotionPlayer {
             box,
         };
         this.reconcile(scene.after, plan);
-        this.hand.reconcile(scene.after, plan);
+        this.reflow.reconcile(scene.after, plan);
+        this.reveal.reconcile(scene.after, plan);
         for (const motion of plan) {
             this.playTile(motion, scene);
         }
@@ -153,7 +164,7 @@ export class BoardMotionPlayer {
                 const active = this.running.get(tile.key);
                 return [
                     tile.key,
-                    active === undefined ? this.hand.source(tile) : sampleFlight(tile, active),
+                    active === undefined ? this.reflow.source(tile) : sampleFlight(tile, active),
                 ];
             }),
         );
@@ -204,12 +215,32 @@ export class BoardMotionPlayer {
         if (target === undefined) {
             return;
         }
-        const flight = createFlight(motion, scene, target);
-        if (motion.kind === "reflow" && target.region === "hand") {
-            this.hand.play(motion, flight.from, target);
+        if (motion.kind === "reveal") {
+            this.playReveal(motion, scene, target);
+            return;
+        }
+        this.playMove(createFlight(motion, scene, target), target);
+    }
+
+    private playMove(flight: Flight, target: TileSnapshot): void {
+        if (
+            flight.motion.kind === "reflow" &&
+            (target.region === "hand" ||
+                (target.region === "melds" &&
+                    (flight.fromPose.angle - flight.toPose.angle) % 360 === 0) ||
+                (target.region === "discards" && hasSamePose(flight.fromPose, flight.toPose)))
+        ) {
+            this.reflow.play(flight.motion, flight.from, target);
             return;
         }
         this.playFlight(flight, target);
+    }
+
+    private playReveal(motion: TileMotion, scene: Scene, target: TileSnapshot): void {
+        const source = motion.source === null ? undefined : scene.before.get(motion.source);
+        if (source !== undefined) {
+            this.reveal.play(motion, source, target);
+        }
     }
 
     private playFlight(flight: Flight, target: TileSnapshot): void {
@@ -260,15 +291,15 @@ export class BoardMotionPlayer {
     }
 
     prepareRender(): void {
-        this.hand.prepareRender();
+        this.reveal.prepareRender();
+        this.reflow.prepareRender();
     }
 
     finishRender(): void {
-        if (this.hand.suspended) {
-            this.hand.reconcile(
-                new Map(snapshotTiles(this.board).map((tile) => [tile.key, tile])),
-                [],
-            );
+        if (this.reflow.suspended || this.reveal.suspended) {
+            const after = new Map(snapshotTiles(this.board).map((tile) => [tile.key, tile]));
+            this.reflow.reconcile(after, []);
+            this.reveal.reconcile(after, []);
         }
         this.refreshFeedback();
     }
@@ -302,15 +333,14 @@ export class BoardMotionPlayer {
 
     private animateTile(flight: Flight): Animation {
         const { board, image, motion, to } = flight;
-        const reveal = motion.kind === "reveal";
         Object.assign(image.style, {
             left: `${to.left + to.width / 2 - board.left}px`,
             top: `${to.top + to.height / 2 - board.top}px`,
         });
         this.createLayer().append(image);
         const animation = image.animate(flightFrames(flight), {
-            delay: reveal ? 0 : motion.delay,
-            duration: reveal ? motion.delay + motion.duration : motion.duration,
+            delay: motion.delay,
+            duration: motion.duration,
             easing: "linear",
             fill: "both",
         });
@@ -336,7 +366,12 @@ export class BoardMotionPlayer {
     }
 
     cancel(): void {
-        this.hand.cancel();
+        this.reveal.cancel();
+        this.reflow.cancel();
+        this.cancelFlights();
+    }
+
+    private cancelFlights(): void {
         for (const { animation } of this.sprites) {
             animation.onfinish = null;
             animation.cancel();

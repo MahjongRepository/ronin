@@ -72,8 +72,13 @@ function concealedSource(
         : hand.findLast((tile) => !tile.drawn);
 }
 
-function hasMoved(first: MotionRect, second: MotionRect): boolean {
-    return Math.abs(first.left - second.left) > 0.5 || Math.abs(first.top - second.top) > 0.5;
+function hasChangedRect(first: MotionRect, second: MotionRect): boolean {
+    return (
+        Math.abs(first.left - second.left) > 0.5 ||
+        Math.abs(first.top - second.top) > 0.5 ||
+        Math.abs(first.width - second.width) > 0.5 ||
+        Math.abs(first.height - second.height) > 0.5
+    );
 }
 
 interface MoveContext {
@@ -157,7 +162,7 @@ function planMove(target: MotionTile, context: MoveContext): TileMotion | null {
             target: target.key,
         };
     }
-    if (!hasMoved(source.rect, target.rect)) {
+    if (!hasChangedRect(source.rect, target.rect)) {
         return null;
     }
     return {
