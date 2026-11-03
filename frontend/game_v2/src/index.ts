@@ -33,12 +33,7 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import {
-    type SoundSource,
-    createSoundPlayer,
-    localStore,
-    webAudioOutput,
-} from "@/shared/lib";
+import { type SoundSource, createSoundPlayer, localStore, webAudioOutput } from "@/shared/lib";
 import {
     type GameSessionData,
     clearGameSession,
