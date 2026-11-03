@@ -222,18 +222,53 @@ describe("soundCues", () => {
         });
     });
 
-    it("beeps once for each of a turn or call's last five seconds", () => {
-        const turn = cuesBeforeDeadline(
-            checkpointState("own_turn_seat_1", "first draw"),
-            [6000, 5000, 4500, 4000, 1000],
-        );
-        const prompt = cuesBeforeDeadline(
-            checkpointState("call_prompt_seat_1", "prompt"),
-            [4000, 1000],
-        );
+    it.each([
+        ["own_turn_seat_1", "first draw"],
+        ["call_prompt_seat_1", "prompt"],
+        ["own_turn_seat_1", "draw re-sent"],
+    ])("beeps once at the base deadline and each last second for %s / %s", (name, label) => {
+        const opened = checkpointState(name, label);
+        const decision = decisionOf(opened);
+        assert(decision?.deadline !== null && decision?.deadline !== undefined);
+        expect(decision.baseDeadline).toBe(decision.deadline - 20_000);
 
-        expect(turn).toEqual([[], ["beep"], [], ["beep"], ["beep"]]);
-        expect(prompt).toEqual([["beep"], ["beep"]]);
+        const cues = cuesBeforeDeadline(
+            opened,
+            [20_001, 20_000, 20_000, 19_999, 6000, 5000, 4500, 4000, 1000, 0],
+        );
+        expect(cues).toEqual([[], ["beep"], [], [], [], ["beep"], [], ["beep"], ["beep"], []]);
+    });
+
+    it("does not replay the base-time beep when reconnecting after the bank started", () => {
+        const { scenario } = loadSeatScenario("bank_reconnect_seat_1");
+        const states = timelineStates(runSeatScenario(scenario).timeline);
+        const index = scenarioStateIndex(scenario, "draw re-sent");
+        const resumed = states[index];
+        const decision = decisionOf(resumed);
+        assert(decision?.baseDeadline !== null && decision?.baseDeadline !== undefined);
+        expect(decision.baseDeadline).toBeLessThanOrEqual(resumed.now);
+        expect(soundCues(states[index - 1], resumed)).toEqual([]);
+
+        const ticked = stepGameClient(resumed, { at: resumed.now + 1000, kind: "tick" }).state;
+        expect(soundCues(resumed, ticked)).toEqual([]);
+    });
+
+    it("plays only one beep when the base ends with five seconds left", () => {
+        const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
+        const states = timelineStates(runSeatScenario(scenario).timeline);
+        const before = states[scenarioStateIndex(scenario, "first draw") - 1];
+        const opened = stepGameClient(before, {
+            at: before.now,
+            kind: "server_message",
+            raw: { ...receivedPayload(transcript, "first draw"), bk: 5 },
+        }).state;
+        expect(decisionOf(opened)?.status.kind).toBe("open");
+        expect(cuesBeforeDeadline(opened, [5001, 5000, 5000, 4000])).toEqual([
+            [],
+            ["beep"],
+            [],
+            ["beep"],
+        ]);
     });
 });
 

@@ -16,7 +16,7 @@ const SOUND_GROUPS = [
             "A tile discard, a new call or win opportunity, and the final seconds of a decision.",
         sounds: [
             { cue: "discard", label: "Tile clack" },
-            { cue: "decision", label: "Call or win prompt" },
+            { cue: "decision", label: "Call or win prompt · Radar reply + tile" },
             { cue: "beep", label: "Soft countdown" },
         ],
         title: "Game cues",

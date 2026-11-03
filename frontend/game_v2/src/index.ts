@@ -8,6 +8,7 @@ import ronUrl from "@/assets/audio/calls/ron.mp3?no-inline";
 import tsumoUrl from "@/assets/audio/calls/tsumo.mp3?no-inline";
 import yakumanUrl from "@/assets/audio/calls/yakuman.mp3?no-inline";
 import countdownUrl from "@/assets/audio/countdown-soft-reply.wav?no-inline";
+import decisionUrl from "@/assets/audio/decision-radar-reply.wav?no-inline";
 import discardUrl from "@/assets/audio/discard-resin.wav?no-inline";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
@@ -36,7 +37,6 @@ import {
     type SoundSource,
     createSoundPlayer,
     localStore,
-    synthesizeDecision,
     webAudioOutput,
 } from "@/shared/lib";
 import {
@@ -57,7 +57,7 @@ const DISCARD_VOLUME = 0.1;
 const GAME_SOUNDS: Readonly<Record<SoundCue, SoundSource>> = {
     beep: { kind: "file", url: countdownUrl, volume: VOICE_VOLUME },
     chi: { kind: "file", url: chiUrl, volume: VOICE_VOLUME },
-    decision: { kind: "generated", ...synthesizeDecision(), volume: VOICE_VOLUME },
+    decision: { kind: "file", url: decisionUrl, volume: VOICE_VOLUME },
     discard: { kind: "file", url: discardUrl, volume: DISCARD_VOLUME },
     kan: { kind: "file", url: kanUrl, volume: VOICE_VOLUME },
     pon: { kind: "file", url: ponUrl, volume: VOICE_VOLUME },

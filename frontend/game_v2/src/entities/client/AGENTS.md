@@ -77,10 +77,11 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 - The settings menu's own transitions (the cog's toggle, a close, the sound switch) are `stepSettingsMenu`, which live's
   `stepPlayUi` and the replay's `stepReplayPage` share; each closes the menu on its own other input.
 - Sounds are never `ClientEffect`s: `soundCues(before, after)` reads them off two consecutive states (a new showing
-  of calls, one more discard, a new second of a long decision's last five, an unseen call or win decision still open
-  for the player), so scenarios and timelines stay silent
-  and a snapshot plays nothing. Only the live driver plays them, while `PlayUi.soundOn`. A move's part
-  (`moveSoundCues`) is the replay's too.
+  of calls, one more discard, entry into a decision's time bank, a new second of a long decision's last five, an unseen
+  call or win decision still open for the player), so scenarios and timelines stay silent
+  and a snapshot plays nothing. The bank-entry cue only plays across the same open wait's base-to-bank transition,
+  never on a reconnect already in the bank, and coinciding countdown cues play once. Only the live driver plays them,
+  while `PlayUi.soundOn`. A move's part (`moveSoundCues`) is the replay's too.
 - The board's script measurements are the table slice's: its geometry directive (`sizeBoard`) and the notices' clamp
   (`entities/table/ui/notice-clamp.ts`), which writes attributes only.
 - Live regions announce each notice and call once, never each second or redraw; never `role="status"` (atomic).
