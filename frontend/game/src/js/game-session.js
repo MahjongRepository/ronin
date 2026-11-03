@@ -1,3 +1,5 @@
+import { GAME_CLIENT_QUERY } from "./routes.js";
+
 const GAME_SESSION_KEY_PREFIX = "game_session:";
 const RECOVERY_URL = "/api/game-session";
 const DEFAULT_GAME_CLIENT_URL = "/play";
@@ -90,7 +92,7 @@ export async function recoverGameSession() {
     return {
         status: RECOVERY.FOUND,
         gameId: handoff.game_id,
-        gameUrl: `${gameClientUrl}/${encodeURIComponent(handoff.game_id)}`,
+        gameUrl: `${gameClientUrl}/${encodeURIComponent(handoff.game_id)}?${GAME_CLIENT_QUERY}`,
         session,
     };
 }

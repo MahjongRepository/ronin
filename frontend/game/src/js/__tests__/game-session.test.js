@@ -50,7 +50,7 @@ describe("recoverGameSession", () => {
         expect(recovery).toEqual({
             status: RECOVERY.FOUND,
             gameId: "g 1",
-            gameUrl: "/play/g%201",
+            gameUrl: "/play/g%201?v=1",
             session: { wsUrl: "wss://game/ws/g 1", gameTicket: "ticket" },
         });
         expect(readGameSession("g 1")).toEqual({

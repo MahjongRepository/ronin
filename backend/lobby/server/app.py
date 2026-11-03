@@ -364,7 +364,7 @@ def _create_game_clients(
     dev_transport: httpx.AsyncBaseTransport | None,
 ) -> tuple[BuiltGameClient | DevGameClient, BuiltGameClient | DevGameClient]:
     """
-    Create the default game client and the v2 client that ``?v=2`` selects.
+    Create the v1 client that ``?v=1`` selects and the default v2 client.
     """
     game_client = _create_game_client(
         dev_url=settings.game_client_dev_url,
@@ -398,7 +398,7 @@ def _game_client_routes(game_client: BuiltGameClient | DevGameClient, *, name: s
     """
     Serve a game client's files under its assets path: proxied to its dev server, or from its build.
 
-    The v2 client's assets path lies under the default client's, so its routes go first.
+    The v2 client's assets path lies under the v1 client's, so its routes go first.
     """
     if isinstance(game_client, DevGameClient):
         return [

@@ -1,6 +1,7 @@
 import $ from "jquery";
 
 import { bindLanguageMenu, reloadInLanguage } from "../language-menu.js";
+import { GAME_CLIENT_QUERY } from "../routes.js";
 
 const VARIANT_PARAM = "state";
 const STORYBOOK_PREF_KEY = "Majiang.pref.storybook";
@@ -15,7 +16,7 @@ export function currentVariant(variants) {
 export function renderVariantNav(variants, current) {
     const links = variants.map((variant) =>
         $("<a>")
-            .attr("href", `?${VARIANT_PARAM}=${variant.key}`)
+            .attr("href", `?${GAME_CLIENT_QUERY}&${VARIANT_PARAM}=${variant.key}`)
             .toggleClass("active", variant === current)
             .text(variant.title),
     );

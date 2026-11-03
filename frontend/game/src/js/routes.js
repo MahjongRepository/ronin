@@ -1,5 +1,6 @@
 export const LOBBY_URL = "/";
 export const HISTORY_URL = "/history";
+export const GAME_CLIENT_QUERY = "v=1";
 
 export const ROUTE = Object.freeze({
     GAME: "game",
@@ -60,9 +61,10 @@ export const POSITION_PARAM = Object.freeze({ SEAT: "seat", ROUND: "round", STEP
 /** The replay page of a game, shown from `seat`. */
 export function replayPath(gameId, seat) {
     const params = new URLSearchParams({ [POSITION_PARAM.SEAT]: String(seat) });
-    return `/play/history/${encodeURIComponent(gameId)}?${params}`;
+    return `/play/history/${encodeURIComponent(gameId)}?${GAME_CLIENT_QUERY}&${params}`;
 }
 
 export function storybookPath(page) {
-    return page === STORYBOOK_PAGE.INDEX ? "/play/storybook" : `/play/storybook/${page}`;
+    const path = page === STORYBOOK_PAGE.INDEX ? "/play/storybook" : `/play/storybook/${page}`;
+    return `${path}?${GAME_CLIENT_QUERY}`;
 }

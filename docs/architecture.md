@@ -377,16 +377,16 @@ seat that never connected keeps its name and `user_id`. A crash leaves `ended_at
 
 ## Game client contract
 
-The game client (`frontend/game/`) is a separate app the lobby hosts on its own origin; any app that
+The default game client (`frontend/game_v2/`) is a separate app the lobby hosts on its own origin; any app that
 honours this contract can replace it.
 
 * **Hosting:** the lobby answers the game client's pages with the app's built `index.html`
-  (`LOBBY_GAME_CLIENT_DIR`) and serves that directory under `/game-assets/`, so the app builds with
+  (`LOBBY_GAME_CLIENT_V2_DIR`) and serves that directory under `/game-assets/v2/`, so the app builds with
   that base path; the app routes the path itself. The pages are an explicit list in the lobby's
   route table, each with its login policy (`/play/{game_id}` requires a login; the replay
   `/play/history/{game_id}` and the storybook pages do not); any other path is a 404, so a new client
-  route needs its path added there. A second client (`frontend/game_v2/`, `LOBBY_GAME_CLIENT_V2_DIR`)
-  answers the same pages when their query has `v=2`, built with base `/game-assets/v2/`; the lobby
+  route needs its path added there. The v1 client (`frontend/game/`, `LOBBY_GAME_CLIENT_DIR`)
+  answers the same pages when their query has `v=1`, built with base `/game-assets/`; the lobby
   never adds the parameter itself, so it is opened by hand.
 * **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
   `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session

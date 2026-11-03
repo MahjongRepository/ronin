@@ -1,6 +1,6 @@
 # Game client (MajiangNG: JavaScript / jQuery)
 
-The default game client under `/play/*`: a fork of kobalab's 電脳麻将 (MIT, `LICENSE`). majiang-ui components draw a
+The v1 game client under `/play/*?v=1`: a fork of kobalab's 電脳麻将 (MIT, `LICENSE`). majiang-ui components draw a
 majiang-core model; `src/js/ronin/` speaks ronin's protocol and drives that model. Out of `make run-all-checks`
 (`frontend/AGENTS.md`): run its lint and tests by hand when you touch it.
 
@@ -16,6 +16,7 @@ majiang-core model; `src/js/ronin/` speaks ronin's protocol and drives that mode
 * `src/js/ronin/` never imports `src/js/replay/`. The replay reuses the live client's pure builders (`results.js`),
   never the live shadow.
 * A new route also needs its path in the lobby's game page list (`backend/lobby/server/app.py`).
+* Game-page links and replay address updates keep `v=1`; without it, the lobby serves v2.
 
 ## Protocol rules
 

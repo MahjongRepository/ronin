@@ -1,6 +1,6 @@
 ---
 name: app-browser
-description: This project's agent-browser recipes — run the local stack, log in to the ronin lobby, reach every page (room, live game, matchmaking, history, replay, storybooks) in the v1 client and the v2 client (`?v=2`), shoot settled and targeted screenshots, and check a layout in WebKit as an iPhone. Load together with agent-browser whenever driving ronin in a browser.
+description: This project's agent-browser recipes — run the local stack, log in to the ronin lobby, reach every page (room, live game, matchmaking, history, replay, storybooks) in the default v2 client and the v1 client (`?v=1`), shoot settled and targeted screenshots, and check a layout in WebKit as an iPhone. Load together with agent-browser whenever driving ronin in a browser.
 allowed-tools: Bash(agent-browser:*), Bash(curl:*)
 ---
 
@@ -22,7 +22,7 @@ your scratchpad (`$S` below).
    all three servers land there.
 3. Always open pages on the lobby, `http://localhost:8710`. It serves every page: lobby pages pull
    their scripts from the lobby's Vite on `:5173`, and the game client under `/play/` is proxied
-   from its Vite on `:5174` (the v2 client's, on a `?v=2` page, from `:5175`). No Vite serves a
+   from v2's Vite on `:5175` (the v1 client's, on a `?v=1` page, from `:5174`). No Vite serves a
    page you should open.
 
 ## Logging in
@@ -66,8 +66,9 @@ element id, class or `snapshot -i` refs.
 - **Matchmaking:** `/matchmaking` queues for a 4-human match; one browser user only shows the
   waiting state.
 - **History and replay (v1 client):** `/history` lists recent games; each card's
-  `.games-card-link` ("View replay", stretched over the card) goes to `/play/history/<game_id>`. That page shows the game on
-  the board at its first deal (or at `?seat=&round=&step=`, all zero-based, which the address bar
+  `.games-card-link` ("View replay", stretched over the card) goes to `/play/history/<game_id>` in v2; add `?v=1`
+  for the v1 controls described here. That page shows the game on
+  the board at its first deal (or at `?v=1&seat=&round=&step=`, all zero-based, which the address bar
   then follows; `docs/architecture.md`, Replays), with `.replay-back` / `.replay-play` (autoplay) /
   `.replay-next`, the jumps `.replay-first`, `.replay-prev-round`, `.replay-next-round`,
   `.replay-last`, and the info `.replay-position` (`.replay-action`, `.replay-round`, `.replay-step`,
@@ -92,36 +93,33 @@ element id, class or `snapshot -i` refs.
   the hidden-hands choice are stored under `ronin.replay.prefs` in `localStorage`: remove it after a
   session that changed them. A sound the browser blocks without a user gesture (a scripted click) is
   skipped, so `agent-browser errors` stays empty; a `NotAllowedError` there is a bug.
-- **Storybooks:** `/storybook` (lobby styles, dev only) and `/play/storybook` plus the pages its
-  header links to (game components; a board page with several states takes `?state=<key>` from its
+- **Storybooks (v1):** `/storybook` (lobby styles, dev only) and `/play/storybook?v=1` plus the pages its
+  header links to (keep `v=1`; a board page with several states takes `&state=<key>` from its
   variant links). At `max-height: 450px` (a viewport 450px tall or less) the header is one
   horizontally scrolling row, so the board keeps nearly full height. The WebKit recipe below
   reaches it only with the `"iPhone 13 landscape"` device; its default portrait `"iPhone 13"` is
   too tall and shows the full wrapped header.
 
-## The v2 game client (`?v=2`)
+## The v2 game client (default)
 
-The lobby serves `frontend/game_v2/` instead of the v1 client on any game page whose query has
-`v=2`; it never adds the parameter, so type it. The client's links to its own game pages (another
-game, a game's replay) keep it, but the storybook's header links, its Back and the index's replay
-links drop it: add `v=2` again after following one. The pages below need no login but the live
-game.
+The lobby serves `frontend/game_v2/` by default on every game page. Only `?v=1` selects the v1
+client; `?v=2` still serves v2 but is unnecessary. The pages below need no login but the live game.
 
-- **Storybooks:** `/play/storybook?v=2` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate}?v=2`.
-  A board page takes its story as `&state=<key>`; its switches (offers, callout, pinned badge,
+- **Storybooks:** `/play/storybook` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate}`.
+  A board page takes its story as `?state=<key>`; its switches (offers, callout, pinned badge,
   overlay) write their own parameters into the address, so a shot's URL reproduces it. The
-  decisions page runs a generated seat transcript to a labelled checkpoint, `&state=<story>`; the
+  decisions page runs a generated seat transcript to a labelled checkpoint, `?state=<story>`; the
   look spec's anchor is `anchor_turn`, `anchor_call` and `anchor_riichi`. A story's board is the
   live game's box with its switches below, so shoot it at the viewport you are checking.
-- **Live game:** start a game as in *Reaching the pages*; it lands on the v1 client at
-  `/play/<game_id>`. Keep that tab and open the game in a new one:
-  `agent-browser tab new "http://localhost:8710/play/<game_id>?v=2"`. A tab with no handoff
-  recovers it (`GET /api/game-session`) and takes the seat over; the v1 tab says it was replaced.
-  Never move the v1 tab itself to `?v=2`: the seat empties between the two pages, the server ends
-  a game left with no human at once, and the v2 page shows "Game unavailable". When done, leave
+- **Live game:** start a game as in *Reaching the pages*; it lands on v2 at `/play/<game_id>`.
+  To switch to v1, keep that tab and open
+  `agent-browser tab new "http://localhost:8710/play/<game_id>?v=1"`. A tab with no handoff
+  recovers it (`GET /api/game-session`) and takes the seat over; the previous tab says it was replaced.
+  Always switch clients in a new tab: reloading the current tab can empty the last human seat
+  and end the game before the new page connects. When done in v2, leave
   through `.game-menu__leave` and its Leave, so `dev` is free for the next game. `?debug` adds the
   message log.
-- **Replay:** `/play/history/<game_id>?v=2`, optionally with `&seat=&round=&step=` (zero-based; a
+- **Replay:** `/play/history/<game_id>`, optionally with `?seat=&round=&step=` (zero-based; a
   part the replay does not hold falls back). The moves are
   `.replay-controls__move--{first,prevRound,prev,next,nextRound,last}` and `.replay-controls__play`
   (autoplay), the options `.replay-controls__option--{speed,view,hands,rounds}`, the position
@@ -143,7 +141,7 @@ the tile sprite (before it lands a face shows its short name, `5m`), the face an
 ```bash
 agent-browser set media dark reduced-motion
 agent-browser set viewport 1440 900
-agent-browser open "http://localhost:8710/play/storybook/decisions?v=2&state=anchor_call"
+agent-browser open "http://localhost:8710/play/storybook/decisions?state=anchor_call"
 agent-browser wait ".game-board .decision-controls__countdown"
 agent-browser wait --fn "document.documentElement.dataset.tileSprite === 'ready' && document.fonts.status === 'loaded' && document.getAnimations().every(a => a.playState !== 'running' || a.effect.getTiming().iterations === Infinity)"
 agent-browser screenshot $T/<name>.png

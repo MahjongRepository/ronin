@@ -149,31 +149,33 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/css" in response.headers["content-type"]
 
-    def test_play_page__when_visited__should_serve_game_client_index(self, client):
-        response = client.get("/play/test-game")
+    @pytest.mark.parametrize("path", ["/play/test-game", "/play/history/test-game"])
+    @pytest.mark.parametrize("query", ["", "?v=2", "?v=unknown"])
+    def test_play_page__when_v_is_not_1__should_serve_v2_game_client_index(self, client, path, query):
+        response = client.get(f"{path}{query}")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert response.text == _GAME_CLIENT_INDEX
+        assert response.text == _GAME_CLIENT_V2_INDEX
 
-    @pytest.mark.parametrize("path", ["/play/test-game?v=2", "/play/history/test-game?v=2"])
-    def test_play_page__when_v_is_2__should_serve_v2_game_client_index(self, client, path):
+    @pytest.mark.parametrize("path", ["/play/test-game?v=1", "/play/history/test-game?v=1", "/play/storybook?v=1"])
+    def test_play_page__when_v_is_1__should_serve_v1_game_client_index(self, client, path):
         response = client.get(path)
         assert response.status_code == 200
-        assert response.text == _GAME_CLIENT_V2_INDEX
+        assert response.text == _GAME_CLIENT_INDEX
 
     @pytest.mark.parametrize(
         "page", ["board", "discards", "hand", "melds", "rotate", "decisions", "table", "win", "draw", "standings"]
     )
-    def test_storybook_page__when_visited__should_serve_game_client_index(self, client, page):
+    def test_storybook_page__when_visited__should_serve_v2_game_client_index(self, client, page):
         response = client.get(f"/play/storybook/{page}")
         assert response.status_code == 200
-        assert response.text == _GAME_CLIENT_INDEX
+        assert response.text == _GAME_CLIENT_V2_INDEX
 
     def test_play_page__when_index_missing__should_render_the_503_error_page(self, make_app, tmp_path):
         game_client_dir = tmp_path / "empty-game-dist"
         game_client_dir.mkdir()
 
-        app = make_app(game_client_dir=str(game_client_dir))
+        app = make_app(game_client_v2_dir=str(game_client_dir))
         with open_client(app) as c:
             register_with_csrf(c, "testuser")
 
@@ -336,15 +338,18 @@ class TestViteDevMode:
         assert "http://localhost:5173/src/index.ts" in response.text
         assert "http://localhost:5173/@vite/client" in response.text
 
-    def test_play_page__when_game_client_dev_url_set__should_serve_dev_server_page(self, client):
-        response = client.get("/play/test-game")
+    def test_play_page__when_v_is_1_and_v1_dev_url_set__should_proxy_v1_dev_server(self, client):
+        response = client.get("/play/test-game?v=1")
         assert response.status_code == 200
         assert response.text == _DEV_GAME_CLIENT_PAGE
 
-    def test_play_page__when_v_is_2_and_v2_dev_url_set__should_proxy_v2_dev_server(self, client):
-        page = client.get("/play/test-game?v=2")
-        asset = client.get("/game-assets/v2/src/index.ts")
+    def test_play_page__when_v2_dev_url_set__should_proxy_v2_dev_server_by_default(self, client):
+        page = client.get("/play/test-game")
+        assert page.status_code == 200
         assert page.text == _DEV_GAME_CLIENT_V2_PAGE
+
+        asset = client.get("/game-assets/v2/src/index.ts")
+        assert asset.status_code == 200
         assert asset.text == "v2:src/index.ts"
 
     def test_game_assets_route__when_game_client_dev_url_set__should_proxy_encoded_path_and_query(self, client):

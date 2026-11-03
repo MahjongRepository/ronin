@@ -5,9 +5,8 @@ format and test config, and its own styles:
 
 * `lobby/` — the scripts and styles of the server-rendered lobby pages (TypeScript / lit-html). See
   `lobby/AGENTS.md`.
-* `game/` — the game client under `/play/*` (MajiangNG: JavaScript / jQuery). See `game/AGENTS.md`.
-* `game_v2/` — the earlier game client (TypeScript / lit-html), served instead of `game/` when a game
-  page's query has `v=2`. See `game_v2/AGENTS.md`.
+* `game/` — the v1 game client under `/play/*?v=1` (MajiangNG: JavaScript / jQuery). See `game/AGENTS.md`.
+* `game_v2/` — the default game client (TypeScript / lit-html). See `game_v2/AGENTS.md`.
 
 No app imports from another, and nothing is shared between them at build time: a module two
 need is copied into each. They meet only at the runtime contract

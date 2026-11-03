@@ -250,7 +250,7 @@ describe("showReplay", () => {
     });
 
     it("holds a loaded replay behind the game start screen's focused OK, ignoring keys and the wheel, unless sound is off", async () => {
-        openAt("?seat=1&round=2&step=5");
+        openAt("?v=1&seat=1&round=2&step=5");
         const { shown } = await load(FULL_GAME);
 
         expect(document.activeElement).toBe($(START)[0]);
@@ -272,7 +272,7 @@ describe("showReplay", () => {
             }),
         );
         expect($(".replay-controls")).toHaveLength(0);
-        expect(addressQuery()).toBe("?seat=1&round=2&step=5");
+        expect(addressQuery()).toBe("?v=1&seat=1&round=2&step=5");
 
         $(START).trigger("click");
         await shown;
@@ -356,7 +356,7 @@ describe("showReplay", () => {
     });
 
     it("offers the replay from its start beside a retry when a position past the first deal cannot be drawn", async () => {
-        openAt("?seat=1&round=2&step=5");
+        openAt("?v=1&seat=1&round=2&step=5");
         await open(FULL_GAME);
         vi.spyOn(Majiang.UI.Board.prototype, "update").mockImplementation(() => {
             throw new Error("the board cannot draw this");
@@ -366,9 +366,9 @@ describe("showReplay", () => {
 
         expect(problem()).toMatchObject({
             text: "Couldn't show the replay",
-            links: [window.location.href, `${REPLAY_PATH}?seat=1`, "/history", "/"],
+            links: [window.location.href, `${REPLAY_PATH}?v=1&seat=1`, "/history", "/"],
         });
-        expect(window.location.search).toBe("?seat=1&round=2&step=5");
+        expect(window.location.search).toBe("?v=1&seat=1&round=2&step=5");
     });
 
     it("calls a replay damaged once a later position cannot be played, and logs why", async () => {
@@ -976,7 +976,7 @@ describe("readPosition", () => {
 
 describe("PositionUrl", () => {
     it("opens paused at the URL's seat and position, the standings at the last round's last step, marked as a table", async () => {
-        openAt("?seat=1&round=2&step=5");
+        openAt("?v=1&seat=1&round=2&step=5");
         await open(FULL_GAME);
 
         expect($("#board .player.main .name").text()).toBe("Ojisan");
@@ -985,7 +985,7 @@ describe("PositionUrl", () => {
             step: expect.stringMatching(/^Step 6\u00a0/),
         });
         expect($(".replay-play").attr("aria-label")).toBe("Play");
-        expect(addressQuery()).toBe("?seat=1&round=2&step=5");
+        expect(addressQuery()).toBe("?v=1&seat=1&round=2&step=5");
 
         const { rounds } = toReplay(parseReplay(FULL_GAME));
         const lastRound = rounds.length - 1;
@@ -1008,33 +1008,33 @@ describe("PositionUrl", () => {
         expect($("#board .summary .row-rank .title").attr("aria-rowspan")).toBe("2");
     });
 
-    it("writes a bad query's fallback into the address bar, dropping anything else", async () => {
-        openAt("?seat=9&round=1&step=999&x=1");
+    it("writes a bad query's fallback into the address bar, keeping v1 and dropping unrelated parameters", async () => {
+        openAt("?v=1&seat=9&round=1&step=999&x=1");
         await open(FULL_GAME);
 
-        expect(addressQuery()).toBe("?seat=3&round=1&step=0");
+        expect(addressQuery()).toBe("?v=1&seat=3&round=1&step=0");
     });
 
     it("replaces the URL on each move and seat change, at most once per interval, keeping the position on a seat change", async () => {
         vi.useFakeTimers();
         await open(FULL_GAME);
         const historyLength = window.history.length;
-        expect(addressQuery()).toBe("?seat=3&round=0&step=0");
+        expect(addressQuery()).toBe("?v=1&seat=3&round=0&step=0");
 
         $(".replay-next").trigger("click");
         $(".replay-next").trigger("click");
-        expect(addressQuery()).toBe("?seat=3&round=0&step=0");
+        expect(addressQuery()).toBe("?v=1&seat=3&round=0&step=0");
         vi.advanceTimersByTime(URL_WRITE_INTERVAL_MS);
-        expect(addressQuery()).toBe("?seat=3&round=0&step=2");
+        expect(addressQuery()).toBe("?v=1&seat=3&round=0&step=2");
 
         vi.advanceTimersByTime(URL_WRITE_INTERVAL_MS);
         $(".replay-seat").val("1").trigger("change");
-        expect(addressQuery()).toBe("?seat=1&round=0&step=2");
+        expect(addressQuery()).toBe("?v=1&seat=1&round=0&step=2");
 
         $(".replay-next-round").trigger("click");
         vi.spyOn(document, "hidden", "get").mockReturnValue(true);
         document.dispatchEvent(new Event("visibilitychange"));
-        expect(addressQuery()).toBe("?seat=1&round=1&step=0");
+        expect(addressQuery()).toBe("?v=1&seat=1&round=1&step=0");
         expect(window.history.length).toBe(historyLength);
     });
 });

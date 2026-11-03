@@ -1,6 +1,6 @@
 import $ from "jquery";
 
-import { POSITION_PARAM } from "../routes.js";
+import { GAME_CLIENT_QUERY, POSITION_PARAM } from "../routes.js";
 
 /**
  * The fewest milliseconds between two writes of the address bar. Safari refuses more than 100 history writes in 30
@@ -37,14 +37,14 @@ export function readPosition(search, replay) {
     return { seat, round, step: step ?? 0 };
 }
 
-/** The page's own path with the query naming `state`'s seat and position, and nothing else. */
+/** The page's own path with the v1 selector and the query naming `state`'s seat and position. */
 function positionHref({ seat, round, step }) {
     const params = new URLSearchParams({
         [POSITION_PARAM.SEAT]: String(seat),
         [POSITION_PARAM.ROUND]: String(round),
         [POSITION_PARAM.STEP]: String(step),
     });
-    return `${window.location.pathname}?${params}${window.location.hash}`;
+    return `${window.location.pathname}?${GAME_CLIENT_QUERY}&${params}${window.location.hash}`;
 }
 
 /**

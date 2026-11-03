@@ -1134,7 +1134,7 @@ describe("the ronin table (Translate and Reply)", () => {
         vi.advanceTimersByTime(100);
         expect($("#board .hule-dialog").hasClass("hide")).toBe(true);
         expect(replayLink.hasClass("hide")).toBe(false);
-        expect(replayLink.attr("href")).toBe("/play/history/g?seat=2");
+        expect(replayLink.attr("href")).toBe("/play/history/g?v=1&seat=2");
         const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
         const newTab = $.Event("click", { button: 0, ctrlKey: true });
         replayLink.trigger(newTab);
@@ -1143,7 +1143,7 @@ describe("the ronin table (Translate and Reply)", () => {
         const plain = $.Event("click", { button: 0 });
         replayLink.trigger(plain);
         expect(plain.isDefaultPrevented()).toBe(true);
-        expect(replace).toHaveBeenCalledWith(`${window.location.origin}/play/history/g?seat=2`);
+        expect(replace).toHaveBeenCalledWith(`${window.location.origin}/play/history/g?v=1&seat=2`);
         $("#board .summary .exit").trigger("click");
         expect(table.sent).toEqual(["lobby"]);
     });

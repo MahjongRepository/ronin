@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import "../majiang.js";
 import RONIN_RULE from "../ronin/rules.js";
-import { SAMPLE_PLAYERS } from "../storybook/board-page.js";
+import { SAMPLE_PLAYERS, renderVariantNav } from "../storybook/board-page.js";
 import {
     DECISION_VARIANTS,
     TABLE_VARIANTS,
@@ -94,6 +94,14 @@ function countBy(tiles, key) {
     }
     return counts;
 }
+
+describe("renderVariantNav", () => {
+    it("keeps the v1 client when selecting a storybook variant", () => {
+        const variant = DECISION_VARIANTS[0];
+        const nav = renderVariantNav([variant], variant);
+        expect(nav.find("a").attr("href")).toBe(`?v=1&state=${variant.key}`);
+    });
+});
 
 describe("storybook samples", () => {
     it.each(SAMPLES)(
