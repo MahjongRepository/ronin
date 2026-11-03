@@ -1,14 +1,14 @@
 import "@/zod-setup";
 import "@/styles/game-app.scss";
-import beepUrl from "@/assets/audio/beep.wav?url";
-import chiUrl from "@/assets/audio/chii.wav?url";
-import discardUrl from "@/assets/audio/dahai11.wav?url";
-import kanUrl from "@/assets/audio/kan.wav?url";
-import yakumanUrl from "@/assets/audio/nc43994.wav?url";
-import ponUrl from "@/assets/audio/pon.wav?url";
-import riichiUrl from "@/assets/audio/richi.wav?url";
-import ronUrl from "@/assets/audio/ron.wav?url";
-import tsumoUrl from "@/assets/audio/tsumo.wav?url";
+import chiUrl from "@/assets/audio/calls/chi.mp3?no-inline";
+import kanUrl from "@/assets/audio/calls/kan.mp3?no-inline";
+import ponUrl from "@/assets/audio/calls/pon.mp3?no-inline";
+import riichiUrl from "@/assets/audio/calls/riichi.mp3?no-inline";
+import ronUrl from "@/assets/audio/calls/ron.mp3?no-inline";
+import tsumoUrl from "@/assets/audio/calls/tsumo.mp3?no-inline";
+import yakumanUrl from "@/assets/audio/calls/yakuman.mp3?no-inline";
+import countdownUrl from "@/assets/audio/countdown-soft-reply.wav?no-inline";
+import discardUrl from "@/assets/audio/discard-resin.wav?no-inline";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
     DEFAULT_SOUND_SETTING,
@@ -29,7 +29,13 @@ import {
     isDebugRequested,
     replayPageUrl,
 } from "@/shared/config";
-import { type SoundSource, createSoundPlayer, localStore, webAudioOutput } from "@/shared/lib";
+import {
+    type SoundSource,
+    createSoundPlayer,
+    localStore,
+    synthesizeDecision,
+    webAudioOutput,
+} from "@/shared/lib";
 import {
     type GameSessionData,
     clearGameSession,
@@ -43,18 +49,18 @@ import type * as StorybookRoutes from "@/views/storybook-routes";
 /** Where this browser keeps the replay reader's settings. */
 const REPLAY_PREFS_KEY = "ronin.v2.replay-prefs";
 
-/** The v1 client's sounds at its volumes: the voices and clicks quiet, the yakuman gong full. */
 const VOICE_VOLUME = 0.2;
 const GAME_SOUNDS: Readonly<Record<SoundCue, SoundSource>> = {
-    beep: { url: beepUrl, volume: VOICE_VOLUME },
-    chi: { url: chiUrl, volume: VOICE_VOLUME },
-    discard: { url: discardUrl, volume: VOICE_VOLUME },
-    kan: { url: kanUrl, volume: VOICE_VOLUME },
-    pon: { url: ponUrl, volume: VOICE_VOLUME },
-    riichi: { url: riichiUrl, volume: VOICE_VOLUME },
-    ron: { url: ronUrl, volume: VOICE_VOLUME },
-    tsumo: { url: tsumoUrl, volume: VOICE_VOLUME },
-    yakuman: { url: yakumanUrl, volume: 1 },
+    beep: { kind: "file", url: countdownUrl, volume: VOICE_VOLUME },
+    chi: { kind: "file", url: chiUrl, volume: VOICE_VOLUME },
+    decision: { kind: "generated", ...synthesizeDecision(), volume: VOICE_VOLUME },
+    discard: { kind: "file", url: discardUrl, volume: VOICE_VOLUME },
+    kan: { kind: "file", url: kanUrl, volume: VOICE_VOLUME },
+    pon: { kind: "file", url: ponUrl, volume: VOICE_VOLUME },
+    riichi: { kind: "file", url: riichiUrl, volume: VOICE_VOLUME },
+    ron: { kind: "file", url: ronUrl, volume: VOICE_VOLUME },
+    tsumo: { kind: "file", url: tsumoUrl, volume: VOICE_VOLUME },
+    yakuman: { kind: "file", url: yakumanUrl, volume: VOICE_VOLUME },
 };
 
 function gameSound(): GameSound {
@@ -174,6 +180,14 @@ if (app) {
     startRouter(
         app,
         [
+            lazyRoute(/^\/play\/storybook\/sounds$/, async () => {
+                const { mountStorybookSounds } = await import("@/views/storybook-sounds");
+                return (host) =>
+                    mountStorybookSounds(host, {
+                        play: gameSound().play,
+                        sounds: GAME_SOUNDS,
+                    });
+            }),
             lazyRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, async () => {
                 const { mountReplayView } = await import("@/views/replay");
                 return (host, params) => mountReplayView(host, params.gameId, replayDeps());

@@ -12,7 +12,13 @@ export function webAudioOutput(hasBeenActive: () => boolean): SoundOutput<AudioB
     const decoder = new OfflineAudioContext(1, 1, DECODE_SAMPLE_RATE);
     let context: AudioContext | null = null;
     return {
-        load: async (url) => {
+        load: async (source) => {
+            if (source.kind === "generated") {
+                const buffer = decoder.createBuffer(1, source.samples.length, source.sampleRate);
+                buffer.copyToChannel(source.samples, 0);
+                return buffer;
+            }
+            const { url } = source;
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`The sound file ${url} answered ${response.status}`);

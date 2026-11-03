@@ -876,7 +876,7 @@ describe("mountGameView settings", () => {
         const played = sound.played.length;
         receiveThroughTurn(connections[0]);
 
-        expect(heard).toEqual(["discard"]);
+        expect(heard).toEqual(["discard", "decision"]);
         expect(sound.played).toHaveLength(played);
     });
 });

@@ -413,8 +413,12 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   shows without opening the menu. A replay has the same corner and cog, its menu the sound switch alone. The live
   board has no way back of its own; the upright phone's rotate panel keeps
   one, which asks the leave question, and an end's panel offers the lobby.
-- **Sound.** The live game plays the v1 client's sounds: a discard's click, each call's voice as its callout first
-  shows, the gong when the server confirms a yakuman result, and a beep for each of the last five
+- **Sound.** The live game plays an original synthesized resin tile clack and a soft two-note countdown tone,
+  plus a soft 180 ms chime once for each newly seen decision offering chi, pon, kan, ron or tsumo that still needs
+  the player's answer. A previously seen prompt repeated or reconnected, a refused answer reopening, an automatic answer and a
+  turn offering only a discard, riichi or kyuushu do not chime. The decision chime is live-only. The supplied
+  recorded voices play as their callouts first show, with an additional voice when the server confirms a yakuman result.
+  The countdown beeps for each of the last five
   seconds of a decision that runs
   longer than five. A reconnect's snapshot plays nothing. A replay plays a move's sounds (no beep) on a step on to the
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser

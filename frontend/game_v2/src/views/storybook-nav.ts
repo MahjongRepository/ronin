@@ -16,6 +16,7 @@ const STORYBOOK_PAGES: StorybookPage[] = [
     { path: "/play/storybook/melds", title: "Melds" },
     { path: "/play/storybook/replay", title: "Replay" },
     { path: "/play/storybook/rotate", title: "Rotate" },
+    { path: "/play/storybook/sounds", title: "Sounds" },
 ];
 
 /**

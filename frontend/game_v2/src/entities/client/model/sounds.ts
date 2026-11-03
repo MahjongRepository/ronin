@@ -4,10 +4,13 @@ import { type LocalStore } from "@/shared/lib";
 import { matchesCall, submittedCall } from "./calls";
 import { decisionCountdown } from "./countdown";
 import { decisionOf } from "./pending";
-import { type LiveClient } from "./types";
+import { unseenWait } from "./play-switches";
+import { type LiveClient, type Offer } from "./types";
 
-/** A sound the game plays: a discard's click, a call's voice, a yakuman's gong, a decision's last seconds' beep. */
-export type SoundCue = CalloutKind | "discard" | "yakuman" | "beep";
+/** A move's sound, a new decision's chime, or a countdown's beep. */
+export type SoundCue = CalloutKind | "discard" | "yakuman" | "beep" | "decision";
+
+const DECISION_SOUND_OFFERS = new Set<Offer["kind"]>(["chi", "pon", "kan", "ron", "tsumo"]);
 
 /** The seconds of a decision's countdown that beep, each once; a decision no longer than them stays quiet. */
 const BEEP_SECONDS = 5;
@@ -78,10 +81,23 @@ function beepCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
     return sameSecond ? [] : ["beep"];
 }
 
+function decisionCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
+    const decision = decisionOf(after);
+    if (
+        decision?.status.kind !== "open" ||
+        !unseenWait(decision.waitId, before.highestOpenedWaitId)
+    ) {
+        return [];
+    }
+    return decision.offers.some((offer) => DECISION_SOUND_OFFERS.has(offer.kind))
+        ? ["decision"]
+        : [];
+}
+
 /**
  * The sounds one step of the live client makes, from the state it found (`before`) to the one it left (`after`):
  * a discard's click, the voice of each call the board starts showing (a riichi's with its discard's click) with the
- * gong for a yakuman win, and the beep of each new second at the end of a long decision.
+ * gong for a yakuman win, a new call or win decision's chime, and each last second of a long decision's beep.
  */
 export function soundCues(before: LiveClient, after: LiveClient): readonly SoundCue[] {
     const declared = submittedCall(before);
@@ -92,7 +108,12 @@ export function soundCues(before: LiveClient, after: LiveClient): readonly Sound
         before.table.roundEndResult !== after.table.roundEndResult &&
         paysYakuman(after.table) &&
         !move.includes("yakuman");
-    return [...move, ...(confirmedWin ? ["yakuman" as const] : []), ...beepCues(before, after)];
+    return [
+        ...move,
+        ...(confirmedWin ? ["yakuman" as const] : []),
+        ...decisionCues(before, after),
+        ...beepCues(before, after),
+    ];
 }
 
 /** The sound setting as this browser keeps it: the v1 client's key and shape, so both clients share one setting. */

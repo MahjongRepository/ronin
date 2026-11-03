@@ -1,6 +1,6 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { type SoundOutput, createSoundPlayer } from "@/shared/lib";
+import { type SoundOutput, type SoundSource, createSoundPlayer } from "@/shared/lib";
 
 /** An output whose loads wait until the test settles them and whose starts fail with `errors` in turn, then succeed. */
 function fakeOutput(errors: readonly Error[]): {
@@ -12,10 +12,14 @@ function fakeOutput(errors: readonly Error[]): {
     const started: (readonly [string, number])[] = [];
     let starts = 0;
     const output: SoundOutput<string> = {
-        load: (url) =>
-            new Promise((resolve, reject) => {
-                loads.set(url, { reject, resolve: () => resolve(`clip:${url}`) });
-            }),
+        load: (source) => {
+            if (source.kind !== "file") {
+                throw new Error("Expected a file");
+            }
+            return new Promise((resolve, reject) => {
+                loads.set(source.url, { reject, resolve: () => resolve(`clip:${source.url}`) });
+            });
+        },
         start: (clip, volume) => {
             started.push([clip, volume]);
             const error = errors[starts++];
@@ -33,7 +37,10 @@ async function settleLoads(act: () => void): Promise<void> {
     });
 }
 
-const SOURCES = { gong: { url: "/gong.wav", volume: 1 }, ron: { url: "/ron.wav", volume: 0.2 } };
+const SOURCES = {
+    gong: { kind: "file", url: "/gong.wav", volume: 1 },
+    ron: { kind: "file", url: "/ron.wav", volume: 0.2 },
+} satisfies Record<string, SoundSource>;
 
 describe("createSoundPlayer", () => {
     it("starts every play of a loaded sound at its volume, skips one still loading or blocked before the first gesture, and reports any other failure", async () => {

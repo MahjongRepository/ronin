@@ -191,11 +191,18 @@ describe("automatic answers", () => {
         const pass = promptPass(receivedPayload(transcript, "prompt"));
         const switched = switchedOnBefore(scenario, "prompt", ["no_calls"]);
         const passed = branchAfter(expecting(switched, "prompt", [pass]), "prompt", []);
-        const prompt = stateAt(passed, runClean(passed), "prompt");
+        const run = runClean(passed);
+        const prompt = stateAt(passed, run, "prompt");
         const display = playDisplay(prompt, NO_PLAY_UI);
 
         expect(bySwitch(prompt)).toBe("no_calls");
         expect([display.actions, display.decisionStanding]).toEqual([[], null]);
+        expect(
+            soundCues(
+                timelineStates(run.timeline)[scenarioStateIndex(passed, "prompt") - 1],
+                prompt,
+            ),
+        ).toEqual([]);
     });
 
     it("No calls and Auto discard leave riichi, a closed kan, a ron and a tsumo to the player, kept through a reconnect and off at the deal", () => {

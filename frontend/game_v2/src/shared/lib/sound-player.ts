@@ -1,15 +1,19 @@
-/** Where a sound's file is served, and how loud it plays (0 to 1). */
-export interface SoundSource {
-    readonly url: string;
-    readonly volume: number;
+export interface SoundSamples {
+    readonly samples: Float32Array<ArrayBuffer>;
+    readonly sampleRate: number;
 }
+
+export type SoundSource = (
+    | { readonly kind: "file"; readonly url: string }
+    | ({ readonly kind: "generated" } & SoundSamples)
+) & { readonly volume: number };
 
 /**
  * Where a player's sounds play: a file loaded into a clip, and a clip started at a volume over any play still going,
  * which rejects with a `NotAllowedError` before the page's first user gesture.
  */
 export interface SoundOutput<Clip> {
-    readonly load: (url: string) => Promise<Clip>;
+    readonly load: (source: SoundSource) => Promise<Clip>;
     readonly start: (clip: Clip, volume: number) => Promise<void>;
 }
 
@@ -28,8 +32,8 @@ export function createSoundPlayer<Name extends string, Clip>(
     output: SoundOutput<Clip>,
 ): SoundPlayer<Name> {
     const clips = new Map<string, Clip>();
-    for (const [name, { url }] of Object.entries<SoundSource>(sources)) {
-        output.load(url).then(
+    for (const [name, source] of Object.entries<SoundSource>(sources)) {
+        output.load(source).then(
             (clip) => clips.set(name, clip),
             (error: unknown) => console.error(`The sound "${name}" failed to load:`, error),
         );

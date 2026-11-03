@@ -29,6 +29,7 @@ describe("storybookNav", () => {
             "Melds",
             "Replay",
             "Rotate",
+            "Sounds",
         ]);
     });
 

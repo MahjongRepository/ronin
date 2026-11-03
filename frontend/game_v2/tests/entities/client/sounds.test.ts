@@ -5,7 +5,7 @@ import {
     loadSeatScenario,
     receivedPayload,
 } from "#tests/fixtures/seat-transcripts";
-import { wirePayloadList } from "#tests/fixtures/wire";
+import { wirePayloadList, wireRuleRefusal } from "#tests/fixtures/wire";
 import {
     type LiveClient,
     NO_PLAY_UI,
@@ -51,6 +51,50 @@ function cuesBeforeDeadline(
 }
 
 describe("soundCues", () => {
+    it.each([
+        ["call_prompt_seat_1", "prompt", ["decision"]],
+        ["own_turn_seat_1", "first draw", ["decision"]],
+        ["first_turn_win_seat_1", "tenhou draw", ["decision"]],
+        ["double_ron_seat_1", "ron prompt", ["decision"]],
+        ["call_prompt_seat_1", "turn", []],
+        ["own_turn_seat_1", "rinshan", []],
+        ["game_end_reconnect_seat_1", "first draw", []],
+    ] as const)("chimes only for a new call or win offer at %s / %s", (name, label, expected) => {
+        const { scenario } = loadSeatScenario(name);
+        const run = runSeatScenario(scenario);
+        expect(run.mismatches).toEqual([]);
+        const states = timelineStates(run.timeline);
+        const index = scenarioStateIndex(scenario, label);
+        const opened = states[index];
+        expect(decisionOf(opened)?.status.kind).toBe("open");
+        expect(soundCues(states[index - 1], opened)).toEqual(expected);
+
+        const ticked = stepGameClient(opened, { at: opened.now + 50, kind: "tick" }).state;
+        expect(soundCues(opened, ticked)).toEqual([]);
+    });
+
+    it("does not chime again for a repeated prompt or a refused answer reopening it", () => {
+        const opened = checkpointState("call_prompt_seat_1", "prompt");
+        const repeated = stepGameClient(opened, {
+            at: opened.now,
+            kind: "server_message",
+            raw: receivedPayload(loadSeatScenario("call_prompt_seat_1").transcript, "prompt"),
+        }).state;
+        expect(decisionOf(repeated)?.status.kind).toBe("open");
+        expect(soundCues(opened, repeated)).toEqual([]);
+
+        const chosen = checkpointState("call_prompt_seat_1", "chi chosen");
+        const decision = decisionOf(chosen);
+        assert(decision?.status.kind === "submitted");
+        const refused = stepGameClient(chosen, {
+            at: chosen.now,
+            kind: "server_message",
+            raw: wireRuleRefusal(decision.waitId),
+        }).state;
+        expect(decisionOf(refused)?.status.kind).toBe("open");
+        expect(soundCues(chosen, refused)).toEqual([]);
+    });
+
     it.each([
         ["call_prompt_seat_1", "prompt", "chi"],
         ["call_prompt_seat_1", "prompt", "pon"],

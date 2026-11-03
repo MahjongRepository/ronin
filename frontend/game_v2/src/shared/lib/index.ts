@@ -7,7 +7,8 @@ export type { LoadStatus, RetryingLoad, RetryingLoadDeps } from "./retrying-load
 export { localStore } from "./local-store";
 export type { LocalStore } from "./local-store";
 export { createSoundPlayer } from "./sound-player";
-export type { SoundOutput, SoundPlayer, SoundSource } from "./sound-player";
+export type { SoundOutput, SoundPlayer, SoundSamples, SoundSource } from "./sound-player";
+export { synthesizeDecision } from "./synthesized-sounds";
 export { createThrottledWriter } from "./throttled-writer";
 export type { ThrottledWriter } from "./throttled-writer";
 export { wheelPixels, wheelStep } from "./wheel-steps";
