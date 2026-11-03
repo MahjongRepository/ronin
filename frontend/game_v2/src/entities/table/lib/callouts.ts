@@ -24,7 +24,7 @@ export interface Call {
 }
 
 /** How long a call shows by its seat, live or in a replay: the board's callout plays its whole animation, a fade last, in this time. */
-export const CALLOUT_MS = 3000;
+export const CALLOUT_MS = 1250;
 
 const CALLOUT_LABELS: Readonly<Record<CalloutKind, string>> = {
     chi: "Chi",

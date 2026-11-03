@@ -6,6 +6,8 @@ import { type TileFace } from "@/entities/tile/lib/tile-utils";
 import { Tile } from "./tile";
 
 interface DiscardTile {
+    readonly tileId?: number;
+    readonly tsumogiri?: boolean;
     face: TileFace;
     riichi?: boolean;
     /** The table's latest discard, still where it fell. */
@@ -37,7 +39,7 @@ function Discards(tiles: readonly DiscardTile[], overflow: RiverOverflow = "run-
                         if (t.last) {
                             classes.push("discard-tile--last");
                         }
-                        return html`<span class="${classes.join(" ")}">${Tile(t.face, "face")}</span>`;
+                        return html`<span class="${classes.join(" ")}" data-tile-id=${t.tileId ?? ""} data-tsumogiri=${t.tsumogiri === true}>${Tile(t.face, "face")}</span>`;
                     })}</span
                 >`,
         )}</span

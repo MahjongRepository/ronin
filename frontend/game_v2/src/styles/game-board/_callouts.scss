@@ -24,7 +24,7 @@ $overlay-hold-ms: 1000ms;
     color: var(--ronin-callout-ink);
     pointer-events: none;
     translate: -50% -50%;
-    animation: callout-show var(--callout-ms) ease-out both;
+    animation: callout-show var(--callout-ms) linear both;
 
     @include small-chrome {
         --callout-cap: 20px;
@@ -74,15 +74,15 @@ $overlay-hold-ms: 1000ms;
 @keyframes callout-show {
     0% {
         opacity: 0;
-        transform: scale(0.6);
+        transform: scale(2);
     }
 
-    12% {
+    20% {
         opacity: 1;
         transform: scale(1);
     }
 
-    80% {
+    60% {
         opacity: 1;
     }
 
@@ -92,7 +92,7 @@ $overlay-hold-ms: 1000ms;
 }
 
 @keyframes callout-fade {
-    80% {
+    60% {
         opacity: 1;
     }
 

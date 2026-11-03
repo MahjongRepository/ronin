@@ -1,5 +1,10 @@
 import { type SessionEffect, type SessionState } from "@/entities/session";
-import { type Call, type KanDeclaredEvent, type TableState } from "@/entities/table";
+import {
+    type BoardMotionCue,
+    type Call,
+    type KanDeclaredEvent,
+    type TableState,
+} from "@/entities/table";
 import { type HandoffRecovery } from "@/shared/api";
 import {
     type CallType,
@@ -261,6 +266,7 @@ export interface ReplayClient extends ClientBase {
 
 /** A live seat's client: its session, the table as the seat sees it, and the seat's own facts and obligations. */
 export interface LiveClient extends ClientBase {
+    readonly boardMotion: BoardMotionCue;
     readonly kind: "live";
     readonly session: SessionState;
     /** The seat the server named the viewer's, or null before it did. */

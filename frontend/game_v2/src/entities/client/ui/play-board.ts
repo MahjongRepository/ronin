@@ -450,6 +450,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         inert,
         input: playInput(display, onCommand),
         localHand: { onTile, tileAction: display.tileAction },
+        matchResult: display.matchResult,
         menu: GameMenu({
             extra: menuExtra,
             input: {
@@ -463,6 +464,7 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             soundOn: display.soundOn,
             status: display.status,
         }),
+        motion: display.motion,
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
         overlay: overlay === null ? undefined : OverlayPanel(overlay.panel, props),
         overlayAfterCall: overlay?.panel.kind === "result" && overlay.panel.afterCall,

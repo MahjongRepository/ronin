@@ -183,9 +183,9 @@ describe("tableStateToDisplayState", () => {
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[0].melds).toEqual([
                 [
-                    { face: "1m", kind: "sideways" },
-                    { face: "1m", kind: "upright" },
-                    { face: "1m", kind: "upright" },
+                    { face: "1m", kind: "sideways", tileId: 0 },
+                    { face: "1m", kind: "upright", tileId: 1 },
+                    { face: "1m", kind: "upright", tileId: 2 },
                 ],
             ]);
         });
@@ -209,9 +209,9 @@ describe("tableStateToDisplayState", () => {
             });
             const result = tableStateToDisplayState(state, SEAT_0_VIEW)!;
             expect(result.players[0].discards).toEqual([
-                { face: "1m", last: false, riichi: false },
-                { face: "3m", last: false, riichi: true },
-                { face: "4m", last: false, riichi: false },
+                { face: "1m", last: false, riichi: false, tileId: 0, tsumogiri: false },
+                { face: "3m", last: false, riichi: true, tileId: 8, tsumogiri: false },
+                { face: "4m", last: false, riichi: false, tileId: 12, tsumogiri: false },
             ]);
         });
 

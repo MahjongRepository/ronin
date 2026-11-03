@@ -238,7 +238,9 @@ describe("soundCues", () => {
         );
         expect(cues).toEqual([[], ["beep"], [], [], [], ["beep"], [], ["beep"], ["beep"], []]);
     });
+});
 
+describe("soundCues after bank entry", () => {
     it("does not replay the base-time beep when reconnecting after the bank started", () => {
         const { scenario } = loadSeatScenario("bank_reconnect_seat_1");
         const states = timelineStates(runSeatScenario(scenario).timeline);

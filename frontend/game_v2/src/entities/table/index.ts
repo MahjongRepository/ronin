@@ -54,6 +54,7 @@ export type {
     BoardCallouts,
     BoardCenterInfo,
     BoardDisplayState,
+    BoardMotionCue,
     CalloutKind,
     BoardPerspective,
     BoardNameplate,

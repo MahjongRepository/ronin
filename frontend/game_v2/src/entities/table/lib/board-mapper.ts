@@ -85,6 +85,8 @@ export function buildDiscardTiles(
                       face: tile136toString(d.tileId),
                       last: index === last,
                       riichi: index === sideways,
+                      tileId: d.tileId,
+                      tsumogiri: d.isTsumogiri,
                   },
               ],
     );
@@ -213,6 +215,8 @@ function tableStateToDisplayState(
             roundDisplay: roundName(state.roundWind, state.roundInWind),
             tilesRemaining: state.tilesRemaining,
         },
+        motionContext: JSON.stringify([state.gameId, perspective.bottomSeat, perspective.reveal]),
+        motionRound: state.roundNumber,
         nameplates: [nameplate(bottom), nameplate(right), nameplate(top), nameplate(left)],
         players: [
             display(bottom, true),

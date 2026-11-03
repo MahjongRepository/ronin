@@ -126,6 +126,7 @@ export function ReplayBoard({
     return GameBoard({
         callouts: display.callouts,
         debug: false,
+        matchResult: display.matchResult,
         menu: GameMenu({
             onClose: handlers.closeSettings,
             onToggleOpen: handlers.toggleSettings,
@@ -134,6 +135,7 @@ export function ReplayBoard({
             soundOn: screen.soundOn,
             status: null,
         }),
+        motion: display.motion,
         overlay: overlay === null ? undefined : TablePanelDisplay(overlay, controls),
         overlayAfterCall: overlay?.kind === "result" && overlay.afterCall,
         platePress,

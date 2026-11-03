@@ -25,8 +25,18 @@ export type MeldInput =
  * down (a closed kan's ends), or an added kan's called tile with the added one stacked on it.
  */
 export type MeldTile =
-    | { readonly kind: "upright" | "sideways" | "facedown"; readonly face: TileFace }
-    | { readonly kind: "stacked"; readonly bottom: TileFace; readonly top: TileFace };
+    | {
+          readonly kind: "upright" | "sideways" | "facedown";
+          readonly face: TileFace;
+          readonly tileId?: number;
+      }
+    | {
+          readonly kind: "stacked";
+          readonly bottom: TileFace;
+          readonly top: TileFace;
+          readonly bottomId?: number;
+          readonly topId?: number;
+      };
 
 /**
  * The slot of the sideways tile among `slotCount`, turned toward the seat it came from. Play runs to the caller's
@@ -48,8 +58,12 @@ function chiTiles(input: MeldInput): MeldTile[] {
         .filter((tileId) => tileId !== calledId)
         .toSorted((tileA, tileB) => tileType(tileA) - tileType(tileB));
     return [
-        { face: tile136toString(calledId), kind: "sideways" },
-        ...others.map((tileId): MeldTile => ({ face: tile136toString(tileId), kind: "upright" })),
+        { face: tile136toString(calledId), kind: "sideways", tileId: calledId },
+        ...others.map((tileId): MeldTile => ({
+            face: tile136toString(tileId),
+            kind: "upright",
+            tileId,
+        })),
     ];
 }
 
@@ -63,8 +77,8 @@ function openMeldTiles(input: MeldInput, tileCount: number): MeldTile[] {
     let otherIdx = 0;
     return Array.from({ length: tileCount }, (_unused, idx): MeldTile =>
         idx === pos
-            ? { face: tile136toString(calledId), kind: "sideways" }
-            : { face: tile136toString(otherTiles[otherIdx++]), kind: "upright" },
+            ? { face: tile136toString(calledId), kind: "sideways", tileId: calledId }
+            : toUprightTile(otherTiles[otherIdx++]),
     );
 }
 
@@ -72,6 +86,7 @@ function closedKanTiles(input: MeldInput): MeldTile[] {
     return input.tileIds.map((tileId, idx) => ({
         face: tile136toString(tileId),
         kind: idx === 0 || idx === 3 ? "facedown" : "upright",
+        tileId,
     }));
 }
 
@@ -86,9 +101,19 @@ function addedKanTiles(input: MeldInput & { readonly meldType: "added_kan" }): M
     let otherIdx = 0;
     return Array.from({ length: 3 }, (_unused, idx): MeldTile =>
         idx === pos
-            ? { bottom: tile136toString(calledId), kind: "stacked", top: tile136toString(addedId) }
-            : { face: tile136toString(otherTiles[otherIdx++]), kind: "upright" },
+            ? {
+                  bottom: tile136toString(calledId),
+                  bottomId: calledId,
+                  kind: "stacked",
+                  top: tile136toString(addedId),
+                  topId: addedId,
+              }
+            : toUprightTile(otherTiles[otherIdx++]),
     );
+}
+
+function toUprightTile(tileId: number): MeldTile {
+    return { face: tile136toString(tileId), kind: "upright", tileId };
 }
 
 /** The tiles a meld is laid as, left to right. */

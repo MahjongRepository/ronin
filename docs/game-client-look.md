@@ -398,10 +398,26 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   appears on selection, without moving tiles or changing scores. A matching server confirmation
   does not repeat a lone callout or its voice, even after its popup expires. Another player's winning
   call replaces it when the server resolves priority. A double or triple ron
-  shows every claimant's at once. It shows for three seconds and fades out last: in live play until
+  shows every claimant's at once. It shows for 1.25 seconds: a 250ms fade-in shrinking from twice its
+  resting size, a 500ms hold, then a 500ms fade-out. In live play it remains until
   then or until a newer call replaces it; in a replay on its own clock too, kept as the reader moves
-  on through its round, gone on stepping back past it or into another round. Candidate: a move may be animated briefly (a discard travels from hand
-  to river); reduced motion turns it off.
+  on through its round, gone on stepping back past it or into another round. Reduced motion keeps only the fade.
+- **Tile motion.** Draws travel from the centre to the separated hand slot and discards from hand to river in
+  120ms, with a faint trail. The latest discard settles into its river slot in 120ms when its mark ends.
+  A travelling tile keeps its body and shadow throughout, with size, orientation and the own hand's top band
+  changing continuously from source to destination. Light stays fixed to the screen. Rearranging hands move
+  their actual tile wrappers inside the hand, retaining the group's shared edge and native button feedback.
+  The hand closes gaps and sorts over 200ms after the discard's flight, with an additional 300ms pause in live play.
+  Replay settles the previous stop's tile movements before measuring the next move, so rapid stepping animates
+  only the latest move and never waits for an animation backlog. Calls assemble their
+  meld from the original hand and river positions; travel time follows distance at the local tile scale, bounded
+  to 80–300ms. Starting hands and indicator slots appear immediately at each deal. There is no drawn wall.
+  Opponents' revealed hands replace their standing backs one tile every 30ms, without a flip. The hand stays
+  automatically sorted and keeps its existing hover and selection feedback. Motion never blocks input, delays
+  game state or invents a hidden tile identity; later events preserve unaffected movements. A fresh page,
+  reconnect, replay jump or viewpoint change shows the requested position immediately. Reduced motion disables
+  tile travel and staged reveals. Match standings fade in over 1.5 seconds and fade away over 250ms when dismissed;
+  round-result panels, their opening delay and their yaku presentation are unchanged.
 - **Page corner.** A settings cog, small, in one corner. In landscape it sits in the free space
   inside the right strip's deepest reach, with a gap so its whole tap target clears the melds;
   where the top hand leaves too little room, it sits below the top strip and badge instead.

@@ -74,6 +74,8 @@ interface BoardPlayerDisplay {
 }
 
 interface BoardDisplayState {
+    readonly motionContext?: string;
+    readonly motionRound?: number;
     readonly players: readonly [
         BoardPlayerDisplay,
         BoardPlayerDisplay,
@@ -83,6 +85,11 @@ interface BoardDisplayState {
     readonly center: BoardCenterInfo;
     /** Each seat's nameplate, by board position like `players`. */
     readonly nameplates: readonly [BoardNameplate, BoardNameplate, BoardNameplate, BoardNameplate];
+}
+
+interface BoardMotionCue {
+    readonly sequence: number;
+    readonly mode: "step" | "replay" | "reset";
 }
 
 /**
@@ -102,6 +109,7 @@ export type {
     CalloutKind,
     BoardPerspective,
     BoardDisplayState,
+    BoardMotionCue,
     BoardNameplate,
     BoardPlayerDisplay,
     NameplateAiMark,

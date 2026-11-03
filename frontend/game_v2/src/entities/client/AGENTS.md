@@ -64,6 +64,8 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all
   winners. A kan's declaration and completion announce it only once. Calls end on a deal or a snapshot that left
   the hand, never on a move that calls nothing or the game's end. The yakuman gong waits for the server's result.
+  A win's context keeps the existing three-second window for a delayed result, independently of the shorter
+  visible callout. Once a result panel starts its opening delay, expiry of that context never truncates it.
 - `playDisplay` maps the whole client state for the live board and never restates what may be played: every tile
   intent and button is one the intent gate takes. `PlayBoard` only renders it; its view state is `PlayUi`, whose
   per-decision parts are keyed by wait id so a newer decision never inherits them. `PlayUi` moves only through
@@ -85,7 +87,9 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
   never on a reconnect already in the bank, and coinciding countdown cues play once. Only the live driver plays them,
   while `PlayUi.soundOn`. A move's part (`moveSoundCues`) is the replay's too.
 - The board's script measurements are the table slice's: its geometry directive (`sizeBoard`) and the notices' clamp
-  (`entities/table/ui/notice-clamp.ts`), which writes attributes only.
+  (`entities/table/ui/notice-clamp.ts`), which writes attributes only, plus its presentation-only motion snapshots.
+  The dispatcher advances the board's motion cue only when the table changes, marking reconnect snapshots and
+  loss of step as resets. A countdown or UI redraw cannot restart a tile's animation.
 - Live regions announce each notice and call once, never each second or redraw; never `role="status"` (atomic).
   Every `GameBoard` keeps the calls' region; a showing's `announced` decides whether it is read (always on live, per
   move in a replay).

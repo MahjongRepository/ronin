@@ -60,7 +60,7 @@ export const PLAYABLE_TILE_FOCUS_KEY = "playable-tile";
 function HandSlot(tile: HandTile, extraClass: string, props: HandProps): TemplateResult {
     const slotClass = `hand-tile${extraClass}`;
     if (tile.state === undefined) {
-        return html`<span class="${slotClass}">${TileFaceView(tile)}</span>`;
+        return html`<span class="${slotClass}" data-tile-id=${tile.tileId ?? ""}>${TileFaceView(tile)}</span>`;
     }
     const { state, tileId } = tile;
     const acts = state === "selectable" || state === "declaring";
@@ -72,6 +72,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
     return html`<button
         type="button"
         class="${slotClass} hand-tile--${state}"
+        data-tile-id=${tileId}
         aria-label=${`${props.tileAction ?? "Play"} ${tile.face}`}
         aria-disabled=${acts ? nothing : "true"}
         aria-pressed=${state === "selected" ? "true" : nothing}

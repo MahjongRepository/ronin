@@ -33,6 +33,7 @@ import {
     stepGameClient,
     timelineStates,
 } from "@/entities/client";
+import { WIN_CALLOUT_CONTEXT_MS } from "@/entities/client/model/calls";
 import { CALLOUT_MS, roundEndDisplay, tableStateToDisplayState } from "@/entities/table";
 import { SEAT_TRANSCRIPTS } from "@/fixtures/seat-transcripts";
 import {
@@ -837,7 +838,11 @@ describe("stepGameClient - generated round advance", () => {
     it("keeps the last win's call through the game's end and the socket's close, until its own time ends it", () => {
         const { scenario } = FINAL_ROUND;
         const run = runClean(scenario);
-        const ron = { at: 5000, calls: [{ kind: "ron", seat: 1 }], until: 5000 + CALLOUT_MS };
+        const ron = {
+            at: 5000,
+            calls: [{ kind: "ron", seat: 1 }],
+            until: 5000 + WIN_CALLOUT_CONTEXT_MS,
+        };
         const afterClose = lastState(run);
 
         expect(stateAt(scenario, run, "round end").calls).toEqual(ron);

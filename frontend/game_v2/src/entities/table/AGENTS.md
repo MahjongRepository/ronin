@@ -29,6 +29,21 @@ The game table model and board UI. `entities/client` steps it; views read the ta
 - The latest discard is the server's on reconnect (`ld`); the client never infers it. Any draw ends it.
 - An AI stand-in for an absent human (`aiStandIn`, "Away") is never shown as an AI participant ("AI").
 - The board marks no tile playable and no offer source: that is the client mapper's.
+- Board motion is presentation only. The mapper preserves physical tile ids across hands, rivers and both tiles
+  of an added-kan stack; concealed hands keep anonymous slots, never invented ids. The board's motion directive
+  captures positions before a render and measures destinations after its geometry directive. Its player owns
+  temporary copies for cross-region travel and native wrapper animations for hand reflow. Native effects detach
+  before lit changes the DOM, so geometry measures final positions, then rebind by physical tile key with their
+  timing preserved. Flight copies keep complete material and interpolate size and orientation. A flying local
+  tile forwards taps to its current native button, with its stationary hitbox disabled until arrival. Copies
+  refresh disabled and selected feedback on input-only redraws without restarting travel. Motion never delays
+  the table, decisions or server input. Sequential moves
+  preserve unaffected flights in live play. Replay steps settle all prior tile movements before measuring the next
+  move and omit the live discard pause; updates within one render task animate only the newest replay step.
+  Reconnects, replay jumps,
+  viewpoint changes, resizing, reduced motion and disposal clear copies and restore destinations. Initial mounts
+  show their checkpoint immediately. Starting hands and indicators appear immediately at every deal; tile ids
+  reused in a new round never animate from their positions in the previous round.
 - The seating panel is the game's start and its end: the seats in wind order before the first deal, then in
   placement order with their scores and uma/oka results once the game ends.
 - The board's geometry is the slice's: `lib/board-geometry.ts`'s `boardGeometry`, a pure function from the board's

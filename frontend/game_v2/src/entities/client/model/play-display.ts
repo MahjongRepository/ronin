@@ -2,6 +2,7 @@ import { type SessionStatusDisplay } from "@/entities/session";
 import {
     type BoardCallouts,
     type BoardDisplayState,
+    type BoardMotionCue,
     type BoardPlayerDisplay,
     type SeatPosition,
     type TablePanel,
@@ -89,6 +90,8 @@ export interface PlayOverlay {
  * (with the intent tapping each selectable one sends), the decision's buttons, its countdown and the seat's furiten.
  */
 export interface PlayDisplay {
+    readonly matchResult: boolean;
+    readonly motion: BoardMotionCue;
     readonly board: BoardDisplayState | null;
     /** The calls the board shows by their seats, from the viewer's seat; null with none. */
     readonly callouts: BoardCallouts | null;
@@ -316,6 +319,8 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
         lastResult: lastResultAction(state),
         leave,
+        matchResult: overlay?.panel.kind === "game_end",
+        motion: state.boardMotion,
         notices,
         overlay,
         owedCountdown: pendingCountdown(state),

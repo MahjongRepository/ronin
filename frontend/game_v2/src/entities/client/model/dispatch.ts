@@ -64,7 +64,7 @@ import {
     settledPending,
     withPending,
 } from "./pending";
-import { SWITCHES_OFF, snapshotLeftHand } from "./play-switches";
+import { SWITCHES_OFF, snapshotLeftHand, unseenWait } from "./play-switches";
 import {
     confirmStep,
     followRoundConfirm,
@@ -264,6 +264,24 @@ function withPendingAfter(state: LiveClient, message: ParsedServerMessage): Live
     return withPending(state, followedPending(pendingOf(state), message));
 }
 
+function repeatedCallPrompt(state: LiveClient, message: TracedStep["parsed"]): boolean {
+    return (
+        message?.type === "call_prompt" &&
+        message.waitId !== null &&
+        !unseenWait(message.waitId, state.highestOpenedWaitId)
+    );
+}
+
+function applyMessageTable(state: LiveClient, message: ParsedServerMessage): LiveClient {
+    const event = serverTableEvent(message);
+    if (event === null) {
+        return state;
+    }
+    const table = applyEvent(state.table, event);
+    const calls = repeatedCallPrompt(state, message) ? state.calls : liveCalls(state, event, table);
+    return { ...state, calls, table };
+}
+
 /**
  * The client after a server message the session took (`stepped`, from `before`): the table event it carries and its
  * calls, the viewer's facts, the play switches, what the seat owes, the game's last result and the notices, then the
@@ -274,12 +292,7 @@ function takeMessage(
     stepped: LiveClient,
     message: ParsedServerMessage,
 ): ClientStep<LiveClient> {
-    const tableEvent = serverTableEvent(message);
-    const table = tableEvent === null ? stepped.table : applyEvent(stepped.table, tableEvent);
-    const tabled =
-        tableEvent === null
-            ? stepped
-            : { ...stepped, calls: liveCalls(stepped, tableEvent, table), table };
+    const tabled = applyMessageTable(stepped, message);
     const viewed = withSwitches(withViewer(tabled, message), before.table, message);
     const owed = withPendingAfter(viewed, message);
     const shown = { ...owed, showsLastResult: showsLastResultAfter(owed, message) };
@@ -508,6 +521,7 @@ export function startGameClient(
 ): ClientStep<LiveClient> {
     const step = startSession(gameId, handoff, at);
     const state: LiveClient = {
+        boardMotion: { mode: "reset", sequence: 0 },
         calls: null,
         firstDealDue: null,
         furiten: false,
@@ -579,7 +593,19 @@ export function traceLiveClient(state: LiveClient, stamped: LiveEvent): TracedSt
     const step = stepLiveEvent({ ...state, now: event.at }, event);
     const settled = settleDesync({ ...step, state: settledPending(step.state) });
     const expired = expireAt(settled.state, event.at);
-    return { ...step, effects: settled.effects, state: settleRiichiDiscard(expired) };
+    const next = settleRiichiDiscard(expired);
+    const changed = next.table !== state.table;
+    const reset =
+        step.parsed?.type === "game_reconnected" ||
+        repeatedCallPrompt(state, step.parsed) ||
+        !next.table.inStep;
+    const boardMotion = changed
+        ? {
+              mode: reset ? ("reset" as const) : ("step" as const),
+              sequence: state.boardMotion.sequence + 1,
+          }
+        : state.boardMotion;
+    return { ...step, effects: settled.effects, state: { ...next, boardMotion } };
 }
 
 /**

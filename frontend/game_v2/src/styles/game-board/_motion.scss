@@ -1,0 +1,60 @@
+@use "queries" as *;
+
+@property --motion-width {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
+@property --motion-height {
+    syntax: "<length>";
+    inherits: true;
+    initial-value: 0;
+}
+
+@property --motion-angle {
+    syntax: "<angle>";
+    inherits: true;
+    initial-value: 0deg;
+}
+
+@property --motion-standing {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
+
+.board-motion {
+    position: absolute;
+    inset: 0;
+    z-index: layer(motion);
+    pointer-events: none;
+
+    &__tile {
+        position: absolute;
+        width: var(--motion-width);
+        height: var(--motion-height);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .seating--end {
+        animation: match-results 1500ms ease-out both;
+    }
+}
+
+@keyframes match-results {
+    from {
+        opacity: 0;
+    }
+}
+
+.board-overlay--leaving {
+    pointer-events: none;
+
+    .seating--end {
+        animation: none;
+    }
+}

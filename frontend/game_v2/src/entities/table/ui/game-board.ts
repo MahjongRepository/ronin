@@ -11,6 +11,7 @@ import {
     type BoardCallouts,
     type BoardCenterInfo,
     type BoardDisplayState,
+    type BoardMotionCue,
     type BoardNameplate,
     type BoardPlayerDisplay,
     SEAT_POSITIONS,
@@ -27,9 +28,11 @@ import {
 } from "@/entities/tile";
 
 import { sizeBoard } from "./board-geometry-directive";
+import { animateBoard } from "./board-motion-directive";
 import { type BoardNotice, BoardNotices, NoticeAnnouncements } from "./board-notices";
 import { HonbaStickIcon } from "./honba-stick-icon";
 import { Nameplates, type PlatePress, pinnedPlate } from "./nameplate";
+import { fadeMatchResult, revealAfterCall } from "./panel-motion-directive";
 import { RiichiStickIcon } from "./riichi-stick-icon";
 
 /** How the bottom seat's hand is played: what a selectable tile does and where its tap goes. */
@@ -39,6 +42,8 @@ interface LocalHandInput {
 }
 
 interface GameBoardProps {
+    readonly matchResult?: boolean;
+    readonly motion?: BoardMotionCue;
     readonly debug: boolean;
     readonly overlay?: TemplateResult;
     readonly state: BoardDisplayState | null;
@@ -454,6 +459,8 @@ function GameBoard(props: GameBoardProps): TemplateResult {
                     top: stripContent(seatPlayer(state, "top")),
                 },
             )}
+            ${animateBoard(state, props.motion)}
+            ${fadeMatchResult(props.matchResult === true)}
             @click=${unpinOnClickElsewhere}
             @keydown=${onKey}
         >
@@ -487,7 +494,7 @@ function GameBoard(props: GameBoardProps): TemplateResult {
             ${CalloutAnnouncements(props.callouts, state)}
             ${
                 props.overlay
-                    ? html`<div class="board-overlay ${props.overlayAfterCall === true ? "board-overlay--after-call" : ""}">
+                    ? html`<div class="board-overlay" ${revealAfterCall(props.overlayAfterCall === true)}>
                       <div class="board-overlay__panel" data-board-panel>${props.overlay}</div>
                   </div>`
                     : ""

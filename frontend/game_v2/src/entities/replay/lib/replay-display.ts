@@ -15,6 +15,7 @@ import {
 import {
     type BoardCallouts,
     type BoardDisplayState,
+    type BoardMotionCue,
     type BoardPerspective,
     type Call,
     type ReplayLineError,
@@ -72,6 +73,8 @@ export interface ReplayRoundRow {
 
 /** What a replay page shows at a cursor: the board and the panel over it, where it stands and where it can go. */
 export interface ReplayDisplay {
+    readonly matchResult: boolean;
+    readonly motion: BoardMotionCue;
     /** The stop's board, or the table as the game started under its seating. */
     readonly board: BoardDisplayState | null;
     /** The panel over the board: the seating, a round's result at the cursor's page, the game's end; else null. */
@@ -184,27 +187,30 @@ export interface ReplayPlace {
 function stopBoard(
     source: ReplaySource,
     { cursor, perspective, seating, shownCall }: ReplayPlace,
-): Pick<ReplayDisplay, "board" | "callouts" | "overlay"> {
+): Pick<ReplayDisplay, "board" | "callouts" | "overlay" | "matchResult"> {
     if (seating) {
         return {
             board: tableStateToDisplayState(source.startTable, perspective),
             callouts: null,
+            matchResult: false,
             overlay: replaySeatingPanel(source.startTable),
         };
     }
     const { stateIndex } = source.navigation.stops[cursor.stop];
     const table = source.tables[stateIndex];
     const callouts = shownCallouts(source, shownCall, perspective);
+    const overlay = tablePanel(table, {
+        callouts,
+        firstDealSeconds: null,
+        overGameEnd: false,
+        page: cursor.page,
+        viewerSeat: null,
+    });
     return {
         board: tableStateToDisplayState(table, perspective),
         callouts,
-        overlay: tablePanel(table, {
-            callouts,
-            firstDealSeconds: null,
-            overGameEnd: false,
-            page: cursor.page,
-            viewerSeat: null,
-        }),
+        matchResult: overlay?.kind === "game_end",
+        overlay,
     };
 }
 
@@ -220,6 +226,7 @@ export function replayDisplay(source: ReplaySource, place: ReplayPlace): ReplayD
         endNotice: endNotice(source, cursor),
         honbaLabel: honbaName(round.honba),
         incomplete: incompleteness(source),
+        motion: { mode: "replay", sequence: place.seating ? -1 : cursor.stop },
         moves: replayMoves(nav, cursor),
         roundName: formatRoundName(round.wind, round.roundInWind, round.honba),
         roundTitle: roundName(round.wind, round.roundInWind),

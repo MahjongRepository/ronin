@@ -58,7 +58,8 @@ they disagree.
   text size follows `--c`.
 - Lengths CSS computes are registered with `@property` (`<length>`), so each computes once to pixels; an
   unregistered chain grows with every reference until a browser drops the declaration. A bridged length is px already.
-- **Two script measurements**: the board's geometry directive and the notices' clamp. A choice between placements is
+- **Layout measurements**: the board's geometry directive and the notices' clamp. Motion snapshots only measure
+  existing tile positions for temporary copies; they never feed the layout solve. A choice between placements is
   made in TS, never with a length switch (`clamp(0px, x * 1000, 1px)` as a 0/1 boolean) or a `9999px` sentinel;
   content reaches the strips through `stripLayout`, never fed into the box's sizing.
 - **One strip primitive, four seats.** GameBoard's `Strip` draws every seat's hand and melds; an opponent's is a grid
@@ -96,7 +97,11 @@ they disagree.
   threshold (desktop gutter, phone box, no gutter, desktop box). `.board-page` holds the gutter (10px, 0 around a
   phone's board) and the safe insets as registered lengths, which the directive reads in px; a gutter change it finds
   while the observer delivers (into or out of a phone) waits a frame, since it resizes the observed board.
-- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`.
+- Every tile's box and material is `_tile.scss`'s; each region sets `--board-tile-w`. Flying tiles use that same
+  material with animated dimensions and orientation; their grouped depth stays on an unturned wrapper, so the
+  light does not rotate with the face. Hand reflow stays inside the original hand and its shared shadow, using
+  positional offsets: a transform creates per-tile stacking contexts that lift the side strips' seam masks over
+  neighbouring faces and depth.
 - The rivers' shared edge and shadow come from `.board-rivers` (`_tile.scss`), the unturned layer holding all four,
   never from a turned river frame's own filter: Firefox on macOS draws a turned element's filter unturned and clipped
   to its box.

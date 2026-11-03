@@ -104,6 +104,35 @@ $cast-blur: 0.07;
         inset 0 calc(var(--unit) * #{$top-share} + 1px) 0 var(--ronin-tile-rim);
 }
 
+.game-board .board-motion__tile {
+    @include group-edge(var(--motion-width), 0deg);
+
+    > .tile {
+        --tile-w: var(--motion-width);
+        --tile-turn: var(--motion-angle);
+        --tile-top:
+            inset 0 calc(var(--unit) * #{$top-share} * var(--motion-standing)) 0
+                var(--ronin-tile-top),
+            inset 0 calc((var(--unit) * #{$top-share} + 1px) * var(--motion-standing)) 0
+                var(--ronin-tile-rim);
+
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        height: var(--motion-height);
+        margin: 0;
+        transform: translate(-50%, -50%) rotate(var(--motion-angle));
+    }
+
+    &:not(.board-motion__tile--individual) > .tile {
+        --tile-lift: 0 0 transparent;
+    }
+
+    &--individual {
+        filter: none;
+    }
+}
+
 /* A back: one quiet colour with its own rim, on the same edge and shadow, so a strip of backs reads tile by tile. */
 .tile-back {
     --tile-ring: inset 0 0 0 1px var(--ronin-back-rim);

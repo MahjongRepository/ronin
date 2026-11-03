@@ -227,4 +227,19 @@ describe("GameBoard callouts", () => {
         expect(redrawn).toBe(first);
         expect(host.querySelector(".board-callout")).not.toBe(first);
     });
+
+    it("keeps a win panel's opening delay when its earlier local callout expires", () => {
+        const host = document.createElement("div");
+        const props = {
+            debug: false,
+            overlay: html`<p>Result</p>`,
+            platePress: { kind: "pin", onPin: vi.fn(), pinned: null } as const,
+            state: null,
+        };
+        render(GameBoard({ ...props, overlayAfterCall: true }), host);
+        const panel = host.querySelector(".board-overlay--after-call");
+        expect(panel).not.toBeNull();
+        render(GameBoard({ ...props, overlayAfterCall: false }), host);
+        expect(host.querySelector(".board-overlay--after-call")).toBe(panel);
+    });
 });

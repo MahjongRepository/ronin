@@ -844,11 +844,17 @@ describe("playDisplay callouts", () => {
 
     it("drops the wins' calls at a reconnect's snapshot that leaves the hand, however soon it follows them", () => {
         const won = checkpointState("double_ron_seat_1", "round end");
-        const reconnected = checkpointState("double_ron_seat_1", "reconnected");
+        const { transcript } = loadSeatScenario("double_ron_seat_1");
+        const reconnected = stepGameClient(won, {
+            at: won.now + 1,
+            kind: "server_message",
+            raw: receivedPayload(transcript, "reconnected"),
+        }).state;
 
         expect(reconnected.now).toBeLessThan(won.now + CALLOUT_MS);
         expect(playDisplay(won, NO_PLAY_UI).callouts?.items).toHaveLength(2);
         expect(playDisplay(reconnected, NO_PLAY_UI).callouts).toBeNull();
+        expect(reconnected.boardMotion.mode).toBe("reset");
     });
 
     it("calls a kan open to chankan once: not again for the prompt a reconnect re-sends, nor as nobody robs it", () => {
@@ -865,8 +871,10 @@ describe("playDisplay callouts", () => {
             { kind: "kan", label: "Kan", position: "top" },
         ]);
         expect(callsAt("chankan prompt")).toEqual(kan);
-        expect(callsAt("prompt re-sent")).toEqual(kan);
-        expect(callsAt("kan")).toEqual(kan);
+        expect(
+            checkpointState("chankan_passed_seat_3", "prompt re-sent").now,
+        ).toBeGreaterThanOrEqual(kan.until);
+        expect([callsAt("prompt re-sent"), callsAt("kan")]).toEqual([null, null]);
     });
 
     it("calls each of two kans one seat declares in quick succession", () => {

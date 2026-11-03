@@ -18,8 +18,12 @@ import {
     type ShownCalls,
 } from "./types";
 
+/** Keep the existing window for a delayed server result to open after a locally declared win. */
+export const WIN_CALLOUT_CONTEXT_MS = 3000;
+
 function shownCalls(calls: readonly Call[], at: number): ShownCalls {
-    return { at, calls, until: at + CALLOUT_MS };
+    const wins = calls.some((call) => call.kind === "ron" || call.kind === "tsumo");
+    return { at, calls, until: at + (wins ? WIN_CALLOUT_CONTEXT_MS : CALLOUT_MS) };
 }
 
 function intentCall(intent: DecisionIntent, seat: number | null): Call | null {

@@ -57,6 +57,7 @@ describe("replayDisplay", () => {
             count: replay.navigation.stops.length,
             index: replay.navigation.stops.length,
         });
+        expect(end.motion).toEqual({ mode: "replay", sequence: lastStop(replay) });
         expect([end.overlay?.kind, end.incomplete, end.endNotice]).toEqual([
             "game_end",
             null,
