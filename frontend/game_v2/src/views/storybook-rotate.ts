@@ -9,7 +9,7 @@ import {
 } from "@/entities/client";
 import { type SessionState, describePlayerSessionStatus } from "@/entities/session";
 
-import { storybookIndexHref } from "./storybook-nav";
+import { STORYBOOK_INDEX } from "./storybook-nav";
 
 const HANDOFF = { gameTicket: "story", wsUrl: "ws://story" } as const;
 const PLAYING: SessionState = {
@@ -93,7 +93,7 @@ function parseStory(search: string): RotateStory {
     return ROTATE_STORIES.find((key) => key === param) ?? DEFAULT_STORY;
 }
 
-/** Keep the story in the query, beside whatever else the page was opened with (the lobby's `?v=2`). */
+/** Keep the story in the query, beside whatever else the page was opened with. */
 function syncStoryParam(story: RotateStory): void {
     const url = new URL(window.location.href);
     if (story === DEFAULT_STORY) {
@@ -112,7 +112,7 @@ function rotateStorybookTemplate(
         <div class="rotate-storybook">
             ${RotatePanel(STORY_PROPS[current], () => {})}
             <nav class="rotate-storybook__stories">
-                <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
+                <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
                 ${ROTATE_STORIES.map(
                     (key) => html`<button
                         class="board-storybook__btn ${key === current ? "board-storybook__btn--active" : ""}"

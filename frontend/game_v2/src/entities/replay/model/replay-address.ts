@@ -72,7 +72,7 @@ export function resolveReplayAddress(
 }
 
 /**
- * The page's query naming a view, the page's other parameters (`v=2`, `debug`) kept as they were; a repeated
+ * The page's query naming a view, the page's other parameters (such as `debug`) kept as they were; a repeated
  * position parameter becomes one. A double ron's page is not named: a link opens a result at its first page.
  */
 export function replayAddressSearch(

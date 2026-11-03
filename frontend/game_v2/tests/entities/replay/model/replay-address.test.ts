@@ -21,7 +21,7 @@ function navigationOf(name: string): NavigationIndex {
 
 describe("parseReplayAddress", () => {
     test("reads whole numbers and drops a missing, repeated, signed, decimal or empty value", () => {
-        expect(parseReplayAddress("?v=2&seat=2&round=10&step=0")).toEqual({
+        expect(parseReplayAddress("?seat=2&round=10&step=0")).toEqual({
             round: 10,
             seat: 2,
             step: 0,
@@ -82,8 +82,8 @@ describe("replayAddressSearch", () => {
         const nav = navigationOf("full_game");
         const view = { bottomSeat: 2, cursor: { page: 1, stop: nav.rounds[1].firstStop + 3 } };
 
-        expect(replayAddressSearch("?v=2&step=9&step=8&debug", nav, view)).toBe(
-            "?v=2&step=3&debug=&seat=2&round=1",
+        expect(replayAddressSearch("?step=9&step=8&debug", nav, view)).toBe(
+            "?step=3&debug=&seat=2&round=1",
         );
     });
 
@@ -91,7 +91,7 @@ describe("replayAddressSearch", () => {
         const nav = navigationOf("full_game");
         const view = { bottomSeat: 0, cursor: { page: 0, stop: nav.stops.length - 1 } };
 
-        const address = parseReplayAddress(replayAddressSearch("?v=2", nav, view));
+        const address = parseReplayAddress(replayAddressSearch("", nav, view));
 
         expect(resolveReplayAddress(nav, address, DEFAULTS)).toEqual(view);
     });

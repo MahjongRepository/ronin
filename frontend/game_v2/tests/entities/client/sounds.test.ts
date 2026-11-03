@@ -238,7 +238,7 @@ describe("soundCues", () => {
 });
 
 describe("readSoundSetting", () => {
-    it("reads the v1 client's stored setting, and keeps the sound on for anything else", () => {
+    it("reads the stored sound setting, and keeps the sound on for anything else", () => {
         expect(
             [{ sound_on: false }, { sound_on: "no" }, null, []].map((stored) =>
                 readSoundSetting(stored),

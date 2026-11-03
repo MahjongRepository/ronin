@@ -53,7 +53,6 @@ services:
       AUTH_COOKIE_SECURE: "true"
       LOBBY_STATIC_DIR: /app/frontend/lobby/public
       LOBBY_ASSETS_DIR: /app/frontend/lobby/dist
-      LOBBY_GAME_CLIENT_DIR: /app/frontend/game/dist
       LOBBY_GAME_CLIENT_V2_DIR: /app/frontend/game_v2/dist
       LOBBY_GAME_CLIENT_URL: /play
       LOBBY_ALLOWED_HOSTS: %%DOMAIN%%,localhost

@@ -424,9 +424,8 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   next stop (Next, autoplay, a held Next, the wheel), never on a jump, a step back or a result's page. A browser
   plays no sound before a click, tap or key on the page, and a wheel is none, so with the sound on a replay always
   opens on its seating, a linked position included, and the wheel never leaves it: Start (or a key or a control) is
-  that click, and goes on to the linked position, as the v1 client's start screen did. The switch is
-  on by default and kept in the browser under the v1 client's setting, so the live game, the replay and the v1 client
-  share it.
+  that click, and goes on to the linked position. The switch is on by default and kept in the browser,
+  shared by the live game and the replay.
 - **Notices.** Reconnecting, a lost seat, a refused move, a message the client could not read, tile
   faces that did not load: decision, their one place is the left zone's open field under the left
   badge, beside the left strip and outside every river's capacity, which a panel leaves free, so an

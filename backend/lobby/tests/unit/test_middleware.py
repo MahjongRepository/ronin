@@ -59,7 +59,7 @@ def _make_security_headers_app(vite_dev_url: str = "") -> Starlette:
         routes=[
             Route("/items", _echo_path, methods=["GET"]),
             Route("/play/{game_id}", _echo_path, methods=["GET"]),
-            Route("/game-assets/test.js", _echo_path, methods=["GET"]),
+            Route("/game-assets/v2/test.js", _echo_path, methods=["GET"]),
             Route("/rooms/test-room", _echo_path, methods=["GET"]),
             WebSocketRoute("/ws", _ws_echo),
         ],
@@ -225,7 +225,7 @@ class TestSecurityHeadersMiddleware:
     def test_security_headers_middleware__when_game_assets_route__should_allow_self_scripts(
         self, security_client: TestClient
     ):
-        response = security_client.get("/game-assets/test.js")
+        response = security_client.get("/game-assets/v2/test.js")
         csp = response.headers["content-security-policy"]
         assert "script-src 'self'" in csp
 

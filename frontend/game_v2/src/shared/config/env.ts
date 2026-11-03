@@ -14,16 +14,9 @@ export function getLobbyHistoryUrl(): string {
     return lobbyPageUrl("/history");
 }
 
-/**
- * A game's replay page, shown from `seat` (none: the recorded first dealer's), with this page's client version (`v`),
- * so the v2 client opens it too.
- */
-export function replayPageUrl(gameId: string, seat: number | null, search: string): string {
+/** A game's replay page, shown from `seat` (none: the recorded first dealer's). */
+export function replayPageUrl(gameId: string, seat: number | null): string {
     const params = new URLSearchParams();
-    const version = new URLSearchParams(search).get("v");
-    if (version !== null) {
-        params.set("v", version);
-    }
     if (seat !== null) {
         params.set("seat", String(seat));
     }
@@ -42,8 +35,8 @@ export function isDebugRequested(search: string): boolean {
 }
 
 /**
- * A game's page under the game client's URL the lobby named, with the current page's query, so the v2 client
- * (`?v=2`) and `?debug` carry over; the router decodes the id back.
+ * A game's page under the game client's URL the lobby named, keeping the current query for options such as debug;
+ * the router decodes the id back.
  */
 export function gamePageUrl(gameClientUrl: string, gameId: string, search: string): string {
     return `${gameClientUrl}/${encodeURIComponent(gameId)}${search}`;

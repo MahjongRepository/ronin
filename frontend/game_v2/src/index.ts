@@ -121,7 +121,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         handoff: getGameSession(gameId),
         links: {
             history: getLobbyHistoryUrl(),
-            replay: (seat) => replayPageUrl(gameId, seat, window.location.search),
+            replay: (seat) => replayPageUrl(gameId, seat),
         },
         recoverHandoff: fetchGameHandoff,
         sink: {

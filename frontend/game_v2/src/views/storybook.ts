@@ -1,11 +1,10 @@
 import { type TemplateResult, html } from "lit-html";
 
 import { TILE_FACES, TILE_FACES_SET, Tile } from "@/entities/tile";
-import { storybookHref, storybookNav } from "@/views/storybook-nav";
+import { storybookNav } from "@/views/storybook-nav";
 import { REPLAY_STORIES } from "@/views/storybook-replay";
 
 function storybookView(): TemplateResult {
-    const { search } = window.location;
     return html`
         <div class="storybook">
             ${storybookNav("/play/storybook")}
@@ -42,7 +41,7 @@ function storybookView(): TemplateResult {
                 <nav class="storybook-nav">
                     ${REPLAY_STORIES.map(
                         (story) =>
-                            html`<a class="storybook-badge" href="${storybookHref(`/play/storybook/replay?state=${story}`, search)}">${story}</a>`,
+                            html`<a class="storybook-badge" href="/play/storybook/replay?state=${story}">${story}</a>`,
                     )}
                 </nav>
             </section>

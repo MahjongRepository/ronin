@@ -39,7 +39,7 @@ import SEAT_LEFT_SEAT_1 from "@/fixtures/seat-scenarios/seat_left_seat_1.json";
 import SEAT_LEFT_SEAT_3 from "@/fixtures/seat-scenarios/seat_left_seat_3.json";
 import { getLobbyHistoryUrl, replayPageUrl } from "@/shared/config";
 
-import { storybookIndexHref } from "./storybook-nav";
+import { STORYBOOK_INDEX } from "./storybook-nav";
 
 /** The transcripts the stories run, imported one by one so the storybook's chunk carries no other. */
 const TRANSCRIPTS = {
@@ -451,7 +451,7 @@ function parseStory(search: string): DecisionStoryKey {
     return STORY_KEYS.find((key) => key === param) ?? DEFAULT_STORY;
 }
 
-/** Keep the story in the query, beside whatever else the page was opened with (the lobby's `?v=2`). */
+/** Keep the story in the query, beside whatever else the page was opened with. */
 function syncStoryParam(story: DecisionStoryKey): void {
     const url = new URL(window.location.href);
     if (story === DEFAULT_STORY) {
@@ -497,17 +497,13 @@ function storybookTemplate(
                     display: playDisplay(state, ui),
                     links: {
                         history: getLobbyHistoryUrl(),
-                        replay: replayPageUrl(
-                            state.table.gameId,
-                            state.viewerSeat,
-                            window.location.search,
-                        ),
+                        replay: replayPageUrl(state.table.gameId, state.viewerSeat),
                     },
                     onCommand,
                 })}
             </div>
             <div class="board-page__aside">
-                <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
+                <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
                 <div class="board-storybook__picker"><select
                     class="board-storybook__select"
                     aria-label="Story"

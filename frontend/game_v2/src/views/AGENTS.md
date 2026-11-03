@@ -19,7 +19,7 @@ The route views: the live game's driver, the replay page and the storybook, each
 - It finds the slices' parts (round list, its toggle, the board's panel and notices, step buttons) only by the
   selectors and attributes those slices export, never by their classes.
 - The address names position and viewpoint, never reading preferences. It is written with `history.replaceState` at
-  most once per 500 ms (Safari's history limit), keeping the page's other parameters (`v=2`); a pending write is
+  most once per 500 ms (Safari's history limit), keeping the page's other parameters (such as `debug`); a pending write is
   flushed on page hide and dropped on dispose.
 - A step button's press acts on pointer down or the key, so the click that follows is dropped; never let a step fire
   twice. Fields, input-method composition, modifiers and nested controls' own keys are never the page's.

@@ -8,9 +8,6 @@ from lobby.views.assets import (
     resolve_vite_asset_urls as resolve_vite_asset_urls,
 )
 from lobby.views.game_client import (
-    GAME_ASSETS_PATH as GAME_ASSETS_PATH,
-)
-from lobby.views.game_client import (
     GAME_V2_ASSETS_PATH as GAME_V2_ASSETS_PATH,
 )
 from lobby.views.game_client import (

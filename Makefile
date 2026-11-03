@@ -4,8 +4,7 @@ BE_RUN := uv run --project backend
 
 DOCFORMATTER_PATHS := conftest.py game lobby scripts shared
 
-FRONTEND_APPS := lobby game game_v2
-CHECKED_FRONTEND_APPS := lobby game_v2
+FRONTEND_APPS := lobby game_v2
 
 .PHONY: test coverage-branches run-local-server run-debug lint format typecheck install-frontend typecheck-frontend format-frontend lint-frontend test-frontend run-all-checks run-games deadcode generate-replays generate-replay-fixtures replay-fixtures-check generate-seat-scenarios seat-scenarios-check profile profile-games measure-wall
 
@@ -39,16 +38,16 @@ install-frontend:
 	cd frontend/game_v2 && npx playwright install chromium webkit
 
 typecheck-frontend:
-	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run typecheck) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run typecheck) || exit 1; done
 
 format-frontend:
-	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run fmt) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run fmt) || exit 1; done
 
 lint-frontend:
-	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run lint) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run lint) || exit 1; done
 
 test-frontend:
-	for app in $(CHECKED_FRONTEND_APPS); do (cd frontend/$$app && npm run test) || exit 1; done
+	for app in $(FRONTEND_APPS); do (cd frontend/$$app && npm run test) || exit 1; done
 
 run-debug:
 	$(BE_RUN) python backend/debug.py

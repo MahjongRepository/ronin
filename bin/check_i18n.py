@@ -28,7 +28,7 @@ PLACEHOLDER = re.compile(r"\{([a-z][a-z0-9_]*)\}")
 HTML_TAG = re.compile(r"<[A-Za-z/]")
 KEY_SHAPE = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$")
 LOOKUP_CALL = re.compile(
-    r"""\b(?:t|tParts|tNodes|translate|translate_markup|translate_for_request)\("""
+    r"""\b(?:t|tParts|translate|translate_markup|translate_for_request)\("""
     r"""\s*(?:[A-Za-z_][\w.]*\s*,\s*)?(["'`])([^"'`$]*?)\1"""
 )
 I18N_ATTRIBUTE = re.compile(r"""\bdata-i18n(?:-([a-z-]+))?\s*=\s*(["'])([^"']*)\2""")

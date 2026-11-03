@@ -1,7 +1,6 @@
 # Game client v2 (TypeScript / lit-html)
 
-Served by default on game pages; `?v=1` selects `frontend/game/` instead. The client's own links keep the page's
-query. Adapt the client to the server, never the server to it.
+Served on every game page. Adapt the client to the server, never the server to it.
 
 Rules per part: `src/entities/client/` (dispatcher, what the seat owes, desync, live board), `src/entities/session/`,
 `src/entities/table/`, `src/entities/replay/`, `src/shared/protocol/`, `src/views/`, `src/styles/` (board layout).

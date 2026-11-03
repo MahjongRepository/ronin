@@ -21,21 +21,6 @@ ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
 
 RUN npm run build
 
-FROM node:${NODE_VERSION}-alpine AS game-builder
-
-WORKDIR /app/frontend/game
-
-COPY frontend/game/package.json frontend/game/package-lock.json frontend/game/.npmrc ./
-RUN npm ci
-
-COPY frontend/game/ ./
-
-ARG APP_VERSION=dev
-ARG GIT_COMMIT=unknown
-ENV APP_VERSION=${APP_VERSION} GIT_COMMIT=${GIT_COMMIT} NODE_ENV=production
-
-RUN npm run build
-
 FROM node:${NODE_VERSION}-alpine AS game-v2-builder
 
 WORKDIR /app/frontend/game_v2
@@ -121,7 +106,6 @@ COPY --from=builder /app/.venv /app/.venv
 COPY backend/ backend/
 
 COPY --from=lobby-builder /app/frontend/lobby/dist /app/frontend/lobby/dist
-COPY --from=game-builder /app/frontend/game/dist /app/frontend/game/dist
 COPY --from=game-v2-builder /app/frontend/game_v2/dist /app/frontend/game_v2/dist
 COPY frontend/lobby/public /app/frontend/lobby/public
 

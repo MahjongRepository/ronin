@@ -8,12 +8,11 @@ set -e
 GAME_PORT=${GAME_PORT:-8711}
 LOBBY_PORT=${LOBBY_PORT:-8710}
 VITE_PORT=${VITE_PORT:-5173}
-GAME_VITE_PORT=${GAME_VITE_PORT:-5174}
 GAME_V2_VITE_PORT=${GAME_V2_VITE_PORT:-5175}
 MAX_RETRIES=10
 
 # Kill any already-running servers on our ports
-for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_VITE_PORT $GAME_V2_VITE_PORT; do
+for port in $GAME_PORT $LOBBY_PORT $VITE_PORT $GAME_V2_VITE_PORT; do
     pids=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true)
     if [ -n "$pids" ]; then
         echo "Killing existing processes on port $port..."
@@ -52,7 +51,6 @@ wait_for_server() {
 
 # Enable Vite dev mode in the lobby backend
 export LOBBY_VITE_DEV_URL="http://localhost:${VITE_PORT}"
-export LOBBY_GAME_CLIENT_DEV_URL="http://localhost:${GAME_VITE_PORT}"
 export LOBBY_GAME_CLIENT_V2_DEV_URL="http://localhost:${GAME_V2_VITE_PORT}"
 
 CLEANING_UP=false
@@ -68,9 +66,6 @@ cleanup() {
     fi
     if [ -n "$VITE_PID" ]; then
         kill_tree "$VITE_PID"
-    fi
-    if [ -n "$GAME_VITE_PID" ]; then
-        kill_tree "$GAME_VITE_PID"
     fi
     if [ -n "$GAME_V2_VITE_PID" ]; then
         kill_tree "$GAME_V2_VITE_PID"
@@ -96,10 +91,6 @@ echo "Starting lobby Vite dev server on port $VITE_PORT..."
 (cd frontend/lobby && VITE_PORT=$VITE_PORT npm run dev) &
 VITE_PID=$!
 
-echo "Starting game client Vite dev server on port $GAME_VITE_PORT..."
-(cd frontend/game && GAME_VITE_PORT=$GAME_VITE_PORT npm run dev) &
-GAME_VITE_PID=$!
-
 echo "Starting game client v2 Vite dev server on port $GAME_V2_VITE_PORT..."
 (cd frontend/game_v2 && GAME_V2_VITE_PORT=$GAME_V2_VITE_PORT npm run dev) &
 GAME_V2_VITE_PID=$!
@@ -107,10 +98,6 @@ GAME_V2_VITE_PID=$!
 sleep 2
 if ! kill -0 "$VITE_PID" 2>/dev/null; then
     echo "Error: lobby Vite dev server failed to start"
-    exit 1
-fi
-if ! kill -0 "$GAME_VITE_PID" 2>/dev/null; then
-    echo "Error: game client Vite dev server failed to start"
     exit 1
 fi
 if ! kill -0 "$GAME_V2_VITE_PID" 2>/dev/null; then

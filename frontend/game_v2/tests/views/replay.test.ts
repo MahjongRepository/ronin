@@ -186,7 +186,7 @@ interface MountOptions {
 
 /** Mount a replay view at `search` whose every load waits until the test answers it. */
 function mountReplay(
-    search = "?v=2",
+    search = "",
     { links = LINKS, prefs = DEFAULT_REPLAY_PREFS, soundOn = false }: MountOptions = {},
 ): MountedReplay {
     const host = document.body.appendChild(document.createElement("div"));
@@ -222,7 +222,7 @@ function mountReplay(
 
 async function mountLoadedReplay(
     name = "riichi",
-    search = "?v=2",
+    search = "",
     options: MountOptions = {},
 ): Promise<MountedReplay> {
     const mounted = mountReplay(search, options);
@@ -584,7 +584,7 @@ describe("mountReplayView - autoplay", () => {
     it("shows a bare notice with the ways back when even the cannot-be-shown screen throws, its timers stopped", async () => {
         const { links, reads } = drawnLinks();
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-        const { clock, hidePage, host } = await mountLoadedReplay("riichi", "?v=2&round=0&step=0", {
+        const { clock, hidePage, host } = await mountLoadedReplay("riichi", "?round=0&step=0", {
             links,
         });
         button(host, ".replay-controls__play").click();
@@ -631,7 +631,7 @@ describe("mountReplayView - wheel and hold", () => {
 
     it("steps once for a trackpad's small ticks until they add up, drawing nothing until then", async () => {
         const { links, reads } = drawnLinks();
-        const { host } = await mountLoadedReplay("riichi", "?v=2&round=0&step=0", { links });
+        const { host } = await mountLoadedReplay("riichi", "?round=0&step=0", { links });
         const board = element(host, ".game-board");
         reads.count = 0;
 
@@ -707,10 +707,7 @@ describe("mountReplayView - wheel and hold", () => {
 
 describe("mountReplayView - view", () => {
     it("draws the seat whose plate or centre score is pressed at the bottom and writes it into the address", async () => {
-        const { clock, host, written } = await mountLoadedReplay(
-            "double_ron",
-            "?v=2&round=0&step=10",
-        );
+        const { clock, host, written } = await mountLoadedReplay("double_ron", "?round=0&step=10");
         const right = textOf(host, ".nameplate--right .nameplate__name");
 
         button(host, ".nameplate--right").click();
@@ -721,7 +718,7 @@ describe("mountReplayView - view", () => {
         clock.advanceTo(REPLAY_URL_WRITE_INTERVAL_MS);
 
         expect(afterPlate).toBe(right);
-        expect(written.at(-1)).toBe("?v=2&round=0&step=10&seat=3");
+        expect(written.at(-1)).toBe("?round=0&step=10&seat=3");
     });
 
     it("hides the other hands, and keeps the choice in the reader's settings", async () => {
@@ -789,7 +786,7 @@ describe("mountReplayView - focus", () => {
 
 describe("mountReplayView - seating and game end", () => {
     it("opens on the seating at the starting scores, its start focused, when the address names no position; Start shows the board", async () => {
-        const { host } = await mountLoadedReplay("riichi", "?v=2");
+        const { host } = await mountLoadedReplay("riichi", "");
         const start = button(host, ".seating__action");
         const names = [...host.querySelectorAll(".seating__name")].map((name) => name.textContent);
         const scores = [...host.querySelectorAll(".seating__score")].map(
@@ -808,9 +805,9 @@ describe("mountReplayView - seating and game end", () => {
     });
 
     it("closes the seating on the first step, and with the sound off never opens it where the address names a position", async () => {
-        const { host } = await mountLoadedReplay("riichi", "?v=2");
+        const { host } = await mountLoadedReplay("riichi", "");
         pressKey(rootOf(host), "ArrowRight");
-        const deepLinked = await mountLoadedReplay("riichi", "?v=2&round=0&step=0");
+        const deepLinked = await mountLoadedReplay("riichi", "?round=0&step=0");
 
         expect([position(host), host.querySelector(".seating")]).toEqual([
             "East 1 Step 2 of 28",
@@ -820,7 +817,7 @@ describe("mountReplayView - seating and game end", () => {
     });
 
     it("shows the final scores at the game's end with the ways back", async () => {
-        const { host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=141");
+        const { host } = await mountLoadedReplay("full_game", "?round=11&step=141");
         const links = [...host.querySelectorAll<HTMLAnchorElement>(".seating__action")];
         const placements = [...host.querySelectorAll(".seating__placement")].map(
             (placement) => placement.textContent,
@@ -894,30 +891,30 @@ describe("mountReplayView - address", () => {
     it("opens where the address says and keeps it on the position shown, at most once per interval", async () => {
         const { clock, host, written } = await mountLoadedReplay(
             "double_ron_on_honba",
-            "?v=2&round=2&step=3",
+            "?round=2&step=3",
         );
         expect(position(host)).toMatch(/^East 2, 2 honba Step 4 of /);
-        expect(written).toEqual(["?v=2&round=2&step=3&seat=1"]);
+        expect(written).toEqual(["?round=2&step=3&seat=1"]);
 
         button(host, ".replay-controls__move--next").click();
         button(host, ".replay-controls__move--next").click();
         expect(written).toHaveLength(1);
 
         clock.advanceTo(REPLAY_URL_WRITE_INTERVAL_MS);
-        expect(written.at(-1)).toBe("?v=2&round=2&step=5&seat=1");
+        expect(written.at(-1)).toBe("?round=2&step=5&seat=1");
     });
 
     it("writes a waiting address as the page hides, and drops it on dispose", async () => {
         const hidden = await mountLoadedReplay();
         button(hidden.host, ".replay-controls__move--next").click();
         hidden.hidePage();
-        expect(hidden.written.at(-1)).toBe("?v=2&seat=0&round=0&step=1");
+        expect(hidden.written.at(-1)).toBe("?seat=0&round=0&step=1");
 
         const disposed = await mountLoadedReplay();
         button(disposed.host, ".replay-controls__move--next").click();
         disposed.dispose();
         disposed.clock.advanceTo(10_000);
-        expect(disposed.written).toEqual(["?v=2&seat=0&round=0&step=0"]);
+        expect(disposed.written).toEqual(["?seat=0&round=0&step=0"]);
     });
 });
 
@@ -1003,7 +1000,7 @@ describe("mountReplayView - loading", () => {
     it("says a replay that throws while a held button repeats cannot be shown, arming no further repeat", async () => {
         const { links, reads } = drawnLinks();
         vi.spyOn(console, "error").mockImplementation(() => {});
-        const { clock, dispose, host } = await mountLoadedReplay("riichi", "?v=2&round=0&step=0", {
+        const { clock, dispose, host } = await mountLoadedReplay("riichi", "?round=0&step=0", {
             links,
         });
 
@@ -1029,7 +1026,7 @@ describe("mountReplayView - loading", () => {
     it("says a replay that throws while autoplay steps cannot be shown, its timers stopped and the error on the console", async () => {
         const { links, reads } = drawnLinks();
         const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-        const { clock, host } = await mountLoadedReplay("full_game", "?v=2&round=11&step=140", {
+        const { clock, host } = await mountLoadedReplay("full_game", "?round=11&step=140", {
             links,
         });
         reads.throwing = 1;

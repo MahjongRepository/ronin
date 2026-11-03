@@ -19,8 +19,7 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   starts, so a client's silence watchdog follows the server's pacing rather than a copy of its defaults.
 * Delivery rules clients rely on: `game_started` is broadcast with each copy naming its recipient's
   seat (`s`) and timer settings (`tm`, which the reconnect snapshot carries too, with the seat's
-  current bank; the client counts its own turns and the game start pause down from them, the v1
-  client its round results too), and the
+  current bank; the client counts its own turns and the game start pause down from them), and the
   first deal follows it only after the session's game start pause; a draw (the deal's first, a
   replacement after a kan and an AI player's included) goes whole only to the drawing seat, with its
   available actions when it has any, and every other connected seat gets its draw notice in its
@@ -80,5 +79,5 @@ Inbound dispatch lives in `../server/router.py`; this package only models and sh
   request; this is no request id, and a JOIN_GAME or RECONNECT refusal names none. The replay
   collector shapes its own payloads, so live-only metadata like the wait id never reaches a replay
   file.
-* Both game clients mirror this protocol, v1 in `frontend/game/src/js/ronin/` and v2 in
-  `frontend/game_v2/src/shared/protocol/`; change them in the same change.
+* The game client mirrors this protocol in `frontend/game_v2/src/shared/protocol/`; update it with any server
+  protocol change.

@@ -377,7 +377,7 @@ seat that never connected keeps its name and `user_id`. A crash leaves `ended_at
 
 ## Game client contract
 
-The default game client (`frontend/game_v2/`) is a separate app the lobby hosts on its own origin; any app that
+The game client (`frontend/game_v2/`) is a separate app the lobby hosts on its own origin; any app that
 honours this contract can replace it.
 
 * **Hosting:** the lobby answers the game client's pages with the app's built `index.html`
@@ -385,9 +385,7 @@ honours this contract can replace it.
   that base path; the app routes the path itself. The pages are an explicit list in the lobby's
   route table, each with its login policy (`/play/{game_id}` requires a login; the replay
   `/play/history/{game_id}` and the storybook pages do not); any other path is a 404, so a new client
-  route needs its path added there. The v1 client (`frontend/game/`, `LOBBY_GAME_CLIENT_DIR`)
-  answers the same pages when their query has `v=1`, built with base `/game-assets/`; the lobby
-  never adds the parameter itself, so it is opened by hand.
+  route needs its path added there.
 * **Handoff:** before navigating to `{game_client_url}/{game_id}`, the lobby page writes
   `sessionStorage.setItem("game_session:{game_id}", JSON.stringify({wsUrl, gameTicket}))`. Session
   storage is per origin, which is why the game client must be served by the lobby. A game page
@@ -398,14 +396,12 @@ honours this contract can replace it.
 * **Game server:** the client joins `wsUrl` with the ticket and speaks the MessagePack protocol
   (`backend/game/messaging/AGENTS.md`); it reuses the same ticket to reconnect. A client that lost
   step with the messages may send RESYNC on its open socket for the reconnect's snapshot and re-sent
-  wait, keeping the seat; closing to reconnect would hand the seat to an AI for the gap. A client may
-  ignore it (v1 does).
+  wait, keeping the seat; closing to reconnect would hand the seat to an AI for the gap.
 * **Closes:** the client reconnects after any close but two terminal ones, after which it stops
   reconnecting and cancels any scheduled retry: 4002 `replaced_by_new_connection` (another socket
   of the seat took it over) and 1008 `invalid_game_action` (the seat was kicked). A 1000
   `game_ended` close keeps reconnecting, so a client that missed the game end is refused on the
-  reconnect. After a terminal close or a refusal, the v1 client goes back to the lobby; the v2
-  client forgets the handoff and stays on the page, saying why, with a way back to the lobby and,
+  reconnect. After a terminal close or a refusal, the client forgets the handoff and stays on the page, saying why, with a way back to the lobby and,
   where it may help, a reload (which recovers the handoff afresh).
 * **Replays:** `GET /api/replays/{game_id}` returns a replay's content, no login required;
   `GET /api/replays/{game_id}/tenhou.xml` downloads the same game as a tenhou.net XML log. The lobby
@@ -427,7 +423,7 @@ honours this contract can replace it.
   404 for a moment after it.
 * **Leaving:** the client returns players to the lobby at `/`.
 * **Language:** v2 is currently English-only, with literal UI text and no catalogs or language switch.
-  The lobby and v1 support Japanese, English and Russian under `docs/i18n.md`. Future game-client
+  The lobby supports Japanese, English and Russian under `docs/i18n.md`. Future game-client
   localization must follow that contract: resolve the `lang` cookie first, then the browser's supported
   language, then English; an explicit language choice writes the same cookie so the lobby follows it.
   The game server sends codes, never text to show: errors carry a code beside an English diagnostic
@@ -442,6 +438,6 @@ honours this contract can replace it.
 ## Local run
 
 `make run-local-server` starts the game server (`:8711`), the lobby (`:8710`) and a Vite dev server
-per frontend app: the lobby's (`:5173`) and the game client's (`:5174`, proxied by the lobby).
+per frontend app: the lobby's (`:5173`) and the game client's (`:5175`, proxied by the lobby).
 In production Traefik fronts both services from one `docker-compose.yml`; the lobby's internal game
 server URL and the public WebSocket origin it hands players are two separate settings.

@@ -42,7 +42,7 @@ import {
 import { assertNever } from "@/shared/lib";
 import { GAME_END_CAUSE, SEAT_CONTROL_REASON } from "@/shared/protocol";
 
-import { storybookHref, storybookIndexHref } from "./storybook-nav";
+import { STORYBOOK_INDEX } from "./storybook-nav";
 import {
     RESULT_STORIES,
     type ResultStory,
@@ -971,11 +971,11 @@ const END_TABLE_STICK_LOST: TableState = {
 function gameEndActions(): readonly PanelAction[] {
     return [
         {
-            href: storybookHref("/play/storybook/replay?state=game_end", window.location.search),
+            href: "/play/storybook/replay?state=game_end",
             kind: "link",
             label: "Replay",
         },
-        { href: storybookIndexHref(), kind: "link", label: "Storybook", primary: true },
+        { href: STORYBOOK_INDEX, kind: "link", label: "Storybook", primary: true },
     ];
 }
 
@@ -1135,7 +1135,7 @@ function storybookBoardTemplate(
                 })}
             </div>
             <div class="board-page__aside">
-                <a class="board-storybook__btn" href="${storybookIndexHref()}">Back</a>
+                <a class="board-storybook__btn" href="${STORYBOOK_INDEX}">Back</a>
                 ${storyPicker({
                     label: "Story",
                     onPick: handlers.showStory,

@@ -30,7 +30,7 @@ class TestReplayContent:
     def app(self, make_app, tmp_path, replay_dir):
         game_client_dir = tmp_path / "game-dist"
         game_client_dir.mkdir()
-        return make_app(replay_dir=str(replay_dir), game_client_dir=str(game_client_dir))
+        return make_app(replay_dir=str(replay_dir), game_client_v2_dir=str(game_client_dir))
 
     @pytest.fixture
     def setup(self, client, replay_dir):

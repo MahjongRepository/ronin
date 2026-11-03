@@ -157,7 +157,7 @@ function renderSwitches(
     ];
 }
 
-const LINKS = { history: "/history", replay: "/play/history/g1?v=2&seat=1" };
+const LINKS = { history: "/history", replay: "/play/history/g1?seat=1" };
 
 function renderLiveGameEnd(
     gameEnd: LiveClient = checkpointState("final_round_seat_1", "game end"),

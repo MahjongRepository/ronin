@@ -39,7 +39,6 @@ from lobby.server.middleware import (
 )
 from lobby.settings import LobbyServerSettings
 from lobby.views import (
-    GAME_ASSETS_PATH,
     GAME_V2_ASSETS_PATH,
     BuiltGameClient,
     DevGameClient,
@@ -148,7 +147,7 @@ def create_app(  # noqa: PLR0913
 
     static_dir = Path(settings.static_dir).resolve()
     assets_dir = Path(settings.assets_dir).resolve()
-    game_client, game_client_v2 = _create_game_clients(settings, dev_transport=game_client_dev_transport)
+    game_client = _create_game_client(settings, dev_transport=game_client_dev_transport)
     translator = Translator(catalogs=load_catalogs(), strict=strict_i18n)
 
     game_server = create_game_server_client(settings.game_server_url, transport=game_server_transport)
@@ -170,11 +169,6 @@ def create_app(  # noqa: PLR0913
         Route("/play/storybook/rotate", public_route(play_page), methods=["GET"], name="storybook_rotate_page"),
         Route("/play/storybook/replay", public_route(play_page), methods=["GET"], name="storybook_replay_page"),
         Route("/play/storybook/decisions", public_route(play_page), methods=["GET"], name="storybook_decisions_page"),
-        Route("/play/storybook/table", public_route(play_page), methods=["GET"], name="storybook_table_page"),
-        Route("/play/storybook/win", public_route(play_page), methods=["GET"], name="storybook_win_page"),
-        Route("/play/storybook/draw", public_route(play_page), methods=["GET"], name="storybook_draw_page"),
-        Route("/play/storybook/standings", public_route(play_page), methods=["GET"], name="storybook_standings_page"),
-        Route("/play/storybook/loading", public_route(play_page), methods=["GET"], name="storybook_loading_page"),
         Route("/play/storybook", public_route(play_page), methods=["GET"], name="storybook_page"),
         Route("/play/{game_id}", protected_html(play_page), methods=["GET"], name="play_page"),
         Route(
@@ -227,8 +221,7 @@ def create_app(  # noqa: PLR0913
     else:
         logger.warning("lobby assets directory not found, /lobby-assets/ will not be served", path=str(assets_dir))
 
-    routes.extend(_game_client_routes(game_client_v2, name="game_assets_v2"))
-    routes.extend(_game_client_routes(game_client, name="game_assets"))
+    routes.extend(_game_client_routes(game_client))
 
     validate_route_auth_policy(routes)
 
@@ -266,7 +259,6 @@ def create_app(  # noqa: PLR0913
     _add_middleware(app, settings=settings, auth_service=auth_service)
 
     app.state.game_client = game_client
-    app.state.game_client_v2 = game_client_v2
     app.state.translator = translator
     _attach_state(
         app,
@@ -358,47 +350,22 @@ def _attach_state(  # noqa: PLR0913
     app.state.occupancy = occupancy
 
 
-def _create_game_clients(
+def _create_game_client(
     settings: LobbyServerSettings,
     *,
     dev_transport: httpx.AsyncBaseTransport | None,
-) -> tuple[BuiltGameClient | DevGameClient, BuiltGameClient | DevGameClient]:
-    """
-    Create the v1 client that ``?v=1`` selects and the default v2 client.
-    """
-    game_client = _create_game_client(
-        dev_url=settings.game_client_dev_url,
-        directory=settings.game_client_dir,
-        assets_path=GAME_ASSETS_PATH,
-        dev_transport=dev_transport,
-    )
-    game_client_v2 = _create_game_client(
-        dev_url=settings.game_client_v2_dev_url,
-        directory=settings.game_client_v2_dir,
-        assets_path=GAME_V2_ASSETS_PATH,
-        dev_transport=dev_transport,
-    )
-    return game_client, game_client_v2
-
-
-def _create_game_client(
-    *,
-    dev_url: str,
-    directory: str,
-    assets_path: str,
-    dev_transport: httpx.AsyncBaseTransport | None,
 ) -> BuiltGameClient | DevGameClient:
-    if dev_url:
-        return DevGameClient(origin=dev_url, assets_path=assets_path, transport=dev_transport)
+    if settings.game_client_v2_dev_url:
+        return DevGameClient(
+            origin=settings.game_client_v2_dev_url, assets_path=GAME_V2_ASSETS_PATH, transport=dev_transport
+        )
 
-    return BuiltGameClient(directory=Path(directory).resolve(), assets_path=assets_path)
+    return BuiltGameClient(directory=Path(settings.game_client_v2_dir).resolve(), assets_path=GAME_V2_ASSETS_PATH)
 
 
-def _game_client_routes(game_client: BuiltGameClient | DevGameClient, *, name: str) -> list[BaseRoute]:
+def _game_client_routes(game_client: BuiltGameClient | DevGameClient) -> list[BaseRoute]:
     """
     Serve a game client's files under its assets path: proxied to its dev server, or from its build.
-
-    The v2 client's assets path lies under the v1 client's, so its routes go first.
     """
     if isinstance(game_client, DevGameClient):
         return [
@@ -406,7 +373,7 @@ def _game_client_routes(game_client: BuiltGameClient | DevGameClient, *, name: s
                 f"{game_client.assets_path}/{{path:path}}",
                 public_route(game_client.serve_asset),
                 methods=["GET"],
-                name=name,
+                name="game_assets",
             ),
         ]
 
@@ -417,7 +384,7 @@ def _game_client_routes(game_client: BuiltGameClient | DevGameClient, *, name: s
         )
         return []
 
-    return [Mount(game_client.assets_path, app=StaticFiles(directory=str(game_client.directory)), name=name)]
+    return [Mount(game_client.assets_path, app=StaticFiles(directory=str(game_client.directory)), name="game_assets")]
 
 
 def get_app() -> Starlette:  # pragma: no cover (entrypoint)  # deadcode: ignore

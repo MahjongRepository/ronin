@@ -43,7 +43,7 @@ The workflow repeats these checks, so they only fail early here.
 ## Step 3: Read the changes for context
 
 1. `git log <tag>..HEAD --format='%s%n%b'` for the commits
-2. `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` for the architecture notes and the ruleset; the architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game/` and its `logic/`, `session/`, `messaging/`, `backend/lobby/` and `rooms/`, `frontend/`, `frontend/lobby/`, `frontend/game/`)
+2. `git diff <tag>..HEAD -- '*AGENTS.md' docs/game-rules.md` for the architecture notes and the ruleset; the architecture lives in the nested `AGENTS.md` files (`backend/`, `backend/game/` and its `logic/`, `session/`, `messaging/`, `backend/lobby/` and `rooms/`, `frontend/`, `frontend/lobby/`, `frontend/game_v2/`)
 
 ## Step 4: Write the summary
 

@@ -131,7 +131,7 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
                     draws.throwing -= 1;
                     throw new Error("the board broke");
                 }
-                return `/play/history/${GAME_ID}?v=2&seat=${String(seat)}`;
+                return `/play/history/${GAME_ID}?seat=${String(seat)}`;
             },
         },
         recoverHandoff:

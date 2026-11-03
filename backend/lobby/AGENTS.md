@@ -11,15 +11,11 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `auth/` — the session-or-API-key authentication backend, the route policy decorators and CSRF.
 * `views/` — page and API handlers by domain (`bot_api_handlers.py` is the bot JSON API), the Jinja2
   templates, and the lobby app's Vite manifest / dev-server resolution into template globals.
-  `game_client.py` hosts both game clients, separate apps the lobby knows only by their built
-  directories: it answers game pages with the selected app's `index.html`. The default v2 client
-  (`frontend/game_v2/`) serves files under `/game-assets/v2/` (`game_client_v2_dir`), or proxies
-  pages and files to its Vite dev server when `game_client_v2_dev_url` is set.
-  The proxy exists only for local runs, so the game page keeps the lobby's origin and the
-  `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works. A game page with
-  `?v=1` gets the v1 client (`frontend/game/`) instead, hosted the same way under `/game-assets/`
-  (`game_client_dir`, `game_client_dev_url`). The v2 assets path lies inside the v1 client's,
-  so its routes are listed first.
+  `game_client.py` hosts the game client, a separate app the lobby knows only by its built directory:
+  it answers game pages with the app's `index.html`. The client (`frontend/game_v2/`) serves files
+  under `/game-assets/v2/` (`game_client_v2_dir`), or proxies pages and files to its Vite dev server
+  when `game_client_v2_dev_url` is set. The proxy exists only for local runs, so the game page keeps
+  the lobby's origin and the `sessionStorage` handoff (`docs/architecture.md`, Game client contract) works.
 * `views/error_pages.py` — every error answer, the failed CSRF check included: a browser (`Accept: text/html`) gets
   `error.html` through `render_page`, any other client plain text; the 500 handler runs outside the middleware, so
   `create_app()` wraps it to add the security headers.
@@ -140,7 +136,8 @@ Mandatory for all lobby code; review must catch violations.
 * Unknown `Host` headers are rejected; a new deployment host goes in the allowed-hosts setting.
 * Session and CSRF cookies are HttpOnly, SameSite=Lax and Secure by default; only the test
   environment turns Secure off. The `lang` cookie is the one exception to HttpOnly: it carries no
-  credential and the game client reads it; every reader validates it against the supported locales.
+  credential and remains readable by scripts for future game-client localization; every reader validates it against
+  the supported locales.
 * A redirect to a client-supplied target (the login `next`) follows only a same-site path: no
   scheme, no host, no `//` or backslash, nothing unprintable; anything else goes to the lobby.
 * Credentials never travel in a URL: uvicorn and Traefik log every path with its query string. A

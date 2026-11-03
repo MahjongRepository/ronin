@@ -1,12 +1,11 @@
 # Frontend
 
-Three isolated apps, each its own npm package with its own dependencies, lockfile, language, lint,
+Two isolated apps, each its own npm package with its own dependencies, lockfile, language, lint,
 format and test config, and its own styles:
 
 * `lobby/` — the scripts and styles of the server-rendered lobby pages (TypeScript / lit-html). See
   `lobby/AGENTS.md`.
-* `game/` — the v1 game client under `/play/*?v=1` (MajiangNG: JavaScript / jQuery). See `game/AGENTS.md`.
-* `game_v2/` — the default game client (TypeScript / lit-html). See `game_v2/AGENTS.md`.
+* `game_v2/` — the game client (TypeScript / lit-html). See `game_v2/AGENTS.md`.
 
 No app imports from another, and nothing is shared between them at build time: a module two
 need is copied into each. They meet only at the runtime contract
@@ -15,10 +14,8 @@ that honours it.
 
 ## Tooling
 
-Run a package's scripts from its directory (`cd frontend/game && npx vitest run <path>`). The root
-`make install-frontend` loops over every app; the check targets (`lint-frontend`,
-`typecheck-frontend`, `format-frontend`, `test-frontend`, and so `make run-all-checks`) skip `game/`,
-which is still served, as the baseline v2 is compared against, but no longer checked.
+Run a package's scripts from its directory (`cd frontend/game_v2 && npx vitest run <path>`). The root
+`make install-frontend` and the frontend check targets run both apps.
 
 Node is pinned to one exact version in two places, kept in step: the repo's `mise.toml` for
 development (`mise trust && mise install` once; the `Makefile` puts that Node first on `PATH`) and
@@ -43,9 +40,8 @@ version) and Vite's dev and build (`fatalDeprecations` in `vite.config`). Depend
 dev server on a newly deprecated construct; migrate it rather than silencing the deprecation.
 
 `make run-local-server` runs one Vite dev server per app: the lobby's on `VITE_PORT` (5173), whose
-scripts the lobby templates load directly, and the game client's on `GAME_VITE_PORT` (5174), which
-the lobby proxies under `/game-assets/` so the game page stays on the lobby's origin, and the v2
-client's on `GAME_V2_VITE_PORT` (5175), proxied under `/game-assets/v2/`. Each game client's HMR
+scripts the lobby templates load directly, and the game client's on `GAME_V2_VITE_PORT` (5175),
+proxied under `/game-assets/v2/` so the game page stays on the lobby's origin. The game client's HMR
 socket dials its Vite server directly (`server.hmr.clientPort`).
 
 ## UI changes
@@ -63,7 +59,7 @@ Vitest does not show what a page looks like, so a change to the UI is checked in
   `frontend/game_v2/AGENTS.md`, Visual check).
 * Take the before shots ahead of the first UI edit. Once the change exists, serve the base from a
   scratchpad `git worktree` with its own ports (`GAME_PORT`, `LOBBY_PORT`, `VITE_PORT`,
-  `GAME_VITE_PORT`, `GAME_V2_VITE_PORT` on `bin/run-local-server.sh`, after `make install-frontend` there). Its
+  `GAME_V2_VITE_PORT` on `bin/run-local-server.sh`, after `make install-frontend` there). Its
   `backend/storage.db` starts empty, so register `dev` there too, in a separate
   `agent-browser --session` (the skill's *Logging in*). Stop it and `git worktree remove` it
   afterwards.

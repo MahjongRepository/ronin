@@ -15,12 +15,10 @@ Ronin is a Riichi Mahjong game server and browser client.
   * `backend/lobby/` — lobby server (auth, rooms, matchmaking, server-rendered pages). See
     `backend/lobby/AGENTS.md`.
   * `backend/shared/` — auth, SQLite data access, logging and helpers used by both servers.
-* `frontend/` — Vite / npm on Node: three isolated apps, each its own package. See `frontend/AGENTS.md`.
+* `frontend/` — Vite / npm on Node: two isolated apps, each its own package. See `frontend/AGENTS.md`.
   * `frontend/lobby/` — the scripts and styles of the lobby pages (TypeScript / lit-html). See
     `frontend/lobby/AGENTS.md`.
-  * `frontend/game/` — the v1 game client (MajiangNG: JavaScript / jQuery), available through `?v=1`.
-    See `frontend/game/AGENTS.md`.
-  * `frontend/game_v2/` — the default game client (TypeScript / lit-html). See `frontend/game_v2/AGENTS.md`.
+  * `frontend/game_v2/` — the game client (TypeScript / lit-html). See `frontend/game_v2/AGENTS.md`.
 * `deploy/` — spot playbook, production compose and the Docker image. See `deploy/AGENTS.md`.
 * `bin/` — the scripts behind the `make` targets.
 * `docs/architecture.md` — the map of how the lobby, matchmaking and the game server fit together.
@@ -28,7 +26,7 @@ Ronin is a Riichi Mahjong game server and browser client.
 * `docs/rng.md` — how the seed becomes the walls, the first dealer and the seating, and what
   `make measure-wall` reports for it; update it with any change to `game/logic/rng.py`.
 * `docs/i18n.md` — the language contract and the ja/en/ru glossary; `make lint` runs
-  `bin/check_i18n.py` over the lobby's catalogs (the v1 game client's are no longer checked).
+  `bin/check_i18n.py` over the lobby's catalogs.
 * `docs/game-client-look.md` — the v2 game client's look (composition, elements, proportions, review
   checklist), approved; read before any v2 board work.
 * `thoughts/` — plans and other planning artifacts; gitignored, never shipped.
@@ -40,7 +38,7 @@ The `Makefile` lists the targets; the non-obvious ones:
 * `make install-frontend` — `npm ci` in each frontend app, then the Playwright browsers the v2
   client's targeted visual check drives.
 * `make run-local-server` — game server (`:8711`), lobby (`:8710`) and a Vite dev server per
-  frontend app (`:5173` lobby, `:5174` game client, `:5175` game client v2) together,
+  frontend app (`:5173` lobby, `:5175` game client) together,
   with `.env.local` sourced when present. To see the app in a browser, drive it with the
   `agent-browser` skill plus this project's `app-browser` skill (`.claude/skills/app-browser/`).
 * `make test` — backend pytest with its coverage gate (`backend/AGENTS.md`, Tooling).

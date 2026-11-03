@@ -116,7 +116,7 @@ export function soundCues(before: LiveClient, after: LiveClient): readonly Sound
     ];
 }
 
-/** The sound setting as this browser keeps it: the v1 client's key and shape, so both clients share one setting. */
+/** The persisted sound setting shared by live play and replays. */
 export interface SoundSetting {
     readonly sound_on: boolean;
 }

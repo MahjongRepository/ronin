@@ -1,6 +1,6 @@
 ---
 name: app-browser
-description: This project's agent-browser recipes — run the local stack, log in to the ronin lobby, reach every page (room, live game, matchmaking, history, replay, storybooks) in the default v2 client and the v1 client (`?v=1`), shoot settled and targeted screenshots, and check a layout in WebKit as an iPhone. Load together with agent-browser whenever driving ronin in a browser.
+description: This project's agent-browser recipes — run the local stack, log in to the ronin lobby, reach every page (room, live game, matchmaking, history, replay, storybooks) in the game client, shoot settled and targeted screenshots, and check a layout in WebKit as an iPhone. Load together with agent-browser whenever driving ronin in a browser.
 allowed-tools: Bash(agent-browser:*), Bash(curl:*)
 ---
 
@@ -19,10 +19,10 @@ your scratchpad (`$S` below).
    `--reload` and Vite hot-reloads the frontend.
 2. Wait for it: `curl -sf --retry 40 --retry-delay 1 --retry-connrefused http://localhost:8710/health`.
    If it never comes up, read the background shell's output instead of retrying; tracebacks from
-   all three servers land there.
+   all servers land there.
 3. Always open pages on the lobby, `http://localhost:8710`. It serves every page: lobby pages pull
    their scripts from the lobby's Vite on `:5173`, and the game client under `/play/` is proxied
-   from v2's Vite on `:5175` (the v1 client's, on a `?v=1` page, from `:5174`). No Vite serves a
+   from the game's Vite on `:5175`. No Vite serves a
    page you should open.
 
 ## Logging in
@@ -54,8 +54,7 @@ agent-browser wait 1000 && agent-browser get url
 ## Reaching the pages
 
 Take ids from the UI, never invent them. Templates in `backend/lobby/views/templates/` are the
-lobby pages; the game client routes are in `frontend/game/src/js/routes.js` (v2's in
-`frontend/game_v2/src/index.ts`, *The v2 game client* below). There are no test ids: select by
+lobby pages; the game client routes are in `frontend/game_v2/src/index.ts` (*The game client* below). There are no test ids: select by
 element id, class or `snapshot -i` refs.
 
 - **Room:** click `.lobby-create-btn` (Custom table) on `/`. A new room seats `dev` as host with three
@@ -65,45 +64,13 @@ element id, class or `snapshot -i` refs.
   that is the occupancy rule, not a bug.
 - **Matchmaking:** `/matchmaking` queues for a 4-human match; one browser user only shows the
   waiting state.
-- **History and replay (v1 client):** `/history` lists recent games; each card's
-  `.games-card-link` ("View replay", stretched over the card) goes to `/play/history/<game_id>` in v2; add `?v=1`
-  for the v1 controls described here. That page shows the game on
-  the board at its first deal (or at `?v=1&seat=&round=&step=`, all zero-based, which the address bar
-  then follows; `docs/architecture.md`, Replays), with `.replay-back` / `.replay-play` (autoplay) /
-  `.replay-next`, the jumps `.replay-first`, `.replay-prev-round`, `.replay-next-round`,
-  `.replay-last`, and the info `.replay-position` (`.replay-action`, `.replay-round`, `.replay-step`,
-  `.replay-wall-low`, `.replay-ended`) in the strip below it (beside it at `max-height: 450px`
-  landscape). The options, the viewpoint select `.replay-seat`, the autoplay speed `.replay-speed`
-  and the switch `.replay-hide-hands`, show beside the buttons at 1280px wide and over 450px tall,
-  and under the info on an upright phone; elsewhere `.replay-options-toggle` ("View: <name>") shows
-  them in the info's place until the next move. The round's name `.replay-rounds-toggle` opens the
-  round list `.replay-rounds` (a `.replay-round-entry` per round with its outcome, the one shown
-  `aria-current`); each round of the final standings leads to its deal too.
-  `.replay-next-round` is the quick way to a later round; holding
-  Back or Next (`agent-browser mouse down left`) repeats them. The keys drive it too
-  (`agent-browser press ArrowRight`, `End`, `Shift+?` for the help `.replay-help`, opened also from
-  `.replay-help-toggle` at the end of the round's line), and so does the wheel over the board:
-  `agent-browser mouse wheel 100` fires at clientX/Y 0,0 whatever `mouse move` set, which still lands
-  on the board's corner; for a wheel at a set position (over the standings, the help), use
-  Playwright's `page.mouse.move(x, y)` then `page.mouse.wheel(0, 100)`.
-  On a phone, tap as *WebKit phone check* says. A replay it cannot show gets a
-  `.replay-problem` message instead. To show a particular case, gzip a fixture from
-  `frontend/game_v2/src/fixtures/replays/` into the replay dir under an id of your own
-  (`backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz`) and delete it afterwards. The speed and
-  the hidden-hands choice are stored under `ronin.replay.prefs` in `localStorage`: remove it after a
-  session that changed them. A sound the browser blocks without a user gesture (a scripted click) is
-  skipped, so `agent-browser errors` stays empty; a `NotAllowedError` there is a bug.
-- **Storybooks (v1):** `/storybook` (lobby styles, dev only) and `/play/storybook?v=1` plus the pages its
-  header links to (keep `v=1`; a board page with several states takes `&state=<key>` from its
-  variant links). At `max-height: 450px` (a viewport 450px tall or less) the header is one
-  horizontally scrolling row, so the board keeps nearly full height. The WebKit recipe below
-  reaches it only with the `"iPhone 13 landscape"` device; its default portrait `"iPhone 13"` is
-  too tall and shows the full wrapped header.
+- **History:** `/history` lists recent games; each card's `.games-card-link` ("View replay") opens
+  `/play/history/<game_id>`. Replay controls are described below.
+- **Lobby storybook:** `/storybook` shows lobby styles in development.
 
-## The v2 game client (default)
+## The game client
 
-The lobby serves `frontend/game_v2/` by default on every game page. Only `?v=1` selects the v1
-client; `?v=2` still serves v2 but is unnecessary. The pages below need no login but the live game.
+The lobby serves `frontend/game_v2/` on every game page. The pages below need no login but the live game.
 
 - **Storybooks:** `/play/storybook` and `/play/storybook/{board,decisions,discards,hand,melds,replay,rotate}`.
   A board page takes its story as `?state=<key>`; its switches (offers, callout, pinned badge,
@@ -111,14 +78,12 @@ client; `?v=2` still serves v2 but is unnecessary. The pages below need no login
   decisions page runs a generated seat transcript to a labelled checkpoint, `?state=<story>`; the
   look spec's anchor is `anchor_turn`, `anchor_call` and `anchor_riichi`. A story's board is the
   live game's box with its switches below, so shoot it at the viewport you are checking.
-- **Live game:** start a game as in *Reaching the pages*; it lands on v2 at `/play/<game_id>`.
-  To switch to v1, keep that tab and open
-  `agent-browser tab new "http://localhost:8710/play/<game_id>?v=1"`. A tab with no handoff
-  recovers it (`GET /api/game-session`) and takes the seat over; the previous tab says it was replaced.
-  Always switch clients in a new tab: reloading the current tab can empty the last human seat
-  and end the game before the new page connects. When done in v2, leave
-  through `.game-menu__leave` and its Leave, so `dev` is free for the next game. `?debug` adds the
-  message log.
+- **Live game:** start a game as in *Reaching the pages*; it lands on `/play/<game_id>`.
+  A tab with no handoff recovers it (`GET /api/game-session`) and takes the seat over; the previous
+  tab says it was replaced. To test reconnect by opening another tab, keep the current tab open:
+  reloading it can empty the last human seat and end the game before the new page connects.
+  Leave through `.game-menu__leave` and its Leave, so `dev` is free for the next game.
+  `?debug` adds the message log.
 - **Replay:** `/play/history/<game_id>`, optionally with `?seat=&round=&step=` (zero-based; a
   part the replay does not hold falls back). The moves are
   `.replay-controls__move--{first,prevRound,prev,next,nextRound,last}` and `.replay-controls__play`
@@ -128,7 +93,8 @@ client; `?v=2` still serves v2 but is unnecessary. The pages below need no login
   ends. The address is kept on the position shown with `history.replaceState` at most once per
   500 ms, a waiting write flushed as the page hides, so read it a moment after the last move. A
   replay recorded before a format change reads as Damaged: for a particular case, gzip a fixture
-  as *History and replay* says. The speed and hidden hands are stored under
+  from `frontend/game_v2/src/fixtures/replays/` into
+  `backend/data/replays/<id[0:2]>/<id[2:4]>/<id>.txt.gz` under an id of your own and delete it afterwards. The speed and hidden hands are stored under
   `ronin.v2.replay-prefs` in `localStorage`: remove it after a session that changed them.
 
 ### Settled v2 screenshots
@@ -223,19 +189,9 @@ with sync_playwright() as p:
     browser.close()
 ```
 
-The v1 game pages draw at `width=800` and the phone scales them down (v2's are `device-width`), so `page.tap(selector)` can miss
-an element near the page's edge ("`<html>` intercepts pointer events"). Tap where the element is
-instead: its `getBoundingClientRect()` centre times `visualViewport.scale`, with
-`page.touchscreen.tap(x, y)`.
-
 Settle with `page.evaluate` polling, not `page.wait_for_function(<string>)`: the lobby CSP has no
 `unsafe-eval`, which a string predicate needs in WebKit. Run it outside the backend project, pinned
 to the version whose browsers are installed:
 `uv run --no-project --with playwright==1.63.0 python $S/phone.py $T`. Never `full_page=True`:
 to show a whole page, set the viewport height to `document.documentElement.scrollHeight` and take a
 normal screenshot. Delete the script once done.
-
-Verdana, the v1 game client's UI font, isn't installed on this machine. So WebKit here draws that
-text in DejaVu Sans, while Chromium (on the `lang="ja"` game pages) uses Noto Sans CJK JP. That
-font difference between the two engines comes from this machine, not from the client, so don't
-chase it. Real iPhones, Macs and Windows have Verdana.

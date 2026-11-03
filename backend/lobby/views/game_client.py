@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-GAME_ASSETS_PATH = "/game-assets"
 GAME_V2_ASSETS_PATH = "/game-assets/v2"
 _DEV_SERVER_TIMEOUT_SECONDS = 30.0
 _FORWARDED_RESPONSE_HEADERS = ("content-type", "cache-control", "etag")
