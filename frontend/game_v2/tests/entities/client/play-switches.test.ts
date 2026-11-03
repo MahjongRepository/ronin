@@ -22,6 +22,7 @@ import {
     type SeatScenario,
     decisionOf,
     desyncOf,
+    nextDeadline,
     playDisplay,
     roundConfirmOf,
     runSeatScenario,
@@ -154,6 +155,33 @@ function promptPass(prompt: Readonly<Record<string, unknown>>): ClientEffect {
     return sent(buildPassAction(Number(prompt.wi)));
 }
 
+function runPlainRiichiDraw(autoDiscard: boolean): {
+    readonly branch: SeatScenario;
+    readonly run: ScenarioRun;
+    readonly tileId: number;
+} {
+    const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
+    const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
+    const refusal = wireRuleRefusal(Number(plain.wi));
+    const unswitched = branchAfter(scenario, "furiten", [
+        received(13_000, plain, "plain"),
+        received(13_500, plain, "repeated before discard"),
+        { event: { at: 13_999, kind: "tick" }, label: "waiting" },
+        {
+            effects: [drawnDiscard(plain)],
+            event: { at: 14_000, kind: "tick" },
+            label: "sent",
+        },
+        received(14_001, plain, "repeated"),
+        received(14_002, refusal, "refused"),
+        { event: { at: 15_000, kind: "tick" } },
+    ]);
+    const branch = autoDiscard
+        ? switchedOnBefore(unswitched, "plain", ["auto_discard"])
+        : unswitched;
+    return { branch, run: runClean(branch), tileId: Number(plain.d) % NUM_TILES };
+}
+
 describe("automatic answers", () => {
     it("Auto win takes the tsumo at its draw over Auto discard, leaving the prompt open when turned on; the press after sends nothing", () => {
         const { scenario } = loadSeatScenario("own_turn_seat_1");
@@ -240,29 +268,36 @@ describe("automatic answers", () => {
         expect(bySwitch(stateAt(switched, run, "next turn"))).toBe("auto_discard");
     });
 
-    it("discards a plain draw in riichi with every switch off, once even if the draw is repeated", () => {
-        const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
-        const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
-        const refusal = wireRuleRefusal(Number(plain.wi));
-        const unswitched = branchAfter(scenario, "furiten", [
-            { ...received(13_000, plain, "plain"), effects: [drawnDiscard(plain)] },
-            received(13_000, plain, "repeated"),
-            received(13_001, refusal, "refused"),
-        ]);
-        const unswitchedRun = runClean(unswitched);
-        const submitted = stateAt(unswitched, unswitchedRun, "plain");
-        const display = playDisplay(submitted, NO_PLAY_UI);
-        expect([
-            bySwitch(submitted),
-            submitted.switches,
-            display.actions,
-            display.countdown,
-        ]).toEqual([null, ALL_OFF, [], null]);
-        expect(decisionOf(stateAt(unswitched, unswitchedRun, "repeated"))).toEqual(
-            decisionOf(submitted),
-        );
-        expect(bySwitch(stateAt(unswitched, unswitchedRun, "refused"))).toBe("open");
-    });
+    it.each([false, true])(
+        "holds a plain riichi draw for one second before discarding once (Auto discard: %s)",
+        (autoDiscard) => {
+            const { branch, run: unswitchedRun, tileId } = runPlainRiichiDraw(autoDiscard);
+            const waiting = stateAt(branch, unswitchedRun, "waiting");
+            expect(nextDeadline(waiting)).toBe(14_000);
+            expect(decisionOf(waiting)?.status.kind).toBe("open");
+            expect(
+                waiting.table.players.find((player) => player.seat === waiting.viewerSeat)
+                    ?.drawnTileId,
+            ).toBe(tileId);
+            const submitted = stateAt(branch, unswitchedRun, "sent");
+            const display = playDisplay(submitted, NO_PLAY_UI);
+            expect([
+                bySwitch(submitted),
+                submitted.switches,
+                display.actions,
+                display.countdown,
+            ]).toEqual([
+                autoDiscard ? "auto_discard" : null,
+                { ...ALL_OFF, auto_discard: autoDiscard },
+                [],
+                null,
+            ]);
+            expect(decisionOf(stateAt(branch, unswitchedRun, "repeated"))).toEqual(
+                decisionOf(submitted),
+            );
+            expect(bySwitch(stateAt(branch, unswitchedRun, "refused"))).toBe("open");
+        },
+    );
 
     it("leaves a post-riichi kan and its replacement draw's tsumo to the player", () => {
         const { scenario } = loadSeatScenario("riichi_kan_seat_1");
@@ -286,6 +321,20 @@ describe("automatic answers", () => {
         expect(playDisplay(replacement, NO_PLAY_UI).actions.map((action) => action.label)).toEqual([
             "Tsumo",
         ]);
+    });
+
+    it("cancels a delayed riichi discard on disconnect", () => {
+        const { scenario, transcript } = loadSeatScenario("own_turn_seat_1");
+        const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
+        const disconnected = branchAfter(scenario, "furiten", [
+            received(13_000, plain, "plain"),
+            { event: { at: 13_500, code: 1006, kind: "transport_closed", reason: "" } },
+            { event: { at: 14_000, kind: "tick" } },
+        ]);
+        const state = lastState(runClean(disconnected));
+        expect(decisionOf(state)).toBeNull();
+        expect(state.riichiDiscard).toBeNull();
+        expect(nextDeadline(state)).toBe(14_500);
     });
 });
 

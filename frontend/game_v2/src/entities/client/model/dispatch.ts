@@ -47,7 +47,14 @@ import {
     takesWhileDesynced,
     withPacing,
 } from "./desync";
-import { automaticStep, canAnswer, decisionIntentStep, toggleSwitchStep } from "./intents";
+import {
+    automaticStep,
+    canAnswer,
+    decisionIntentStep,
+    discardRiichiDrawStep,
+    settleRiichiDiscard,
+    toggleSwitchStep,
+} from "./intents";
 import { keptNotice, submittedWaitId, withNotice } from "./notices";
 import {
     decisionOf,
@@ -404,7 +411,9 @@ function onReplayLine(state: ReplayClient, raw: Record<string, unknown>): Replay
 }
 
 function onTick(state: LiveClient): ClientStep<LiveClient> {
-    return withSession(state, { at: state.now, kind: "tick" });
+    const session = withSession(state, { at: state.now, kind: "tick" });
+    const discarded = discardRiichiDrawStep(session.state);
+    return { effects: [...session.effects, ...discarded.effects], state: discarded.state };
 }
 
 function onIntent(state: LiveClient, intent: LocalIntent): ClientStep<LiveClient> {
@@ -508,6 +517,7 @@ export function startGameClient(
         now: at,
         pendingGameSeconds: null,
         resyncRequests: 0,
+        riichiDiscard: null,
         session: step.state,
         showsLastResult: false,
         switches: SWITCHES_OFF,
@@ -537,6 +547,7 @@ export function nextDeadline(state: LiveClient): number | null {
         sessionDeadline(session),
         desyncDeadline(state),
         decisionDue,
+        state.riichiDiscard?.due ?? null,
         notice?.until ?? null,
         calls?.until ?? null,
     ].filter((deadline) => deadline !== null);
@@ -568,7 +579,7 @@ export function traceLiveClient(state: LiveClient, stamped: LiveEvent): TracedSt
     const step = stepLiveEvent({ ...state, now: event.at }, event);
     const settled = settleDesync({ ...step, state: settledPending(step.state) });
     const expired = expireAt(settled.state, event.at);
-    return { ...step, effects: settled.effects, state: expired };
+    return { ...step, effects: settled.effects, state: settleRiichiDiscard(expired) };
 }
 
 /**

@@ -15,6 +15,8 @@ import {
     type PlaySwitch,
 } from "./types";
 
+const RIICHI_DRAW_HOLD_MS = 1000;
+
 /**
  * Whether the client may answer what its seat owes: its session holds the seat. Out of step the seat owes nothing,
  * so it answers nothing.
@@ -98,21 +100,56 @@ export function automaticStep(
         return { effects: [], state };
     }
     const answer = switchAnswer(decision, state.switches);
-    if (answer !== null) {
-        return decisionIntentStep(state, answer.intent, answer.bySwitch);
+    if (
+        decision.kind === "turn" &&
+        decision.opening.kind === "draw" &&
+        decision.offers.length === 0 &&
+        viewerOf(state)?.isRiichi
+    ) {
+        return {
+            effects: [],
+            state: {
+                ...state,
+                riichiDiscard: {
+                    bySwitch: answer?.bySwitch ?? null,
+                    due: state.now + RIICHI_DRAW_HOLD_MS,
+                    tileId: decision.opening.drawnTileId,
+                    waitId: decision.waitId,
+                },
+            },
+        };
+    }
+    return answer === null
+        ? { effects: [], state }
+        : decisionIntentStep(state, answer.intent, answer.bySwitch);
+}
+
+export function settleRiichiDiscard(state: LiveClient): LiveClient {
+    const scheduled = state.riichiDiscard;
+    const decision = decisionOf(state);
+    if (scheduled === null) {
+        return state;
     }
     if (
-        decision.kind !== "turn" ||
-        decision.opening.kind !== "draw" ||
-        decision.offers.length > 0 ||
-        !viewerOf(state)?.isRiichi
+        !canAnswer(state) ||
+        decision?.waitId !== scheduled.waitId ||
+        decision.status.kind === "submitted"
     ) {
-        return { effects: [], state };
+        return { ...state, riichiDiscard: null };
+    }
+    return state;
+}
+
+export function discardRiichiDrawStep(state: LiveClient): ClientStep<LiveClient> {
+    const settled = settleRiichiDiscard(state);
+    const scheduled = settled.riichiDiscard;
+    if (scheduled === null || state.now < scheduled.due) {
+        return { effects: [], state: settled };
     }
     return decisionIntentStep(
-        state,
-        { tileId: decision.opening.drawnTileId, type: "discard" },
-        null,
+        { ...settled, riichiDiscard: null },
+        { tileId: scheduled.tileId, type: "discard" },
+        scheduled.bySwitch,
     );
 }
 

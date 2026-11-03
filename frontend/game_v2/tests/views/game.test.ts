@@ -2,7 +2,11 @@ import { type MockInstance, describe, expect, it, onTestFinished, vi } from "vit
 
 import { ManualClock, steadyClockOn } from "#tests/fixtures/clock";
 import { GAME_ID, HANDOFF } from "#tests/fixtures/scenario";
-import { loadSeatScenario, receivedThrough } from "#tests/fixtures/seat-transcripts";
+import {
+    loadSeatScenario,
+    receivedPayload,
+    receivedThrough,
+} from "#tests/fixtures/seat-transcripts";
 import {
     WIRE_GAME_END,
     WIRE_GAME_JOINED,
@@ -23,6 +27,7 @@ import { type HandoffRecovery } from "@/shared/api";
 import { localStore } from "@/shared/lib";
 import {
     type ClientMessage,
+    NUM_TILES,
     buildChiAction,
     buildConfirmRoundAction,
     buildDiscardAction,
@@ -967,7 +972,36 @@ describe("mountGameView choice of tiles", () => {
     });
 });
 
+function openPlainRiichiDraw(connection: FakeConnection): ClientMessage {
+    const { transcript } = loadSeatScenario("own_turn_seat_1");
+    connection.handlers.onOpen();
+    for (const payload of receivedThrough(transcript, "furiten")) {
+        connection.handlers.onMessage(payload);
+    }
+
+    const { aa: _offers, ...plain } = receivedPayload(transcript, "tsumo draw");
+    connection.handlers.onMessage(plain);
+    return buildDiscardAction(Number(plain.d) % NUM_TILES, Number(plain.wi));
+}
+
 describe("mountGameView board", () => {
+    it("shows a post-riichi draw for one second before the driver sends its discard", () => {
+        const { connections, clock, host } = mountWithFakes();
+        const [connection] = connections;
+        const discard = openPlainRiichiDraw(connection);
+        expect([
+            connection.sent,
+            host.querySelectorAll(".board-local .hand-tile--selectable").length,
+        ]).toEqual([[JOIN], 1]);
+
+        clock.advanceTo(999);
+        expect(connection.sent).toEqual([JOIN]);
+
+        clock.advanceTo(1000);
+        expect(connection.sent).toEqual([JOIN, discard]);
+        expect(host.querySelectorAll(".board-local .hand-tile--selected")).toHaveLength(1);
+    });
+
     it("sends one discard with the turn's wait id for a tapped tile, and nothing for a kuikae-blocked one or a second tap", () => {
         const { connections, host } = mountWithFakes();
         openKuikaeTurn(connections[0]);

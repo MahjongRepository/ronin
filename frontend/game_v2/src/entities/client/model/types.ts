@@ -295,6 +295,12 @@ export interface LiveClient extends ClientBase {
     readonly firstDealDue: number | null;
     /** The play switches the player turned on for this hand; a deal turns them off. */
     readonly switches: PlaySwitches;
+    readonly riichiDiscard: {
+        readonly waitId: number;
+        readonly due: number;
+        readonly tileId: number;
+        readonly bySwitch: PlaySwitch | null;
+    } | null;
     /**
      * The highest wait id a decision of this game opened, or null before the first, whether or not a switch was on:
      * kept across a dropped socket, a refusal and a deal, never lowered and never taken from a snapshot, so a switch
