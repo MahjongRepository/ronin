@@ -309,7 +309,7 @@ const PAGES: readonly PageCase[] = [
         countdown: true,
         texts: {
             ".rotate-panel__decision p":
-                "The round's result awaits your OK. Its timer keeps running while the phone is upright.",
+                "The round's result awaits your OK. Its timer keeps running while this message is shown.",
             ".rotate-panel__seconds": "8",
         },
     }),
@@ -318,7 +318,7 @@ const PAGES: readonly PageCase[] = [
         countdown: false,
         texts: {
             ".rotate-panel__decision p":
-                "It is your turn. Play continues, and your timer keeps running while the phone is upright.",
+                "It is your turn. Play continues, and your timer keeps running while this message is shown.",
         },
     }),
 ];

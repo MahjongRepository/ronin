@@ -23,6 +23,9 @@ they disagree.
   The core's pinwheel (centre, rivers), the badges and the counters stand absolutely over the grid, and so do the
   replay's moves in the switches' place (from the band end, by the geometry's lengths) and its status over a
   smaller board's panel.
+  Upright live boards keep their switches in a horizontal row with Pass and the timer to its right.
+  Extra offers may wrap above into the wider space short of the right strip; the left strip ends above the switches.
+  The own hand and core keep their sizes and places.
 - **The panel's free box is the geometry's.** `boardGeometry` reserves it from the slots GameBoard fills (live play's or
   a replay's band) and the family's places; the overlay centres the panel on the board within its `--geo-overlay-*`
   insets, live and replay alike, over the cog where they reach it. The cog reserves no room in the strips: in landscape
@@ -113,3 +116,5 @@ they disagree.
   `isolation`, `transform`, `filter`, `opacity` or `z-index` on either would drop them under it.
 - Held-back tiles are greyed out at their normal size and position, with their edge and shadow kept;
   switch states differ by more than colour.
+- The live game's rotate panel depends on viewport dimensions alone, never the input device.
+  Narrow portrait desktop windows get the same panel as phones; replay and storybook boards remain readable upright.

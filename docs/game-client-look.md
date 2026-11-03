@@ -56,8 +56,9 @@ The derived proportions are the three reference viewports' values under the sizi
   kept at least 10px off each screen edge on every board that is not a phone's so no tile meets a
   border, at whatever aspect ratio it has; nothing is letterboxed. Whether the board is a phone's is
   decided once, from the box the page would give it with that 10px gutter (the safe area kept), so
-  the gutter never changes it. An upright phone sees the rotate panel instead of play, which says
-  that play and its timers go on. A replay or a storybook page may be read upright and scrolls
+  the gutter never changes it. A portrait viewport narrower than 600px sees the rotate panel instead
+  of play, regardless of touch or mouse input. It asks the player to rotate the device or widen the
+  window and says that play and its timers go on. A replay or a storybook page may be read upright and scrolls
   instead.
 
 ## Composition (decisions)
@@ -386,8 +387,13 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   each chip's tooltip and its accessible name too. Each switch shows on and off apart, not by colour
   alone (the established clients use grey against green): filled with a bar under the letter, or
   empty with a ring. Each chip meets the control floor; a switch is reached from the hand's focus
-  like a decision control. Not on a replay board; the decisions stories show them, on and off. No auto-sort switch:
-  the hand is always sorted. No forced auto-discard after idleness: the server's timeout and the AI
+  like a decision control. Not on a replay board; the decisions stories show them, on and off.
+  On an upright board, the chips keep a horizontal row above the own badge and hand, with 40px
+  targets. Pass and the timer stand to their right; extra offers wrap above, clear of the right strip.
+  The own hand and core keep their sizes and places; the left melds end above the switches.
+  The names open above the row. A visible live board never hides the switches
+  because of its aspect ratio.
+  No auto-sort switch: the hand is always sorted. No forced auto-discard after idleness: the server's timeout and the AI
   stand-in cover an absent player.
 - **Settings.** Not built: a settings sheet exists only while it has an entry, and it has none. The
   play switches are not settings: they last one hand and stay on the board.
@@ -430,7 +436,7 @@ as a number, not seen, so emphasis on the count as the wall runs out is a candid
   connection status (a dot and its whole label); a tap outside the menu only closes it, and Escape closes it back to
   the cog. While the status has a word to say (a drop, an end), the cog carries a dot in the status's tone, so a drop
   shows without opening the menu. A replay has the same corner and cog, its menu the sound switch alone. The live
-  board has no way back of its own; the upright phone's rotate panel keeps
+  board has no way back of its own; the rotate panel in a narrow portrait viewport keeps
   one, which asks the leave question, and an end's panel offers the lobby.
 - **Sound.** The live game plays an original synthesized resin tile clack and a soft two-note countdown tone,
   plus a soft 180 ms chime once for each newly seen decision offering chi, pon, kan, ron or tsumo that still needs
@@ -737,7 +743,7 @@ follows the derived values and has no separate floor), readable faces and text s
 at a contrast of at least 4.5:1 against what they sit on (a held-back face included: it is greyed,
 never darkened), no state told by colour alone (a switch's on state included; tile identity aside: a
 red five is red and carries its own extra dot, which must stay visible at river scale), safe areas
-respected, the rotate panel on an upright phone, and, at the reference viewports, two
+respected, the rotate panel in a narrow portrait viewport, and, at the reference viewports, two
 derived proportions held within a tolerance, the river tile over the own tile and each river's gap
 from the centre, with neighbouring rivers no closer than that gap (a sparse river stands farther
 from its neighbour); the opponent's hand at the river tile holds everywhere, and the other derived

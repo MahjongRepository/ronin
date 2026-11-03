@@ -34,6 +34,7 @@ import {
     SHORT_DESKTOP,
     SHORT_TABLET,
     SHORT_UPRIGHT,
+    SQUARE_UPRIGHT,
     ULTRAWIDE,
     UPRIGHT_PHONE,
     VIEWPORTS,
@@ -145,6 +146,11 @@ const LIVE_AT = [
  * kuikae turn, a turn in the bank, a chiihou offer, a seat back).
  */
 const PAGES: readonly PageCase[] = [
+    {
+        ...decisionCase("anchor_call", [ACTION, ".play-switch", ".play-switches__names-toggle"]),
+        at: [SHORT_UPRIGHT, SQUARE_UPRIGHT],
+        name: "decisions-upright-switches",
+    },
     {
         ...decisionCase("anchor_turn", [".hand-tile--selectable", ".decision-controls__countdown"]),
         at: [FLOOR, NOTCH_PHONE, MID_DESKTOP, SHORT_DESKTOP],
@@ -317,6 +323,11 @@ function checkSwitches(board: BoardMeasure, screen: Box, report: PageReport): vo
         return;
     }
     const boxes = switches.map((control) => control.box);
+    const rowTop = boxes[0]?.top ?? Number.NaN;
+    report.expect(
+        boxes.every((box) => Math.abs(box.top - rowTop) <= EPSILON),
+        "play switches are not in one horizontal row",
+    );
     const outside = boxes.filter((box) => !contains(board.board, box) || !contains(screen, box));
     report.expect(
         outside.length === 0,
@@ -371,11 +382,13 @@ async function checkGame(run: PageRun, checkLiveBoard: () => Promise<string>): P
     const { rotates } = viewport;
     report.expect(
         (await isShown(page, ".game__rotate")) === rotates,
-        rotates ? "the rotate panel is hidden on an upright phone" : "the rotate panel shows",
+        rotates
+            ? "the rotate panel is hidden in a narrow portrait viewport"
+            : "the rotate panel shows",
     );
     report.expect(
         (await isShown(page, ".game__play")) === !rotates,
-        rotates ? "the table shows on an upright phone" : "the table is hidden",
+        rotates ? "the table shows in a narrow portrait viewport" : "the table is hidden",
     );
     if (!rotates) {
         await checkVisible(
@@ -492,7 +505,11 @@ function checkTogglePlaces(results: readonly TaskResult[]): string[] {
  * the play switches, the toggles' lamps, and where the controls and the toggle stand, for the checks across pages.
  */
 async function checkBoard({ board, page, report, screen, viewport }: BoardRun): Promise<void> {
-    if (!viewport.supported || viewport.portrait) {
+    if (!viewport.supported) {
+        return;
+    }
+    checkSwitches(board, screen, report);
+    if (viewport.portrait) {
         return;
     }
     TOGGLE_PLACES.keep(report, board.toggle);
@@ -500,7 +517,6 @@ async function checkBoard({ board, page, report, screen, viewport }: BoardRun): 
         CONTROL_PLACES.keep(report, [...(board.decisionCorner?.buttons ?? []), board.timer]);
     }
     checkActions(board, screen, report);
-    checkSwitches(board, screen, report);
     checkLamps(await measureLamps(page), report);
 }
 

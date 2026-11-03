@@ -1,7 +1,7 @@
 @use "game-board/queries" as *;
 @use "type";
 
-/* The live game on an upright touch screen narrower than this shows the rotate panel instead of its table. */
+/* The live game on an upright screen narrower than this shows the rotate panel instead of its table. */
 $rotate-below-width: 600px;
 
 .rotate-panel {
@@ -91,7 +91,7 @@ $rotate-below-width: 600px;
     display: none;
 }
 
-@media (orientation: portrait) and (width < $rotate-below-width) and (pointer: coarse) {
+@media (orientation: portrait) and (width < $rotate-below-width) {
     .game__rotate {
         display: block;
         position: fixed;

@@ -14,11 +14,11 @@ import { FailurePanel, LeaveConfirm } from "./session-panels";
 /** What the rotate panel shows, all of it the live board's display: the status, what is owed, the way back, an end. */
 export type RotatePanelView = Pick<PlayDisplay, "failure" | "leave" | "owedCountdown" | "status">;
 
-/** What runs on while the phone is upright: play and its timer, or the round advance's timer. */
+/** What runs on while the rotate panel shows: play and its timer, or the round advance's timer. */
 function runningNote(move: DecisionCountdown["move"]): string {
     return move === "result"
-        ? "Its timer keeps running while the phone is upright."
-        : "Play continues, and your timer keeps running while the phone is upright.";
+        ? "Its timer keeps running while this message is shown."
+        : "Play continues, and your timer keeps running while this message is shown.";
 }
 
 function countdownTemplate(countdown: DecisionCountdown): TemplateResult {
@@ -50,7 +50,7 @@ function rotateIcon(): TemplateResult {
 }
 
 /**
- * The full-screen notice the live game shows instead of the table on an upright phone: it asks to turn the phone,
+ * The full-screen notice the live game shows instead of the table in a narrow portrait viewport,
  * shows the session's status for a player, its way back (asking first mid-game, the button kept but hidden while
  * asking, so focus can return to it), and while a decision or a round result's confirm awaits the viewer, that the
  * game and its countdown go on. An end that stopped the session on the page shows why and the way on instead. Only
@@ -68,8 +68,8 @@ export function RotatePanel(
     }
     return html`<div class="rotate-panel">
         ${rotateIcon()}
-        <h2 class="rotate-panel__title">Turn your phone sideways</h2>
-        <p class="rotate-panel__hint">The table is played in landscape. The game keeps running meanwhile.</p>
+        <h2 class="rotate-panel__title">Landscape mode required</h2>
+        <p class="rotate-panel__hint">Rotate your device or widen the window. The game keeps running meanwhile.</p>
         <span class="connection-status status-${status.tone}" role="status">${status.label}</span>
         ${countdown === null ? "" : countdownTemplate(countdown)}
         <span class="rotate-panel__announce" aria-live="polite">${countdownAnnouncement(countdown)}</span>

@@ -225,9 +225,11 @@ const PHONE_CHROME_RIVER = 24;
  */
 const UPRIGHT_CHROME = {
     bandGap: 8,
+    chipGap: PHONE_CHROME.chipGap,
     controlH: 40,
     m: 4,
     ownInline: 96,
+    switchH: PHONE_CHROME.switchH,
     timerW: 60,
 } as const;
 

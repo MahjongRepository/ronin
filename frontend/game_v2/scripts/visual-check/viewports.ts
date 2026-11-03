@@ -34,9 +34,8 @@ export const NOTCH_PHONE = "phone-notch-landscape";
 /** The upright phone, where the live game shows the rotate panel and a board lays out upright. */
 export const UPRIGHT_PHONE = "phone-portrait";
 /**
- * The shortest upright board, an iPhone SE's Safari viewport (375x548) in a window that is no touch screen, so the live
- * game lays its board out upright instead of showing the rotate panel: the side badges, the decisions' two rows and
- * the notices' place over them against the core.
+ * A narrow desktop window (375x548): the live game shows the rotate panel even without touch input,
+ * while replays and storybooks keep their upright board.
  */
 export const SHORT_UPRIGHT = "window-upright";
 /**
@@ -199,7 +198,7 @@ export const VIEWPORTS: readonly Viewport[] = [
         engine: chromium,
         name: SHORT_UPRIGHT,
         portrait: true,
-        rotates: false,
+        rotates: true,
         supported: true,
     },
     {

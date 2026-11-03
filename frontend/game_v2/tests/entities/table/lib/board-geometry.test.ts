@@ -397,6 +397,29 @@ describe("boardGeometry's strips", () => {
 
 describe("boardGeometry's shell tracks", () => {
     it.each([
+        { height: 548, width: 375 },
+        { height: 801, width: 800 },
+    ])(
+        "reserves an upright $width x $height switch row clear of decisions, notices and the hand",
+        (box) => {
+            const { tracks } = windowGeometry(box);
+            const areas = slotAreas(tracks);
+            function edge(slot: string, index: number): number {
+                return areas[slot]?.[index] ?? Number.NaN;
+            }
+
+            expect(edge("switches", 2) - edge("switches", 0)).toBeGreaterThanOrEqual(4 * 40);
+            expect(edge("switches", 3) - edge("switches", 1)).toBe(40);
+            expect(edge("switches", 2)).toBeLessThan(edge("actions", 0));
+            expect(
+                Math.max(edge("field", 3), edge("strip-left", 3), edge("strip-right", 3)),
+            ).toBeLessThan(edge("switches", 1));
+            expect(edge("switches", 3)).toBe(edge("actions", 3));
+            expect(edge("switches", 3)).toBeLessThan(edge("hand", 1));
+        },
+    );
+
+    it.each([
         { height: 800, width: 1280 },
         { height: 375, width: 667 },
     ])("keeps the $width x $height settings target clear of both top corner strips", (box) => {

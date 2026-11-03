@@ -1090,8 +1090,8 @@ const WIN_RISE = 4;
 const DECISION_OFFERS = 4;
 const DECISION_ROWS = 6;
 
-/** A short desktop's band end keeps this much room for its controls (px). */
-const SHORT_ACTIONS_MIN = 180;
+/** A narrow band end keeps this much room for its controls (px). */
+const ACTIONS_ROW_MIN = 180;
 
 /** The band end stands this far past the rivers' reach and a phone's under the right badge (px). */
 const ACTIONS_GAP = 6;
@@ -1273,7 +1273,7 @@ function desktopActions(
     const right = short
         ? Math.max(
               m + STACKED_DEPTH * at("rw") + DECISION_GAP,
-              Math.min(width - own.handRight, width - left - SHORT_ACTIONS_MIN),
+              Math.min(width - own.handRight, width - left - ACTIONS_ROW_MIN),
           )
         : Math.max(m, Math.min(width - own.handRight, width - left - need));
     return { bottom: own.rowBottom, left, right: width - right, top: 0 };
@@ -1652,7 +1652,7 @@ function landscapeShell(room: ShellRoom): BoardShell {
 /**
  * An upright board's slots: the corner; the decisions' rows across the board
  * short of the right strip's deepest reach; the notices' field under the bottom river over those rows (over a panel
- * under the right strip's end); the own row across the board; no switches.
+ * under the right strip's end); the own row across the board; the switches at the decision row's left end.
  */
 function uprightShell(room: ShellRoom): BoardShell {
     const { at, frame, tier } = room;
@@ -1671,6 +1671,17 @@ function uprightShell(room: ShellRoom): BoardShell {
     );
     const bandShift = origin - bandTop - HALF_PIXEL > 0 ? at("rh") + STEP_IN_GAP : 0;
     const strip = m + sideLaneReserve(rw) + UPRIGHT_STRIP_GAP;
+    const switchesRight = m + rowWidth(SWITCH_CHIPS, tier.switchH, tier.chipGap);
+    const switchesTop = at("actions-bottom") - tier.switchH;
+    const leftRoomEnd =
+        frame.slots.band === "play"
+            ? Math.min(bandTop, switchesTop - STRIP_CONTROL_CLEAR)
+            : bandTop;
+    const actionsLeft = frame.slots.band === "play" ? switchesRight + tier.bandGap : m;
+    const actionsRight =
+        frame.slots.band === "play"
+            ? Math.max(m, Math.min(strip, width - actionsLeft - ACTIONS_ROW_MIN))
+            : strip;
     const bottomRiverEnd =
         at("cy") + at("h") + at("g") + RIVER_ROWS_RUN_ON * at("rh") + LATEST_DISCARD_GAP;
     const field = {
@@ -1683,7 +1694,7 @@ function uprightShell(room: ShellRoom): BoardShell {
     const sideStart = sidesStart(tier, rw);
     const leftStart = Math.max(
         topBadgeTop,
-        Math.min(at("cy") - reach / 2, bandTop - LEFT_HAND_GAP - reach),
+        Math.min(at("cy") - reach / 2, leftRoomEnd - LEFT_HAND_GAP - reach),
     );
     const sideBadgeTop = Math.max(
         sideStart,
@@ -1720,7 +1731,7 @@ function uprightShell(room: ShellRoom): BoardShell {
             },
         ],
         leftPast: null,
-        leftRoomEnd: bandTop,
+        leftRoomEnd,
         leftStart,
         origin,
         rightEnd: m + STACKED_DEPTH * rw + STRIP_ROOM_GAP,
@@ -1741,8 +1752,8 @@ function uprightShell(room: ShellRoom): BoardShell {
         areas: {
             actions: {
                 bottom: at("actions-bottom"),
-                left: m,
-                right: width - strip,
+                left: actionsLeft,
+                right: width - actionsRight,
                 top: 0,
             },
             corner: {
@@ -1760,11 +1771,18 @@ function uprightShell(room: ShellRoom): BoardShell {
                 top: handTop,
             },
             ...strips.areas,
-            switches: { bottom: handTop, left: m, right: width, top: 0 },
+            switches: {
+                bottom: at("actions-bottom"),
+                left: m,
+                right: switchesRight,
+                top: switchesTop,
+            },
         },
         lengths: [
-            ["actions-left", m],
-            ["actions-right", strip],
+            ["actions-left", actionsLeft],
+            ["actions-right", actionsRight],
+            ["upright-upper-clear", strip - actionsRight],
+            ["upright-upper-width", width - strip - m],
             ["counters-top", counters],
             ["field-beside-height", Math.max(0, beside.bottom - beside.top)],
             ["field-height", Math.max(0, field.bottom - field.top)],

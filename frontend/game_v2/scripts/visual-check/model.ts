@@ -21,7 +21,7 @@ export interface Viewport {
     readonly engine: BrowserType;
     readonly context: BrowserContextOptions;
     readonly portrait: boolean;
-    /** The live game shows its rotate panel here (an upright phone). */
+    /** The live game shows its rotate panel here (a narrow portrait viewport). */
     readonly rotates: boolean;
     /** A supported device size, where the tap minimum holds. */
     readonly supported: boolean;

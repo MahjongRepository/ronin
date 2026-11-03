@@ -147,6 +147,12 @@ $preview-tile-share: 0.42;
 /* A phone's column: one control a row, right-aligned, a win or a choice across it; pairs where it is too short, each
    pair shedding its previews (the action source shows the tile). A short desktop's rows stand clear of the right strip. */
 .decision-controls__upper {
+    @include upright-board {
+        flex-shrink: 0;
+        max-width: var(--upright-upper-width);
+        margin-right: var(--upright-upper-clear);
+    }
+
     @include short-desktop-board {
         padding-right: var(--upper-clear);
     }
