@@ -182,9 +182,13 @@ describe("playDisplay", () => {
         ]);
         expect([
             stepPlayUi(state, picking, toggle),
-            display.escape,
+            display.shortcuts.escape,
             stepPlayUi(state, picking, { kind: "step_back" }),
-        ]).toEqual([NO_PLAY_UI, { command: { kind: "step_back" }, opener: toggle }, NO_PLAY_UI]);
+        ]).toEqual([
+            NO_PLAY_UI,
+            { command: { kind: "step_back" }, focusKey: "riichi-pick" },
+            NO_PLAY_UI,
+        ]);
         expect([stale.tileAction, stale.tileIntents.get(120), stale.tileIntents.size]).toEqual([
             "Discard",
             { tileId: 120, type: "discard" },
@@ -352,12 +356,15 @@ describe("playDisplay decisions", () => {
     it("goes back from a call's choice of tiles by Back, Escape or the call pressed again, and never into a newer wait's", () => {
         const state = checkpointState("call_prompt_seat_1", "prompt");
         const choosing = stepPlayUi(state, NO_PLAY_UI, CHOOSE_CHI);
-        const { actions, escape } = playDisplay(state, choosing);
+        const {
+            actions,
+            shortcuts: { escape },
+        } = playDisplay(state, choosing);
         const older = { ...NO_PLAY_UI, tileChoice: { kind: "chi", waitId: 0 } } as const;
         assert(escape !== null);
 
         expect([escape, actions.at(-1)?.command]).toEqual([
-            { command: { kind: "step_back" }, opener: CHOOSE_CHI },
+            { command: { kind: "step_back" }, focusKey: "tile-choice-chi" },
             { kind: "step_back" },
         ]);
         expect(stepPlayUi(state, choosing, escape.command)).toEqual(NO_PLAY_UI);
@@ -368,7 +375,10 @@ describe("playDisplay decisions", () => {
             "Chi",
             "Pass",
         ]);
-        expect(playDisplay(state, NO_PLAY_UI).escape).toBeNull();
+        expect(playDisplay(state, NO_PLAY_UI).shortcuts.escape?.command).toEqual({
+            intent: { type: "pass" },
+            kind: "intent",
+        });
     });
 
     it("offers a closed kan of either of two types as one Kan, then each kan laid with its ends face down", () => {
@@ -425,7 +435,11 @@ describe("playDisplay decisions", () => {
         const sent = playDisplay(passed, NO_PLAY_UI);
 
         expect(sent.actions).toEqual([]);
-        expect([sent.decisionStanding, sent.countdown, sent.escape]).toEqual([null, null, null]);
+        expect([sent.decisionStanding, sent.countdown, sent.shortcuts.escape]).toEqual([
+            null,
+            null,
+            null,
+        ]);
         expect(passed.table).toBe(state.table);
         expect(passed.calls).toBe(state.calls);
         expect(stepPlayUi(passed, NO_PLAY_UI, CHOOSE_CHI)).toEqual(NO_PLAY_UI);

@@ -38,14 +38,9 @@ import {
 } from "./decision-controls";
 import { takesIntent } from "./intents";
 import { decisionOf } from "./pending";
+import { type PlayShortcuts, playShortcuts } from "./play-shortcuts";
 import { PLAY_SWITCHES } from "./play-switches";
-import {
-    type EscapeStep,
-    type PlayAction,
-    type PlayCommand,
-    type PlayUi,
-    intentCommand,
-} from "./play-ui";
+import { type PlayAction, type PlayCommand, type PlayUi, intentCommand } from "./play-ui";
 import {
     type ResultControls,
     lastResultAction,
@@ -103,11 +98,7 @@ export interface PlayDisplay {
     readonly actions: readonly DecisionAction[];
     /** Where the viewer's decision stands; null with none. */
     readonly decisionStanding: DecisionStanding | null;
-    /**
-     * What Escape does: step back from a call's choice of tiles or the riichi toggle, focusing the toggle back; null
-     * with neither on.
-     */
-    readonly escape: EscapeStep | null;
+    readonly shortcuts: PlayShortcuts;
     readonly countdown: DecisionCountdown | null;
     /** The countdown of whatever the seat owes, a decision or a round confirm; null while it owes nothing. */
     readonly owedCountdown: DecisionCountdown | null;
@@ -314,13 +305,13 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
     };
     const { callouts, failure, leave, notices, resultPage } = source;
     const overlay = playOverlay(state, ui, source);
+    const escape = escapeStep(state, ui);
     return {
         actions: decisionActions(state, ui),
         board: viewerBoard(state, plays),
         callouts,
         countdown: decisionCountdown(state),
         decisionStanding: decisionStanding(state),
-        escape: escapeStep(state, ui),
         failure,
         furiten: furiten && viewer !== undefined && table.phase === "in_round",
         lastResult: lastResultAction(state),
@@ -331,6 +322,7 @@ export function playDisplay(state: LiveClient, ui: PlayUi): PlayDisplay {
         pinnedNameplate: ui.pinnedNameplate,
         result: resultControls(state, resultPage),
         settingsOpen: ui.settingsOpen && overlay?.blocksBoard !== true,
+        shortcuts: playShortcuts(state, ui, { overlay, step: escape }),
         soundOn: ui.soundOn,
         status: describePlayerClientStatus(state),
         switchNames: ui.switchNames,

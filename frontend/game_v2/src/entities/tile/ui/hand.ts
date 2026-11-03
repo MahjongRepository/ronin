@@ -50,6 +50,7 @@ function TileFaceView(tile: HandTile): TemplateResult {
 
 /** The focus key every tile of the player's own hand holds. */
 export const HAND_TILE_FOCUS_KEY = "hand-tile";
+export const PLAYABLE_TILE_FOCUS_KEY = "playable-tile";
 
 /**
  * One slot of the hand. A tile of the player's own is always a native button, so it takes focus, Enter and Space,
@@ -74,7 +75,7 @@ function HandSlot(tile: HandTile, extraClass: string, props: HandProps): Templat
         aria-label=${`${props.tileAction ?? "Play"} ${tile.face}`}
         aria-disabled=${acts ? nothing : "true"}
         aria-pressed=${state === "selected" ? "true" : nothing}
-        data-focus-key=${HAND_TILE_FOCUS_KEY}
+        data-focus-key=${acts ? `${HAND_TILE_FOCUS_KEY} ${PLAYABLE_TILE_FOCUS_KEY}` : HAND_TILE_FOCUS_KEY}
         @click=${press}
     >${TileFaceView(tile)}</button>`;
 }

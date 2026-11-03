@@ -15,11 +15,9 @@ import {
     type SwitchControl,
 } from "@/entities/client/model/play-display";
 import {
-    type EscapeStep,
     type PlayAction,
     type PlayCommand,
     commandFocusKey,
-    escapeFocusKey,
 } from "@/entities/client/model/play-ui";
 import { type ResultControls } from "@/entities/client/model/result-controls";
 import {
@@ -32,9 +30,10 @@ import {
     TablePanelDisplay,
 } from "@/entities/table";
 import { Meld, Tile } from "@/entities/tile";
-import { assertNever, focusByKey, focusKeys } from "@/shared/lib";
+import { assertNever, focusKeys } from "@/shared/lib";
 
 import { GameMenu } from "./game-menu";
+import { playInput } from "./play-input";
 import { FailurePanel, LeaveConfirm } from "./session-panels";
 
 /** Where the game's end leads the player: this game's replay and the game history. */
@@ -130,15 +129,17 @@ function ActionButton(
     onCommand: PlayBoardProps["onCommand"],
 ): TemplateResult {
     const isBack = action.command.kind === "step_back";
+    const isPass = action.command.kind === "intent" && action.command.intent.type === "pass";
     const label =
         action.group === null
-            ? html`<span class="decision-controls__label">${isBack ? html`<span aria-hidden="true">← </span>` : nothing}${action.label}</span>`
+            ? html`<span class="decision-controls__label">${isBack ? html`<span aria-hidden="true">← </span>` : nothing}${action.label}${isPass ? html`<small class="decision-controls__shortcut" aria-hidden="true"> · Esc</small>` : nothing}</span>`
             : nothing;
     const lamp = action.command.kind === "toggle_riichi_pick" ? Lamp(action.pressed) : nothing;
     return html`<button
         type="button"
         class="decision-controls__action ${rankClass(action)}"
         aria-label=${[action.label, ...action.tiles].join(" ")}
+        aria-keyshortcuts=${isPass || isBack ? "Escape" : nothing}
         aria-pressed=${action.pressed === null ? nothing : String(action.pressed)}
         data-focus-key=${focusKeys(commandFocusKey(action.command), DECISION_ACTION_FOCUS_KEY) ?? nothing}
         @click=${() => onCommand(action.command)}
@@ -269,26 +270,6 @@ export function PlaySwitches(
         </button>
         ${namesShown ? SwitchNames(switches) : nothing}
     </div>`;
-}
-
-/**
- * Step back on Escape; when the focus was on a decision control, it moves to the toggle that opened the step, found
- * by the key the display names for it, so the focus never falls out of the board.
- */
-function stepBack(
-    board: HTMLElement,
-    escape: EscapeStep,
-    onCommand: PlayBoardProps["onCommand"],
-): void {
-    const focused = board.ownerDocument.activeElement;
-    const inControls =
-        focused instanceof Element &&
-        board.contains(focused) &&
-        focused.closest(".decision-controls") !== null;
-    onCommand(escape.command);
-    if (inControls) {
-        focusByKey(board, escapeFocusKey(escape));
-    }
 }
 
 /** The time left to the round advance, as words on the panel itself, since a touch screen shows no tooltip. */
@@ -453,7 +434,7 @@ function boardNotice(notice: PlayNotice, onCommand: PlayBoardProps["onCommand"])
  */
 export function PlayBoard(props: PlayBoardProps): TemplateResult {
     const { display, menuExtra, onCommand } = props;
-    const { escape, overlay } = display;
+    const { overlay } = display;
     const inert = overlay?.blocksBoard ?? false;
     function onTile(tileId: number): void {
         const intent = display.tileIntents.get(tileId);
@@ -467,9 +448,14 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
         debug: false,
         furiten: display.furiten,
         inert,
+        input: playInput(display, onCommand),
         localHand: { onTile, tileAction: display.tileAction },
         menu: GameMenu({
             extra: menuExtra,
+            input: {
+                onToggle: () => onCommand({ kind: "toggle_right_click" }),
+                rightClick: display.shortcuts.rightClickEnabled,
+            },
             onClose: () => onCommand(CLOSE_SETTINGS),
             onToggleOpen: () => onCommand(TOGGLE_SETTINGS),
             onToggleSound: () => onCommand(TOGGLE_SOUND),
@@ -478,8 +464,6 @@ export function PlayBoard(props: PlayBoardProps): TemplateResult {
             status: display.status,
         }),
         notices: display.notices.map((notice) => boardNotice(notice, onCommand)),
-        onEscape:
-            escape === null || inert ? undefined : (board) => stepBack(board, escape, onCommand),
         overlay: overlay === null ? undefined : OverlayPanel(overlay.panel, props),
         overlayAfterCall: overlay?.panel.kind === "result" && overlay.panel.afterCall,
         platePress: {

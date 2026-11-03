@@ -11,10 +11,13 @@ import countdownUrl from "@/assets/audio/countdown-soft-reply.wav?no-inline";
 import discardUrl from "@/assets/audio/discard-resin.wav?no-inline";
 import tileSpriteUrl from "@/assets/tiles/sprites/fluffy-stuff.svg?url";
 import {
+    DEFAULT_INPUT_SETTING,
     DEFAULT_SOUND_SETTING,
     type GameSound,
+    INPUT_SETTING_KEY,
     SOUND_SETTING_KEY,
     type SoundCue,
+    readInputSetting,
     readSoundSetting,
 } from "@/entities/client";
 import { DEFAULT_REPLAY_PREFS, readReplayPrefs } from "@/entities/replay";
@@ -119,6 +122,7 @@ function liveGameDeps(gameId: string, tileSprite: TileSprite): GameViewDeps {
         connect: (url, handlers) => new GameSocket(url, handlers),
         debug: isDebugRequested(window.location.search),
         handoff: getGameSession(gameId),
+        inputSetting: localStore(INPUT_SETTING_KEY, readInputSetting, DEFAULT_INPUT_SETTING),
         links: {
             history: getLobbyHistoryUrl(),
             replay: (seat) => replayPageUrl(gameId, seat),

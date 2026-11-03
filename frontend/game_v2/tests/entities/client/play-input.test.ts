@@ -1,0 +1,321 @@
+import { nothing, render } from "lit-html";
+import { assert, describe, expect, it, onTestFinished } from "vitest";
+
+import { checkpointState } from "#tests/fixtures/seat-transcripts";
+import {
+    type ClientEffect,
+    type LiveClient,
+    NO_PLAY_UI,
+    PlayBoard,
+    type PlayCommand,
+    type PlayUi,
+    decisionOf,
+    playDisplay,
+    stepGameClient,
+    stepPlayUi,
+} from "@/entities/client";
+import { HAND_TILE_FOCUS_KEY, PLAYABLE_TILE_FOCUS_KEY } from "@/entities/tile";
+import { keyedControls } from "@/shared/lib";
+import { type ClientMessage, buildDiscardAction, buildPassAction } from "@/shared/protocol";
+
+class InputBoard {
+    readonly host = document.createElement("div");
+    readonly commands: PlayCommand[] = [];
+    readonly effects: ClientEffect[] = [];
+    readonly board: HTMLElement;
+
+    constructor(
+        private state: LiveClient,
+        private ui: PlayUi,
+    ) {
+        document.body.append(this.host);
+        this.draw();
+        this.board = element(this.host, ".game-board");
+        onTestFinished(() => {
+            render(nothing, this.host);
+            this.host.remove();
+        });
+    }
+
+    private readonly onCommand = (command: PlayCommand): void => {
+        this.commands.push(command);
+        if (command.kind === "intent") {
+            const { effects, state } = stepGameClient(this.state, {
+                at: this.state.now,
+                intent: command.intent,
+                kind: "intent",
+            });
+            this.state = state;
+            this.effects.push(...effects);
+        }
+        this.ui = stepPlayUi(this.state, this.ui, command);
+        this.draw();
+    };
+
+    private draw(): void {
+        render(
+            PlayBoard({ display: playDisplay(this.state, this.ui), onCommand: this.onCommand }),
+            this.host,
+        );
+    }
+
+    readonly show = (state: LiveClient): void => {
+        this.state = state;
+        this.ui = stepPlayUi(state, this.ui, { kind: "client_stepped" });
+        this.draw();
+    };
+}
+
+function mountInput(state: LiveClient, ui: PlayUi = NO_PLAY_UI): InputBoard {
+    return new InputBoard(state, ui);
+}
+
+function element(host: HTMLElement, selector: string): HTMLElement {
+    const found = host.querySelector<HTMLElement>(selector);
+    if (found === null) {
+        throw new Error(`Missing ${selector}`);
+    }
+    return found;
+}
+
+function key(target: HTMLElement, init: KeyboardEventInit, type = "keydown"): KeyboardEvent {
+    const event = new KeyboardEvent(type, { bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event);
+    return event;
+}
+
+function keys(target: HTMLElement, inputs: readonly KeyboardEventInit[]): void {
+    for (const init of inputs) {
+        key(target, init);
+    }
+}
+
+function activate(input: "pointer" | "keyboard", target: HTMLElement, phase: "down" | "up"): void {
+    if (input === "pointer") {
+        pointer(target, `pointer${phase}`, { button: 0 });
+    } else {
+        key(target, { key: " " }, `key${phase}`);
+    }
+}
+
+function sendPreventedEscape(target: HTMLElement): void {
+    const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" });
+    event.preventDefault();
+    target.dispatchEvent(event);
+}
+
+function pointer(target: HTMLElement, type: string, init: PointerEventInit = {}): void {
+    target.dispatchEvent(
+        new PointerEvent(type, {
+            bubbles: true,
+            button: 2,
+            cancelable: true,
+            isPrimary: true,
+            pointerId: 1,
+            pointerType: "mouse",
+            ...init,
+        }),
+    );
+}
+
+function rightClick(target: HTMLElement): void {
+    pointer(target, "pointerdown");
+    pointer(target, "pointerup");
+}
+
+function messages(effects: readonly ClientEffect[]): ClientMessage[] {
+    return effects.flatMap((effect) => (effect.type === "send" ? [effect.message] : []));
+}
+
+function waitId(state: LiveClient): number {
+    const decision = decisionOf(state);
+    assert(decision !== null);
+    return decision.waitId;
+}
+
+describe("live board input", () => {
+    it("backs out of chi before passing, ignores held Escape, and sends one pass", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const { board, commands, effects, host } = mountInput(state);
+        element(host, '[data-focus-key~="tile-choice-chi"]').click();
+        keys(board, [{ key: "Escape" }, { key: "Escape", repeat: true }]);
+        expect(commands).toEqual([
+            { kind: "toggle_tile_choice", offer: "chi" },
+            { kind: "step_back" },
+        ]);
+        expect(messages(effects)).toEqual([]);
+
+        keys(board, [{ key: "Escape" }, { key: "Escape" }]);
+        expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+    });
+
+    it("cancels riichi selection on right-click before allowing a drawn-tile discard", () => {
+        const state = checkpointState("own_turn_seat_1", "rinshan");
+        const { board, commands, effects, host } = mountInput(state);
+        element(host, '[data-focus-key~="riichi-pick"]').click();
+        rightClick(board);
+        expect(commands).toEqual([{ kind: "toggle_riichi_pick" }, { kind: "step_back" }]);
+        expect(messages(effects)).toEqual([]);
+
+        rightClick(board);
+        expect(messages(effects)).toEqual([buildDiscardAction(120, waitId(state))]);
+    });
+
+    it("discards the draw despite a tsumo offer, while Escape leaves that turn alone", () => {
+        const state = checkpointState("own_turn_seat_1", "tsumo draw");
+        const drawn = playDisplay(state, NO_PLAY_UI).board?.players[0].drawnTile?.tileId;
+        assert(drawn !== undefined);
+        const { board, effects } = mountInput(state);
+        key(board, { key: "Escape" });
+        expect(messages(effects)).toEqual([]);
+
+        rightClick(board);
+        rightClick(board);
+        expect(messages(effects)).toEqual([buildDiscardAction(drawn, waitId(state))]);
+    });
+
+    it("closes settings, then unpins scores, before right-click can pass a call", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const { board, commands, effects } = mountInput(state, {
+            ...NO_PLAY_UI,
+            pinnedNameplate: "left",
+            settingsOpen: true,
+        });
+        rightClick(board);
+        rightClick(board);
+        expect(commands).toEqual([
+            { kind: "close_settings" },
+            { kind: "pin_nameplate", seat: null },
+        ]);
+        expect(messages(effects)).toEqual([]);
+
+        rightClick(board);
+        expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+    });
+});
+
+describe("live board gesture guards", () => {
+    it("accepts an accessibility click after the pointer leaves without a press", () => {
+        const state = checkpointState("call_prompt_seat_1", "prompt");
+        const { board, effects, host } = mountInput(state);
+        pointer(board, "pointerleave");
+        element(host, ".decision-controls__action--pass").click();
+        expect(messages(effects)).toEqual([buildPassAction(waitId(state))]);
+    });
+
+    it("drops a right press when a new decision arrives before release", () => {
+        const { board, effects, show } = mountInput(
+            checkpointState("call_prompt_seat_1", "prompt"),
+        );
+        pointer(board, "pointerdown");
+        show(checkpointState("own_turn_seat_1", "rinshan"));
+        pointer(board, "pointerup");
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it("cancels a right press released on another element or after leaving the board", () => {
+        const { board, effects, host } = mountInput(
+            checkpointState("call_prompt_seat_1", "prompt"),
+        );
+        pointer(board, "pointerdown");
+        pointer(element(host, ".hand-tile"), "pointerup");
+        pointer(board, "pointerdown");
+        pointer(board, "pointerleave");
+        pointer(board, "pointerup");
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it.each(["pointer", "keyboard"] as const)(
+        "does not let a %s press activate a tile in the next decision",
+        (input) => {
+            const { effects, host, show } = mountInput(
+                checkpointState("own_turn_seat_1", "rinshan"),
+            );
+            const tile = element(host, ".hand-tile--selectable");
+            element(host, ".game-menu__toggle").focus();
+            activate(input, tile, "down");
+            tile.focus();
+            show(checkpointState("call_prompt_seat_1", "turn"));
+            const nextTile = element(host, ".hand-tile--selectable");
+            activate(input, nextTile, "up");
+            nextTile.click();
+            expect(messages(effects)).toEqual([]);
+        },
+    );
+
+    it("moves focus past kuikae-blocked tiles, clamps at the hand’s edge, without playing a tile", () => {
+        const state = checkpointState("call_prompt_seat_1", "turn");
+        const { board, effects } = mountInput(state);
+        const all = keyedControls(board, HAND_TILE_FOCUS_KEY);
+        const playable = keyedControls(board, PLAYABLE_TILE_FOCUS_KEY);
+        expect(all.length).toBeGreaterThan(playable.length);
+        key(all[0], { key: "ArrowRight" });
+        expect(document.activeElement).toBe(playable[0]);
+        key(playable[0], { key: "ArrowLeft" });
+        expect([document.activeElement, messages(effects)]).toEqual([playable[0], []]);
+    });
+
+    it("leaves modified shortcuts, field typing, and prevented events alone", () => {
+        const { board, effects } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));
+        const field = document.createElement("input");
+        board.append(field);
+        key(field, { key: "Escape" });
+        keys(board, [
+            { ctrlKey: true, key: "Escape" },
+            { isComposing: true, key: "Escape" },
+        ]);
+        pointer(board, "pointerdown", { shiftKey: true });
+        pointer(board, "pointerup", { shiftKey: true });
+        sendPreventedEscape(board);
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it("restores the browser context menu and disables right-click actions when switched off", () => {
+        const { board, effects } = mountInput(checkpointState("call_prompt_seat_1", "prompt"), {
+            ...NO_PLAY_UI,
+            rightClick: false,
+        });
+        rightClick(board);
+        const menu = new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true });
+        board.dispatchEvent(menu);
+        expect(menu.defaultPrevented).toBe(false);
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it("blocks a canceled primary press even after it returns to a new decision", () => {
+        const { board, effects, host, show } = mountInput(
+            checkpointState("own_turn_seat_1", "rinshan"),
+        );
+        pointer(element(host, ".hand-tile--selectable"), "pointerdown", { button: 0 });
+        pointer(board, "pointerleave", { button: 0 });
+        show(checkpointState("call_prompt_seat_1", "turn"));
+        const tile = element(host, ".hand-tile--selectable");
+        pointer(tile, "pointerup", { button: 0 });
+        tile.click();
+        expect(messages(effects)).toEqual([]);
+    });
+
+    it("allows a fresh native summary activation after Enter opened settings", () => {
+        const { host } = mountInput(checkpointState("call_prompt_seat_1", "prompt"));
+        const toggle = element(host, ".game-menu__toggle");
+        key(toggle, { key: "Enter" });
+        toggle.click();
+        key(toggle, { key: "Enter" }, "keyup");
+        const summary = element(host, ".game-menu__controls summary");
+        key(summary, { key: "Enter" });
+        const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+        summary.dispatchEvent(click);
+        expect(click.defaultPrevented).toBe(false);
+    });
+
+    it.each([
+        ["call_prompt_seat_1", "turn"],
+        ["double_ron_seat_1", "round end"],
+    ])("keeps %s's %s on explicit buttons", (scenario, checkpoint) => {
+        const { board, effects } = mountInput(checkpointState(scenario, checkpoint));
+        board.click();
+        key(board, { key: "Escape" });
+        rightClick(board);
+        expect(messages(effects)).toEqual([]);
+    });
+});

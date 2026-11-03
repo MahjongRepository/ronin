@@ -21,3 +21,4 @@ export {
     RED_FIVES,
 } from "./lib/tile-utils";
 export type { TileFace } from "./lib/tile-utils";
+export { PLAYABLE_TILE_FOCUS_KEY } from "./ui/hand";

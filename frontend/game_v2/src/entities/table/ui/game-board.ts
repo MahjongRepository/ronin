@@ -1,4 +1,5 @@
 import { type TemplateResult, html, nothing } from "lit-html";
+import { type DirectiveResult } from "lit-html/directive.js";
 import { keyed } from "lit-html/directives/keyed.js";
 import { styleMap } from "lit-html/directives/style-map.js";
 
@@ -69,11 +70,7 @@ interface GameBoardProps {
      * notice (its position).
      */
     readonly replay?: { readonly controls: TemplateResult; readonly status: TemplateResult };
-    /**
-     * What Escape does once no badge is pinned (stepping back from a decision's step), given the board; none when it
-     * does nothing. An Escape something on the board already took (a panel's) is left alone.
-     */
-    readonly onEscape?: (board: HTMLElement) => void;
+    readonly input?: DirectiveResult;
 }
 
 function HandArea(
@@ -436,21 +433,19 @@ function GameBoard(props: GameBoardProps): TemplateResult {
         }
     }
     function onKey(event: KeyboardEvent): void {
-        if (event.key !== "Escape" || event.defaultPrevented) {
+        if (props.input !== undefined || event.key !== "Escape" || event.defaultPrevented) {
             return;
         }
         if (platePress.kind === "pin" && pinned !== null) {
             platePress.onPin(null);
             return;
         }
-        if (event.currentTarget instanceof HTMLElement) {
-            props.onEscape?.(event.currentTarget);
-        }
     }
 
     return html`
         <div
             class="${boardClass}"
+            ${props.input ?? nothing}
             ${sizeBoard(
                 { band: props.replay ? "replay" : "play" },
                 {

@@ -66,6 +66,7 @@
                     "SettingsPanel",
                     "StatusRow",
                     "GameMenu",
+                    "InputSettings",
                     "DebugLabel",
                     "DoraDisplay",
                     "HonbaStickIcon",

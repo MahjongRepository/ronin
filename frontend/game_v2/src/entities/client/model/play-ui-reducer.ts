@@ -123,6 +123,9 @@ function uiAfterIntent(ui: PlayUi, intent: LocalIntent): PlayUi {
  */
 function commandedPlayUi(state: LiveClient, ui: PlayUi, command: PlayCommand): PlayUi {
     switch (command.kind) {
+        case "toggle_right_click": {
+            return { ...ui, rightClick: !ui.rightClick };
+        }
         case "intent":
         case "reload": {
             return command.kind === "intent" ? uiAfterIntent(ui, command.intent) : ui;

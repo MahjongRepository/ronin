@@ -1,6 +1,7 @@
 import { type SeatPosition } from "@/entities/table";
 import { type TileFace, type TileSpriteStatus } from "@/entities/tile";
 
+import { DEFAULT_INPUT_SETTING } from "./input-setting";
 import { type LocalIntent } from "./types";
 
 /** A call whose offers of one kind differ by their tiles (which chi, which kan), taken in two steps. */
@@ -35,6 +36,7 @@ export type PlayCommand =
     | { readonly kind: "toggle_settings" }
     | { readonly kind: "close_settings" }
     | { readonly kind: "toggle_sound" }
+    | { readonly kind: "toggle_right_click" }
     | { readonly kind: "reload" };
 
 /**
@@ -78,6 +80,7 @@ export interface PlayUi {
     readonly noticeSheet: NoticeKind | null;
     readonly settingsOpen: boolean;
     readonly soundOn: boolean;
+    readonly rightClick: boolean;
     readonly tileSprite: TileSpriteStatus;
 }
 
@@ -86,6 +89,7 @@ export const NO_PLAY_UI: PlayUi = {
     noticeSheet: null,
     pinnedNameplate: null,
     resultPage: null,
+    rightClick: DEFAULT_INPUT_SETTING.rightClick,
     riichiPickWaitId: null,
     settingsOpen: false,
     soundOn: true,

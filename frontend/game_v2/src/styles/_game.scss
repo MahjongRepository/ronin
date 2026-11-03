@@ -179,10 +179,34 @@ section {
     flex-direction: column;
     gap: 0.25rem;
     min-width: 13rem;
+    max-width: min(22rem, 90cqw);
+    max-height: 75cqh;
+    overflow-y: auto;
     padding: 0.4rem;
     background: var(--ronin-surface);
     border: 1px solid var(--ronin-badge-rim);
     border-radius: 0.5rem;
+}
+
+.game-menu__panel:has(.game-menu__controls[open]) {
+    width: min(22rem, 90cqw);
+}
+
+.game-menu__controls {
+    margin: 0;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+
+    > summary {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+    }
+
+    p {
+        margin: 0.5rem 0;
+        font-size: inherit;
+    }
 }
 
 .game-menu__item {

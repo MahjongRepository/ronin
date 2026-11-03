@@ -1,4 +1,6 @@
 /** The settings menu in the board's corner: whether it is open, and its sound switch. */
+export const SETTINGS_FOCUS_KEY = "settings";
+
 export interface SettingsMenu {
     readonly open: boolean;
     readonly soundOn: boolean;

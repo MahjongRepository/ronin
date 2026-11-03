@@ -110,30 +110,13 @@ describe("GameBoard nameplates", () => {
         expect(onPin.mock.calls).toEqual([[null], [null]]);
     });
 
-    it("spends one Escape on one step: a pinned plate's unpinning first, and never an Escape a panel already took", () => {
+    it("leaves an Escape already taken by a panel alone", () => {
         const onPin = vi.fn();
-        const onEscape = vi.fn();
-        function renderWith(pinned: SeatPosition | null): HTMLElement {
-            const host = document.createElement("div");
-            render(
-                GameBoard({
-                    debug: false,
-                    onEscape,
-                    platePress: { kind: "pin", onPin, pinned },
-                    state: null,
-                }),
-                host,
-            );
-            return host;
-        }
-        renderWith("left").querySelector(".board-center")?.dispatchEvent(escapeKey());
+        const host = renderBoard("left", onPin);
         const taken = escapeKey();
         taken.preventDefault();
-        const free = renderWith(null);
-        free.querySelector(".board-center")?.dispatchEvent(taken);
-        free.querySelector(".board-center")?.dispatchEvent(escapeKey());
-
-        expect([onPin.mock.calls, onEscape.mock.calls.length]).toEqual([[[null]], 1]);
+        host.querySelector(".board-center")?.dispatchEvent(taken);
+        expect(onPin).not.toHaveBeenCalled();
     });
 
     it("asks nothing on a click elsewhere or Escape while no plate is pinned", () => {

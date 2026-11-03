@@ -51,7 +51,12 @@ board. The dispatcher's shape is in `frontend/game_v2/AGENTS.md`.
 
 ## Calls and the live board
 
-- A click or tap on the board's background never answers a decision or confirms or dismisses a round result.
+- A primary click or tap on the board's background never answers a decision or confirms or dismisses a round result.
+- Live shortcuts come from `playShortcuts` through the same intent gate as visible controls. One gesture closes only
+  the topmost UI, backs out of a selection, or answers one decision; a result always needs its explicit control.
+  `playInput` owns the board's DOM listeners and cancels a press across an input scope change or disposal. Repeated
+  activation keys never answer again; arrow navigation only moves focus among playable tiles. The right-click
+  preference is independent of replay controls and lives in browser storage through the live driver's dependencies.
 - A local declaration shows its callout and plays its voice as soon as its intent is accepted, without changing the
   table. The submitted decision identifies its server echo even after the callout expires, so confirmation never
   repeats the voice or a lone callout. Other seats' calls still announce normally; a multi-ron result shows all

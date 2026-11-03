@@ -5,6 +5,7 @@ import {
     CLIENT_STEPPED,
     type ClientEffect,
     type GameSound,
+    type InputSetting,
     type LiveClient,
     type LiveEvent,
     NO_PLAY_UI,
@@ -28,7 +29,12 @@ import {
 import { type TileSprite } from "@/entities/tile";
 import { type HandoffRecovery, type RecoverHandoff, isAbortError } from "@/shared/api";
 import { type Clock } from "@/shared/clock";
-import { type DeadlineTimer, assertNever, createDeadlineTimer } from "@/shared/lib";
+import {
+    type DeadlineTimer,
+    type LocalStore,
+    assertNever,
+    createDeadlineTimer,
+} from "@/shared/lib";
 import { CLOSE_CODE, EVENT_TYPE, LOG_TYPE_SYSTEM, LOG_TYPE_UNKNOWN } from "@/shared/protocol";
 import { type GameSessionData } from "@/shared/session";
 import { type ConnectSocket, type GameConnection, type SocketHandlers } from "@/shared/websocket";
@@ -56,6 +62,7 @@ export interface GameViewDeps {
     readonly tileSprite: TileSprite;
     readonly links: GameLinks;
     readonly sound: GameSound;
+    readonly inputSetting: LocalStore<InputSetting>;
 }
 
 /** Where the game's end leads: the game history, and this game's replay from a seat. */
@@ -294,6 +301,7 @@ class GameViewController {
         this.timer = createDeadlineTimer(deps.clock, (at) => this.dispatch({ at, kind: "tick" }));
         this.ui = {
             ...NO_PLAY_UI,
+            rightClick: deps.inputSetting.load().rightClick,
             soundOn: deps.sound.setting.load().sound_on,
             tileSprite: deps.tileSprite.status(),
         };
@@ -360,13 +368,20 @@ class GameViewController {
             this.leaveOpener = this.focusedControl();
         }
         this.ui = stepPlayUi(this.state, this.ui, command);
-        if (command.kind === "toggle_sound") {
-            this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
-        }
+        this.saveSetting(command);
         this.draw();
         if (command.kind === "cancel_leave") {
             this.leaveOpener?.focus();
             this.leaveOpener = null;
+        }
+    }
+
+    private saveSetting(command: PlayCommand): void {
+        if (command.kind === "toggle_sound") {
+            this.deps.sound.setting.save({ sound_on: this.ui.soundOn });
+        }
+        if (command.kind === "toggle_right_click") {
+            this.deps.inputSetting.save({ rightClick: this.ui.rightClick });
         }
     }
 

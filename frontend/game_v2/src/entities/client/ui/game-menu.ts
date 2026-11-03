@@ -1,5 +1,6 @@
 import { type TemplateResult, html, nothing, svg } from "lit-html";
 
+import { SETTINGS_FOCUS_KEY } from "@/entities/client/model/settings-menu";
 import { type SessionStatusDisplay } from "@/entities/session";
 import { focusByKey } from "@/shared/lib";
 
@@ -11,11 +12,10 @@ interface GameMenuProps {
     readonly onToggleOpen: () => void;
     readonly onClose: () => void;
     readonly onToggleSound: () => void;
+    readonly input?: { readonly rightClick: boolean; readonly onToggle: () => void };
     /** What the page adds before the settings (the debug log). */
     readonly extra?: TemplateResult;
 }
-
-const SETTINGS_FOCUS_KEY = "settings";
 
 /** A cog: the settings. */
 function CogIcon(): TemplateResult {
@@ -80,8 +80,27 @@ function SettingsPanel(props: GameMenuProps): TemplateResult {
                 ${SoundIcon(soundOn)}<span class="game-menu__item-name">Sound</span
                 ><span class="game-menu__item-value">${soundOn ? "On" : "Off"}</span>
             </button>
+            ${props.input === undefined ? nothing : InputSettings(props.input)}
             ${status === null ? nothing : StatusRow(status)}
         </div>`;
+}
+
+function InputSettings(input: NonNullable<GameMenuProps["input"]>): TemplateResult {
+    return html`<button
+        type="button"
+            class="secondary game-menu__item game-menu__right-click"
+        role="switch"
+        aria-checked=${String(input.rightClick)}
+        @click=${input.onToggle}
+    ><span class="game-menu__item-name">Right-click shortcuts</span
+        ><span class="game-menu__item-value">${input.rightClick ? "On" : "Off"}</span></button>
+        <details class="game-menu__controls">
+            <summary>Controls</summary>
+            <p>Click or tap a tile to discard. ← → focuses playable tiles; Enter or Space activates.</p>
+            <p>Esc: close, go back, or pass. Right-click: the same, or discard the drawn tile.</p>
+            <p>Pass declines Ron. Discarding declines Tsumo and other offers.</p>
+            <p>Results: Next, then OK. A/C/D label play switches; they are not hotkeys.</p>
+        </details>`;
 }
 
 /**

@@ -11,9 +11,16 @@ import {
     wireRoundEnd,
     wireSessionError,
 } from "#tests/fixtures/wire";
-import { type SoundCue, type SoundSetting } from "@/entities/client";
+import {
+    DEFAULT_INPUT_SETTING,
+    INPUT_SETTING_KEY,
+    type SoundCue,
+    type SoundSetting,
+    readInputSetting,
+} from "@/entities/client";
 import { type TileSprite, type TileSpriteStatus } from "@/entities/tile";
 import { type HandoffRecovery } from "@/shared/api";
+import { localStore } from "@/shared/lib";
 import {
     type ClientMessage,
     buildChiAction,
@@ -77,6 +84,7 @@ interface FakeOverrides {
     readonly handoff?: GameViewDeps["handoff"];
     readonly recoverHandoff?: GameViewDeps["recoverHandoff"];
     readonly soundSetting?: SoundSetting;
+    readonly inputSetting?: GameViewDeps["inputSetting"];
 }
 
 /** The game's sounds as a test hears them: each cue played, and the setting as this browser would keep it. */
@@ -124,6 +132,10 @@ function mountWithFakes(overrides: FakeOverrides = {}): {
         connect: overrides.connect ?? connect,
         debug: overrides.debug ?? false,
         handoff: overrides.handoff === undefined ? HANDOFF : overrides.handoff,
+        inputSetting: overrides.inputSetting ?? {
+            load: () => DEFAULT_INPUT_SETTING,
+            save: () => {},
+        },
         links: {
             history: "/history",
             replay: (seat) => {
@@ -845,7 +857,41 @@ function receiveThroughTurn(socket: FakeConnection): void {
     }
 }
 
+function inputSettingInBrowser(): GameViewDeps["inputSetting"] {
+    localStorage.setItem(INPUT_SETTING_KEY, JSON.stringify({ rightClick: "invalid" }));
+    onTestFinished(() => localStorage.removeItem(INPUT_SETTING_KEY));
+    return localStore(INPUT_SETTING_KEY, readInputSetting, DEFAULT_INPUT_SETTING);
+}
+
+function mountInputMenu(
+    inputSetting: GameViewDeps["inputSetting"],
+): ReturnType<typeof mountInDocumentAtCallPrompt> {
+    const mounted = mountInDocumentAtCallPrompt({ inputSetting });
+    press(mounted.host, ".game-menu__toggle");
+    return mounted;
+}
+
 describe("mountGameView settings", () => {
+    it("keeps right-click disabled across mounts without disabling Escape to pass", () => {
+        const inputSetting = inputSettingInBrowser();
+        const first = mountInputMenu(inputSetting);
+        expect(
+            first.host.querySelector(".game-menu__right-click")?.getAttribute("aria-checked"),
+        ).toBe("true");
+        press(first.host, ".game-menu__right-click");
+        expect(JSON.parse(localStorage.getItem(INPUT_SETTING_KEY) ?? "null")).toEqual({
+            rightClick: false,
+        });
+
+        const next = mountInputMenu(inputSetting);
+        expect(
+            next.host.querySelector(".game-menu__right-click")?.getAttribute("aria-checked"),
+        ).toBe("false");
+        pressKey(next.host, ".game-menu__right-click", "Escape");
+        pressKey(next.host, ".board-local .hand-tile", "Escape");
+        expect(next.connections[0].sent).toEqual([JOIN, buildPassAction(PROMPT_WAIT_ID)]);
+    });
+
     it("opens the sound switch and the status from the cog, keeps the switch in this browser, and closes on Escape, focusing the cog", () => {
         const { host, sound } = mountInDocumentAtCallPrompt({ soundSetting: { sound_on: false } });
 
