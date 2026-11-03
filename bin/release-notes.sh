@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="${1:?Usage: bin/release-notes.sh <version> <from-ref> <summary-file> [to-ref]}"
-from_ref="${2:?Usage: bin/release-notes.sh <version> <from-ref> <summary-file> [to-ref]}"
-summary_file="${3:?Usage: bin/release-notes.sh <version> <from-ref> <summary-file> [to-ref]}"
+usage="Usage: bin/release-notes.sh [--no-commits] <version> <from-ref> <summary-file> [to-ref]"
+
+list_commits=true
+if [[ "${1:-}" == "--no-commits" ]]; then
+    list_commits=false
+    shift
+fi
+
+version="${1:?$usage}"
+from_ref="${2:?$usage}"
+summary_file="${3:?$usage}"
 to_ref="${4:-HEAD}"
 
 repo_url="https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)"
@@ -49,10 +57,21 @@ echo
 cat "$summary_file"
 echo
 
-print_section "Features" "${features[@]}"
-print_section "Bug Fixes" "${bugs[@]}"
-print_section "Maintenance" "${maintenance[@]}"
-print_section "Other" "${other[@]}"
+if [[ "$list_commits" == true ]]; then
+    print_section "Features" "${features[@]}"
+    print_section "Bug Fixes" "${bugs[@]}"
+    print_section "Maintenance" "${maintenance[@]}"
+    print_section "Other" "${other[@]}"
+else
+    echo "## Changes"
+    echo
+    [[ ${#features[@]} -gt 0 ]] && echo "- Features: ${#features[@]}"
+    [[ ${#bugs[@]} -gt 0 ]] && echo "- Bug fixes: ${#bugs[@]}"
+    [[ ${#maintenance[@]} -gt 0 ]] && echo "- Maintenance: ${#maintenance[@]}"
+    [[ ${#other[@]} -gt 0 ]] && echo "- Other: ${#other[@]}"
+    echo "- Full changelog: ${repo_url}/compare/${from_ref}...${version}"
+    echo
+fi
 
 stats=$(git diff "${from_ref}..${to_ref}" --shortstat -- ':!*.lock' ':!package-lock.json' ':!*.svg' | sed 's/^ *//')
 echo "## Stats"

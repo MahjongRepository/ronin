@@ -11,6 +11,10 @@ on:
         description: Summary section of the release notes (markdown)
         type: string
         required: true
+      commits:
+        description: List every commit in the notes (off - counts and a compare link only)
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -80,9 +84,12 @@ jobs:
         id: commit
         env:
           LATEST: ${{ steps.validate.outputs.latest }}
+          COMMITS: ${{ inputs.commits }}
         run: |
           printf '%s\n' "$SUMMARY" > "$RUNNER_TEMP/summary.md"
-          bash bin/release-notes.sh "$VERSION" "$LATEST" "$RUNNER_TEMP/summary.md" > "$RUNNER_TEMP/notes.md"
+          flags=()
+          [[ "$COMMITS" == true ]] || flags+=(--no-commits)
+          bash bin/release-notes.sh "${flags[@]}" "$VERSION" "$LATEST" "$RUNNER_TEMP/summary.md" > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 

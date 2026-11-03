@@ -56,6 +56,8 @@ git push origin main            # only when AHEAD > 0
 gh workflow run create-release.yml --ref main -f version=<version> -F summary=@release-tmp.md
 ```
 
+For a release too large to list commit by commit (when the user asks, or past roughly a hundred commits), add `-f commits=false`: the notes then carry the summary, the commit count per group and a full-changelog compare link instead of every commit. The summary carries the release's story then, so write it to stand on its own.
+
 It prints the URL of the run it started, ending in `/actions/runs/<run-id>`. Watch that run, never the newest one in `gh run list`, which can be an earlier or concurrent dispatch:
 ```bash
 gh run watch <run-id> --exit-status
