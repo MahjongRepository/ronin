@@ -38,11 +38,12 @@ $cast-blur: 0.07;
             var(--ronin-tile-shine),
         inset calc(var(--bevel-x) * -1) calc(var(--bevel-y) * -1)
             calc(var(--unit) * #{$bevel-share * 1.5}) var(--ronin-tile-shade);
-    --tile-lift:
+    --tile-depth:
         var(--body-x) var(--body-y) 0 var(--ronin-tile-edge),
         var(--back-x) var(--back-y) 0 var(--ronin-tile-back-edge),
         var(--cast-x) var(--cast-y) calc(var(--unit) * #{$cast-blur})
             calc(var(--unit) * #{-$cast-blur}) var(--ronin-tile-shadow);
+    --tile-lift: var(--tile-depth);
 
     display: inline-block;
     width: var(--tile-w);
@@ -157,11 +158,27 @@ $corner-share: 0.09;
 
 .board-strip--left,
 .board-strip--right {
+    .hand {
+        isolation: isolate;
+        filter: none;
+    }
+
+    .hand-tile > .tile {
+        position: relative;
+
+        &::after {
+            content: "";
+            position: absolute;
+            z-index: layer(tile-depth);
+            inset: 0;
+            border-radius: inherit;
+            box-shadow: var(--tile-depth);
+        }
+    }
+
     .hand-tile + .hand-tile > .tile {
         --seam: var(--bgap);
         --seam-corner: calc(var(--tile-w) * #{$corner-share});
-
-        position: relative;
 
         &::before {
             content: "";

@@ -15,6 +15,7 @@ $win-rise: 4px;
 
 /* Every layer, low to high; `.game-board` isolates the board's from the page's. */
 $layers: (
+    tile-depth: -2,
     below: -1,
     table: 1,
     badges: 2,

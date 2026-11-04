@@ -41,6 +41,7 @@ import {
     WIDER_PHONES,
     WORST_CASES,
 } from "../viewports.ts";
+import { checkSeparatedHandDepth } from "./hand-depth.ts";
 
 /** The smallest face-up tile of another seat's hand or melds in landscape, in CSS pixels: readable at a glance. */
 const MIN_OPPONENT_FACE: Size = { height: 17, width: 13 };
@@ -67,6 +68,14 @@ const DOCUMENT_AT = { at: [UPRIGHT_PHONE] } as const;
  * floor, where density binds, or also where its own path does.
  */
 const PAGES: readonly PageCase[] = [
+    ...["concealed_hands", "full_hands"].map((state): PageCase => ({
+        at: [MID_DESKTOP, FLOOR],
+        check: checkSeparatedHandDepth,
+        kind: "own",
+        name: `board-hand-depth-${state}`,
+        path: `/play/storybook/board?state=${state}`,
+        required: { visible: [".board-strip--right .hand .tile"] },
+    })),
     { ...documentCase("storybook", "/play/storybook", ".storybook .tile"), ...DOCUMENT_AT },
     {
         ...documentCase("storybook-hand", "/play/storybook/hand", ".storybook .hand .tile"),
