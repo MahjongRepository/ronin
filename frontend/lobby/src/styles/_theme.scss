@@ -33,20 +33,7 @@
     --pico-secondary-hover-background: #36332e;
     --pico-secondary-hover-border: #4a463f;
     --pico-secondary-inverse: #e8e4df;
-    --pico-contrast: #e8e4df;
-    --pico-contrast-hover: #f5f3ef;
-    --pico-contrast-underline: color-mix(in srgb, var(--pico-contrast) 50%, transparent);
-    --pico-contrast-hover-underline: var(--pico-contrast-hover);
-    --pico-contrast-focus: transparent;
-    --pico-contrast-background: #e8e4df;
-    --pico-contrast-border: var(--pico-contrast-background);
-    --pico-contrast-hover-background: #f5f3ef;
-    --pico-contrast-hover-border: var(--pico-contrast-hover-background);
-    --pico-contrast-inverse: #0e0f13;
-    --pico-code-color: var(--ronin-text-secondary);
-    --pico-code-background-color: #1c1e2a;
     --pico-form-element-background-color: #131419;
-    --pico-form-element-selected-background-color: var(--ronin-surface-elevated);
     --pico-form-element-active-background-color: #17181e;
     --pico-form-element-border-color: var(--ronin-control-border);
     --pico-form-element-active-border-color: var(--ronin-control-border);
@@ -56,11 +43,7 @@
     --pico-form-element-invalid-border-color: var(--ronin-danger);
     --pico-form-element-invalid-active-border-color: var(--ronin-danger-text);
     --pico-form-element-invalid-focus-color: transparent;
-    --pico-form-element-valid-border-color: var(--ronin-success);
-    --pico-form-element-valid-active-border-color: var(--ronin-success);
-    --pico-form-element-valid-focus-color: transparent;
     --pico-icon-invalid: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23d45454' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E");
-    --pico-icon-valid: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%237bb88a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
     --pico-del-color: #d45454;
 }
 
@@ -137,12 +120,6 @@ h6 {
     font-family: var(--ronin-font-display);
 }
 
-code,
-kbd,
-pre {
-    font-family: var(--ronin-font-mono);
-}
-
 p,
 address,
 blockquote,
@@ -162,7 +139,6 @@ hgroup > :not(:first-child):last-child {
 
 button,
 [type="submit"],
-[type="reset"],
 [type="button"],
 [role="button"] {
     font-family: var(--ronin-font-display);
@@ -176,7 +152,7 @@ a[role="button"] {
     justify-content: center;
 }
 
-:where(a, button, [role="button"], input, select, textarea, summary, [tabindex]):focus-visible {
+:where(a, button, [role="button"], input, [tabindex]):focus-visible {
     outline: 2px solid var(--pico-primary);
     outline-offset: 2px;
 }
@@ -190,13 +166,12 @@ a[role="button"] {
     }
 }
 
-:is(button, [type="submit"], [type="reset"], [type="button"], [role="button"]):is(
+:is(button, [type="submit"], [type="button"], [role="button"]):is(
     :disabled,
     [aria-disabled="true"]
 ) {
     &,
     &.secondary,
-    &.contrast,
     &.outline,
     &.outline.secondary {
         --pico-background-color: var(--ronin-surface-overlay);

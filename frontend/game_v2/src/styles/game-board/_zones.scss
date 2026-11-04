@@ -1,7 +1,5 @@
 @use "@/styles/game-board/grid" as *;
 
-/* The surface and its zones run on under a page's edges to the screen's edges the board meets (never toward an aside
-   but a storybook's, past its margin); the zones keep the board's lengths, offset by the edges passed. */
 .board-zones {
     --ox: 0px;
     --oy: 0px;
@@ -20,9 +18,6 @@
     .board-page & {
         --ox: var(--page-edge-left);
         --oy: var(--page-edge-top);
-    }
-
-    :is(.board-page:not(:has(> .board-page__aside)), .board-storybook, .decisions-storybook) & {
         --or: var(--page-edge-right);
         --ob: var(--page-edge-bottom);
     }

@@ -104,27 +104,3 @@ $rotate-below-width: 600px;
         display: none;
     }
 }
-
-#app:has(.rotate-storybook) {
-    max-width: none;
-    padding: 0;
-}
-
-.rotate-storybook {
-    display: flex;
-    flex-direction: column;
-    min-height: 100dvh;
-
-    .rotate-panel {
-        flex: 1;
-    }
-}
-
-.rotate-storybook__stories {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.4rem;
-    padding: 0.5rem max(0.5rem, var(--ronin-safe-right)) max(0.5rem, var(--ronin-safe-bottom))
-        max(0.5rem, var(--ronin-safe-left));
-}

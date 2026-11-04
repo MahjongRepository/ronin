@@ -19,6 +19,8 @@ The route table in `server/app.py` is the API reference; `rooms/AGENTS.md` cover
 * `views/error_pages.py` — every error answer, the failed CSRF check included: a browser (`Accept: text/html`) gets
   `error.html` through `render_page`, any other client plain text; the 500 handler runs outside the middleware, so
   `create_app()` wraps it to add the security headers.
+* Storybook pages and footer links are development-only. Released servers return 404 for both
+  lobby and game storybooks, including direct requests to game storybook paths.
 * `i18n/` — the en/ja/ru catalogs, loaded and cross-checked in `create_app()` (the lobby refuses to start on a
   bad catalog), the locale resolver and the `Translator` (`docs/i18n.md` is the contract). A page's locale is the
   `lang` cookie, else `Accept-Language`, else en, resolved once per request onto `request.state`; templates get

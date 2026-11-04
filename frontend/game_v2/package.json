@@ -12,13 +12,14 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "build:dev": "NODE_ENV=development vite build --mode development --outDir dist-dev",
         "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.scripts.json",
         "lint": "oxlint --deny-warnings . && stylelint 'src/**/*.scss' && node scripts/check-build.ts",
         "lint:fix": "oxlint --fix . && stylelint --fix 'src/**/*.scss'",
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
         "sprite": "node scripts/build-tile-sprite.ts",
-        "visual-check": "vite build && node scripts/visual-check/run.ts",
+        "visual-check": "npm run build:dev && node scripts/visual-check/run.ts",
         "test": "vitest run --coverage",
         "test:watch": "vitest"
     },

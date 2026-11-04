@@ -30,7 +30,9 @@ The board's look is `docs/game-client-look.md`; where it and any `AGENTS.md` or 
   (`tableStateToDisplayState`, `tablePanel`, `playDisplay`, `replayDisplay`), never computed in a view or component.
   Every playable tile is a native button whatever its state.
 * A new route also needs its path in the lobby's game page list (`backend/lobby/server/app.py`), which 404s others.
-  The replay and storybook are lazy routes, so neither ships to a player who only plays.
+  The replay is a lazy route. Storybook routes, fixtures and styles are development-only and the
+  production build check rejects them. `npm run build:dev` builds them into `dist-dev/` for visual checks;
+  `npm run build` keeps `dist/` production-only.
 * `package.json` `sideEffects` lists every module with an import-time effect; a new one goes there or the build drops it.
 * UI text is English literals; there are no catalogs. Game logic uses protocol codes and ids, never displayed text.
 

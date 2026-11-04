@@ -7,8 +7,12 @@ This is Ronin's independently maintained copy. Edit these sources directly; we d
 with upstream. No npm package or regeneration step owns them. Only the modules selected by
 `src/styles/_pico.scss` and their transitive Sass dependencies were copied. Their source, import order, theme behavior and CSS variable names
 were preserved, including the supporting palette and settings definitions. Disabled component
-implementations are absent. The initial extraction deliberately retains all previously enabled
-modules so it changes no styling; unused rules can be removed separately.
+implementations are absent. The lobby now emits only the forced dark scheme: the light theme and
+automatic dark copy are removed because every lobby page sets `data-theme="dark"`.
+
+The form subset covers the lobby's text/password inputs, invalid-password feedback and the
+chat input/button group. Unused control types, contrast variants, grid and overflow utilities
+are removed. Code formatting is imported only by the development stylesheet for storybook prose.
 
 Preserve the original `LICENSE.md` here and its full notice in the app's
 `legal/THIRD_PARTY_NOTICES.txt`. Vite copies `legal/` into `dist/`, so the notice accompanies the

@@ -50,14 +50,13 @@ http:
       middlewares: ["security-headers", "replay-ratelimit", "compress-text"]
       priority: 15
 
-    # Game assets — aggressive caching headers + HSTS
-    game-assets:
-      rule: "Host(`%%DOMAIN%%`) && PathPrefix(`/game-assets/`)"
+    hashed-assets:
+      rule: "Host(`%%DOMAIN%%`) && (PathPrefix(`/lobby-assets/assets/`) || PathPrefix(`/game-assets/v2/assets/`))"
       entryPoints: ["websecure"]
       service: lobby
       tls:
         certResolver: letsencrypt
-      middlewares: ["security-headers", "game-assets-cache", "compress-text"]
+      middlewares: ["security-headers", "hashed-assets-cache", "compress-text"]
       priority: 15
 
     # Lobby catch-all (all other paths) — lowest priority
@@ -108,9 +107,7 @@ http:
         period: 10s
         burst: 10
 
-    # Starlette's StaticFiles does not set Cache-Control by default.
-    # This header is set at the proxy layer for content-hashed game assets.
-    game-assets-cache:
+    hashed-assets-cache:
       headers:
         customResponseHeaders:
           Cache-Control: "public, max-age=31536000, immutable"

@@ -68,21 +68,6 @@
       #{$css-var-prefix}form-label-font-weight: var(#{$css-var-prefix}font-weight);
     }
 
-    // Group (role="group")
-    @if map.get($modules, "components/group") {
-      #{$css-var-prefix}group-box-shadow: 0 0 0 rgba(0, 0, 0, 0);
-      #{$css-var-prefix}group-box-shadow-focus-with-button: 0
-        0
-        0
-        var(#{$css-var-prefix}outline-width)
-        var(#{$css-var-prefix}primary-focus);
-      #{$css-var-prefix}group-box-shadow-focus-with-input: 0
-        0
-        0
-        0.0625rem
-        var(#{$css-var-prefix}form-element-border-color);
-    }
-
     // Modal (<dialog>)
     @if map.get($modules, "components/modal") {
       #{$css-var-prefix}modal-overlay-backdrop-filter: blur(0.375rem);
@@ -104,8 +89,7 @@
     }
 
     // Chevron icons
-    @if map.get($modules, "forms/basics") or
-      map.get($modules, "components/accordion") or
+    @if map.get($modules, "components/accordion") or
       map.get($modules, "components/dropdown")
     {
       #{$css-var-prefix}icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#{functions.display-rgb($zinc-400)}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -215,10 +199,8 @@
     a {
       #{$css-var-prefix}text-decoration: underline;
 
-      // Secondary & Contrast
       @if $enable-classes {
-        &.secondary,
-        &.contrast {
+        &.secondary {
           #{$css-var-prefix}text-decoration: underline;
         }
       }
@@ -305,21 +287,8 @@
     }
   }
 
-  // Inputs and Selects
-  input:not(
-      [type="submit"],
-      [type="button"],
-      [type="reset"],
-      [type="checkbox"],
-      [type="radio"],
-      [type="file"]
-    ),
-  :where(select, textarea) {
+  input {
     #{$css-var-prefix}outline-width: 0.0625rem;
-  }
-
-  [type="search"] {
-    #{$css-var-prefix}border-radius: 5rem;
   }
 
   // Checkboxes, Radios and Switches
@@ -346,51 +315,6 @@
         summary:focus-visible {
           #{$css-var-prefix}outline-width: 0.125rem;
         }
-      }
-    }
-  }
-
-  // Group (role="group")
-  @if map.get($modules, "components/group") {
-    [role="search"] {
-      #{$css-var-prefix}border-radius: 5rem;
-    }
-
-    [role="search"],
-    [role="group"] {
-      @if $enable-classes {
-        &:has(
-            button.secondary:focus,
-            [type="submit"].secondary:focus,
-            [type="button"].secondary:focus,
-            [role="button"].secondary:focus
-          ) {
-          #{$css-var-prefix}group-box-shadow-focus-with-button: 0
-            0
-            0
-            var(#{$css-var-prefix}outline-width)
-            var(#{$css-var-prefix}secondary-focus);
-        }
-
-        &:has(
-            button.contrast:focus,
-            [type="submit"].contrast:focus,
-            [type="button"].contrast:focus,
-            [role="button"].contrast:focus
-          ) {
-          #{$css-var-prefix}group-box-shadow-focus-with-button: 0
-            0
-            0
-            var(#{$css-var-prefix}outline-width)
-            var(#{$css-var-prefix}contrast-focus);
-        }
-      }
-
-      button,
-      [type="submit"],
-      [type="button"],
-      [role="button"] {
-        #{$css-var-prefix}form-element-spacing-horizontal: 2rem;
       }
     }
   }

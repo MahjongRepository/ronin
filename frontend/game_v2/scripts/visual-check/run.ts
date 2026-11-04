@@ -35,7 +35,7 @@ import { FLOOR, VIEWPORTS, checkCaptureModel, emulateInsets } from "./viewports.
 
 /**
  * The v2 client's targeted layout check: the pages and viewports a run names, never a sweep of all of them. It builds
- * nothing itself: it serves the built `dist/` (the app page for every `/play/` path, as the lobby does), a replay
+ * nothing itself: it serves the development build in `dist-dev/` (the app page for every `/play/` path), a replay
  * fixture under the replay API and a seat transcript over a mocked game socket, then loads the selected pages and
  * asserts what a player would see: content visible, nothing overlapping, everything inside the board and the screen,
  * readable text and tappable tiles. Any console error, failed request or missing element fails it. It writes a

@@ -24,6 +24,10 @@ time, except chat lines, which keep the language they arrived in.
 Vite builds one entry, `src/index.ts`, with a manifest; the lobby backend serves `dist/` under
 `/lobby-assets/` and maps the entry's script and stylesheet into its templates from the manifest, or
 from this app's Vite dev server under `make run-local-server` (`backend/lobby/AGENTS.md`).
+The stylesheet emits only the forced dark scheme. Storybook and developer-footer styles load
+through a development-only import; the production build check rejects them and unused theme schemes.
+Pico's form styles are trimmed to the lobby's inputs and chat composer. Extend this local subset
+when adding a control; do not reintroduce entire upstream form or layout modules for one element.
 
 ## Handoff
 

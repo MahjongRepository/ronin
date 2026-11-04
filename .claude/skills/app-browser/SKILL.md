@@ -119,7 +119,7 @@ then it checks the page as well as shooting it, the notch phone's insets and cap
 included, with no backend:
 
 ```bash
-cd frontend/game_v2 && npx vite build
+cd frontend/game_v2 && npm run build:dev
 node scripts/visual-check/run.ts --page decisions-anchor-call --viewport phone-se-landscape --shots ../../thoughts/screenshots/<topic>
 ```
 

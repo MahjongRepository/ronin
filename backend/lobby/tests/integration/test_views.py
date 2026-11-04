@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
@@ -13,6 +14,9 @@ from lobby.tests.conftest import make_player, open_client
 from lobby.tests.integration.conftest import register_with_csrf
 from lobby.views.history_handlers import HISTORY_GAMES_LIMIT
 from shared.dal.models import GameEndReason, PlayedGame, PlayedGameStanding
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _GAME_CLIENT_INDEX = '<div id="app"></div><script type="module" src="/game-assets/v2/assets/index-v2.js"></script>'
 
@@ -78,6 +82,8 @@ class TestLobbyViews:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "Ronin" in response.text
+        assert 'href="/storybook"' in response.text
+        assert 'href="/play/storybook"' in response.text
 
     def test_lobby_page__when_visited__should_include_css_link(self, client):
         response = client.get("/")
@@ -254,6 +260,31 @@ class TestLobbyViews:
         assert "Typography" in response.text
         assert "Buttons" in response.text
         assert "Table cards" in response.text
+
+
+def test_login_page__when_production__should_omit_storybook_links(
+    make_app: Callable[..., Starlette],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
+    with open_client(make_app()) as client:
+        response = client.get("/login")
+        assert response.status_code == 200
+        assert 'href="/storybook"' not in response.text
+        assert 'href="/play/storybook"' not in response.text
+        assert "footer-dev-links" not in response.text
+
+
+@pytest.mark.parametrize("path", ["/storybook", "/play/storybook", "/play/storybook/board"])
+def test_storybook_page__when_production__should_return_not_found(
+    make_app: Callable[..., Starlette],
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+):
+    monkeypatch.setattr("lobby.server.app.APP_VERSION", "1.0.0")
+    with open_client(make_app()) as client:
+        response = client.get(path)
+        assert response.status_code == 404
 
 
 _DEV_GAME_CLIENT_PAGE = '<script type="module" src="/game-assets/v2/@vite/client"></script>'

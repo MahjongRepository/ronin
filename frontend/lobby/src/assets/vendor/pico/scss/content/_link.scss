@@ -48,16 +48,6 @@
         }
       }
 
-      // Contrast
-      &.contrast {
-        #{$css-var-prefix}color: var(#{$css-var-prefix}contrast);
-        #{$css-var-prefix}underline: var(#{$css-var-prefix}contrast-underline);
-
-        &:is([aria-current]:not([aria-current="false"]), :hover, :active, :focus) {
-          #{$css-var-prefix}color: var(#{$css-var-prefix}contrast-hover);
-          #{$css-var-prefix}underline: var(#{$css-var-prefix}contrast-hover-underline);
-        }
-      }
     }
   }
 

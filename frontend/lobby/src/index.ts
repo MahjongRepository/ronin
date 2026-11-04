@@ -3,6 +3,10 @@ import { initGamesCopyLinkButtons, showGameTimesInLocalTime } from "@/games-hist
 import { initMatchmakingPage } from "@/matchmaking";
 import { initRoomPage } from "@/room";
 
+if (import.meta.env.DEV) {
+    void import("@/styles/development.scss");
+}
+
 const roomContainer = document.getElementById("room-app");
 if (roomContainer) {
     initRoomPage(roomContainer);

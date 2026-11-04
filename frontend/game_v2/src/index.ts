@@ -174,38 +174,41 @@ function storybookRoute(
     return lazyRoute(pattern, async () => pick(await import("@/views/storybook-routes")));
 }
 
+function createStorybookRoutes(): Route[] {
+    return [
+        lazyRoute(/^\/play\/storybook\/sounds$/, async () => {
+            const { mountStorybookSounds } = await import("@/views/storybook-sounds");
+            return (host) =>
+                mountStorybookSounds(host, {
+                    play: gameSound().play,
+                    sounds: GAME_SOUNDS,
+                });
+        }),
+        storybookRoute(/^\/play\/storybook\/board$/, (routes) => routes.mountStorybookBoard),
+        storybookRoute(
+            /^\/play\/storybook\/decisions$/,
+            (routes) => routes.mountStorybookDecisions,
+        ),
+        storybookRoute(/^\/play\/storybook\/discards$/, (routes) => routes.mountStorybookDiscards),
+        storybookRoute(/^\/play\/storybook\/hand$/, (routes) => routes.mountStorybookHand),
+        storybookRoute(/^\/play\/storybook\/melds$/, (routes) => routes.mountStorybookMelds),
+        storybookRoute(/^\/play\/storybook\/replay$/, (routes) => routes.mountStorybookReplay),
+        storybookRoute(/^\/play\/storybook\/rotate$/, (routes) => routes.mountStorybookRotate),
+        storybookRoute(/^\/play\/storybook$/, (routes) => routes.mountStorybookIndex),
+    ];
+}
+
 const app = document.getElementById("app");
 if (app) {
     const tileSprite = startTileSprite();
     startRouter(
         app,
         [
-            lazyRoute(/^\/play\/storybook\/sounds$/, async () => {
-                const { mountStorybookSounds } = await import("@/views/storybook-sounds");
-                return (host) =>
-                    mountStorybookSounds(host, {
-                        play: gameSound().play,
-                        sounds: GAME_SOUNDS,
-                    });
-            }),
+            ...(import.meta.env.DEV ? createStorybookRoutes() : []),
             lazyRoute(/^\/play\/history\/(?<gameId>[^/]+)$/, async () => {
                 const { mountReplayView } = await import("@/views/replay");
                 return (host, params) => mountReplayView(host, params.gameId, replayDeps());
             }),
-            storybookRoute(/^\/play\/storybook\/board$/, (routes) => routes.mountStorybookBoard),
-            storybookRoute(
-                /^\/play\/storybook\/decisions$/,
-                (routes) => routes.mountStorybookDecisions,
-            ),
-            storybookRoute(
-                /^\/play\/storybook\/discards$/,
-                (routes) => routes.mountStorybookDiscards,
-            ),
-            storybookRoute(/^\/play\/storybook\/hand$/, (routes) => routes.mountStorybookHand),
-            storybookRoute(/^\/play\/storybook\/melds$/, (routes) => routes.mountStorybookMelds),
-            storybookRoute(/^\/play\/storybook\/replay$/, (routes) => routes.mountStorybookReplay),
-            storybookRoute(/^\/play\/storybook\/rotate$/, (routes) => routes.mountStorybookRotate),
-            storybookRoute(/^\/play\/storybook$/, (routes) => routes.mountStorybookIndex),
             {
                 mount: (host, params) =>
                     mountGameView(host, params.gameId, liveGameDeps(params.gameId, tileSprite)),

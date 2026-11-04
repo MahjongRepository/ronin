@@ -80,37 +80,3 @@
         }
     }
 }
-
-.footer-dev-links {
-    grid-area: dev;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 1rem;
-
-    @media (width <= 576px) {
-        justify-content: flex-start;
-    }
-
-    a {
-        font-family: var(--ronin-font-mono);
-        font-size: 0.7rem;
-        color: var(--pico-muted-color);
-        text-decoration: none;
-
-        &:hover {
-            color: var(--pico-primary);
-        }
-    }
-
-    @media (width <= 576px), (pointer: coarse) {
-        gap: 0 1.25rem;
-
-        a {
-            display: inline-flex;
-            align-items: center;
-            min-height: var(--ronin-touch-target);
-            font-size: 0.75rem;
-        }
-    }
-}

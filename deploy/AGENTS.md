@@ -53,6 +53,9 @@ which holds the domain). `README.md` is the runbook for a new server and lists t
   serving them, never the WebSocket ones; the apps add no GZip middleware. HTML and JSON stay out of
   the allowlist (BREACH): pages carry a CSRF token beside reflected input, bot API answers carry keys.
   A response the app already encodes (the gzip replay files) passes through as is.
+* Immutable asset caching applies only to the Vite-generated `assets/` directories of the lobby
+  and game client, whose filenames contain content hashes. Entry HTML, manifests and public files
+  outside those directories must not receive that policy.
 * Per-service settings live in compose `environment:`, secrets only in `.env`. A deployment-specific
   setting has no default (`backend/AGENTS.md`), so a new one must be added here or the service fails
   to start and the deploy's health gate stops. A release that adds, renames or removes a required

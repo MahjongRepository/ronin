@@ -24,7 +24,6 @@
   // Correct the inability to style buttons in iOS and Safari
   #{$parent-selector} button,
   #{$parent-selector} [type="submit"],
-  #{$parent-selector} [type="reset"],
   #{$parent-selector} [type="button"] {
     -webkit-appearance: button;
   }
@@ -34,9 +33,7 @@
 
   #{$parent-selector} button,
   #{$parent-selector} [type="submit"],
-  #{$parent-selector} [type="reset"],
   #{$parent-selector} [type="button"],
-  #{$parent-selector} [type="file"]::file-selector-button,
   #{$parent-selector} [role="button"] {
     #{$css-var-prefix}background-color: var(#{$css-var-prefix}primary-background);
     #{$css-var-prefix}border-color: var(#{$css-var-prefix}primary-border);
@@ -86,17 +83,13 @@
   }
 
   #{$parent-selector} [type="submit"],
-  #{$parent-selector} [type="reset"],
   #{$parent-selector} [type="button"] {
     margin-bottom: var(#{$css-var-prefix}spacing);
   }
 
-  // .secondary, .contrast & .outline
   @if $enable-classes {
     // Secondary
-    #{$parent-selector} :is(button, [type="submit"], [type="button"], [role="button"]).secondary,
-    #{$parent-selector} [type="reset"],
-    #{$parent-selector} [type="file"]::file-selector-button {
+    #{$parent-selector} :is(button, [type="submit"], [type="button"], [role="button"]).secondary {
       #{$css-var-prefix}background-color: var(#{$css-var-prefix}secondary-background);
       #{$css-var-prefix}border-color: var(#{$css-var-prefix}secondary-border);
       #{$css-var-prefix}color: var(#{$css-var-prefix}secondary-inverse);
@@ -116,29 +109,8 @@
       }
     }
 
-    // Contrast
-    #{$parent-selector} :is(button, [type="submit"], [type="button"], [role="button"]).contrast {
-      #{$css-var-prefix}background-color: var(#{$css-var-prefix}contrast-background);
-      #{$css-var-prefix}border-color: var(#{$css-var-prefix}contrast-border);
-      #{$css-var-prefix}color: var(#{$css-var-prefix}contrast-inverse);
-
-      &:is([aria-current]:not([aria-current="false"]), :hover, :active, :focus) {
-        #{$css-var-prefix}background-color: var(#{$css-var-prefix}contrast-hover-background);
-        #{$css-var-prefix}border-color: var(#{$css-var-prefix}contrast-hover-border);
-        #{$css-var-prefix}color: var(#{$css-var-prefix}contrast-inverse);
-      }
-
-      &:focus,
-      &:is([aria-current]:not([aria-current="false"])):focus {
-        #{$css-var-prefix}box-shadow:
-          var(#{$css-var-prefix}button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0)),
-          0 0 0 var(#{$css-var-prefix}outline-width) var(#{$css-var-prefix}contrast-focus);
-      }
-    }
-
     // Outline (primary)
-    #{$parent-selector} :is(button, [type="submit"], [type="button"], [role="button"]).outline,
-    [type="reset"].outline {
+    #{$parent-selector} :is(button, [type="submit"], [type="button"], [role="button"]).outline {
       #{$css-var-prefix}background-color: transparent;
       #{$css-var-prefix}color: var(#{$css-var-prefix}primary);
       #{$css-var-prefix}border-color: var(#{$css-var-prefix}primary);
@@ -152,8 +124,7 @@
 
     // Outline (secondary)
     #{$parent-selector}
-      :is(button, [type="submit"], [type="button"], [role="button"]).outline.secondary,
-    [type="reset"].outline {
+      :is(button, [type="submit"], [type="button"], [role="button"]).outline.secondary {
       #{$css-var-prefix}color: var(#{$css-var-prefix}secondary);
       #{$css-var-prefix}border-color: var(#{$css-var-prefix}secondary);
 
@@ -162,47 +133,11 @@
         #{$css-var-prefix}border-color: var(#{$css-var-prefix}secondary-hover);
       }
     }
-
-    // Outline (contrast)
-    #{$parent-selector}
-      :is(button, [type="submit"], [type="button"], [role="button"]).outline.contrast {
-      #{$css-var-prefix}color: var(#{$css-var-prefix}contrast);
-      #{$css-var-prefix}border-color: var(#{$css-var-prefix}contrast);
-
-      &:is([aria-current]:not([aria-current="false"]), :hover, :active, :focus) {
-        #{$css-var-prefix}color: var(#{$css-var-prefix}contrast-hover);
-        #{$css-var-prefix}border-color: var(#{$css-var-prefix}contrast-hover);
-      }
-    }
-  } @else {
-    // Secondary button without .class
-    #{$parent-selector} [type="reset"],
-    #{$parent-selector} [type="file"]::file-selector-button {
-      #{$css-var-prefix}background-color: var(#{$css-var-prefix}secondary-background);
-      #{$css-var-prefix}border-color: var(#{$css-var-prefix}secondary-border);
-      #{$css-var-prefix}color: var(#{$css-var-prefix}secondary-inverse);
-      cursor: pointer;
-
-      &:is([aria-current]:not([aria-current="false"]), :hover, :active, :focus) {
-        #{$css-var-prefix}background-color: var(#{$css-var-prefix}secondary-hover-background);
-        #{$css-var-prefix}border-color: var(#{$css-var-prefix}secondary-hover-border);
-        #{$css-var-prefix}color: var(#{$css-var-prefix}secondary-inverse);
-      }
-
-      &:focus {
-        #{$css-var-prefix}box-shadow:
-          var(#{$css-var-prefix}button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0)),
-          0 0 0 var(#{$css-var-prefix}outline-width) var(#{$css-var-prefix}secondary-focus);
-      }
-    }
   }
 
   // Button [disabled]
   #{$parent-selector}
-    :where(button, [type="submit"], [type="reset"], [type="button"], [role="button"])[disabled],
-  #{$parent-selector}
-    :where(fieldset[disabled])
-    :is(button, [type="submit"], [type="button"], [type="reset"], [role="button"]) {
+    :where(button, [type="submit"], [type="button"], [role="button"])[disabled] {
     opacity: 0.5;
     pointer-events: none;
   }

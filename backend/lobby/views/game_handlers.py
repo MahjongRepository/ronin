@@ -5,6 +5,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import structlog
+from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 from lobby.game_transition import GameLookupError, find_game_handoff
@@ -27,6 +28,10 @@ async def play_page(request: Request) -> Response:
     """
     GET /play/* — serve the game client's page; the client routes the path itself.
     """
+    path = request.url.path
+    if not request.app.state.dev_mode and (path == "/play/storybook" or path.startswith("/play/storybook/")):
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND)
+
     game_client: GameClient = request.app.state.game_client
     return await game_client.serve_page()
 

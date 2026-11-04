@@ -9,7 +9,7 @@ import { GAME_ID, LIVE_CHECKPOINTS, type Viewport } from "./model.ts";
 import { FONT_EXTENSION } from "./text.ts";
 
 export const APP_ROOT = resolve(import.meta.dirname, "../..");
-const DIST = join(APP_ROOT, "dist");
+const DIST = join(APP_ROOT, "dist-dev");
 const ASSET_PREFIX = "/game-assets/v2/";
 const REPLAY_FIXTURE = join(APP_ROOT, "src/fixtures/replays/four_kans.txt");
 const TRANSCRIPT_FIXTURE = join(APP_ROOT, "src/fixtures/seat-scenarios/call_prompt_seat_1.json");

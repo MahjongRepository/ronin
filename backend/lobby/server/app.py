@@ -344,6 +344,7 @@ def _attach_state(  # noqa: PLR0913
     env_globals["dev_mode"] = dev_mode
 
     app.state.templates = templates
+    app.state.dev_mode = dev_mode
     app.state.auth_service = auth_service
     app.state.room_manager = room_manager
     app.state.matchmaking_manager = matchmaking_manager
